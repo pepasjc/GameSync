@@ -1,46 +1,76 @@
 import hashlib
 import re
+import time
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
-from app.models.save import BundleFile, SaveBundle
+from app.models.save import BundleFile, SaveBundle, is_hex_title_id, validate_any_title_id
 from app.services import storage
 from app.services.bundle import BundleError, create_bundle, parse_bundle
-import time 
+
 router = APIRouter()
 
-_TITLE_ID_RE = re.compile(r"^[0-9A-Fa-f]{16}$")
+# Accepts 16-char hex (3DS/DS) or 4-16 alphanumeric product codes (PSP/Vita)
+_TITLE_ID_RE = re.compile(r"^[0-9A-Za-z]{4,16}$")
 
 
 def _validate_title_id(title_id: str) -> str:
-    """Validate and normalize title ID to uppercase hex."""
-    if not _TITLE_ID_RE.match(title_id):
+    """Validate and normalize a title ID (hex or product code)."""
+    try:
+        return validate_any_title_id(title_id)
+    except ValueError:
         raise HTTPException(status_code=400, detail="Invalid title ID format")
-    return title_id.upper()
+
+
+def _console_id_from_request(request: Request, query_console_id: str = "") -> str:
+    """Extract console ID from header or query parameter."""
+    return (
+        query_console_id.strip()
+        or request.headers.get("X-Console-ID", "").strip()
+    )
 
 
 @router.get("/saves/{title_id}/meta")
-async def get_save_meta(title_id: str):
+async def get_save_meta(
+    title_id: str,
+    request: Request,
+    console_id: str = Query(""),
+):
     title_id = _validate_title_id(title_id)
-    meta = storage.get_metadata(title_id)
+    cid = _console_id_from_request(request, console_id)
+    meta = storage.get_metadata(title_id, cid)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
     return meta.to_dict()
 
 
+@router.get("/saves/{title_id}/consoles")
+async def list_save_consoles(title_id: str):
+    """List all console slots that have saves for a title."""
+    title_id = _validate_title_id(title_id)
+    consoles = storage.list_consoles(title_id)
+    if not consoles:
+        raise HTTPException(status_code=404, detail="No saves found for this title")
+    return {"title_id": title_id, "consoles": consoles}
+
+
 @router.get("/saves/{title_id}/raw")
-async def download_save_raw(title_id: str):
+async def download_save_raw(
+    title_id: str,
+    request: Request,
+    console_id: str = Query(""),
+):
     """Download raw save file (first file only) - for DS client compatibility."""
     title_id = _validate_title_id(title_id)
-    meta = storage.get_metadata(title_id)
+    cid = _console_id_from_request(request, console_id)
+    meta = storage.get_metadata(title_id, cid)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    files = storage.load_save_files(title_id)
+    files = storage.load_save_files(title_id, cid)
     if files is None or len(files) == 0:
         raise HTTPException(status_code=404, detail="Save data missing on disk")
 
-    # Return first file as raw binary (DS games typically have one save file)
     path, data = files[0]
     return Response(
         content=data,
@@ -55,17 +85,21 @@ async def download_save_raw(title_id: str):
 
 
 @router.get("/saves/{title_id}")
-async def download_save(title_id: str):
+async def download_save(
+    title_id: str,
+    request: Request,
+    console_id: str = Query(""),
+):
     title_id = _validate_title_id(title_id)
-    meta = storage.get_metadata(title_id)
+    cid = _console_id_from_request(request, console_id)
+    meta = storage.get_metadata(title_id, cid)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    files = storage.load_save_files(title_id)
+    files = storage.load_save_files(title_id, cid)
     if files is None:
         raise HTTPException(status_code=404, detail="Save data missing on disk")
 
-    # Build a bundle from stored files
     bundle_files = []
     for path, data in files:
         bundle_files.append(
@@ -77,11 +111,20 @@ async def download_save(title_id: str):
             )
         )
 
-    bundle = SaveBundle(
-        title_id=int(title_id, 16),
-        timestamp=meta.client_timestamp,
-        files=bundle_files,
-    )
+    # Use v3 bundle format for PSP/Vita (non-hex title IDs)
+    if is_hex_title_id(title_id):
+        bundle = SaveBundle(
+            title_id=int(title_id, 16),
+            timestamp=meta.client_timestamp,
+            files=bundle_files,
+        )
+    else:
+        bundle = SaveBundle(
+            title_id=0,
+            timestamp=meta.client_timestamp,
+            files=bundle_files,
+            title_id_str=title_id,
+        )
 
     bundle_data = create_bundle(bundle)
     return Response(
@@ -101,11 +144,10 @@ async def upload_save(
     request: Request,
     force: bool = Query(False),
     source: str = Query("3ds"),
+    console_id: str = Query(""),
 ):
     title_id = _validate_title_id(title_id)
-
-    # Get console ID from header
-    console_id = request.headers.get("X-Console-ID", "")
+    cid = _console_id_from_request(request, console_id)
 
     body = await request.body()
     if not body:
@@ -117,15 +159,15 @@ async def upload_save(
         raise HTTPException(status_code=400, detail=f"Invalid bundle: {e}")
 
     # Verify title ID in URL matches bundle
-    if bundle.title_id_hex != title_id:
+    if bundle.effective_title_id.upper() != title_id.upper():
         raise HTTPException(
             status_code=400,
-            detail=f"Title ID mismatch: URL={title_id}, bundle={bundle.title_id_hex}",
+            detail=f"Title ID mismatch: URL={title_id}, bundle={bundle.effective_title_id}",
         )
 
-    # Conflict check
+    # Conflict check (per console slot)
     if not force:
-        existing = storage.get_metadata(title_id)
+        existing = storage.get_metadata(title_id, cid)
         if existing and existing.client_timestamp >= bundle.timestamp:
             raise HTTPException(
                 status_code=409,
@@ -136,7 +178,7 @@ async def upload_save(
                 },
             )
 
-    meta = storage.store_save(bundle, source=source, console_id=console_id)
+    meta = storage.store_save(bundle, source=source, console_id=cid)
     return {
         "status": "ok",
         "timestamp": meta.last_sync,
@@ -149,19 +191,16 @@ async def upload_save_raw(
     title_id: str,
     request: Request,
     force: bool = Query(False),
+    console_id: str = Query(""),
 ):
-    """Upload raw save file - wraps into bundle format for compatibility with 3DS client."""
+    """Upload raw save file - wraps into bundle format for DS/PSP compatibility."""
     title_id = _validate_title_id(title_id)
-
-    # Get console ID from header
-    console_id = request.headers.get("X-Console-ID", "")
+    cid = _console_id_from_request(request, console_id)
 
     body = await request.body()
     if not body:
         raise HTTPException(status_code=400, detail="Empty request body")
 
-    # Wrap raw save data into a bundle with a single file
-    # Use standard save.bin filename for compatibility
     timestamp = int(time.time())
 
     bundle_file = BundleFile(
@@ -171,15 +210,22 @@ async def upload_save_raw(
         data=body,
     )
 
-    bundle = SaveBundle(
-        title_id=int(title_id, 16),
-        timestamp=timestamp,
-        files=[bundle_file],
-    )
+    if is_hex_title_id(title_id):
+        bundle = SaveBundle(
+            title_id=int(title_id, 16),
+            timestamp=timestamp,
+            files=[bundle_file],
+        )
+    else:
+        bundle = SaveBundle(
+            title_id=0,
+            timestamp=timestamp,
+            files=[bundle_file],
+            title_id_str=title_id,
+        )
 
-    # Conflict check
     if not force:
-        existing = storage.get_metadata(title_id)
+        existing = storage.get_metadata(title_id, cid)
         if existing and existing.client_timestamp >= timestamp:
             raise HTTPException(
                 status_code=409,
@@ -190,7 +236,7 @@ async def upload_save_raw(
                 },
             )
 
-    meta = storage.store_save(bundle, source="nds", console_id=console_id)
+    meta = storage.store_save(bundle, source="raw", console_id=cid)
     return {
         "status": "ok",
         "timestamp": meta.last_sync,
@@ -199,30 +245,40 @@ async def upload_save_raw(
 
 
 @router.get("/saves/{title_id}/history")
-async def list_save_history(title_id: str):
+async def list_save_history(
+    title_id: str,
+    request: Request,
+    console_id: str = Query(""),
+):
     """List all available history versions for a title."""
     title_id = _validate_title_id(title_id)
+    cid = _console_id_from_request(request, console_id)
 
-    if not storage.title_exists(title_id):
+    if not storage.title_exists(title_id, cid):
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    history = storage.list_history(title_id)
-    return {"title_id": title_id, "versions": history}
+    history = storage.list_history(title_id, cid)
+    return {"title_id": title_id, "console_id": cid, "versions": history}
 
 
 @router.get("/saves/{title_id}/history/{timestamp}")
-async def download_save_history(title_id: str, timestamp: int):
+async def download_save_history(
+    title_id: str,
+    timestamp: int,
+    request: Request,
+    console_id: str = Query(""),
+):
     """Download a specific history version as a bundle."""
     title_id = _validate_title_id(title_id)
+    cid = _console_id_from_request(request, console_id)
 
-    if not storage.title_exists(title_id):
+    if not storage.title_exists(title_id, cid):
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    files = storage.load_history_version_by_unix_ts(title_id, timestamp)
+    files = storage.load_history_version_by_unix_ts(title_id, timestamp, cid)
     if files is None or len(files) == 0:
         raise HTTPException(status_code=404, detail="History version not found")
 
-    # Build a bundle from history files
     bundle_files = []
     for path, data in files:
         bundle_files.append(
@@ -234,11 +290,19 @@ async def download_save_history(title_id: str, timestamp: int):
             )
         )
 
-    bundle = SaveBundle(
-        title_id=int(title_id, 16),
-        timestamp=0,  # Unknown timestamp for history
-        files=bundle_files,
-    )
+    if is_hex_title_id(title_id):
+        bundle = SaveBundle(
+            title_id=int(title_id, 16),
+            timestamp=0,
+            files=bundle_files,
+        )
+    else:
+        bundle = SaveBundle(
+            title_id=0,
+            timestamp=0,
+            files=bundle_files,
+            title_id_str=title_id,
+        )
 
     bundle_data = create_bundle(bundle)
     return Response(

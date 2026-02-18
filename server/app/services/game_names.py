@@ -1,31 +1,42 @@
-"""Game name lookup service using 3dstdb.txt and dstdb.txt databases."""
+"""Game name lookup service using 3dstdb.txt, dstdb.txt, psptdb.txt, vitatdb.txt."""
 
+import re
 from pathlib import Path
 
 # Global cache for game names (loaded once at startup)
-# Keep DS and 3DS databases separate to handle duplicate product codes
 _3ds_names: dict[str, str] = {}
 _ds_names: dict[str, str] = {}
+_psp_names: dict[str, str] = {}   # keyed by full product code e.g. "ULUS10272"
+_vita_names: dict[str, str] = {}  # keyed by full product code e.g. "PCSE00082"
+
+# Patterns for platform detection
+_PSP_CODE_RE = re.compile(r"^[A-Z]{4}\d{5}$")   # ULUS10000, ELES01234, NPUH10001
+_VITA_CODE_RE = re.compile(r"^PCS[A-Z]\d{5}$")   # PCSE00000, PCSB12345, PCSG00001
 
 
 def load_database(db_path: Path | None = None) -> int:
     """Load a game names database from file into the appropriate cache.
 
-    Automatically detects whether it's loading a 3DS or DS database based on filename.
+    Automatically detects whether it's 3DS, DS, PSP or Vita based on filename.
     Returns the number of entries loaded.
     """
-    global _3ds_names, _ds_names
+    global _3ds_names, _ds_names, _psp_names, _vita_names
 
     if db_path is None:
-        # Default path relative to server root
         db_path = Path(__file__).parent.parent.parent / "data" / "3dstdb.txt"
 
     if not db_path.exists():
         return 0
 
-    # Determine which database to load into based on filename
-    is_ds = "ds" in db_path.name.lower() and "3ds" not in db_path.name.lower()
-    target_dict = _ds_names if is_ds else _3ds_names
+    name = db_path.name.lower()
+    if "vita" in name:
+        target_dict = _vita_names
+    elif "psp" in name:
+        target_dict = _psp_names
+    elif "ds" in name and "3ds" not in name:
+        target_dict = _ds_names
+    else:
+        target_dict = _3ds_names
 
     added = 0
     with open(db_path, "r", encoding="utf-8") as f:
@@ -33,14 +44,12 @@ def load_database(db_path: Path | None = None) -> int:
             line = line.strip()
             if not line or "," not in line:
                 continue
-
-            # Format: CODE,Game Name
             parts = line.split(",", 1)
             if len(parts) == 2:
                 code = parts[0].strip().upper()
-                name = parts[1].strip()
-                if code and name:
-                    target_dict[code] = name
+                game_name = parts[1].strip()
+                if code and game_name:
+                    target_dict[code] = game_name
                     added += 1
 
     return added
@@ -49,41 +58,48 @@ def load_database(db_path: Path | None = None) -> int:
 def lookup_names(product_codes: list[str]) -> dict[str, str]:
     """Look up game names for a list of product codes.
 
-    Product codes can be:
-    - Full format: CTR-P-XXXX or CTR-N-XXXX (3DS games)
-    - Short format: Just the 4-char code (XXXX) - could be DS or 3DS
+    Handles:
+    - 3DS: full format CTR-P-XXXX or short 4-char code
+    - DS:  short 4-char code (prioritized over 3DS for ambiguous codes)
+    - PSP: 9-char product code like ULUS10000, ELES01234, NPUH10001
+    - Vita: 9-char product code like PCSE00082, PCSB12345
 
-    For duplicate product codes (exist in both databases), prioritize:
-    - 3DS database if product code starts with "CTR"
-    - DS database otherwise (short codes are assumed to be DS)
-
-    Returns a dict mapping the input codes to their game names.
+    Returns a dict mapping input codes to their game names.
     Unknown codes are omitted from the result.
     """
     result = {}
 
     for code in product_codes:
-        # Extract the 4-char game code
         code_upper = code.upper().strip()
+
+        # PSP product code (XYYY##### format, 9 chars)
+        if _PSP_CODE_RE.match(code_upper):
+            name = _psp_names.get(code_upper)
+            if name:
+                result[code] = name
+            continue
+
+        # PS Vita product code (PCSX##### format, 9 chars)
+        if _VITA_CODE_RE.match(code_upper):
+            name = _vita_names.get(code_upper)
+            if name:
+                result[code] = name
+            continue
+
+        # 3DS/DS: extract 4-char game code
         is_3ds_format = code_upper.startswith("CTR-")
 
         if len(code_upper) >= 10 and "-" in code_upper:
-            # Full format like CTR-P-BRBE - extract last 4 chars before any suffix
             parts = code_upper.split("-")
             if len(parts) >= 3:
-                game_code = parts[2][:4]  # Take first 4 chars of the game code part
+                game_code = parts[2][:4]
             else:
                 game_code = code_upper[-4:]
         elif len(code_upper) == 4:
-            # Already just the 4-char code
             game_code = code_upper
         else:
-            # Try last 4 chars as fallback
             game_code = code_upper[-4:] if len(code_upper) >= 4 else code_upper
 
-        # Check appropriate database based on format
-        # For CTR- prefix, check 3DS first, then DS as fallback
-        # For short codes, check DS first, then 3DS as fallback
         name = None
         if is_3ds_format:
             name = _3ds_names.get(game_code) or _ds_names.get(game_code)

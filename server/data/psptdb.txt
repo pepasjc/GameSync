@@ -1,0 +1,79 @@
+# PSP Game Database
+# Format: PRODUCT_CODE,Game Name
+# Source: No-Intro PSP database
+ULUS10002,Ridge Racer
+ULUS10041,Burnout Legends
+ULUS10048,Untold Legends: Brotherhood of the Blade
+ULUS10056,NBA Street Showdown
+ULUS10073,Lumines
+ULUS10111,Grand Theft Auto: Liberty City Stories
+ULUS10114,ATV Offroad Fury: Blazin' Trails
+ULUS10130,Mega Man Maverick Hunter X
+ULUS10160,Grand Theft Auto: Vice City Stories
+ULUS10170,Daxter
+ULUS10182,Syphon Filter: Dark Mirror
+ULUS10204,Final Fantasy Tactics: The War of the Lions
+ULUS10215,Tenchu: Shadow Assassins
+ULUS10218,Wipeout Pure
+ULUS10272,Patapon
+ULUS10302,God of War: Chains of Olympus
+ULUS10320,Tekken: Dark Resurrection
+ULUS10343,Crisis Core: Final Fantasy VII
+ULUS10353,Patapon 2
+ULUS10374,Dissidia: Final Fantasy
+ULUS10392,Assassin's Creed: Bloodlines
+ULUS10419,Monster Hunter Freedom Unite
+ULUS10424,Persona 3 Portable
+ULUS10443,Kingdom Hearts: Birth by Sleep
+ULUS10449,Metal Gear Solid: Peace Walker
+ULUS10456,God of War: Ghost of Sparta
+ULUS10473,Dissidia 012 Final Fantasy
+ULUS10512,Final Fantasy IV: The Complete Collection
+ULUS10513,Patapon 3
+ULUS10529,Tactics Ogre: Let Us Cling Together
+ULUS10567,Marvel vs. Capcom 3
+ULUS10577,Mortal Kombat: Unchained
+ULUS10584,Half-Minute Hero
+ULUS10585,Valkyria Chronicles II
+ULUS10589,Ys: The Oath in Felghana
+ULUS10604,Persona 2: Innocent Sin
+ULUS10612,Shin Megami Tensei: Persona
+ULES00502,Monster Hunter Freedom
+ULES01382,Monster Hunter Freedom Unite
+ULES01439,Patapon
+ULES01452,Patapon 2
+ULES01516,God of War: Ghost of Sparta
+ULES01525,Persona 3 Portable
+ULES01562,Kingdom Hearts: Birth by Sleep
+ULJM05013,Monster Hunter (Japan)
+ULJM05041,Monster Hunter Freedom (Japan)
+ULJM05500,Monster Hunter Freedom 3 (Japan)
+ULJM06064,Monster Hunter Freedom 3G
+ULJM05800,Persona 3 Portable (Japan)
+ULJM06508,Monster Hunter Portable 3rd HD Ver.
+NPUH10023,LocoRoco
+NPUH10024,Patapon
+NPUH10025,Wipeout Pure
+NPUH10101,Echochrome
+NPEH00023,Lumines
+NPEH00051,Echochrome
+NPJH50001,LocoRoco (Japan)
+NPJH50341,Monster Hunter Portable 3rd
+ULUS10014,Spider-Man 2
+ULUS10045,Madden NFL 06
+ULUS10067,Full Auto: Battlelines
+ULUS10100,Sims 2
+ULUS10132,Capcom Puzzle World
+ULUS10157,Metal Gear Acid 2
+ULUS10163,Tekken 5: Dark Resurrection
+ULUS10175,Star Wars Battlefront II
+ULUS10195,Tom Clancy's Splinter Cell: Essentials
+ULUS10225,Ratchet & Clank: Size Matters
+ULUS10239,Syphon Filter: Logan's Shadow
+ULUS10250,Castlevania: The Dracula X Chronicles
+ULUS10285,Secret Agent Clank
+ULUS10298,Star Ocean: Second Evolution
+ULUS10318,Prinny: Can I Really Be the Hero?
+ULES00036,Wipeout Pure
+ULES00502,Monster Hunter Freedom
+UCUS98612,Spider-Man 2 (UMD)

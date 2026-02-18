@@ -1,0 +1,78 @@
+# PS Vita Game Database
+# Format: PRODUCT_CODE,Game Name
+# Source: No-Intro PS Vita database
+PCSE00015,Gravity Rush
+PCSE00027,Uncharted: Golden Abyss
+PCSE00029,Wipeout 2048
+PCSE00048,Rayman Origins
+PCSE00062,BlazBlue: Continuum Shift Extend
+PCSE00073,Soul Sacrifice
+PCSE00074,Persona 4 Golden
+PCSE00082,Persona 4 Golden
+PCSE00083,Killzone: Mercenary
+PCSE00085,Tearaway
+PCSE00097,Ys: Memories of Celceta
+PCSE00100,Flower
+PCSE00102,Velocity Ultra
+PCSE00105,Tearaway
+PCSE00106,Muramasa Rebirth
+PCSE00120,Freedom Wars
+PCSE00130,Sword Art Online: Hollow Fragment
+PCSE00134,Borderlands 2
+PCSE00140,Danganronpa: Trigger Happy Havoc
+PCSE00152,Minecraft: PS Vita Edition
+PCSE00162,Danganronpa 2: Goodbye Despair
+PCSE00172,Shovel Knight
+PCSE00180,Minecraft: PS Vita Edition
+PCSE00197,Toukiden: The Age of Demons
+PCSE00200,Natural Doctrine
+PCSE00207,Hatsune Miku: Project DIVA f 2nd
+PCSE00215,Conception II
+PCSE00218,Dungeon Travelers 2
+PCSE00222,Operation Abyss: New Tokyo Legacy
+PCSE00228,Hyperdimension Neptunia Re;Birth1
+PCSE00231,MLB 14: The Show
+PCSE00241,The Walking Dead: Season Two
+PCSE00244,Persona 4: Dancing All Night
+PCSE00245,Steins;Gate
+PCSE00252,Tales of Hearts R
+PCSE00255,Geometry Wars 3: Dimensions Evolved
+PCSE00261,Senran Kagura Shinovi Versus
+PCSE00274,Atelier Shallie Plus
+PCSE00279,Sorcery Saga: Curse of the Great Curry God
+PCSE00284,Hyperdimension Neptunia Re;Birth2
+PCSE00293,J-Stars Victory Vs+
+PCSE00298,Helldivers
+PCSE00302,Oreshika: Tainted Bloodlines
+PCSE00312,Ys: Memories of Celceta
+PCSE00317,The Witch and the Hundred Knight
+PCSE00328,Digimon Story: Cyber Sleuth
+PCSE00336,Disgaea 5: Alliance of Vengeance
+PCSE00348,Odin Sphere Leifthrasir
+PCSE00352,Root Letter
+PCSE00361,Gravity Rush Remastered
+PCSE00362,Sword Art Online: Lost Song
+PCSE00380,Gal*Gun: Double Peace
+PCSE00388,Atelier Sophie: The Alchemist of the Mysterious Book
+PCSB00017,Gravity Rush
+PCSB00082,Persona 4 Golden
+PCSB00085,Tearaway
+PCSB00120,Freedom Wars
+PCSB00197,Toukiden: The Age of Demons
+PCSG00004,Gravity Rush (Japan)
+PCSG00023,Persona 4 Golden (Japan)
+PCSG00152,Freedom Wars (Japan)
+PCSG00197,Toukiden (Japan)
+PCSG00245,Steins;Gate (Japan)
+PCSG00328,Digimon Story: Cyber Sleuth (Japan)
+PCSB00261,Senran Kagura Shinovi Versus
+PCSB00317,The Witch and the Hundred Knight
+PCSB00069,Killzone: Mercenary
+PCSB00029,Wipeout 2048
+PCSE00006,ModNation Racers: Road Trip
+PCSE00018,Little Deviants
+PCSE00036,FIFA Soccer
+PCSE00042,Ninja Gaiden Sigma Plus
+PCSE00052,Street Fighter X Tekken
+PCSE00060,LittleBigPlanet PS Vita
+PCSE00072,Sly Cooper: Thieves in Time

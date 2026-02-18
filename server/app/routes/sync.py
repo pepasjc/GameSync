@@ -34,7 +34,11 @@ def _add_conflict(
 
 @router.post("/sync")
 async def sync(request: SyncRequest) -> SyncPlan:
-    """Compare 3DS title metadata against server state and return a sync plan."""
+    """Compare client title metadata against per-console server state and return a sync plan.
+
+    With per-console storage, each console has its own save slot per title.
+    Conflicts only occur within a console's own slot (not between different consoles).
+    """
     upload: list[str] = []
     download: list[str] = []
     conflict: list[str] = []
@@ -42,14 +46,16 @@ async def sync(request: SyncRequest) -> SyncPlan:
     up_to_date: list[str] = []
 
     client_title_ids = set()
-    console_id = request.console_id
+    console_id = request.console_id or ""
 
     for title in request.titles:
         client_title_ids.add(title.title_id)
-        server_meta = storage.get_metadata(title.title_id)
+
+        # Look up this console's own save slot for the title
+        server_meta = storage.get_metadata(title.title_id, console_id)
 
         if server_meta is None:
-            # Server has no save for this title -> 3DS should upload
+            # This console has no save on server for this title -> upload
             upload.append(title.title_id)
             continue
 
@@ -57,40 +63,37 @@ async def sync(request: SyncRequest) -> SyncPlan:
             up_to_date.append(title.title_id)
             continue
 
-        # Hashes differ -> use three-way comparison with last_synced_hash
+        # Hashes differ -> three-way comparison with last_synced_hash
         if title.last_synced_hash is not None:
             if title.last_synced_hash == server_meta.save_hash:
-                # Server unchanged since last sync, only client changed -> upload
+                # Server unchanged since last sync, client changed -> upload
                 upload.append(title.title_id)
             elif title.last_synced_hash == title.save_hash:
-                # Client unchanged since last sync, only server changed -> download
+                # Client unchanged since last sync, server changed -> download
                 download.append(title.title_id)
             else:
-                # Both changed since last sync -> true conflict
+                # Both changed since last sync -> conflict within same console slot
                 _add_conflict(
                     conflict, conflict_info, title.title_id,
                     server_meta, title.save_hash, title.size, console_id
                 )
         else:
-            # No sync history - first time syncing this title on this console
-            # If server version was uploaded by THIS console, we can safely download
-            # (our previous session on this console uploaded it)
-            if console_id and server_meta.console_id == console_id:
-                # Same console uploaded it before -> auto-download (we have old local data)
-                download.append(title.title_id)
-            else:
-                # Different console or unknown -> need user decision
-                _add_conflict(
-                    conflict, conflict_info, title.title_id,
-                    server_meta, title.save_hash, title.size, console_id
-                )
+            # No sync history for this console: the console's slot exists but hashes differ.
+            # Default: download (prefer server version to avoid overwriting).
+            download.append(title.title_id)
 
-    # Find titles that exist only on the server
+    # Find titles in this console's slot that weren't in the client's list
     server_only: list[str] = []
-    for meta in storage.list_titles():
-        tid = meta["title_id"]
-        if tid not in client_title_ids:
-            server_only.append(tid)
+    if console_id:
+        for meta in storage.list_titles():
+            tid = meta["title_id"]
+            if tid not in client_title_ids and meta.get("console_id") == console_id:
+                server_only.append(tid)
+    else:
+        for meta in storage.list_titles():
+            tid = meta["title_id"]
+            if tid not in client_title_ids:
+                server_only.append(tid)
 
     return SyncPlan(
         upload=upload,
