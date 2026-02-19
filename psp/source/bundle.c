@@ -9,6 +9,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <zlib.h>
+#include <pspkernel.h>
+#include <psprtc.h>
 
 #include "bundle.h"
 #include "saves.h"
@@ -115,7 +117,9 @@ int bundle_create(const TitleInfo *title, uint8_t **out_data, uint32_t *out_size
     memset(bundle + 8, 0, 16);
     strncpy((char *)(bundle + 8), title->game_id, 15);
     /* Timestamp */
-    write_le32(bundle + 24, (uint32_t)sceKernelGetSystemTimeSec(0));
+    u64 tick;
+    sceRtcGetCurrentTick(&tick);
+    write_le32(bundle + 24, (uint32_t)(tick / 1000));
     /* File count */
     write_le32(bundle + 28, n);
     /* Uncompressed size */

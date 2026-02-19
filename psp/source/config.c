@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <pspiofilemgr.h>
 #include <psputils.h>
+#include <psprtc.h>
 
 #include "config.h"
 
@@ -116,7 +117,9 @@ void config_load_console_id(SyncState *state) {
 
     /* Generate new console ID using PSP UID */
     /* TODO: use sceKernelGetChipId or hardware-based ID for better uniqueness */
-    unsigned int rand_val = sceKernelGetSystemTimeLow() ^ 0xDEADBEEF;
+    u64 tick;
+    sceRtcGetCurrentTick(&tick);
+    unsigned int rand_val = (unsigned int)tick ^ 0xDEADBEEF;
     snprintf(state->console_id, sizeof(state->console_id), "psp_%08x", rand_val);
 
     fd = sceIoOpen(CONSOLE_ID_FILE, PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0777);

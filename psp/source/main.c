@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
     ui_init();
 
     /* Power management: prevent sleep during sync */
-    scePowerSetClockFrequency(333, 333, 166);
+    // scePowerSetClockFrequency(333, 333, 166); // Deprecated
 
     memset(&g_state, 0, sizeof(SyncState));
     g_state.wifi_ap_index = 0;
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
     bool redraw = true;
 
     while (1) {
-        sceCtrlReadBufferedPositive(&pad, 1);
+        sceCtrlReadBufferPositive(&pad, 1);
         uint32_t pressed = pad.Buttons;
         static uint32_t prev_buttons = 0;
         uint32_t just_pressed = pressed & ~prev_buttons;

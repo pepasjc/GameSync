@@ -22,7 +22,7 @@
 
 void ui_init(void) {
     pspDebugScreenInit();
-    pspDebugScreenClearLine(0);
+    pspDebugScreenClear();
 }
 
 void ui_clear(void) {
@@ -52,7 +52,7 @@ void ui_message(const char *fmt, ...) {
     SceCtrlData pad;
     uint32_t prev = 0;
     while (1) {
-        sceCtrlReadBufferedPositive(&pad, 1);
+        sceCtrlReadBufferPositive(&pad, 1);
         uint32_t just = pad.Buttons & ~prev;
         prev = pad.Buttons;
         if (just & PSP_CTRL_CROSS) break;
@@ -117,7 +117,7 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
         SceCtrlData pad;
         uint32_t prev = 0;
         while (1) {
-            sceCtrlReadBufferedPositive(&pad, 1);
+            sceCtrlReadBufferPositive(&pad, 1);
             uint32_t just = pad.Buttons & ~prev;
             prev = pad.Buttons;
             if (just & (PSP_CTRL_CROSS | PSP_CTRL_CIRCLE)) break;
@@ -131,7 +131,7 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     SceCtrlData pad;
     uint32_t prev = 0;
     while (1) {
-        sceCtrlReadBufferedPositive(&pad, 1);
+        sceCtrlReadBufferPositive(&pad, 1);
         uint32_t just = pad.Buttons & ~prev;
         prev = pad.Buttons;
         if (just & PSP_CTRL_CROSS)  return true;

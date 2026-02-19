@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <pspkernel.h>
 #include <pspnet.h>
 #include <pspnet_inet.h>
 #include <pspnet_apctl.h>
@@ -17,6 +18,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 #include "network.h"
 
@@ -144,7 +146,7 @@ static int tcp_connect(const char *host, int port) {
     memset(&sa, 0, sizeof(sa));
     sa.sin_family = AF_INET;
     sa.sin_addr.s_addr = addr;
-    sa.sin_port = sceNetHtons(port);
+    sa.sin_port = htons(port);
 
     if (sceNetInetConnect(sock, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
         sceNetInetClose(sock);
