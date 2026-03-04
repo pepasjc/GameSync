@@ -9,6 +9,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <pspiofilemgr.h>
+#include <pspdebug.h>
 
 #include "saves.h"
 #include "sha256.h"
@@ -26,11 +27,24 @@ bool saves_is_valid_game_id(const char *game_id) {
 void saves_scan(SyncState *state) {
     state->num_titles = 0;
 
+    pspDebugScreenPrintf("saves_scan: opening %s\n", SAVEDATA_PATH);
     SceUID dir = sceIoDopen(SAVEDATA_PATH);
-    if (dir < 0) return;
+    if (dir < 0) {
+        pspDebugScreenPrintf("saves_scan: sceIoDopen failed: %d\n", dir);
+        return;
+    }
+    pspDebugScreenPrintf("saves_scan: dir opened OK\n");
 
+    /* SceIoDirent must be zeroed: d_private is a kernel-filled pointer and
+     * must start as NULL so the kernel skips writing long filenames through it
+     * when it is not needed. Uninitialized garbage here causes a crash on
+     * real hardware (PRO-C). */
     SceIoDirent entry;
+    memset(&entry, 0, sizeof(entry));
+
+    int scanned = 0;
     while (sceIoDread(dir, &entry) > 0) {
+        scanned++;
         if (!(entry.d_stat.st_attr & FIO_SO_IFDIR)) continue;
         if (entry.d_name[0] == '.') continue;
 
@@ -45,6 +59,8 @@ void saves_scan(SyncState *state) {
         if (!saves_is_valid_game_id(game_id)) continue;
         if (state->num_titles >= MAX_TITLES) break;
 
+        pspDebugScreenPrintf("  found: %s\n", game_id);
+
         TitleInfo *t = &state->titles[state->num_titles];
         memset(t, 0, sizeof(TitleInfo));
         strncpy(t->game_id, game_id, GAME_ID_LEN - 1);
@@ -55,6 +71,7 @@ void saves_scan(SyncState *state) {
         SceUID save_dir = sceIoDopen(t->save_dir);
         if (save_dir >= 0) {
             SceIoDirent fentry;
+            memset(&fentry, 0, sizeof(fentry));
             while (sceIoDread(save_dir, &fentry) > 0) {
                 if (fentry.d_stat.st_attr & FIO_SO_IFREG) {
                     t->file_count++;
@@ -67,6 +84,8 @@ void saves_scan(SyncState *state) {
         if (t->file_count > 0)
             state->num_titles++;
     }
+    pspDebugScreenPrintf("saves_scan: done. scanned=%d found=%d\n",
+                         scanned, state->num_titles);
     sceIoDclose(dir);
 }
 
@@ -77,6 +96,7 @@ int saves_list_files(const TitleInfo *title,
     if (dir < 0) return -1;
 
     SceIoDirent entry;
+    memset(&entry, 0, sizeof(entry));
     while (sceIoDread(dir, &entry) > 0 && count < max_files) {
         if (!(entry.d_stat.st_attr & FIO_SO_IFREG)) continue;
         if (entry.d_name[0] == '.') continue;

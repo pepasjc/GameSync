@@ -9,9 +9,9 @@ CXXFLAGS := $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS  := $(CFLAGS)
 
 # PSP module info
-BUILD_PRX        := 1
+# BUILD_PRX disabled: ELF format resolves dynamic stubs correctly on PRO-C;
+# PRX format can leave sceNet stubs unresolved after sceUtilityLoadNetModule.
 PSP_FW_VERSION   := 600
-PSP_LARGE_MEMORY := 1
 
 EXTRA_TARGETS := EBOOT.PBP
 PSP_EBOOT_TITLE := PSP Save Sync
@@ -23,8 +23,10 @@ $(error Failed to read version from VERSION file)
 endif
 CFLAGS += -DAPP_VERSION=\"$(APP_VERSION_STR)\"
 
-# Link against network and zlib libraries
-LIBS := -lpspnet_apctl -lpspnet_inet -lpspnet -lpspsdk -lz -lm -lc -lpspuser
+# build.mak already appends -lpspnet -lpspnet_apctl, so omit them here to avoid
+# duplicate stubs that trigger "stubs out of order" in psp-fixup-imports.
+# Add -lpspnet_inet and -lpspnet_resolver which build.mak does NOT include.
+LIBS := -lpspnet_inet -lpspnet_resolver -lpspsdk -lz -lm -lc -lpspuser
 
 ifneq ($(PSPSDK),)
 include $(PSPSDK)/lib/build.mak

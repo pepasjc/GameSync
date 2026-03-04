@@ -126,7 +126,20 @@ int main(int argc, char *argv[]) {
             ui_message("WiFi connection failed.\nCheck AP index in config.txt.\n\nContinuing offline.");
         }
     } else {
-        ui_message("Network init failed (%d).\nContinuing offline.", net_init);
+        /* Pause so pspDebugScreenPrintf output from network_init() stays visible */
+        pspDebugScreenPrintf("\n--- network_init returned 0x%08X ---\nPress X to continue\n", net_init);
+        {
+            SceCtrlData pad;
+            uint32_t prev = 0;
+            while (1) {
+                sceCtrlReadBufferPositive(&pad, 1);
+                uint32_t just = pad.Buttons & ~prev;
+                prev = pad.Buttons;
+                if (just & PSP_CTRL_CROSS) break;
+                sceKernelDelayThread(16000);
+            }
+        }
+        ui_message("Network init failed\n0x%08X (%d)\nContinuing offline.", net_init, net_init);
     }
 
     /* Scan saves */

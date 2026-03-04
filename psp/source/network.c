@@ -10,11 +10,14 @@
 #include <stdlib.h>
 
 #include <pspkernel.h>
+#include <pspdebug.h>
+#include <pspmoduleinfo.h>
 #include <pspnet.h>
 #include <pspnet_inet.h>
 #include <pspnet_apctl.h>
 #include <pspnet_resolver.h>
 #include <psputility.h>
+#include <psputility_netmodules.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -30,18 +33,114 @@ static bool g_connected = false;
 
 /* ---- Network init ---- */
 
+static void network_term_partial(void) {
+    sceNetApctlTerm();
+    sceNetResolverTerm();
+    sceNetInetTerm();
+    sceNetTerm();
+}
+
+/* Scan the export table of the named module for a function by NID.
+ * Returns the function address or NULL if not found.
+ *
+ * PSP PRX module layout (from base of first segment):
+ *   SceModuleInfo: attr(2) + ver(2) + name(28) + gp(4) + libent_top(4) + libent_btm(4)
+ * Each SceLibEntTable entry:
+ *   libname_ptr(4) + ver(2) + attr(2) + len(1) + varcount(1) + funccount(2)
+ *   + nid_table_ptr(4) + func_table_ptr(4)  [len is in words, typically 5]
+ */
+static void *find_export(const char *module_name, uint32_t nid) {
+    SceUID ids[64];
+    int count = 0;
+    if (sceKernelGetModuleIdList(ids, sizeof(ids), &count) < 0) return NULL;
+
+    for (int i = 0; i < count; i++) {
+        SceKernelModuleInfo info;
+        memset(&info, 0, sizeof(info));
+        info.size = sizeof(info);
+        if (sceKernelQueryModuleInfo(ids[i], &info) != 0) continue;
+        if (strcmp(info.name, module_name) != 0) continue;
+
+        /* SceModuleInfo is at the start of the first loadable segment */
+        uint8_t *base = (uint8_t *)info.segmentaddr[0];
+        uint32_t libent_top = *(uint32_t *)(base + 36);
+        uint32_t libent_btm = *(uint32_t *)(base + 40);
+
+        pspDebugScreenPrintf("  %s seg=%08X ent=%08X..%08X\n",
+            module_name, info.segmentaddr[0], libent_top, libent_btm);
+
+        /* Walk export entries */
+        uint8_t *ep = (uint8_t *)libent_top;
+        while ((uint32_t)ep < libent_btm) {
+            uint8_t len_words = ep[8];
+            if (len_words == 0) break;
+
+            const char *libname = *(const char **)ep;
+            uint16_t funccount  = *(uint16_t *)(ep + 10);
+            uint32_t *nids      = *(uint32_t **)(ep + 12);
+            uint32_t *funcs     = *(uint32_t **)(ep + 16);
+
+            pspDebugScreenPrintf("    lib='%s' funcs=%d\n",
+                libname ? libname : "(null)", funccount);
+
+            for (int j = 0; j < (int)funccount; j++) {
+                if (nids[j] == nid) {
+                    pspDebugScreenPrintf("    NID %08X -> fn %08X\n", nid, funcs[j]);
+                    return (void *)funcs[j];
+                }
+            }
+            ep += len_words * 4;
+        }
+        return NULL; /* module found, function not in it */
+    }
+    return NULL;
+}
+
 int network_init(void) {
     int ret;
 
-    ret = sceNetInit(128 * 1024, 42, 4 * 1024, 42, 4 * 1024);
-    if (ret < 0) return ret;
+    ret = sceUtilityLoadNetModule(PSP_NET_MODULE_COMMON);
+    pspDebugScreenPrintf("LoadNetModule(COMMON): 0x%08X\n", ret);
+    ret = sceUtilityLoadNetModule(PSP_NET_MODULE_INET);
+    pspDebugScreenPrintf("LoadNetModule(INET):   0x%08X\n", ret);
+
+    /* Try calling sceNetInit via stub (works on PPSSPP / OFW). */
+    ret = sceNetInit(0x20000, 0x20, 0x1000, 0x20, 0x1000);
+    pspDebugScreenPrintf("sceNetInit (stub):  0x%08X\n", ret);
+
+    if (ret == (int)0x8002013A) {
+        /* Stub couldn't resolve "sceNet" library — on PRO-C the module may
+         * export under a different name. Scan the export table directly and
+         * call sceNetInit by function pointer, bypassing stub resolution. */
+        pspDebugScreenPrintf("Trying direct export scan...\n");
+        typedef int (*NetInitFn)(int, int, int, int, int);
+        NetInitFn fn = (NetInitFn)find_export("sceNet_Library", 0x39AF39A6);
+        if (fn) {
+            ret = fn(0x20000, 0x20, 0x1000, 0x20, 0x1000);
+            pspDebugScreenPrintf("sceNetInit (direct): 0x%08X\n", ret);
+        } else {
+            pspDebugScreenPrintf("sceNetInit not found in export table\n");
+        }
+    }
+
+    if (ret != 0) {
+        pspDebugScreenPrintf("Network init failed at sceNetInit: 0x%08X\n", ret);
+        return ret;
+    }
 
     ret = sceNetInetInit();
-    if (ret < 0) { sceNetTerm(); return ret; }
+    pspDebugScreenPrintf("sceNetInetInit:     0x%08X\n", ret);
+    if (ret != 0) { sceNetTerm(); return ret; }
 
-    ret = sceNetApctlInit(0x8000, 48);
-    if (ret < 0) { sceNetInetTerm(); sceNetTerm(); return ret; }
+    ret = sceNetResolverInit();
+    pspDebugScreenPrintf("sceNetResolverInit: 0x%08X\n", ret);
+    if (ret != 0) { network_term_partial(); return ret; }
 
+    ret = sceNetApctlInit(0x1600, 0x42);
+    pspDebugScreenPrintf("sceNetApctlInit:    0x%08X\n", ret);
+    if (ret != 0) { network_term_partial(); return ret; }
+
+    pspDebugScreenPrintf("Network init OK\n");
     g_net_initialized = true;
     return 0;
 }
@@ -77,6 +176,7 @@ void network_disconnect(void) {
     }
     if (g_net_initialized) {
         sceNetApctlTerm();
+        sceNetResolverTerm();
         sceNetInetTerm();
         sceNetTerm();
         g_net_initialized = false;
@@ -124,14 +224,12 @@ static int parse_url(const char *url, char *host, int host_len,
 /* Connect a TCP socket to host:port. Returns fd or negative on error. */
 static int tcp_connect(const char *host, int port) {
     /* Resolve hostname */
-    struct hostent *he = NULL;
     /* Try direct IP first */
     unsigned int addr = sceNetInetInetAddr(host);
     if (addr == 0xFFFFFFFF) {
         /* Need DNS resolution */
         int rid;
         if (sceNetResolverCreate(&rid, NULL, 0) < 0) return -1;
-        char ip_str[64];
         if (sceNetResolverStartNtoA(rid, host, (struct in_addr *)&addr, 2, 3) < 0) {
             sceNetResolverDelete(rid);
             return -1;
@@ -173,7 +271,6 @@ static int http_receive_response(int sock, int *status_out,
     static char header_buf[HTTP_BUF_SIZE];
     int header_len = 0;
     int content_length = -1;
-    bool chunked = false;
 
     /* Read until we find the end of headers (\r\n\r\n) */
     char *hdr_end = NULL;
@@ -252,9 +349,9 @@ static int http_request(const SyncState *state, const char *method, const char *
     if (body && body_size > 0) {
         hlen += snprintf(headers + hlen, sizeof(headers) - hlen,
             "Content-Type: %s\r\n"
-            "Content-Length: %u\r\n",
+            "Content-Length: %lu\r\n",
             content_type ? content_type : "application/octet-stream",
-            body_size);
+            (unsigned long)body_size);
     }
     hlen += snprintf(headers + hlen, sizeof(headers) - hlen, "\r\n");
 
