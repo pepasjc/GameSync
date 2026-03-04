@@ -101,9 +101,12 @@ static int http_do_request(const SyncState *state,
                            int *status_out) {
     if (!g_initialized || g_tmpl < 0) return -1;
 
+    int conn = sceHttpCreateConnectionWithURL(g_tmpl, url, 0);
+    if (conn < 0) return conn;
+
     uint64_t content_length = (method == SCE_HTTP_METHOD_POST) ? body_size : 0;
-    int req = sceHttpCreateRequestWithURL(g_tmpl, method, url, content_length);
-    if (req < 0) return req;
+    int req = sceHttpCreateRequestWithURL(conn, method, url, content_length);
+    if (req < 0) { sceHttpDeleteConnection(conn); return req; }
 
     sceHttpAddRequestHeader(req, "X-API-Key",    state->api_key,    SCE_HTTP_HEADER_OVERWRITE);
     sceHttpAddRequestHeader(req, "X-Console-ID", state->console_id, SCE_HTTP_HEADER_OVERWRITE);
@@ -113,7 +116,7 @@ static int http_do_request(const SyncState *state,
                                 SCE_HTTP_HEADER_OVERWRITE);
 
     int ret = sceHttpSendRequest(req, body, body_size);
-    if (ret < 0) { sceHttpDeleteRequest(req); return ret; }
+    if (ret < 0) { sceHttpDeleteRequest(req); sceHttpDeleteConnection(conn); return ret; }
 
     int status = 0;
     sceHttpGetStatusCode(req, &status);
@@ -130,6 +133,7 @@ static int http_do_request(const SyncState *state,
     }
 
     sceHttpDeleteRequest(req);
+    sceHttpDeleteConnection(conn);
     return total;
 }
 

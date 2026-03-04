@@ -30,6 +30,7 @@ set(SOURCES
     source/bundle.c
     source/sha256.c
     source/ui.c
+    source/debugScreen.c
     # Bundled zlib (system libz.a has -fPIC GOT relocations vita-elf-create can't handle)
     source/zlib/adler32.c
     source/zlib/compress.c
@@ -44,7 +45,7 @@ set(SOURCES
     source/zlib/zutil.c
 )
 
-include_directories(include source/zlib)
+include_directories(include source/zlib source)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
@@ -66,7 +67,7 @@ target_link_libraries(${PROJECT_NAME}
     c
 )
 
-vita_create_self(${PROJECT_NAME}.self ${PROJECT_NAME})
+vita_create_self(${PROJECT_NAME}.self ${PROJECT_NAME} UNSAFE 1)
 vita_create_vpk(${PROJECT_NAME}.vpk ${VITA_TITLEID} ${PROJECT_NAME}.self
     VERSION ${VITA_VERSION}
     NAME ${VITA_APP_NAME}

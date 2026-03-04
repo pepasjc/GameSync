@@ -40,6 +40,19 @@
 
 #define LIST_VISIBLE 20
 
+/* Wait until all buttons are released, then clear prev_buttons.
+ * Call this after any blocking UI call (ui_message / ui_confirm) that
+ * returns to the main loop, so the button that dismissed the dialog
+ * doesn't fire as a 'just pressed' event on the very next frame. */
+static uint32_t drain_buttons(void) {
+    SceCtrlData pad;
+    do {
+        sceCtrlReadBufferPositive2(0, &pad, 1);
+        sceKernelDelayThread(16000);
+    } while (pad.buttons != 0);
+    return 0;
+}
+
 static SyncState g_state;
 static int g_selected = 0;
 static int g_scroll   = 0;
@@ -67,6 +80,7 @@ int main(void) {
         ui_message("Config error:\n\n%s\n\nEdit %s\n\nFormat:\n"
                    "server_url=http://host:8000\napi_key=key",
                    err_buf, CONFIG_PATH);
+        ui_term();
         sceKernelExitProcess(0);
         return 0;
     }
@@ -112,8 +126,12 @@ int main(void) {
         ui_message("No saves found.\n\n"
                    "Vita saves: ux0:user/00/savedata/\n"
                    "PSP saves:  ux0:pspemu/PSP/SAVEDATA/\n\n"
-                   "Check scan_vita and scan_psp_emu in config.txt.");
+                   "Check scan_vita and scan_psp_emu in config.txt.\n\n"
+                   "Diagnostic log:\n"
+                   "ux0:data/vitasync/diag.txt\n"
+                   "(read with VitaShell)");
         network_cleanup();
+        ui_term();
         sceKernelExitProcess(0);
         return 0;
     }
@@ -121,7 +139,7 @@ int main(void) {
     /* Main loop */
     SceCtrlData pad;
     bool redraw = true;
-    uint32_t prev_buttons = 0;
+    uint32_t prev_buttons = drain_buttons();
 
     while (1) {
         sceCtrlReadBufferPositive2(0, &pad, 1);
@@ -176,6 +194,7 @@ int main(void) {
                 else
                     ui_message("Failed! (code %d)", r);
             }
+            prev_buttons = drain_buttons();
             redraw = true;
         }
 
@@ -193,6 +212,7 @@ int main(void) {
                 if (r == 0) ui_message("Upload OK!");
                 else        ui_message("Upload failed! (code %d)", r);
             }
+            prev_buttons = drain_buttons();
             redraw = true;
         }
 
@@ -210,6 +230,7 @@ int main(void) {
                 if (r == 0) ui_message("Download OK!");
                 else        ui_message("Download failed! (code %d)", r);
             }
+            prev_buttons = drain_buttons();
             redraw = true;
         }
 
@@ -226,20 +247,21 @@ int main(void) {
                        "Conflicts:     %d\n"
                        "Failed:        %d\n\n"
                        "Press X to continue.",
-                       summary.up_to_date, summary.uploaded,
-                       summary.downloaded, summary.conflicts, summary.failed);
+                        summary.up_to_date, summary.uploaded,
+                        summary.downloaded, summary.conflicts, summary.failed);
+            prev_buttons = drain_buttons();
             redraw = true;
         }
 
         /* Start: exit */
         if (just & SCE_CTRL_START) {
             network_cleanup();
+            ui_term();
             sceKernelExitProcess(0);
             return 0;
         }
 
         if (redraw) {
-            ui_clear();
             ui_draw_list(&g_state, g_selected, g_scroll);
             redraw = false;
         }

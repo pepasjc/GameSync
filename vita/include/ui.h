@@ -6,6 +6,9 @@
 /* Initialize framebuffer display. */
 void ui_init(void);
 
+/* Release framebuffer memory. Call before exit. */
+void ui_term(void);
+
 /* Clear screen to black. */
 void ui_clear(void);
 
