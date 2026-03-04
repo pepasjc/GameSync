@@ -20,6 +20,13 @@ client/*.map
 client/*.cia
 client/*.bnr
 
+# Vita build artifacts
+vita/build/
+vita/source/zlib/
+vita/*.velf
+vita/*.self
+vita/*.vpk
+
 # Dumps
 *.dmp
 

@@ -27,6 +27,7 @@
  */
 
 #include <string.h>
+#include <stdio.h>
 #include <psp2/kernel/processmgr.h>
 #include <psp2/ctrl.h>
 
@@ -123,7 +124,7 @@ int main(void) {
     uint32_t prev_buttons = 0;
 
     while (1) {
-        sceCtrlReadBufferedPositive(0, &pad, 1);
+        sceCtrlReadBufferPositive2(0, &pad, 1);
         uint32_t just = pad.buttons & ~prev_buttons;
         prev_buttons = pad.buttons;
 

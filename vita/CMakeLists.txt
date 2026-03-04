@@ -30,9 +30,21 @@ set(SOURCES
     source/bundle.c
     source/sha256.c
     source/ui.c
+    # Bundled zlib (system libz.a has -fPIC GOT relocations vita-elf-create can't handle)
+    source/zlib/adler32.c
+    source/zlib/compress.c
+    source/zlib/crc32.c
+    source/zlib/deflate.c
+    source/zlib/infback.c
+    source/zlib/inffast.c
+    source/zlib/inflate.c
+    source/zlib/inftrees.c
+    source/zlib/trees.c
+    source/zlib/uncompr.c
+    source/zlib/zutil.c
 )
 
-include_directories(include)
+include_directories(include source/zlib)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
@@ -51,7 +63,6 @@ target_link_libraries(${PROJECT_NAME}
     SceLibKernel_stub
     SceRtc_stub
     m
-    z
     c
 )
 

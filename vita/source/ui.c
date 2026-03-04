@@ -239,7 +239,7 @@ void ui_message(const char *fmt, ...) {
     SceCtrlData pad;
     uint32_t prev = 0;
     while (1) {
-        sceCtrlReadBufferedPositive(0, &pad, 1);
+        sceCtrlReadBufferPositive2(0, &pad, 1);
         uint32_t just = pad.buttons & ~prev;
         prev = pad.buttons;
         if (just & SCE_CTRL_CROSS) break;
@@ -309,7 +309,7 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
         SceCtrlData pad;
         uint32_t prev = 0;
         while (1) {
-            sceCtrlReadBufferedPositive(0, &pad, 1);
+            sceCtrlReadBufferPositive2(0, &pad, 1);
             uint32_t just = pad.buttons & ~prev;
             prev = pad.buttons;
             if (just & (SCE_CTRL_CROSS | SCE_CTRL_CIRCLE)) break;
@@ -324,7 +324,7 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     SceCtrlData pad;
     uint32_t prev = 0;
     while (1) {
-        sceCtrlReadBufferedPositive(0, &pad, 1);
+        sceCtrlReadBufferPositive2(0, &pad, 1);
         uint32_t just = pad.buttons & ~prev;
         prev = pad.buttons;
         if (just & SCE_CTRL_CROSS)  return true;

@@ -76,7 +76,7 @@ int network_connect(void) {
 
     /* The Vita OS manages WiFi; check if we already have an IP address. */
     SceNetCtlInfo info;
-    if (sceNetCtlGetInfo(SCE_NETCTL_INFO_GET_IP_ADDRESS, &info) == 0
+    if (sceNetCtlInetGetInfo(SCE_NETCTL_INFO_GET_IP_ADDRESS, &info) == 0
             && info.ip_address[0] != '\0') {
         g_connected = true;
         return 0;
