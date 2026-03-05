@@ -15,8 +15,10 @@
 #include "sha256.h"
 
 bool saves_is_valid_game_id(const char *game_id) {
-    /* PSP product code: exactly 9 chars, 4 uppercase letters + 5 digits */
-    if (strlen(game_id) != 9) return false;
+    /* PSP save dirs start with a 9-char product code (4 uppercase + 5 digits)
+     * optionally followed by a slot suffix, e.g. ULUS10272DATA00 */
+    size_t len = strlen(game_id);
+    if (len < 9 || len >= GAME_ID_LEN) return false;
     for (int i = 0; i < 4; i++)
         if (!isupper((unsigned char)game_id[i])) return false;
     for (int i = 4; i < 9; i++)

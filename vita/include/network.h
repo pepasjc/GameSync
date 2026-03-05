@@ -15,8 +15,25 @@ int network_connect(void);
 bool network_is_connected(void);
 bool network_check_server(const SyncState *state);
 
+/* Sync plan returned by network_get_sync_plan */
+#define SYNC_PLAN_MAX 128
+typedef struct {
+    char upload  [SYNC_PLAN_MAX][GAME_ID_LEN]; int upload_count;
+    char download[SYNC_PLAN_MAX][GAME_ID_LEN]; int download_count;
+    char conflict[SYNC_PLAN_MAX][GAME_ID_LEN]; int conflict_count;
+} NetworkSyncPlan;
+
+/* Fetch save metadata from server for a game.
+ * hash_out:      65-byte buffer for hex hash (or empty if no save).
+ * last_sync_out: 32-byte buffer for ISO 8601 timestamp, or NULL to skip.
+ * Returns 0 if save exists, 1 if not found, negative on error. */
 int network_get_save_info(const SyncState *state, const char *game_id,
-                          char *hash_out, uint32_t *size_out);
+                          char *hash_out, uint32_t *size_out,
+                          char *last_sync_out);
+
+/* POST all title hashes to /api/v1/sync and get a sync plan.
+ * Returns 0 on success, negative on error. */
+int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan);
 
 int network_upload_save(const SyncState *state, const TitleInfo *title,
                         const uint8_t *bundle, uint32_t bundle_size);

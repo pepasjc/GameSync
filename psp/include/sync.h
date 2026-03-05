@@ -24,4 +24,12 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action);
  * summary: optional output summary. */
 void sync_scan_all(SyncState *state, SyncSummary *summary);
 
+/* Progress callback type (receives a formatted message string). */
+typedef void (*SyncProgressFn)(const char *msg);
+
+/* Auto sync all titles using the /api/v1/sync batch endpoint:
+ * hashes all titles, sends plan request, uploads/downloads as directed.
+ * summary: optional output. progress: optional callback for status updates. */
+void sync_auto_all(SyncState *state, SyncSummary *summary, SyncProgressFn progress);
+
 #endif /* SYNC_H */

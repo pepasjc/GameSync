@@ -136,7 +136,7 @@ bool config_get_last_hash(const char *game_id, char *hash_out) {
     SceUID fd = sceIoOpen(STATE_FILE, PSP_O_RDONLY, 0777);
     if (fd < 0) return false;
 
-    char buf[MAX_TITLES * 80];
+    static char buf[MAX_TITLES * 128];
     int bytes = sceIoRead(fd, buf, sizeof(buf) - 1);
     sceIoClose(fd);
     if (bytes <= 0) return false;
@@ -160,7 +160,8 @@ bool config_get_last_hash(const char *game_id, char *hash_out) {
 
 bool config_set_last_hash(const char *game_id, const char *hash_hex) {
     /* Read existing state */
-    char buf[MAX_TITLES * 80] = "";
+    static char buf[MAX_TITLES * 128];
+    buf[0] = '\0';
     SceUID fd = sceIoOpen(STATE_FILE, PSP_O_RDONLY, 0777);
     if (fd >= 0) {
         int bytes = sceIoRead(fd, buf, sizeof(buf) - 1);
@@ -169,7 +170,8 @@ bool config_set_last_hash(const char *game_id, const char *hash_hex) {
     }
 
     /* Build new state: keep all lines except the one for game_id */
-    char new_buf[MAX_TITLES * 80] = "";
+    static char new_buf[MAX_TITLES * 128];
+    new_buf[0] = '\0';
     char prefix[GAME_ID_LEN + 2];
     snprintf(prefix, sizeof(prefix), "%s=", game_id);
     int prefix_len = strlen(prefix);

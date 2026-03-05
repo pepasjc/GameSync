@@ -30,12 +30,13 @@ void ui_clear(void) {
 }
 
 void ui_status(const char *fmt, ...) {
-    pspDebugScreenSetXY(0, STATUS_ROW);
+    char buf[256];
     va_list args;
     va_start(args, fmt);
-    pspDebugScreenPrintf(fmt, args);
+    vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    pspDebugScreenPrintf("\n");
+    pspDebugScreenSetXY(0, STATUS_ROW);
+    pspDebugScreenPrintf("%s\n", buf);
 }
 
 /* Wait until no buttons are held, then return 0.
@@ -49,12 +50,14 @@ static void drain_buttons(void) {
 }
 
 void ui_message(const char *fmt, ...) {
-    pspDebugScreenClear();
-    pspDebugScreenSetXY(0, 1);
+    char buf[512];
     va_list args;
     va_start(args, fmt);
-    pspDebugScreenPrintf(fmt, args);
+    vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
+    pspDebugScreenClear();
+    pspDebugScreenSetXY(0, 1);
+    pspDebugScreenPrintf("%s", buf);
 
     pspDebugScreenPrintf("\n\nPress X to continue\n");
 
@@ -105,7 +108,8 @@ void ui_draw_list(const SyncState *state, int selected, int scroll) {
 }
 
 bool ui_confirm(const TitleInfo *title, SyncAction action,
-                const char *server_hash, uint32_t server_size) {
+                const char *server_hash, uint32_t server_size,
+                const char *server_last_sync) {
     pspDebugScreenClear();
     pspDebugScreenSetXY(0, 1);
 
@@ -118,10 +122,21 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     pspDebugScreenPrintf("Game:   %s (%s)\n\n", title->name, title->game_id);
     pspDebugScreenPrintf("Action: %s\n\n", action_str);
     pspDebugScreenPrintf("Local:  %u bytes\n", title->total_size);
-    if (server_hash && server_hash[0])
+    if (server_hash && server_hash[0]) {
         pspDebugScreenPrintf("Server: %u bytes\n", server_size);
-    else
+        if (server_last_sync && server_last_sync[0]) {
+            /* Format "2024-01-15T14:30:00..." -> "2024-01-15 14:30" */
+            char date_str[20] = "";
+            if (strlen(server_last_sync) >= 16 && server_last_sync[10] == 'T')
+                snprintf(date_str, sizeof(date_str), "%.10s %.5s",
+                         server_last_sync, server_last_sync + 11);
+            else
+                snprintf(date_str, sizeof(date_str), "%.16s", server_last_sync);
+            pspDebugScreenPrintf("Date:   %s\n", date_str);
+        }
+    } else {
         pspDebugScreenPrintf("Server: (no save)\n");
+    }
 
     /* Always drain before starting input so a held button from the previous
      * screen doesn't immediately trigger a choice here. */

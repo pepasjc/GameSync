@@ -156,7 +156,8 @@ void ui_draw_list(const SyncState *state, int selected, int scroll) {
 }
 
 bool ui_confirm(const TitleInfo *title, SyncAction action,
-                const char *server_hash, uint32_t server_size) {
+                const char *server_hash, uint32_t server_size,
+                const char *server_last_sync) {
     psvDebugScreenPuts(CLR_SCREEN);
 
     const char *action_str =
@@ -183,13 +184,35 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     psvDebugScreenPrintf("Local:   %u bytes  (%d files)", title->total_size, title->file_count);
 
     goto_rc(5, 0);
-    if (server_hash && server_hash[0])
+    if (server_hash && server_hash[0]) {
         psvDebugScreenPrintf("Server:  %u bytes", server_size);
-    else
+        if (server_last_sync && server_last_sync[0]) {
+            /* Format "2024-01-15T14:30:00..." -> "2024-01-15 14:30" */
+            char date_str[20] = "";
+            if (strlen(server_last_sync) >= 16 && server_last_sync[10] == 'T')
+                snprintf(date_str, sizeof(date_str), "%.10s %.5s",
+                         server_last_sync, server_last_sync + 11);
+            else
+                snprintf(date_str, sizeof(date_str), "%.16s", server_last_sync);
+            goto_rc(6, 0);
+            psvDebugScreenPrintf("Date:    %s", date_str);
+        }
+    } else {
         psvDebugScreenPuts("Server:  (no save)");
+    }
+
+    /* Drain any held buttons so the button that opened this confirm screen
+     * (e.g. X from the game list) doesn't immediately trigger a choice here. */
+    {
+        SceCtrlData _pad;
+        do {
+            sceCtrlReadBufferPositive2(0, &_pad, 1);
+            sceKernelDelayThread(16000);
+        } while (_pad.buttons != 0);
+    }
 
     if (action == SYNC_UP_TO_DATE) {
-        goto_rc(7, 0);
+        goto_rc(8, 0);
         psvDebugScreenPuts("Already up to date. Press X.");
 
         SceCtrlData pad;
@@ -204,7 +227,7 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
         return false;
     }
 
-    goto_rc(7, 0);
+    goto_rc(9, 0);
     psvDebugScreenPuts(FG_GREEN "X: Confirm  |  O: Cancel" FG_RESET);
 
     SceCtrlData pad;

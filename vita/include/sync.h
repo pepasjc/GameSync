@@ -15,4 +15,8 @@ SyncAction sync_decide(const SyncState *state, int title_idx);
 int sync_execute(SyncState *state, int title_idx, SyncAction action);
 void sync_scan_all(SyncState *state, SyncSummary *summary);
 
+typedef void (*SyncProgressFn)(const char *msg);
+
+void sync_auto_all(SyncState *state, SyncSummary *summary, SyncProgressFn progress);
+
 #endif

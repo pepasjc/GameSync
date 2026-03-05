@@ -11,7 +11,7 @@
 
 #define MAX_TITLES      256
 #define MAX_TITLE_LEN   128
-#define GAME_ID_LEN     12      /* max product code len + null */
+#define GAME_ID_LEN     32      /* up to 31 chars + null: ULUS10272DATA00\0 */
 #define SAVE_DIR_LEN    260
 #define MAX_FILES       64      /* max files per save directory */
 #define MAX_FILE_LEN    128     /* max relative path length */

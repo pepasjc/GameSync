@@ -33,7 +33,7 @@ SyncAction sync_decide(const SyncState *state, int title_idx) {
     /* Get server hash */
     char server_hash[65] = "";
     uint32_t server_size = 0;
-    int r = network_get_save_info(state, title->game_id, server_hash, &server_size);
+    int r = network_get_save_info(state, title->game_id, server_hash, &server_size, NULL);
 
     if (r == 1) {
         /* Server has no save: upload */
@@ -127,6 +127,72 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
     }
 
     return -1;
+}
+
+void sync_auto_all(SyncState *state, SyncSummary *summary, SyncProgressFn progress) {
+    if (summary) memset(summary, 0, sizeof(SyncSummary));
+
+    /* Step 1: compute hashes for all titles */
+    char msg[64];
+    for (int i = 0; i < state->num_titles; i++) {
+        TitleInfo *t = &state->titles[i];
+        if (progress) {
+            snprintf(msg, sizeof(msg), "Hashing %d/%d: %s",
+                     i + 1, state->num_titles, t->game_id);
+            progress(msg);
+        }
+        if (!t->hash_calculated)
+            saves_compute_hash(t);
+    }
+
+    /* Step 2: get sync plan from server */
+    if (progress) progress("Requesting sync plan...");
+    static NetworkSyncPlan plan;
+    if (network_get_sync_plan(state, &plan) != 0) {
+        if (summary) summary->failed = state->num_titles;
+        return;
+    }
+
+    /* Step 3: process uploads */
+    for (int i = 0; i < plan.upload_count; i++) {
+        for (int j = 0; j < state->num_titles; j++) {
+            if (strcmp(state->titles[j].game_id, plan.upload[i]) == 0) {
+                if (progress) {
+                    snprintf(msg, sizeof(msg), "Uploading %d/%d: %s",
+                             i + 1, plan.upload_count, plan.upload[i]);
+                    progress(msg);
+                }
+                int r = sync_execute(state, j, SYNC_UPLOAD);
+                if (summary) { if (r == 0) summary->uploaded++; else summary->failed++; }
+                break;
+            }
+        }
+    }
+
+    /* Step 4: process downloads */
+    for (int i = 0; i < plan.download_count; i++) {
+        for (int j = 0; j < state->num_titles; j++) {
+            if (strcmp(state->titles[j].game_id, plan.download[i]) == 0) {
+                if (progress) {
+                    snprintf(msg, sizeof(msg), "Downloading %d/%d: %s",
+                             i + 1, plan.download_count, plan.download[i]);
+                    progress(msg);
+                }
+                int r = sync_execute(state, j, SYNC_DOWNLOAD);
+                if (summary) { if (r == 0) summary->downloaded++; else summary->failed++; }
+                break;
+            }
+        }
+    }
+
+    if (summary) {
+        summary->conflicts  = plan.conflict_count;
+        summary->up_to_date = state->num_titles
+                              - plan.upload_count
+                              - plan.download_count
+                              - plan.conflict_count;
+        if (summary->up_to_date < 0) summary->up_to_date = 0;
+    }
 }
 
 void sync_scan_all(SyncState *state, SyncSummary *summary) {

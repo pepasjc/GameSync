@@ -23,8 +23,10 @@ void ui_draw_config(const SyncState *state);
 /* Show a simple message and wait for X to dismiss. */
 void ui_message(const char *fmt, ...);
 
-/* Ask user to confirm a sync action. Returns true if confirmed. */
+/* Ask user to confirm a sync action. Returns true if confirmed.
+ * server_last_sync: ISO 8601 string (or NULL/empty) to show server save date. */
 bool ui_confirm(const TitleInfo *title, SyncAction action,
-                const char *server_hash, uint32_t server_size);
+                const char *server_hash, uint32_t server_size,
+                const char *server_last_sync);
 
 #endif /* UI_H */

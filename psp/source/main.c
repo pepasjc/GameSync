@@ -28,6 +28,7 @@
 #include <psppower.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "common.h"
 #include "config.h"
@@ -67,6 +68,14 @@ static void setup_callbacks(void) {
 static SyncState g_state;
 static int g_selected = 0;
 static int g_scroll = 0;
+
+static void sync_progress(const char *msg) { ui_status("%s", msg); }
+
+static int title_compare(const void *a, const void *b) {
+    const TitleInfo *ta = (const TitleInfo *)a;
+    const TitleInfo *tb = (const TitleInfo *)b;
+    return strcasecmp(ta->name, tb->name);
+}
 
 static void update_scroll(void) {
     if (g_selected < g_scroll)
@@ -152,7 +161,10 @@ int main(int argc, char *argv[]) {
         network_fetch_names(&g_state);
     }
 
-    ui_message("Found %d save(s).\n\nPress X to continue.", g_state.num_titles);
+    if (g_state.num_titles > 1)
+        qsort(g_state.titles, g_state.num_titles, sizeof(TitleInfo), title_compare);
+
+    ui_message("Found %d save(s).", g_state.num_titles);
 
     if (g_state.num_titles == 0) {
         ui_clear();
@@ -212,9 +224,10 @@ int main(int argc, char *argv[]) {
 
             char server_hash[65] = "";
             uint32_t server_size = 0;
-            network_get_save_info(&g_state, title->game_id, server_hash, &server_size);
+            char server_last_sync[32] = "";
+            network_get_save_info(&g_state, title->game_id, server_hash, &server_size, server_last_sync);
 
-            if (ui_confirm(title, action, server_hash, server_size)) {
+            if (ui_confirm(title, action, server_hash, server_size, server_last_sync)) {
                 ui_clear();
                 ui_status("%s %s...",
                     action == SYNC_UPLOAD ? "Uploading" : "Downloading",
@@ -234,9 +247,10 @@ int main(int argc, char *argv[]) {
             TitleInfo *title = &g_state.titles[g_selected];
             char server_hash[65] = "";
             uint32_t server_size = 0;
-            network_get_save_info(&g_state, title->game_id, server_hash, &server_size);
+            char server_last_sync[32] = "";
+            network_get_save_info(&g_state, title->game_id, server_hash, &server_size, server_last_sync);
 
-            if (ui_confirm(title, SYNC_UPLOAD, server_hash, server_size)) {
+            if (ui_confirm(title, SYNC_UPLOAD, server_hash, server_size, server_last_sync)) {
                 ui_clear();
                 ui_status("Uploading %s...", title->game_id);
                 int r = sync_execute(&g_state, g_selected, SYNC_UPLOAD);
@@ -254,9 +268,10 @@ int main(int argc, char *argv[]) {
             TitleInfo *title = &g_state.titles[g_selected];
             char server_hash[65] = "";
             uint32_t server_size = 0;
-            network_get_save_info(&g_state, title->game_id, server_hash, &server_size);
+            char server_last_sync[32] = "";
+            network_get_save_info(&g_state, title->game_id, server_hash, &server_size, server_last_sync);
 
-            if (ui_confirm(title, SYNC_DOWNLOAD, server_hash, server_size)) {
+            if (ui_confirm(title, SYNC_DOWNLOAD, server_hash, server_size, server_last_sync)) {
                 ui_clear();
                 ui_status("Downloading %s...", title->game_id);
                 int r = sync_execute(&g_state, g_selected, SYNC_DOWNLOAD);
@@ -269,21 +284,20 @@ int main(int argc, char *argv[]) {
             redraw = true;
         }
 
-        /* Select: scan all saves */
+        /* Select: auto sync all saves */
         if (just_pressed & PSP_CTRL_SELECT && has_wifi) {
             ui_clear();
-            ui_status("Scanning all saves...");
             SyncSummary summary;
-            sync_scan_all(&g_state, &summary);
-            ui_message("Scan complete:\n"
+            sync_auto_all(&g_state, &summary, sync_progress);
+            ui_message("Auto sync complete:\n"
+                       "Uploaded:   %d\n"
+                       "Downloaded: %d\n"
                        "Up to date: %d\n"
-                       "Need upload: %d\n"
-                       "Need download: %d\n"
-                       "Conflicts: %d\n"
-                       "Failed: %d\n\n"
+                       "Conflicts:  %d\n"
+                       "Failed:     %d\n\n"
                        "Press X to continue.",
-                       summary.up_to_date, summary.uploaded,
-                       summary.downloaded, summary.conflicts, summary.failed);
+                       summary.uploaded, summary.downloaded,
+                       summary.up_to_date, summary.conflicts, summary.failed);
             prev_buttons = 0;
             redraw = true;
         }

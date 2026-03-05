@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "network.h"
+#include "config.h"
 
 #define HTTP_BUF_SIZE   (64 * 1024)   /* 64KB for HTTP headers */
 #define RECV_CHUNK      4096
@@ -411,38 +412,134 @@ bool network_check_server(const SyncState *state) {
     return r > 0;
 }
 
+/* Parse a JSON string value for key into out (up to out_size-1 chars). */
+static void parse_json_str(const char *json, const char *key,
+                           char *out, int out_size) {
+    char search[64];
+    snprintf(search, sizeof(search), "\"%s\":", key);
+    const char *p = strstr(json, search);
+    if (!p) return;
+    p += strlen(search);
+    while (*p == ' ') p++;
+    if (*p != '"') return;
+    p++;
+    const char *end = strchr(p, '"');
+    if (!end) return;
+    int len = (int)(end - p);
+    if (len >= out_size) len = out_size - 1;
+    strncpy(out, p, len);
+    out[len] = '\0';
+}
+
 int network_get_save_info(const SyncState *state, const char *game_id,
-                          char *hash_out, uint32_t *size_out) {
+                          char *hash_out, uint32_t *size_out,
+                          char *last_sync_out) {
     char path[256];
     snprintf(path, sizeof(path), "/api/v1/saves/%s/meta", game_id);
 
     static uint8_t resp[1024];
-    int r = network_http_get(state, path, resp, sizeof(resp));
+    int r = network_http_get(state, path, resp, sizeof(resp) - 1);
     if (r <= 0) return (r == -404) ? 1 : -1;
 
     resp[r] = '\0';
+    const char *json = (char *)resp;
 
-    /* Parse JSON: {"save_hash":"...","save_size":...} */
-    char *hash_key = strstr((char *)resp, "\"save_hash\":");
-    if (hash_key && hash_out) {
-        char *start = strchr(hash_key, '"');
-        if (start) start = strchr(start + 1, '"');
-        if (start) {
-            start++;
-            char *end = strchr(start, '"');
-            if (end && (end - start) <= 64) {
-                int len = end - start;
-                strncpy(hash_out, start, len);
-                hash_out[len] = '\0';
-            }
+    if (hash_out) parse_json_str(json, "save_hash", hash_out, 65);
+
+    char *size_key = strstr(json, "\"save_size\":");
+    if (size_key && size_out)
+        *size_out = (uint32_t)atoi(size_key + 12);
+
+    if (last_sync_out) {
+        last_sync_out[0] = '\0';
+        parse_json_str(json, "last_sync", last_sync_out, 32);
+    }
+
+    return 0;
+}
+
+/* Parse a JSON array of strings for key into out[][GAME_ID_LEN]. */
+static int parse_id_array(const char *json, const char *key,
+                          char out[][GAME_ID_LEN], int max_count) {
+    char search[32];
+    snprintf(search, sizeof(search), "\"%s\"", key);
+    const char *p = strstr(json, search);
+    if (!p) return 0;
+    p += strlen(search);
+    while (*p == ':' || *p == ' ') p++;
+    if (*p != '[') return 0;
+    p++;
+
+    int count = 0;
+    while (*p && *p != ']' && count < max_count) {
+        while (*p == ' ' || *p == ',' || *p == '\n' || *p == '\r') p++;
+        if (*p != '"') break;
+        p++;
+        int len = 0;
+        while (*p && *p != '"' && len < GAME_ID_LEN - 1)
+            out[count][len++] = *p++;
+        out[count][len] = '\0';
+        if (*p == '"') p++;
+        if (len > 0) count++;
+    }
+    return count;
+}
+
+int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
+    memset(plan, 0, sizeof(*plan));
+
+    /* Build request JSON */
+    int json_cap = 64 + state->num_titles * 260;
+    char *json = malloc(json_cap);
+    if (!json) return -1;
+
+    int pos = snprintf(json, json_cap,
+                       "{\"console_id\":\"%s\",\"titles\":[",
+                       state->console_id);
+    bool first = true;
+    for (int i = 0; i < state->num_titles; i++) {
+        const TitleInfo *t = &state->titles[i];
+        if (!t->hash_calculated) continue;
+
+        char hash_hex[65];
+        for (int j = 0; j < 32; j++)
+            sprintf(&hash_hex[j * 2], "%02x", t->hash[j]);
+        hash_hex[64] = '\0';
+
+        char last_hash[65] = "";
+        bool has_last = config_get_last_hash(t->game_id, last_hash);
+
+        if (!first) json[pos++] = ',';
+        first = false;
+
+        if (has_last) {
+            pos += snprintf(json + pos, json_cap - pos,
+                "{\"title_id\":\"%s\",\"save_hash\":\"%s\","
+                "\"timestamp\":0,\"size\":%u,"
+                "\"last_synced_hash\":\"%s\"}",
+                t->game_id, hash_hex, t->total_size, last_hash);
+        } else {
+            pos += snprintf(json + pos, json_cap - pos,
+                "{\"title_id\":\"%s\",\"save_hash\":\"%s\","
+                "\"timestamp\":0,\"size\":%u}",
+                t->game_id, hash_hex, t->total_size);
         }
     }
+    pos += snprintf(json + pos, json_cap - pos, "]}");
 
-    char *size_key = strstr((char *)resp, "\"save_size\":");
-    if (size_key && size_out) {
-        *size_out = atoi(size_key + 12);
-    }
+    static uint8_t resp[16384];
+    int resp_len = 0;
+    int r = network_http_post_json(state, "/api/v1/sync",
+                                   json, resp, sizeof(resp) - 1, &resp_len);
+    free(json);
 
+    if (r != 0 || resp_len <= 0) return -1;
+    resp[resp_len] = '\0';
+    const char *resp_str = (char *)resp;
+
+    plan->upload_count   = parse_id_array(resp_str, "upload",   plan->upload,   SYNC_PLAN_MAX);
+    plan->download_count = parse_id_array(resp_str, "download", plan->download, SYNC_PLAN_MAX);
+    plan->conflict_count = parse_id_array(resp_str, "conflict", plan->conflict, SYNC_PLAN_MAX);
     return 0;
 }
 
@@ -467,7 +564,7 @@ void network_fetch_names(SyncState *state) {
     if (!state || state->num_titles == 0) return;
 
     /* Build {"codes":["ID1","ID2",...]} */
-    int json_cap = 16 + state->num_titles * 14;
+    int json_cap = 16 + state->num_titles * 38;
     char *json = malloc(json_cap);
     if (!json) return;
 
