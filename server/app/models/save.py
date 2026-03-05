@@ -13,7 +13,7 @@ BUNDLE_VERSION_V3 = 3  # String title_id for PSP/Vita (16 bytes ASCII, null-padd
 
 # Accepts 16-char hex IDs (3DS/DS) OR 4-16 alphanumeric product codes (PSP/Vita)
 _HEX_TITLE_ID_RE = re.compile(r"^[0-9A-F]{16}$")
-_PRODUCT_CODE_RE = re.compile(r"^[A-Z0-9]{4,16}$")
+_PRODUCT_CODE_RE = re.compile(r"^[A-Z0-9]{4,31}$")
 
 
 def is_hex_title_id(title_id: str) -> bool:

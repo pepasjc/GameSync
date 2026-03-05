@@ -23,6 +23,7 @@
 #define CONFIG_PATH         "ux0:data/vitasync/config.txt"
 #define SYNC_DATA_DIR       "ux0:data/vitasync"
 #define STATE_FILE          "ux0:data/vitasync/state.dat"
+#define HASH_CACHE_FILE     "ux0:data/vitasync/hash_cache.dat"
 #define CONSOLE_ID_FILE     "ux0:data/vitasync/console_id.txt"
 
 typedef enum {

@@ -24,7 +24,6 @@ from app.config import settings
 from app.models.save import SaveBundle, SaveMetadata
 
 _DEFAULT_CONSOLE = "_default"
-_PSP_CONSOLE = "psp"
 
 
 def _title_dir(title_id: str) -> Path:
@@ -111,11 +110,7 @@ def list_titles() -> list[dict]:
 
 
 def get_metadata(title_id: str, console_id: str = "") -> SaveMetadata | None:
-    """Load metadata for a title/console. Falls back to most-recent console if not specified.
-
-    If console_id is given but that slot doesn't exist, also tries the shared "psp" slot
-    so that PSP saves stored under the canonical slot are visible to any PSP/Vita client.
-    """
+    """Load metadata for a title/console. Falls back to most-recent console if not specified."""
     if not console_id:
         console_id = get_latest_console(title_id) or ""
         if not console_id:
@@ -123,17 +118,7 @@ def get_metadata(title_id: str, console_id: str = "") -> SaveMetadata | None:
 
     path = _metadata_path(title_id, console_id)
     if not path.exists():
-        # Fall back to the shared PSP slot, then to most-recently-updated slot
-        psp_path = _metadata_path(title_id, _PSP_CONSOLE)
-        if psp_path.exists():
-            path = psp_path
-        else:
-            fallback = get_latest_console(title_id) or ""
-            if not fallback:
-                return None
-            path = _metadata_path(title_id, fallback)
-            if not path.exists():
-                return None
+        return None
 
     data = json.loads(path.read_text(encoding="utf-8"))
     return SaveMetadata(**data)
@@ -200,11 +185,7 @@ def store_save(
 def load_save_files(
     title_id: str, console_id: str = ""
 ) -> list[tuple[str, bytes]] | None:
-    """Load all save files. Falls back to most-recent console if not specified.
-
-    If console_id is given but that slot doesn't exist, also tries the shared "psp" slot,
-    then the most-recently-updated slot.
-    """
+    """Load all save files. Falls back to most-recent console if not specified."""
     if not console_id:
         console_id = get_latest_console(title_id) or ""
         if not console_id:
@@ -212,17 +193,7 @@ def load_save_files(
 
     current = _current_dir(title_id, console_id)
     if not current.exists():
-        # Fall back to shared PSP slot, then to most-recently-updated slot
-        psp_current = _current_dir(title_id, _PSP_CONSOLE)
-        if psp_current.exists():
-            current = psp_current
-        else:
-            fallback = get_latest_console(title_id) or ""
-            if not fallback:
-                return None
-            current = _current_dir(title_id, fallback)
-            if not current.exists():
-                return None
+        return None
 
     files = []
     for file_path in sorted(current.rglob("*")):

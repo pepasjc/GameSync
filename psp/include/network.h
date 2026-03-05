@@ -43,7 +43,7 @@ int network_http_post_json(const SyncState *state, const char *path,
 bool network_check_server(const SyncState *state);
 
 /* Sync plan returned by network_get_sync_plan */
-#define SYNC_PLAN_MAX 128
+#define SYNC_PLAN_MAX MAX_TITLES
 typedef struct {
     char upload  [SYNC_PLAN_MAX][GAME_ID_LEN]; int upload_count;
     char download[SYNC_PLAN_MAX][GAME_ID_LEN]; int download_count;

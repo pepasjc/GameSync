@@ -225,13 +225,36 @@ void sync_auto_all(SyncState *state, SyncSummary *summary, SyncProgressFn progre
     char msg[64];
     for (int i = 0; i < state->num_titles; i++) {
         TitleInfo *t = &state->titles[i];
-        if (progress) {
-            snprintf(msg, sizeof(msg), "Hashing %d/%d: %s",
-                     i + 1, state->num_titles, t->game_id);
-            progress(msg);
-        }
-        if (!t->hash_calculated)
+        if (t->hash_calculated) continue;
+
+        char cached_hash[65];
+        if (config_get_cached_hash(t->game_id, t->file_count, t->total_size, cached_hash)) {
+            if (progress) {
+                snprintf(msg, sizeof(msg), "Cached %d/%d: %s",
+                         i + 1, state->num_titles, t->game_id);
+                progress(msg);
+            }
+            for (int j = 0; j < 32; j++) {
+                unsigned int byte;
+                sscanf(&cached_hash[j * 2], "%02x", &byte);
+                t->hash[j] = (uint8_t)byte;
+            }
+            t->hash_calculated = true;
+        } else {
+            if (progress) {
+                snprintf(msg, sizeof(msg), "Hashing %d/%d: %s",
+                         i + 1, state->num_titles, t->game_id);
+                progress(msg);
+            }
             saves_compute_hash(t);
+            if (t->hash_calculated) {
+                char hash_hex[65];
+                for (int j = 0; j < 32; j++)
+                    sprintf(&hash_hex[j * 2], "%02x", t->hash[j]);
+                hash_hex[64] = '\0';
+                config_set_cached_hash(t->game_id, t->file_count, t->total_size, hash_hex);
+            }
+        }
     }
 
     if (progress) progress("Requesting sync plan...");

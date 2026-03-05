@@ -152,6 +152,82 @@ bool config_get_last_hash(const char *game_id, char *hash_out) {
     return false;
 }
 
+bool config_get_cached_hash(const char *game_id, int file_count, uint32_t total_size,
+                            char *hash_out) {
+    SceUID fd = sceIoOpen(HASH_CACHE_FILE, SCE_O_RDONLY, 0777);
+    if (fd < 0) return false;
+
+    static char buf[MAX_TITLES * 132];
+    int bytes = sceIoRead(fd, buf, sizeof(buf) - 1);
+    sceIoClose(fd);
+    if (bytes <= 0) return false;
+    buf[bytes] = '\0';
+
+    char prefix[GAME_ID_LEN + 2];
+    snprintf(prefix, sizeof(prefix), "%s=", game_id);
+    int prefix_len = strlen(prefix);
+
+    char *line = strtok(buf, "\n");
+    while (line) {
+        if (strncmp(line, prefix, prefix_len) == 0) {
+            int cached_fc = 0;
+            uint32_t cached_size = 0;
+            const char *val = line + prefix_len;
+            if (sscanf(val, "%d:%u:", &cached_fc, &cached_size) == 2
+                    && cached_fc == file_count && cached_size == total_size) {
+                /* Skip "fc:size:" to reach the hash */
+                const char *p = strchr(val, ':');
+                if (p) p = strchr(p + 1, ':');
+                if (p) {
+                    strncpy(hash_out, p + 1, 64);
+                    hash_out[64] = '\0';
+                    return true;
+                }
+            }
+            return false;
+        }
+        line = strtok(NULL, "\n");
+    }
+    return false;
+}
+
+bool config_set_cached_hash(const char *game_id, int file_count, uint32_t total_size,
+                            const char *hash_hex) {
+    static char buf[MAX_TITLES * 132];
+    buf[0] = '\0';
+    SceUID fd = sceIoOpen(HASH_CACHE_FILE, SCE_O_RDONLY, 0777);
+    if (fd >= 0) {
+        int bytes = sceIoRead(fd, buf, sizeof(buf) - 1);
+        sceIoClose(fd);
+        if (bytes > 0) buf[bytes] = '\0';
+    }
+
+    static char new_buf[MAX_TITLES * 132];
+    new_buf[0] = '\0';
+    char prefix[GAME_ID_LEN + 2];
+    snprintf(prefix, sizeof(prefix), "%s=", game_id);
+    int prefix_len = strlen(prefix);
+
+    char *line = strtok(buf, "\n");
+    while (line) {
+        if (line[0] != '\0' && strncmp(line, prefix, prefix_len) != 0) {
+            strcat(new_buf, line);
+            strcat(new_buf, "\n");
+        }
+        line = strtok(NULL, "\n");
+    }
+
+    char entry[GAME_ID_LEN + 2 + 10 + 1 + 10 + 1 + 64 + 2];
+    snprintf(entry, sizeof(entry), "%s=%d:%u:%s\n", game_id, file_count, total_size, hash_hex);
+    strcat(new_buf, entry);
+
+    fd = sceIoOpen(HASH_CACHE_FILE, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
+    if (fd < 0) return false;
+    sceIoWrite(fd, new_buf, strlen(new_buf));
+    sceIoClose(fd);
+    return true;
+}
+
 bool config_set_last_hash(const char *game_id, const char *hash_hex) {
     static char buf[MAX_TITLES * 128];
     buf[0] = '\0';

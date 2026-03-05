@@ -22,6 +22,7 @@
 #define CONFIG_PATH     "ms0:/PSP/GAME/pspsync/config.txt"
 #define SYNC_STATE_DIR  "ms0:/PSP/GAME/pspsync"
 #define STATE_FILE      "ms0:/PSP/GAME/pspsync/state.dat"
+#define HASH_CACHE_FILE "ms0:/PSP/GAME/pspsync/hash_cache.dat"
 #define CONSOLE_ID_FILE "ms0:/PSP/GAME/pspsync/console_id.txt"
 
 typedef struct {

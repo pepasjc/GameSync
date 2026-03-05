@@ -321,12 +321,15 @@ int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
     memset(plan, 0, sizeof(*plan));
 
     /* Native Vita saves use the device's own console_id slot on the server. */
-    if (_sync_plan_for_platform(state, plan, NULL, PLATFORM_VITA) != 0)
-        return -1;
+    int vita_ret = _sync_plan_for_platform(state, plan, NULL, PLATFORM_VITA);
 
     /* PSP emu saves share the canonical "psp" slot so they sync with native
      * PSP hardware regardless of which Vita device is being used. */
-    if (_sync_plan_for_platform(state, plan, "psp", PLATFORM_PSP_EMU) != 0)
+    int psp_ret = _sync_plan_for_platform(state, plan, "psp", PLATFORM_PSP_EMU);
+
+    /* Return -1 only if both failed — a PSP-only failure should not discard
+     * the Vita portion of the plan that already succeeded. */
+    if (vita_ret != 0 && psp_ret != 0)
         return -1;
 
     return 0;

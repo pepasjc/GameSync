@@ -82,13 +82,19 @@ bool saves_is_vita_game_id(const char *game_id) {
 
 bool saves_is_psp_game_id(const char *game_id) {
     /* PSP save dirs start with a 9-char product code (4 uppercase + 5 digits)
-     * optionally followed by a slot suffix, e.g. ULUS10272DATA00 */
+     * optionally followed by a slot suffix, e.g. ULUS10272DATA00.
+     * Max length is 16 to match the server's title ID validation. */
     size_t len = strlen(game_id);
     if (len < 9 || len >= GAME_ID_LEN) return false;
     for (int i = 0; i < 4; i++)
         if (!isupper((unsigned char)game_id[i])) return false;
     for (int i = 4; i < 9; i++)
         if (!isdigit((unsigned char)game_id[i])) return false;
+    /* Validate any suffix chars (positions 9+) — must also be uppercase or digit
+     * so they pass the server's product-code regex [A-Z0-9]{4,16} */
+    for (size_t i = 9; i < len; i++)
+        if (!isupper((unsigned char)game_id[i]) && !isdigit((unsigned char)game_id[i]))
+            return false;
     return true;
 }
 
