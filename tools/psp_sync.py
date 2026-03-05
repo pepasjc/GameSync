@@ -323,7 +323,7 @@ def do_sync(games: list[dict], server: str, api_key: str, console_id: str,
             meta["last_synced_hash"] = last_hash
         titles_meta.append(meta)
 
-    sync_request = {"console_id": console_id, "titles": titles_meta}
+    sync_request = {"console_id": "psp", "titles": titles_meta}
 
     # Step 2: Send sync request
     print("Sending sync request to server...")

@@ -30,14 +30,27 @@ def _console_id_from_request(request: Request, query_console_id: str = "") -> st
     )
 
 
+def _resolve_console_id(cid: str, source: str) -> str:
+    """Normalise console ID for storage.
+
+    PSP saves (source="psp" or source="psp_emu") are always stored under the
+    shared "psp" slot so that a native PSP, the Vita's PSP emulator, and the
+    PC sync tool all share the same server folder for a given game.
+    """
+    if source in ("psp", "psp_emu"):
+        return "psp"
+    return cid
+
+
 @router.get("/saves/{title_id}/meta")
 async def get_save_meta(
     title_id: str,
     request: Request,
     console_id: str = Query(""),
+    source: str = Query(""),
 ):
     title_id = _validate_title_id(title_id)
-    cid = _console_id_from_request(request, console_id)
+    cid = _resolve_console_id(_console_id_from_request(request, console_id), source)
     meta = storage.get_metadata(title_id, cid)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
@@ -59,10 +72,11 @@ async def download_save_raw(
     title_id: str,
     request: Request,
     console_id: str = Query(""),
+    source: str = Query(""),
 ):
     """Download raw save file (first file only) - for DS client compatibility."""
     title_id = _validate_title_id(title_id)
-    cid = _console_id_from_request(request, console_id)
+    cid = _resolve_console_id(_console_id_from_request(request, console_id), source)
     meta = storage.get_metadata(title_id, cid)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
@@ -89,9 +103,10 @@ async def download_save(
     title_id: str,
     request: Request,
     console_id: str = Query(""),
+    source: str = Query(""),
 ):
     title_id = _validate_title_id(title_id)
-    cid = _console_id_from_request(request, console_id)
+    cid = _resolve_console_id(_console_id_from_request(request, console_id), source)
     meta = storage.get_metadata(title_id, cid)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
@@ -147,7 +162,7 @@ async def upload_save(
     console_id: str = Query(""),
 ):
     title_id = _validate_title_id(title_id)
-    cid = _console_id_from_request(request, console_id)
+    cid = _resolve_console_id(_console_id_from_request(request, console_id), source)
 
     body = await request.body()
     if not body:

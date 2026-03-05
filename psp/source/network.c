@@ -494,8 +494,7 @@ int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
     if (!json) return -1;
 
     int pos = snprintf(json, json_cap,
-                       "{\"console_id\":\"%s\",\"titles\":[",
-                       state->console_id);
+                       "{\"console_id\":\"psp\",\"titles\":[");
     bool first = true;
     for (int i = 0; i < state->num_titles; i++) {
         const TitleInfo *t = &state->titles[i];

@@ -225,19 +225,40 @@ static int parse_id_array(const char *json, const char *key,
     return count;
 }
 
-int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
-    memset(plan, 0, sizeof(*plan));
+/* Build and send a sync plan request for a filtered subset of titles.
+ *
+ * console_id_override: if non-NULL, use this as "console_id" in the JSON body
+ *                      instead of state->console_id. Used to direct PSP emu saves
+ *                      to the shared "psp" server slot regardless of the Vita's ID.
+ * platform_filter:     PLATFORM_VITA or PLATFORM_PSP_EMU; only titles matching
+ *                      this platform are included. Pass -1 to include all.
+ *
+ * Results are *appended* to plan (counts must be initialised by caller).
+ * Returns 0 on success, -1 on error (empty title list treated as success).
+ */
+static int _sync_plan_for_platform(const SyncState *state, NetworkSyncPlan *plan,
+                                   const char *console_id_override,
+                                   int platform_filter) {
+    /* Count matching titles */
+    int count = 0;
+    for (int i = 0; i < state->num_titles; i++) {
+        const TitleInfo *t = &state->titles[i];
+        if (platform_filter >= 0 && (int)t->platform != platform_filter) continue;
+        if (t->hash_calculated) count++;
+    }
+    if (count == 0) return 0;  /* nothing to sync for this group */
 
-    int json_cap = 64 + state->num_titles * 260;
+    const char *cid = console_id_override ? console_id_override : state->console_id;
+
+    int json_cap = 64 + count * 260;
     char *json = malloc(json_cap);
     if (!json) return -1;
 
-    int pos = snprintf(json, json_cap,
-                       "{\"console_id\":\"%s\",\"titles\":[",
-                       state->console_id);
+    int pos = snprintf(json, json_cap, "{\"console_id\":\"%s\",\"titles\":[", cid);
     bool first = true;
     for (int i = 0; i < state->num_titles; i++) {
         const TitleInfo *t = &state->titles[i];
+        if (platform_filter >= 0 && (int)t->platform != platform_filter) continue;
         if (!t->hash_calculated) continue;
 
         char hash_hex[65];
@@ -276,9 +297,38 @@ int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
     resp[resp_len] = '\0';
     const char *resp_str = (char *)resp;
 
-    plan->upload_count   = parse_id_array(resp_str, "upload",   plan->upload,   SYNC_PLAN_MAX);
-    plan->download_count = parse_id_array(resp_str, "download", plan->download, SYNC_PLAN_MAX);
-    plan->conflict_count = parse_id_array(resp_str, "conflict", plan->conflict, SYNC_PLAN_MAX);
+    int room;
+
+    room = SYNC_PLAN_MAX - plan->upload_count;
+    if (room > 0)
+        plan->upload_count   += parse_id_array(resp_str, "upload",
+                                               plan->upload   + plan->upload_count,   room);
+
+    room = SYNC_PLAN_MAX - plan->download_count;
+    if (room > 0)
+        plan->download_count += parse_id_array(resp_str, "download",
+                                               plan->download + plan->download_count, room);
+
+    room = SYNC_PLAN_MAX - plan->conflict_count;
+    if (room > 0)
+        plan->conflict_count += parse_id_array(resp_str, "conflict",
+                                               plan->conflict + plan->conflict_count, room);
+
+    return 0;
+}
+
+int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
+    memset(plan, 0, sizeof(*plan));
+
+    /* Native Vita saves use the device's own console_id slot on the server. */
+    if (_sync_plan_for_platform(state, plan, NULL, PLATFORM_VITA) != 0)
+        return -1;
+
+    /* PSP emu saves share the canonical "psp" slot so they sync with native
+     * PSP hardware regardless of which Vita device is being used. */
+    if (_sync_plan_for_platform(state, plan, "psp", PLATFORM_PSP_EMU) != 0)
+        return -1;
+
     return 0;
 }
 

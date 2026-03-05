@@ -415,18 +415,13 @@ def api_post_json(server: str, path: str, api_key: str, console_id: str,
 
 # --- Main sync logic ---
 
-def do_sync(games: list[dict], ftp: VitaFTP, server: str, api_key: str,
-            console_id: str, state: dict, dry_run: bool = False) -> dict:
-    if not games:
-        print("No saves found.")
-        return state
+def _build_sync_plan(games: list[dict], server: str, api_key: str,
+                     sync_console_id: str, state: dict) -> tuple[set, set, set, set, set]:
+    """Send a sync request for the given games and return the plan sets.
 
-    print(f"\nComputing hashes for {len(games)} save(s) (downloading files)...")
-    for g in games:
-        print(f"  Hashing: {g['name']}...")
-        g["save_hash"] = hash_ftp_save(ftp, g["ftp_base"], g["files"])
-
-    print("Sending sync request to server...")
+    sync_console_id is the console_id used in the JSON body (may differ from
+    the X-Console-ID header; for PSP saves we always use "psp").
+    """
     titles_meta = []
     for g in games:
         meta = {
@@ -440,22 +435,60 @@ def do_sync(games: list[dict], ftp: VitaFTP, server: str, api_key: str,
             meta["last_synced_hash"] = last_hash
         titles_meta.append(meta)
 
-    sync_request = {"console_id": console_id, "titles": titles_meta}
-    status, resp = api_post_json(server, "/sync", api_key, console_id, sync_request)
+    sync_request = {"console_id": sync_console_id, "titles": titles_meta}
+    status, resp = api_post_json(server, "/sync", api_key, sync_console_id, sync_request)
     if status != 200:
         print(f"Sync request failed (HTTP {status})")
         if resp:
             print(f"  {resp.decode('utf-8', errors='replace')[:200]}")
-        return state
+        return set(), set(), set(), set(), set()
 
     plan = json.loads(resp)
-    upload_ids = set(plan.get("upload", []))
-    download_ids = set(plan.get("download", []))
-    conflict_ids = set(plan.get("conflict", []))
-    up_to_date_ids = set(plan.get("up_to_date", []))
-    server_only_ids = set(plan.get("server_only", []))
+    return (
+        set(plan.get("upload", [])),
+        set(plan.get("download", [])),
+        set(plan.get("conflict", [])),
+        set(plan.get("up_to_date", [])),
+        set(plan.get("server_only", [])),
+    )
+
+
+def do_sync(games: list[dict], ftp: VitaFTP, server: str, api_key: str,
+            console_id: str, state: dict, dry_run: bool = False) -> dict:
+    if not games:
+        print("No saves found.")
+        return state
+
+    print(f"\nComputing hashes for {len(games)} save(s) (downloading files)...")
+    for g in games:
+        print(f"  Hashing: {g['name']}...")
+        g["save_hash"] = hash_ftp_save(ftp, g["ftp_base"], g["files"])
+
+    # Split into PSP and Vita groups — they use different server console slots.
+    # PSP saves (from the Vita's PSP emulator) share the canonical "psp" slot
+    # with native PSP hardware and the psp_sync.py tool.
+    psp_games  = [g for g in games if g["platform"] != "vita"]
+    vita_games = [g for g in games if g["platform"] == "vita"]
 
     games_by_id = {g["game_id"]: g for g in games}
+
+    upload_ids:     set[str] = set()
+    download_ids:   set[str] = set()
+    conflict_ids:   set[str] = set()
+    up_to_date_ids: set[str] = set()
+    server_only_ids: set[str] = set()
+
+    if vita_games:
+        print("Sending sync request (Vita saves)...")
+        u, d, c, ok, so = _build_sync_plan(vita_games, server, api_key, console_id, state)
+        upload_ids |= u; download_ids |= d; conflict_ids |= c
+        up_to_date_ids |= ok; server_only_ids |= so
+
+    if psp_games:
+        print("Sending sync request (PSP saves)...")
+        u, d, c, ok, so = _build_sync_plan(psp_games, server, api_key, "psp", state)
+        upload_ids |= u; download_ids |= d; conflict_ids |= c
+        up_to_date_ids |= ok; server_only_ids |= so
 
     print(f"\nSync plan:")
     print(f"  Upload:     {len(upload_ids)}")
