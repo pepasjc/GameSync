@@ -140,18 +140,13 @@ void ui_draw_list(const SyncState *state, int selected, int scroll) {
         goto_rc(LIST_START + (i - scroll), 0);
         psvDebugScreenPuts(CLR_LINE);
         if (sel) psvDebugScreenPuts(FG_YELLOW);
-        const char *plat = t->platform == PLATFORM_PSP_EMU ? "PSP" : "VTA";
-        /* Use resolved name if available, otherwise fall back to game_id */
-        const char *display_name = (t->name[0] && strcmp(t->name, t->game_id) != 0)
-                                   ? t->name : t->game_id;
-        /* Truncate name to 28 chars to keep line under 60 chars:
-         * 2(sel+space) + 3(plat) + 1 + 9(id) + 2 + 28(name) + 2 + 4(files) = ~51 */
-        char name_buf[29];
-        strncpy(name_buf, display_name, 28);
-        name_buf[28] = '\0';
-        psvDebugScreenPrintf("%s %s %-9s  %-28s  %df",
-                             sel ? ">" : " ", plat, t->game_id,
-                             name_buf, t->file_count);
+        const char *plat = (t->platform == PLATFORM_VITA) ? "VITA" :
+                           t->is_psx                      ? "PSX"  : "PSP";
+        const char *display = (t->name[0] && strcmp(t->name, t->game_id) != 0)
+                              ? t->name : t->game_id;
+        char line[56];
+        snprintf(line, sizeof(line), "%s %-4s %s", sel ? ">" : " ", plat, display);
+        psvDebugScreenPrintf("%-55s", line);
         if (sel) psvDebugScreenPuts(FG_RESET);
     }
 

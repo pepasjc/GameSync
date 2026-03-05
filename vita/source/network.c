@@ -244,50 +244,63 @@ void network_fetch_names(SyncState *state) {
     if (r != 0 || resp_len <= 0) return;
     resp[resp_len] = '\0';
 
-    /* Parse {"names":{"CODE":"Name",...}}
-     * Walk through the "names" object extracting "KEY":"VALUE" pairs. */
-    char *p = strstr((char *)resp, "\"names\"");
-    if (!p) return;
-    p = strchr(p + 7, '{');
-    if (!p) return;
-    p++;  /* skip '{' */
+    /* Helper: parse a JSON object of string key->string value pairs.
+     * Calls set_fn(state, key, val) for each pair found. */
+    char *p;
 
-    while (*p && *p != '}') {
-        /* Skip whitespace and commas */
-        while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t' || *p == ',') p++;
-        if (*p != '"' || *p == '}') break;
-
-        /* Parse key */
-        p++;  /* skip opening quote */
-        char key[GAME_ID_LEN];
-        int key_len = 0;
-        while (*p && *p != '"' && key_len < (int)sizeof(key) - 1)
-            key[key_len++] = *p++;
-        key[key_len] = '\0';
-        if (*p == '"') p++;  /* skip closing quote */
-
-        /* Skip : */
-        while (*p == ' ' || *p == ':') p++;
-        if (*p != '"') break;
-        p++;  /* skip opening quote */
-
-        /* Parse value — handle escaped quotes */
-        char val[MAX_TITLE_LEN];
-        int val_len = 0;
-        while (*p && val_len < (int)sizeof(val) - 1) {
-            if (*p == '\\' && *(p+1) == '"') { val[val_len++] = '"'; p += 2; continue; }
-            if (*p == '"') break;
-            val[val_len++] = *p++;
+    /* Parse "names" object -> populate title->name */
+    p = strstr((char *)resp, "\"names\"");
+    if (p) {
+        p = strchr(p + 7, '{');
+        if (p) p++;
+        while (p && *p && *p != '}') {
+            while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t' || *p == ',') p++;
+            if (*p != '"' || *p == '}') break;
+            p++;
+            char key[GAME_ID_LEN]; int key_len = 0;
+            while (*p && *p != '"' && key_len < (int)sizeof(key) - 1) key[key_len++] = *p++;
+            key[key_len] = '\0'; if (*p == '"') p++;
+            while (*p == ' ' || *p == ':') p++;
+            if (*p != '"') break; p++;
+            char val[MAX_TITLE_LEN]; int val_len = 0;
+            while (*p && val_len < (int)sizeof(val) - 1) {
+                if (*p == '\\' && *(p+1) == '"') { val[val_len++] = '"'; p += 2; continue; }
+                if (*p == '"') break;
+                val[val_len++] = *p++;
+            }
+            val[val_len] = '\0'; if (*p == '"') p++;
+            for (int i = 0; i < state->num_titles; i++) {
+                if (strcmp(state->titles[i].game_id, key) == 0) {
+                    strncpy(state->titles[i].name, val, MAX_TITLE_LEN - 1);
+                    state->titles[i].name[MAX_TITLE_LEN - 1] = '\0';
+                    break;
+                }
+            }
         }
-        val[val_len] = '\0';
-        if (*p == '"') p++;  /* skip closing quote */
+    }
 
-        /* Find matching title and update name */
-        for (int i = 0; i < state->num_titles; i++) {
-            if (strcmp(state->titles[i].game_id, key) == 0) {
-                strncpy(state->titles[i].name, val, MAX_TITLE_LEN - 1);
-                state->titles[i].name[MAX_TITLE_LEN - 1] = '\0';
-                break;
+    /* Parse "types" object -> set is_psx flag */
+    p = strstr((char *)resp, "\"types\"");
+    if (p) {
+        p = strchr(p + 7, '{');
+        if (p) p++;
+        while (p && *p && *p != '}') {
+            while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t' || *p == ',') p++;
+            if (*p != '"' || *p == '}') break;
+            p++;
+            char key[GAME_ID_LEN]; int key_len = 0;
+            while (*p && *p != '"' && key_len < (int)sizeof(key) - 1) key[key_len++] = *p++;
+            key[key_len] = '\0'; if (*p == '"') p++;
+            while (*p == ' ' || *p == ':') p++;
+            if (*p != '"') break; p++;
+            char val[8]; int val_len = 0;
+            while (*p && *p != '"' && val_len < 7) val[val_len++] = *p++;
+            val[val_len] = '\0'; if (*p == '"') p++;
+            for (int i = 0; i < state->num_titles; i++) {
+                if (strcmp(state->titles[i].game_id, key) == 0) {
+                    state->titles[i].is_psx = (strcmp(val, "PSX") == 0);
+                    break;
+                }
             }
         }
     }

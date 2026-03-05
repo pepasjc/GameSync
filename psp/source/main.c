@@ -165,11 +165,15 @@ int main(int argc, char *argv[]) {
     /* Main loop */
     SceCtrlData pad;
     bool redraw = true;
+    uint32_t prev_buttons = 0;
+
+    /* Drain any buttons held during startup/scan before entering the loop. */
+    do { sceCtrlReadBufferPositive(&pad, 1); sceKernelDelayThread(16000); }
+    while (pad.Buttons != 0);
 
     while (1) {
         sceCtrlReadBufferPositive(&pad, 1);
         uint32_t pressed = pad.Buttons;
-        static uint32_t prev_buttons = 0;
         uint32_t just_pressed = pressed & ~prev_buttons;
         prev_buttons = pressed;
 
@@ -221,6 +225,7 @@ int main(int argc, char *argv[]) {
                 else
                     ui_message("Failed! (error %d)", r);
             }
+            prev_buttons = 0;
             redraw = true;
         }
 
@@ -240,6 +245,7 @@ int main(int argc, char *argv[]) {
                 else
                     ui_message("Upload failed! (error %d)", r);
             }
+            prev_buttons = 0;
             redraw = true;
         }
 
@@ -259,6 +265,7 @@ int main(int argc, char *argv[]) {
                 else
                     ui_message("Download failed! (error %d)", r);
             }
+            prev_buttons = 0;
             redraw = true;
         }
 
@@ -277,6 +284,7 @@ int main(int argc, char *argv[]) {
                        "Press X to continue.",
                        summary.up_to_date, summary.uploaded,
                        summary.downloaded, summary.conflicts, summary.failed);
+            prev_buttons = 0;
             redraw = true;
         }
 

@@ -38,6 +38,16 @@ void ui_status(const char *fmt, ...) {
     pspDebugScreenPrintf("\n");
 }
 
+/* Wait until no buttons are held, then return 0.
+ * Call this before starting any new input loop to guarantee a clean state. */
+static void drain_buttons(void) {
+    SceCtrlData pad;
+    do {
+        sceCtrlReadBufferPositive(&pad, 1);
+        sceKernelDelayThread(16000);
+    } while (pad.Buttons != 0);
+}
+
 void ui_message(const char *fmt, ...) {
     pspDebugScreenClear();
     pspDebugScreenSetXY(0, 1);
@@ -48,14 +58,9 @@ void ui_message(const char *fmt, ...) {
 
     pspDebugScreenPrintf("\n\nPress X to continue\n");
 
-    /* Wait for all buttons to be released first, so a button held during
-     * a previous dialog doesn't immediately dismiss this message. */
-    SceCtrlData pad;
-    do {
-        sceCtrlReadBufferPositive(&pad, 1);
-        sceKernelDelayThread(16000);
-    } while (pad.Buttons != 0);
+    drain_buttons();
 
+    SceCtrlData pad;
     uint32_t prev = 0;
     while (1) {
         sceCtrlReadBufferPositive(&pad, 1);
@@ -117,6 +122,10 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
         pspDebugScreenPrintf("Server: %u bytes\n", server_size);
     else
         pspDebugScreenPrintf("Server: (no save)\n");
+
+    /* Always drain before starting input so a held button from the previous
+     * screen doesn't immediately trigger a choice here. */
+    drain_buttons();
 
     if (action == SYNC_UP_TO_DATE) {
         pspDebugScreenPrintf("\nAlready up to date. Press X.\n");
