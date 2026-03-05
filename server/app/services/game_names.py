@@ -31,6 +31,8 @@ def load_database(db_path: Path | None = None) -> int:
     name = db_path.name.lower()
     if "vita" in name:
         target_dict = _vita_names
+    elif "psx" in name:
+        target_dict = _psp_names   # PSX codes share the same format/lookup as PSP
     elif "psp" in name:
         target_dict = _psp_names
     elif "ds" in name and "3ds" not in name:

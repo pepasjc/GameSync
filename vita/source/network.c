@@ -218,6 +218,81 @@ int network_download_save(const SyncState *state, const char *game_id,
     return r;
 }
 
+void network_fetch_names(SyncState *state) {
+    if (!state || state->num_titles == 0) return;
+
+    /* Build {"codes":["ID1","ID2",...]} */
+    /* Each entry: up to 13 chars (quoted + comma): "PCSA00029", = 13 */
+    int json_cap = 16 + state->num_titles * 14;
+    char *json = malloc(json_cap);
+    if (!json) return;
+
+    int pos = 0;
+    pos += snprintf(json + pos, json_cap - pos, "{\"codes\":[");
+    for (int i = 0; i < state->num_titles; i++) {
+        pos += snprintf(json + pos, json_cap - pos,
+                        "%s\"%s\"", i > 0 ? "," : "", state->titles[i].game_id);
+    }
+    pos += snprintf(json + pos, json_cap - pos, "]}");
+
+    static uint8_t resp[65536];   /* 64KB — enough for ~4000 name entries */
+    int resp_len = 0;
+    int r = network_post_json(state, "/api/v1/titles/names",
+                              json, resp, sizeof(resp) - 1, &resp_len);
+    free(json);
+
+    if (r != 0 || resp_len <= 0) return;
+    resp[resp_len] = '\0';
+
+    /* Parse {"names":{"CODE":"Name",...}}
+     * Walk through the "names" object extracting "KEY":"VALUE" pairs. */
+    char *p = strstr((char *)resp, "\"names\"");
+    if (!p) return;
+    p = strchr(p + 7, '{');
+    if (!p) return;
+    p++;  /* skip '{' */
+
+    while (*p && *p != '}') {
+        /* Skip whitespace and commas */
+        while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t' || *p == ',') p++;
+        if (*p != '"' || *p == '}') break;
+
+        /* Parse key */
+        p++;  /* skip opening quote */
+        char key[GAME_ID_LEN];
+        int key_len = 0;
+        while (*p && *p != '"' && key_len < (int)sizeof(key) - 1)
+            key[key_len++] = *p++;
+        key[key_len] = '\0';
+        if (*p == '"') p++;  /* skip closing quote */
+
+        /* Skip : */
+        while (*p == ' ' || *p == ':') p++;
+        if (*p != '"') break;
+        p++;  /* skip opening quote */
+
+        /* Parse value — handle escaped quotes */
+        char val[MAX_TITLE_LEN];
+        int val_len = 0;
+        while (*p && val_len < (int)sizeof(val) - 1) {
+            if (*p == '\\' && *(p+1) == '"') { val[val_len++] = '"'; p += 2; continue; }
+            if (*p == '"') break;
+            val[val_len++] = *p++;
+        }
+        val[val_len] = '\0';
+        if (*p == '"') p++;  /* skip closing quote */
+
+        /* Find matching title and update name */
+        for (int i = 0; i < state->num_titles; i++) {
+            if (strcmp(state->titles[i].game_id, key) == 0) {
+                strncpy(state->titles[i].name, val, MAX_TITLE_LEN - 1);
+                state->titles[i].name[MAX_TITLE_LEN - 1] = '\0';
+                break;
+            }
+        }
+    }
+}
+
 int network_post_json(const SyncState *state, const char *path,
                       const char *json,
                       uint8_t *out, uint32_t out_size, int *out_len) {

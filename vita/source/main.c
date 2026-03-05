@@ -117,6 +117,11 @@ int main(void) {
     ui_status("Scanning saves...");
     saves_scan(&g_state);
 
+    if (has_wifi && g_state.num_titles > 0) {
+        ui_status("Fetching game names...");
+        network_fetch_names(&g_state);
+    }
+
     char scan_msg[256];
     snprintf(scan_msg, sizeof(scan_msg), "Found %d save(s).\n\nPress X to continue.",
              g_state.num_titles);
