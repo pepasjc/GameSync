@@ -48,8 +48,14 @@ void ui_message(const char *fmt, ...) {
 
     pspDebugScreenPrintf("\n\nPress X to continue\n");
 
-    /* Wait for X */
+    /* Wait for all buttons to be released first, so a button held during
+     * a previous dialog doesn't immediately dismiss this message. */
     SceCtrlData pad;
+    do {
+        sceCtrlReadBufferPositive(&pad, 1);
+        sceKernelDelayThread(16000);
+    } while (pad.Buttons != 0);
+
     uint32_t prev = 0;
     while (1) {
         sceCtrlReadBufferPositive(&pad, 1);
@@ -79,13 +85,13 @@ void ui_draw_list(const SyncState *state, int selected, int scroll) {
         pspDebugScreenSetXY(0, LIST_START_ROW + (i - scroll));
         const TitleInfo *t = &state->titles[i];
 
-        const char *prefix = (i == selected) ? "> " : "  ";
-        char name[41];
-        strncpy(name, t->name, 40);
-        name[40] = '\0';
-
-        pspDebugScreenPrintf("%s%-40s [%s]",
-            prefix, name, t->game_id);
+        const char *cursor = (i == selected) ? ">" : " ";
+        const char *plat = t->is_psx ? "PSX" : "PSP";
+        const char *display = (t->name[0] && strcmp(t->name, t->game_id) != 0)
+                              ? t->name : t->game_id;
+        char line[56];
+        snprintf(line, sizeof(line), "%s %-4s %s", cursor, plat, display);
+        pspDebugScreenPrintf("%-55s", line);
     }
 
     /* Controls reminder */

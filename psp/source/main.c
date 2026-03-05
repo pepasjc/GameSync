@@ -146,6 +146,12 @@ int main(int argc, char *argv[]) {
     ui_clear();
     ui_status("Scanning PSP/SAVEDATA...");
     saves_scan(&g_state);
+
+    if (has_wifi && g_state.num_titles > 0) {
+        ui_status("Fetching game names...");
+        network_fetch_names(&g_state);
+    }
+
     ui_message("Found %d save(s).\n\nPress X to continue.", g_state.num_titles);
 
     if (g_state.num_titles == 0) {

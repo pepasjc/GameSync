@@ -7,6 +7,7 @@ from pathlib import Path
 _3ds_names: dict[str, str] = {}
 _ds_names: dict[str, str] = {}
 _psp_names: dict[str, str] = {}   # keyed by full product code e.g. "ULUS10272"
+_psx_names: dict[str, str] = {}   # keyed by full product code e.g. "NPUF30001"
 _vita_names: dict[str, str] = {}  # keyed by full product code e.g. "PCSE00082"
 
 # Patterns for platform detection
@@ -32,7 +33,7 @@ def load_database(db_path: Path | None = None) -> int:
     if "vita" in name:
         target_dict = _vita_names
     elif "psx" in name:
-        target_dict = _psp_names   # PSX codes share the same format/lookup as PSP
+        target_dict = _psx_names
     elif "psp" in name:
         target_dict = _psp_names
     elif "ds" in name and "3ds" not in name:
@@ -60,13 +61,17 @@ def load_database(db_path: Path | None = None) -> int:
 def lookup_names(product_codes: list[str]) -> dict[str, str]:
     """Look up game names for a list of product codes.
 
-    Handles:
-    - 3DS: full format CTR-P-XXXX or short 4-char code
-    - DS:  short 4-char code (prioritized over 3DS for ambiguous codes)
-    - PSP: 9-char product code like ULUS10000, ELES01234, NPUH10001
-    - Vita: 9-char product code like PCSE00082, PCSB12345
-
     Returns a dict mapping input codes to their game names.
+    Unknown codes are omitted from the result.
+    """
+    return {code: entry[0] for code, entry in lookup_names_typed(product_codes).items()}
+
+
+def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
+    """Look up game names and platform types for a list of product codes.
+
+    Returns a dict mapping input codes to (name, type) tuples.
+    Type is one of: "VITA", "PSX", "PSP", "3DS", "NDS".
     Unknown codes are omitted from the result.
     """
     result = {}
@@ -74,18 +79,22 @@ def lookup_names(product_codes: list[str]) -> dict[str, str]:
     for code in product_codes:
         code_upper = code.upper().strip()
 
-        # PSP product code (XYYY##### format, 9 chars)
-        if _PSP_CODE_RE.match(code_upper):
-            name = _psp_names.get(code_upper)
-            if name:
-                result[code] = name
-            continue
-
         # PS Vita product code (PCSX##### format, 9 chars)
         if _VITA_CODE_RE.match(code_upper):
             name = _vita_names.get(code_upper)
             if name:
-                result[code] = name
+                result[code] = (name, "VITA")
+            continue
+
+        # PSX/PSP product code (XYYY##### format, 9 chars) — check PSX first
+        if _PSP_CODE_RE.match(code_upper):
+            name = _psx_names.get(code_upper)
+            if name:
+                result[code] = (name, "PSX")
+                continue
+            name = _psp_names.get(code_upper)
+            if name:
+                result[code] = (name, "PSP")
             continue
 
         # 3DS/DS: extract 4-char game code
@@ -93,23 +102,21 @@ def lookup_names(product_codes: list[str]) -> dict[str, str]:
 
         if len(code_upper) >= 10 and "-" in code_upper:
             parts = code_upper.split("-")
-            if len(parts) >= 3:
-                game_code = parts[2][:4]
-            else:
-                game_code = code_upper[-4:]
+            game_code = parts[2][:4] if len(parts) >= 3 else code_upper[-4:]
         elif len(code_upper) == 4:
             game_code = code_upper
         else:
             game_code = code_upper[-4:] if len(code_upper) >= 4 else code_upper
 
-        name = None
         if is_3ds_format:
             name = _3ds_names.get(game_code) or _ds_names.get(game_code)
+            platform = "3DS" if _3ds_names.get(game_code) else "NDS"
         else:
             name = _ds_names.get(game_code) or _3ds_names.get(game_code)
+            platform = "NDS" if _ds_names.get(game_code) else "3DS"
 
         if name:
-            result[code] = name
+            result[code] = (name, platform)
 
     return result
 

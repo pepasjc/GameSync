@@ -2880,3 +2880,86 @@ PCSG01198,Amatsutsumi
 PCSG01215,P3D & P5D Full Soundtrack
 PCSG01216,Bloodstained: Curse of the Moon
 PCSG01225,Fate/EXTELLA LINK Original Soundtrack
+PCSB00040,Asphalt Injection
+PCSB00114,BEN 10TM GALACTIC RACING
+PCSB00168,Big Sky Infinity
+PCSB00042,Blazblue: Continuum Shift EXTEND
+PCSB00303,Coconut Dodge
+PCSE00123,Colors
+PCSE00248,Deadmatch Village
+PCSF00311,Disney Epic Mickey: The Power of Two
+PCSB00215,Dokuro
+PCSF00020,DUT
+PCSC80012,EBook Reader
+PCSF00092,Ecolibrium
+PCSA00004,Escape Plan
+PCSA00066,Escape Plan
+PCSF00023,Escape Plan
+PCSF00006,Everybody's Golf
+PCSB00171,FIFA 13
+PCSF00035,Fireworks
+PCSF00043,Frobisher says
+PCSE00229,Fruit Ninja
+PCSF00067,Gravity Crush
+PCSF00024,Gravity Rush
+PCSA00011,Gravity Rush
+PCSE00033,Guacamelee!
+PCSA00007,Hustle KingsTM
+PCSF00010,Hustle KingsTM
+PCSF00250,Jak 3 HD
+PCSF00247,Jak and Daxter Trilogy
+PCSE00088,Jet Set Radio
+PCSB00169,Knytt Underground
+PCSB00230,Let's Fish! Hooked On
+PCSB00336,LIMBO
+PCSA00017,LittleBigPlanetTM
+PCSF00021,LittleBigPlanetTM
+PCSG00080,Metal Gear Solid 2 HD Edition
+PCSG00081,Metal Gear Solid 3: Snake Eater HD Edition
+PCSG00035,Metal Gear Solid: HD Edition
+VLJM35005,Metal Gear Solid: HD Edition
+PCSB00118,Metal Gear Solid: HD Collection
+PCSB00316,MotoGPTM 13
+PCSA00027,MotorStorm RC
+PCSF00046,MotorStorm RC
+PCSI00001,Music Unlimited
+VLJM35056,Need for SpeedTM Most Wanted [EA Best Hits]
+PCSE00070,Netflix
+PCSB00109,New Little Kings Story
+PCSE00066,New Little Kings Story
+PCSF00137,Paint Park Mal-Center
+PCSB00025,Puddle
+PCSB00079,Rayman Origins
+PCSF00141,Resistance: Burning Skies
+PCSF00003,Resistance: Burning Skies
+PCSB00203,Retro City Rampage
+PCSB00161,Sine Mora
+PCSA00044,Skype
+PCSF00156,Sly Cooper: Thieves in TimeTM
+PCSB00190,Sonic & All-Stars Racing TransformedTM
+PCSA00092,Soul Sacrifice
+PCSC00024,Sound ShapesTM
+PCSE00005,Street Fighter X Tekken
+PCSB00144,Street Fighter X Tekken
+PCSB00065,Super Monkey Ball Banana Splitz
+PCSF00064,T@g
+PCSF00062,Table Football
+PCSF00030,Table Top Tanks
+PCSB00096,Tales From Space: Mutant Blobs Attack
+PCSB00060,Treasures of Montezuma, The
+PCSE00004,Ultimate Marvel Vs CAPCOM 3
+PCSA00029,Uncharted: Golden Abyss
+PCSF00001,Uncharted: Golden Abyss
+PCSF00119,Uncharted: Golden Abyss
+PCSF00220,Uncharted: Fight for Fortune
+PCSF00034,Unit 13
+PCSE00244,Valhalla Knights 3
+PCSB00031,Virtua Tennis 4
+PCSB00221,Virtues Last Reward
+PCSA00015,WipEout 2048
+PCSF00110,WipEout 2048
+PCSF00007,WipEout 2048
+PCSA00062,YouTube
+PCSF00150,YouTube
+PCSE00050,Zen Pinball 2
+PCSE00289,Farming Simulator

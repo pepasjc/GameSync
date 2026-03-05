@@ -58,4 +58,9 @@ int network_upload_save(const SyncState *state, TitleInfo *title,
 int network_download_save(const SyncState *state, const char *game_id,
                           uint8_t *out, uint32_t out_size);
 
+/* Fetch game names from the server for all titles in state.
+ * Populates title->name for any title whose name is found.
+ * Silently does nothing if the request fails. */
+void network_fetch_names(SyncState *state);
+
 #endif /* NETWORK_H */
