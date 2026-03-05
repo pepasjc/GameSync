@@ -1,15 +1,15 @@
-"""Filesystem storage for save data, organized per console.
+"""Filesystem storage for save data.
 
 Saves are stored as:
-  saves/<title_id>/<console_id>/
+  saves/<title_id>/
     metadata.json
     current/          -- extracted save files
     history/
       <timestamp>/    -- previous versions
 
-Each console gets its own folder under the title directory, so multiple
-consoles can independently maintain saves for the same game without conflict.
-When no console_id is specified, the most recently updated console slot is used.
+All clients (3DS, DS, PSP, Vita) share the same flat slot per title ID.
+The console_id field in metadata.json is informational only and does not
+affect the storage path.
 """
 
 from __future__ import annotations
@@ -23,100 +23,55 @@ from pathlib import Path
 from app.config import settings
 from app.models.save import SaveBundle, SaveMetadata
 
-_DEFAULT_CONSOLE = "_default"
-
 
 def _title_dir(title_id: str) -> Path:
     return settings.save_dir / title_id
 
 
-def _console_dir(title_id: str, console_id: str) -> Path:
-    cid = console_id.strip() if console_id.strip() else _DEFAULT_CONSOLE
-    return _title_dir(title_id) / cid
+def _current_dir(title_id: str) -> Path:
+    return _title_dir(title_id) / "current"
 
 
-def _current_dir(title_id: str, console_id: str) -> Path:
-    return _console_dir(title_id, console_id) / "current"
+def _history_dir(title_id: str) -> Path:
+    return _title_dir(title_id) / "history"
 
 
-def _history_dir(title_id: str, console_id: str) -> Path:
-    return _console_dir(title_id, console_id) / "history"
-
-
-def _metadata_path(title_id: str, console_id: str) -> Path:
-    return _console_dir(title_id, console_id) / "metadata.json"
-
-
-def get_latest_console(title_id: str) -> str | None:
-    """Return the console_id with the most recently updated save for a title."""
-    title_dir = _title_dir(title_id)
-    if not title_dir.exists():
-        return None
-
-    latest_mtime = None
-    latest_console = None
-    for entry in title_dir.iterdir():
-        if not entry.is_dir():
-            continue
-        meta_path = entry / "metadata.json"
-        if meta_path.exists():
-            mtime = meta_path.stat().st_mtime
-            if latest_mtime is None or mtime > latest_mtime:
-                latest_mtime = mtime
-                latest_console = entry.name
-
-    return latest_console
+def _metadata_path(title_id: str) -> Path:
+    return _title_dir(title_id) / "metadata.json"
 
 
 def title_exists(title_id: str, console_id: str = "") -> bool:
-    """Check if a save exists. If console_id given, check that specific slot."""
-    if console_id:
-        return _metadata_path(title_id, console_id).exists()
-    # Check if any console slot exists for this title
-    return get_latest_console(title_id) is not None
+    """Check if a save exists for a title. console_id is ignored (flat layout)."""
+    return _metadata_path(title_id).exists()
 
 
 def list_consoles(title_id: str) -> list[str]:
-    """List all console IDs that have saves for a title."""
-    title_dir = _title_dir(title_id)
-    if not title_dir.exists():
+    """Return the console_id recorded in metadata, if any."""
+    meta = get_metadata(title_id)
+    if meta is None:
         return []
-    return [
-        e.name
-        for e in sorted(title_dir.iterdir())
-        if e.is_dir() and (e / "metadata.json").exists()
-    ]
+    return [meta.console_id] if meta.console_id else []
 
 
 def list_titles() -> list[dict]:
-    """Return metadata for all stored titles (most recently updated console per title)."""
+    """Return metadata for all stored titles."""
     results = []
     save_dir = settings.save_dir
     if not save_dir.exists():
         return results
 
-    for title_entry in sorted(save_dir.iterdir()):
-        if not title_entry.is_dir():
-            continue
-        # Find the most recently updated console slot
-        latest = get_latest_console(title_entry.name)
-        if latest:
-            meta_path = _metadata_path(title_entry.name, latest)
-            if meta_path.exists():
-                meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                results.append(meta)
+    for entry in sorted(save_dir.iterdir()):
+        meta_path = entry / "metadata.json"
+        if entry.is_dir() and meta_path.exists():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            results.append(meta)
 
     return results
 
 
 def get_metadata(title_id: str, console_id: str = "") -> SaveMetadata | None:
-    """Load metadata for a title/console. Falls back to most-recent console if not specified."""
-    if not console_id:
-        console_id = get_latest_console(title_id) or ""
-        if not console_id:
-            return None
-
-    path = _metadata_path(title_id, console_id)
+    """Load metadata for a title. console_id is ignored (flat layout)."""
+    path = _metadata_path(title_id)
     if not path.exists():
         return None
 
@@ -127,16 +82,14 @@ def get_metadata(title_id: str, console_id: str = "") -> SaveMetadata | None:
 def store_save(
     bundle: SaveBundle, source: str = "3ds", console_id: str = ""
 ) -> SaveMetadata:
-    """Store a save bundle under the appropriate console slot, archiving existing save."""
+    """Store a save bundle to disk, archiving any existing save to history."""
     title_id = bundle.effective_title_id
-    cid = console_id.strip() if console_id.strip() else _DEFAULT_CONSOLE
-
-    current = _current_dir(title_id, cid)
-    history = _history_dir(title_id, cid)
+    current = _current_dir(title_id)
+    history = _history_dir(title_id)
 
     # Archive existing save to history
     if current.exists():
-        old_meta = get_metadata(title_id, cid)
+        old_meta = get_metadata(title_id)
         if old_meta:
             ts = old_meta.last_sync.replace(":", "_").replace("+", "_")
             archive_dir = history / ts
@@ -147,7 +100,7 @@ def store_save(
                 elif item.is_dir():
                     shutil.copytree(item, archive_dir / item.name, dirs_exist_ok=True)
 
-            _prune_history(title_id, cid)
+            _prune_history(title_id)
 
         shutil.rmtree(current)
 
@@ -173,25 +126,18 @@ def store_save(
         file_count=len(bundle.files),
         client_timestamp=bundle.timestamp,
         server_timestamp=now,
-        console_id=cid,
+        console_id=console_id,
     )
 
-    meta_path = _metadata_path(title_id, cid)
+    meta_path = _metadata_path(title_id)
     meta_path.write_text(json.dumps(meta.to_dict(), indent=2), encoding="utf-8")
 
     return meta
 
 
-def load_save_files(
-    title_id: str, console_id: str = ""
-) -> list[tuple[str, bytes]] | None:
-    """Load all save files. Falls back to most-recent console if not specified."""
-    if not console_id:
-        console_id = get_latest_console(title_id) or ""
-        if not console_id:
-            return None
-
-    current = _current_dir(title_id, console_id)
+def load_save_files(title_id: str, console_id: str = "") -> list[tuple[str, bytes]] | None:
+    """Load all save files for a title. console_id is ignored (flat layout)."""
+    current = _current_dir(title_id)
     if not current.exists():
         return None
 
@@ -203,9 +149,9 @@ def load_save_files(
     return files
 
 
-def _prune_history(title_id: str, console_id: str) -> None:
-    """Keep only the most recent N history versions for a console slot."""
-    history = _history_dir(title_id, console_id)
+def _prune_history(title_id: str) -> None:
+    """Keep only the most recent N history versions."""
+    history = _history_dir(title_id)
     if not history.exists():
         return
 
@@ -216,13 +162,8 @@ def _prune_history(title_id: str, console_id: str) -> None:
 
 
 def list_history(title_id: str, console_id: str = "") -> list[dict]:
-    """List all history versions for a title/console."""
-    if not console_id:
-        console_id = get_latest_console(title_id) or ""
-        if not console_id:
-            return []
-
-    history = _history_dir(title_id, console_id)
+    """List all history versions for a title. console_id is ignored (flat layout)."""
+    history = _history_dir(title_id)
     if not history.exists():
         return []
 
@@ -263,13 +204,8 @@ def list_history(title_id: str, console_id: str = "") -> list[dict]:
 def load_history_version_by_unix_ts(
     title_id: str, unix_timestamp: int, console_id: str = ""
 ) -> list[tuple[str, bytes]] | None:
-    """Load save files from a specific history version by Unix timestamp."""
-    if not console_id:
-        console_id = get_latest_console(title_id) or ""
-        if not console_id:
-            return None
-
-    history = _history_dir(title_id, console_id)
+    """Load save files from a specific history version. console_id is ignored (flat layout)."""
+    history = _history_dir(title_id)
     if not history.exists():
         return None
 
@@ -291,12 +227,7 @@ def load_history_version_by_unix_ts(
 
 
 def delete_save(title_id: str, console_id: str = "") -> None:
-    """Delete a save (removes the entire console slot folder)."""
-    if not console_id:
-        console_id = get_latest_console(title_id) or ""
-        if not console_id:
-            return
-
-    console_dir = _console_dir(title_id, console_id)
-    if console_dir.exists():
-        shutil.rmtree(console_dir)
+    """Delete a save (removes entire title folder). console_id is ignored (flat layout)."""
+    title_dir = _title_dir(title_id)
+    if title_dir.exists():
+        shutil.rmtree(title_dir)

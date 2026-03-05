@@ -34,10 +34,10 @@ def _add_conflict(
 
 @router.post("/sync")
 async def sync(request: SyncRequest) -> SyncPlan:
-    """Compare client title metadata against per-console server state and return a sync plan.
+    """Compare client title metadata against server state and return a sync plan.
 
-    With per-console storage, each console has its own save slot per title.
-    Conflicts only occur within a console's own slot (not between different consoles).
+    All consoles share a single save slot per title (flat storage). Conflicts
+    are resolved by hash comparison using the last_synced_hash for three-way merge.
     """
     upload: list[str] = []
     download: list[str] = []
@@ -51,11 +51,11 @@ async def sync(request: SyncRequest) -> SyncPlan:
     for title in request.titles:
         client_title_ids.add(title.title_id)
 
-        # Look up this console's own save slot for the title
-        server_meta = storage.get_metadata(title.title_id, console_id)
+        # Look up the shared save slot for the title
+        server_meta = storage.get_metadata(title.title_id)
 
         if server_meta is None:
-            # This console has no save on server for this title -> upload
+            # No save on server for this title -> upload
             upload.append(title.title_id)
             continue
 
@@ -72,28 +72,22 @@ async def sync(request: SyncRequest) -> SyncPlan:
                 # Client unchanged since last sync, server changed -> download
                 download.append(title.title_id)
             else:
-                # Both changed since last sync -> conflict within same console slot
+                # Both changed since last sync -> conflict
                 _add_conflict(
                     conflict, conflict_info, title.title_id,
                     server_meta, title.save_hash, title.size, console_id
                 )
         else:
-            # No sync history for this console: the console's slot exists but hashes differ.
+            # No sync history: save exists but hashes differ.
             # Default: download (prefer server version to avoid overwriting).
             download.append(title.title_id)
 
-    # Find titles in this console's slot that weren't in the client's list
+    # Find titles on the server that the client doesn't have
     server_only: list[str] = []
-    if console_id:
-        for meta in storage.list_titles():
-            tid = meta["title_id"]
-            if tid not in client_title_ids and meta.get("console_id") == console_id:
-                server_only.append(tid)
-    else:
-        for meta in storage.list_titles():
-            tid = meta["title_id"]
-            if tid not in client_title_ids:
-                server_only.append(tid)
+    for meta in storage.list_titles():
+        tid = meta["title_id"]
+        if tid not in client_title_ids:
+            server_only.append(tid)
 
     return SyncPlan(
         upload=upload,

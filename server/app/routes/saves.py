@@ -33,11 +33,11 @@ def _console_id_from_request(request: Request, query_console_id: str = "") -> st
 
 
 def _resolve_console_id(cid: str, source: str) -> str:
-    """Normalise console ID for storage.
+    """Normalise console ID for metadata recording.
 
-    PSP saves (source="psp" or source="psp_emu") are always stored under the
-    shared "psp" slot so that a native PSP, the Vita's PSP emulator, and the
-    PC sync tool all share the same server folder for a given game.
+    PSP saves (source="psp" or source="psp_emu") are recorded under the
+    shared "psp" console ID so that metadata is consistent across PSP hardware,
+    the Vita's PSP emulator, and the PC sync tool.
     """
     if source in ("psp", "psp_emu"):
         return "psp"
@@ -49,11 +49,9 @@ async def get_save_meta(
     title_id: str,
     request: Request,
     console_id: str = Query(""),
-    source: str = Query(""),
 ):
     title_id = _validate_title_id(title_id)
-    cid = _resolve_console_id(_console_id_from_request(request, console_id), source)
-    meta = storage.get_metadata(title_id, cid)
+    meta = storage.get_metadata(title_id)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
     return meta.to_dict()
@@ -74,16 +72,14 @@ async def download_save_raw(
     title_id: str,
     request: Request,
     console_id: str = Query(""),
-    source: str = Query(""),
 ):
     """Download raw save file (first file only) - for DS client compatibility."""
     title_id = _validate_title_id(title_id)
-    cid = _resolve_console_id(_console_id_from_request(request, console_id), source)
-    meta = storage.get_metadata(title_id, cid)
+    meta = storage.get_metadata(title_id)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    files = storage.load_save_files(title_id, cid)
+    files = storage.load_save_files(title_id)
     if files is None or len(files) == 0:
         raise HTTPException(status_code=404, detail="Save data missing on disk")
 
@@ -105,15 +101,13 @@ async def download_save(
     title_id: str,
     request: Request,
     console_id: str = Query(""),
-    source: str = Query(""),
 ):
     title_id = _validate_title_id(title_id)
-    cid = _resolve_console_id(_console_id_from_request(request, console_id), source)
-    meta = storage.get_metadata(title_id, cid)
+    meta = storage.get_metadata(title_id)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    files = storage.load_save_files(title_id, cid)
+    files = storage.load_save_files(title_id)
     if files is None:
         raise HTTPException(status_code=404, detail="Save data missing on disk")
 
@@ -182,9 +176,9 @@ async def upload_save(
             detail=f"Title ID mismatch: URL={title_id}, bundle={bundle.effective_title_id}",
         )
 
-    # Conflict check (per console slot)
+    # Conflict check
     if not force:
-        existing = storage.get_metadata(title_id, cid)
+        existing = storage.get_metadata(title_id)
         if existing and existing.client_timestamp >= bundle.timestamp:
             raise HTTPException(
                 status_code=409,
@@ -242,7 +236,7 @@ async def upload_save_raw(
         )
 
     if not force:
-        existing = storage.get_metadata(title_id, cid)
+        existing = storage.get_metadata(title_id)
         if existing and existing.client_timestamp >= timestamp:
             raise HTTPException(
                 status_code=409,
@@ -269,13 +263,12 @@ async def list_save_history(
 ):
     """List all available history versions for a title."""
     title_id = _validate_title_id(title_id)
-    cid = _console_id_from_request(request, console_id)
 
-    if not storage.title_exists(title_id, cid):
+    if not storage.title_exists(title_id):
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    history = storage.list_history(title_id, cid)
-    return {"title_id": title_id, "console_id": cid, "versions": history}
+    history = storage.list_history(title_id)
+    return {"title_id": title_id, "versions": history}
 
 
 @router.get("/saves/{title_id}/history/{timestamp}")
@@ -287,12 +280,11 @@ async def download_save_history(
 ):
     """Download a specific history version as a bundle."""
     title_id = _validate_title_id(title_id)
-    cid = _console_id_from_request(request, console_id)
 
-    if not storage.title_exists(title_id, cid):
+    if not storage.title_exists(title_id):
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    files = storage.load_history_version_by_unix_ts(title_id, timestamp, cid)
+    files = storage.load_history_version_by_unix_ts(title_id, timestamp)
     if files is None or len(files) == 0:
         raise HTTPException(status_code=404, detail="History version not found")
 
@@ -337,12 +329,11 @@ async def delete_save(
     request: Request,
     console_id: str = Query(""),
 ):
-    """Delete a save (removes console slot folder)."""
+    """Delete a save (removes title folder)."""
     title_id = _validate_title_id(title_id)
-    cid = _console_id_from_request(request, console_id)
 
-    if not storage.title_exists(title_id, cid):
+    if not storage.title_exists(title_id):
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    storage.delete_save(title_id, cid)
-    return {"status": "ok", "title_id": title_id, "console_id": cid}
+    storage.delete_save(title_id)
+    return {"status": "ok", "title_id": title_id}
