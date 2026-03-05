@@ -504,6 +504,34 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
     free(up_to_date_ids);
     free(hash_cache);
 
+    // Send product codes for all titles so the server can resolve game names
+    // for saves that were already up-to-date and never went through an upload.
+    // ~40 bytes per entry: "\"0004000000161E00\":\"CTR-P-A22J\","
+    int hints_cap = title_count * 45 + 16;
+    char *hints_json = (char *)malloc(hints_cap);
+    if (hints_json) {
+        int pos = snprintf(hints_json, hints_cap, "{\"codes\":{");
+        bool first_hint = true;
+        for (int i = 0; i < title_count; i++) {
+            if (!titles[i].product_code[0]) continue;
+            if (!first_hint)
+                pos += snprintf(hints_json + pos, hints_cap - pos, ",");
+            pos += snprintf(hints_json + pos, hints_cap - pos,
+                            "\"%s\":\"%s\"",
+                            titles[i].title_id_hex, titles[i].product_code);
+            first_hint = false;
+        }
+        snprintf(hints_json + pos, hints_cap - pos, "}}");
+
+        if (!first_hint) {  /* at least one entry */
+            u32 resp_size, status;
+            u8 *resp = network_post_json(config, "/titles/update_names",
+                                         hints_json, &resp_size, &status);
+            if (resp) free(resp);
+        }
+        free(hints_json);
+    }
+
     if (summary) *summary = local_summary;
     return true;
 }

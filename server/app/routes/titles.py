@@ -14,6 +14,10 @@ class NameLookupRequest(BaseModel):
     codes: list[str]
 
 
+class NameHintRequest(BaseModel):
+    codes: dict[str, str]  # title_id -> game_code (e.g. "0004000000161E00" -> "CTR-P-A22J")
+
+
 @router.get("/titles")
 async def list_titles():
     titles = storage.list_titles()
@@ -58,6 +62,27 @@ async def list_titles():
                 title["console_type"] = game_names.detect_platform(tid)
 
     return {"titles": titles}
+
+
+@router.post("/titles/update_names")
+async def update_game_names(request: NameHintRequest):
+    """Resolve and persist game name/platform for titles where it is still unset.
+
+    Accepts a map of title_id -> game_code. For each entry where the stored
+    name equals the title_id (i.e. was never resolved), looks up the game_code
+    in the local DB and writes the result back to metadata.json.
+    """
+    for title_id, game_code in request.codes.items():
+        if not game_code:
+            continue
+        meta = storage.get_metadata(title_id)
+        if meta is None or meta.name != title_id:
+            continue  # already has a name, skip
+        typed = game_names.lookup_names_typed([game_code])
+        if game_code in typed:
+            name, platform = typed[game_code]
+            storage.update_metadata_name(title_id, name, platform)
+    return {"status": "ok"}
 
 
 @router.post("/titles/names")

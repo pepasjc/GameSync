@@ -54,6 +54,17 @@ def list_consoles(title_id: str) -> list[str]:
     return [meta.console_id] if meta.console_id else []
 
 
+def update_metadata_name(title_id: str, name: str, platform: str) -> None:
+    """Update only the name and platform fields of stored metadata."""
+    path = _metadata_path(title_id)
+    if not path.exists():
+        return
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["name"] = name
+    data["platform"] = platform
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
 def list_titles() -> list[dict]:
     """Return metadata for all stored titles."""
     results = []
