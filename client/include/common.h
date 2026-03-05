@@ -33,7 +33,8 @@ typedef struct {
 } TitleInfo;
 
 // Console ID file location
-#define CONSOLE_ID_PATH "sdmc:/3ds/3dssync/console_id.txt"
+#define CONSOLE_ID_PATH  "sdmc:/3ds/3dssync/console_id.txt"
+#define HASH_CACHE_FILE  "sdmc:/3ds/3dssync/hash_cache.dat"
 
 // App configuration loaded from SD card
 typedef struct {

@@ -1,6 +1,7 @@
 #include "sync.h"
 #include "archive.h"
 #include "bundle.h"
+#include "config.h"
 #include "nds.h"
 #include "network.h"
 #include "sha256.h"
@@ -311,29 +312,61 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
         }
 
         char msg[128];
-        snprintf(msg, sizeof(msg), "Hashing save %d/%d: %s",
-            i + 1, title_count, titles[i].title_id_hex);
-        if (progress) progress(msg);
 
-        // Read save to compute current hash
-        int fc;
-        if (titles[i].is_nds && titles[i].media_type == MEDIATYPE_GAME_CARD)
-            fc = nds_cart_read_save(files, MAX_SAVE_FILES);
-        else if (titles[i].is_nds)
-            fc = nds_read_save(titles[i].sav_path, files, MAX_SAVE_FILES);
-        else
-            fc = archive_read(titles[i].title_id, titles[i].media_type,
-                              files, MAX_SAVE_FILES);
-        if (fc < 0) fc = 0;
+        // Get fingerprint (file_count + total_size) cheaply without reading content
+        int stat_fc = 0;
+        u32 stat_sz = 0;
+        bool has_stat = false;
+        if (titles[i].is_nds && titles[i].media_type != MEDIATYPE_GAME_CARD) {
+            struct stat st;
+            if (stat(titles[i].sav_path, &st) == 0) {
+                stat_fc = 1;
+                stat_sz = (u32)st.st_size;
+                has_stat = true;
+            }
+        } else if (!titles[i].is_nds) {
+            has_stat = (archive_stat(titles[i].title_id, titles[i].media_type,
+                                     &stat_fc, &stat_sz) == 0);
+        }
 
         char current_hash[65] = {0};
         u32 total_size = 0;
-        if (fc > 0) {
-            bundle_compute_save_hash(files, fc, current_hash);
-            for (int j = 0; j < fc; j++) total_size += files[j].size;
-            archive_free_files(files, fc);
+
+        // Try hash cache first
+        char cached_hash[65];
+        if (has_stat && stat_sz > 0 &&
+                config_get_cached_hash(titles[i].title_id_hex, stat_fc, stat_sz, cached_hash)) {
+            snprintf(msg, sizeof(msg), "Cached %d/%d: %s",
+                i + 1, title_count, titles[i].title_id_hex);
+            if (progress) progress(msg);
+            strcpy(current_hash, cached_hash);
+            total_size = stat_sz;
         } else {
-            strcpy(current_hash, "0000000000000000000000000000000000000000000000000000000000000000");
+            snprintf(msg, sizeof(msg), "Hashing save %d/%d: %s",
+                i + 1, title_count, titles[i].title_id_hex);
+            if (progress) progress(msg);
+
+            // Read save to compute current hash
+            int fc;
+            if (titles[i].is_nds && titles[i].media_type == MEDIATYPE_GAME_CARD)
+                fc = nds_cart_read_save(files, MAX_SAVE_FILES);
+            else if (titles[i].is_nds)
+                fc = nds_read_save(titles[i].sav_path, files, MAX_SAVE_FILES);
+            else
+                fc = archive_read(titles[i].title_id, titles[i].media_type,
+                                  files, MAX_SAVE_FILES);
+            if (fc < 0) fc = 0;
+
+            if (fc > 0) {
+                bundle_compute_save_hash(files, fc, current_hash);
+                for (int j = 0; j < fc; j++) total_size += files[j].size;
+                archive_free_files(files, fc);
+                // Store in cache for next run
+                if (has_stat && stat_sz > 0)
+                    config_set_cached_hash(titles[i].title_id_hex, stat_fc, stat_sz, current_hash);
+            } else {
+                strcpy(current_hash, "0000000000000000000000000000000000000000000000000000000000000000");
+            }
         }
 
         // Cache this hash for potential upload later

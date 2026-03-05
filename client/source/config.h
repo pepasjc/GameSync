@@ -19,4 +19,11 @@ bool config_save(const AppConfig *config);
 // max_len: maximum characters allowed
 bool config_edit_field(const char *hint, char *buffer, int max_len);
 
+// Hash cache: skip rehashing a save if file_count and total_size are unchanged.
+// hash_out must be a 65-byte buffer.
+bool config_get_cached_hash(const char *title_id_hex, int file_count, u32 total_size,
+                            char *hash_out);
+bool config_set_cached_hash(const char *title_id_hex, int file_count, u32 total_size,
+                            const char *hash_hex);
+
 #endif // CONFIG_H
