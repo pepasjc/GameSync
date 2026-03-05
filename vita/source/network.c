@@ -162,7 +162,9 @@ int network_get_save_info(const SyncState *state, const char *game_id,
                             NULL, NULL, 0, resp, sizeof(resp) - 1, &status);
 
     if (status == 404) return 1;   /* no save on server */
-    if (r < 0 || status != 200) return -1;
+    /* Return HTTP status on failure so caller can log it.
+     * Negative: connection/SceHttp error. Positive != 1: HTTP error code. */
+    if (r < 0 || status != 200) return (status > 0) ? -status : r;
 
     /* Parse {"save_hash":"...","save_size":...} */
     if (hash_out) {
@@ -195,10 +197,13 @@ int network_upload_save(const SyncState *state, const TitleInfo *title,
 
     static uint8_t resp[512];
     int status = 0;
-    http_do_request(state, SCE_HTTP_METHOD_POST, url,
-                    "application/octet-stream", bundle, bundle_size,
-                    resp, sizeof(resp), &status);
-    return (status == 200) ? 0 : -1;
+    int r = http_do_request(state, SCE_HTTP_METHOD_POST, url,
+                            "application/octet-stream", bundle, bundle_size,
+                            resp, sizeof(resp), &status);
+    /* Return HTTP status on failure so caller can log it.
+     * Negative values: SceHttp error; positive != 200: server rejected. */
+    if (status == 200) return 0;
+    return (status > 0) ? status : r;
 }
 
 int network_download_save(const SyncState *state, const char *game_id,

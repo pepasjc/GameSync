@@ -192,7 +192,12 @@ int main(void) {
                 if (r == 0)
                     ui_message("Done!");
                 else
-                    ui_message("Failed! (code %d)", r);
+                    ui_message("Failed! (code %d)\n\n"
+                               "-2 = can't read save files\n"
+                               "-3 = bundle format error\n"
+                               "-4 = network/server error\n"
+                               "-5 = can't write save files\n\n"
+                               "See sync_diag.txt for details.", r);
             }
             prev_buttons = drain_buttons();
             redraw = true;
@@ -210,7 +215,10 @@ int main(void) {
                 ui_status("Uploading %s...", title->game_id);
                 int r = sync_execute(&g_state, g_selected, SYNC_UPLOAD);
                 if (r == 0) ui_message("Upload OK!");
-                else        ui_message("Upload failed! (code %d)", r);
+                else        ui_message("Upload failed! (code %d)\n\n"
+                                       "-2=read error  -3=bundle error\n"
+                                       "-4=network/server  -5=write error\n\n"
+                                       "See sync_diag.txt for details.", r);
             }
             prev_buttons = drain_buttons();
             redraw = true;
@@ -228,7 +236,10 @@ int main(void) {
                 ui_status("Downloading %s...", title->game_id);
                 int r = sync_execute(&g_state, g_selected, SYNC_DOWNLOAD);
                 if (r == 0) ui_message("Download OK!");
-                else        ui_message("Download failed! (code %d)", r);
+                else        ui_message("Download failed! (code %d)\n\n"
+                                       "-2=read error  -3=bundle error\n"
+                                       "-4=network/server  -5=write error\n\n"
+                                       "See sync_diag.txt for details.", r);
             }
             prev_buttons = drain_buttons();
             redraw = true;

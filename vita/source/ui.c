@@ -89,7 +89,15 @@ void ui_message(const char *fmt, ...) {
     goto_rc(STATUS_ROW, 0);
     psvDebugScreenPuts(FG_GREEN "Press X to continue" FG_RESET);
 
+    /* Wait for all buttons to be released first, so a button held during
+     * a previous dialog (e.g. the confirm screen) doesn't immediately
+     * dismiss this message before the user can read it. */
     SceCtrlData pad;
+    do {
+        sceCtrlReadBufferPositive2(0, &pad, 1);
+        sceKernelDelayThread(16000);
+    } while (pad.buttons != 0);
+
     uint32_t prev = 0;
     while (1) {
         sceCtrlReadBufferPositive2(0, &pad, 1);
