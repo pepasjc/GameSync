@@ -3,10 +3,10 @@
 
 #include "common.h"
 
-/* Bundle v3 format (PSP/Vita):
+/* Bundle v4 format (PSP/Vita):
  *   [4B]  Magic "3DSS"
- *   [4B]  Version = 3 (uint32 LE)
- *   [16B] Title ID (ASCII, null-padded; e.g. "ULUS10272\0\0\0\0\0\0\0")
+ *   [4B]  Version = 4 (uint32 LE)
+ *   [32B] Title ID (ASCII, null-padded; e.g. "ULUS10272DATA00\0...")
  *   [4B]  Timestamp (uint32 LE)
  *   [4B]  File count (uint32 LE)
  *   [4B]  Uncompressed payload size (uint32 LE)
@@ -14,11 +14,15 @@
  *           File table: for each file:
  *             [2B] path length, [NB] path, [4B] size, [32B] SHA-256
  *           File data: for each file in same order
+ *
+ * v3 (legacy, 16-byte title ID field) is only used for parsing downloaded saves
+ * from an older server. New uploads always use v4.
  */
 
 #define BUNDLE_MAGIC "3DSS"
 #define BUNDLE_VERSION_V3  3
-#define BUNDLE_HEADER_SIZE 36  /* 4+4+16+4+4+4 */
+#define BUNDLE_VERSION_V4  4
+#define BUNDLE_HEADER_SIZE 52  /* 4+4+32+4+4+4 */
 
 typedef struct {
     char   path[MAX_FILE_LEN];

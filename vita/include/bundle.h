@@ -5,7 +5,8 @@
 
 #define BUNDLE_MAGIC        "3DSS"
 #define BUNDLE_VERSION_V3   3
-#define BUNDLE_HEADER_SIZE  36   /* 4+4+16+4+4+4 */
+#define BUNDLE_VERSION_V4   4
+#define BUNDLE_HEADER_SIZE  52   /* 4+4+32+4+4+4 */
 
 typedef struct {
     char     path[MAX_FILE_LEN];

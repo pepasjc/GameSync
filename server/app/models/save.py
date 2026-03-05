@@ -10,6 +10,7 @@ BUNDLE_MAGIC = b"3DSS"
 BUNDLE_VERSION = 1
 BUNDLE_VERSION_COMPRESSED = 2
 BUNDLE_VERSION_V3 = 3  # String title_id for PSP/Vita (16 bytes ASCII, null-padded)
+BUNDLE_VERSION_V4 = 4  # String title_id for PSP/Vita (32 bytes ASCII, null-padded)
 
 # Accepts 16-char hex IDs (3DS/DS) OR 4-16 alphanumeric product codes (PSP/Vita)
 _HEX_TITLE_ID_RE = re.compile(r"^[0-9A-F]{16}$")

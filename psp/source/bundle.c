@@ -111,19 +111,19 @@ int bundle_create(const TitleInfo *title, uint8_t **out_data, uint32_t *out_size
 
     /* Magic */
     memcpy(bundle + 0, BUNDLE_MAGIC, 4);
-    /* Version = 3 */
-    write_le32(bundle + 4, BUNDLE_VERSION_V3);
-    /* Title ID: 16 bytes, null-padded ASCII */
-    memset(bundle + 8, 0, 16);
-    strncpy((char *)(bundle + 8), title->game_id, 15);
+    /* Version = 4 */
+    write_le32(bundle + 4, BUNDLE_VERSION_V4);
+    /* Title ID: 32 bytes, null-padded ASCII */
+    memset(bundle + 8, 0, 32);
+    strncpy((char *)(bundle + 8), title->game_id, 32);
     /* Timestamp */
     u64 tick;
     sceRtcGetCurrentTick(&tick);
-    write_le32(bundle + 24, (uint32_t)(tick / 1000));
+    write_le32(bundle + 40, (uint32_t)(tick / 1000));
     /* File count */
-    write_le32(bundle + 28, n);
+    write_le32(bundle + 44, n);
     /* Uncompressed size */
-    write_le32(bundle + 32, payload_offset);
+    write_le32(bundle + 48, payload_offset);
     /* Compressed payload */
     memcpy(bundle + BUNDLE_HEADER_SIZE, compressed, compressed_size);
 
@@ -135,18 +135,27 @@ int bundle_create(const TitleInfo *title, uint8_t **out_data, uint32_t *out_size
 }
 
 int bundle_parse(const uint8_t *data, uint32_t size, Bundle *bundle) {
-    if (size < BUNDLE_HEADER_SIZE) return -1;
-
+    if (size < 36) return -1;  /* minimum: v3 header size */
     if (memcmp(data, BUNDLE_MAGIC, 4) != 0) return -1;
-    if (read_le32(data + 4) != BUNDLE_VERSION_V3) return -1;
 
-    /* Extract title_id (16 bytes, null-padded) */
+    uint32_t version = read_le32(data + 4);
+    uint32_t ts_off, fc_off, usz_off, hdr_size;
+
     memset(bundle->game_id, 0, GAME_ID_LEN);
-    strncpy(bundle->game_id, (const char *)(data + 8), 9);
+    if (version == BUNDLE_VERSION_V4) {
+        if (size < BUNDLE_HEADER_SIZE) return -1;
+        strncpy(bundle->game_id, (const char *)(data + 8), GAME_ID_LEN - 1);
+        ts_off = 40; fc_off = 44; usz_off = 48; hdr_size = BUNDLE_HEADER_SIZE;
+    } else if (version == BUNDLE_VERSION_V3) {
+        strncpy(bundle->game_id, (const char *)(data + 8), GAME_ID_LEN - 1);
+        ts_off = 24; fc_off = 28; usz_off = 32; hdr_size = 36;
+    } else {
+        return -1;
+    }
 
-    bundle->timestamp = read_le32(data + 24);
-    bundle->file_count = read_le32(data + 28);
-    uint32_t uncompressed_size = read_le32(data + 32);
+    bundle->timestamp = read_le32(data + ts_off);
+    bundle->file_count = read_le32(data + fc_off);
+    uint32_t uncompressed_size = read_le32(data + usz_off);
 
     if (bundle->file_count > MAX_FILES) return -1;
     if (uncompressed_size > MAX_PAYLOAD) return -1;
@@ -156,8 +165,8 @@ int bundle_parse(const uint8_t *data, uint32_t size, Bundle *bundle) {
     if (!payload) return -1;
 
     uLongf actual_size = uncompressed_size;
-    if (uncompress(payload, &actual_size, data + BUNDLE_HEADER_SIZE,
-                   size - BUNDLE_HEADER_SIZE) != Z_OK) {
+    if (uncompress(payload, &actual_size, data + hdr_size,
+                   size - hdr_size) != Z_OK) {
         free(payload);
         return -1;
     }

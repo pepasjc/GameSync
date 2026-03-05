@@ -50,6 +50,7 @@ from app.models.save import (
     BUNDLE_VERSION,
     BUNDLE_VERSION_COMPRESSED,
     BUNDLE_VERSION_V3,
+    BUNDLE_VERSION_V4,
     BundleFile,
     SaveBundle,
 )
@@ -133,13 +134,21 @@ def parse_bundle(data: bytes) -> SaveBundle:
         offset += 8
         title_id_str = ""
 
+    elif version == BUNDLE_VERSION_V4:
+        # v4: 32-byte ASCII null-padded string title_id
+        if offset + 32 > len(data):
+            raise BundleError("Truncated v4 title_id string")
+        raw = data[offset : offset + 32]
+        offset += 32
+        title_id_str = raw.rstrip(b"\x00").decode("ascii").upper()
+        title_id_int = 0
+
     elif version == BUNDLE_VERSION_V3:
-        # v3: 16-byte ASCII null-padded string title_id
+        # v3: 16-byte ASCII null-padded string title_id (legacy)
         if offset + 16 > len(data):
             raise BundleError("Truncated v3 title_id string")
         raw = data[offset : offset + 16]
         offset += 16
-        # Strip null bytes and decode
         title_id_str = raw.rstrip(b"\x00").decode("ascii").upper()
         title_id_int = 0
 
@@ -215,11 +224,11 @@ def create_bundle(bundle: SaveBundle, compress: bool = True) -> bytes:
     parts.append(BUNDLE_MAGIC)
 
     if bundle.title_id_str:
-        # v3: string title_id, always compressed
+        # v4: string title_id, always compressed
         compressed_payload = zlib.compress(payload, level=6)
-        parts.append(struct.pack("<I", BUNDLE_VERSION_V3))
-        # 16-byte null-padded ASCII title_id
-        tid_bytes = bundle.title_id_str.encode("ascii")[:15].ljust(16, b"\x00")
+        parts.append(struct.pack("<I", BUNDLE_VERSION_V4))
+        # 32-byte null-padded ASCII title_id
+        tid_bytes = bundle.title_id_str.encode("ascii")[:31].ljust(32, b"\x00")
         parts.append(tid_bytes)
         parts.append(struct.pack("<I", bundle.timestamp))
         parts.append(struct.pack("<I", len(bundle.files)))
