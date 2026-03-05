@@ -1,7 +1,11 @@
+import re
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.services import storage, game_names, serialstation
+
+_PS_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")
 
 router = APIRouter()
 
@@ -28,14 +32,23 @@ async def lookup_game_names(request: NameLookupRequest):
     # Start with local DB results for all codes
     typed: dict[str, tuple[str, str]] = game_names.lookup_names_typed(request.codes)
 
-    # Only query Serial Station for PlayStation codes (9-char format)
-    # 3DS/DS codes are 4-char game codes — Serial Station doesn't cover them
-    ps_codes = [c for c in request.codes if len(c) == 9 and c.isalnum()]
+    # Build a map from original code -> 9-char base for PlayStation codes.
+    # PSP save dirs may have slot suffixes (e.g. ULUS10272DATA00); Vita codes
+    # are always exactly 9 chars. Serial Station only knows the 9-char base.
+    ps_lookup: dict[str, str] = {}  # original code -> 9-char lookup key
+    for c in request.codes:
+        m = _PS_PREFIX_RE.match(c.upper())
+        if m:
+            ps_lookup[c] = c[:9].upper()
 
-    if ps_codes:
-        ss_results = await serialstation.lookup_batch(ps_codes)
-        # Serial Station takes priority over local DB
-        typed.update(ss_results)
+    if ps_lookup:
+        unique_bases = list(set(ps_lookup.values()))
+        ss_results = await serialstation.lookup_batch(unique_bases)
+        # Map Serial Station results back to original (possibly longer) codes.
+        # Serial Station takes priority over local DB.
+        for orig, base in ps_lookup.items():
+            if base in ss_results:
+                typed[orig] = ss_results[base]
 
     names = {code: entry[0] for code, entry in typed.items()}
     types = {code: entry[1] for code, entry in typed.items()}

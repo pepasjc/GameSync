@@ -11,8 +11,9 @@ _psx_names: dict[str, str] = {}   # keyed by full product code e.g. "NPUF30001"
 _vita_names: dict[str, str] = {}  # keyed by full product code e.g. "PCSE00082"
 
 # Patterns for platform detection
-_PSP_CODE_RE = re.compile(r"^[A-Z]{4}\d{5}$")   # ULUS10000, ELES01234, NPUH10001
-_VITA_CODE_RE = re.compile(r"^PCS[A-Z]\d{5}$")   # PCSE00000, PCSB12345, PCSG00001
+_PSP_CODE_RE   = re.compile(r"^[A-Z]{4}\d{5}$")   # ULUS10000, ELES01234, NPUH10001
+_PSP_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")    # same but allows slot suffix
+_VITA_CODE_RE  = re.compile(r"^PCS[A-Z]\d{5}$")   # PCSE00000, PCSB12345, PCSG00001
 
 
 def load_database(db_path: Path | None = None) -> int:
@@ -86,13 +87,15 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
                 result[code] = (name, "VITA")
             continue
 
-        # PSX/PSP product code (XYYY##### format, 9 chars) — check PSX first
-        if _PSP_CODE_RE.match(code_upper):
-            name = _psx_names.get(code_upper)
+        # PSX/PSP product code — may have a slot suffix (e.g. ULUS10272DATA00).
+        # Always look up by the 9-char base; return result keyed by original code.
+        if _PSP_PREFIX_RE.match(code_upper):
+            base = code_upper[:9]
+            name = _psx_names.get(base)
             if name:
                 result[code] = (name, "PSX")
                 continue
-            name = _psp_names.get(code_upper)
+            name = _psp_names.get(base)
             if name:
                 result[code] = (name, "PSP")
             continue
