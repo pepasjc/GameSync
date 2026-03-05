@@ -17,7 +17,34 @@ class NameLookupRequest(BaseModel):
 @router.get("/titles")
 async def list_titles():
     titles = storage.list_titles()
+
+    if titles:
+        codes = [t.get("title_id", "") for t in titles]
+        typed = game_names.lookup_names_typed(codes)
+
+        for title in titles:
+            tid = title.get("title_id", "")
+            if tid in typed:
+                title["game_name"] = typed[tid][0]
+                title["console_type"] = typed[tid][1]
+            else:
+                title["game_name"] = tid
+                title["console_type"] = detect_console_type(tid)
+
     return {"titles": titles}
+
+
+def detect_console_type(title_id: str) -> str:
+    """Detect console type from title ID format."""
+    title_id = title_id.upper()
+    if len(title_id) == 16 and all(c in "0123456789ABCDEF" for c in title_id):
+        return "3DS"
+    if _PS_PREFIX_RE.match(title_id):
+        base = title_id[:9]
+        if base.startswith("PCS"):
+            return "VITA"
+        return "PSP"
+    return "NDS"
 
 
 @router.post("/titles/names")

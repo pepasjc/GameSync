@@ -1,11 +1,10 @@
 import os
 import sys
 import re
+import json
 import requests
 from datetime import datetime
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "server"))
 
 from PyQt6.QtWidgets import (
     QApplication,
@@ -26,16 +25,47 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QStatusBar,
     QMenu,
+    QFormLayout,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
 
-SERVER_HOST = os.environ.get("SYNC_HOST", "localhost")
-SERVER_PORT = int(os.environ.get("SYNC_PORT", "8000"))
-SERVER_API_KEY = os.environ.get("SYNC_API_KEY", "anything")
-BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
-API_HEADERS = {"X-API-Key": SERVER_API_KEY}
+CONFIG_FILE = Path(__file__).parent / "config.json"
+
+
+def load_config() -> dict:
+    """Load config from file or environment variables."""
+    if CONFIG_FILE.exists():
+        try:
+            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {
+        "host": os.environ.get("SYNC_HOST", "localhost"),
+        "port": int(os.environ.get("SYNC_PORT", "8000")),
+        "api_key": os.environ.get("SYNC_API_KEY", "anything"),
+    }
+
+
+def save_config(config: dict) -> None:
+    """Save config to file."""
+    CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+
+def get_api_headers() -> dict:
+    """Get API headers from current config."""
+    config = load_config()
+    return {"X-API-Key": config.get("api_key", "anything")}
+
+
+def get_base_url() -> str:
+    """Get base URL from current config."""
+    config = load_config()
+    host = config.get("host", "localhost")
+    port = config.get("port", "8000")
+    return f"http://{host}:{port}"
+
 
 _HEX_TITLE_RE = re.compile(r"^[0-9A-Fa-f]{16}$")
 _PS_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")
@@ -56,7 +86,9 @@ def detect_console_type(title_id: str) -> str:
 
 def fetch_all_saves() -> list[dict]:
     """Fetch all saves from server."""
-    resp = requests.get(f"{BASE_URL}/api/v1/titles", headers=API_HEADERS, timeout=30)
+    resp = requests.get(
+        f"{get_base_url()}/api/v1/titles", headers=get_api_headers(), timeout=30
+    )
     resp.raise_for_status()
     return resp.json().get("titles", [])
 
@@ -67,9 +99,9 @@ def fetch_game_names(codes: list[str]) -> tuple[dict, dict]:
         return {}, {}
     try:
         resp = requests.post(
-            f"{BASE_URL}/api/v1/titles/names",
+            f"{get_base_url()}/api/v1/titles/names",
             json={"codes": codes},
-            headers=API_HEADERS,
+            headers=get_api_headers(),
             timeout=30,
         )
         resp.raise_for_status()
@@ -83,8 +115,8 @@ def fetch_history(title_id: str, console_id: str = "") -> list[dict]:
     """Fetch save history for a title."""
     params = {"console_id": console_id} if console_id else {}
     resp = requests.get(
-        f"{BASE_URL}/api/v1/saves/{title_id}/history",
-        headers=API_HEADERS,
+        f"{get_base_url()}/api/v1/saves/{title_id}/history",
+        headers=get_api_headers(),
         params=params,
         timeout=30,
     )
@@ -96,8 +128,8 @@ def delete_save(title_id: str, console_id: str = "") -> None:
     """Delete a save via API."""
     params = {"console_id": console_id} if console_id else {}
     resp = requests.delete(
-        f"{BASE_URL}/api/v1/saves/{title_id}",
-        headers=API_HEADERS,
+        f"{get_base_url()}/api/v1/saves/{title_id}",
+        headers=get_api_headers(),
         params=params,
         timeout=30,
     )
@@ -108,8 +140,8 @@ def restore_history(title_id: str, timestamp: int, console_id: str = "") -> None
     """Restore a save from history."""
     params = {"console_id": console_id} if console_id else {}
     resp = requests.get(
-        f"{BASE_URL}/api/v1/saves/{title_id}/history/{timestamp}",
-        headers=API_HEADERS,
+        f"{get_base_url()}/api/v1/saves/{title_id}/history/{timestamp}",
+        headers=get_api_headers(),
         params=params,
         timeout=30,
     )
@@ -120,13 +152,66 @@ def restore_history(title_id: str, timestamp: int, console_id: str = "") -> None
         upload_params["console_id"] = console_id
 
     upload_resp = requests.post(
-        f"{BASE_URL}/api/v1/saves/{title_id}",
-        headers=API_HEADERS,
+        f"{get_base_url()}/api/v1/saves/{title_id}",
+        headers=get_api_headers(),
         params=upload_params,
         data=resp.content,
         timeout=30,
     )
     upload_resp.raise_for_status()
+
+
+class ConfigDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Server Configuration")
+        self.setMinimumSize(400, 200)
+        self._init_ui()
+        self._load_config()
+
+    def _init_ui(self):
+        layout = QFormLayout(self)
+
+        self.host_edit = QLineEdit()
+        self.host_edit.setPlaceholderText("localhost")
+        layout.addRow("Server Host:", self.host_edit)
+
+        self.port_edit = QLineEdit()
+        self.port_edit.setPlaceholderText("8000")
+        layout.addRow("Server Port:", self.port_edit)
+
+        self.api_key_edit = QLineEdit()
+        self.api_key_edit.setPlaceholderText("anything")
+        layout.addRow("API Key:", self.api_key_edit)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._save)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def _load_config(self):
+        config = load_config()
+        self.host_edit.setText(config.get("host", "localhost"))
+        self.port_edit.setText(str(config.get("port", "8000")))
+        self.api_key_edit.setText(config.get("api_key", "anything"))
+
+    def _save(self):
+        try:
+            port = int(self.port_edit.text())
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Port", "Port must be a number")
+            return
+
+        config = {
+            "host": self.host_edit.text() or "localhost",
+            "port": port,
+            "api_key": self.api_key_edit.text() or "anything",
+        }
+        save_config(config)
+        self.accept()
 
 
 class HistoryDialog(QDialog):
@@ -240,6 +325,14 @@ class SaveManagerWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction("Exit", self.close)
 
+        tools_menu = menubar.addMenu("Tools")
+        tools_menu.addAction("Config...", self._show_config)
+
+    def _show_config(self):
+        dialog = ConfigDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._load_saves()
+
     def contextMenuEvent(self, event):
         menu = QMenu(self)
 
@@ -263,10 +356,6 @@ class SaveManagerWindow(QMainWindow):
         self.status_bar.showMessage("Loading saves...")
         try:
             self.saves = fetch_all_saves()
-
-            codes = list(set(s.get("title_id", "") for s in self.saves))
-            self.game_names, self.game_types = fetch_game_names(codes)
-
             self._populate_table()
             self.status_bar.showMessage(f"Loaded {len(self.saves)} saves")
         except Exception as e:
@@ -278,8 +367,8 @@ class SaveManagerWindow(QMainWindow):
         for save in self.saves:
             title_id = save.get("title_id", "")
 
-            console_type = self.game_types.get(title_id, detect_console_type(title_id))
-            name = self.game_names.get(title_id, title_id)
+            console_type = save.get("console_type", detect_console_type(title_id))
+            name = save.get("game_name", title_id)
             last_sync = save.get("last_sync", "")
             try:
                 dt = datetime.fromisoformat(last_sync.replace("Z", "+00:00"))
