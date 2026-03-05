@@ -69,9 +69,10 @@ class SaveMetadata:
     save_hash: str  # sha256 of the full bundle
     save_size: int
     file_count: int
-    client_timestamp: int  # timestamp reported by the 3DS
+    client_timestamp: int  # timestamp reported by the device
     server_timestamp: str  # server wall-clock time at upload
-    console_id: str = ""  # ID of the console that uploaded this save
+    console_id: str = ""   # ID of the console that uploaded this save
+    platform: str = ""     # "3DS", "NDS", "PSP", "PSX", "VITA"
 
     def to_dict(self) -> dict:
         return {
@@ -85,6 +86,7 @@ class SaveMetadata:
             "client_timestamp": self.client_timestamp,
             "server_timestamp": self.server_timestamp,
             "console_id": self.console_id,
+            "platform": self.platform,
         }
 
 

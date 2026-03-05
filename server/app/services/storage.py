@@ -22,6 +22,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.models.save import SaveBundle, SaveMetadata
+from app.services import game_names
 
 
 def _title_dir(title_id: str) -> Path:
@@ -115,10 +116,13 @@ def store_save(
     all_data = b"".join(f.data for f in bundle.files)
     bundle_hash = hashlib.sha256(all_data).hexdigest()
 
+    # Look up game name and platform from local DB
+    game_name, platform = game_names.lookup_name_and_platform(title_id)
+
     now = datetime.now(timezone.utc).isoformat()
     meta = SaveMetadata(
         title_id=title_id,
-        name=title_id,
+        name=game_name,
         last_sync=now,
         last_sync_source=source,
         save_hash=bundle_hash,
@@ -127,6 +131,7 @@ def store_save(
         client_timestamp=bundle.timestamp,
         server_timestamp=now,
         console_id=console_id,
+        platform=platform,
     )
 
     meta_path = _metadata_path(title_id)

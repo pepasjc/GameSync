@@ -19,32 +19,31 @@ async def list_titles():
     titles = storage.list_titles()
 
     if titles:
-        codes = [t.get("title_id", "") for t in titles]
-        typed = game_names.lookup_names_typed(codes)
+        # For titles missing name/platform in metadata (old saves), do a batch lookup
+        codes_needing_lookup = [
+            t.get("title_id", "")
+            for t in titles
+            if not t.get("platform") or t.get("name") == t.get("title_id")
+        ]
+        typed: dict[str, tuple[str, str]] = {}
+        if codes_needing_lookup:
+            typed = game_names.lookup_names_typed(codes_needing_lookup)
 
         for title in titles:
             tid = title.get("title_id", "")
-            if tid in typed:
+
+            # Use stored platform/name if already stamped on the metadata
+            if title.get("platform") and title.get("name") != tid:
+                title["game_name"] = title["name"]
+                title["console_type"] = title["platform"]
+            elif tid in typed:
                 title["game_name"] = typed[tid][0]
                 title["console_type"] = typed[tid][1]
             else:
                 title["game_name"] = tid
-                title["console_type"] = detect_console_type(tid)
+                title["console_type"] = game_names.detect_platform(tid)
 
     return {"titles": titles}
-
-
-def detect_console_type(title_id: str) -> str:
-    """Detect console type from title ID format."""
-    title_id = title_id.upper()
-    if len(title_id) == 16 and all(c in "0123456789ABCDEF" for c in title_id):
-        return "3DS"
-    if _PS_PREFIX_RE.match(title_id):
-        base = title_id[:9]
-        if base.startswith("PCS"):
-            return "VITA"
-        return "PSP"
-    return "NDS"
 
 
 @router.post("/titles/names")

@@ -15,6 +15,47 @@ _PSP_CODE_RE   = re.compile(r"^[A-Z]{4}\d{5}$")   # ULUS10000, ELES01234, NPUH10
 _PSP_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")    # same but allows slot suffix
 _VITA_CODE_RE  = re.compile(r"^PCS[A-Z]\d{5}$")   # PCSE00000, PCSB12345, PCSG00001
 
+# 3DS title ID high-word prefixes (first 5 hex chars of the 16-char ID)
+_3DS_HIGH_PREFIXES = {"00040", "00041", "00042", "00043", "00044", "00045", "00046", "00047"}
+_NDS_HIGH_PREFIXES = {"00048"}
+
+
+def detect_platform(title_id: str) -> str:
+    """Return the platform string for a title ID.
+
+    Returns one of: "3DS", "NDS", "PSP", "PSX", "VITA".
+
+    Rules:
+      - 16-char hex, starts with 00040... → "3DS"
+      - 16-char hex, starts with 00048... → "NDS"  (DSiWare shown on 3DS)
+      - 16-char hex, anything else         → "3DS"  (conservative fallback)
+      - Starts with PCS (PCSA/PCSB/etc.)  → "VITA"
+      - 4-letter + 5-digit code, found in psx_names → "PSX"
+      - 4-letter + 5-digit code otherwise  → "PSP"
+      - Anything else                      → "NDS"  (DS raw endpoint, no product code)
+    """
+    tid = title_id.upper().strip()
+
+    # 16-char hex = 3DS or NDS
+    if len(tid) == 16 and all(c in "0123456789ABCDEF" for c in tid):
+        if tid[:5] in _NDS_HIGH_PREFIXES:
+            return "NDS"
+        return "3DS"
+
+    # Vita: PCS[A-Z]#####
+    if _VITA_CODE_RE.match(tid) or (len(tid) >= 4 and tid[:3] == "PCS"):
+        return "VITA"
+
+    # PSP / PSX: 4 letters + 5 digits (optionally with slot suffix)
+    if _PSP_PREFIX_RE.match(tid):
+        base = tid[:9]
+        if base in _psx_names:
+            return "PSX"
+        return "PSP"
+
+    # Fallback: treat as NDS (DS raw endpoint sends no product code context)
+    return "NDS"
+
 
 def load_database(db_path: Path | None = None) -> int:
     """Load a game names database from file into the appropriate cache.
@@ -128,3 +169,17 @@ def get_name(product_code: str) -> str | None:
     """Look up a single game name. Returns None if not found."""
     result = lookup_names([product_code])
     return result.get(product_code)
+
+
+def lookup_name_and_platform(title_id: str) -> tuple[str, str]:
+    """Return (game_name, platform) for a title ID.
+
+    game_name falls back to title_id if not found in any DB.
+    platform is always one of: "3DS", "NDS", "PSP", "PSX", "VITA".
+    """
+    platform = detect_platform(title_id)
+    typed = lookup_names_typed([title_id])
+    if title_id in typed:
+        name, _ = typed[title_id]
+        return name, platform
+    return title_id, platform
