@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.models.save import ConflictInfo, SyncPlan, SyncRequest
+from app.models.save import ConflictInfo, SyncPlan, SyncRequest, is_hex_title_id
 from app.services import storage
 
 router = APIRouter()
@@ -82,11 +82,17 @@ async def sync(request: SyncRequest) -> SyncPlan:
             # Default: download (prefer server version to avoid overwriting).
             download.append(title.title_id)
 
-    # Find titles on the server that the client doesn't have
+    # Find titles on the server that the client doesn't have.
+    # Only include titles whose ID format matches the requesting client:
+    # hex title IDs (3DS/NDS) for a 3DS/NDS client, product codes for PSP/Vita.
+    # This prevents PSP/Vita saves appearing in a 3DS sync plan and vice-versa.
+    client_uses_hex = all(is_hex_title_id(t.title_id) for t in request.titles) \
+        if request.titles else True
+
     server_only: list[str] = []
     for meta in storage.list_titles():
         tid = meta["title_id"]
-        if tid not in client_title_ids:
+        if tid not in client_title_ids and is_hex_title_id(tid) == client_uses_hex:
             server_only.append(tid)
 
     return SyncPlan(
