@@ -144,6 +144,27 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
         # 3DS/DS: extract 4-char game code
         is_3ds_format = code_upper.startswith("CTR-")
 
+        if len(code_upper) == 16 and all(c in "0123456789ABCDEF" for c in code_upper):
+            # 16-char hex title ID. For NDS/DSiWare (00048...), the lower 4 bytes
+            # encode the ASCII game code. For 3DS retail (00040000...) the lower
+            # bytes are a sequential ID — no ASCII code to decode.
+            low_hex = code_upper[8:16]
+            try:
+                decoded = bytes.fromhex(low_hex).decode("ascii")
+                if decoded.isalnum() and decoded.isupper():
+                    game_code = decoded[:4]
+                else:
+                    game_code = None
+            except (ValueError, UnicodeDecodeError):
+                game_code = None
+
+            if game_code:
+                name = _ds_names.get(game_code) or _3ds_names.get(game_code)
+                if name:
+                    platform = "NDS" if _ds_names.get(game_code) else "3DS"
+                    result[code] = (name, platform)
+            continue
+
         if len(code_upper) >= 10 and "-" in code_upper:
             parts = code_upper.split("-")
             game_code = parts[2][:4] if len(parts) >= 3 else code_upper[-4:]

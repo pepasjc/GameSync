@@ -29,6 +29,20 @@ async def list_titles():
         if codes_needing_lookup:
             typed = game_names.lookup_names_typed(codes_needing_lookup)
 
+            # For PS codes still missing a name, try Serial Station (same as /titles/names)
+            ps_lookup: dict[str, str] = {}
+            for c in codes_needing_lookup:
+                if c not in typed:
+                    m = _PS_PREFIX_RE.match(c.upper())
+                    if m:
+                        ps_lookup[c] = c[:9].upper()
+            if ps_lookup:
+                unique_bases = list(set(ps_lookup.values()))
+                ss_results = await serialstation.lookup_batch(unique_bases)
+                for orig, base in ps_lookup.items():
+                    if base in ss_results:
+                        typed[orig] = ss_results[base]
+
         for title in titles:
             tid = title.get("title_id", "")
 

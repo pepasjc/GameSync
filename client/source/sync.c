@@ -184,9 +184,14 @@ static SyncResult upload_title_with_hash(const AppConfig *config, const TitleInf
         return SYNC_ERR_TOO_LARGE;
     }
 
-    // POST to server
-    char path[64];
-    snprintf(path, sizeof(path), "/saves/%s", title->title_id_hex);
+    // POST to server — include product code so the server can store the game name
+    char path[128];
+    if (title->product_code[0]) {
+        snprintf(path, sizeof(path), "/saves/%s?game_code=%s",
+                 title->title_id_hex, title->product_code);
+    } else {
+        snprintf(path, sizeof(path), "/saves/%s", title->title_id_hex);
+    }
 
     u32 resp_size, status;
     u8 *resp = network_post(config, path, bundle, bundle_size, &resp_size, &status);

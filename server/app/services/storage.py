@@ -81,7 +81,7 @@ def get_metadata(title_id: str, console_id: str = "") -> SaveMetadata | None:
 
 
 def store_save(
-    bundle: SaveBundle, source: str = "3ds", console_id: str = ""
+    bundle: SaveBundle, source: str = "3ds", console_id: str = "", game_code: str = ""
 ) -> SaveMetadata:
     """Store a save bundle to disk, archiving any existing save to history."""
     title_id = bundle.effective_title_id
@@ -116,8 +116,14 @@ def store_save(
     all_data = b"".join(f.data for f in bundle.files)
     bundle_hash = hashlib.sha256(all_data).hexdigest()
 
-    # Look up game name and platform from local DB
+    # Look up game name and platform from local DB.
+    # For 3DS titles the hex title ID alone can't resolve a name, so fall back
+    # to the product code (e.g. "CTR-P-A22J") when the client provides one.
     game_name, platform = game_names.lookup_name_and_platform(title_id)
+    if game_name == title_id and game_code:
+        typed = game_names.lookup_names_typed([game_code])
+        if game_code in typed:
+            game_name, platform = typed[game_code]
 
     now = datetime.now(timezone.utc).isoformat()
     meta = SaveMetadata(
