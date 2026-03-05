@@ -83,7 +83,8 @@ def list_consoles(title_id: str) -> list[str]:
     if not title_dir.exists():
         return []
     return [
-        e.name for e in sorted(title_dir.iterdir())
+        e.name
+        for e in sorted(title_dir.iterdir())
         if e.is_dir() and (e / "metadata.json").exists()
     ]
 
@@ -196,7 +197,9 @@ def store_save(
     return meta
 
 
-def load_save_files(title_id: str, console_id: str = "") -> list[tuple[str, bytes]] | None:
+def load_save_files(
+    title_id: str, console_id: str = ""
+) -> list[tuple[str, bytes]] | None:
     """Load all save files. Falls back to most-recent console if not specified.
 
     If console_id is given but that slot doesn't exist, also tries the shared "psp" slot,
@@ -314,3 +317,15 @@ def load_history_version_by_unix_ts(
             files.append((rel_path, file_path.read_bytes()))
 
     return files
+
+
+def delete_save(title_id: str, console_id: str = "") -> None:
+    """Delete a save (removes the entire console slot folder)."""
+    if not console_id:
+        console_id = get_latest_console(title_id) or ""
+        if not console_id:
+            return
+
+    console_dir = _console_dir(title_id, console_id)
+    if console_dir.exists():
+        shutil.rmtree(console_dir)

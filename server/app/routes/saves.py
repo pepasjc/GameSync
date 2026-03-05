@@ -4,7 +4,12 @@ import time
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
-from app.models.save import BundleFile, SaveBundle, is_hex_title_id, validate_any_title_id
+from app.models.save import (
+    BundleFile,
+    SaveBundle,
+    is_hex_title_id,
+    validate_any_title_id,
+)
 from app.services import storage
 from app.services.bundle import BundleError, create_bundle, parse_bundle
 
@@ -24,10 +29,7 @@ def _validate_title_id(title_id: str) -> str:
 
 def _console_id_from_request(request: Request, query_console_id: str = "") -> str:
     """Extract console ID from header or query parameter."""
-    return (
-        query_console_id.strip()
-        or request.headers.get("X-Console-ID", "").strip()
-    )
+    return query_console_id.strip() or request.headers.get("X-Console-ID", "").strip()
 
 
 def _resolve_console_id(cid: str, source: str) -> str:
@@ -327,3 +329,20 @@ async def download_save_history(
             "X-Version-Timestamp": str(timestamp),
         },
     )
+
+
+@router.delete("/saves/{title_id}")
+async def delete_save(
+    title_id: str,
+    request: Request,
+    console_id: str = Query(""),
+):
+    """Delete a save (removes console slot folder)."""
+    title_id = _validate_title_id(title_id)
+    cid = _console_id_from_request(request, console_id)
+
+    if not storage.title_exists(title_id, cid):
+        raise HTTPException(status_code=404, detail="No save found for this title")
+
+    storage.delete_save(title_id, cid)
+    return {"status": "ok", "title_id": title_id, "console_id": cid}
