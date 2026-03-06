@@ -59,17 +59,26 @@ def init_db(save_dir: Path) -> None:
 def _get() -> sqlite3.Connection:
     """Return active connection, auto-initialising from settings if needed.
 
-    The auto-init path handles tests where the FastAPI lifespan is not
-    executed (TestClient without context manager): settings.save_dir is
-    already patched to the test temp dir, so the DB is created there.
-    When settings.save_dir changes between tests the connection is
-    transparently reinitialised.
+    Two cases:
+    - _conn is None: auto-init using settings.save_dir (handles tests where
+      the FastAPI lifespan doesn't run).
+    - _conn is set: check if settings.save_dir changed (test isolation between
+      tests that each patch settings.save_dir to a fresh temp dir).
+      The import of app.config is guarded so this works even when pydantic_settings
+      is unavailable (e.g. the migration script running outside the venv).
     """
     global _conn
-    from app.config import settings  # imported here to avoid circular import at module load
-    expected = settings.save_dir / "metadata.db"
-    if _conn is None or _current_db_path != expected:
+    if _conn is None:
+        from app.config import settings
         init_db(settings.save_dir)
+    else:
+        try:
+            from app.config import settings
+            expected = settings.save_dir / "metadata.db"
+            if _current_db_path != expected:
+                init_db(settings.save_dir)
+        except ImportError:
+            pass  # running outside full app environment; use existing connection
     return _conn
 
 
