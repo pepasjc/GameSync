@@ -110,10 +110,10 @@ void ui_draw_status(const char *status_line) {
 
     // Overwrite each line - pad to full width instead of clearing
     printf("\x1b[1;1H\x1b[36mActions:\x1b[0m%-*s", BOT_COLS - 8, "");
-    printf("\x1b[2;1H A - Upload | B - Download%-*s", BOT_COLS - 26, "");
-    printf("\x1b[3;1H X - Sync all | Y - Save details%-*s", BOT_COLS - 32, "");
-    printf("\x1b[4;1H R - Switch tab | SELECT - Mark%-*s", BOT_COLS - 31, "");
-    printf("\x1b[5;1H L - Config | START - Exit%-*s", BOT_COLS - 26, "");
+    printf("\x1b[2;1H A - Smart Sync | X - Sync All%-*s", BOT_COLS - 31, "");
+    printf("\x1b[3;1H Y - History | SELECT - Mark%-*s", BOT_COLS - 28, "");
+    printf("\x1b[4;1H R - Switch tab | L - Config%-*s", BOT_COLS - 30, "");
+    printf("\x1b[5;1H START - Exit%-*s", BOT_COLS - 15, "");
     printf("\x1b[6;1H%-*s", BOT_COLS, "");
     printf("\x1b[7;1H\x1b[36mCyan\x1b[0m=cart \x1b[35mMag\x1b[0m=NDS \x1b[32mGrn\x1b[0m=mark%-*s", BOT_COLS - 26, "");
     printf("\x1b[8;1H%-*s", BOT_COLS, "");
@@ -302,6 +302,115 @@ bool ui_confirm_sync(const TitleInfo *title, const SaveDetails *details, bool is
     return false;
 }
 
+SyncAction ui_confirm_smart_sync(const TitleInfo *title, const SaveDetails *details, SyncAction suggested) {
+    consoleSelect(&top_screen);
+    consoleClear();
+
+    int row = 1;
+
+    // Title
+    printf("\x1b[%d;1H\x1b[36m--- Smart Sync: %.44s ---\x1b[0m", row++, title->name);
+    row++;
+
+    // Local info
+    printf("\x1b[%d;1H\x1b[33m-- Local --\x1b[0m", row++);
+    if (details->local_exists) {
+        char size_str[32];
+        format_size(details->local_size, size_str, sizeof(size_str));
+        printf("\x1b[%d;1H Size: %s", row++, size_str);
+        printf("\x1b[%d;1H Hash: %.32s...", row++, details->local_hash);
+    } else {
+        printf("\x1b[%d;1H No local save", row++);
+    }
+    row++;
+
+    // Server info
+    printf("\x1b[%d;1H\x1b[33m-- Server --\x1b[0m", row++);
+    if (details->server_exists) {
+        char size_str[32];
+        format_size(details->server_size, size_str, sizeof(size_str));
+        printf("\x1b[%d;1H Size: %s", row++, size_str);
+        printf("\x1b[%d;1H Hash: %.32s...", row++, details->server_hash);
+    } else {
+        printf("\x1b[%d;1H No server save", row++);
+    }
+    row++;
+
+    // Show sync history
+    if (details->has_last_synced) {
+        printf("\x1b[%d;1H\x1b[33m-- Last Synced --\x1b[0m", row++);
+        printf("\x1b[%d;1H Hash: %.32s...", row++, details->last_synced_hash);
+        row++;
+    }
+
+    // Show suggested action
+    printf("\x1b[%d;1H\x1b[36m-- Suggested Action --\x1b[0m", row++);
+    switch (suggested) {
+        case SYNC_ACTION_UP_TO_DATE:
+            printf("\x1b[%d;1H\x1b[32m Already in sync!\x1b[0m", row++);
+            printf("\x1b[%d;1H\x1b[90m Hashes match\x1b[0m", row++);
+            break;
+        case SYNC_ACTION_UPLOAD:
+            if (details->has_last_synced) {
+                printf("\x1b[%d;1H\x1b[32m >> UPLOAD (local changed)\x1b[0m", row++);
+            } else {
+                printf("\x1b[%d;1H\x1b[32m >> UPLOAD\x1b[0m", row++);
+            }
+            break;
+        case SYNC_ACTION_DOWNLOAD:
+            if (details->has_last_synced) {
+                printf("\x1b[%d;1H\x1b[32m >> DOWNLOAD (server changed)\x1b[0m", row++);
+            } else {
+                printf("\x1b[%d;1H\x1b[32m >> DOWNLOAD\x1b[0m", row++);
+            }
+            break;
+        case SYNC_ACTION_CONFLICT:
+            printf("\x1b[%d;1H\x1b[31m !! CONFLICT !!\x1b[0m", row++);
+            printf("\x1b[%d;1H Both local and server\x1b[0m", row++);
+            printf("\x1b[%d;1H have changed.\x1b[0m", row++);
+            break;
+    }
+
+    // Footer buttons
+    printf("\x1b[%d;1H\x1b[90m----------------------------------------\x1b[0m", TOP_ROWS - 1);
+    if (suggested == SYNC_ACTION_CONFLICT) {
+        printf("\x1b[%d;1H\x1b[90m R:Upload L:Download B:Cancel\x1b[0m", TOP_ROWS);
+    } else if (suggested == SYNC_ACTION_UP_TO_DATE) {
+        printf("\x1b[%d;1H\x1b[90m A:OK B:Cancel\x1b[0m", TOP_ROWS);
+    } else {
+        printf("\x1b[%d;1H\x1b[90m A:Confirm B:Cancel\x1b[0m", TOP_ROWS);
+    }
+
+    // Draw to both buffers
+    gfxFlushBuffers();
+    gfxSwapBuffers();
+    gspWaitForVBlank();
+
+    // Wait for input
+    while (aptMainLoop()) {
+        hidScanInput();
+        u32 kDown = hidKeysDown();
+
+        if (suggested == SYNC_ACTION_CONFLICT) {
+            if (kDown & KEY_R) return SYNC_ACTION_UPLOAD;
+            if (kDown & KEY_L) return SYNC_ACTION_DOWNLOAD;
+            if (kDown & KEY_B) return SYNC_ACTION_UP_TO_DATE;
+        } else if (suggested == SYNC_ACTION_UP_TO_DATE) {
+            if (kDown & KEY_A) return SYNC_ACTION_UP_TO_DATE;
+            if (kDown & KEY_B) return SYNC_ACTION_UP_TO_DATE;
+        } else {
+            if (kDown & KEY_A) return suggested;
+            if (kDown & KEY_B) return SYNC_ACTION_UP_TO_DATE;
+        }
+
+        gfxFlushBuffers();
+        gfxSwapBuffers();
+        gspWaitForVBlank();
+    }
+
+    return SYNC_ACTION_UP_TO_DATE;
+}
+
 #include "config.h"
 
 // Draw config editor menu
@@ -454,4 +563,99 @@ int ui_show_config_editor(AppConfig *config) {
     }
 
     return result;
+}
+
+char *ui_show_history(const TitleInfo *title, HistoryVersion *versions, int version_count) {
+    if (version_count == 0) {
+        consoleSelect(&top_screen);
+        consoleClear();
+        printf("\x1b[1;1H\x1b[36m--- History ---\x1b[0m\n\n");
+        printf("No previous versions found.\n\n");
+        printf("Press B to go back\n");
+
+        while (aptMainLoop()) {
+            hidScanInput();
+            u32 kDown = hidKeysDown();
+            if (kDown & KEY_B) break;
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            gspWaitForVBlank();
+        }
+        return NULL;
+    }
+
+    int selected = 0;
+    int scroll_offset = 0;
+    #define HISTORY_VISIBLE 20
+
+    while (aptMainLoop()) {
+        consoleSelect(&top_screen);
+        consoleClear();
+
+        printf("\x1b[1;1H\x1b[36m--- History: %.35s ---\x1b[0m\n\n", title->name);
+
+        // Scroll handling
+        if (selected < scroll_offset) scroll_offset = selected;
+        if (selected >= scroll_offset + HISTORY_VISIBLE) scroll_offset = selected - HISTORY_VISIBLE + 1;
+
+        int row = 3;
+        for (int i = scroll_offset; i < version_count && row < 3 + HISTORY_VISIBLE; i++) {
+            char cursor = (i == selected) ? '>' : ' ';
+            char size_str[16];
+            if (versions[i].size >= 1024 * 1024) {
+                snprintf(size_str, sizeof(size_str), "%.1fMB", versions[i].size / (1024.0 * 1024.0));
+            } else if (versions[i].size >= 1024) {
+                snprintf(size_str, sizeof(size_str), "%.1fKB", versions[i].size / 1024.0);
+            } else {
+                snprintf(size_str, sizeof(size_str), "%luB", (unsigned long)versions[i].size);
+            }
+
+            // Format timestamp - extract date and time
+            char date_str[32] = "";
+            if (strlen(versions[i].timestamp) >= 19) {
+                snprintf(date_str, sizeof(date_str), "%.10s %.8s", versions[i].timestamp, versions[i].timestamp + 11);
+            }
+
+            printf("\x1b[%d;1H%c %-10s %s (%d files)\n", row++, cursor, size_str, date_str, versions[i].file_count);
+        }
+
+        // Footer
+        printf("\x1b[%d;1H\x1b[90m%d version(s) | A:Download B:Cancel\x1b[0m", TOP_ROWS, version_count);
+
+        gfxFlushBuffers();
+        gfxSwapBuffers();
+        gspWaitForVBlank();
+
+        hidScanInput();
+        u32 kDown = hidKeysDown();
+
+        if (kDown & KEY_UP && version_count > 0) {
+            selected = (selected - 1 + version_count) % version_count;
+        }
+        if (kDown & KEY_DOWN && version_count > 0) {
+            selected = (selected + 1) % version_count;
+        }
+        if (kDown & KEY_LEFT) {
+            selected -= HISTORY_VISIBLE;
+            if (selected < 0) selected = 0;
+        }
+        if (kDown & KEY_RIGHT) {
+            selected += HISTORY_VISIBLE;
+            if (selected >= version_count) selected = version_count - 1;
+        }
+        if (kDown & KEY_B) {
+            return NULL;
+        }
+        if (kDown & KEY_A) {
+            // Copy the selected timestamp
+            char *result = (char *)malloc(32);
+            if (result) {
+                strncpy(result, versions[selected].timestamp, 31);
+                result[31] = '\0';
+            }
+            return result;
+        }
+    }
+
+    return NULL;
 }

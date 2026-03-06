@@ -47,4 +47,22 @@ int sync_all(SyncState *state, SyncSummary *summary);
 // Does NOT upload/download — only checks status
 int sync_scan_all(SyncState *state, SyncSummary *summary);
 
+// History version info
+#define MAX_HISTORY_VERSIONS 20
+
+typedef struct {
+    char timestamp[32];  // ISO 8601 timestamp
+    uint32_t size;
+    int file_count;
+} HistoryVersion;
+
+// Get list of history versions for a title.
+// Returns number of versions found, or -1 on error.
+int sync_get_history(SyncState *state, const char *title_id_hex,
+                     HistoryVersion *versions, int max_versions);
+
+// Download a specific history version.
+// Returns 0 on success, -1 on error.
+int sync_download_history(SyncState *state, int title_idx, const char *timestamp);
+
 #endif

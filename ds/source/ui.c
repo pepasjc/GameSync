@@ -111,105 +111,95 @@ SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision) {
     iprintf("=== Smart Sync ===\n\n");
     iprintf("Game: %.25s\n\n", title->game_name);
 
+    // Show local info
+    iprintf("-- Local --\n");
+    if (title->save_size > 0) {
+        iprintf("Size: %lu bytes\n", (unsigned long)title->save_size);
+        if (title->hash_calculated) {
+            iprintf("Hash: ");
+            for (int i = 0; i < 8; i++) iprintf("%02x", title->hash[i]);
+            iprintf("...\n");
+        } else {
+            iprintf("Hash: (not calculated)\n");
+        }
+    } else {
+        iprintf("No local save\n");
+    }
+    iprintf("\n");
+
+    // Show server info
+    iprintf("-- Server --\n");
+    if (decision->server_hash[0]) {
+        iprintf("Size: %lu bytes\n", (unsigned long)decision->server_size);
+        iprintf("Hash: %.16s...\n", decision->server_hash);
+    } else {
+        iprintf("No server save\n");
+    }
+    iprintf("\n");
+
+    // Show last synced
+    if (decision->has_last_synced) {
+        iprintf("-- Last Synced --\n");
+        iprintf("Hash: %.16s...\n", decision->last_synced_hash);
+        iprintf("\n");
+    }
+
+    // Show suggested action
     switch (decision->action) {
         case SYNC_UP_TO_DATE:
-            iprintf("Status: Up to date!\n\n");
-
-            // If no state file yet, write one
-            if (!decision->has_last_synced && title->hash_calculated) {
-                iprintf("(State saved for future)\n\n");
-            }
-
-            iprintf("Press any button\n");
+            iprintf("-- Suggested --\n");
+            iprintf("\x1b[32m Already in sync!\x1b[0m\n");
+            iprintf("\nPress any button\n");
             while (pmMainLoop()) {
                 swiWaitForVBlank();
                 scanKeys();
                 if (keysDown()) break;
             }
+            iprintf("\x1b[0m");
             return SYNC_UP_TO_DATE;
 
         case SYNC_UPLOAD:
-            iprintf("Action: UPLOAD\n");
+            iprintf("-- Suggested --\n");
             if (decision->has_last_synced)
-                iprintf("(Only local changed)\n\n");
+                iprintf("\x1b[32m>> UPLOAD (local changed)\x1b[0m\n");
             else
-                iprintf("(Local save is newer)\n\n");
+                iprintf("\x1b[32m>> UPLOAD\x1b[0m\n");
 
-            // Show hash comparison
-            iprintf("Local:  ");
-            if (title->hash_calculated) {
-                for (int i = 0; i < 8; i++) iprintf("%02x", title->hash[i]);
-                iprintf("...\n");
-            } else {
-                iprintf("(unknown)\n");
-            }
-
-            if (decision->server_hash[0])
-                iprintf("Server: %.16s...\n", decision->server_hash);
-            else
-                iprintf("Server: (none)\n");
-
-            iprintf("\nSize: %lu -> %lu bytes\n\n",
-                (unsigned long)title->save_size,
-                (unsigned long)decision->server_size);
-
-            iprintf("A=Upload  B=Cancel\n");
+            iprintf("\nA=Upload  B=Cancel\n");
 
             while (pmMainLoop()) {
                 swiWaitForVBlank();
                 scanKeys();
                 int pressed = keysDown();
-                if (pressed & KEY_A) return SYNC_UPLOAD;
-                if (pressed & KEY_B) return SYNC_UP_TO_DATE;
+                if (pressed & KEY_A) { iprintf("\x1b[0m"); return SYNC_UPLOAD; }
+                if (pressed & KEY_B) { iprintf("\x1b[0m"); return SYNC_UP_TO_DATE; }
             }
+            iprintf("\x1b[0m");
             return SYNC_UP_TO_DATE;
 
         case SYNC_DOWNLOAD:
-            iprintf("Action: DOWNLOAD\n");
+            iprintf("-- Suggested --\n");
             if (decision->has_last_synced)
-                iprintf("(Only server changed)\n\n");
+                iprintf("\x1b[32m>> DOWNLOAD (server changed)\x1b[0m\n");
             else
-                iprintf("(Server save is newer)\n\n");
+                iprintf("\x1b[32m>> DOWNLOAD\x1b[0m\n");
 
-            if (title->hash_calculated) {
-                iprintf("Local:  ");
-                for (int i = 0; i < 8; i++) iprintf("%02x", title->hash[i]);
-                iprintf("...\n");
-            } else {
-                iprintf("Local:  (none)\n");
-            }
-            iprintf("Server: %.16s...\n", decision->server_hash);
-
-            iprintf("\nSize: %lu -> %lu bytes\n\n",
-                (unsigned long)title->save_size,
-                (unsigned long)decision->server_size);
-
-            iprintf("A=Download  B=Cancel\n");
+            iprintf("\nA=Download  B=Cancel\n");
 
             while (pmMainLoop()) {
                 swiWaitForVBlank();
                 scanKeys();
                 int pressed = keysDown();
-                if (pressed & KEY_A) return SYNC_DOWNLOAD;
-                if (pressed & KEY_B) return SYNC_UP_TO_DATE;
+                if (pressed & KEY_A) { iprintf("\x1b[0m"); return SYNC_DOWNLOAD; }
+                if (pressed & KEY_B) { iprintf("\x1b[0m"); return SYNC_UP_TO_DATE; }
             }
+            iprintf("\x1b[0m");
             return SYNC_UP_TO_DATE;
 
         case SYNC_CONFLICT:
-            iprintf("!! CONFLICT !!\n\n");
-            iprintf("Both local and server\nhave changed.\n\n");
-
-            if (title->hash_calculated) {
-                iprintf("Local:  ");
-                for (int i = 0; i < 8; i++) iprintf("%02x", title->hash[i]);
-                iprintf("...\n");
-            }
-            iprintf("Server: %.16s...\n\n", decision->server_hash);
-
-            if (decision->local_mtime > 0)
-                iprintf("Local time:  %lu\n", (unsigned long)decision->local_mtime);
-            if (decision->server_timestamp > 0)
-                iprintf("Server time: %lu\n", (unsigned long)decision->server_timestamp);
+            iprintf("-- Suggested --\n");
+            iprintf("\x1b[31m!! CONFLICT !!\x1b[0m\n");
+            iprintf("Both changed.\n");
 
             iprintf("\nR=Force Upload\n");
             iprintf("L=Force Download\n");
@@ -219,13 +209,15 @@ SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision) {
                 swiWaitForVBlank();
                 scanKeys();
                 int pressed = keysDown();
-                if (pressed & KEY_R) return SYNC_UPLOAD;
-                if (pressed & KEY_L) return SYNC_DOWNLOAD;
-                if (pressed & KEY_B) return SYNC_UP_TO_DATE;
+                if (pressed & KEY_R) { iprintf("\x1b[0m"); return SYNC_UPLOAD; }
+                if (pressed & KEY_L) { iprintf("\x1b[0m"); return SYNC_DOWNLOAD; }
+                if (pressed & KEY_B) { iprintf("\x1b[0m"); return SYNC_UP_TO_DATE; }
             }
+            iprintf("\x1b[0m");
             return SYNC_UP_TO_DATE;
     }
 
+    iprintf("\x1b[0m");
     return SYNC_UP_TO_DATE;
 }
 
@@ -287,7 +279,7 @@ void ui_draw_config(const SyncState *state, int selected, bool focused, bool has
     if (focused) {
         iprintf("A:Edit/Action L:Back START:Exit\n");
     } else if (has_wifi) {
-        iprintf("A:Sync B:DL X:Scan R:UL\n");
+        iprintf("A:Smart Sync X:Scan R:UL\n");
         iprintf("Y:Info L:Config START:Exit\n");
     } else {
         iprintf("Y:Info L:Config START:Exit\n");

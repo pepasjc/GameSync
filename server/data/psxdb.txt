@@ -1,0 +1,1691 @@
+NPUF30001,GaiaSeed
+NPUF30002,Cho Aniki
+NPUF30003,Magical Drop F
+NPUF30004,Arcade Hits: Outlaws of the Lost Dynasty
+NPUF30005,Tall Unlimited
+NPUF30006,Arcade Hits: Shienryu
+NPUF30017,Money Idol Exchanger
+NPUF30018,Arcade Hits: Sonic Wings Special
+NPUF30019,Dezaemon Plus!
+NPUF30020,Blockids
+NPUF30021,Galaxy Fight
+NPUF30022,Mega Man
+NPUF30023,Mega Man 2
+NPUF30024,Mega Man 3
+NPUF30025,Yakiniku Bugyou
+NPUF30026,Rapid Angel
+NPUF30027,Kyuiin
+NPUF30028,Cyberbots: Fullmetal Madness
+NPUF30029,Mega Man 4
+NPUF30030,Dezaemon Kids!
+NPUF30031,Arcade Hits: Magical Drop
+NPUF30033,ART CAMION SUGOROKUDEN
+NPUF30034,FINGER★FLASHING
+NPUF30035,LUP★SALAD
+NPUF30036,MAKERUNA MAKENDO2
+NPUF30037,VEHICLE CAVALIER
+NPUF30038,ZANAC×ZANAC
+NPUF30039,Zero Kara no Mahjong ~Mahjong Tamago-gumi 2~
+NPUF30040,Mahjong Youchien Tamago-gumi
+NPUF30041,Zero Kara No Shogi~Shogi Youchien Ayumi-gumi~
+NPUF30042,Evergreen Avenue
+NPUF30043,Favorite Dear ~Enkan no Monogatari~
+NPUF30044,Favorite Dear ~Jyunpaku no Yogensha~
+NPUF30045,First Queen IV
+NPUF30047,Motto Trump Shiyouyo!
+NPUF30048,Oz no Mahoutsukai ~Another World~ RungRung
+NPUF30049,Sentimental Graffiti
+NPUF30050,Trump Shiyouyo! Fukkoku-ban
+NPUF30051,Mahjong Uranai Fortuna-Tsuki no Megami Tachi
+NPUF30053,Double Dragon
+NPUF30054,Hyper Crazy Climber
+NPUF30055,Lucifer Ring
+NPUF30056,Wolf Fang
+NPUF30059,The Firemen 2: Pete & Danny
+NPUF30060,Sarara's Little Shop
+NPUF30061,Tokyo 23-Ku Seifuku Wars
+NPUF30062,NEO PLANET
+NPUF30063,Heroine Dream 2
+NPUF30064,Heroine Dream
+NPUF30065,Dragon Beat Legend of Pinball
+NPUI00571,Vib-Ribbon
+NPUI94103,Jumping Flash!
+NPUI94108,Jumping Flash! 2
+NPUI94154,Crash Bandicoot 2: Cortex Strikes Back
+NPUI94167,Jet Moto 2
+NPUI94199,Bloody Roar
+NPUI94227,MediEvil
+NPUI94227,MediEvil
+NPUI94228,Spyro the Dragon
+NPUI94240,Syphon Filter  (req. OFW 3.01)
+NPUI94240,Syphon Filter  (req. OFW 3.40)
+NPUI94244,Crash Bandicoot 3: Warped
+NPUI94251,Cool Boarders 3
+NPUI94301,WipEout
+NPUI94301,WipEout  (Canadian Store) [BUGGY]
+NPUI94302,Destruction Derby
+NPUI94304,Twisted Metal
+NPUI94305,Warhawk
+NPUI94306,Twisted Metal 2
+NPUI94308,Rally Cross
+NPUI94309,Jet Moto
+NPUI94356,Cool Boarders  (req. OFW 3.01)
+NPUI94356,Cool Boarders  (req. OFW 3.50)
+NPUI94358,Cool Boarders 2
+NPUI94425,Spyro 2: Ripto’s Rage
+NPUI94426,Crash Team Racing
+NPUI94448,Um Jammer Lammy
+NPUI94451,Syphon Filter 2
+NPUI94467,Spyro 3: Year of the Dragon
+NPUI94476,Hot Shots Golf 2
+NPUI94484,WildArms: 2nd Ignition
+NPUI94491,Legend Of Dragoon
+NPUI94508,2Xtreme
+NPUI94608,WildArms
+NPUI94640,Syphon Filter 3
+NPUI94900,Crash Bandicoot  (req. OFW 3.40)
+NPUI94900,Crash Bandicoot  (req. OFW 3.01)
+NPUJ00005,Rayman
+NPUJ00006,Tekken
+NPUJ00008,Cyber Sled
+NPUJ00027,Blood Omen: Legacy of Kain
+NPUJ00029,Magic Carpet
+NPUJ00036,Darkstalkers
+NPUJ00042,Gex
+NPUJ00061,Soviet Strike
+NPUJ00067,Castlevania: Symphony of the Night
+NPUJ00089,TNN Motor Sports Hardcore 4×4
+NPUJ00113,Sim City 2000
+NPUJ00152,Tomb Raider
+NPUJ00157,Hi-Octane: The Track Fights Back
+NPUJ00190,Oddworld: Abe’s Oddysee
+NPUJ00195,Romance of the Three Kingdoms IV
+NPUJ00197,Street Fighter Alpha: Warriors’ Dreams
+NPUJ00200,Extreme Pinball
+NPUJ00213,Tekken 2  (req. OFW 3.40)
+NPUJ00213,Tekken 2  (req. OFW 3.01)
+NPUJ00213,Tekken 2  (Canadian Store) [BUGGY]
+NPUJ00215,Namco Museum Vol. 1
+NPUJ00216,Namco Museum Vol. 2
+NPUJ00232,Pandemonium
+NPUJ00238,International Track & Field
+NPUJ00258,Street Fighter Alpha 2
+NPUJ00270,Wing Commander IV
+NPUJ00275,Theme Hospital
+NPUJ00277,Populous: The Beginning
+NPUJ00292,Suikoden
+NPUJ00297,Star Wars: Dark Forces
+NPUJ00298,Herc’s Adventures
+NPUJ00313,Gunship
+NPUJ00340,Tecmo’s Deception: Invitation to Darkness
+NPUJ00341,Perfect Weapon
+NPUJ00377,Ten Pin Alley
+NPUJ00379,Command & Conquer
+NPUJ00382,Reloaded
+NPUJ00398,Namco Museum Vol. 3
+NPUJ00416,Namco Museum Vol. 4
+NPUJ00417,Namco Museum Vol. 5
+NPUJ00431,Command & Conquer: Red Alert
+NPUJ00433,Fighting Force
+NPUJ00437,Tomb Raider 2
+NPUJ00439,Pac-Man World 20th Anniversary
+NPUJ00440,Reel Fishing
+NPUJ00453,Mega Man 8
+NPUJ00461,Xevious 3D/G+
+NPUJ00462,Mass Destruction
+NPUJ00469,ONE
+NPUJ00518,Nuclear Strike
+NPUJ00553,Alundra
+NPUJ00561,Mega Man X4
+NPUJ00585,Klonoa: Door to Phantomile
+NPUJ00594,Metal Gear Solid
+NPUJ00598,Gex: Enter the Gecko
+NPUJ00603,Mega Man Legends
+NPUJ00637,N2O
+NPUJ00659,Backstreet Billiards
+NPUJ00662,Parasite Eve
+NPUJ00664,Xenogears
+NPUJ00665,Command & Conquer: Red Alert Retaliation
+NPUJ00691,Tomb Raider 3: Adventures of Lara Croft
+NPUJ00693,Dead In The Water
+NPUJ00707,Silent Hill
+NPUJ00708,Legacy of Kain: Soul Reaver
+NPUJ00710,Oddworld: Abe’s Exoddus
+NPUJ00717,MotorHead
+NPUJ00732,Destrega
+NPUJ00739,Future Cop L.A.P.D.
+NPUJ00745,Darkstalkers 3
+NPUJ00747,Resident Evil: Director’s Cut
+NPUJ00748,Resident Evil 2 [Dual Shock Version]
+NPUJ00753,R-Types
+NPUJ00754,Bust-A-Move 4
+NPUJ00797,R4: Ridge Racer Type 4
+NPUJ00806,Gex: Deep Cover Gecko
+NPUJ00807,Centipede
+NPUJ00820,Echo Night
+NPUJ00821,Street Fighter Alpha 3
+NPUJ00823,Bomberman Fantasy Race
+NPUJ00843,Reel Fishing II
+NPUJ00863,Shadow Tower
+NPUJ00877,R-Type Delta
+NPUJ00879,Final Fantasy V
+NPUJ00885,Tomb Raider: The Last Revelation
+NPUJ00889,Pong
+NPUJ00892,Final Fantasy VIII
+NPUJ00893,Toy Story 2: Buzz Lightyear To The Rescue!
+NPUJ00896,The Misadventures of Tron Bonne
+NPUJ00900,Final Fantasy VI
+NPUJ00922,Dino Crisis
+NPUJ00923,Resident Evil 3: Nemesis
+NPUJ00947,Tom Clancy’s Rainbow Six
+NPUJ00957,Metal Gear Solid VR Missions
+NPUJ00958,Suikoden II
+NPUJ00974,Medal of Honor
+NPUJ00980,TNN Motor Sports Hardcore TR
+NPUJ00992,Missile Command
+NPUJ01011,Front Mission 3
+NPUJ01013,Legend of Mana
+NPUJ01019,Threads of Fate
+NPUJ01029,Hercules
+NPUJ01040,Vagrant Story
+NPUJ01041,Chrono Cross
+NPUJ01042,Parasite Eve II
+NPUJ01069,Sim Theme Park
+NPUJ01070,Vanguard Bandits
+NPUJ01084,Championship Bass
+NPUJ01093,Sno-Cross Championship Racing
+NPUJ01111,Mr. Driller
+NPUJ01115,Harvest Moon: Back To Nature
+NPUJ01131,Spec Ops: Stealth Patrol
+NPUJ01140,Mega Man Legends 2
+NPUJ01142,Strider 1&2
+NPUJ01158,Persona 2: Eternal Punishment
+NPUJ01189,Bomberman Party Edition
+NPUJ01195,Hogs of War
+NPUJ01201,Alone in the Dark: The New Nightmare
+NPUJ01212,Metal Slug X
+NPUJ01214,Toy Story Racer
+NPUJ01224,Arc the Lad
+NPUJ01235,Rayman 2: The Great Escape
+NPUJ01251,Final Fantasy IX
+NPUJ01252,Arc the Lad II
+NPUJ01253,Arc the Lad III
+NPUJ01255,Arc Arena: Monster Tournament
+NPUJ01270,Medal of Honor Underground
+NPUJ01279,Dino Crisis 2
+NPUJ01286,Disney’s The Little Mermaid II
+NPUJ01288,Bowling
+NPUJ01291,Racing
+NPUJ01299,Spec Ops: Ranger Elite
+NPUJ01301,Ford Racing
+NPUJ01302,Starfighter Sanvein
+NPUJ01307,Star Sweep
+NPUJ01308,Space Shot
+NPUJ01309,Boxing
+NPUJ01324,Breath of Fire 4
+NPUJ01332,The King of Fighters ’99
+NPUJ01334,Mega Man X5
+NPUJ01335,Battle Hunter
+NPUJ01342,Crossroad Crisis
+NPUJ01363,Chrono Trigger
+NPUJ01371,Putter Golf
+NPUJ01374,Virtual Pool 3
+NPUJ01379,Card Games
+NPUJ01381,Saiyuki: Journey West
+NPUJ01384,Castlevania Chronicles
+NPUJ01400,Chess
+NPUJ01412,Kickboxing
+NPUJ01420,Spec Ops: Covert Assault
+NPUJ01431,All-Star Slammin D-Ball
+NPUJ01447,Spec Ops: Airborne Commando
+NPUJ01450,Street Racquetball
+NPUJ01470,Aces of the Air
+NPUJ01490,Monster Bass!
+NPUJ01495,Sorcerer’s Maze
+NPUJ01499,Turnabout
+NPUJ01506,XS Moto
+NPUJ01509,Jigsaw Madness
+NPUJ01520,XS Junior League Soccer
+NPUJ01525,Mobile Light Force
+NPUJ01538,A Bug’s Life
+NPUJ01541,Final Fantasy Origins
+NPUJ01552,Dirt Jockey
+NPUJ01554,XS Junior League Football
+NPUJ01560,XS Junior League Dodgeball
+NPUJ01566,XS Airboat Racing
+NPUJ94163,Final Fantasy VII
+NPUJ94182,Armored Core
+NPUJ94221,Final Fantasy Tactics
+NPUJ94236,Tomba
+NPUJ94424,Bloody Roar 2
+NPUJ94454,Tomba! 2
+NPUJ94457,Grandia
+NPUJ94571,The Emperor’s New Groove
+NPUJ94602,Myst
+NPUJ94635,Monsters, Inc. Scream Team
+NPUJ94643,Peter Pan: Return to Never Land
+NPUJ94646,Disney’s Lilo & Stitch: Trouble in Paradise
+NPJI00001,Arc the Lad
+NPJI00002,Minna no Golf 2  (req. OFW 3.40)
+NPJI00002,Minna no Golf 2  (req. OFW 5.50)
+NPJI00002,Minna no Golf 2  (req. OFW 6.60)
+NPJI00003,Jumping Flash!
+NPJI00006,GLOBAL FORCE～New Battle Nation
+NPJI00007,Ore no Shikabane o Koete Yuke
+NPJI00008,Gekisou TomaRunner
+NPJI00009,Wild Arms
+NPJI00010,Intelligent Qube
+NPJI00010,I.Q Intelligent Qube
+NPJI00011,Motor Toon Grand Prix USA Edition
+NPJI00012,Crash Bandicoot
+NPJI00013,Ganbare Morikawa-kun 2nd Pet in TV
+NPJI00014,Rally Cross
+NPJI00015,Gunners Heaven
+NPJI00017,Philosoma
+NPJI00018,Arc The Lad II
+NPJI00019,XI [sai]
+NPJI00020,Jet Moto
+NPJI00021,Jumping Flash! 2: Aloha Danshaku Ooyowari no Kan
+NPJI00022,Panekit
+NPJI00023,Depth
+NPJI00024,Destruction Derby
+NPJI00025,Robbit Mon Dieu
+NPJI00026,Bealphareth
+NPJI00027,MediEvil: Yomigaetta Gallowmere no Yuusha
+NPJI00028,Tiny Bullets
+NPJI00029,Twisted Metal EX
+NPJI00030,Um Jammer Lammy
+NPJI00031,My Hot Cooking
+NPJI00032,Ape Escape!
+NPJI00033,Crime Crackers
+NPJI00034,Crash Bandicoot 2
+NPJI00035,WipeOut
+NPJI00036,Wild Arms 2nd Ignition
+NPJI00037,Crash Bandicoot 3
+NPJI00038,Gunparade March
+NPJI00039,PoPoRoGue
+NPJI00040,Linda Cube Again
+NPJI00042,PoPoLoCrois Monogatari
+NPJI00043,Crime Crackers 2
+NPJI00044,Alundra (The Adventures Of Alundra)
+NPJI00045,XI [sai] Jumbo  (req. OFW 3.70)
+NPJI00045,XI [sai] Jumbo  (req. OFW 6.60)
+NPJI00046,Circadia
+NPJI00047,The Legend of Dragoon  (req. OFW 6.35)
+NPJI00047,The Legend of Dragoon  (req. OFW 6.60)
+NPJI00048,I.Q Final  (req. OFW 5.50)
+NPJI00048,I.Q Final  (req. OFW 6.60)
+NPJI00049,PopoloCrois Monogatari II
+NPJI00050,Arc The Lad III  (req. OFW 6.60) (DateCode 2013-10-09)
+NPJI00050,Arc The Lad III  (req. OFW 6.60) (DateCode 2013-12-20)
+NPJI00050,Arc The Lad III  (req. OFW 5.50)
+NPJI00051,Velldeselba Senki: Tsubasa no Kunshou
+NPJI00052,Arc the Lad: Monster Game with Casino Game
+NPJI00053,Kokohore! Pukka: Dig-a-Dig Pukka
+NPJI00054,Magical Dice Kids
+NPJI00055,Addie no Okurimono: To Moze from Addie
+NPJI00057,Docchi Mecha!
+NPJI00060,Crash Team Racing
+NPJI00061,Crash Bash Carnival
+NPJI00062,Spyro the Dragon
+NPJI00063,Spyro 2: Ripto's Rage!
+NPJI00066,G-POLICE
+NPJI00067,KulaQuest
+NPJI00069,Rapid Racer
+NPJI00070,Fire Panic
+NPJI00072,WarHawk
+NPJI00078,Doko Demo Issho
+NPJI00079,Pocket Jiman
+NPJI00080,Brightis
+NPJI00081,Pocket MuuMuu
+NPJI00082,Vib-Ribbon
+NPJI90001,XI[sai] / Devil Dice (Demo)
+NPJI90001,XI[sai] / Devil Dice
+NPJJ00001,Mr. Driller
+NPJJ00002,Tekken 2
+NPJJ00003,Silent Bomber
+NPJJ00004,Biohazard Director’s Cut
+NPJJ00005,Bishi Bashi Special
+NPJJ00006,Konami Antiques: MSX Collection Vol. 1
+NPJJ00008,Konami Antiques: MSX Collection Vol. 2
+NPJJ00009,DINO CRISIS
+NPJJ00010,The Conveni: Ano Machi wo Dokusen Seyo
+NPJJ00011,The Adventure of Puppet Princess: Marl Oukoku no Ningyou Hime
+NPJJ00013,Migi Hadari U-SA
+NPJJ00014,Taiyou no Shippo: Wild, Pure, Simple Life
+NPJJ00015,A. IV Evolution Global (PlayStation the Best)
+NPJJ00016,Vampire: Kyuuketsuki Densetsu  (req. OFW 5.50)
+NPJJ00016,Vampire: Kyuuketsuki Densetsu  (req. OFW 6.60)
+NPJJ00017,Spectral Force
+NPJJ00018,Logic Mahjong Soryu 3 or 4players
+NPJJ00019,Yaku: Yuujou Dangi
+NPJJ00020,THE DRUG STORE
+NPJJ00021,PUZZLE MANIA
+NPJJ00023,Shanghai: Dynasty
+NPJJ00024,Arcade Hits RAIDEN
+NPJJ00025,Tall Unlimited
+NPJJ00026,Galaxy Fight
+NPJJ00027,Hard Edge
+NPJJ00028,A5: A-Ressha de Ikou 5
+NPJJ00029,Lunatic Dawn III  (req. OFW 5.50)
+NPJJ00029,Lunatic Dawn III  (req. OFW 6.60) (DateCode 2013-10-24)
+NPJJ00029,Lunatic Dawn III  (req. OFW 6.60) (DateCode 2015-05-22)
+NPJJ00029,Lunatic Dawn III  (req. OFW 6.60) (DateCode 2014-06-13)
+NPJJ00030,Fushigi Deka
+NPJJ00031,LOVE GAME'S WAIWAI TENNIS PLUS
+NPJJ00033,Ikasama Mahjong
+NPJJ00034,Jiisan 2 Tabi Bikkuri: CG Mukashibanashi
+NPJJ00035,Yaku Tou: Noroi no Game
+NPJJ00036,JIGSAW WORLD
+NPJJ00037,Bakumatsu Rouman: Gekka no Kenshi
+NPJJ00038,Real Bout Garou Densetsu Special Dominated Mind
+NPJJ00039,Real Bout Garou Densetsu
+NPJJ00040,Metal Slug X
+NPJJ00041,Kenkaku Ibunroku Yomigaerishi Soukou no Yaiba Samurai Spirits Shinshou
+NPJJ00042,Garou Densetsu Wild Ambition
+NPJJ00043,Spectral Tower
+NPJJ00044,Spectral Force 2: Eien naru Kiseki
+NPJJ00045,Suna no Embrace: Eden no Sato no Never
+NPJJ00046,The FamiRes: Shijou Saikyou no Menu
+NPJJ00047,Septentrion ~Out of the Blue~
+NPJJ00048,Little Princess+1: Maru Oukoku no Ningyou Hime 2
+NPJJ00049,Samurai Spirits: Kenkaku Yubinan Pack
+NPJJ00050,The King Of Fighters ’95
+NPJJ00051,The King Of Fighters ’96
+NPJJ00052,The King Of Fighters ’97
+NPJJ00053,Guilty Gear
+NPJJ00054,Spectral Tower 2
+NPJJ00055,Oasis Road
+NPJJ00056,The King Of Fighters ’98
+NPJJ00057,The King Of Fighters ’99
+NPJJ00058,Samurai Spirits: Amakusa Kourin Special
+NPJJ00059,The King Of Fighters Kyo
+NPJJ00060,Samurai Spirits: Zankuro Musouken
+NPJJ00061,Metal Slug
+NPJJ00062,AI Mahjong Selection
+NPJJ00063,Zipangu Jima: Unmei wa Saikoro ga Kimeru!?
+NPJJ00064,Puzzle Mania 2
+NPJJ00065,Sanvein (SuperLite 1500 Series)
+NPJJ00067,Cotton Original (SuperLite 1500 Series)
+NPJJ00068,Armored Core
+NPJJ00069,King’s Field
+NPJJ00070,BOXER'S ROAD
+NPJJ00071,The Adventure Of Little Ralph
+NPJJ00072,AI Shogi Selection
+NPJJ00073,Chiki Chiki Chicken (SuperLite 1500 Series)
+NPJJ00074,Memorial * Series: Sunsoft Vol. 1: Ikki / Super Arabian
+NPJJ00075,Memorial * Series: Sunsoft Vol. 2: Route-16 Turbo / Atlantis no Nazo
+NPJJ00076,Shinsou Kaiten: Wanwan Umi Monogatari: Sanyo Pachinko Paradise DX
+NPJJ00077,Gakkou Deatta Kowai Hanashi S
+NPJJ00078,Prismaticallization
+NPJJ00079,Sanyo Pachinko Paradise 5
+NPJJ00080,ATHENA -Awakening from the ordinary life-
+NPJJ00081,Arcade Hits: Sonic Wings Special
+NPJJ00082,The Conveni 2: Zenkoku Chain Tenkai da!
+NPJJ00083,King’s Field II
+NPJJ00084,Echo Night
+NPJJ00085,Memorial * Series: Sunsoft Vol. 3: Madoola no Tsubasa / Toukaidou Gojuusan Tsugi
+NPJJ00086,Blue Breaker: Egao no Yakusoku
+NPJJ00087,Azito
+NPJJ00088,Shadow Tower
+NPJJ00089,Armored Core: Project Phantasma
+NPJJ00090,Ganbare Goemon Uchuu Kaizoku Akogingu
+NPJJ00091,Michinoku Hitou Koimonogatari Kai
+NPJJ00092,Hanafuda Graffiti: Koi Koi Monogatari
+NPJJ00093,Sanyo Pachinko Paradise
+NPJJ00094,Sanyo Pachinko Paradise 2
+NPJJ00095,King’s Field III
+NPJJ00096,Echo Night #2: Nemuri no Shihaisha
+NPJJ00098,Hana to Ryuu
+NPJJ00099,Neo Atlas
+NPJJ00100,Sanyo Pachinko Paradise 3
+NPJJ00101,Sanyo Pachinko Paradise 4  (req. OFW 3.72)
+NPJJ00101,Sanyo Pachinko Paradise 4  (req. OFW 6.60)
+NPJJ00102,Wizard’s Harmony
+NPJJ00104,Fuuraiki
+NPJJ00105,Armored Core: Master of Arena
+NPJJ00107,Frisky Tom
+NPJJ00108,Arcade Hits: Moon Cresta
+NPJJ00109,Blue Breaker Burst: Bishou o Anata to
+NPJJ00111,Poy Poy
+NPJJ00118,Blue Breaker Burst: Egao no Asuni
+NPJJ00120,Falcata
+NPJJ00121,Marī no Atorie – Zāruburugu no Renkinjutsushi (Atelier Marie – The Alchemist of Salburg)
+NPJJ00124,Card II (SuperLite 1500 Series)
+NPJJ00125,Hanafuda II (SuperLite 1500 Series)
+NPJJ00126,Baroque
+NPJJ00127,Arcade Hits: Magical Drop
+NPJJ00128,Robin Lloyd no Bouken
+NPJJ00129,Biohazard 2  (DateCode 2010-01-13)
+NPJJ00129,Biohazard 2  (DateCode 2007-12-19)
+NPJJ00130,Dezaemon Plus!  (req. OFW 3.80)
+NPJJ00130,Dezaemon Plus!  (req. OFW 6.60)
+NPJJ00131,Pro Mahjong Kiwame Plus  (req. OFW 6.61)
+NPJJ00131,Pro Mahjong Kiwame Plus  (req. OFW 3.80)
+NPJJ00131,Pro Mahjong Kiwame Plus  (req. OFW 6.60)
+NPJJ00132,Athena no Kateiban: Family Game  (req. OFW 3.93)
+NPJJ00132,Athena no Kateiban: Family Game  (req. OFW 6.60)
+NPJJ00133,Kuroi Hitomi no Noir: Cielgris Fantasm (Noir Yeux Noire)
+NPJJ00134,Block Kuzushi Kowashite Help!
+NPJJ00135,Big League Slugger Baseball
+NPJJ00136,Extreme Go-Kart Racing
+NPJJ00137,Money Idol Exchanger  (req. OFW 3.90)
+NPJJ00137,Money Idol Exchanger  (req. OFW 6.61)
+NPJJ00137,Money Idol Exchanger  (req. OFW 6.60)
+NPJJ00138,Meru Purana
+NPJJ00139,Nobunaga Hiroku: Ge-Ten no Yume  (req. OFW 6.60)
+NPJJ00139,Nobunaga Hiroku: Ge-Ten no Yume  (req. OFW 3.90)
+NPJJ00140,Ide Yosuke no Mahjong Kyoshitsu  (req. OFW 3.90)
+NPJJ00140,Ide Yosuke no Mahjong Kyoshitsu  (req. OFW 6.61)
+NPJJ00140,Ide Yosuke no Mahjong Kyoshitsu  (req. OFW 6.60)
+NPJJ00141,Baroque Syndrome
+NPJJ00142,Family Bowling
+NPJJ00143,Kawa no Nushi Tsuri: Hikyou o Motomete
+NPJJ00144,Gakkou o Tsukurou!!
+NPJJ00145,Metal Gear Solid (req. OFW 3.90)
+NPJJ00145,Metal Gear Solid (req. OFW 3.93)
+NPJJ00146,Dezaemon Kids!  (req. OFW 6.60)
+NPJJ00146,Dezaemon Kids!  (req. OFW 3.90)
+NPJJ00146,Dezaemon Kids!  (req. OFW 6.61)
+NPJJ00147,Pro Mahjong Kiwame Plus II
+NPJJ00148,Erī no Atorie – Zāruburugu no Renkinjutsushi 2 (Atelier Elie – The Alchemist of Salburg 2)
+NPJJ00149,Master of Monsters: Disciples of Gaia
+NPJJ00150,Magical Drop F
+NPJJ00151,Arcade Hits: Shienryu
+NPJJ00152,Pukunpa: Joshikouki No Houkago  (req. OFW 6.61)
+NPJJ00152,Pukunpa: Joshikouki No Houkago  (req. OFW 3.95)
+NPJJ00152,Pukunpa: Joshikouki No Houkago  (req. OFW 6.60)
+NPJJ00153,Pro Mahjong Kiwame Tengensenhen
+NPJJ00154,BLOODY ROAR
+NPJJ00156,Nectaris: Military Madness
+NPJJ00157,Policenauts
+NPJJ00158,Wizard’s Harmony 2
+NPJJ00159,Lord Monarch: Shin Gaia Oukokuki
+NPJJ00160,Bomberman Party Edition
+NPJJ00161,Tamamayu Monogatari (PlayStation the Best)  (req. OFW 6.60)
+NPJJ00161,Tamamayu Monogatari (PlayStation the Best)  (req. OFW 3.95)
+NPJJ00162,Yamasa Digi Guide: New Pulsar R
+NPJJ00163,Yamasa Digi Guide: Hyper Rush
+NPJJ00164,Yamasa Digi Guide: M-771
+NPJJ00165,Acid
+NPJJ00166,Xenogears
+NPJJ00167,Einhander
+NPJJ00168,Astronoka
+NPJJ00169,Rakugaki Showtime
+NPJJ00170,Raystorm
+NPJJ00171,FIGHTERS' IMPACT
+NPJJ00172,Brave Fencer Musashiden
+NPJJ00173,Ehrgeiz
+NPJJ00174,Wizard’s Harmony R
+NPJJ00175,Yamasa Digi Selection
+NPJJ00176,Yamasa Digi Selection 2
+NPJJ00177,Project GaiaRay
+NPJJ00178,b.l.u.e. Legend of water
+NPJJ00179,Aquanaut no Kyuujitsu: Memories of Summer 1996
+NPJJ00180,Raycrisis  (req. OFW 4.40)
+NPJJ00180,Raycrisis  (req. OFW 6.60)
+NPJJ00183,Grille Logic
+NPJJ00184,Chocobo Racing
+NPJJ00185,Chocobo Stallion
+NPJJ00186,Dice de Chocobo
+NPJJ00187,ARKANOID RETURNS
+NPJJ00188,Aquanaut no Kyuujitsu 2
+NPJJ00188,Aquanaut no Kyuujitsu 2
+NPJJ00189,Soukaigi
+NPJJ00190,Magical Date: Doki Doki Kokuhaku Daisakusen
+NPJJ00191,Beltlogger 9
+NPJJ00193,Seirei Shoukan: Princess of Darkness
+NPJJ00194,G Darius
+NPJJ00195,Bomberman Fantasy Race
+NPJJ00196,Carom Shot 2
+NPJJ00197,Blockids  (req. OFW 4.05)
+NPJJ00197,Blockids  (req. OFW 6.61)
+NPJJ00197,Blockids  (req. OFW 6.60)
+NPJJ00198,Psychic Force 2
+NPJJ00199,Puzzle Bobble 2
+NPJJ00200,Dekiru! Game Center
+NPJJ00201,Weltorv Estleia
+NPJJ00202,Puchi Carat
+NPJJ00203,Kouyasai
+NPJJ00204,Bomberman Land
+NPJJ00205,FISH EYES
+NPJJ00206,SPACE INVADERS
+NPJJ00207,Building Crush!
+NPJJ00208,Yamasa Digi
+NPJJ00209,RAY TRACERS
+NPJJ00210,Gensou no Artemis: Actress School Mystery Adventure
+NPJJ00211,Tsuukai!! Slot Shooting
+NPJJ00212,Front Mission Alternative
+NPJJ00213,Theme Park
+NPJJ00216,Soviet Strike
+NPJJ00217,Touki Denshou: Angel Eyes
+NPJJ00218,Front Mission 1st
+NPJJ00219,LAND MAKER
+NPJJ00221,Populous: The Beginning
+NPJJ00223,Culdcept Expansion Plus
+NPJJ00224,SaGa Frontier
+NPJJ00225,Bushido Blade
+NPJJ00226,Chaos Break
+NPJJ00227,Tecmo's Deception: Invitation to Darkness
+NPJJ00228,Front Mission 2
+NPJJ00229,SaGa Frontier 2
+NPJJ00230,Puzzle Bobble 3 DX
+NPJJ00231,Dead or Alive
+NPJJ00232,Front Mission 3
+NPJJ00233,Bushido Blade 2
+NPJJ00234,Pop 'n' Pop
+NPJJ00235,Kagero
+NPJJ00236,Brigandine: Grand Edition
+NPJJ00237,Bokujou Monogatari Harvest Moon
+NPJJ00238,Bokujou Monogatari Harvest Moon For Girl
+NPJJ00239,Biohazard 3 Last Escape  (DateCode 2010-01-06)
+NPJJ00239,Biohazard 3 Last Escape  (DateCode 2008-12-11)
+NPJJ00240,Monster Farm Jump
+NPJJ00242,Deception III: Dark Delusion
+NPJJ00244,Farland Story: Yottsu no Fuuin
+NPJJ00245,Lunar Wing: Toki o Koeta Seisen
+NPJJ00246,Reel Fishing II
+NPJJ00247,Tenshi Doumei (Angel Alliance)
+NPJJ00248,Gakkou o Tsukurou!! 2
+NPJJ00249,Knight&Baby
+NPJJ00250,Fire Pro Wrestling G  (req. OFW 5.02)
+NPJJ00250,Fire Pro Wrestling G  (req. OFW 6.60)
+NPJJ00251,Urawaza Mahjong: Korette Tenwatte Yatsukai
+NPJJ00252,Cho Aniki
+NPJJ00253,Neo Atlas II
+NPJJ00254,Yamasa Digi Guide: Umekagetsu R
+NPJJ00255,Advanced V.G.
+NPJJ00256,Assault Suits Valken 2
+NPJJ00257,Carnage Heart EZ: Easy Zapping
+NPJJ00258,Himitsu Sentai Metamor V Deluxe
+NPJJ00259,Grandia
+NPJJ00260,Final Fantasy VII International
+NPJJ00261,Gakkou o Tsukurou!! Kouchou Sensei Monogatari
+NPJJ00262,Tilk: Aoi Umi kara Kita Shoujo
+NPJJ00263,Lunatic Dawn Odyssey
+NPJJ00264,Langrisser I & II
+NPJJ00265,Final Fantasy Tactics
+NPJJ00266,Zeus: Carnage Heart Second
+NPJJ00267,Arubarea no Otome: Uruwashi no Seishikitachi
+NPJJ00268,Mahoutsukai ni Naru Houhou
+NPJJ00269,Dream Generation
+NPJJ00270,Final Fantasy
+NPJJ00271,Zeus II: Carnage Heart
+NPJJ00272,Farland Saga: Toki no Michishirube
+NPJJ00273,Final Fantasy II
+NPJJ00275,Rockman  (req. OFW 6.60)
+NPJJ00275,Rockman  (req. OFW 5.50)
+NPJJ00276,Tecmo Stackers
+NPJJ00277,GaiaSeed
+NPJJ00278,TALL TWINS TOWER
+NPJJ00280,Arcade Hits: Outlaws Of The Lost Dynasty
+NPJJ00281,Saikyo Todai Shogi
+NPJJ00282,Vagrant Story
+NPJJ00283,Dragon Knights Glorious
+NPJJ00284,Shisha no Yobu Tachi
+NPJJ00285,Tetsuman Special: Honkaku Mahjong
+NPJJ00286,Rapid Angel
+NPJJ00287,Rockman 2: Dr. Wily no Nazo  (req. OFW 5.50)
+NPJJ00287,Rockman 2: Dr. Wily no Nazo  (req. OFW 6.60)
+NPJJ00288,Side Pocket 3
+NPJJ00289,Nippon Pro Mahjong Renmei Kounin: Doujou Yaburi
+NPJJ00290,Rubbish Blazon
+NPJJ00291,Epica Stella
+NPJJ00292,1 on 1
+NPJJ00293,Theme Aquarium  (req. OFW 6.60)
+NPJJ00293,Theme Aquarium  (req. OFW 6.00)
+NPJJ00294,Final Fantasy VIII
+NPJJ00295,Mikagura Shoujo Tanteidan
+NPJJ00296,Catch! Kimochi Sensation
+NPJJ00297,Nippon Pro Mahjong Renmei Kounin: Shin Tetsuman
+NPJJ00298,Lucifer Ring
+NPJJ00299,Theme Hospital
+NPJJ00300,Gochachiru
+NPJJ00301,Nekozamurai
+NPJJ00302,Oni Zero: Fukkatsu
+NPJJ00303,Tokimeki Memorial: Forever With You
+NPJJ00304,Zoku Mikagura Shoujo Tanteidan ~Kanketsuhen~
+NPJJ00305,Tehodoki Mahjong: Nyuumon-hen
+NPJJ00306,Hi-Octane
+NPJJ00307,Tokimeki Memorial 2  (req. OFW 6.60)
+NPJJ00307,Tokimeki Memorial 2  (req. OFW 6.10)
+NPJJ00308,Tokimeki Memorial 2 EVS Append Disc
+NPJJ00309,Langrisser IV & V: Final Edition
+NPJJ00310,Gourmet Action Game: Manpuku!! Nabe Kazoku
+NPJJ00311,Magical Drop III
+NPJJ00312,Magic Carpet
+NPJJ00313,NOëL NOT DiGITAL
+NPJJ00314,Yakiniku Bugyou
+NPJJ00316,Theme Park World
+NPJJ00317,Motteke Tamago with Ganbare Kamonohasi
+NPJJ00318,Tokimeki Memorial: Taisen Puzzle-Dama
+NPJJ00319,Championship Bass
+NPJJ00320,Hyper Crazy Climber
+NPJJ00321,Kyuiin
+NPJJ00322,Tokimeki Memorial 2 Taisen Puzzle-dama
+NPJJ00323,Nippon Pro Mahjong Renmei Kounin: Doujou Yaburi 2
+NPJJ00324,Kakuge-Yaro: Fighting Game Creator
+NPJJ00325,Yakitori Musume: Sugo Ude Hanjouki
+NPJJ00327,Family Chess
+NPJJ00328,Sentimental Graffiti
+NPJJ00329,Deadheat Road
+NPJJ00330,Family Diamond
+NPJJ00331,The Pro Mahjong: Menkyo Minnaten
+NPJJ00332,Tokimeki no Houkago
+NPJJ00333,Thunder Force V: Perfect System
+NPJJ00334,Neorude
+NPJJ00335,Family Gunjin Shogi
+NPJJ00336,Puppet Zoo Pilomy
+NPJJ00337,Simple 1500 Series Vol. 14: The Block Kuzushi
+NPJJ00338,Simple 1500 Series Vol. 15: The Pachinko
+NPJJ00339,Simple 1500 Series Vol. 18: The Bowling
+NPJJ00340,Simple 1500 Series Vol. 31: The Sound Novel
+NPJJ00341,Rockman 3: Dr. Wily no Saigo!?  (req. OFW 6.20)
+NPJJ00341,Rockman 3: Dr. Wily no Saigo!?  (req. OFW 6.60)
+NPJJ00342,My Garden
+NPJJ00343,Uchuu Goushouden: Bakuretsu Akindo
+NPJJ00344,Ganso Family Mahjong
+NPJJ00345,Simple 1500 Series Vol. 32: The Boxing
+NPJJ00346,Simple 1500 Series Vol. 35: The Shooting
+NPJJ00347,Simple 1500 Series Vol. 37: The Illust Puzzle & Slide Puzzle
+NPJJ00348,Simple 1500 Series Vol. 43: The Hanafuda 2
+NPJJ00350,Simple 1500 Series Vol. 28: The Dungeon RPG
+NPJJ00351,Simple 1500 Series Vol. 33: The Takkyuu
+NPJJ00352,Simple 1500 Series Vol. 39: The Mahjong 2
+NPJJ00353,Simple 1500 Series Vol. 40: The Shogi 2
+NPJJ00354,Zero Divide
+NPJJ00356,Hoshi no Mahoroba
+NPJJ00357,Hamster Club
+NPJJ00358,Fantastic Pinball Kyutenkai
+NPJJ00359,Hashiriya: Ookami Tachi no Densetsu
+NPJJ00360,Wolf Fang
+NPJJ00361,Simple 1500 Series Vol. 36: The Renai Simulation
+NPJJ00362,Simple 1500 Series Vol. 41: The Reversi 2
+NPJJ00363,Simple 1500 Series Vol. 44: The Card II
+NPJJ00364,Simple 1500 Series Vol. 45: The Block Kuzushi 2
+NPJJ00365,Neorude 2
+NPJJ00366,Kisou Jidaigeki Sugoroku: Ninroku
+NPJJ00367,Power Serve 3D Tennis
+NPJJ00368,Final Fantasy IX
+NPJJ00369,DonPachi
+NPJJ00370,Sekai Saikyou Ginsei Igo 3
+NPJJ00371,Koutetsu Reiiki: Steeldom
+NPJJ00372,Simple 1500 Series Vol. 48: The Puzzle 2
+NPJJ00373,Simple 1500 Series Vol. 49: The Casino
+NPJJ00374,Simple 1500 Series Vol. 53: The Helicopter
+NPJJ00375,Simple 1500 Series Vol. 55: The Darts
+NPJJ00376,Zero Divide 2
+NPJJ00377,DoDonPachi
+NPJJ00378,Jet CopterX
+NPJJ00379,Kaze no Oka Kouen Nite
+NPJJ00380,Simple 1500 Series Vol. 56: The Sniper
+NPJJ00381,Simple 1500 Series Vol. 57: The Meiro
+NPJJ00382,Simple 1500 Series Vol. 59: The Suiri – IT Tantei: 18 no Jikenbo
+NPJJ00383,Simple 1500 Series Vol. 60: The Table Hockey
+NPJJ00384,DewPrism
+NPJJ00385,Seiken Densetsu: Legend of Mana
+NPJJ00386,Simple 1500 Series Vol.63: The Gun Shooting 2
+NPJJ00387,Simple 1500 Series Vol.64: The Kickboxing
+NPJJ00388,Simple 1500 Series Vol.65: The Golf
+NPJJ00389,Simple 1500 Series Vol.70: The Onigokko
+NPJJ00390,Neorude: Kizamareta Monshou
+NPJJ00391,The Firemen 2: Pete & Danny
+NPJJ00392,Hi Takara O
+NPJJ00393,Reverthion
+NPJJ00394,NOëL: La Neige
+NPJJ00395,Zig Zag Ball
+NPJJ00396,Simple 1500 Series Vol.69: The Putter Golf
+NPJJ00397,Simple 1500 Series Vol.71: The Renai Simulation 2
+NPJJ00398,Simple 1500 Series Vol.72: The Beach Volley
+NPJJ00399,Simple 1500 Series Vol.74: The Horror Mystery
+NPJJ00400,Kumitate Battle: Kuttu Ketto
+NPJJ00401,Mahjong Youchien: Tamago-Gumi – Jong for Beginners
+NPJJ00402,Makeruna! Makendo 2
+NPJJ00403,Simple 1500 Series Vol. 78: The Zero Yon
+NPJJ00404,Simple 1500 Series Vol. 82: The Sensuikan
+NPJJ00405,Simple 1500 Series Vol. 85: The Sengoku Bushou ~Tenka Touitsu no Yabou~
+NPJJ00406,Simple 1500 Series Vol. 86: The Onigokko
+NPJJ00407,Maboroshi Tsukiyo
+NPJJ00408,NOëL: La Neige Special
+NPJJ00409,Minna Atsumare! Igo Kyoushitsu
+NPJJ00410,Shin Megami Tensei
+NPJJ00411,Omise de Tensyu
+NPJJ00412,Zanac x Zanac
+NPJJ00413,Simple 1500 Series Vol.87: The Kyoutei
+NPJJ00414,Simple 1500 Series Vol.88: The Gal Mahjong – Love Songs Idol ha High Rate
+NPJJ00415,Simple 1500 Series Vol.90: The Sensha
+NPJJ00416,Simple 1500 Series Vol.91: The Gambler – Honoo no Tobaku Densetsu
+NPJJ00417,elan
+NPJJ00418,Ungra Walker
+NPJJ00419,Battle Sugoroku: The Hunter (SuperLite 1500 Series)
+NPJJ00420,Oekaki Puzzle (SuperLite 1500 Series)
+NPJJ00421,Sougaku Toshi Osaka
+NPJJ00422,Simple 1500 Series Vol. 95: The Hikouki
+NPJJ00423,Simple 1500 Series Vol. 97: The Squash
+NPJJ00424,Simple 1500 Series Vol. 98: The Futsal
+NPJJ00425,Simple 1500 Series Vol. 99: The Kendo – Ken no Hanamichi
+NPJJ00426,SuperLite1500 Series Hooockey!!
+NPJJ00427,SuperLite1500 Series Bomb Boat
+NPJJ00428,SuperLite1500 Series Oekaki Puzzle 2
+NPJJ00429,Dokapon! Ikari no Tetsuken
+NPJJ00430,LSD
+NPJJ00431,Marionette Company
+NPJJ00432,Zero Kara no Shogi: Shogi Youchien – Ayumi Kumi
+NPJJ00433,Love Game's: Wai Wai Tennis
+NPJJ00434,Anoko Doko Noko
+NPJJ00435,Shin Megami Tensei II
+NPJJ00436,Simple 1500 Series Vol.100: The Uchuuhikoushi
+NPJJ00437,Simple 1500 Series Vol. 101: The Sentou
+NPJJ00438,SuperLite1500 Series Quiz Master Red
+NPJJ00439,Pangaea (SuperLite 1500 Series)
+NPJJ00440,The Curling (SuperLite 1500 Series)
+NPJJ00441,Evergreen Avenue
+NPJJ00442,RungRung: Oz no Mahou Tsukai – Another World
+NPJJ00443,Chocobo no Fushigi na Dungeon
+NPJJ00444,Chocobo no Fushigi Dungeon 2
+NPJJ00445,NOëL3 MISSION ON THE LINE
+NPJJ00446,Silhouette Mirage
+NPJJ00447,Akagawa Jirou: Yasoukyoku
+NPJJ00448,Shin Megami Tensei if…
+NPJJ00449,Akagawa Jirou: Yasoukyoku 2
+NPJJ00450,Mahjong Youchien: Tamago-Gumi 2 – Taikai e Ikou!
+NPJJ00451,Marionette Company 2
+NPJJ00452,Quiz Master Blue (SuperLite 1500 Series)
+NPJJ00453,Angolmois 99 (SuperLite 1500 Series)
+NPJJ00454,Endless Season: Anoko Doko Noko (SuperLite 1500 Series)
+NPJJ00455,Parasite Eve
+NPJJ00456,Parasite Eve II
+NPJJ00457,Lup*Salad
+NPJJ00458,Battle Athletess: Daiundoukai Alternative
+NPJJ00459,Oekaki Puzzle 3 (SuperLite 1500 Series)
+NPJJ00460,Pinball Golden Logres (SuperLite 1500 Series)
+NPJJ00461,Quiz Master Yellow (SuperLite 1500 Series)
+NPJJ00462,Salary Man Champ: Tatakau Salary Man
+NPJJ00463,Saikyou Ginsei Mahjong
+NPJJ00464,Memorial * Series: Sunsoft Vol. 4: Chou Wakusei Senki Metafight / Ripple Island
+NPJJ00465,Dragon Money
+NPJJ00466,NOON: New Type Action Game
+NPJJ00467,Shin Megami Tensei: Devil Children
+NPJJ00468,Oekaki Puzzle 4 (SuperLite 1500 Series)
+NPJJ00469,Saikyou Ginsei Chess
+NPJJ00470,Umi no Nushi Tsuri: Takarajima ni Mukatte
+NPJJ00471,Waku Waku Volley
+NPJJ00472,Favorite Dear: Enkan no Monogatari
+NPJJ00473,Irem Arcade Classics
+NPJJ00475,Oekaki Puzzle 5 (SuperLite 1500 Series)
+NPJJ00476,Cotton 100%
+NPJJ00477,Touge Max – Saisoku Driver Master
+NPJJ00478,Saikyou Ginsei Shogi 2
+NPJJ00480,Battle Athletess: Daiundoukai GTO
+NPJJ00481,Nobunaga no Yabou: Zenkokuban
+NPJJ00482,Touge Max 2
+NPJJ00483,Elan plus
+NPJJ00485,Memorial * Series: Sunsoft Vol. 5: Raf World / Hebereke
+NPJJ00486,Umi no Oh! Yah!
+NPJJ00487,Finger Flashing
+NPJJ00488,Favorite Dear: Junshiro no Yogenmono
+NPJJ00489,Akumajou Dracula X: Gekka no Yasoukyoku
+NPJJ00490,Chrono Cross
+NPJJ00491,Asuka 120% Burning Fest. Special
+NPJJ00492,My Home Dream
+NPJJ00493,Le Concert pp (pianissimo)
+NPJJ00494,Le Concert ff (fortissimo)
+NPJJ00495,Koten Tsugoshuu: Shijin no Kan
+NPJJ00496,Kohni Shogun
+NPJJ00497,Dai-2-Ji Super Robot Taisen
+NPJJ00498,Dai-3-Ji Super Robot Taisen
+NPJJ00499,Super Robot Taisen EX
+NPJJ00500,Yamasa Digi World: Tetra Master
+NPJJ00501,Metamoru Panic: Doki Doki Youma Busters!!
+NPJJ00502,Memorial * Series: Sunsoft Vol. 6: Battle Formula / Gimmick!
+NPJJ00503,Akagawa Jirou: Majotachi no Nemuri – Fukkatsusai
+NPJJ00504,Art Camion Sugorokuden
+NPJJ00505,Mahjong Uranai Fortuna: Tsuki no Megami-tachi
+NPJJ00506,Gotatsujin: Electro
+NPJJ00507,Digital Glider Airman
+NPJJ00508,Star Gladiator: Episode I – Final Crusade
+NPJJ00509,Vampire Savior EX Edition
+NPJJ00510,Cyberbots Fullmetal Madness
+NPJJ00511,Rockman 4: Aratanaru Yabou!!  (req. OFW 6.60)
+NPJJ00511,Rockman 4: Aratanaru Yabou!!  (req. OFW 6.35)
+NPJJ00512,Mad Stalker Full Metal Force
+NPJJ00513,Space Griffon VF-9
+NPJJ00514,Hanabi Fantast
+NPJJ00515,Uki Uki Tsuri Tengoku: Ningyo Densetsu no Nazo
+NPJJ00516,Mr. Prospector: Horiate Kun
+NPJJ00517,Hatsukoi Valentine
+NPJJ00518,Pet Pet Pet
+NPJJ00519,Suizokukan Project: Fish Hunter e no Michi
+NPJJ00520,Doukyu Re-Mix: Billiards Multiple
+NPJJ00521,Final Fantasy V
+NPJJ00522,Final Fantasy VI
+NPJJ00523,Asuka 120% Excellent: Burning Fest. Excellent
+NPJJ00524,First Queen IV: Varcia Senki
+NPJJ00525,Uki Uki Tsuri Tengoku: Kawa Monogatari
+NPJJ00526,Kitchen Panic
+NPJJ00527,Hatsukoi Valentine Special
+NPJJ00528,OverBlood
+NPJJ00529,Ooedo Huusui Ingaritsu Hanabi 2
+NPJJ00530,Quiz Shuu (SuperLite 3in1 Series)
+NPJJ00531,Uki Uki Tsuri Tengoku: Uokami Densetsu o Oe
+NPJJ00532,Monster Bass
+NPJJ00533,Community Pom: Omoide o Dakishimete
+NPJJ00534,U.P.P.
+NPJJ00535,Rescue 24 Hours
+NPJJ00536,Pro Wrestling Sengokuden: Hyper Tag Match
+NPJJ00538,DINO CRISIS 2
+NPJJ00539,Breath of Fire IV
+NPJJ00540,Pocket Fighter
+NPJJ00541,Wakusei Koukitai Little Cats
+NPJJ00542,Koushien V
+NPJJ00543,Deserted Island
+NPJJ00544,Oekaki Puzzle Shuu (SuperLite 3in1 Series)
+NPJJ00545,PacaPaca Passion
+NPJJ00546,Chrono Trigger
+NPJJ00547,Gouketsuji Ichizoku 2: Chotto Dake Saikyou Densetsu (Power Instinct 2)
+NPJJ00548,Asuka 120% Final: Burning Fest. Final
+NPJJ00549,Max Surfing 2000
+NPJJ00550,Vehicle Cavalier
+NPJJ00551,Pacapaca Passion 2
+NPJJ00552,Bounty Sword First
+NPJJ00553,Goiken Muyou II
+NPJJ00554,Hyouryuu Ki: The Reportage Beyond the Sea
+NPJJ00555,Pacapaca Passion Special
+NPJJ00556,Pocket Tuner  (unknown difference - 1 )
+NPJJ00556,Pocket Tuner  (unknown difference - 2 )
+NPJJ00557,Twins Story
+NPJJ00558,Slap Happy Rhythm Busters
+NPJJ00559,Bounty Sword: Double Edge
+NPJJ00560,Doki Oki
+NPJJ00561,Panzer Bandit
+NPJJ00562,Sengoku Mugen
+NPJJ00563,Nyan to Wonderful
+NPJJ00564,AERO DIVE
+NPJJ00565,Zoku Gussun Oyoyo
+NPJJ00566,Ore! Tomba
+NPJJ00567,Ryuki Densyo: Dragoon
+NPJJ00568,Kid Klown in Crazy Chase 2: Love Love Hani Soudatsusen
+NPJJ00570,Marl Jong!!
+NPJJ00571,Dioramos
+NPJJ00572,Ochanoma Battle
+NPJJ00573,Dai-4-Ji Super Robot Taisen S
+NPJJ00574,Shin Super Robot Taisen
+NPJJ00575,Toy Dream
+NPJJ00576,Waku Waku Derby
+NPJJ00577,The Bombing Islands
+NPJJ00578,Wai Wai 3-nin Uchi Mahjong
+NPJJ00579,Dangan
+NPJJ00580,Pro Wrestling Sengokuden 2
+NPJJ00581,Wai Wai Trump Taisen
+NPJJ00582,The Oni Taiji: Mezase! Nidaime Momotarou
+NPJJ00584,Tekken
+NPJJ00585,Klonoa: Door to Phantomile
+NPJJ00586,R4 RIDGE RACER TYPE 4
+NPJJ00587,Winning Lure
+NPJJ00588,Jigsaw Island: Japan Graffiti
+NPJJ00589,Strikers 1945 II
+NPJJ00590,Chiisa na Oukoku Eltria
+NPJJ00591,Quiz Nanairo Dreams: Nijiiro Machi no Kiseki
+NPJJ00592,Marby Baby Story
+NPJJ00593,Rockman 5: Blues no Wana!?  (req. OFW 6.60)
+NPJJ00593,Rockman 5: Blues no Wana!?  (req. OFW 6.39)
+NPJJ00594,Doki Doki Shutter Chance
+NPJJ00595,Double Dragon
+NPJJ00596,99 Kosuhien
+NPJJ00597,Dosukoi Densetsu
+NPJJ00598,Geom Cube
+NPJJ00599,Sound Novel Evolution 2: Kamaitachi no Yoru: Tokubetsu-Hen
+NPJJ00600,Choujin Gakuen Gowcaizer
+NPJJ00601,Max Surfing 2nd
+NPJJ00602,Sound Novel Evolution 1: Otogirisou Sosei-Hen
+NPJJ00603,Super Pang Collection
+NPJJ00604,Tomba! The Wild Adventures
+NPJJ00605,Rebus
+NPJJ00606,Kuro no Ken: Blade of the Darkness
+NPJJ00607,Street Boarders 2
+NPJJ00608,Warriors Of Fate – Tench wo Kurau II
+NPJJ00609,Dungeon Shoutenkai: Densetsu no Ken Hajimemashita
+NPJJ00610,Cool Boarders
+NPJJ00611,Super Robot Taisen F
+NPJJ00612,Super Robot Taisen F Final
+NPJJ00613,Clock Tower: The First Fear
+NPJJ00614,Cool Boarders 2: Killing Session
+NPJJ00615,Blaster Master
+NPJJ00616,Final Round
+NPJJ00618,The Shanghai (value 1500)
+NPJJ00619,Rising Zan: The Samurai Gunman
+NPJJ00620,Super Robot Taisen Alpha
+NPJJ00621,Super Robot Taisen Alpha Gaiden
+NPJJ00623,Gaia Master
+NPJJ00626,Kururin Pa!
+NPJJ00627,Shiritsu Justice Gakuen: Legion Of Heroes (Rival Schools)
+NPJJ00627,Shiritsu Justice Gakuen: Legion Of Heroes (Rival Schools)
+NPJJ00628,Myst
+NPJJ00629,Harmful Park
+NPJJ00630,Clock Tower 2
+NPJJ00632,Shingata Kururin Pa!
+NPJJ00633,Trump Shiyouyo! Fukkoku-ban
+NPJJ00637,Tokyo Majin Gakuen Ken Kaze Tobari
+NPJJ00638,Tokyo Majin Gakuen Oboro-Kitan
+NPJJ00639,Tokyo Majin Gakuen Gehoujou
+NPJJ00645,Rayman
+NPJJ00649,Clock Tower: Ghost Head
+NPJJ00651,Motto Trump Shiyouyo!
+NPJJ00652,Final Fantasy IV
+NPJJ00656,Summon Night
+NPJJ00657,Summon Night 2
+NPJJ00661,Super Black Bass X
+NPJJ00662,Umihara Kawase Shun Second Edition
+NPJJ00664,Rockman 6: Shijou Saidai no Tatakai!!  (DateCode 2013-01-21)
+NPJJ00664,Rockman 6: Shijou Saidai no Tatakai!!  (DateCode 2013-10-24)
+NPJJ00670,The Match Golf
+NPJJ00671,Metal Gear Solid Integral
+NPJJ00672,Xevious 3D/G+
+NPJJ00673,Mr. Driller G
+NPJJ00674,Cyber Sled
+NPJJ00676,Smash Court
+NPJJ00677,Zutto Issho: With Me Everytime...
+NPJJ00678,EOS~Edge of Skyhigh~
+NPJJ00679,Soukuu no Tsubasa: Gotha World
+NPJJ00680,Neo Planet
+NPJJ00681,Dragon Beat Legend of Pinball
+NPJJ00682,Abe a GO GO
+NPJJ00683,Tokyo 23-Ku Seifuku Wars
+NPJJ00684,ABE'99
+NPJJ00685,Heroine Dream
+NPJJ00686,Heroine Dream 2
+NPJJ00687,Namco Museum Vol. 1
+NPJJ00688,Namco Museum Vol. 2
+NPJJ00689,Namco Museum Vol. 3
+NPJJ00690,Namco Museum Vol. 4
+NPJJ00691,Strider Hiryu 1&2
+NPJJ00692,Namco Museum Vol. 5
+NPJJ00693,Namco Museum Encore
+NPJJ00694,Namco Anthology 1
+NPJJ00695,Namco Anthology 2
+NPJJ00696,Smash Court 2
+NPJJ00697,Starblade Alpha
+NPJJ00698,Galaxian^3
+NPJJ00699,Silver Jiken
+NPJJ00700,Tantei Jinguuji Saburou: Yume no Owarini
+NPJJ00701,Tantei Jinguuji Saburou Early Collection
+NPJJ00702,Tantei Jinguuji Saburou: Mikan no Rupo
+NPJJ00703,Tantei Jinguuji Saburou: Touka ga Kienu Aidani
+NPJJ00704,Castlevania Chronicle: Akumajō Dracula
+NPJJ00705,Ms. Pac-Man Maze Madness
+NPJJ00706,Smash Court 3
+NPJJ00707,Puyo Puyo Sun Ketteiban
+NPJJ00708,Dragon Valor
+NPJJ00711,Expert
+NPJJ00713,Susume! Kaizoku
+NPJJ00714,Monster Farm 2
+NPJJ00715,Roommate: Inoue Ryoko
+NPJJ00716,Sihouette☆Stories
+NPJJ00717,Lunar 2: Eternal Blue
+NPJJ00718,Pocke-Kano: Yumi Aida
+NPJJ00719,Pocke-Kano: Fumio Ueno
+NPJJ00720,Pocke-Kano: Shizuka Houjouin
+NPJJ00721,Street Fighter Alpha: Warriors' Dreams
+NPJJ00722,Street Fighter Zero 2
+NPJJ00723,Tron ni Kobun
+NPJJ00724,Rockman Battle & Chase
+NPJJ00725,Rockman X4
+NPJJ00726,Rockman X5
+NPJJ00727,Rockman 8: Metal Heroes
+NPJJ00728,Street Fighter Alpha 3
+NPJJ00729,I'Max Shogi II
+NPJJ00730,Taikai Nobunaga Ten: Ge-Ten II
+NPJJ00731,Honoo no Ryourinin: Cooking Fighter Hao
+NPJJ00732,Shiritsu Justice Gakuen: Nekketsu Seisyun Nikki 2
+NPJJ00733,Rockman X6
+NPJJ00734,Super Puzzle Fighter II Turbo
+NPJJ00735,Kileak: The DNA Imperative
+NPJJ00736,Epidemic
+NPJJ00737,Kowloon's Gate
+NPJJ00738,Dragonseeds
+NPJJ00739,T: Kara Hajimaru Monogatari
+NPJJ00740,Slam Dragon
+NPJJ00741,Gambler Jiko Chuushinha: Ippatsu Shoubu!
+NPJJ00742,Kuon no Kizuna
+NPJJ00743,Capcom Generation Dai-go-shū Kakutōka-tachi (Capcom Generations 5: Street Fighter Collection 2)
+NPJJ00744,Speed Power Gunbike
+NPJJ00745,DamDam StompLand
+NPJJ00746,Doki Doki Poyacchio
+NPJJ00747,Battle Arena Toshinden
+NPJJ00748,Battle Arena Toshinden 2 Plus
+NPJJ00749,Battle Arena Toshinden 3
+NPJJ00750,THUNDERFORCE V Perfect System
+NPJJ00751,Neorude
+NPJJ00752,My Garden
+NPJJ00753,Fantastic Pinball Kyutenkai
+NPJJ00754,Neorude2
+NPJJ00755,Koutetsu Reiiki: Steeldom
+NPJJ00756,Kaze no Oka Kouen Nite
+NPJJ00757,Neorude: Kizamareta Monshou
+NPJJ00758,Reverthion
+NPJJ00759,Kumitate Battle: Kuttu Ketto
+NPJJ00760,Omise de Tensyu
+NPJJ00761,Advanced V.G. 2
+NPJJ00762,EXECTOR
+NPJJ00763,Nekketsu Oyako
+NPJJ00764,Puyo Puyo Tsuu Ketteiban
+NPJJ00768,Puyo Puyo~n: Kakkun to Issho
+NPEE00001,Crash Bandicoot (German store)
+NPEE00001,Crash Bandicoot
+NPEE00002,Syphon Filter
+NPEE00002,Syphon Filter (German Only)
+NPEE00002,Syphon Filter (Italian Only)
+NPEE00004,WipEout (Spanish store)
+NPEE00004,WipEout (German store)
+NPEE00004,WipEout
+NPEE00004,WipEout (French store)
+NPEE00006,Medievil
+NPEE00006,MediEvil (Italian Only)
+NPEE00006,MediEvil (German Only)
+NPEE00007,Jumping Flash
+NPEE00008,Crash Bandicoot 2: Cortex Strikes Back (German store)
+NPEE00008,Crash Bandicoot 2: Cortex Strikes Back
+NPEE00014,Crash Bandicoot 3: Warped (Spanish)
+NPEE00014,Crash Bandicoot 3: Warped (Italian Store)
+NPEE00014,Crash Bandicoot 3: Warped
+NPEE00014,Crash Bandicoot 3: Warped (German store)
+NPEE00023,Syphon Filter 3 (Spanish Only)
+NPEE00023,Syphon Filter 3 (German only)
+NPEE00023,Syphon Filter 3
+NPEE00023,Syphon Filter 3 (Italian Only)
+NPEE00025,Everybody’s Golf 2
+NPEE00026,Crash Team Racing (Italian Store)
+NPEE00026,Crash Team Racing
+NPEE00026,Crash Team Racing (German Store)
+NPEE00027,Cool Boarders
+NPEE00027,Cool Boarders (German store)
+NPEE00030,Kula World
+NPEE00030,Kula World (German store)
+NPEE00031,Motor Toon Grand Prix 2
+NPEE00038,Kurushi Final: Mental Blocks (German only)
+NPEE00038,Kurushi Final: Mental Blocks
+NPEE00039,Destruction Derby (GB)
+NPEE00039,Destruction Derby (French store)
+NPEE00040,Cool Boarders 2
+NPEE00044,Vib-Ribbon (German store)
+NPEE00044,Vib-Ribbon (UK Store)
+NPEE00049,Twisted Metal
+NPEE00049,Twisted Metal (Italian store)
+NPEE00051,G-Police
+NPEE00051,G-Police (German)
+NPEE00052,Syphon Filter 2
+NPEE00053,Um Jammer Lammy (German store)
+NPEE00053,Um Jammer Lammy (UK Store)
+NPEE00054,Jet Rider
+NPEE00054,Jet Rider (German store)
+NPEE00055,Jet Rider 2
+NPEE00056,Wild Arms (French store)
+NPEE00056,Wild Arms (German store)
+NPEE00057,Rally Cross
+NPEE00062,Warhawk (German store)
+NPEE00062,Warhawk (Dutch store)
+NPEE00062,Warhawk (Italian store)
+NPEE00062,Warhawk (English store)
+NPEE00062,Warhawk (French store)
+NPEE00062,Warhawk (Russian store)
+NPEE00062,Warhawk (Spanish store)
+NPEE00062,Warhawk (Portuguese store)
+NPEE00074,Spyro 2: Gateway to Glimmer (Russian store)
+NPEE00074,Spyro 2: Gateway to Glimmer (German store)
+NPEE00074,Spyro 2: Gateway to Glimmer
+NPEE00075,Spyro: Year of The Dragon
+NPEE00075,Spyro: Year of The Dragon (Russian store)
+NPEE00075,Spyro: Year of The Dragon (German store)
+NPEE00076,Spyro the Dragon (German store)
+NPEE00076,Spyro the Dragon (Russian store)
+NPEE00076,Spyro the Dragon
+NPEF00001,Populous The Beginning (German store)
+NPEF00001,Populous The Beginning (Spanish store)
+NPEF00002,Actua Golf 3
+NPEF00003,Actua Tennis
+NPEF00004,Hardcore 4×4 (German store)
+NPEF00005,Judge Dredd (French store)
+NPEF00006,Loaded
+NPEF00007,N2O
+NPEF00008,Motorhead
+NPEF00009,Reloaded (German store)
+NPEF00009,Re-loaded (UK Store)
+NPEF00011,Tomb Raider
+NPEF00012,Tomb Raider 2 (German store)
+NPEF00012,Tomb Raider 2
+NPEF00013,Bishi Bashi Special (French store)
+NPEF00013,Bishi Bashi Special
+NPEF00015,Theme Hospital (Italian store)
+NPEF00015,Theme Hospital (Spanish store)
+NPEF00015,Theme Hospital (French store)
+NPEF00015,Theme Hospital
+NPEF00015,Theme Hospital (German store)
+NPEF00016,Fade to Black
+NPEF00020,SHEEP
+NPEF00021,Driver (French Store)
+NPEF00021,Driver (German Store)
+NPEF00021,Driver
+NPEF00022,Tom Clancy’s Rainbow Six (French Store)
+NPEF00023,Rayman (German store)
+NPEF00023,Rayman (French store)
+NPEF00023,Rayman
+NPEF00024,Reel Fishing
+NPEF00027,Street Skater (German store)
+NPEF00027,Street Skater
+NPEF00027,Street Skater (French store)
+NPEF00027,Street Skater (Spanish store)
+NPEF00027,Street Skater (Italian store)
+NPEF00028,Command & Conquer: Red Alert (French store)
+NPEF00028,Command & Conquer: Red Alert
+NPEF00029,Command & Conquer (French store)
+NPEF00036,Metal Gear Solid (French only)
+NPEF00036,Metal Gear Solid (Spanish)
+NPEF00036,Metal Gear Solid (Italian Only)
+NPEF00036,Metal Gear Solid
+NPEF00036,Metal Gear Solid (German only)
+NPEF00037,International Track & Field (German store)
+NPEF00037,International Track & Field (UK Store)
+NPEF00038,Silent Hill
+NPEF00038,Silent Hill (German store)
+NPEF00039,Syndicate Wars (German store)
+NPEF00040,Theme Park
+NPEF00040,Theme Park (German store)
+NPEF00042,Command & Conquer: Red Alert Retaliation
+NPEF00042,Command & Conquer: Red Alert Retaliation (German store)
+NPEF00042,Command & Conquer: Red Alert Retaliation (French store)
+NPEF00043,Spin Jam
+NPEF00045,Street Fighter Alpha: Warriors’ Dreams (German store)
+NPEF00045,Street Fighter Alpha: Warriors’ Dreams (Spanish store)
+NPEF00046,The Little Mermaid II (German Only)
+NPEF00046,The Little Mermaid II
+NPEF00047,Disney’s Hercules (French only)
+NPEF00047,Disney’s Hercules (German only)
+NPEF00047,Disney’s Hercules
+NPEF00048,Street Skater 2 (EN/FR/DE) (German store)
+NPEF00048,Street Skater 2
+NPEF00049,Hi-Octane (EN/FR/DE/ES) (German store)
+NPEF00050,Magic Carpet (German store)
+NPEF00051,Castlevania: Symphony of the Night (UK Store)
+NPEF00051,Castlevania: Symphony of the Night (French Store)
+NPEF00054,Suikoden
+NPEF00056,James Pond 2: Codename Robocod
+NPEF00057,Constructor
+NPEF00058,Creatures 3: Raised in Space
+NPEF00058,Creatures 3: Raised in Space (Spanish Store)
+NPEF00059,Crisis Beat
+NPEF00060,Guilty Gear
+NPEF00060,Guilty Gear (French Store)
+NPEF00062,Future Cop: LAPD (French store)
+NPEF00062,Future Cop: L.A.P.D. (EN/FR) (German Store)
+NPEF00063,Championship Bass
+NPEF00068,Extreme Pinball
+NPEF00069,Final Fantasy VII
+NPEF00069,Final Fantasy VII (German only)
+NPEF00069,Final Fantasy VII (Spanish)
+NPEF00069,Final Fantasy VII (French only)
+NPEF00070,Final Fantasy VIII (Spanish Only)
+NPEF00070,Final Fantasy VIII (Italian Only)
+NPEF00070,Final Fantasy VIII (French only)
+NPEF00070,Final Fantasy VIII (German only)
+NPEF00070,Final Fantasy VIII
+NPEF00071,Final Fantasy IX
+NPEF00071,Final Fantasy IX (French only)
+NPEF00071,Final Fantasy IX (Spanish Only)
+NPEF00071,Final Fantasy IX (German only)
+NPEF00071,Final Fantasy IX (Italian Only)
+NPEF00077,Monsters, Inc. Scare Island
+NPEF00077,Monsters, Inc. Scare Island (German only)
+NPEF00080,A Bug’s Life (Italian Only)
+NPEF00080,A Bug’s Life
+NPEF00080,A Bug’s Life (German only)
+NPEF00082,Disney’s Party Time with Winnie the Pooh (German only)
+NPEF00082,Disney’s Party Time with Winnie the Pooh
+NPEF00083,Vagrant Story (UK Store)
+NPEF00083,Vagrant Story (German)
+NPEF00084,Lilo & Stitch: Trouble in Paradise (German only)
+NPEF00084,Disney’s Lilo and Stitch: Troubles in Paradise
+NPEF00085,Peter Pan: Adventures in Neverland
+NPEF00085,Peter Pan: Adventures in Neverland (German only)
+NPEF00087,Front Mission 3
+NPEF00088,Atlantis: The Lost Empire
+NPEF00088,Atlantis: The Lost Empire (German only)
+NPEF00088,Atlantis: The Lost Empire (French only)
+NPEF00093,Toy Story 2: Buzz Lightyear to the Rescue
+NPEF00093,Toy Story 2: Buzz Lightyear to the Rescue! (German only)
+NPEF00093,Toy Story 2: Buzz Lightyear to the Rescue! (Italian only)
+NPEF00094,Toy Story Racer
+NPEF00097,Oddworld: Abe’s Exoddus
+NPEF00097,Oddworld: Abe’s Exoddus (Spanish Only)
+NPEF00097,Oddworld: Abe’s Exoddus (Italian Only)
+NPEF00097,Oddworld: Abe’s Exoddus (German Only)
+NPEF00098,Oddworld: Abe’s Oddysee (German Only)
+NPEF00098,Oddworld: Abe’s Oddysee (Italian Only)
+NPEF00098,Oddworld: Abe’s Oddysee
+NPEF00103,Sorcerer’s Maze
+NPEF00104,SuperStar Dance Club
+NPEF00105,Jigsaw Madness
+NPEF00106,Airboat Racing
+NPEF00107,XS Junior League Soccer
+NPEF00108,Rayman 2: The Great Escape  (Multi2: FR/DE)
+NPEF00108,Rayman 2: The Great Escape  (Multi3: EN/ES/IT)
+NPEF00109,Tekken 2 (German store)
+NPEF00109,Tekken 2
+NPEF00110,Blood Omen: Legacy of Kain
+NPEF00110,Blood Omen: Legacy of Kain (German only)
+NPEF00112,Fear Effect 2 (German store)
+NPEF00112,Fear Effect 2
+NPEF00113,Fighting Force
+NPEF00114,Fighting Force 2
+NPEF00114,Fighting Force 2 (German only)
+NPEF00115,Legacy of Kain: Soul Reaver (German only)
+NPEF00115,Legacy of Kain: Soul Reaver
+NPEF00115,Legacy of Kain: Soul Reaver (Italian Only)
+NPEF00117,Gex
+NPEF00118,Gex: Deep Cover Gecko
+NPEF00118,Gex: Deep Cover Gecko (FR/DE) (German store)
+NPEF00119,Gex 3D: Enter The Gecko
+NPEF00120,Tomb Raider: The Last Revelation (German store)
+NPEF00120,Tomb Raider: The Last Revelation
+NPEF00121,Tomb Raider Chronicles (German store)  (DateCode 2011-01-13)
+NPEF00121,Tomb Raider Chronicles
+NPEF00121,Tomb Raider Chronicles (German store)  (DateCode 2012-09-04)
+NPEF00122,Tomb Raider 3: Adventures of Lara Croft
+NPEF00122,Tomb Raider 3: Adventures of Lara Croft (German store)
+NPEF00123,Urban Chaos (German only)
+NPEF00123,Urban Chaos
+NPEF00124,Grandia (UK Store)
+NPEF00124,Grandia (German only)
+NPEF00125,PONG
+NPEF00126,Missile Command (Russian store) (EN/IT)
+NPEF00126,Missile Command (German store) (EN/IT)
+NPEF00126,Missile Command
+NPEF00127,Centipede
+NPEF00128,Alone in the Dark: The New Nightmare
+NPEF00129,Atari Anniversary Edition Redux
+NPEF00130,Gunship
+NPEF00131,Critical Depth (Dutch store)
+NPEF00134,Tekken
+NPEF00134,Tekken (German store)
+NPEF00135,R4: Ridge Racer Type 4 (German store)
+NPEF00135,R4: Ridge Racer Type 4
+NPEF00136,All Star Boxing
+NPEF00137,ATV Racers
+NPEF00139,Gubble
+NPEF00140,Miracle Space Race
+NPEF00142,Snowboard Racer
+NPEF00143,Sports Superbike 2
+NPEF00144,Super Slammin’ Dodgeball
+NPEF00148,40 Winks
+NPEF00150,Parasite Eve II (Italian)
+NPEF00150,Parasite Eve II
+NPEF00150,Parasite Eve II (German)
+NPEF00152,Final Fantasy V  (100% identical, different link)
+NPEF00152,Final Fantasy V
+NPEF00153,A Bug's life and Monster's Inc
+NPEF00154,Atlantis and Hercules
+NPEF00155,Little Mermaid 2 & Winnie the Pooh
+NPEF00156,Toy Story Racer & Toy Story 2
+NPEF00157,Final Fantasy VI
+NPEF00158,Streak: Hover Board Racing (Russian Store)
+NPEF00159,Bugriders: The Race of Kings (Russian Store)
+NPEF00161,Street Fighter Alpha 2
+NPEF00161,Street Fighter Alpha 2 (French store)
+NPEF00163,Resident Evil: Director’s Cut  (DateCode 2011-03-18)
+NPEF00163,Resident Evil: Director's Cut (German store)
+NPEF00163,Resident Evil: Director’s Cut  (DateCode 2012-09-03)
+NPEF00167,Arc the Lad
+NPEF00168,Arc the Lad II
+NPEF00169,Arc the Lad III
+NPEF00170,Arc Arena: Monster Tournament
+NPEF00171,Arcade Hits: Shienryu
+NPEF00172,Arcade Hits: Sonic Wings Special
+NPEF00175,Alundra
+NPEF00176,Blockids
+NPEF00177,Cho Aniki
+NPEF00178,Dezaemon Plus
+NPEF00179,Gaia Seed: Project Seed Trap
+NPEF00180,Galaxy Fight
+NPEF00182,Tall Unlimited
+NPEF00184,Rageball
+NPEF00185,Rascal Racers
+NPEF00186,Suikoden II
+NPEF00196,Klonoa: Door to Phantomile (UK Store)
+NPEF00196,Klonoa: Door to Phantomile (German store)
+NPEF00197,Fear Effect (German only)
+NPEF00197,Fear Effect
+NPEF00198,Resident Evil 2
+NPEF00198,Resident Evil 2 (German store)
+NPEF00199,Resident Evil 3: Nemesis
+NPEF00199,Resident Evil 3: Nemesis (German store)
+NPEF00200,NAMCO Heritage Bundle
+NPEF00201,Pandemonium
+NPEF00202,Pandemonium 2 (German store)
+NPEF00202,Pandemonium 2
+NPEF00203,Mickey’s Wild Adventure
+NPEF00205,Buzz Lightyear of Star Command
+NPEF00205,Buzz Lightyear of Star Command (German only)
+NPEF00264,All-Star Boxing
+NPEF00270,Dezaemon Kids!
+NPEF00272,Tomba!
+NPEF00273,Tomba! 2: The Evil Swine Return
+NPEF00286,Harvest Moon: Back to Nature
+NPEF00302,Metal Gear Solid: Special Missions (Italian store)
+NPEF00302,Metal Gear Solid: Special Missions (Spanish store)
+NPEF00302,Metal Gear Solid: Special Missions (French store)
+NPEF00302,Metal Gear Solid: Special Missions
+NPEF00302,Metal Gear Solid: Special Missions (German store)
+NPHB00641,Smash Court 2
+NPHI00001,Arc The Lad
+NPHI00002,Everybody's Golf2
+NPHI00003,JumpingFlash!
+NPHI00004,TOMARUNNER!
+NPHI00011,Panekit
+NPHI00012,XI[sai]
+NPHI00013,DEPTH
+NPHI00014,JumpingFlash!2
+NPHI00015,WILD ARMS
+NPHI00016,Robbit mon Dieu
+NPHI00017,Bealphareth
+NPHI00018,Tiny Bullets
+NPHI00020,Ape Escape! (For PS3)
+NPHI00021,My Hot Cooking (For PS3)
+NPHI00022,PoPoLoCrois
+NPHI00023,XI[sai] JUMBO
+NPHI00024,I.Q Intelligent Qube
+NPHI00025,I.Q FINAL
+NPHI00026,Arc The Lad II
+NPHI00027,Arc The Lad III
+NPHI00028,Arc the Lad Monster Game with Casino Game
+NPHI00029,Um Jammer Lammy
+NPHI00030,Gunners Heaven
+NPHI00031,CIRCADIA
+NPHI00032,The Chronicles of Berdeseruba
+NPHI00033,Motor Toon Grand Prix
+NPHI00034,Legend of Dragoon
+NPHI00035,Cool Boarders 2
+NPHI00036,MediEvil
+NPHI00037,Wild Arms
+NPHJ00001,Mr. DRILLER
+NPHJ00002,SilentBomber
+NPHJ00003,Biohazard: Director’s Cut  (req. OFW 3.70)
+NPHJ00003,Biohazard: Director’s Cut  (req. OFW 3.40)
+NPHJ00004,DINO CRISIS
+NPHJ00005,Marl Kingdom～Doll Princess～
+NPHJ00006,Tail of the Sun　WILD・PURE・SIMPLE LIFE
+NPHJ00007,U-SA
+NPHJ00009,THE CONVENI!
+NPHJ00014,The King of Fighters '95
+NPHJ00014,THE KING OF FIGHTERS’95
+NPHJ00015,THE KING OF FIGHTERS’96
+NPHJ00016,The King of Fighters ’97  (req. OFW 3.51)
+NPHJ00016,The King of Fighters ’97  (req. OFW 3.90)
+NPHJ00016,THE KING OF FIGHTERS’97
+NPHJ00018,REAL BOUT FATAL FURY SPECIAL DOMINATED MIND
+NPHJ00019,Marl Kingdom2 ～Little Princess～
+NPHJ00020,SEPTENTRION
+NPHJ00021,SPECTRAL TOWER
+NPHJ00022,SPECTRAL FORCE 2
+NPHJ00023,EMBRACE in the SAND
+NPHJ00024,GUILTYGEAR
+NPHJ00025,The King of Fighters '98
+NPHJ00025,THE KING OF FIGHTERS'98
+NPHJ00026,THE KING OF FIGHTERS'99
+NPHJ00027,SAMURAI SHODOWN 3
+NPHJ00028,THE KING OF FIGHTERS KYO
+NPHJ00029,Samurai Shodown 4 Special
+NPHJ00029,SAMURAI SHODOWN 4 SPECIAL
+NPHJ00030,Metal Slug
+NPHJ00030,METAL SLUG
+NPHJ00031,SANVEIN
+NPHJ00032,Cotton Original (SuperLite 1500 Series)
+NPHJ00032,COTTON ORIGINAL
+NPHJ00033,SPECTRAL TOWERⅡ
+NPHJ00034,OASIS ROAD
+NPHJ00036,AI MAHJONG SELECTION
+NPHJ00037,ZIPANGUJIMA～Unmei wa Saikoro ga Kimeru!?～
+NPHJ00039,PUZZLE MANIA 2
+NPHJ00040,BOXER'S ROAD
+NPHJ00041,The Adventure of Little Ralph
+NPHJ00042,AI SHOGI SELECTION
+NPHJ00044,SuperLite 1500 Series CHITTY　CHITTY　CHICKEN
+NPHJ00045,KING'S FIELD
+NPHJ00046,ARMORED CORE (For PS3)
+NPHJ00047,KING'S FIELD II
+NPHJ00048,KING'S FIELD III
+NPHJ00049,ARMORED CORE　PROJECT PHANTASMA (For PS3)
+NPHJ00050,SHADOW TOWER
+NPHJ00051,ECHO NIGHT
+NPHJ00052,ECHO NIGHT 2
+NPHJ00053,ATHENA -Awakening from the ordinary life-
+NPHJ00054,GAKKOU DE ATTA KOWAIHANASI
+NPHJ00055,Prismaticallization
+NPHJ00056,Memorial☆Series SUNSOFT Vol.1
+NPHJ00057,Memorial☆Series SUNSOFT Vol.2
+NPHJ00058,Memorial☆Series SUNSOFT Vol.3
+NPHJ00059,THE CONVENI 2
+NPHJ00060,Arcade Hits Sonic Wings Special
+NPHJ00061,BLUE BREAKER
+NPHJ00062,AZITO
+NPHJ00063,Biohazard 2
+NPHJ00065,Atelier Marie Plus
+NPHJ00066,ARMORED CORE MASTER OF ARENA
+NPHJ00067,BLUE BREAKER BURST
+NPHJ00068,BLUE BREAKER BURST-2
+NPHJ00069,Waiwai Kart
+NPHJ00070,BLOCK KUZUSHI
+NPHJ00071,WAIWAI KUSAYAKYU
+NPHJ00072,Falcata
+NPHJ00073,Meru Purana
+NPHJ00074,Noir yeux noire -Cielgris Fantasm-
+NPHJ00075,The adventures of Robin Lloyd
+NPHJ00077,Master Of Monsters  Akatsuki no Kenjatachi
+NPHJ00078,Arcade Hits ShienRyu
+NPHJ00082,Atelier Elie
+NPHJ00083,Wizard's Harmony
+NPHJ00085,LORD MONARCH
+NPHJ00086,Wizard's Harmony 2
+NPHJ00087,TAMAMAYU MONOGATARI
+NPHJ00092,Acid
+NPHJ00093,THE AQUANAUT'S HOLIDAY: MEMORIES OF SUMMER 1996
+NPHJ00094,THE AQUANAUT'S HOLIDAY 2
+NPHJ00095,BELTLOGGER 9
+NPHJ00096,BIOHAZARD 3 LAST ESCAPE
+NPHJ00097,DEAD OR ALIVE
+NPHJ00098,DECEPTION(KOKUMEIKAN)
+NPHJ00099,MONSTER FARM JUMP
+NPHJ00100,KAGERO(TRAPT)
+NPHJ00101,SOUMATOU(DARK DELUSION)
+NPHJ00102,ANGEL EYES(TOUKI DENSETU)
+NPHJ00103,Kawa No Nushi Zuri
+NPHJ00104,Bokujou Monogatari Harvest Moon
+NPHJ00105,Bokujou Monogatari Harvest Moon for Girl
+NPHJ00106,FINAL FANTASY VII INTERNATIONAL
+NPHJ00107,FRONT MISSION ALTERNATIVE
+NPHJ00108,BRAVE FENCER MUSASHIDEN
+NPHJ00109,DICE DE CHOCOBO
+NPHJ00110,FINAL FANTASY TACTICS
+NPHJ00111,FINAL FANTASY
+NPHJ00112,FINAL FANTASY II
+NPHJ00113,GAIASEED
+NPHJ00114,TALL TWINS TOWER
+NPHJ00116,VAGRANT STORY
+NPHJ00117,THE RAPID ANGEL
+NPHJ00119,Epica Stella
+NPHJ00126,FINAL FANTASY VIII
+NPHJ00127,Mikagura Shoujo Tanteidan
+NPHJ00128,Lucifer Ring
+NPHJ00129,NEKOZAMURAI
+NPHJ00137,METAL GEAR SOLID
+NPHJ00138,FINAL FANTASY IX
+NPHJ00139,DonPachi
+NPHJ00140,Hanafuda Graffiti Koikoi Monogatari
+NPHJ00141,Hana to Ryuu ～Hanafuda・Mah-jong～
+NPHJ00143,Zoku Mikagura Shoujo Tanteidan ～Kanketsu Hen～
+NPHJ00144,NOëL NOT DiGITAL
+NPHJ00147,KAKUGE- YAROU -FightingGameCreator
+NPHJ00148,Family Chess
+NPHJ00149,Family Diamond
+NPHJ00150,Family Gunjin Shogi
+NPHJ00151,PUPPET ZOO PILOMY
+NPHJ00152,Bakuretsu Akindo Uchuu Goushouden
+NPHJ00153,Shinobi no Roku
+NPHJ00154,Arcade Hits WOLF FANG
+NPHJ00155,Sekai Saikyou Ginsei Igo3
+NPHJ00156,DODONPACHI
+NPHJ00157,Jet Copter X
+NPHJ00159,DEWPRISM
+NPHJ00161,Legend of Mana
+NPHJ00163,FRONT MISSION 3
+NPHJ00166,Rayman
+NPHJ00167,Rayman 2: The Great Escape
+NPHJ00168,Tom Clancy's Rainbow Six
+NPHJ00169,Dino Crisis
+NPHJ00170,Resident Evil Director's Cut
+NPHJ00171,Resident Evil 2
+NPHJ00172,Resident Evil 3: Nemesis
+NPHJ00173,Street Fighter Alpha
+NPHJ00174,Street Fighter Alpha 2
+NPHJ00176,Military Madness: Nectaris
+NPHJ00177,Bomberman Land
+NPHJ00178,Bloody Roar
+NPHJ00179,Bomberman Party Edition
+NPHJ00180,BOMBERMAN FANTASY RACE
+NPHJ00181,Bloody Roar 2
+NPHJ00182,Chocobo no Fushigina Dungeon
+NPHJ00197,SIMPLE1500SERIES Vol.65 THE GOLF
+NPHJ00198,SIMPLE1500SERIES Vol.33 THE TABLE TENNIS
+NPHJ00199,SIMPLE1500SERIES Vol.32 THE BOXING
+NPHJ00200,SIMPLE1500SERIES Vol.64 THE KICK-BOXING
+NPHJ00201,SIMPLE1500SERIES Vol.72 THE BEACH VOLLEYBALL
+NPHJ00202,SIMPLE1500SERIES Vol.18 THE BOWLING
+NPHJ00203,SIMPLE1500SERIES Vol.63 THE GUN SHOOTING 2
+NPHJ00204,SIMPLE1500SERIES Vol.35 THE SHOOTING
+NPHJ00205,SIMPLE1500SERIES Vol.56 THE SNIPER
+NPHJ00206,SIMPLE1500SERIES Vol.37 THE PICTURE & SLIDE PUZZLE
+NPHJ00207,SIMPLE1500SERIES Vol.14 THE BLOCK BREAKER
+NPHJ00208,SIMPLE1500SERIES Vol.45 THE BLOCK BREAKER 2
+NPHJ00209,SIMPLE1500SERIES Vol.44 THE CARD 2
+NPHJ00210,SIMPLE1500SERIES Vol.39 THE MAH-JOHNG 2
+NPHJ00211,SIMPLE1500SERIES Vol.41 THE REVERSI 2
+NPHJ00212,SIMPLE1500SERIES Vol.55 THE DARTS
+NPHJ00213,SIMPLE1500SERIES Vol.60 THE TABLE HOCKEY
+NPHJ00214,SIMPLE1500SERIES Vol.15 THE PACHINKO
+NPHJ00215,SIMPLE1500SERIES Vol.70 THE WAR SIMULATION
+NPHJ00216,SIMPLE1500SERIES Vol.28 THE DUNGEON RPG
+NPHJ00217,SIMPLE1500SERIES Vol.53 THE HELICOPTER
+NPHJ00218,SIMPLE1500SERIES Vol.57 THE MAZE
+NPHJ00219,SIMPLE1500SERIES Vol.49 THE CASINO
+NPHJ00220,SIMPLE1500SERIES Vol.31 THE SOUND NOVELLE
+NPHJ00221,Chocobo no Fushigina Dungeon 2
+NPHJ00222,Parasite Eve
+NPHJ00223,Parasite Eve II
+NPHJ00225,CHRONO CROSS
+NPHJ00226,CHRONO TRIGGER
+NPHJ00227,Final Fantasy V (Japanese)
+NPHJ00228,FINAL FANTASY VI
+NPHJ00229,Hi・Hou・Ou
+NPHJ00230,THE FIREMEN 2
+NPHJ00231,ZIG ZAG BALL
+NPHJ00232,NOel～La neige
+NPHJ00233,Minna Atsumare!　Igo Kyoushitsu
+NPHJ00234,NOel～La neige Special
+NPHJ00235,elan
+NPHJ00236,UNGRA WALKER
+NPHJ00237,SuperLite1500 Series Battle SUGOROKU THE HUNTER A.R.0062
+NPHJ00238,SuperLite1500 Series Oekaki Puzzle
+NPHJ00239,SuperLite1500 Series CardsⅡ
+NPHJ00240,Love Game's WaiWai Tennis
+NPHJ00241,ANOKODOKONOKO
+NPHJ00242,SuperLite1500 Series Hooockey!!
+NPHJ00243,SuperLite1500 Series Oekaki Puzzle 2
+NPHJ00244,SuperLite1500 Series BOMB BOAT
+NPHJ00245,Noel3 MISSION ON THE LINE
+NPHJ00246,SILHOUETTE MIRAGE REPROGRAMMED HOPE
+NPHJ00247,SuperLite1500 Series QUIZ MASTER RED
+NPHJ00248,SuperLite1500 Series PANGAEA
+NPHJ00249,SuperLite1500 Series THE CURLING
+NPHJ00250,SuperLite1500 Series QUIZ MASTER BLUE
+NPHJ00251,SuperLite1500 Series Angolmois99
+NPHJ00252,SuperLite1500 Series ANOKODOKONOKO ENDLESS SEASON
+NPHJ00253,SuperLite1500 Series Oekaki Puzzle 3
+NPHJ00254,SuperLite1500 Series Pinball Golden Logres
+NPHJ00255,SuperLite1500 Series QUIZ MASTER YELLOW
+NPHJ00256,Salary Man Champ Tatakau Salary man
+NPHJ00257,Saikyou Ginsei Mahjong
+NPHJ00258,SuperLite1500 Series Oekaki Puzzle 4
+NPHJ00259,Saikyou Ginsei Chess
+NPHJ00260,SuperLite1500 Series Oekaki Puzzle 5
+NPHJ00261,SuperLite1500 Series COTTON 100%
+NPHJ00262,Saikyou Ginsei Shougi 2
+NPHJ00263,elan plus
+NPHJ00264,SuperLite1500 Series HANAFUDAⅡ
+NPHJ00265,Shijin no Maki Koten Tsumego Shuu
+NPHJ00266,KohniShogun
+NPHJ00267,GORYUZIN ELECTRO
+NPHJ00268,DIGITALGLIDER AIRMAN
+NPHJ00269,FINAL FANTASY VII
+NPHJ00270,FINAL FANTASY VIII
+NPHJ00271,FINAL FANTASY IX
+NPHJ00272,Xenogears
+NPHJ00273,CYBERBOTS
+NPHJ00274,DARKSTALKERS 3 （VAMPIRE SAVIOR EX EDITION)
+NPHJ00275,PLASMA SWORD
+NPHJ00276,POCKET FIGHTER
+NPHJ00277,DINO CRISIS 2
+NPHJ00278,COMMAND AND CONQUER
+NPHJ00279,Command & Conquer Red Alert
+NPHJ00280,Command & Conquer Retaliation
+NPHJ00281,SimCity 2000
+NPHJ00282,Sim Theme Park
+NPHJ00283,Championship Bass
+NPHJ00284,Extreme Pinball
+NPHJ00285,HI-OCTANE
+NPHJ00286,Magic Carpet
+NPHJ00287,BREATH OF FIRE IV
+NPHJ00288,DINO CRISIS 2
+NPHJ00289,R4 RIDGE RACER TYPE 4
+NPHJ00290,Klonoa: Door to Phantomile
+NPHJ00291,TEKKEN
+NPHJ00292,Xenogears
+NPHJ00293,BREATH OF FIRE IV
+NPHJ00294,ROCKMAN
+NPHJ00295,ROCKMAN 2
+NPHJ00296,ROCKMAN 3
+NPHJ00297,ROCKMAN 4
+NPHJ00298,ROCKMAN 5
+NPHJ00299,CHRONO TRIGGER
+NPHJ00300,CHRONO CROSS
+NPHJ00301,Parasite Eve
+NPHJ00302,Parasite Eve II
+NPHJ00303,Dragon Seeds
+NPHJ00304,Slam Dragon
+NPHJ00305,DIORAMOS
+NPHJ00306,DOUBLE DRAGON
+NPHJ00307,GEOM CUBE
+NPHJ00308,OCHANOMA BATTLE
+NPHJ00309,Waiwai Sannin Uchi Mahjong
+NPHJ00310,Waiwai Trump Taisen
+NPHJ00311,MerbyBabyStory
+NPHJ00312,WINNING LURE
+NPHJ00313,Voltage Fighter GOWCAIZWER
+NPHJ00314,FINAL FANTASY V
+NPHJ00315,FINAL FANTASY VI
+NPHJ00316,Grandia
+NPHJ00317,FINAL FANTASY IV
+NPHJ00318,Buster Bros. Collection
+NPHJ00319,Warriors of Fate: Tenchi Wo Kurau II
+NPHJ00320,CYBER SLED
+NPHJ00321,Mr. DRILLER G
+NPHJ00322,PAC-MAN WORLD 20th ANNIVERSARY
+NPHJ00323,SMASH COURT
+NPHJ00324,XEVIOUS 3D/G+
+NPHJ00325,Namco Museum Vol. 1
+NPHJ00326,Namco Museum Vol. 2
+NPHJ00327,Namco Museum Vol. 3
+NPHJ00328,Namco Museum Vol. 4
+NPHJ00329,Namco Anthology 1
+NPHJ00330,Namco Anthology 2
+NPHJ00331,Namco Museum Encore
+NPHJ00332,Namco Museum Vol. 5
+NPHJ00335,Starblade α
+NPHJ00336,Galaxian 3

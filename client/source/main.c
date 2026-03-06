@@ -251,16 +251,35 @@ int main(int argc, char *argv[]) {
             redraw = true;
         }
 
-        // Y button - show save details
+        // Y button - show history
         if (kDown & KEY_Y && filtered_count > 0) {
             int idx = sel_title_idx();
             if (idx >= 0) {
-                ui_draw_message("Loading save details...");
-                SaveDetails details;
-                if (sync_get_save_details(&config, &titles[idx], &details)) {
-                    ui_show_save_details(&titles[idx], &details);
+                ui_draw_message("Loading history...");
+
+                HistoryVersion versions[MAX_HISTORY_VERSIONS];
+                int count = sync_get_history(&config, titles[idx].title_id_hex, versions, MAX_HISTORY_VERSIONS);
+
+                if (count < 0) {
+                    snprintf(status, sizeof(status), "Failed to load history");
+                } else if (count == 0) {
+                    snprintf(status, sizeof(status), "No history available");
                 } else {
-                    snprintf(status, sizeof(status), "Failed to load save details");
+                    char *selected_ts = ui_show_history(&titles[idx], versions, count);
+                    if (selected_ts) {
+                        ui_draw_message("Downloading version...");
+                        SyncResult res = sync_download_history(&config, &titles[idx], selected_ts, sync_progress);
+                        if (res == SYNC_OK) {
+                            snprintf(status, sizeof(status), "Restored: %.40s", titles[idx].name);
+                            titles[idx].in_conflict = false;
+                        } else {
+                            snprintf(status, sizeof(status), "\x1b[31mRestore failed\x1b[0m: %s",
+                                sync_result_str(res));
+                        }
+                        free(selected_ts);
+                    } else {
+                        snprintf(status, sizeof(status), "History cancelled");
+                    }
                 }
             }
             redraw = true;
@@ -306,13 +325,17 @@ int main(int argc, char *argv[]) {
                     snprintf(status, sizeof(status), "Batch upload cancelled");
                 }
             } else {
-                // Single upload
+                // Smart sync single title
                 int idx = sel_title_idx();
                 if (idx >= 0) {
-                    ui_draw_message("Loading save details...");
+                    ui_draw_message("Analyzing sync...");
                     SaveDetails details;
                     if (sync_get_save_details(&config, &titles[idx], &details)) {
-                        if (ui_confirm_sync(&titles[idx], &details, true)) {
+                        SyncAction suggested = sync_decide(&details);
+                        SyncAction chosen = ui_confirm_smart_sync(&titles[idx], &details, suggested);
+
+                        if (chosen == SYNC_ACTION_UPLOAD) {
+                            ui_draw_message("Uploading...");
                             SyncResult res = sync_title(&config, &titles[idx], sync_progress);
                             if (res == SYNC_OK) {
                                 snprintf(status, sizeof(status), "Uploaded: %.40s", titles[idx].name);
@@ -321,64 +344,8 @@ int main(int argc, char *argv[]) {
                                 snprintf(status, sizeof(status), "\x1b[31mUpload failed\x1b[0m: %s",
                                     sync_result_str(res));
                             }
-                        } else {
-                            snprintf(status, sizeof(status), "Upload cancelled");
-                        }
-                    } else {
-                        snprintf(status, sizeof(status), "Failed to load save details");
-                    }
-                }
-            }
-            redraw = true;
-        }
-
-        if (kDown & KEY_B && filtered_count > 0) {
-            int marked = count_marked();
-            if (marked > 0) {
-                // Batch download all marked titles
-                char confirm[128];
-                snprintf(confirm, sizeof(confirm),
-                    "Download %d marked title(s)?\n\n"
-                    "Press A to confirm, B to cancel", marked);
-                ui_draw_message(confirm);
-                bool go = false;
-                while (aptMainLoop()) {
-                    hidScanInput();
-                    u32 k = hidKeysDown();
-                    if (k & KEY_A) { go = true; break; }
-                    if (k & KEY_B) break;
-                    gfxFlushBuffers(); gfxSwapBuffers(); gspWaitForVBlank();
-                }
-                if (go) {
-                    int ok_count = 0, fail_count = 0;
-                    for (int i = 0; i < title_count; i++) {
-                        if (!titles[i].marked) continue;
-                        char msg[128];
-                        snprintf(msg, sizeof(msg), "Downloading %d/%d: %.30s",
-                            ok_count + fail_count + 1, marked, titles[i].name);
-                        sync_progress(msg);
-                        SyncResult res = sync_download_title(&config, &titles[i], sync_progress);
-                        if (res == SYNC_OK) {
-                            ok_count++;
-                            titles[i].in_conflict = false;
-                        } else {
-                            fail_count++;
-                        }
-                    }
-                    clear_marks();
-                    snprintf(status, sizeof(status), "Batch download: %d OK, %d failed",
-                        ok_count, fail_count);
-                } else {
-                    snprintf(status, sizeof(status), "Batch download cancelled");
-                }
-            } else {
-                // Single download
-                int idx = sel_title_idx();
-                if (idx >= 0) {
-                    ui_draw_message("Loading save details...");
-                    SaveDetails details;
-                    if (sync_get_save_details(&config, &titles[idx], &details)) {
-                        if (ui_confirm_sync(&titles[idx], &details, false)) {
+                        } else if (chosen == SYNC_ACTION_DOWNLOAD) {
+                            ui_draw_message("Downloading...");
                             SyncResult res = sync_download_title(&config, &titles[idx], sync_progress);
                             if (res == SYNC_OK) {
                                 snprintf(status, sizeof(status), "Downloaded: %.40s", titles[idx].name);
@@ -387,8 +354,10 @@ int main(int argc, char *argv[]) {
                                 snprintf(status, sizeof(status), "\x1b[31mDownload failed\x1b[0m: %s",
                                     sync_result_str(res));
                             }
+                        } else if (chosen == SYNC_ACTION_UP_TO_DATE) {
+                            snprintf(status, sizeof(status), "Up to date: %.40s", titles[idx].name);
                         } else {
-                            snprintf(status, sizeof(status), "Download cancelled");
+                            snprintf(status, sizeof(status), "Sync cancelled");
                         }
                     } else {
                         snprintf(status, sizeof(status), "Failed to load save details");

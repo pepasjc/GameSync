@@ -20,8 +20,26 @@ client/*.map
 client/*.cia
 client/*.bnr
 
+# Vita build artifacts
+vita/build/
+vita/source/zlib/
+vita/*.velf
+vita/*.self
+vita/*.vpk
+vita/*.o
+
+# PSP build artifacts
+psp/build/
+psp/*.elf
+psp/*.map
+psp/*.PBP
+psp/*.SFO
+psp/*.cso
+psp/source/*.o
+
 # Dumps
 *.dmp
+config.txt
 
 
 # IDE

@@ -10,6 +10,11 @@ typedef struct {
     u8 *data; // malloc'd, caller must free via archive_free_files()
 } ArchiveFile;
 
+// Get file count and total size from a save archive without reading content.
+// Returns 0 on success, -1 if the archive cannot be opened.
+int archive_stat(u64 title_id, FS_MediaType media_type,
+                 int *file_count, u32 *total_size);
+
 // Read all files from a title's save archive.
 // Returns number of files read, fills files array (up to max_files).
 // Caller must call archive_free_files() when done.

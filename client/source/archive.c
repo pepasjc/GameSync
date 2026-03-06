@@ -88,6 +88,65 @@ static int read_dir(FS_Archive archive, const char *dir_path,
     return added;
 }
 
+// Recursively count files and sum sizes without reading content
+static void stat_dir(FS_Archive archive, const char *dir_path,
+                     int *file_count, u32 *total_size) {
+    Handle dir_handle;
+    Result res = FSUSER_OpenDirectory(&dir_handle, archive,
+        fsMakePath(PATH_ASCII, dir_path));
+    if (R_FAILED(res)) return;
+
+    FS_DirectoryEntry *entries = (FS_DirectoryEntry *)malloc(32 * sizeof(FS_DirectoryEntry));
+    if (!entries) {
+        FSDIR_Close(dir_handle);
+        return;
+    }
+    u32 entries_read = 0;
+
+    while (true) {
+        res = FSDIR_Read(dir_handle, &entries_read, 32, entries);
+        if (R_FAILED(res) || entries_read == 0) break;
+
+        for (u32 i = 0; i < entries_read; i++) {
+            char name[256];
+            int j;
+            for (j = 0; j < 255 && entries[i].name[j]; j++)
+                name[j] = (char)entries[i].name[j];
+            name[j] = '\0';
+
+            char full_path[MAX_PATH_LEN];
+            if (strcmp(dir_path, "/") == 0)
+                snprintf(full_path, sizeof(full_path), "/%s", name);
+            else
+                snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, name);
+
+            if (entries[i].attributes & FS_ATTRIBUTE_DIRECTORY) {
+                stat_dir(archive, full_path, file_count, total_size);
+            } else {
+                (*file_count)++;
+                *total_size += (u32)entries[i].fileSize;
+            }
+        }
+    }
+
+    free(entries);
+    FSDIR_Close(dir_handle);
+}
+
+int archive_stat(u64 title_id, FS_MediaType media_type,
+                 int *file_count, u32 *total_size) {
+    FS_Archive archive;
+    Result res = open_save_archive(&archive, title_id, media_type);
+    if (R_FAILED(res)) return -1;
+
+    *file_count = 0;
+    *total_size = 0;
+    stat_dir(archive, "/", file_count, total_size);
+
+    FSUSER_CloseArchive(archive);
+    return 0;
+}
+
 int archive_read(u64 title_id, FS_MediaType media_type,
                  ArchiveFile *files, int max_files) {
     FS_Archive archive;

@@ -494,84 +494,17 @@ int main(int argc, char *argv[]) {
             redraw = true;
         }
         
-        // B button - manual download with confirmation (only when focused on saves)
-        if (pressed & KEY_B && !focus_on_config && state.num_titles > 0 && has_wifi) {
-            consoleSelect(&bottomScreen);
-            Title *title = &state.titles[selected];
-
-            consoleClear();
-            iprintf("Checking server...\n");
-
-            char title_id_hex[17];
-            snprintf(title_id_hex, sizeof(title_id_hex), "%02X%02X%02X%02X%02X%02X%02X%02X",
-                title->title_id[0], title->title_id[1], title->title_id[2], title->title_id[3],
-                title->title_id[4], title->title_id[5], title->title_id[6], title->title_id[7]);
-
-            char server_hash[65] = "";
-            size_t server_size = 0;
-            int has_server = (network_get_save_info(&state, title_id_hex, server_hash, &server_size) == 0);
-
-            if (!has_server) {
-                iprintf("\nSave not found on server!\n");
-                iprintf("Press B to go back\n");
-                while(pmMainLoop()) {
-                    swiWaitForVBlank();
-                    scanKeys();
-                    if(keysDown() & KEY_B) break;
-                }
-                redraw = true;
-                continue;
-            }
-
-            title->hash_calculated = false;
-
-            if (ui_confirm_sync(title, server_hash, server_size, false)) {
-                consoleClear();
-                iprintf("Downloading...\n\n");
-
-                int result = network_download(&state, selected);
-                if (result == 0) {
-                    iprintf("\nDownload successful!\n");
-                    // Clear red highlight after successful download
-                    title->scanned = true;
-                    title->scan_result = SYNC_UP_TO_DATE;
-                    // Save state after manual download
-                    if (title->hash_calculated) {
-                        char hash_hex[65];
-                        for (int i = 0; i < 32; i++)
-                            sprintf(&hash_hex[i*2], "%02x", title->hash[i]);
-                        hash_hex[64] = '\0';
-                        sync_save_last_hash(title_id_hex, hash_hex);
-                    }
-                } else {
-                    iprintf("\nDownload failed!\n");
-                }
-
-                iprintf("Press B to go back\n");
-            } else {
-                consoleClear();
-                iprintf("Download cancelled\n");
-                iprintf("Press B to go back\n");
-            }
-
-            while(pmMainLoop()) {
-                swiWaitForVBlank();
-                scanKeys();
-                if(keysDown() & KEY_B) break;
-            }
-
-            redraw = true;
-        }
-        
         if (redraw) {
+            // Reinit consoles to reset color state (consoleClear doesn't reset colors)
+            consoleInit(&topScreen, 3, BgType_Text4bpp, BgSize_T_256x256, 31, 0, true, true);
+            consoleInit(&bottomScreen, 3, BgType_Text4bpp, BgSize_T_256x256, 31, 0, false, true);
+
             // Draw config on top screen
             consoleSelect(&topScreen);
-            consoleClear();
             ui_draw_config(&state, config_selected, focus_on_config, has_wifi);
             
             // Draw saves list on bottom screen
             consoleSelect(&bottomScreen);
-            consoleClear();
             iprintf("=== NDS Save Sync v%s ===\n", APP_VERSION);
             iprintf("Found %d saves\n\n", state.num_titles);
             
@@ -605,7 +538,7 @@ int main(int argc, char *argv[]) {
 
                 // Reset color
                 if (state.titles[i].scanned) {
-                    iprintf("\x1b[39m");
+                    iprintf("\x1b[0m");
                 }
                 iprintf("\n");
             }

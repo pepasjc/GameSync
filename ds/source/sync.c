@@ -1,6 +1,7 @@
 #include "sync.h"
 #include "saves.h"
 #include "network.h"
+#include "http.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -31,6 +32,106 @@ static void title_id_to_hex(const uint8_t title_id[8], char hex[17]) {
     snprintf(hex, 17, "%02X%02X%02X%02X%02X%02X%02X%02X",
         title_id[0], title_id[1], title_id[2], title_id[3],
         title_id[4], title_id[5], title_id[6], title_id[7]);
+}
+
+// Forward declaration
+static bool ensure_state_dir(void);
+
+// Hash cache path (sibling of state dir)
+static char hash_cache_path[256] = "";
+
+static bool ensure_hash_cache_path(void) {
+    if (hash_cache_path[0]) return true;
+    if (!ensure_state_dir()) return false;
+    // state_dir is e.g. "sd:/dssync/state"; cache goes in "sd:/dssync/"
+    strncpy(hash_cache_path, state_dir, sizeof(hash_cache_path) - 1);
+    char *slash = strrchr(hash_cache_path, '/');
+    if (slash) {
+        snprintf(slash + 1, sizeof(hash_cache_path) - (slash + 1 - hash_cache_path),
+                 "hash_cache.dat");
+    } else {
+        strncpy(hash_cache_path, "hash_cache.dat", sizeof(hash_cache_path) - 1);
+    }
+    return true;
+}
+
+static bool sync_get_cached_hash(const char *title_id_hex, uint32_t save_size, char *hash_out) {
+    if (!ensure_hash_cache_path()) return false;
+
+    FILE *f = fopen(hash_cache_path, "r");
+    if (!f) return false;
+
+    char line[128];
+    char prefix[20];
+    snprintf(prefix, sizeof(prefix), "%s=", title_id_hex);
+    int prefix_len = strlen(prefix);
+
+    while (fgets(line, sizeof(line), f)) {
+        if (strncmp(line, prefix, prefix_len) != 0) continue;
+
+        uint32_t cached_sz = 0;
+        const char *val = line + prefix_len;
+        if (sscanf(val, "%u:", &cached_sz) == 1 && cached_sz == save_size) {
+            const char *p = strchr(val, ':');
+            if (p) {
+                strncpy(hash_out, p + 1, 64);
+                hash_out[64] = '\0';
+                fclose(f);
+                return true;
+            }
+        }
+        fclose(f);
+        return false;
+    }
+
+    fclose(f);
+    return false;
+}
+
+static bool sync_set_cached_hash(const char *title_id_hex, uint32_t save_size,
+                                  const char *hash_hex) {
+    if (!ensure_hash_cache_path()) return false;
+
+    int buf_size = MAX_TITLES * 110;
+    char *buf = (char *)malloc(buf_size);
+    if (!buf) return false;
+    buf[0] = '\0';
+
+    FILE *f = fopen(hash_cache_path, "r");
+    if (f) {
+        int bytes = (int)fread(buf, 1, buf_size - 1, f);
+        fclose(f);
+        if (bytes > 0) buf[bytes] = '\0';
+    }
+
+    char *new_buf = (char *)malloc(buf_size + 110);
+    if (!new_buf) { free(buf); return false; }
+    new_buf[0] = '\0';
+
+    char prefix[20];
+    snprintf(prefix, sizeof(prefix), "%s=", title_id_hex);
+    int prefix_len = strlen(prefix);
+
+    char *line = strtok(buf, "\n");
+    while (line) {
+        if (line[0] != '\0' && strncmp(line, prefix, prefix_len) != 0) {
+            strcat(new_buf, line);
+            strcat(new_buf, "\n");
+        }
+        line = strtok(NULL, "\n");
+    }
+    free(buf);
+
+    char entry[110];
+    snprintf(entry, sizeof(entry), "%s=%u:%s\n", title_id_hex, save_size, hash_hex);
+    strcat(new_buf, entry);
+
+    f = fopen(hash_cache_path, "w");
+    if (!f) { free(new_buf); return false; }
+    fwrite(new_buf, 1, strlen(new_buf), f);
+    fclose(f);
+    free(new_buf);
+    return true;
 }
 
 // Find or create the state directory
@@ -114,10 +215,31 @@ int sync_decide(SyncState *state, int title_idx, SyncDecision *decision) {
 
     bool has_local = (title->save_size > 0);
 
-    // Step 1: Ensure local hash is computed
+    // Step 1: Ensure local hash is computed (use cache to skip re-hashing if size unchanged)
     if (has_local) {
-        if (saves_ensure_hash(title) != 0) {
-            return -1;
+        if (!title->hash_calculated) {
+            char title_id_hex[17];
+            title_id_to_hex(title->title_id, title_id_hex);
+            char cached_hash[65];
+            if (sync_get_cached_hash(title_id_hex, title->save_size, cached_hash)) {
+                // Decode hex -> bytes
+                for (int j = 0; j < 32; j++) {
+                    unsigned int byte;
+                    sscanf(&cached_hash[j * 2], "%02x", &byte);
+                    title->hash[j] = (uint8_t)byte;
+                }
+                title->hash_calculated = true;
+            } else {
+                if (saves_ensure_hash(title) != 0) {
+                    return -1;
+                }
+                // Store in cache
+                if (title->hash_calculated) {
+                    char hash_hex[65];
+                    hash_to_hex(title->hash, hash_hex);
+                    sync_set_cached_hash(title_id_hex, title->save_size, hash_hex);
+                }
+            }
         }
     }
 
@@ -357,4 +479,109 @@ int sync_all(SyncState *state, SyncSummary *summary) {
     }
 
     return 0;
+}
+
+int sync_get_history(SyncState *state, const char *title_id_hex,
+                     HistoryVersion *versions, int max_versions) {
+    char url[128];
+    snprintf(url, sizeof(url), "%s/saves/%s/history", state->server_url, title_id_hex);
+
+    HttpResponse resp = http_request(url, HTTP_GET, state->api_key, NULL, 0);
+    if (!resp.success || resp.status_code != 200) {
+        http_response_free(&resp);
+        return -1;
+    }
+
+    // Null-terminate body for string parsing
+    char *body = (char *)malloc(resp.body_size + 1);
+    if (!body) {
+        http_response_free(&resp);
+        return -1;
+    }
+    memcpy(body, resp.body, resp.body_size);
+    body[resp.body_size] = '\0';
+    http_response_free(&resp);
+
+    // Parse JSON - find versions array
+    char *arr = strstr(body, "\"versions\":[");
+    if (!arr) {
+        free(body);
+        return 0;
+    }
+    arr += 11;
+
+    int count = 0;
+    while (*arr && *arr != ']' && count < max_versions) {
+        char *obj = strchr(arr, '{');
+        if (!obj) break;
+        obj++;
+        char *obj_end = strchr(obj, '}');
+        if (!obj_end) break;
+
+        char timestamp[32] = "";
+        char *ts_start = strstr(obj, "\"timestamp\":\"");
+        if (ts_start && ts_start < obj_end) {
+            ts_start += 12;
+            char *ts_end = strchr(ts_start, '"');
+            if (ts_end && ts_end < obj_end) {
+                int len = ts_end - ts_start;
+                if (len < 31) {
+                    memcpy(timestamp, ts_start, len);
+                    timestamp[len] = '\0';
+                }
+            }
+        }
+
+        uint32_t size = 0;
+        char *sz_start = strstr(obj, "\"size\":");
+        if (sz_start && sz_start < obj_end) {
+            sz_start += 7;
+            size = atoi(sz_start);
+        }
+
+        int file_count = 0;
+        char *fc_start = strstr(obj, "\"file_count\":");
+        if (fc_start && fc_start < obj_end) {
+            fc_start += 12;
+            file_count = atoi(fc_start);
+        }
+
+        if (timestamp[0]) {
+            strncpy(versions[count].timestamp, timestamp, 31);
+            versions[count].timestamp[31] = '\0';
+            versions[count].size = size;
+            versions[count].file_count = file_count;
+            count++;
+        }
+
+        arr = obj_end + 1;
+    }
+
+    free(body);
+    return count;
+}
+
+int sync_download_history(SyncState *state, int title_idx, const char *timestamp) {
+    Title *title = &state->titles[title_idx];
+
+    char title_id_hex[17];
+    snprintf(title_id_hex, sizeof(title_id_hex), "%02X%02X%02X%02X%02X%02X%02X%02X",
+        title->title_id[0], title->title_id[1], title->title_id[2], title->title_id[3],
+        title->title_id[4], title->title_id[5], title->title_id[6], title->title_id[7]);
+
+    char url[128];
+    snprintf(url, sizeof(url), "%s/saves/%s/history/%s",
+        state->server_url, title_id_hex, timestamp);
+
+    HttpResponse resp = http_request(url, HTTP_GET, state->api_key, NULL, 0);
+    if (!resp.success || resp.status_code != 200) {
+        iprintf("Failed to download history\n");
+        http_response_free(&resp);
+        return -1;
+    }
+
+    iprintf("Got %d bytes\n", (int)resp.body_size);
+    http_response_free(&resp);
+    iprintf("History restore not implemented on DS.\n");
+    return -1;
 }

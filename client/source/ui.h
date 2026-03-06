@@ -40,6 +40,16 @@ void ui_show_save_details(const TitleInfo *title, const SaveDetails *details);
 // Returns true if user confirmed (A), false if cancelled (B)
 bool ui_confirm_sync(const TitleInfo *title, const SaveDetails *details, bool is_upload);
 
+// Show smart sync dialog - suggests action based on hash comparison.
+// Returns the SyncAction to perform (SYNC_ACTION_UPLOAD, SYNC_ACTION_DOWNLOAD,
+// SYNC_ACTION_UP_TO_DATE, or SYNC_ACTION_CONFLICT).
+// For SYNC_ACTION_CONFLICT, caller should prompt for override (R=upload, L=download).
+SyncAction ui_confirm_smart_sync(const TitleInfo *title, const SaveDetails *details, SyncAction suggested);
+
+// Show history versions and let user select one to download.
+// Returns the selected timestamp string (caller must free), or NULL if cancelled.
+char *ui_show_history(const TitleInfo *title, HistoryVersion *versions, int version_count);
+
 // Config editor result codes
 #define CONFIG_RESULT_UNCHANGED 0
 #define CONFIG_RESULT_SAVED     1

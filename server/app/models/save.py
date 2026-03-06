@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import struct
-import hashlib
+import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
 from pydantic import BaseModel, field_validator
 
@@ -11,6 +9,27 @@ from pydantic import BaseModel, field_validator
 BUNDLE_MAGIC = b"3DSS"
 BUNDLE_VERSION = 1
 BUNDLE_VERSION_COMPRESSED = 2
+BUNDLE_VERSION_V3 = 3  # String title_id for PSP/Vita (16 bytes ASCII, null-padded)
+BUNDLE_VERSION_V4 = 4  # String title_id for PSP/Vita (32 bytes ASCII, null-padded)
+
+# Accepts 16-char hex IDs (3DS/DS) OR 4-16 alphanumeric product codes (PSP/Vita)
+_HEX_TITLE_ID_RE = re.compile(r"^[0-9A-F]{16}$")
+_PRODUCT_CODE_RE = re.compile(r"^[A-Z0-9]{4,31}$")
+
+
+def is_hex_title_id(title_id: str) -> bool:
+    return bool(_HEX_TITLE_ID_RE.match(title_id.upper()))
+
+
+def validate_any_title_id(v: str) -> str:
+    """Accept 16-char hex (3DS/DS) or 4-16 alphanumeric product codes (PSP/Vita)."""
+    v = v.upper().strip()
+    if _HEX_TITLE_ID_RE.match(v) or _PRODUCT_CODE_RE.match(v):
+        return v
+    raise ValueError(
+        "title_id must be a 16-char hex string (3DS/DS) "
+        "or a 4-16 char alphanumeric product code (PSP/Vita)"
+    )
 
 
 @dataclass
@@ -23,13 +42,19 @@ class BundleFile:
 
 @dataclass
 class SaveBundle:
-    title_id: int
-    timestamp: int  # unix epoch
+    title_id: int           # 64-bit int for v1/v2 (3DS/DS); 0 for v3
+    timestamp: int          # unix epoch
     files: list[BundleFile] = field(default_factory=list)
+    title_id_str: str = ""  # non-empty for v3 bundles (PSP/Vita product codes)
 
     @property
     def title_id_hex(self) -> str:
         return f"{self.title_id:016X}"
+
+    @property
+    def effective_title_id(self) -> str:
+        """Title ID as used in URL paths and storage: string for PSP/Vita, hex for 3DS/DS."""
+        return self.title_id_str if self.title_id_str else self.title_id_hex
 
     @property
     def total_size(self) -> int:
@@ -45,9 +70,10 @@ class SaveMetadata:
     save_hash: str  # sha256 of the full bundle
     save_size: int
     file_count: int
-    client_timestamp: int  # timestamp reported by the 3DS
+    client_timestamp: int  # timestamp reported by the device
     server_timestamp: str  # server wall-clock time at upload
-    console_id: str = ""  # ID of the console that uploaded this save
+    console_id: str = ""   # ID of the console that uploaded this save
+    platform: str = ""     # "3DS", "NDS", "PSP", "PSX", "VITA"
 
     def to_dict(self) -> dict:
         return {
@@ -61,31 +87,29 @@ class SaveMetadata:
             "client_timestamp": self.client_timestamp,
             "server_timestamp": self.server_timestamp,
             "console_id": self.console_id,
+            "platform": self.platform,
         }
 
 
 class TitleSyncInfo(BaseModel):
-    """Metadata for a single title sent by the 3DS during sync."""
+    """Metadata for a single title sent during sync."""
     title_id: str
     save_hash: str
     timestamp: int
     size: int
     last_synced_hash: str | None = None
-    console_id: str | None = None  # ID of the console sending this
+    console_id: str | None = None
 
     @field_validator("title_id")
     @classmethod
     def validate_title_id(cls, v: str) -> str:
-        v = v.upper()
-        if len(v) != 16 or not all(c in "0123456789ABCDEF" for c in v):
-            raise ValueError("title_id must be 16 hex characters")
-        return v
+        return validate_any_title_id(v)
 
 
 class SyncRequest(BaseModel):
-    """Batch metadata from 3DS for sync planning."""
+    """Batch metadata from client for sync planning."""
     titles: list[TitleSyncInfo]
-    console_id: str | None = None  # ID of the console making the request
+    console_id: str | None = None
 
 
 class ConflictInfo(BaseModel):
@@ -101,10 +125,10 @@ class ConflictInfo(BaseModel):
 
 
 class SyncPlan(BaseModel):
-    """Server's response telling the 3DS what to do."""
-    upload: list[str]    # title IDs where 3DS is newer -> 3DS should upload
-    download: list[str]  # title IDs where server is newer -> 3DS should download
-    conflict: list[str]  # title IDs where both changed -> needs user decision
-    up_to_date: list[str]  # title IDs with matching hashes
-    server_only: list[str]  # title IDs only on server -> 3DS should download
+    """Server's response telling the client what to do."""
+    upload: list[str]       # title IDs where client is newer -> should upload
+    download: list[str]     # title IDs where server is newer -> should download
+    conflict: list[str]     # title IDs where both changed -> needs user decision
+    up_to_date: list[str]   # title IDs with matching hashes
+    server_only: list[str]  # title IDs only on server -> client may want to download
     conflict_info: list[ConflictInfo] = []  # Details for each conflict

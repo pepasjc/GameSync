@@ -14,6 +14,14 @@ typedef enum {
     SYNC_ERR_TOO_LARGE,
 } SyncResult;
 
+// Sync action decided by smart sync
+typedef enum {
+    SYNC_ACTION_UPLOAD,     // Client newer than server -> upload
+    SYNC_ACTION_DOWNLOAD,  // Server newer than client -> download
+    SYNC_ACTION_UP_TO_DATE, // Hashes match
+    SYNC_ACTION_CONFLICT,   // Both changed -> user needs to decide
+} SyncAction;
+
 // Summary of sync_all operation
 #define MAX_CONFLICT_DISPLAY 8  // Max conflicts to report for UI
 
@@ -75,5 +83,28 @@ typedef struct {
 // Fills details struct with information. Returns true on success.
 bool sync_get_save_details(const AppConfig *config, const TitleInfo *title,
                            SaveDetails *details);
+
+// Decide the sync action based on SaveDetails (hash-only three-way comparison).
+// Returns the suggested action (upload/download/up_to_date/conflict).
+SyncAction sync_decide(const SaveDetails *details);
+
+// History version info
+#define MAX_HISTORY_VERSIONS 20
+
+typedef struct {
+    char timestamp[32];  // ISO 8601 timestamp
+    u32 size;
+    int file_count;
+} HistoryVersion;
+
+// Get list of history versions for a title.
+// Returns number of versions found, or -1 on error.
+int sync_get_history(const AppConfig *config, const char *title_id_hex,
+                     HistoryVersion *versions, int max_versions);
+
+// Download a specific history version.
+// Returns SYNC_OK on success, error code on failure.
+SyncResult sync_download_history(const AppConfig *config, const TitleInfo *title,
+                                 const char *timestamp, SyncProgressCb progress);
 
 #endif // SYNC_H

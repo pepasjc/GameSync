@@ -12,11 +12,18 @@ from app.services import game_names
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.save_dir.mkdir(parents=True, exist_ok=True)
-    # Load game names databases (3DS + DS)
+    # Load game names databases (3DS, DS, PSP, PS Vita)
     data_dir = Path(__file__).parent.parent / "data"
     count_3ds = game_names.load_database(data_dir / "3dstdb.txt")
     count_ds = game_names.load_database(data_dir / "dstdb.txt")
-    print(f"Loaded {count_3ds} 3DS + {count_ds} DS game names from database")
+    count_psp = game_names.load_database(data_dir / "pspdb.txt")
+    count_vita = game_names.load_database(data_dir / "vitadb.txt")
+    count_psx = game_names.load_database(data_dir / "psxdb.txt")
+    count_psx += game_names.load_database(data_dir / "unsorted_psx.txt")
+    print(
+        f"Loaded {count_3ds} 3DS + {count_ds} DS + "
+        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX game names from database"
+    )
     yield
 
 
