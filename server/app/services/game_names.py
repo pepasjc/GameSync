@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+from app.services.rom_id import SYSTEM_CODES, parse_title_id as _parse_emulator_id
+
 # Global cache for game names (loaded once at startup)
 _3ds_names: dict[str, str] = {}
 _ds_names: dict[str, str] = {}
@@ -23,9 +25,11 @@ _NDS_HIGH_PREFIXES = {"00048"}
 def detect_platform(title_id: str) -> str:
     """Return the platform string for a title ID.
 
-    Returns one of: "3DS", "NDS", "PSP", "PSX", "VITA".
+    Returns one of: "3DS", "NDS", "PSP", "PSX", "VITA", or an emulator
+    system code like "GBA", "SNES", "MD", etc.
 
     Rules:
+      - Emulator SYSTEM_slug format           → system code (e.g. "GBA")
       - 16-char hex, starts with 00040... → "3DS"
       - 16-char hex, starts with 00048... → "NDS"  (DSiWare shown on 3DS)
       - 16-char hex, anything else         → "3DS"  (conservative fallback)
@@ -34,6 +38,11 @@ def detect_platform(title_id: str) -> str:
       - 4-letter + 5-digit code otherwise  → "PSP"
       - Anything else                      → "NDS"  (DS raw endpoint, no product code)
     """
+    # Emulator format: SYSTEM_slug (e.g. GBA_zelda_the_minish_cap)
+    parsed = _parse_emulator_id(title_id)
+    if parsed:
+        return parsed[0]  # e.g. "GBA"
+
     tid = title_id.upper().strip()
 
     # 16-char hex = 3DS or NDS

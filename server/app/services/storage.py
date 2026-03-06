@@ -2,27 +2,31 @@
 
 Saves are stored as:
   saves/<title_id>/
-    metadata.json
     current/          -- extracted save files
     history/
       <timestamp>/    -- previous versions
+  saves/metadata.db   -- SQLite metadata (replaces per-title metadata.json)
 
-All clients (3DS, DS, PSP, Vita) share the same flat slot per title ID.
-The console_id field in metadata.json is informational only and does not
-affect the storage path.
+The JSON metadata.json files are retained as read-only backups after migration
+(renamed to metadata.json.bak by migrate_to_sqlite.py). During the transition
+period, storage.py falls back to reading JSON if a title is absent from the DB.
+
+All clients (3DS, DS, PSP, Vita, emulators) share the same flat slot per title ID.
+The console_id field in metadata is informational only and does not affect storage path.
 """
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import settings
 from app.models.save import SaveBundle, SaveMetadata
-from app.services import game_names
+from app.services import db, game_names
+from app.services.rom_id import parse_title_id as _parse_emulator_id
 
 
 def _title_dir(title_id: str) -> Path:
@@ -41,9 +45,36 @@ def _metadata_path(title_id: str) -> Path:
     return _title_dir(title_id) / "metadata.json"
 
 
+def _row_to_metadata(row: dict) -> SaveMetadata:
+    return SaveMetadata(
+        title_id=row.get("title_id", ""),
+        name=row.get("name", ""),
+        last_sync=row.get("last_sync", ""),
+        last_sync_source=row.get("last_sync_source", ""),
+        save_hash=row.get("save_hash", ""),
+        save_size=row.get("save_size", 0),
+        file_count=row.get("file_count", 0),
+        client_timestamp=row.get("client_timestamp", 0),
+        server_timestamp=row.get("server_timestamp", ""),
+        console_id=row.get("console_id", ""),
+        platform=row.get("platform", ""),
+        system=row.get("system", ""),
+    )
+
+
+def _load_json_metadata(title_id: str) -> SaveMetadata | None:
+    """Fallback: read legacy metadata.json for unmigrated saves."""
+    path = _metadata_path(title_id)
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data.setdefault("system", "")
+    return SaveMetadata(**{k: data[k] for k in SaveMetadata.__dataclass_fields__ if k in data})
+
+
 def title_exists(title_id: str, console_id: str = "") -> bool:
     """Check if a save exists for a title. console_id is ignored (flat layout)."""
-    return _metadata_path(title_id).exists()
+    return db.exists(title_id) or _metadata_path(title_id).exists()
 
 
 def list_consoles(title_id: str) -> list[str]:
@@ -56,39 +87,49 @@ def list_consoles(title_id: str) -> list[str]:
 
 def update_metadata_name(title_id: str, name: str, platform: str) -> None:
     """Update only the name and platform fields of stored metadata."""
+    if db.exists(title_id):
+        db.update_name_and_platform(title_id, name, platform)
+    # Also update legacy JSON if present (for unmigrated saves)
     path = _metadata_path(title_id)
-    if not path.exists():
-        return
-    data = json.loads(path.read_text(encoding="utf-8"))
-    data["name"] = name
-    data["platform"] = platform
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    if path.exists():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["name"] = name
+        data["platform"] = platform
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def list_titles() -> list[dict]:
-    """Return metadata for all stored titles."""
-    results = []
+    """Return metadata dicts for all stored titles."""
+    # Start from SQLite
+    db_rows = {r["title_id"]: r for r in db.list_all()}
+
+    # Fallback: include any JSON-only saves not yet migrated to DB
     save_dir = settings.save_dir
-    if not save_dir.exists():
-        return results
+    if save_dir.exists():
+        for entry in sorted(save_dir.iterdir()):
+            if not entry.is_dir():
+                continue
+            meta_path = entry / "metadata.json"
+            if meta_path.exists():
+                try:
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    tid = meta.get("title_id", "")
+                    if tid and tid not in db_rows:
+                        meta.setdefault("system", "")
+                        db_rows[tid] = meta
+                except Exception:
+                    pass
 
-    for entry in sorted(save_dir.iterdir()):
-        meta_path = entry / "metadata.json"
-        if entry.is_dir() and meta_path.exists():
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            results.append(meta)
-
-    return results
+    return list(db_rows.values())
 
 
 def get_metadata(title_id: str, console_id: str = "") -> SaveMetadata | None:
     """Load metadata for a title. console_id is ignored (flat layout)."""
-    path = _metadata_path(title_id)
-    if not path.exists():
-        return None
-
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return SaveMetadata(**data)
+    row = db.get(title_id)
+    if row is not None:
+        return _row_to_metadata(row)
+    # Fallback to legacy JSON for unmigrated saves
+    return _load_json_metadata(title_id)
 
 
 def store_save(
@@ -128,13 +169,22 @@ def store_save(
     bundle_hash = hashlib.sha256(all_data).hexdigest()
 
     # Look up game name and platform from local DB.
-    # For 3DS titles the hex title ID alone can't resolve a name, so fall back
-    # to the product code (e.g. "CTR-P-A22J") when the client provides one.
     game_name, platform = game_names.lookup_name_and_platform(title_id)
     if game_name == title_id and game_code:
         typed = game_names.lookup_names_typed([game_code])
         if game_code in typed:
             game_name, platform = typed[game_code]
+
+    # For emulator saves with no name found, derive readable name from slug
+    if game_name == title_id:
+        parsed = _parse_emulator_id(title_id)
+        if parsed:
+            _, slug = parsed
+            game_name = slug.replace("_", " ").title()
+
+    # Determine detailed system code
+    parsed = _parse_emulator_id(title_id)
+    system = parsed[0] if parsed else platform
 
     now = datetime.now(timezone.utc).isoformat()
     meta = SaveMetadata(
@@ -149,11 +199,10 @@ def store_save(
         server_timestamp=now,
         console_id=console_id,
         platform=platform,
+        system=system,
     )
 
-    meta_path = _metadata_path(title_id)
-    meta_path.write_text(json.dumps(meta.to_dict(), indent=2), encoding="utf-8")
-
+    db.upsert(meta.to_dict())
     return meta
 
 
@@ -249,7 +298,8 @@ def load_history_version_by_unix_ts(
 
 
 def delete_save(title_id: str, console_id: str = "") -> None:
-    """Delete a save (removes entire title folder). console_id is ignored (flat layout)."""
+    """Delete a save (removes entire title folder and DB row). console_id is ignored (flat layout)."""
     title_dir = _title_dir(title_id)
     if title_dir.exists():
         shutil.rmtree(title_dir)
+    db.delete(title_id)

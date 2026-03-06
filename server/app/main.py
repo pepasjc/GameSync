@@ -6,12 +6,13 @@ from fastapi import FastAPI
 from app.config import settings
 from app.middleware.auth import APIKeyMiddleware
 from app.routes import saves, status, sync, titles, update
-from app.services import game_names
+from app.services import db, game_names
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.save_dir.mkdir(parents=True, exist_ok=True)
+    db.init_db(settings.save_dir)
     # Load game names databases (3DS, DS, PSP, PS Vita)
     data_dir = Path(__file__).parent.parent / "data"
     count_3ds = game_names.load_database(data_dir / "3dstdb.txt")
