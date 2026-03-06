@@ -34,6 +34,106 @@ static void title_id_to_hex(const uint8_t title_id[8], char hex[17]) {
         title_id[4], title_id[5], title_id[6], title_id[7]);
 }
 
+// Forward declaration
+static bool ensure_state_dir(void);
+
+// Hash cache path (sibling of state dir)
+static char hash_cache_path[256] = "";
+
+static bool ensure_hash_cache_path(void) {
+    if (hash_cache_path[0]) return true;
+    if (!ensure_state_dir()) return false;
+    // state_dir is e.g. "sd:/dssync/state"; cache goes in "sd:/dssync/"
+    strncpy(hash_cache_path, state_dir, sizeof(hash_cache_path) - 1);
+    char *slash = strrchr(hash_cache_path, '/');
+    if (slash) {
+        snprintf(slash + 1, sizeof(hash_cache_path) - (slash + 1 - hash_cache_path),
+                 "hash_cache.dat");
+    } else {
+        strncpy(hash_cache_path, "hash_cache.dat", sizeof(hash_cache_path) - 1);
+    }
+    return true;
+}
+
+static bool sync_get_cached_hash(const char *title_id_hex, uint32_t save_size, char *hash_out) {
+    if (!ensure_hash_cache_path()) return false;
+
+    FILE *f = fopen(hash_cache_path, "r");
+    if (!f) return false;
+
+    char line[128];
+    char prefix[20];
+    snprintf(prefix, sizeof(prefix), "%s=", title_id_hex);
+    int prefix_len = strlen(prefix);
+
+    while (fgets(line, sizeof(line), f)) {
+        if (strncmp(line, prefix, prefix_len) != 0) continue;
+
+        uint32_t cached_sz = 0;
+        const char *val = line + prefix_len;
+        if (sscanf(val, "%u:", &cached_sz) == 1 && cached_sz == save_size) {
+            const char *p = strchr(val, ':');
+            if (p) {
+                strncpy(hash_out, p + 1, 64);
+                hash_out[64] = '\0';
+                fclose(f);
+                return true;
+            }
+        }
+        fclose(f);
+        return false;
+    }
+
+    fclose(f);
+    return false;
+}
+
+static bool sync_set_cached_hash(const char *title_id_hex, uint32_t save_size,
+                                  const char *hash_hex) {
+    if (!ensure_hash_cache_path()) return false;
+
+    int buf_size = MAX_TITLES * 110;
+    char *buf = (char *)malloc(buf_size);
+    if (!buf) return false;
+    buf[0] = '\0';
+
+    FILE *f = fopen(hash_cache_path, "r");
+    if (f) {
+        int bytes = (int)fread(buf, 1, buf_size - 1, f);
+        fclose(f);
+        if (bytes > 0) buf[bytes] = '\0';
+    }
+
+    char *new_buf = (char *)malloc(buf_size + 110);
+    if (!new_buf) { free(buf); return false; }
+    new_buf[0] = '\0';
+
+    char prefix[20];
+    snprintf(prefix, sizeof(prefix), "%s=", title_id_hex);
+    int prefix_len = strlen(prefix);
+
+    char *line = strtok(buf, "\n");
+    while (line) {
+        if (line[0] != '\0' && strncmp(line, prefix, prefix_len) != 0) {
+            strcat(new_buf, line);
+            strcat(new_buf, "\n");
+        }
+        line = strtok(NULL, "\n");
+    }
+    free(buf);
+
+    char entry[110];
+    snprintf(entry, sizeof(entry), "%s=%u:%s\n", title_id_hex, save_size, hash_hex);
+    strcat(new_buf, entry);
+
+    f = fopen(hash_cache_path, "w");
+    if (!f) { free(new_buf); return false; }
+    fwrite(new_buf, 1, strlen(new_buf), f);
+    fclose(f);
+    free(new_buf);
+    return true;
+}
+
 // Find or create the state directory
 static bool ensure_state_dir(void) {
     if (state_dir_found) return true;
@@ -115,10 +215,31 @@ int sync_decide(SyncState *state, int title_idx, SyncDecision *decision) {
 
     bool has_local = (title->save_size > 0);
 
-    // Step 1: Ensure local hash is computed
+    // Step 1: Ensure local hash is computed (use cache to skip re-hashing if size unchanged)
     if (has_local) {
-        if (saves_ensure_hash(title) != 0) {
-            return -1;
+        if (!title->hash_calculated) {
+            char title_id_hex[17];
+            title_id_to_hex(title->title_id, title_id_hex);
+            char cached_hash[65];
+            if (sync_get_cached_hash(title_id_hex, title->save_size, cached_hash)) {
+                // Decode hex -> bytes
+                for (int j = 0; j < 32; j++) {
+                    unsigned int byte;
+                    sscanf(&cached_hash[j * 2], "%02x", &byte);
+                    title->hash[j] = (uint8_t)byte;
+                }
+                title->hash_calculated = true;
+            } else {
+                if (saves_ensure_hash(title) != 0) {
+                    return -1;
+                }
+                // Store in cache
+                if (title->hash_calculated) {
+                    char hash_hex[65];
+                    hash_to_hex(title->hash, hash_hex);
+                    sync_set_cached_hash(title_id_hex, title->save_size, hash_hex);
+                }
+            }
         }
     }
 

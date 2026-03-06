@@ -1,0 +1,10 @@
+[project]
+name = "3dssync-tools"
+version = "1.0.0"
+description = "Tools for 3DS sync project"
+requires-python = ">=3.8"
+dependencies = [
+    "paramiko>=3.0.0",
+    "PyQt6>=6.5.0",
+    "requests>=2.31.0",
+]

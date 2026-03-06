@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.models.save import ConflictInfo, SyncPlan, SyncRequest
+from app.models.save import ConflictInfo, SyncPlan, SyncRequest, is_hex_title_id
 from app.services import storage
 
 router = APIRouter()
@@ -34,7 +34,11 @@ def _add_conflict(
 
 @router.post("/sync")
 async def sync(request: SyncRequest) -> SyncPlan:
-    """Compare 3DS title metadata against server state and return a sync plan."""
+    """Compare client title metadata against server state and return a sync plan.
+
+    All consoles share a single save slot per title (flat storage). Conflicts
+    are resolved by hash comparison using the last_synced_hash for three-way merge.
+    """
     upload: list[str] = []
     download: list[str] = []
     conflict: list[str] = []
@@ -42,14 +46,16 @@ async def sync(request: SyncRequest) -> SyncPlan:
     up_to_date: list[str] = []
 
     client_title_ids = set()
-    console_id = request.console_id
+    console_id = request.console_id or ""
 
     for title in request.titles:
         client_title_ids.add(title.title_id)
+
+        # Look up the shared save slot for the title
         server_meta = storage.get_metadata(title.title_id)
 
         if server_meta is None:
-            # Server has no save for this title -> 3DS should upload
+            # No save on server for this title -> upload
             upload.append(title.title_id)
             continue
 
@@ -57,39 +63,36 @@ async def sync(request: SyncRequest) -> SyncPlan:
             up_to_date.append(title.title_id)
             continue
 
-        # Hashes differ -> use three-way comparison with last_synced_hash
+        # Hashes differ -> three-way comparison with last_synced_hash
         if title.last_synced_hash is not None:
             if title.last_synced_hash == server_meta.save_hash:
-                # Server unchanged since last sync, only client changed -> upload
+                # Server unchanged since last sync, client changed -> upload
                 upload.append(title.title_id)
             elif title.last_synced_hash == title.save_hash:
-                # Client unchanged since last sync, only server changed -> download
+                # Client unchanged since last sync, server changed -> download
                 download.append(title.title_id)
             else:
-                # Both changed since last sync -> true conflict
+                # Both changed since last sync -> conflict
                 _add_conflict(
                     conflict, conflict_info, title.title_id,
                     server_meta, title.save_hash, title.size, console_id
                 )
         else:
-            # No sync history - first time syncing this title on this console
-            # If server version was uploaded by THIS console, we can safely download
-            # (our previous session on this console uploaded it)
-            if console_id and server_meta.console_id == console_id:
-                # Same console uploaded it before -> auto-download (we have old local data)
-                download.append(title.title_id)
-            else:
-                # Different console or unknown -> need user decision
-                _add_conflict(
-                    conflict, conflict_info, title.title_id,
-                    server_meta, title.save_hash, title.size, console_id
-                )
+            # No sync history: save exists but hashes differ.
+            # Default: download (prefer server version to avoid overwriting).
+            download.append(title.title_id)
 
-    # Find titles that exist only on the server
+    # Find titles on the server that the client doesn't have.
+    # Only include titles whose ID format matches the requesting client:
+    # hex title IDs (3DS/NDS) for a 3DS/NDS client, product codes for PSP/Vita.
+    # This prevents PSP/Vita saves appearing in a 3DS sync plan and vice-versa.
+    client_uses_hex = all(is_hex_title_id(t.title_id) for t in request.titles) \
+        if request.titles else True
+
     server_only: list[str] = []
     for meta in storage.list_titles():
         tid = meta["title_id"]
-        if tid not in client_title_ids:
+        if tid not in client_title_ids and is_hex_title_id(tid) == client_uses_hex:
             server_only.append(tid)
 
     return SyncPlan(

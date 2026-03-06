@@ -137,6 +137,95 @@ bool config_load(AppConfig *config, char *error_out, int error_size) {
     return true;
 }
 
+bool config_get_cached_hash(const char *title_id_hex, int file_count, u32 total_size,
+                            char *hash_out) {
+    FILE *f = fopen(HASH_CACHE_FILE, "r");
+    if (!f) return false;
+
+    char line[128];
+    char prefix[20];
+    snprintf(prefix, sizeof(prefix), "%s=", title_id_hex);
+    int prefix_len = strlen(prefix);
+
+    while (fgets(line, sizeof(line), f)) {
+        if (strncmp(line, prefix, prefix_len) != 0) continue;
+
+        int cached_fc = 0;
+        u32 cached_sz = 0;
+        const char *val = line + prefix_len;
+        if (sscanf(val, "%d:%u:", &cached_fc, &cached_sz) == 2
+                && cached_fc == file_count && cached_sz == total_size) {
+            const char *p = strchr(val, ':');
+            if (p) p = strchr(p + 1, ':');
+            if (p) {
+                strncpy(hash_out, p + 1, 64);
+                hash_out[64] = '\0';
+                fclose(f);
+                return true;
+            }
+        }
+        fclose(f);
+        return false;
+    }
+
+    fclose(f);
+    return false;
+}
+
+bool config_set_cached_hash(const char *title_id_hex, int file_count, u32 total_size,
+                            const char *hash_hex) {
+    // Read existing cache
+    // Max entry: 16 + 1 + 10 + 1 + 10 + 1 + 64 + 2 = ~106 chars
+    // For MAX_TITLES=256 entries: ~28KB
+    int buf_size = MAX_TITLES * 110;
+    char *buf = (char *)malloc(buf_size);
+    if (!buf) return false;
+    buf[0] = '\0';
+
+    FILE *f = fopen(HASH_CACHE_FILE, "r");
+    if (f) {
+        int bytes = (int)fread(buf, 1, buf_size - 1, f);
+        fclose(f);
+        if (bytes > 0) buf[bytes] = '\0';
+    }
+
+    char *new_buf = (char *)malloc(buf_size + 110);
+    if (!new_buf) { free(buf); return false; }
+    new_buf[0] = '\0';
+
+    char prefix[20];
+    snprintf(prefix, sizeof(prefix), "%s=", title_id_hex);
+    int prefix_len = strlen(prefix);
+
+    // Copy all lines except the existing entry for this title
+    char *line = strtok(buf, "\n");
+    while (line) {
+        if (line[0] != '\0' && strncmp(line, prefix, prefix_len) != 0) {
+            strcat(new_buf, line);
+            strcat(new_buf, "\n");
+        }
+        line = strtok(NULL, "\n");
+    }
+    free(buf);
+
+    // Append updated entry
+    char entry[110];
+    snprintf(entry, sizeof(entry), "%s=%d:%u:%s\n",
+             title_id_hex, file_count, (unsigned int)total_size, hash_hex);
+    strcat(new_buf, entry);
+
+    // Ensure directory exists
+    mkdir("sdmc:/3ds", 0777);
+    mkdir("sdmc:/3ds/3dssync", 0777);
+
+    f = fopen(HASH_CACHE_FILE, "w");
+    if (!f) { free(new_buf); return false; }
+    fwrite(new_buf, 1, strlen(new_buf), f);
+    fclose(f);
+    free(new_buf);
+    return true;
+}
+
 bool config_save(const AppConfig *config) {
     // Ensure directory exists
     mkdir("sdmc:/3ds", 0777);

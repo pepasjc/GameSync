@@ -1,6 +1,7 @@
 #include "sync.h"
 #include "archive.h"
 #include "bundle.h"
+#include "config.h"
 #include "nds.h"
 #include "network.h"
 #include "sha256.h"
@@ -184,9 +185,14 @@ static SyncResult upload_title_with_hash(const AppConfig *config, const TitleInf
         return SYNC_ERR_TOO_LARGE;
     }
 
-    // POST to server
-    char path[64];
-    snprintf(path, sizeof(path), "/saves/%s", title->title_id_hex);
+    // POST to server — include product code so the server can store the game name
+    char path[128];
+    if (title->product_code[0]) {
+        snprintf(path, sizeof(path), "/saves/%s?game_code=%s",
+                 title->title_id_hex, title->product_code);
+    } else {
+        snprintf(path, sizeof(path), "/saves/%s", title->title_id_hex);
+    }
 
     u32 resp_size, status;
     u8 *resp = network_post(config, path, bundle, bundle_size, &resp_size, &status);
@@ -306,29 +312,61 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
         }
 
         char msg[128];
-        snprintf(msg, sizeof(msg), "Hashing save %d/%d: %s",
-            i + 1, title_count, titles[i].title_id_hex);
-        if (progress) progress(msg);
 
-        // Read save to compute current hash
-        int fc;
-        if (titles[i].is_nds && titles[i].media_type == MEDIATYPE_GAME_CARD)
-            fc = nds_cart_read_save(files, MAX_SAVE_FILES);
-        else if (titles[i].is_nds)
-            fc = nds_read_save(titles[i].sav_path, files, MAX_SAVE_FILES);
-        else
-            fc = archive_read(titles[i].title_id, titles[i].media_type,
-                              files, MAX_SAVE_FILES);
-        if (fc < 0) fc = 0;
+        // Get fingerprint (file_count + total_size) cheaply without reading content
+        int stat_fc = 0;
+        u32 stat_sz = 0;
+        bool has_stat = false;
+        if (titles[i].is_nds && titles[i].media_type != MEDIATYPE_GAME_CARD) {
+            struct stat st;
+            if (stat(titles[i].sav_path, &st) == 0) {
+                stat_fc = 1;
+                stat_sz = (u32)st.st_size;
+                has_stat = true;
+            }
+        } else if (!titles[i].is_nds) {
+            has_stat = (archive_stat(titles[i].title_id, titles[i].media_type,
+                                     &stat_fc, &stat_sz) == 0);
+        }
 
         char current_hash[65] = {0};
         u32 total_size = 0;
-        if (fc > 0) {
-            bundle_compute_save_hash(files, fc, current_hash);
-            for (int j = 0; j < fc; j++) total_size += files[j].size;
-            archive_free_files(files, fc);
+
+        // Try hash cache first
+        char cached_hash[65];
+        if (has_stat && stat_sz > 0 &&
+                config_get_cached_hash(titles[i].title_id_hex, stat_fc, stat_sz, cached_hash)) {
+            snprintf(msg, sizeof(msg), "Cached %d/%d: %s",
+                i + 1, title_count, titles[i].title_id_hex);
+            if (progress) progress(msg);
+            strcpy(current_hash, cached_hash);
+            total_size = stat_sz;
         } else {
-            strcpy(current_hash, "0000000000000000000000000000000000000000000000000000000000000000");
+            snprintf(msg, sizeof(msg), "Hashing save %d/%d: %s",
+                i + 1, title_count, titles[i].title_id_hex);
+            if (progress) progress(msg);
+
+            // Read save to compute current hash
+            int fc;
+            if (titles[i].is_nds && titles[i].media_type == MEDIATYPE_GAME_CARD)
+                fc = nds_cart_read_save(files, MAX_SAVE_FILES);
+            else if (titles[i].is_nds)
+                fc = nds_read_save(titles[i].sav_path, files, MAX_SAVE_FILES);
+            else
+                fc = archive_read(titles[i].title_id, titles[i].media_type,
+                                  files, MAX_SAVE_FILES);
+            if (fc < 0) fc = 0;
+
+            if (fc > 0) {
+                bundle_compute_save_hash(files, fc, current_hash);
+                for (int j = 0; j < fc; j++) total_size += files[j].size;
+                archive_free_files(files, fc);
+                // Store in cache for next run
+                if (has_stat && stat_sz > 0)
+                    config_set_cached_hash(titles[i].title_id_hex, stat_fc, stat_sz, current_hash);
+            } else {
+                strcpy(current_hash, "0000000000000000000000000000000000000000000000000000000000000000");
+            }
         }
 
         // Cache this hash for potential upload later
@@ -498,6 +536,34 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
     free(conflict_ids);
     free(up_to_date_ids);
     free(hash_cache);
+
+    // Send product codes for all titles so the server can resolve game names
+    // for saves that were already up-to-date and never went through an upload.
+    // ~40 bytes per entry: "\"0004000000161E00\":\"CTR-P-A22J\","
+    int hints_cap = title_count * 45 + 16;
+    char *hints_json = (char *)malloc(hints_cap);
+    if (hints_json) {
+        int pos = snprintf(hints_json, hints_cap, "{\"codes\":{");
+        bool first_hint = true;
+        for (int i = 0; i < title_count; i++) {
+            if (!titles[i].product_code[0]) continue;
+            if (!first_hint)
+                pos += snprintf(hints_json + pos, hints_cap - pos, ",");
+            pos += snprintf(hints_json + pos, hints_cap - pos,
+                            "\"%s\":\"%s\"",
+                            titles[i].title_id_hex, titles[i].product_code);
+            first_hint = false;
+        }
+        snprintf(hints_json + pos, hints_cap - pos, "}}");
+
+        if (!first_hint) {  /* at least one entry */
+            u32 resp_size, status;
+            u8 *resp = network_post_json(config, "/titles/update_names",
+                                         hints_json, &resp_size, &status);
+            if (resp) free(resp);
+        }
+        free(hints_json);
+    }
 
     if (summary) *summary = local_summary;
     return true;
