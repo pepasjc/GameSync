@@ -24,7 +24,21 @@ from pathlib import Path
 # Allow running from the server/ directory
 sys.path.insert(0, str(Path(__file__).parent))
 
-from app.services import db as _db
+from app.services import db as _db, game_names as _game_names
+
+
+def _load_name_databases() -> int:
+    """Load the title name databases so we can re-lookup names during migration."""
+    data_dir = Path(__file__).parent / "data"
+    total = 0
+    total += _game_names.load_database(data_dir / "3dstitledb.txt")
+    total += _game_names.load_database(data_dir / "3dstdb.txt")
+    total += _game_names.load_database(data_dir / "dstdb.txt")
+    total += _game_names.load_database(data_dir / "pspdb.txt")
+    total += _game_names.load_database(data_dir / "vitadb.txt")
+    total += _game_names.load_database(data_dir / "psxdb.txt")
+    total += _game_names.load_database(data_dir / "unsorted_psx.txt")
+    return total
 
 
 def migrate(save_dir: Path, dry_run: bool) -> None:
@@ -36,6 +50,10 @@ def migrate(save_dir: Path, dry_run: bool) -> None:
     if not json_files:
         print("No metadata.json files found — nothing to migrate.")
         return
+
+    db_count = _load_name_databases()
+    print(f"Loaded {db_count:,} game name entries from database")
+    print()
 
     if not dry_run:
         _db.init_db(save_dir)
@@ -60,11 +78,23 @@ def migrate(save_dir: Path, dry_run: bool) -> None:
             data.setdefault("client_timestamp", 0)
             data.setdefault("server_timestamp", "")
 
+            # Re-lookup name from the new comprehensive database.
+            # Always prefer the DB name over whatever was stored in JSON —
+            # old metadata may have raw title IDs or stale/partial names.
+            fresh_name, fresh_platform = _game_names.lookup_name_and_platform(title_id)
+            old_name = data.get("name", title_id)
+            if fresh_name != title_id:
+                # DB found a real name — use it
+                data["name"] = fresh_name
+                if not data.get("platform"):
+                    data["platform"] = fresh_platform
+            elif not data.get("platform"):
+                data["platform"] = fresh_platform
+
             if dry_run:
+                name_note = f"{old_name!r} -> {data['name']!r}" if old_name != data["name"] else f"{data['name']!r}"
                 print(
-                    f"  [dry-run] Would migrate: {title_id!r:40s} "
-                    f"name={data.get('name', '')!r:30s} "
-                    f"platform={data.get('platform', '')!r}"
+                    f"  [dry-run] {title_id:40s}  name={name_note}  platform={data.get('platform', '')!r}"
                 )
                 migrated += 1
                 continue
@@ -81,7 +111,8 @@ def migrate(save_dir: Path, dry_run: bool) -> None:
             # Rename metadata.json -> metadata.json.bak
             bak_path = json_path.with_suffix(".json.bak")
             json_path.rename(bak_path)
-            print(f"  Migrated: {title_id}")
+            name_note = f" ({old_name!r} -> {data['name']!r})" if old_name != data["name"] else ""
+            print(f"  Migrated: {title_id}{name_note}")
             migrated += 1
 
         except Exception as exc:

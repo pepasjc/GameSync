@@ -6,11 +6,12 @@ from pathlib import Path
 from app.services.rom_id import SYSTEM_CODES, parse_title_id as _parse_emulator_id
 
 # Global cache for game names (loaded once at startup)
-_3ds_names: dict[str, str] = {}
-_ds_names: dict[str, str] = {}
-_psp_names: dict[str, str] = {}   # keyed by full product code e.g. "ULUS10272"
-_psx_names: dict[str, str] = {}   # keyed by full product code e.g. "NPUF30001"
-_vita_names: dict[str, str] = {}  # keyed by full product code e.g. "PCSE00082"
+_3ds_title_ids: dict[str, str] = {}  # full 16-char hex TitleID -> name (from 3dstitledb.txt)
+_3ds_names: dict[str, str] = {}      # 4-char game code -> name (legacy, from 3dstdb.txt)
+_ds_names: dict[str, str] = {}       # 4-char game code -> name
+_psp_names: dict[str, str] = {}      # keyed by full product code e.g. "ULUS10272"
+_psx_names: dict[str, str] = {}      # keyed by full product code e.g. "NPUF30001"
+_vita_names: dict[str, str] = {}     # keyed by full product code e.g. "PCSE00082"
 
 # Patterns for platform detection
 _PSP_CODE_RE   = re.compile(r"^[A-Z]{4}\d{5}$")   # ULUS10000, ELES01234, NPUH10001
@@ -66,13 +67,23 @@ def detect_platform(title_id: str) -> str:
     return "NDS"
 
 
+_HEX_16_RE = re.compile(r"^[0-9A-F]{16}$")
+
+
 def load_database(db_path: Path | None = None) -> int:
     """Load a game names database from file into the appropriate cache.
 
-    Automatically detects whether it's 3DS, DS, PSP or Vita based on filename.
+    Automatically detects the target dict based on filename:
+      - 3dstitledb.txt  → _3ds_title_ids (full 16-char hex TitleID -> name)
+      - 3dstdb.txt      → _3ds_names  (4-char game code -> name)
+      - dstdb.txt       → _ds_names
+      - pspdb.txt       → _psp_names
+      - vitadb.txt      → _vita_names
+      - psxdb.txt       → _psx_names
+
     Returns the number of entries loaded.
     """
-    global _3ds_names, _ds_names, _psp_names, _vita_names
+    global _3ds_title_ids, _3ds_names, _ds_names, _psp_names, _vita_names
 
     if db_path is None:
         db_path = Path(__file__).parent.parent.parent / "data" / "3dstdb.txt"
@@ -80,14 +91,16 @@ def load_database(db_path: Path | None = None) -> int:
     if not db_path.exists():
         return 0
 
-    name = db_path.name.lower()
-    if "vita" in name:
+    fname = db_path.name.lower()
+    if "3dstitledb" in fname:
+        target_dict = _3ds_title_ids
+    elif "vita" in fname:
         target_dict = _vita_names
-    elif "psx" in name:
+    elif "psx" in fname:
         target_dict = _psx_names
-    elif "psp" in name:
+    elif "psp" in fname:
         target_dict = _psp_names
-    elif "ds" in name and "3ds" not in name:
+    elif "ds" in fname and "3ds" not in fname:
         target_dict = _ds_names
     else:
         target_dict = _3ds_names
@@ -150,20 +163,23 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
                 result[code] = (name, "PSP")
             continue
 
-        # 3DS/DS: extract 4-char game code
+        # 3DS/DS: full 16-char hex TitleID
         is_3ds_format = code_upper.startswith("CTR-")
 
         if len(code_upper) == 16 and all(c in "0123456789ABCDEF" for c in code_upper):
-            # 16-char hex title ID. For NDS/DSiWare (00048...), the lower 4 bytes
-            # encode the ASCII game code. For 3DS retail (00040000...) the lower
-            # bytes are a sequential ID — no ASCII code to decode.
+            # 1. Direct TitleID lookup (3dstitledb.txt — most accurate)
+            name = _3ds_title_ids.get(code_upper)
+            if name:
+                platform = "NDS" if code_upper[:5] in _NDS_HIGH_PREFIXES else "3DS"
+                result[code] = (name, platform)
+                continue
+
+            # 2. Fallback: for NDS/DSiWare (00048...) the lower 4 bytes encode
+            #    the ASCII game code; look that up in the legacy dstdb.txt.
             low_hex = code_upper[8:16]
             try:
                 decoded = bytes.fromhex(low_hex).decode("ascii")
-                if decoded.isalnum() and decoded.isupper():
-                    game_code = decoded[:4]
-                else:
-                    game_code = None
+                game_code = decoded[:4] if decoded.isalnum() and decoded.isupper() else None
             except (ValueError, UnicodeDecodeError):
                 game_code = None
 

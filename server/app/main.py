@@ -13,8 +13,11 @@ from app.services import db, game_names
 async def lifespan(app: FastAPI):
     settings.save_dir.mkdir(parents=True, exist_ok=True)
     db.init_db(settings.save_dir)
-    # Load game names databases (3DS, DS, PSP, PS Vita)
+    # Load game names databases
     data_dir = Path(__file__).parent.parent / "data"
+    # Full TitleID database (preferred — direct lookup by 16-char hex ID)
+    count_title_ids = game_names.load_database(data_dir / "3dstitledb.txt")
+    # Legacy 4-char game code databases (fallback / NDS / non-3DS platforms)
     count_3ds = game_names.load_database(data_dir / "3dstdb.txt")
     count_ds = game_names.load_database(data_dir / "dstdb.txt")
     count_psp = game_names.load_database(data_dir / "pspdb.txt")
@@ -22,8 +25,8 @@ async def lifespan(app: FastAPI):
     count_psx = game_names.load_database(data_dir / "psxdb.txt")
     count_psx += game_names.load_database(data_dir / "unsorted_psx.txt")
     print(
-        f"Loaded {count_3ds} 3DS + {count_ds} DS + "
-        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX game names from database"
+        f"Loaded {count_title_ids} 3DS TitleIDs + {count_3ds} 3DS codes + {count_ds} DS + "
+        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX game names"
     )
     yield
 
