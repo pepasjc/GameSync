@@ -138,11 +138,14 @@ bool config_load(AppConfig *config, char *error_out, int error_size) {
 }
 
 bool config_get_cached_hash(const char *title_id_hex, int file_count, u32 total_size,
-                            char *hash_out) {
+                            u32 mtime, char *hash_out) {
+    // mtime == 0 means "no reliable mtime" (archive saves) — never use cache
+    if (mtime == 0) return false;
+
     FILE *f = fopen(HASH_CACHE_FILE, "r");
     if (!f) return false;
 
-    char line[128];
+    char line[160];
     char prefix[20];
     snprintf(prefix, sizeof(prefix), "%s=", title_id_hex);
     int prefix_len = strlen(prefix);
@@ -150,12 +153,15 @@ bool config_get_cached_hash(const char *title_id_hex, int file_count, u32 total_
     while (fgets(line, sizeof(line), f)) {
         if (strncmp(line, prefix, prefix_len) != 0) continue;
 
+        // Format: TITLEID=FC:SIZE:MTIME:HASH
         int cached_fc = 0;
-        u32 cached_sz = 0;
+        u32 cached_sz = 0, cached_mtime = 0;
         const char *val = line + prefix_len;
-        if (sscanf(val, "%d:%u:", &cached_fc, &cached_sz) == 2
-                && cached_fc == file_count && cached_sz == total_size) {
+        if (sscanf(val, "%d:%u:%u:", &cached_fc, &cached_sz, &cached_mtime) == 3
+                && cached_fc == file_count && cached_sz == total_size
+                && cached_mtime == mtime) {
             const char *p = strchr(val, ':');
+            if (p) p = strchr(p + 1, ':');
             if (p) p = strchr(p + 1, ':');
             if (p) {
                 strncpy(hash_out, p + 1, 64);
@@ -173,11 +179,14 @@ bool config_get_cached_hash(const char *title_id_hex, int file_count, u32 total_
 }
 
 bool config_set_cached_hash(const char *title_id_hex, int file_count, u32 total_size,
-                            const char *hash_hex) {
+                            u32 mtime, const char *hash_hex) {
+    // mtime == 0 means "no reliable mtime" — don't cache
+    if (mtime == 0) return false;
+
     // Read existing cache
-    // Max entry: 16 + 1 + 10 + 1 + 10 + 1 + 64 + 2 = ~106 chars
-    // For MAX_TITLES=256 entries: ~28KB
-    int buf_size = MAX_TITLES * 110;
+    // Max entry: 16 + 1 + 10 + 1 + 10 + 1 + 10 + 1 + 64 + 2 = ~117 chars
+    // For MAX_TITLES=256 entries: ~30KB
+    int buf_size = MAX_TITLES * 120;
     char *buf = (char *)malloc(buf_size);
     if (!buf) return false;
     buf[0] = '\0';
@@ -189,7 +198,7 @@ bool config_set_cached_hash(const char *title_id_hex, int file_count, u32 total_
         if (bytes > 0) buf[bytes] = '\0';
     }
 
-    char *new_buf = (char *)malloc(buf_size + 110);
+    char *new_buf = (char *)malloc(buf_size + 120);
     if (!new_buf) { free(buf); return false; }
     new_buf[0] = '\0';
 
@@ -208,10 +217,11 @@ bool config_set_cached_hash(const char *title_id_hex, int file_count, u32 total_
     }
     free(buf);
 
-    // Append updated entry
-    char entry[110];
-    snprintf(entry, sizeof(entry), "%s=%d:%u:%s\n",
-             title_id_hex, file_count, (unsigned int)total_size, hash_hex);
+    // Append updated entry: TITLEID=FC:SIZE:MTIME:HASH
+    char entry[120];
+    snprintf(entry, sizeof(entry), "%s=%d:%u:%u:%s\n",
+             title_id_hex, file_count, (unsigned int)total_size,
+             (unsigned int)mtime, hash_hex);
     strcat(new_buf, entry);
 
     // Ensure directory exists
