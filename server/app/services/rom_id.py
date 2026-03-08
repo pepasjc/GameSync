@@ -10,8 +10,8 @@ import re
 
 SYSTEM_CODES = frozenset({
     "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC", "GG", "NGP",
-    "PCE", "PS1", "SMS", "ATARI2600", "ATARI7800", "LYNX", "NEOGEO",
-    "32X", "SEGACD", "TG16", "WSWAN", "WSWANC",
+    "PCE", "PS1", "PS2", "SMS", "ATARI2600", "ATARI7800", "LYNX", "NEOGEO",
+    "32X", "SEGACD", "TG16", "WSWAN", "WSWANC", "DC", "NDS", "GC",
     "ARCADE", "MAME", "CPS1", "CPS2", "CPS3",
 })
 
