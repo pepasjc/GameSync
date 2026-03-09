@@ -12,13 +12,22 @@ env/
 server/saves/
 
 # 3DS build artifacts
-client/build/
-client/*.3dsx
-client/*.smdh
-client/*.elf
-client/*.map
-client/*.cia
-client/*.bnr
+3ds/build/
+3ds/*.3dsx
+3ds/*.smdh
+3ds/*.elf
+3ds/*.map
+3ds/*.cia
+3ds/*.bnr
+
+# ds build artifacts
+ds/build/
+ds/*.nds
+ds/*.srl
+ds/*.elf
+ds/*.map
+ds/*.bin
+ds/*.o
 
 # Vita build artifacts
 vita/build/
