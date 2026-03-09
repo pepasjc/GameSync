@@ -382,6 +382,17 @@ class ProfileDialog(QDialog):
         layout.addRow("System:", self.system_combo)
         self._system_row_label = layout.labelForField(self.system_combo)
 
+        # Save file extension
+        self.save_ext_combo = QComboBox()
+        self.save_ext_combo.setEditable(True)
+        self.save_ext_combo.addItems([".sav", ".srm", ".mcr", ".frz", ".fs", ".mcd", ".dsv"])
+        self.save_ext_combo.setCurrentText(".sav")
+        self.save_ext_combo.setToolTip(
+            "Extension used for save files on this device.\n"
+            "e.g. Everdrive FXPAK uses .srm, Pocket openFPGA uses .sav"
+        )
+        layout.addRow("Save Extension:", self.save_ext_combo)
+
         # Systems filter — which systems to include when syncing
         self._systems_filter_label = QLabel("Systems to sync:")
         systems_widget = QWidget()
@@ -472,6 +483,7 @@ class ProfileDialog(QDialog):
         idx = self.system_combo.findText(profile.get("system", "GBA"))
         if idx >= 0:
             self.system_combo.setCurrentIndex(idx)
+        self.save_ext_combo.setCurrentText(profile.get("save_ext", ".sav"))
         # Restore systems filter — empty list means "all"
         systems_filter = profile.get("systems_filter", [])
         if systems_filter:
@@ -497,12 +509,16 @@ class ProfileDialog(QDialog):
         checked = [s for s, cb in self._system_checks.items() if cb.isChecked()]
         # Store empty list when all systems are selected (means "no filter")
         systems_filter = [] if len(checked) == len(self._system_checks) else checked
+        ext = self.save_ext_combo.currentText().strip()
+        if not ext.startswith("."):
+            ext = "." + ext
         return {
             "name": self.name_edit.text().strip(),
             "device_type": self.device_combo.currentText(),
             "path": self.path_edit.text().strip(),
             "save_folder": save_folder,
             "system": self.system_combo.currentText(),
+            "save_ext": ext,
             "systems_filter": systems_filter,
         }
 
@@ -1309,25 +1325,20 @@ class SyncTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
-    def _find_rom_subdir(self, rom_folder: Path, game_name: str, system: str) -> Path | None:
-        """Search rom_folder recursively for a ROM whose stem matches game_name.
+    def _find_rom_file(self, rom_folder: Path, game_name: str) -> Path | None:
+        """Search rom_folder recursively for a ROM whose normalized stem matches game_name.
 
-        Returns the relative subdirectory of the matching ROM within rom_folder,
-        or None if not found.  Used by Pocket profiles to mirror the Assets/
-        folder structure in the Saves/ folder.
+        Returns the full ROM file Path if found, or None.
+        Used by Pocket profiles to get the exact ROM stem so the save filename matches.
         """
         import rom_normalizer as rn
         target = rn.normalize_name(game_name)
         if not target:
             return None
-        for f in rom_folder.rglob("*"):
+        for f in sorted(rom_folder.rglob("*")):
             if f.is_file() and f.suffix.lower() in rn.ROM_EXTENSIONS:
                 if rn.normalize_name(f.stem) == target:
-                    try:
-                        rel = f.parent.relative_to(rom_folder)
-                        return rel
-                    except ValueError:
-                        pass
+                    return f
         return None
 
     def _resolve_download_path(self, st) -> Path | None:
@@ -1382,16 +1393,22 @@ class SyncTab(QWidget):
             else:
                 sys_folder = next((k for k, v in POCKET_OPENFPGA_FOLDER_MAP.items() if v == system), system.lower())
 
-            # Try to locate the matching ROM in the Assets folder to get the exact subdir
+            # Try to locate the matching ROM in the Assets folder.
+            # When found, use the ROM's actual stem — not the server's game_name — so the
+            # save filename exactly matches what the core expects.
             rom_folder_str = profile.get("path", "")
             if rom_folder_str:
-                rom_folder = Path(rom_folder_str) / sys_folder
-                if rom_folder.exists():
-                    rel_subdir = self._find_rom_subdir(rom_folder, raw_name, system)
-                    if rel_subdir is not None:
-                        return save_root / sys_folder / rel_subdir / filename
+                search_root = Path(rom_folder_str) / sys_folder
+                if search_root.exists():
+                    rom_file = self._find_rom_file(search_root, raw_name)
+                    if rom_file is not None:
+                        try:
+                            rel_subdir = rom_file.parent.relative_to(search_root)
+                        except ValueError:
+                            rel_subdir = Path()
+                        return save_root / sys_folder / rel_subdir / (rom_file.stem + ".sav")
 
-            # ROM not found locally — place save flat under system folder
+            # ROM not found on card — place save flat under system folder with sanitised name
             return save_root / sys_folder / filename
 
         elif device_type == "RetroArch":

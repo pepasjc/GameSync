@@ -306,6 +306,9 @@ def scan_profile(profile: dict) -> list[SaveFile]:
     rom_folder_str = profile.get("path", "")
     save_folder_str = profile.get("save_folder", "")
     system_override = profile.get("system", "").upper()
+    save_ext = profile.get("save_ext", ".sav").strip()
+    if not save_ext.startswith("."):
+        save_ext = "." + save_ext
 
     # For most device types: if save_folder is set, saves live separately from ROMs.
     # folder = save location (for scan-saves fallbacks); rom_folder = ROM location.
@@ -336,7 +339,7 @@ def scan_profile(profile: dict) -> list[SaveFile]:
                 if not sys_code:
                     continue
                 sv_dir = save_folder / sys_dir.name
-                results.extend(_scan_roms_match_saves(sys_dir, sv_dir, sys_code))
+                results.extend(_scan_roms_match_saves(sys_dir, sv_dir, sys_code, save_ext=save_ext))
         else:
             results = _scan_mister(folder)
 
@@ -348,7 +351,7 @@ def scan_profile(profile: dict) -> list[SaveFile]:
         # ROM-based scan: Assets/<system>/... → Saves/<system>/...
         # This is the primary approach: only show games that exist on the SD card.
         if rom_folder and rom_folder.exists() and save_folder is not None:
-            results = _scan_pocket_openfpga_from_roms(rom_folder, save_folder)
+            results = _scan_pocket_openfpga_from_roms(rom_folder, save_folder, save_ext=save_ext)
         elif save_folder and save_folder.exists():
             results = _scan_pocket_openfpga(save_folder)
         elif rom_folder and rom_folder.exists():
@@ -362,7 +365,7 @@ def scan_profile(profile: dict) -> list[SaveFile]:
         if system_override and system_override in SYSTEM_CODES:
             if rom_folder and rom_folder.exists() and save_folder is not None:
                 # ROM-based: scan ROMs from path, expect saves in save_folder
-                results = _scan_roms_match_saves(rom_folder, save_folder, system_override)
+                results = _scan_roms_match_saves(rom_folder, save_folder, system_override, save_ext=save_ext)
             else:
                 # Co-located: saves are in the same folder as ROMs
                 results = _scan_flat(folder, system_override, recursive=True)
@@ -408,6 +411,25 @@ def _scan_flat(folder: Path, system: str, recursive: bool = False) -> list[SaveF
     return results
 
 
+def _dedup_saves(saves: list[SaveFile]) -> list[SaveFile]:
+    """Deduplicate SaveFile list by title_id.
+
+    Multiple ROM files (different dumps/revisions) can normalize to the same
+    title_id.  We keep one entry per title_id, preferring:
+      1. An entry whose local save file already exists (save_exists=True)
+      2. Among ties, the first one encountered (usually alphabetically first)
+    """
+    seen: dict[str, SaveFile] = {}
+    for sf in saves:
+        existing = seen.get(sf.title_id)
+        if existing is None:
+            seen[sf.title_id] = sf
+        elif sf.save_exists and not existing.save_exists:
+            # Prefer the ROM that actually has a save — keeps the correct path/hash
+            seen[sf.title_id] = sf
+    return list(seen.values())
+
+
 def _scan_roms_match_saves(
     rom_folder: Path,
     save_folder: Path,
@@ -423,13 +445,21 @@ def _scan_roms_match_saves(
     This is the correct approach for devices like Everdrive and Generic profiles
     where ROMs and saves live in separate folder trees.  Only games whose ROM is
     physically present are returned (save_exists=False means no save yet).
+
+    game_name is set to the original ROM stem (preserving punctuation, region
+    tags, etc.) so the display name and save filename always match the ROM.
     """
-    # Build a flat stem→[save_path] index from the save folder for fast lookup
+    # Build a flat stem→save_path index: prefer files matching save_ext, fall back to any save ext
     save_index: dict[str, Path] = {}
     if save_folder.exists():
         for f in save_folder.rglob("*"):
-            if f.is_file() and f.suffix.lower() in SAVE_EXTENSIONS:
-                save_index[f.stem.lower()] = f
+            if not f.is_file():
+                continue
+            ext = f.suffix.lower()
+            if ext == save_ext.lower():
+                save_index[f.stem.lower()] = f          # exact extension wins
+            elif ext in SAVE_EXTENSIONS and f.stem.lower() not in save_index:
+                save_index[f.stem.lower()] = f          # fallback if no exact match yet
 
     results: list[SaveFile] = []
     candidates = sorted(rom_folder.rglob("*") if recursive else rom_folder.iterdir())
@@ -442,12 +472,10 @@ def _scan_roms_match_saves(
             continue
 
         title_id = _make_title_id_with_region(system, rom_file.name)
-        slug = title_id.split("_", 1)[1] if "_" in title_id else rom_file.stem
 
         # Look up save by exact stem match first, then fall back to expected path
         save_path = save_index.get(rom_file.stem.lower())
         if save_path is None:
-            # Save doesn't exist yet; compute expected destination path
             save_path = save_folder / (rom_file.stem + save_ext)
             file_hash = ""
             mtime = 0.0
@@ -463,10 +491,10 @@ def _scan_roms_match_saves(
             hash=file_hash,
             mtime=mtime,
             system=system,
-            game_name=slug_to_display_name(slug),
+            game_name=rom_file.stem,   # original ROM filename — not the normalized slug
             save_exists=save_exists,
         ))
-    return results
+    return _dedup_saves(results)
 
 
 def _scan_retroarch(root: Path) -> list[SaveFile]:
@@ -526,7 +554,7 @@ def _scan_pocket_openfpga(saves_root: Path) -> list[SaveFile]:
     return results
 
 
-def _scan_pocket_openfpga_from_roms(assets_root: Path, saves_root: Path) -> list[SaveFile]:
+def _scan_pocket_openfpga_from_roms(assets_root: Path, saves_root: Path, save_ext: str = ".sav") -> list[SaveFile]:
     """Scan Pocket openFPGA by walking the Assets (ROM) folder.
 
     For every ROM found under assets_root/<system>/..., computes the expected
@@ -562,10 +590,9 @@ def _scan_pocket_openfpga_from_roms(assets_root: Path, saves_root: Path) -> list
                 rel = rom_file.relative_to(sys_dir)
             except ValueError:
                 continue
-            # Mirror: saves_root/<sys>/<same subpath>/<rom_stem>.sav
-            save_path = saves_root / sys_folder_name / rel.parent / (rom_file.stem + ".sav")
+            # Mirror: saves_root/<sys>/<same subpath>/<rom_stem><save_ext>
+            save_path = saves_root / sys_folder_name / rel.parent / (rom_file.stem + save_ext)
             title_id = _make_title_id_with_region(system, rom_file.name)
-            slug = title_id.split("_", 1)[1] if "_" in title_id else rom_file.stem
             if save_path.exists():
                 file_hash = _hash_file(save_path)
                 mtime = save_path.stat().st_mtime
@@ -580,10 +607,10 @@ def _scan_pocket_openfpga_from_roms(assets_root: Path, saves_root: Path) -> list
                 hash=file_hash,
                 mtime=mtime,
                 system=system,
-                game_name=slug_to_display_name(slug),
+                game_name=rom_file.stem,   # original ROM filename — not the normalized slug
                 save_exists=save_exists,
             ))
-    return results
+    return _dedup_saves(results)
 
 
 # EmuDeck: emulator subfolder -> (saves subfolder, system code)
