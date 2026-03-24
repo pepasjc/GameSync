@@ -54,10 +54,23 @@ _EXTRA_RE = re.compile(r"\s*\([^)]+\)")
 _BRACKET_RE = re.compile(r"\s*\[[^\]]*\]")   # strip [T+Eng], [Hack], etc.
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 _MULTI_UNDERSCORE_RE = re.compile(r"_+")
+_TRAILING_ARTICLE_SLUG_RE = re.compile(r"^(?P<main>.+)_(?P<article>the|a|an)$", re.IGNORECASE)
+_LETTER_DIGIT_BOUNDARY_RE = re.compile(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", re.IGNORECASE)
 
 # Trailing patch/translation metadata to strip when matching header titles.
 # Handles patterns like: _eng_v31, _ger, _v1_0, _r2, _rev2, _patch, _hack, etc.
 _MSU_TRACK_RE = re.compile(r"^(.+)-(\d+)\.pcm$", re.IGNORECASE)
+
+_SPECIAL_TAG_RE = re.compile(
+    r"\((?:Beta\s*\d*|Proto\s*\d*|Demo|Sample)\)",
+    re.IGNORECASE,
+)
+
+
+def _has_special_tag(name: str) -> bool:
+    """Return True if name contains a Beta/Proto/Demo/Sample/Unl tag."""
+    return bool(_SPECIAL_TAG_RE.search(name))
+
 
 _PATCH_SUFFIX_RE = re.compile(
     r"(?:_(?:eng|ger|jpn|fre|fra|spa|por|ita|pol|rus|chi|kor|dut|swe|nor|dan|fin|"
@@ -108,6 +121,70 @@ def normalize_name(filename: str) -> str:
     name = _NON_ALNUM_RE.sub("_", name)
     name = _MULTI_UNDERSCORE_RE.sub("_", name).strip("_")
     return name or "unknown"
+
+
+def _article_slug_variants(slug: str) -> list[str]:
+    """Return variants for titles that move an article to/from the end.
+
+    Example:
+      "the_revenge_of_shinobi" -> ["revenge_of_shinobi_the"]
+      "revenge_of_shinobi_the" -> ["the_revenge_of_shinobi"]
+    """
+    variants: list[str] = []
+    parts = slug.split("_")
+    if len(parts) >= 2 and parts[0] in {"the", "a", "an"}:
+        variants.append("_".join(parts[1:] + [parts[0]]))
+    m = _TRAILING_ARTICLE_SLUG_RE.match(slug)
+    if m:
+        variants.append(f"{m.group('article')}_{m.group('main')}")
+    return variants
+
+
+def _digit_boundary_variants(slug: str) -> list[str]:
+    """Return variants that add/remove underscores between letter/digit boundaries.
+
+    Example:
+      "ex2" -> ["ex_2"]
+      "ex_2" -> ["ex2"]
+    """
+    variants: list[str] = []
+    separated = _LETTER_DIGIT_BOUNDARY_RE.sub("_", slug)
+    separated = _MULTI_UNDERSCORE_RE.sub("_", separated).strip("_")
+    compact = slug.replace("_", "")
+    if separated and separated != slug:
+        variants.append(separated)
+    if compact and compact != slug:
+        variants.append(compact)
+    return variants
+
+
+def _matching_slug_variants(slug: str) -> list[str]:
+    """Return de-duplicated match-time slug variants for fuzzy/header lookup."""
+    seen: set[str] = set()
+    queue = [slug]
+    variants: list[str] = []
+    while queue:
+        current = queue.pop(0)
+        for variant in (
+            _slug_roman_variants(current)
+            + _article_slug_variants(current)
+            + _digit_boundary_variants(current)
+        ):
+            if variant and variant != slug and variant not in seen:
+                seen.add(variant)
+                variants.append(variant)
+                queue.append(variant)
+    return variants
+
+
+def _collapsed_slug(slug: str) -> str:
+    """Return a compact slug for tolerant comparisons.
+
+    Example:
+      "super_dodge_ball_advance" -> "superdodgeballadvance"
+      "super_dodgeball_advance"  -> "superdodgeballadvance"
+    """
+    return slug.replace("_", "")
 
 
 def _crc32_file(path: Path) -> str:
@@ -184,14 +261,25 @@ def find_dat_for_system(system: str) -> Path | None:
 
 # When multiple region variants share the same base name, prefer in this order.
 # Lower index = higher priority.  Any region not listed gets priority len(_REGION_PRIORITY).
-_REGION_PRIORITY: list[str] = ["(USA)", "(Japan)", "(Europe)", "(World)"]
+# Each entry is checked as a regex so multi-region tags like (USA, Europe) are matched.
+_REGION_PRIORITY_RE: list[re.Pattern] = [
+    re.compile(r"\(USA[,)]"),
+    re.compile(r"\(Japan[,)]"),
+    re.compile(r"\(Europe[,)]"),
+    re.compile(r"\(World[,)]"),
+]
 
 
 def _region_priority(canonical: str) -> int:
-    for i, tag in enumerate(_REGION_PRIORITY):
-        if tag in canonical:
+    for i, pat in enumerate(_REGION_PRIORITY_RE):
+        if pat.search(canonical):
             return i
-    return len(_REGION_PRIORITY)
+    return len(_REGION_PRIORITY_RE)
+
+
+def _tag_count(canonical: str) -> int:
+    """Count parenthetical groups in canonical name.  Fewer = simpler = preferred."""
+    return len(re.findall(r"\([^)]+\)", canonical))
 
 
 def build_name_index(no_intro: dict[str, str]) -> dict[str, str]:
@@ -218,9 +306,24 @@ def build_name_index(no_intro: dict[str, str]) -> dict[str, str]:
         if not base:
             continue
         p = _region_priority(canonical)
-        if base not in index or p < priority[base]:
+        special = _has_special_tag(canonical)
+        if base not in index:
             index[base] = canonical
             priority[base] = p
+        else:
+            existing_special = _has_special_tag(index[base])
+            # Prefer non-special over special; within same special-ness prefer higher
+            # region priority; break ties by fewest extra tags (simplest canonical).
+            if existing_special and not special:
+                index[base] = canonical
+                priority[base] = p
+            elif special == existing_special and p < priority[base]:
+                index[base] = canonical
+                priority[base] = p
+            elif special == existing_special and p == priority[base]:
+                if _tag_count(canonical) < _tag_count(index[base]):
+                    index[base] = canonical
+                    # priority unchanged
     return index
 
 
@@ -270,12 +373,17 @@ def lookup_header_in_index(header_title: str, name_index: dict[str, str]) -> str
     """
     slug = normalize_name(header_title)
     stripped = _PATCH_SUFFIX_RE.sub("", slug)
+    src_special = _has_special_tag(header_title)
+
+    def _allow(canonical: str) -> bool:
+        """Reject match if canonical has special tags that source header does not."""
+        return src_special or not _has_special_tag(canonical)
 
     candidates: list[str] = [slug]
     if stripped != slug:
         candidates.append(stripped)
     for base in (slug, stripped):
-        candidates.extend(_slug_roman_variants(base))
+        candidates.extend(_matching_slug_variants(base))
 
     # Progressive suffix removal for unknown translator/patch tags
     parts = stripped.split("_")
@@ -284,7 +392,7 @@ def lookup_header_in_index(header_title: str, name_index: dict[str, str]) -> str
         if "_" not in prefix:   # require at least 2 word-segments to limit false positives
             break
         candidates.append(prefix)
-        candidates.extend(_slug_roman_variants(prefix))
+        candidates.extend(_matching_slug_variants(prefix))
 
     seen: set[str] = set()
     for c in candidates:
@@ -292,46 +400,128 @@ def lookup_header_in_index(header_title: str, name_index: dict[str, str]) -> str
             continue
         seen.add(c)
         result = name_index.get(c)
-        if result:
+        if result and _allow(result):
+            return result
+        result = _prefix_match(c, name_index)
+        if result and _allow(result):
             return result
 
     # Forward prefix match: try each candidate as a prefix of No-Intro keys
     for c in (slug, stripped):
         result = _prefix_match(c, name_index)
-        if result:
+        if result and _allow(result):
             return result
 
     return None
 
 
 def fuzzy_filename_search(filename: str, name_index: dict[str, str]) -> str | None:
-    """Find a unique No-Intro match by prefix-matching the filename slug.
+    """Find a No-Intro match by slug-matching the filename.
 
-    For translated ROMs whose filename matches the English name but the No-Intro
-    entry has an additional Japanese subtitle:
-      "Chaos Seed.sfc" → "chaos_seed" → uniquely prefixes "chaos_seed_fuusui_kairoki"
-      → returns "Chaos Seed - Fuusui Kairoki (Japan)"
+    Pre-processes the filename by truncating at the first '[' so that
+    GoodTools / translation markers like "[T-En by ...]", "[n]", "[b]", "[h]"
+    are excluded before slug generation.  No-Intro never uses '[' in canonical
+    names, so this is always safe.
 
-    Also handles the reverse — when the No-Intro key is a prefix of the slug —
-    as a safety net for cases missed by lookup_header_in_index.
+    Search strategy (ordered by confidence):
+      1. Exact slug match
+      2. Slug is a unique prefix of a No-Intro key  ("chaos_seed" → "chaos_seed_fuusui_kairoki")
+      3. No-Intro key is a unique prefix of slug     (reverse direction)
+      4. Known patch/translation suffixes stripped   ("_eng", "_v31", …)
+      5. Roman ↔ arabic numeral variants             ("final_fantasy_v" ↔ "_5")
+      6. Progressive suffix removal (up to 3 parts)  ("thunder_pro_wrestling_story"
+                                                       → "thunder_pro_wrestling")
 
     Returns None if zero or multiple entries match (ambiguous).
     """
-    slug = normalize_name(filename)
+    # Truncate at first '[' — everything after is a GoodTools/hack/translation marker
+    bracket_idx = filename.find("[")
+    base = filename[:bracket_idx].strip() if bracket_idx >= 0 else filename
 
-    # Try exact match first
-    if slug in name_index:
-        return name_index[slug]
+    slug = normalize_name(base if base else filename)
+    src_special = _has_special_tag(filename)
 
-    # Slug is a unique prefix of a No-Intro key
+    def _allow(canonical: str) -> bool:
+        """Reject match if canonical has Beta/Proto/Demo/Sample tag that source lacks."""
+        return src_special or not _has_special_tag(canonical)
+
+    stripped = _PATCH_SUFFIX_RE.sub("", slug)
+
+    candidates: list[str] = [slug]
+    if stripped != slug:
+        candidates.append(stripped)
+    for base_slug in (slug, stripped):
+        candidates.extend(_matching_slug_variants(base_slug))
+
+    seen: set[str] = set()
+    for c in candidates:
+        if c in seen or not c:
+            continue
+        seen.add(c)
+        result = name_index.get(c)
+        if result and _allow(result):
+            return result
+        result = _prefix_match(c, name_index)
+        if result and _allow(result):
+            return result
+
+    # Compact comparison: ignore underscore boundaries entirely so cases like
+    # "dodgeball" vs "dodge_ball" still match. Only accept a unique hit.
+    compact = _collapsed_slug(stripped if stripped != slug else slug)
+    compact_matches = [v for k, v in name_index.items() if _collapsed_slug(k) == compact and _allow(v)]
+    if len(compact_matches) == 1:
+        return compact_matches[0]
+
+    # Prefix matches (forward and reverse) on the primary slug
     result = _prefix_match(slug, name_index)
-    if result:
+    if result and _allow(result):
         return result
 
-    # No-Intro key is a unique prefix of slug (reverse direction)
-    reverse = [v for k, v in name_index.items() if slug.startswith(k + "_") and "_" in k]
+    reverse = [v for k, v in name_index.items() if slug.startswith(k + "_") and "_" in k and _allow(v)]
     if len(reverse) == 1:
         return reverse[0]
+
+    # Progressive suffix removal — handles translated titles where the translated
+    # word differs ("_story" → drop → "thunder_pro_wrestling" → prefix match)
+    parts = (stripped if stripped != slug else slug).split("_")
+    for n_remove in range(1, min(3, len(parts))):
+        prefix = "_".join(parts[:-n_remove])
+        if "_" not in prefix:   # require at least 2 word-segments to limit false positives
+            break
+        if prefix in seen:
+            continue
+        seen.add(prefix)
+        result = name_index.get(prefix)
+        if result and _allow(result):
+            return result
+        result = _prefix_match(prefix, name_index)
+        if result and _allow(result):
+            return result
+        for variant in _matching_slug_variants(prefix):
+            if variant in seen:
+                continue
+            seen.add(variant)
+            result = name_index.get(variant)
+            if result and _allow(result):
+                return result
+            result = _prefix_match(variant, name_index)
+            if result and _allow(result):
+                return result
+
+    # Trailing word match — handles romanization differences where the first
+    # word(s) of the ROM name differ from the No-Intro key but the remaining
+    # words uniquely identify the game.
+    # Example: "tougiou_king_colossus" → tail "king_colossus"
+    #          uniquely matches "tougi_ou_king_colossus" (endswith _king_colossus)
+    slug_parts = slug.split("_")
+    for n_keep in range(min(len(slug_parts) - 1, 3), 1, -1):
+        tail = "_".join(slug_parts[-n_keep:])
+        if len(tail) < 5:   # require enough characters to avoid accidental matches
+            continue
+        tail_matches = [v for k, v in name_index.items()
+                        if k.endswith("_" + tail) and _allow(v)]
+        if len(tail_matches) == 1:
+            return tail_matches[0]
 
     return None
 

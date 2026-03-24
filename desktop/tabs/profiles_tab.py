@@ -38,8 +38,8 @@ class ProfilesTab(QWidget):
         layout.addLayout(btn_row)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Name", "Device Type", "Game Folder", "Save Folder", "System"])
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Name", "Device Type", "Game Folder", "Save Folder"])
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -59,7 +59,6 @@ class ProfilesTab(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(p.get("path", "")))
             save_folder = p.get("save_folder", "")
             self.table.setItem(row, 3, QTableWidgetItem(save_folder or "(same as game folder)"))
-            self.table.setItem(row, 4, QTableWidgetItem(p.get("system", "")))
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, p)
 
     def _save_profiles(self):
@@ -91,7 +90,6 @@ class ProfilesTab(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(profile["path"]))
             sf = profile.get("save_folder", "")
             self.table.setItem(row, 3, QTableWidgetItem(sf or "(same as game folder)"))
-            self.table.setItem(row, 4, QTableWidgetItem(profile.get("system", "")))
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, profile)
             self._save_profiles()
 
@@ -108,7 +106,6 @@ class ProfilesTab(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(updated["path"]))
             sf = updated.get("save_folder", "")
             self.table.setItem(row, 3, QTableWidgetItem(sf or "(same as game folder)"))
-            self.table.setItem(row, 4, QTableWidgetItem(updated.get("system", "")))
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, updated)
             self._save_profiles()
 

@@ -41,18 +41,28 @@ _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 _MULTI_UNDERSCORE_RE = re.compile(r"_+")
 _EMULATOR_TITLE_ID_RE = re.compile(r"^([A-Z0-9]{2,8})_([a-z0-9][a-z0-9_]{0,99})$")
 
-# Region tag extraction for collision disambiguation
-_REGION_EXTRACT_RE = re.compile(
-    r"\((?P<region>USA|Europe|Japan|World|Germany|France|Italy|Spain|Australia|"
-    r"Brazil|Korea|China|Netherlands|Sweden|Denmark|Norway|Finland|Asia)\)",
-    re.IGNORECASE,
-)
+_REGION_NAMES = {
+    "usa", "europe", "japan", "world", "germany", "france", "italy", "spain",
+    "australia", "brazil", "korea", "china", "netherlands", "sweden",
+    "denmark", "norway", "finland", "asia",
+}
+_PAREN_GROUP_RE = re.compile(r"\(([^)]+)\)")
 
 
-def _extract_region(stem: str) -> str:
-    """Return first region tag found in a filename stem, lowercased (e.g. 'usa', 'europe')."""
-    m = _REGION_EXTRACT_RE.search(stem)
-    return m.group("region").lower() if m else ""
+def _extract_regions(stem: str) -> list[str]:
+    """Return ordered region tags from a name, e.g. ['usa', 'europe'].
+
+    Only geographic region tags are kept. Language tags like (En,Fr,De) are ignored.
+    """
+    regions: list[str] = []
+    seen: set[str] = set()
+    for match in _PAREN_GROUP_RE.finditer(stem):
+        for part in match.group(1).split(","):
+            token = part.strip().lower()
+            if token in _REGION_NAMES and token not in seen:
+                seen.add(token)
+                regions.append(token)
+    return regions
 
 
 def normalize_rom_name(filename: str) -> str:
@@ -232,6 +242,11 @@ class SaveFile:
     system: str                # e.g. "GBA"
     game_name: str             # display name
     save_exists: bool = True   # False when ROM is present but no local save file exists yet
+    legacy_title_id: str = ""
+    canonical_title_id: str = ""
+    title_id_source: str = "legacy"
+    title_id_confidence: str = "legacy"
+    alternate_paths: list[Path] = field(default_factory=list)
 
 
 @dataclass
@@ -243,6 +258,7 @@ class SyncStatus:
     last_synced_hash: Optional[str] = None
     # "up_to_date" | "local_newer" | "server_newer" | "not_on_server" | "conflict"
     status: str = "unknown"
+    mapping_note: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +266,12 @@ class SyncStatus:
 # ---------------------------------------------------------------------------
 
 STATE_FILE = Path(__file__).parent / ".sync_state.json"
+SCAN_CACHE_FILE = Path(__file__).parent / ".scan_cache.json"
+SLOT_MAPPING_FILE = Path(__file__).parent / ".slot_mappings.json"
+_SCAN_CACHE: dict[str, dict[str, object]] | None = None
+_SCAN_CACHE_DIRTY = False
+_SLOT_MAPPINGS: dict[str, dict[str, str]] | None = None
+_SLOT_MAPPINGS_DIRTY = False
 
 
 def _load_state() -> dict[str, str]:
@@ -271,6 +293,96 @@ def _update_state(title_id: str, hash_val: str) -> None:
     _save_state(state)
 
 
+def _load_scan_cache() -> dict[str, dict[str, object]]:
+    global _SCAN_CACHE
+    if _SCAN_CACHE is not None:
+        return _SCAN_CACHE
+    if SCAN_CACHE_FILE.exists():
+        try:
+            data = json.loads(SCAN_CACHE_FILE.read_text(encoding="utf-8"))
+            entries = data.get("entries", {})
+            if isinstance(entries, dict):
+                _SCAN_CACHE = entries
+                return _SCAN_CACHE
+        except Exception:
+            pass
+    _SCAN_CACHE = {}
+    return _SCAN_CACHE
+
+
+def _mark_scan_cache_dirty() -> None:
+    global _SCAN_CACHE_DIRTY
+    _SCAN_CACHE_DIRTY = True
+
+
+def _flush_scan_cache() -> None:
+    global _SCAN_CACHE_DIRTY
+    if not _SCAN_CACHE_DIRTY:
+        return
+    cache = _load_scan_cache()
+    SCAN_CACHE_FILE.write_text(
+        json.dumps({"entries": cache}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    _SCAN_CACHE_DIRTY = False
+
+
+def _load_slot_mappings() -> dict[str, dict[str, str]]:
+    global _SLOT_MAPPINGS
+    if _SLOT_MAPPINGS is not None:
+        return _SLOT_MAPPINGS
+    if SLOT_MAPPING_FILE.exists():
+        try:
+            data = json.loads(SLOT_MAPPING_FILE.read_text(encoding="utf-8"))
+            entries = data.get("entries", {})
+            if isinstance(entries, dict):
+                _SLOT_MAPPINGS = entries
+                return _SLOT_MAPPINGS
+        except Exception:
+            pass
+    _SLOT_MAPPINGS = {}
+    return _SLOT_MAPPINGS
+
+
+def _mark_slot_mappings_dirty() -> None:
+    global _SLOT_MAPPINGS_DIRTY
+    _SLOT_MAPPINGS_DIRTY = True
+
+
+def _flush_slot_mappings() -> None:
+    global _SLOT_MAPPINGS_DIRTY
+    if not _SLOT_MAPPINGS_DIRTY:
+        return
+    mappings = _load_slot_mappings()
+    SLOT_MAPPING_FILE.write_text(
+        json.dumps({"entries": mappings}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    _SLOT_MAPPINGS_DIRTY = False
+
+
+def clear_slot_mappings() -> None:
+    """Remove persisted effective-slot decisions so scan can recompute them."""
+    global _SLOT_MAPPINGS, _SLOT_MAPPINGS_DIRTY
+    _SLOT_MAPPINGS = {}
+    _SLOT_MAPPINGS_DIRTY = False
+    try:
+        SLOT_MAPPING_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def clear_scan_cache() -> None:
+    """Remove cached canonical scan matches so they can be recomputed."""
+    global _SCAN_CACHE, _SCAN_CACHE_DIRTY
+    _SCAN_CACHE = {}
+    _SCAN_CACHE_DIRTY = False
+    try:
+        SCAN_CACHE_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Hash helpers
 # ---------------------------------------------------------------------------
@@ -283,11 +395,70 @@ def _hash_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _unique_existing_save_paths(save: SaveFile) -> list[Path]:
+    """Return unique existing local save paths for this entry."""
+    paths: list[Path] = []
+    for candidate in [save.path, *save.alternate_paths]:
+        if candidate is None or candidate in paths:
+            continue
+        if candidate.exists():
+            paths.append(candidate)
+    return paths
+
+
+def _detect_duplicate_local_conflict(save: SaveFile) -> tuple[bool, str]:
+    """Return whether duplicate local save copies disagree byte-for-byte."""
+    existing_paths = _unique_existing_save_paths(save)
+    if len(existing_paths) <= 1:
+        return False, ""
+
+    hashes_by_path: list[tuple[Path, str]] = []
+    seen_hashes: set[str] = set()
+    for path in existing_paths:
+        if save.path is not None and path == save.path and save.hash:
+            hash_val = save.hash
+        else:
+            hash_val = _hash_file(path)
+        hashes_by_path.append((path, hash_val))
+        seen_hashes.add(hash_val)
+
+    if len(seen_hashes) <= 1:
+        return False, ""
+
+    lines = ["Multiple local save copies differ for this game:"]
+    lines.extend(str(path) for path, _ in hashes_by_path)
+    lines.append("Download from server to overwrite all copies, or align them manually before upload.")
+    return True, "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Profile scanning
 # ---------------------------------------------------------------------------
 
-def scan_profile(profile: dict) -> list[SaveFile]:
+def _parse_systems_config(profile: dict) -> dict[str, dict]:
+    """Return {system_code: info_dict} for enabled systems in new-format profiles.
+
+    New format:  profile["systems"] = [{system, enabled, save_ext, save_folder}, …]
+    Old format:  profile["systems_filter"] = ["GBA", "SNES", …]  (empty = all)
+
+    Returns an empty dict when there is no filter at all (old format with no list,
+    or new format where every system is enabled and has no per-system overrides that
+    differ from the global defaults).
+    """
+    if "systems" in profile:
+        return {
+            s["system"]: s
+            for s in profile["systems"]
+            if s.get("enabled", True)
+        }
+    # Old format fallback
+    sf = profile.get("systems_filter") or []
+    if sf:
+        return {s: {} for s in sf}
+    return {}
+
+
+def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: bool = True) -> list[SaveFile]:
     """Walk a profile folder and return SaveFile entries for each save found.
 
     For all device types: when a separate save_folder is configured, the ROM
@@ -295,12 +466,15 @@ def scan_profile(profile: dict) -> list[SaveFile]:
     is physically present on the device are returned.  This prevents syncing
     saves for games you don't own / no longer have on the card.
 
-    Profile dict keys:
-        name        : str — display name
-        device_type : str — "RetroArch" | "MiSTer" | "Pocket" | "Everdrive" | "Generic"
-        path        : str — root folder path (ROMs / assets)
-        save_folder : str — separate save folder when saves are not co-located with ROMs
-        system      : str — system code override (used for Generic/Everdrive/flat folders)
+    Profile dict keys (new format):
+        name        : str  — display name
+        device_type : str  — "RetroArch" | "MiSTer" | "Pocket" | "Everdrive" | "Generic" | …
+        path        : str  — root game / ROM folder
+        save_folder : str  — global save root (empty = same as game folder)
+        system      : str  — system code (Generic / Everdrive only)
+        save_ext    : str  — save extension (Generic / Everdrive only)
+        systems     : list — per-system config for multi-system devices:
+                             [{system, enabled, save_ext, save_folder}, …]
     """
     device_type = profile.get("device_type", "Generic")
     rom_folder_str = profile.get("path", "")
@@ -310,8 +484,11 @@ def scan_profile(profile: dict) -> list[SaveFile]:
     if not save_ext.startswith("."):
         save_ext = "." + save_ext
 
-    # For most device types: if save_folder is set, saves live separately from ROMs.
-    # folder = save location (for scan-saves fallbacks); rom_folder = ROM location.
+    # Per-system config map: {system_code: {save_ext, save_folder, …}}
+    # Empty dict means "no filter / no overrides".
+    systems_config = _parse_systems_config(profile)
+    enabled_systems = list(systems_config.keys())
+
     save_folder = Path(save_folder_str) if save_folder_str else None
     rom_folder = Path(rom_folder_str) if rom_folder_str else None
     # Convenience: the "active" folder for legacy save-based scanners
@@ -320,17 +497,44 @@ def scan_profile(profile: dict) -> list[SaveFile]:
     if not folder.exists() and not (rom_folder and rom_folder.exists()):
         return []
 
-    systems_filter: set[str] = set(profile.get("systems_filter") or [])
     results: list[SaveFile] = []
+    profile_name = profile.get("name", "Profile")
+    _emit_progress(progress_callback, f"Scanning local files for {profile_name}…", 0, None)
 
     if device_type == "RetroArch":
         # RetroArch: saves are already organised per-core; ROMs scattered elsewhere.
-        # Scan saves folder; each save file name matches a ROM that was played.
-        results = _scan_retroarch(folder)
+        results = _scan_retroarch(
+            folder,
+            progress_callback=progress_callback,
+            enable_auto_normalize=enable_auto_normalize,
+        )
+
+    elif (
+        device_type in ("Analogue Pocket", "Pocket", "Pocket (openFPGA)")
+        and rom_folder and rom_folder.exists()
+        and save_folder and save_folder.exists()
+        and len(enabled_systems) == 1
+    ):
+        # Single-system Pocket profiles sometimes point directly at a mirrored
+        # sub-root like Assets/gba/common and Saves/gba/common rather than the
+        # global Assets/ and Saves/ roots. Scan those as direct ROM/save trees.
+        sys_code = enabled_systems[0]
+        sys_info = systems_config.get(sys_code, {})
+        sys_ext = sys_info.get("save_ext", save_ext) or save_ext
+        results = _scan_roms_match_saves(
+            rom_folder,
+            save_folder,
+            sys_code,
+            save_ext=sys_ext,
+            recursive=True,
+            progress_callback=progress_callback,
+            enable_auto_normalize=enable_auto_normalize,
+            mirror_relative_path=True,
+        )
 
     elif device_type == "MiSTer":
-        # MiSTer: if a ROM folder is configured scan ROMs to get the full game list.
-        # Otherwise fall back to scanning the saves folder.
+        # MiSTer: ROM-based scan when both game and save folders are configured;
+        # respects per-system save_ext and save_folder overrides.
         if rom_folder and rom_folder.exists() and save_folder and save_folder.exists():
             for sys_dir in sorted(rom_folder.iterdir()):
                 if not sys_dir.is_dir():
@@ -338,42 +542,90 @@ def scan_profile(profile: dict) -> list[SaveFile]:
                 sys_code = MISTER_FOLDER_MAP.get(sys_dir.name)
                 if not sys_code:
                     continue
-                sv_dir = save_folder / sys_dir.name
-                results.extend(_scan_roms_match_saves(sys_dir, sv_dir, sys_code, save_ext=save_ext))
+                if systems_config and sys_code not in systems_config:
+                    continue
+                sys_info = systems_config.get(sys_code, {})
+                sys_ext = sys_info.get("save_ext", save_ext) or save_ext
+                sys_sv_str = sys_info.get("save_folder", "")
+                sv_dir = Path(sys_sv_str) if sys_sv_str else save_folder / sys_dir.name
+                results.extend(_scan_roms_match_saves(
+                    sys_dir, sv_dir, sys_code, save_ext=sys_ext,
+                    progress_callback=progress_callback,
+                    enable_auto_normalize=enable_auto_normalize,
+                ))
         else:
-            results = _scan_mister(folder)
+            results = _scan_mister(
+                folder,
+                progress_callback=progress_callback,
+                enable_auto_normalize=enable_auto_normalize,
+            )
 
     elif device_type == "Pocket":
-        # Pocket standard Memories layout — saves named after ROMs already.
-        results = _scan_pocket(folder)
+        results = _scan_pocket(
+            folder,
+            progress_callback=progress_callback,
+            enable_auto_normalize=enable_auto_normalize,
+        )
 
     elif device_type == "Pocket (openFPGA)":
-        # ROM-based scan: Assets/<system>/... → Saves/<system>/...
-        # This is the primary approach: only show games that exist on the SD card.
         if rom_folder and rom_folder.exists() and save_folder is not None:
-            results = _scan_pocket_openfpga_from_roms(rom_folder, save_folder, save_ext=save_ext)
+            results = _scan_pocket_openfpga_from_roms(
+                rom_folder, save_folder, save_ext=save_ext,
+                progress_callback=progress_callback,
+                enable_auto_normalize=enable_auto_normalize,
+            )
         elif save_folder and save_folder.exists():
-            results = _scan_pocket_openfpga(save_folder)
+            results = _scan_pocket_openfpga(
+                save_folder,
+                progress_callback=progress_callback,
+                enable_auto_normalize=enable_auto_normalize,
+            )
         elif rom_folder and rom_folder.exists():
-            results = _scan_pocket_openfpga(rom_folder)
+            results = _scan_pocket_openfpga(
+                rom_folder,
+                progress_callback=progress_callback,
+                enable_auto_normalize=enable_auto_normalize,
+            )
 
     elif device_type == "EmuDeck":
-        results = _scan_emudeck(folder)
+        results = _scan_emudeck(folder, progress_callback=progress_callback)
+
+    elif device_type == "MEGA EverDrive":
+        # MEGA EverDrive Pro: gamedata/<Game Name>/bram.srm layout.
+        # path (or save_folder) points to the gamedata/ folder.
+        gamedata = save_folder if (save_folder and save_folder.exists()) else rom_folder
+        if gamedata and gamedata.exists() and system_override and system_override in SYSTEM_CODES:
+            results = _scan_mega_everdrive(
+                gamedata,
+                system_override,
+                progress_callback=progress_callback,
+                enable_auto_normalize=enable_auto_normalize,
+            )
 
     else:
-        # Generic / Everdrive
+        # Generic / Everdrive — single system
         if system_override and system_override in SYSTEM_CODES:
             if rom_folder and rom_folder.exists() and save_folder is not None:
-                # ROM-based: scan ROMs from path, expect saves in save_folder
-                results = _scan_roms_match_saves(rom_folder, save_folder, system_override, save_ext=save_ext)
+                results = _scan_roms_match_saves(
+                    rom_folder, save_folder, system_override, save_ext=save_ext,
+                    progress_callback=progress_callback,
+                    enable_auto_normalize=enable_auto_normalize,
+                )
             else:
-                # Co-located: saves are in the same folder as ROMs
-                results = _scan_flat(folder, system_override, recursive=True)
+                results = _scan_flat(
+                    folder,
+                    system_override,
+                    recursive=True,
+                    progress_callback=progress_callback,
+                    enable_auto_normalize=enable_auto_normalize,
+                )
 
-    # Apply systems filter (empty = all systems pass through)
-    if systems_filter:
-        results = [r for r in results if r.system.upper() in systems_filter]
+    # Apply systems filter for device types whose scan functions don't filter internally
+    if systems_config:
+        results = [r for r in results if r.system.upper() in systems_config]
 
+    _flush_scan_cache()
+    _emit_progress(progress_callback, f"Found {len(results)} local save entries.", len(results), len(results))
     return results
 
 
@@ -384,30 +636,141 @@ def _make_title_id_with_region(system: str, filename: str) -> str:
     overwrites a Japan save on sync.
       "Super Mario World (USA).srm"    -> SNES_super_mario_world_usa
       "Super Mario World (Japan).srm"  -> SNES_super_mario_world_japan
+      "Yu Yu Hakusho (USA, Europe).sav" -> GBA_yu_yu_hakusho_usa_europe
       "Super Mario World.srm"          -> SNES_super_mario_world
     """
-    region = _extract_region(Path(filename).stem)
+    regions = _extract_regions(Path(filename).stem)
     base = make_title_id(system, filename)  # region already stripped inside
-    return f"{base}_{region}" if region else base
+    return f"{base}_{'_'.join(regions)}" if regions else base
 
 
-def _scan_flat(folder: Path, system: str, recursive: bool = False) -> list[SaveFile]:
+def _build_save_file(
+    system: str,
+    game_name: str,
+    source_name: str,
+    path: Optional[Path],
+    file_hash: str,
+    mtime: float,
+    save_exists: bool,
+    enable_auto_normalize: bool,
+    match_name: str | None = None,
+) -> SaveFile:
+    legacy_title_id = _make_title_id_with_region(system, source_name)
+    canonical_name = None
+    canonical_title_id = ""
+    source = "legacy"
+    confidence = "legacy"
+
+    if enable_auto_normalize and path is not None:
+        canonical_name, source, confidence = _resolve_canonical_sync_name(
+            system, path, match_name=match_name
+        )
+        if canonical_name:
+            canonical_title_id = _make_title_id_with_region(system, canonical_name)
+
+    effective_title_id = canonical_title_id or legacy_title_id
+    if not canonical_title_id:
+        source = "legacy"
+        confidence = "legacy"
+
+    return SaveFile(
+        title_id=effective_title_id,
+        path=path,
+        hash=file_hash,
+        mtime=mtime,
+        system=system,
+        game_name=game_name,
+        save_exists=save_exists,
+        legacy_title_id=legacy_title_id,
+        canonical_title_id=canonical_title_id,
+        title_id_source=source,
+        title_id_confidence=confidence,
+    )
+
+
+def _slot_mapping_key(save: SaveFile) -> str | None:
+    if save.path is None:
+        return None
+    try:
+        return str(save.path.resolve())
+    except OSError:
+        return str(save.path)
+
+
+def _get_slot_mapping(save: SaveFile) -> dict[str, str] | None:
+    key = _slot_mapping_key(save)
+    if not key:
+        return None
+    return _load_slot_mappings().get(key)
+
+
+def _set_slot_mapping(save: SaveFile, effective_title_id: str) -> None:
+    key = _slot_mapping_key(save)
+    if not key:
+        return
+    mappings = _load_slot_mappings()
+    mappings[key] = {
+        "effective_title_id": effective_title_id,
+        "legacy_title_id": save.legacy_title_id or save.title_id,
+        "canonical_title_id": save.canonical_title_id,
+    }
+    _mark_slot_mappings_dirty()
+
+
+def _resolve_effective_title_id(save: SaveFile, server_titles: dict[str, dict]) -> tuple[str, str, str | None]:
+    legacy = save.legacy_title_id or save.title_id
+    canonical = save.canonical_title_id or ""
+    if not canonical or canonical == legacy:
+        return legacy, "legacy", None
+
+    legacy_exists = legacy in server_titles
+    canonical_exists = canonical in server_titles
+
+    mapped = _get_slot_mapping(save)
+    if mapped:
+        mapped_id = mapped.get("effective_title_id", "")
+        if mapped_id == canonical:
+            return mapped_id, "mapped", None
+        if mapped_id == legacy and legacy_exists:
+            return mapped_id, "mapped", None
+
+    if legacy_exists and not canonical_exists:
+        return legacy, "legacy_server", None
+    if canonical_exists and not legacy_exists:
+        return canonical, "canonical_server", None
+    if legacy_exists and canonical_exists:
+        return legacy, "ambiguous", f"Both legacy and canonical server slots already exist: {legacy} and {canonical}"
+
+    return canonical, f"canonical_{save.title_id_source}", None
+
+
+def _scan_flat(
+    folder: Path,
+    system: str,
+    recursive: bool = False,
+    progress_callback=None,
+    enable_auto_normalize: bool = True,
+) -> list[SaveFile]:
     """Scan a folder of saves for a single system."""
     results = []
     candidates = sorted(folder.rglob("*") if recursive else folder.iterdir())
-    for f in candidates:
+    total = len(candidates)
+    for idx, f in enumerate(candidates, start=1):
         if f.is_file() and f.suffix.lower() in SAVE_EXTENSIONS:
-            title_id = _make_title_id_with_region(system, f.name)
             file_hash = _hash_file(f)
-            slug = title_id.split("_", 1)[1] if "_" in title_id else f.stem
-            results.append(SaveFile(
-                title_id=title_id,
-                path=f,
-                hash=file_hash,
-                mtime=f.stat().st_mtime,
+            sf = _build_save_file(
                 system=system,
-                game_name=slug_to_display_name(slug),
-            ))
+                game_name=f.stem,
+                source_name=f.name,
+                path=f,
+                file_hash=file_hash,
+                mtime=f.stat().st_mtime,
+                save_exists=True,
+                enable_auto_normalize=enable_auto_normalize,
+            )
+            results.append(sf)
+        if idx == 1 or idx % 25 == 0 or idx == total:
+            _emit_progress(progress_callback, f"Scanning {system} files… {idx}/{total}", idx, total)
     return results
 
 
@@ -426,7 +789,20 @@ def _dedup_saves(saves: list[SaveFile]) -> list[SaveFile]:
             seen[sf.title_id] = sf
         elif sf.save_exists and not existing.save_exists:
             # Prefer the ROM that actually has a save — keeps the correct path/hash
+            if existing.path and existing.path != sf.path and existing.path not in sf.alternate_paths:
+                sf.alternate_paths.append(existing.path)
+            for alt in existing.alternate_paths:
+                if alt != sf.path and alt not in sf.alternate_paths:
+                    sf.alternate_paths.append(alt)
             seen[sf.title_id] = sf
+        else:
+            candidate_paths: list[Path] = []
+            if sf.path is not None:
+                candidate_paths.append(sf.path)
+            candidate_paths.extend(sf.alternate_paths)
+            for candidate in candidate_paths:
+                if candidate != existing.path and candidate not in existing.alternate_paths:
+                    existing.alternate_paths.append(candidate)
     return list(seen.values())
 
 
@@ -436,6 +812,9 @@ def _scan_roms_match_saves(
     system: str,
     save_ext: str = ".sav",
     recursive: bool = True,
+    progress_callback=None,
+    enable_auto_normalize: bool = True,
+    mirror_relative_path: bool = False,
 ) -> list[SaveFile]:
     """Scan ROMs in rom_folder and find/expect saves in save_folder.
 
@@ -449,21 +828,37 @@ def _scan_roms_match_saves(
     game_name is set to the original ROM stem (preserving punctuation, region
     tags, etc.) so the display name and save filename always match the ROM.
     """
-    # Build a flat stem→save_path index: prefer files matching save_ext, fall back to any save ext
-    save_index: dict[str, Path] = {}
+    # Build a save lookup index. Generic/Everdrive use a flat stem index, while
+    # mirrored layouts like Pocket single-system sub-roots preserve relative paths.
+    save_index: dict[object, Path] = {}
     if save_folder.exists():
-        for f in save_folder.rglob("*"):
+        save_candidates = sorted(save_folder.rglob("*"))
+        save_total = len(save_candidates)
+        for idx, f in enumerate(save_candidates, start=1):
             if not f.is_file():
                 continue
             ext = f.suffix.lower()
-            if ext == save_ext.lower():
-                save_index[f.stem.lower()] = f          # exact extension wins
-            elif ext in SAVE_EXTENSIONS and f.stem.lower() not in save_index:
-                save_index[f.stem.lower()] = f          # fallback if no exact match yet
+            if mirror_relative_path:
+                try:
+                    rel_key = f.relative_to(save_folder).with_suffix("").as_posix().lower()
+                except ValueError:
+                    rel_key = f.stem.lower()
+                if ext == save_ext.lower() or (
+                    ext in SAVE_EXTENSIONS and rel_key not in save_index
+                ):
+                    save_index[rel_key] = f
+            else:
+                if ext == save_ext.lower():
+                    save_index[f.stem.lower()] = f          # exact extension wins
+                elif ext in SAVE_EXTENSIONS and f.stem.lower() not in save_index:
+                    save_index[f.stem.lower()] = f          # fallback if no exact match yet
+            if idx == 1 or idx % 100 == 0 or idx == save_total:
+                _emit_progress(progress_callback, f"Indexing {system} save files… {idx}/{save_total}", idx, save_total)
 
     results: list[SaveFile] = []
     candidates = sorted(rom_folder.rglob("*") if recursive else rom_folder.iterdir())
-    for rom_file in candidates:
+    total = len(candidates)
+    for idx, rom_file in enumerate(candidates, start=1):
         if not rom_file.is_file():
             continue
         if rom_file.suffix.lower() not in ROM_EXTENSIONS:
@@ -471,12 +866,19 @@ def _scan_roms_match_saves(
         if rom_file.name.startswith("."):
             continue
 
-        title_id = _make_title_id_with_region(system, rom_file.name)
-
-        # Look up save by exact stem match first, then fall back to expected path
-        save_path = save_index.get(rom_file.stem.lower())
+        # Look up save by exact relative path for mirrored layouts, else by flat stem.
+        rel_parent = Path()
+        try:
+            rel_parent = rom_file.parent.relative_to(rom_folder)
+        except ValueError:
+            rel_parent = Path()
+        if mirror_relative_path:
+            rel_key = (rel_parent / rom_file.stem).as_posix().lower()
+            save_path = save_index.get(rel_key)
+        else:
+            save_path = save_index.get(rom_file.stem.lower())
         if save_path is None:
-            save_path = save_folder / (rom_file.stem + save_ext)
+            save_path = save_folder / rel_parent / (rom_file.stem + save_ext) if mirror_relative_path else save_folder / (rom_file.stem + save_ext)
             file_hash = ""
             mtime = 0.0
             save_exists = False
@@ -485,19 +887,27 @@ def _scan_roms_match_saves(
             mtime = save_path.stat().st_mtime
             save_exists = True
 
-        results.append(SaveFile(
-            title_id=title_id,
-            path=save_path,
-            hash=file_hash,
-            mtime=mtime,
+        sf = _build_save_file(
             system=system,
-            game_name=rom_file.stem,   # original ROM filename — not the normalized slug
+            game_name=rom_file.stem,
+            source_name=rom_file.name,
+            path=rom_file,
+            file_hash=file_hash,
+            mtime=mtime,
             save_exists=save_exists,
-        ))
+            enable_auto_normalize=enable_auto_normalize,
+        )
+        sf.path = save_path
+        sf.hash = file_hash
+        sf.mtime = mtime
+        sf.save_exists = save_exists
+        results.append(sf)
+        if idx == 1 or idx % 25 == 0 or idx == total:
+            _emit_progress(progress_callback, f"Scanning {system} ROMs… {idx}/{total}", idx, total)
     return _dedup_saves(results)
 
 
-def _scan_retroarch(root: Path) -> list[SaveFile]:
+def _scan_retroarch(root: Path, progress_callback=None, enable_auto_normalize: bool = True) -> list[SaveFile]:
     """Scan RetroArch saves/CoreName/game.srm structure."""
     results = []
     for core_dir in sorted(root.iterdir()):
@@ -506,11 +916,56 @@ def _scan_retroarch(root: Path) -> list[SaveFile]:
         system = RETROARCH_CORE_MAP.get(core_dir.name)
         if not system:
             continue
-        results.extend(_scan_flat(core_dir, system))
+        results.extend(_scan_flat(
+            core_dir,
+            system,
+            progress_callback=progress_callback,
+            enable_auto_normalize=enable_auto_normalize,
+        ))
     return results
 
 
-def _scan_mister(root: Path) -> list[SaveFile]:
+def _scan_mega_everdrive(
+    gamedata_folder: Path,
+    system: str,
+    progress_callback=None,
+    enable_auto_normalize: bool = True,
+) -> list[SaveFile]:
+    """Scan MEGA EverDrive Pro gamedata/ structure.
+
+    Structure:
+        gamedata/<Game Name (Region)>/bram.srm   ← save file (sync this)
+        gamedata/<Game Name (Region)>/*.sav       ← save states (ignore)
+
+    Each subfolder is named after the ROM.  Only subfolders that contain
+    bram.srm are returned; folders without it have no battery save to sync.
+    """
+    results = []
+    candidates = sorted(gamedata_folder.iterdir())
+    total = len(candidates)
+    for idx, game_dir in enumerate(candidates, start=1):
+        if not game_dir.is_dir():
+            continue
+        save_file = game_dir / "bram.srm"
+        if not save_file.exists():
+            continue
+        results.append(_build_save_file(
+            system=system,
+            game_name=game_dir.name,
+            source_name=game_dir.name,
+            path=save_file,
+            file_hash=_hash_file(save_file),
+            mtime=save_file.stat().st_mtime,
+            save_exists=True,
+            enable_auto_normalize=enable_auto_normalize,
+            match_name=game_dir.name,
+        ))
+        if idx == 1 or idx % 25 == 0 or idx == total:
+            _emit_progress(progress_callback, f"Scanning {system} EverDrive folders… {idx}/{total}", idx, total)
+    return _dedup_saves(results)
+
+
+def _scan_mister(root: Path, progress_callback=None, enable_auto_normalize: bool = True) -> list[SaveFile]:
     """Scan MiSTer saves/<System>/ structure."""
     results = []
     for sys_dir in sorted(root.iterdir()):
@@ -519,11 +974,16 @@ def _scan_mister(root: Path) -> list[SaveFile]:
         system = MISTER_FOLDER_MAP.get(sys_dir.name)
         if not system:
             continue
-        results.extend(_scan_flat(sys_dir, system))
+        results.extend(_scan_flat(
+            sys_dir,
+            system,
+            progress_callback=progress_callback,
+            enable_auto_normalize=enable_auto_normalize,
+        ))
     return results
 
 
-def _scan_pocket(root: Path) -> list[SaveFile]:
+def _scan_pocket(root: Path, progress_callback=None, enable_auto_normalize: bool = True) -> list[SaveFile]:
     """Scan Analogue Pocket Memories/<Platform>/ structure."""
     results = []
     for plat_dir in sorted(root.iterdir()):
@@ -532,11 +992,20 @@ def _scan_pocket(root: Path) -> list[SaveFile]:
         system = POCKET_FOLDER_MAP.get(plat_dir.name)
         if not system:
             continue
-        results.extend(_scan_flat(plat_dir, system))
+        results.extend(_scan_flat(
+            plat_dir,
+            system,
+            progress_callback=progress_callback,
+            enable_auto_normalize=enable_auto_normalize,
+        ))
     return results
 
 
-def _scan_pocket_openfpga(saves_root: Path) -> list[SaveFile]:
+def _scan_pocket_openfpga(
+    saves_root: Path,
+    progress_callback=None,
+    enable_auto_normalize: bool = True,
+) -> list[SaveFile]:
     """Scan Analogue Pocket openFPGA layout: Saves/<system>/.../**/*.sav
 
     Used when saves live in a dedicated Saves/ tree that mirrors the Assets/
@@ -550,11 +1019,23 @@ def _scan_pocket_openfpga(saves_root: Path) -> list[SaveFile]:
         system = POCKET_OPENFPGA_FOLDER_MAP.get(sys_dir.name.lower())
         if not system:
             continue
-        results.extend(_scan_flat(sys_dir, system, recursive=True))
+        results.extend(_scan_flat(
+            sys_dir,
+            system,
+            recursive=True,
+            progress_callback=progress_callback,
+            enable_auto_normalize=enable_auto_normalize,
+        ))
     return results
 
 
-def _scan_pocket_openfpga_from_roms(assets_root: Path, saves_root: Path, save_ext: str = ".sav") -> list[SaveFile]:
+def _scan_pocket_openfpga_from_roms(
+    assets_root: Path,
+    saves_root: Path,
+    save_ext: str = ".sav",
+    progress_callback=None,
+    enable_auto_normalize: bool = True,
+) -> list[SaveFile]:
     """Scan Pocket openFPGA by walking the Assets (ROM) folder.
 
     For every ROM found under assets_root/<system>/..., computes the expected
@@ -579,7 +1060,9 @@ def _scan_pocket_openfpga_from_roms(assets_root: Path, saves_root: Path, save_ex
         if not system:
             continue
         sys_folder_name = sys_dir.name  # preserve original case for saves path
-        for rom_file in sorted(sys_dir.rglob("*")):
+        candidates = sorted(sys_dir.rglob("*"))
+        total = len(candidates)
+        for idx, rom_file in enumerate(candidates, start=1):
             if not rom_file.is_file():
                 continue
             if rom_file.suffix.lower() not in ROM_EXTENSIONS:
@@ -592,7 +1075,6 @@ def _scan_pocket_openfpga_from_roms(assets_root: Path, saves_root: Path, save_ex
                 continue
             # Mirror: saves_root/<sys>/<same subpath>/<rom_stem><save_ext>
             save_path = saves_root / sys_folder_name / rel.parent / (rom_file.stem + save_ext)
-            title_id = _make_title_id_with_region(system, rom_file.name)
             if save_path.exists():
                 file_hash = _hash_file(save_path)
                 mtime = save_path.stat().st_mtime
@@ -601,15 +1083,23 @@ def _scan_pocket_openfpga_from_roms(assets_root: Path, saves_root: Path, save_ex
                 file_hash = ""
                 mtime = 0.0
                 save_exists = False
-            results.append(SaveFile(
-                title_id=title_id,
-                path=save_path,
-                hash=file_hash,
-                mtime=mtime,
+            sf = _build_save_file(
                 system=system,
-                game_name=rom_file.stem,   # original ROM filename — not the normalized slug
+                game_name=rom_file.stem,
+                source_name=rom_file.name,
+                path=rom_file,
+                file_hash=file_hash,
+                mtime=mtime,
                 save_exists=save_exists,
-            ))
+                enable_auto_normalize=enable_auto_normalize,
+            )
+            sf.path = save_path
+            sf.hash = file_hash
+            sf.mtime = mtime
+            sf.save_exists = save_exists
+            results.append(sf)
+            if idx == 1 or idx % 25 == 0 or idx == total:
+                _emit_progress(progress_callback, f"Scanning {system} Assets… {idx}/{total}", idx, total)
     return _dedup_saves(results)
 
 
@@ -632,7 +1122,207 @@ _PSP_PS3_SKIP_EXTS = {".png", ".pmf", ".sfo", ".at3"}
 _MCD_SLOT_RE = re.compile(r"_\d+$")
 
 
-def _scan_emudeck(root: Path) -> list[SaveFile]:
+def _emit_progress(callback, message: str, current: int | None = None, total: int | None = None) -> None:
+    if callback is None:
+        return
+    try:
+        callback(message, current, total)
+    except TypeError:
+        callback(message)
+
+
+# ---------------------------------------------------------------------------
+# No-Intro-aware title resolution for sync scanning
+# ---------------------------------------------------------------------------
+
+_NOINTRO_CACHE: dict[str, dict[str, object]] = {}
+_CACHE_MISS = object()
+
+
+def _get_nointro_cache(system: str) -> dict[str, object]:
+    """Load and cache the DAT + derived indexes for a system, if available."""
+    system = system.upper().strip()
+    cached = _NOINTRO_CACHE.get(system)
+    if cached is not None:
+        return cached
+
+    try:
+        import rom_normalizer as rn
+    except Exception:
+        cached = {"no_intro": {}, "name_index": {}}
+        _NOINTRO_CACHE[system] = cached
+        return cached
+
+    dat_path = rn.find_dat_for_system(system)
+    if dat_path is None:
+        cached = {"no_intro": {}, "name_index": {}, "cache_tag": f"{system}:none"}
+    else:
+        no_intro = rn.load_no_intro_dat(dat_path)
+        try:
+            dat_stat = dat_path.stat()
+            dat_sig = f"{dat_path.name}:{dat_stat.st_mtime_ns}:{dat_stat.st_size}"
+        except OSError:
+            dat_sig = dat_path.name
+        cached = {
+            "no_intro": no_intro,
+            "name_index": rn.build_name_index(no_intro) if no_intro else {},
+            "cache_tag": f"{system}:{dat_sig}",
+        }
+    _NOINTRO_CACHE[system] = cached
+    return cached
+
+
+def _scan_cache_key(system: str, path: Path, match_name: str | None) -> str:
+    try:
+        canonical_path = str(path.resolve())
+    except OSError:
+        canonical_path = str(path)
+    return f"{system.upper()}|{canonical_path}|{match_name or ''}"
+
+
+def _get_cached_canonical_name(system: str, path: Path, match_name: str | None, cache_tag: str) -> tuple[str | None, str, str] | object:
+    cache = _load_scan_cache()
+    key = _scan_cache_key(system, path, match_name)
+    entry = cache.get(key)
+    if not isinstance(entry, dict):
+        return _CACHE_MISS
+    try:
+        stat = path.stat()
+    except OSError:
+        return _CACHE_MISS
+    if entry.get("mtime_ns") != stat.st_mtime_ns:
+        return _CACHE_MISS
+    if entry.get("size") != stat.st_size:
+        return _CACHE_MISS
+    if entry.get("cache_tag") != cache_tag:
+        return _CACHE_MISS
+    return (
+        entry.get("canonical_name") or None,
+        str(entry.get("source") or "legacy"),
+        str(entry.get("confidence") or "legacy"),
+    )
+
+
+def _set_cached_canonical_name(
+    system: str,
+    path: Path,
+    match_name: str | None,
+    cache_tag: str,
+    canonical_name: str | None,
+    source: str,
+    confidence: str,
+) -> None:
+    cache = _load_scan_cache()
+    try:
+        stat = path.stat()
+    except OSError:
+        return
+    key = _scan_cache_key(system, path, match_name)
+    cache[key] = {
+        "mtime_ns": stat.st_mtime_ns,
+        "size": stat.st_size,
+        "cache_tag": cache_tag,
+        "canonical_name": canonical_name or "",
+        "source": source,
+        "confidence": confidence,
+    }
+    _mark_scan_cache_dirty()
+
+
+def _resolve_canonical_sync_name(system: str, path: Path, match_name: str | None = None) -> tuple[str | None, str, str]:
+    """Return canonical name plus match source/confidence for sync-time title mapping.
+
+    This mirrors the ROM Normalizer matching pipeline, but does not rename any
+    local files. The resolved canonical name is used only to decide which
+    server slot the save belongs to.
+    """
+    try:
+        import rom_normalizer as rn
+    except Exception:
+        return None, "legacy", "legacy"
+
+    cache = _get_nointro_cache(system)
+    no_intro = cache.get("no_intro", {})
+    name_index = cache.get("name_index", {})
+    if not no_intro or not name_index:
+        return None, "legacy", "legacy"
+    cache_tag = str(cache.get("cache_tag", f"{system}:none"))
+
+    lookup_name = match_name or path.name
+    cached = _get_cached_canonical_name(system, path, match_name, cache_tag)
+    if cached is not _CACHE_MISS:
+        return cached
+
+    canonical: str | None = None
+    source = "legacy"
+    confidence = "legacy"
+
+    # 1. Exact ROM CRC32 match
+    if path.suffix.lower() in ROM_EXTENSIONS:
+        try:
+            crc = rn._crc32_file(path)
+        except Exception:
+            crc = ""
+        if crc:
+            canonical = no_intro.get(crc)
+            if canonical:
+                source, confidence = "crc", "high"
+                _set_cached_canonical_name(system, path, match_name, cache_tag, canonical, source, confidence)
+                return canonical, source, confidence
+
+    # 2. Fuzzy filename lookup
+    canonical = rn.fuzzy_filename_search(lookup_name, name_index)
+    if canonical:
+        region_hint = (
+            rn.extract_region_hint(lookup_name)
+            or rn.extract_region_hint(path.parent.name)
+        )
+        if region_hint:
+            canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
+        source, confidence = "fuzzy", "low"
+        _set_cached_canonical_name(system, path, match_name, cache_tag, canonical, source, confidence)
+        return canonical, source, confidence
+
+    # 3. ROM header title lookup
+    if path.suffix.lower() in ROM_EXTENSIONS:
+        header_title = rn.read_rom_header_title(path, system)
+        if header_title:
+            canonical = rn.lookup_header_in_index(header_title, name_index)
+            if canonical:
+                region_hint = (
+                    rn.extract_region_hint(path.name)
+                    or rn.extract_region_hint(path.parent.name)
+                )
+                if region_hint:
+                    canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
+                source, confidence = "header", "high"
+                _set_cached_canonical_name(system, path, match_name, cache_tag, canonical, source, confidence)
+                return canonical, source, confidence
+
+    # 4. Parent-folder name lookup for shorthand ROM names / packs
+    if path.parent.name:
+        canonical = rn.fuzzy_filename_search(path.parent.name, name_index)
+        if canonical:
+            region_hint = (
+                rn.extract_region_hint(lookup_name)
+                or rn.extract_region_hint(path.parent.name)
+            )
+            if region_hint:
+                canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
+            source, confidence = "folder", "low"
+            _set_cached_canonical_name(system, path, match_name, cache_tag, canonical, source, confidence)
+            return canonical, source, confidence
+
+    _set_cached_canonical_name(system, path, match_name, cache_tag, None, source, confidence)
+    return None, source, confidence
+
+
+def _make_sync_title_id(system: str, source_name: str, canonical_name: str | None = None) -> str:
+    """Build the server title ID, preferring a canonical No-Intro name when found."""
+    return _make_title_id_with_region(system, canonical_name or source_name)
+
+
+def _scan_emudeck(root: Path, progress_callback=None) -> list[SaveFile]:
     """Scan an EmuDeck saves root folder.
 
     Handles:
@@ -740,6 +1430,7 @@ def compare_with_server(
     headers: dict,
     timeout: int = 30,
     systems_filter: Optional[set[str]] = None,
+    progress_callback=None,
 ) -> list[SyncStatus]:
     """Compare local saves with server and also fetch server-only titles.
 
@@ -753,45 +1444,97 @@ def compare_with_server(
     state = _load_state()
     results = []
     seen_title_ids: set[str] = set()
+    server_titles: dict[str, dict] = {}
+    server_loaded = False
 
-    for save in saves:
+    _emit_progress(progress_callback, "Loading server save index…", 0, max(len(saves), 1))
+    try:
+        resp = requests.get(
+            f"{base_url}/api/v1/titles",
+            headers=headers,
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        titles_list = body if isinstance(body, list) else body.get("titles", [])
+        server_titles = {
+            title.get("title_id", ""): title
+            for title in titles_list
+            if title.get("title_id")
+        }
+        server_loaded = True
+    except requests.RequestException:
+        server_titles = {}
+
+    total = len(saves)
+    for idx, save in enumerate(saves, start=1):
+        effective_title_id, resolution_source, mapping_note = _resolve_effective_title_id(save, server_titles)
+        save.title_id = effective_title_id
         seen_title_ids.add(save.title_id)
+        if save.legacy_title_id:
+            seen_title_ids.add(save.legacy_title_id)
+        if save.canonical_title_id:
+            seen_title_ids.add(save.canonical_title_id)
         last_synced = state.get(save.title_id)
-        try:
-            resp = requests.get(
-                f"{base_url}/api/v1/saves/{save.title_id}/meta",
-                headers=headers,
-                timeout=timeout,
-            )
-        except requests.RequestException:
-            if save.save_exists:
-                results.append(SyncStatus(save=save, status="error"))
-            continue
+        meta = server_titles.get(save.title_id)
 
-        if resp.status_code == 404:
-            if not save.save_exists:
-                # ROM present but no local save and nothing on server — nothing to do
-                continue
+        if resolution_source != "ambiguous":
+            _set_slot_mapping(save, save.title_id)
+
+        if resolution_source == "ambiguous":
             results.append(SyncStatus(
                 save=save,
                 last_synced_hash=last_synced,
-                status="not_on_server",
+                status="mapping_conflict",
+                mapping_note=mapping_note or "",
             ))
+            if idx == 1 or idx % 25 == 0 or idx == total:
+                _emit_progress(progress_callback, f"Comparing with server… {idx}/{total}", idx, total)
             continue
 
-        if resp.status_code != 200:
-            if save.save_exists:
-                results.append(SyncStatus(save=save, status="error"))
+        if meta is None:
+            duplicate_conflict, duplicate_note = _detect_duplicate_local_conflict(save)
+            if duplicate_conflict:
+                results.append(SyncStatus(
+                    save=save,
+                    last_synced_hash=last_synced,
+                    status="local_duplicate_conflict",
+                    mapping_note=duplicate_note,
+                ))
+                if idx == 1 or idx % 25 == 0 or idx == total:
+                    _emit_progress(progress_callback, f"Comparing with server… {idx}/{total}", idx, total)
+                continue
+            if server_loaded:
+                if not save.save_exists:
+                    # ROM present but no local save and nothing on server — nothing to do
+                    pass
+                else:
+                    results.append(SyncStatus(
+                        save=save,
+                        last_synced_hash=last_synced,
+                        status="not_on_server",
+                        mapping_note=mapping_note or f"Using {resolution_source}: {save.title_id}",
+                    ))
+            elif save.save_exists:
+                results.append(SyncStatus(
+                    save=save,
+                    status="error",
+                    mapping_note=mapping_note or f"Using {resolution_source}: {save.title_id}",
+                ))
+            if idx == 1 or idx % 25 == 0 or idx == total:
+                _emit_progress(progress_callback, f"Comparing with server… {idx}/{total}", idx, total)
             continue
 
-        meta = resp.json()
         server_hash = meta.get("save_hash", "")
         server_ts = meta.get("server_timestamp", "")
-        server_name = meta.get("name", "")
+        server_name = meta.get("name", "") or meta.get("game_name", "")
+        duplicate_conflict, duplicate_note = _detect_duplicate_local_conflict(save)
 
         if not save.save_exists:
             # ROM present, no local save, server has a save — always offer download
             status = "server_newer"
+        elif duplicate_conflict:
+            status = "local_duplicate_conflict"
         else:
             status = _determine_status(save.hash, server_hash, last_synced)
         results.append(SyncStatus(
@@ -801,47 +1544,39 @@ def compare_with_server(
             server_name=server_name,
             last_synced_hash=last_synced,
             status=status,
+            mapping_note=duplicate_note or mapping_note or f"Using {resolution_source}: {save.title_id}",
         ))
+        if idx == 1 or idx % 25 == 0 or idx == total:
+            _emit_progress(progress_callback, f"Comparing with server… {idx}/{total}", idx, total)
 
     # Fetch server-only titles (exist on server but not found in any local profile)
-    try:
-        resp = requests.get(
-            f"{base_url}/api/v1/titles",
-            headers=headers,
-            timeout=timeout,
+    for title in server_titles.values():
+        tid = title.get("title_id", "")
+        if not tid or tid in seen_title_ids:
+            continue
+        system = title.get("system") or title.get("platform", "")
+        if systems_filter and system.upper() not in systems_filter:
+            continue
+        name = title.get("name") or title.get("game_name") or tid
+        server_hash = title.get("save_hash", "")
+        server_ts = title.get("server_timestamp", "")
+        phantom = SaveFile(
+            title_id=tid,
+            path=None,
+            hash="",
+            mtime=0.0,
+            system=system,
+            game_name=name,
         )
-        if resp.status_code == 200:
-            body = resp.json()
-            # Response is either a list or {"titles": [...]}
-            titles_list = body if isinstance(body, list) else body.get("titles", [])
-            for title in titles_list:
-                tid = title.get("title_id", "")
-                if not tid or tid in seen_title_ids:
-                    continue
-                system = title.get("system") or title.get("platform", "")
-                if systems_filter and system.upper() not in systems_filter:
-                    continue
-                name = title.get("name", tid)
-                server_hash = title.get("save_hash", "")
-                server_ts = title.get("server_timestamp", "")
-                phantom = SaveFile(
-                    title_id=tid,
-                    path=None,
-                    hash="",
-                    mtime=0.0,
-                    system=system,
-                    game_name=name,
-                )
-                results.append(SyncStatus(
-                    save=phantom,
-                    server_hash=server_hash,
-                    server_timestamp=server_ts,
-                    server_name=name,
-                    status="server_only",
-                ))
-    except requests.RequestException:
-        pass  # Server unreachable — local-only results still returned
+        results.append(SyncStatus(
+            save=phantom,
+            server_hash=server_hash,
+            server_timestamp=server_ts,
+            server_name=name,
+            status="server_only",
+        ))
 
+    _flush_slot_mappings()
     return results
 
 

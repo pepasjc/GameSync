@@ -28,12 +28,14 @@ class NormalizeScanWorker(QThread):
     finished = pyqtSignal(list)   # list of dicts: old, new, source, subfolder
     progress = pyqtSignal(str)
 
-    def __init__(self, folder: Path, no_intro: dict, system: str, save_folder: Path | None = None):
+    def __init__(self, folder: Path, no_intro: dict, system: str, save_folder: Path | None = None, device_type: str = "", normalize_fallback: bool = False):
         super().__init__()
         self.folder = folder
         self.no_intro = no_intro
         self.system = system
         self.save_folder = save_folder
+        self.device_type = device_type
+        self.normalize_fallback = normalize_fallback
 
     def run(self):
         import rom_normalizer as rn
@@ -41,11 +43,15 @@ class NormalizeScanWorker(QThread):
         # Build name-based index for header matching (patched ROMs)
         name_index = rn.build_name_index(self.no_intro) if self.no_intro else {}
 
+        is_mega_everdrive = self.device_type == "MEGA EverDrive"
+
         # Pre-index save files from the save folder (stem → list of Path).
         # Using rglob so nested structures (e.g. Pocket's snes/common/all/A-F/) are
         # found regardless of how the save folder root aligns with the ROM folder root.
+        # MEGA EverDrive uses subdirs (bram.srm inside each game folder) so we skip
+        # the flat index for it and do a per-ROM directory lookup instead.
         save_index: dict[str, list[Path]] = {}
-        if self.save_folder and self.save_folder.exists():
+        if self.save_folder and self.save_folder.exists() and not is_mega_everdrive:
             self.progress.emit("Indexing save files…")
             for f in self.save_folder.rglob("*"):
                 if f.is_file() and f.suffix.lower() in rn.SAVE_EXTENSIONS:
@@ -57,7 +63,7 @@ class NormalizeScanWorker(QThread):
             self.progress.emit(f"Scanning {i + 1}/{len(roms)}: {rom.name}")
             ext = rom.suffix.lower()
             source = "filename"
-            new_stem = rn.normalize_name(rom.name)   # default fallback
+            new_stem = rom.stem   # default: keep as-is
 
             if self.no_intro:
                 # Step 1: exact CRC32 match → use canonical No-Intro name with region
@@ -84,7 +90,16 @@ class NormalizeScanWorker(QThread):
                         if canonical:
                             new_stem = canonical
                             source = "Fuzzy"
-                    # Step 4: filename normalization (already set as default)
+                    # Step 4: normalize fallback (opt-in) — only if "Enable Normalize ROMs"
+                    # is checked. Prefers bracket-trim over full slug normalization.
+                    if source == "filename" and self.normalize_fallback:
+                        bracket_idx = rom.stem.find("[")
+                        if bracket_idx > 0:
+                            new_stem = rom.stem[:bracket_idx].strip()
+                            source = "Bracket"
+                        else:
+                            new_stem = rn.normalize_name(rom.name)
+                            # source stays "filename"
 
                     # Step 5: parent folder name lookup — for MSU packs and other games
                     # where the ROM uses a shorthand filename (e.g. "ys5_msu.sfc") but
@@ -117,10 +132,13 @@ class NormalizeScanWorker(QThread):
                 suffix = comp_old.name[len(rom.stem):]   # e.g. "-1.pcm", ".msu"
                 companions.append((comp_old, suffix))
 
+            rom_entry_idx: int | None = None
             if new_rom != rom:
+                rom_entry_idx = len(results)
                 results.append({
                     "old": rom, "new": new_rom, "source": source,
                     "subfolder": subfolder, "companions": companions,
+                    "has_save": False,
                 })
 
             # Matching save files — shown as separate visible rows so the user
@@ -143,6 +161,8 @@ class NormalizeScanWorker(QThread):
                 if save_file in seen_saves:
                     continue
                 seen_saves.add(save_file)
+                if rom_entry_idx is not None:
+                    results[rom_entry_idx]["has_save"] = True
                 new_save = save_file.parent / (new_stem + save_file.suffix)
                 if new_save != save_file:
                     save_subfolder = ""
@@ -154,7 +174,23 @@ class NormalizeScanWorker(QThread):
                     results.append({
                         "old": save_file, "new": new_save, "source": "Save",
                         "subfolder": save_subfolder, "companions": [],
+                        "rom_idx": rom_entry_idx,  # link back to parent ROM entry
                     })
+
+            # MEGA EverDrive Pro: save is at gamedata/<rom_stem>/bram.srm.
+            # Renaming means renaming the subdirectory, not the file inside it.
+            # Embed this as metadata on the ROM entry so it applies automatically
+            # when the ROM row is checked — no separate unchecked row needed.
+            if is_mega_everdrive and self.save_folder and rom_entry_idx is not None:
+                # EverDrive creates gamedata folders named after the full ROM filename
+                # INCLUDING the extension (e.g. "Sonic (USA).md/bram.srm").
+                game_dir = self.save_folder / rom.name
+                if game_dir.is_dir() and (game_dir / "bram.srm").exists():
+                    results[rom_entry_idx]["has_save"] = True
+                    new_game_dir = self.save_folder / (new_stem + ext)
+                    if new_game_dir != game_dir:
+                        results[rom_entry_idx]["save_dir_old"] = game_dir
+                        results[rom_entry_idx]["save_dir_new"] = new_game_dir
 
         self.finished.emit(results)
 
@@ -166,6 +202,7 @@ class RomNormalizerTab(QWidget):
         self._no_intro: dict = {}
         self._worker = None
         self._loaded_dat_path: Path | None = None
+        self._device_type: str = ""
         self._init_ui()
 
     def _init_ui(self):
@@ -193,7 +230,8 @@ class RomNormalizerTab(QWidget):
 
         # Save folder row (optional — for devices like Everdrive where saves live elsewhere)
         save_folder_row = QHBoxLayout()
-        save_folder_row.addWidget(QLabel("Save Folder:"))
+        self.save_folder_label = QLabel("Save Folder:")
+        save_folder_row.addWidget(self.save_folder_label)
         self.save_folder_edit = QLineEdit()
         self.save_folder_edit.setPlaceholderText("Optional — separate save folder (e.g. Everdrive SAVE/ dir)...")
         save_folder_row.addWidget(self.save_folder_edit, 4)
@@ -203,6 +241,11 @@ class RomNormalizerTab(QWidget):
         clear_save_btn = QPushButton("Clear")
         clear_save_btn.clicked.connect(self.save_folder_edit.clear)
         save_folder_row.addWidget(clear_save_btn)
+        save_folder_row.addWidget(QLabel("Device:"))
+        self.device_combo = QComboBox()
+        self.device_combo.addItems(["Standard", "MEGA EverDrive"])
+        self.device_combo.currentTextChanged.connect(self._on_device_changed)
+        save_folder_row.addWidget(self.device_combo)
         layout.addLayout(save_folder_row)
 
         # DAT row
@@ -224,6 +267,12 @@ class RomNormalizerTab(QWidget):
         check_all_btn.clicked.connect(lambda: self._set_all_checked(True))
         uncheck_all_btn = QPushButton("Uncheck All")
         uncheck_all_btn.clicked.connect(lambda: self._set_all_checked(False))
+        self.normalize_fallback_check = QCheckBox("Enable Normalize ROMs")
+        self.normalize_fallback_check.setToolTip(
+            "When checked, ROMs that don't match any DAT entry are renamed using a normalized slug\n"
+            "(or the portion before '[' if the filename contains one).\n"
+            "When unchecked, unmatched ROMs are left as-is."
+        )
         self.nointro_only_check = QCheckBox("No-Intro / Redump matches only")
         self.nointro_only_check.setToolTip(
             "When checked, only renames matched via DAT (CRC, header, fuzzy, or folder name) are applied.\n"
@@ -237,6 +286,7 @@ class RomNormalizerTab(QWidget):
         btn_row.addWidget(check_all_btn)
         btn_row.addWidget(uncheck_all_btn)
         btn_row.addStretch()
+        btn_row.addWidget(self.normalize_fallback_check)
         btn_row.addWidget(self.nointro_only_check)
         btn_row.addWidget(self.apply_btn)
         layout.addLayout(btn_row)
@@ -251,21 +301,26 @@ class RomNormalizerTab(QWidget):
         filter_row.addWidget(self.filter_edit, 4)
         filter_row.addWidget(QLabel("Source:"))
         self.source_filter_combo = QComboBox()
-        self.source_filter_combo.addItems(["All", "No-Intro", "Header", "Fuzzy", "Folder", "filename", "Save"])
+        self.source_filter_combo.addItems(["All", "No-Intro", "Header", "Fuzzy", "Folder", "Bracket", "filename", "Save"])
         self.source_filter_combo.currentTextChanged.connect(self._apply_filter)
         filter_row.addWidget(self.source_filter_combo)
+        self.has_save_check = QCheckBox("Has Save Only")
+        self.has_save_check.stateChanged.connect(self._apply_filter)
+        filter_row.addWidget(self.has_save_check)
         layout.addLayout(filter_row)
 
         # Results table — col 0 items have checkboxes for per-row opt-out
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Current Name", "New Name", "Subfolder", "Source"])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Current Name", "New Name", "Subfolder", "Source", "Save"])
         hdr = self.table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
         hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
         hdr.resizeSection(2, 160)
         hdr.resizeSection(3, 90)
+        hdr.resizeSection(4, 48)
         self.table.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
@@ -301,6 +356,12 @@ class RomNormalizerTab(QWidget):
             return
 
         profile = action.data()
+        device_type = profile.get("device_type", "")
+
+        # Set device combo — triggers _on_device_changed which updates label/placeholder
+        combo_device = "MEGA EverDrive" if device_type == "MEGA EverDrive" else "Standard"
+        self.device_combo.setCurrentText(combo_device)
+
         self.folder_edit.setText(profile.get("path", ""))
         save_folder = profile.get("save_folder", "")
         self.save_folder_edit.setText(save_folder)
@@ -310,6 +371,15 @@ class RomNormalizerTab(QWidget):
             idx = self.system_combo.findText(system)
             if idx >= 0:
                 self.system_combo.setCurrentIndex(idx)
+
+    def _on_device_changed(self, device: str):
+        if device == "MEGA EverDrive":
+            self.save_folder_label.setText("Gamedata Folder:")
+            self.save_folder_edit.setPlaceholderText("Path to gamedata/ folder (e.g. J:/MEGA/gamedata)")
+        else:
+            self.save_folder_label.setText("Save Folder:")
+            self.save_folder_edit.setPlaceholderText("Optional — separate save folder (e.g. Everdrive SAVE/ dir)...")
+        self._device_type = device
 
     def _browse_save_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Save Folder")
@@ -357,7 +427,7 @@ class RomNormalizerTab(QWidget):
         if save_folder and not save_folder.exists():
             QMessageBox.warning(self, "Error", "Save folder not found.")
             return
-        self._worker = NormalizeScanWorker(folder, self._no_intro, self.system_combo.currentText(), save_folder)
+        self._worker = NormalizeScanWorker(folder, self._no_intro, self.system_combo.currentText(), save_folder, self.device_combo.currentText(), self.normalize_fallback_check.isChecked())
         self._worker.finished.connect(self._on_scan_done)
         self._worker.progress.connect(self.status_label.setText)
         self._worker.start()
@@ -372,6 +442,7 @@ class RomNormalizerTab(QWidget):
         header    = sum(1 for r in roms_only if r["source"] == "Header")
         fuzzy     = sum(1 for r in roms_only if r["source"] == "Fuzzy")
         folder    = sum(1 for r in roms_only if r["source"] == "Folder")
+        bracket   = sum(1 for r in roms_only if r["source"] == "Bracket")
         filename  = sum(1 for r in roms_only if r["source"] == "filename")
         companion = sum(len(r.get("companions", [])) for r in renames)
 
@@ -380,6 +451,7 @@ class RomNormalizerTab(QWidget):
             "Header":    QColor(80, 160, 255),
             "Fuzzy":     QColor(200, 100, 255),
             "Folder":    QColor(255, 160, 50),
+            "Bracket":   QColor(255, 220, 100),
             "filename":  QColor(255, 200, 0),
             "Save":      QColor(255, 140, 0),
         }
@@ -388,12 +460,20 @@ class RomNormalizerTab(QWidget):
             name_item = QTableWidgetItem(r["old"].name)
             name_item.setFlags(ro | Qt.ItemFlag.ItemIsUserCheckable)
             name_item.setCheckState(Qt.CheckState.Unchecked)
+            tip_lines = []
             comps = r.get("companions", [])
             if comps:
-                tip = "Companion files (renamed with ROM):\n" + "\n".join(
+                tip_lines.append("Companion files (renamed with ROM):\n" + "\n".join(
                     f"  {c.name}  →  {{new stem}}{s}" for c, s in comps
+                ))
+            if r.get("save_dir_old"):
+                tip_lines.append(
+                    f"Save folder also renamed:\n"
+                    f"  {r['save_dir_old'].name}/\n"
+                    f"  → {r['save_dir_new'].name}/"
                 )
-                name_item.setToolTip(tip)
+            if tip_lines:
+                name_item.setToolTip("\n\n".join(tip_lines))
             self.table.setItem(row, 0, name_item)
             new_item = QTableWidgetItem(r["new"].name)
             if comps:
@@ -406,6 +486,13 @@ class RomNormalizerTab(QWidget):
             src_item.setFlags(ro)
             src_item.setForeground(SOURCE_COLORS.get(r["source"], QColor(255, 255, 255)))
             self.table.setItem(row, 3, src_item)
+            if r["source"] != "Save":
+                has_save = r.get("has_save", False)
+                save_col_item = QTableWidgetItem("✓" if has_save else "—")
+                save_col_item.setFlags(ro)
+                save_col_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                save_col_item.setForeground(QColor(0, 200, 0) if has_save else QColor(100, 100, 100))
+                self.table.setItem(row, 4, save_col_item)
         self._update_row_highlighting()
         if renames:
             self.apply_btn.setEnabled(True)
@@ -414,9 +501,14 @@ class RomNormalizerTab(QWidget):
             if header:    parts.append(f"{header} header match")
             if fuzzy:     parts.append(f"{fuzzy} fuzzy name match")
             if folder:    parts.append(f"{folder} folder name match")
+            if bracket:   parts.append(f"{bracket} bracket trim")
             if filename:  parts.append(f"{filename} filename only")
             comp_note = f" (+{companion} companion files)" if companion else ""
-            save_note = f" (+{len(saves_only)} save files)" if saves_only else ""
+            paired_save_dirs = sum(1 for r in roms_only if r.get("save_dir_old"))
+            save_parts = []
+            if saves_only: save_parts.append(f"{len(saves_only)} save file{'s' if len(saves_only) != 1 else ''}")
+            if paired_save_dirs: save_parts.append(f"{paired_save_dirs} save folder{'s' if paired_save_dirs != 1 else ''}")
+            save_note = f" (+{', '.join(save_parts)})" if save_parts else ""
             self.status_label.setText(
                 f"{len(roms_only)} ROM rename(s) needed — {', '.join(parts)}{comp_note}{save_note}. "
                 f"Review above, then click Apply Renames."
@@ -431,6 +523,7 @@ class RomNormalizerTab(QWidget):
             "Header":    QColor(80, 160, 255),
             "Fuzzy":     QColor(200, 100, 255),
             "Folder":    QColor(255, 160, 50),
+            "Bracket":   QColor(255, 220, 100),
             "filename":  QColor(255, 200, 0),
             "Save":      QColor(255, 140, 0),
         }
@@ -455,16 +548,21 @@ class RomNormalizerTab(QWidget):
     def _apply_filter(self):
         text = self.filter_edit.text().strip().lower()
         source_filter = self.source_filter_combo.currentText()
+        has_save_only = self.has_save_check.isChecked()
         for row in range(self.table.rowCount()):
             name_item = self.table.item(row, 0)
             sub_item  = self.table.item(row, 2)
             src_item  = self.table.item(row, 3)
+            save_item = self.table.item(row, 4)
             name = (name_item.text() if name_item else "").lower()
             sub  = (sub_item.text()  if sub_item  else "").lower()
             src  = src_item.text()   if src_item  else ""
             text_match   = not text or text in name or text in sub
             source_match = source_filter == "All" or src == source_filter
-            self.table.setRowHidden(row, not (text_match and source_match))
+            # Save rows (the .sav/.srm rename entries) always count as "has save"
+            save_val     = save_item.text() if save_item else ""
+            save_match   = not has_save_only or src == "Save" or save_val == "✓"
+            self.table.setRowHidden(row, not (text_match and source_match and save_match))
 
     def _on_item_changed(self, item: QTableWidgetItem):
         """When a checkbox in col 0 is toggled and its row is selected, apply to all selected rows."""
@@ -525,6 +623,7 @@ class RomNormalizerTab(QWidget):
             return
         nointro_only = self.nointro_only_check.isChecked()
         to_apply = []
+        applied_rom_indices: set[int] = set()
         for row, r in enumerate(self._renames):
             item = self.table.item(row, 0)
             if item and item.checkState() != Qt.CheckState.Checked:
@@ -532,6 +631,21 @@ class RomNormalizerTab(QWidget):
             if nointro_only and r["source"] not in ("No-Intro", "Header", "Fuzzy", "Folder", "Save"):
                 continue
             to_apply.append((row, r))
+            if r["source"] != "Save":
+                applied_rom_indices.add(row)
+
+        # Auto-include Save rows linked to an applied ROM, even if unchecked.
+        # This ensures save files always follow their ROM rename automatically.
+        applied_rows = {row for row, _ in to_apply}
+        for row, r in enumerate(self._renames):
+            if row in applied_rows:
+                continue
+            if r["source"] != "Save":
+                continue
+            rom_idx = r.get("rom_idx")
+            if rom_idx is not None and rom_idx in applied_rom_indices:
+                to_apply.append((row, r))
+        to_apply.sort(key=lambda x: x[0])  # keep original row order
         if not to_apply:
             QMessageBox.information(self, "Nothing to apply",
                 "No renames to apply — all rows are unchecked or filtered out.")
@@ -539,9 +653,11 @@ class RomNormalizerTab(QWidget):
         filter_note = " (No-Intro/Redump matches only)" if nointro_only else ""
         rom_count  = sum(1 for _, r in to_apply if r["source"] != "Save")
         save_count = sum(1 for _, r in to_apply if r["source"] == "Save")
+        save_dir_count = sum(1 for _, r in to_apply if r.get("save_dir_old"))
         parts = []
         if rom_count:  parts.append(f"{rom_count} ROM(s)")
-        if save_count: parts.append(f"{save_count} save(s)")
+        if save_count: parts.append(f"{save_count} save file(s)")
+        if save_dir_count: parts.append(f"{save_dir_count} save folder(s)")
         reply = QMessageBox.question(
             self, "Apply Renames",
             f"Rename {' + '.join(parts)}{filter_note}? This cannot be undone.",
@@ -576,7 +692,15 @@ class RomNormalizerTab(QWidget):
                         if comp_new.suffix.lower() == ".cue":
                             rn.patch_cue_references(comp_new, comp_old.stem, comp_new.stem)
                         log_entries.append(f"{comp_new}\t{comp_old}")
-                # Save files are their own rows — handled separately in this loop
+                # MEGA EverDrive: rename paired save folder alongside the ROM.
+                # Derive the new folder name from the actual renamed file (new), not
+                # from the pre-scanned value, so user-edited names are respected.
+                save_dir_old = r.get("save_dir_old")
+                if save_dir_old and save_dir_old.exists():
+                    save_dir_new = save_dir_old.parent / new.name
+                    if save_dir_new != save_dir_old and not save_dir_new.exists():
+                        save_dir_old.rename(save_dir_new)
+                        log_entries.append(f"{save_dir_new}\t{save_dir_old}")
                 done_rows.append(row)
             except Exception as e:
                 QMessageBox.warning(self, "Rename Error", f"Could not rename {old.name}:\n{e}")
@@ -622,8 +746,11 @@ class RomNormalizerTab(QWidget):
             "rom_folder":    self.folder_edit.text(),
             "save_folder":   self.save_folder_edit.text(),
             "system":        self.system_combo.currentText(),
+            "device":        self.device_combo.currentText(),
             "dat_path":      str(self._loaded_dat_path) if self._loaded_dat_path else "",
-            "nointro_only":  self.nointro_only_check.isChecked(),
+            "nointro_only":       self.nointro_only_check.isChecked(),
+            "normalize_fallback": self.normalize_fallback_check.isChecked(),
+            "has_save_only":      self.has_save_check.isChecked(),
         }
 
     def load_ui_state(self, state: dict):
@@ -635,8 +762,16 @@ class RomNormalizerTab(QWidget):
             idx = self.system_combo.findText(state["system"])
             if idx >= 0:
                 self.system_combo.setCurrentIndex(idx)
+        if "device" in state:
+            idx = self.device_combo.findText(state["device"])
+            if idx >= 0:
+                self.device_combo.setCurrentIndex(idx)
         if state.get("nointro_only"):
             self.nointro_only_check.setChecked(True)
+        if state.get("normalize_fallback"):
+            self.normalize_fallback_check.setChecked(True)
+        if state.get("has_save_only"):
+            self.has_save_check.setChecked(True)
         dat_path_str = state.get("dat_path", "")
         if dat_path_str:
             dat_path = Path(dat_path_str)

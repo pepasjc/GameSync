@@ -1,0 +1,275 @@
+from pathlib import Path
+
+import sync_engine as se
+
+
+def test_resolve_canonical_sync_name_uses_nointro_fuzzy_match(tmp_path):
+    rom = tmp_path / "Advance Wars.gba"
+    rom.write_bytes(b"")
+
+    canonical, source, confidence = se._resolve_canonical_sync_name("GBA", rom)
+
+    assert canonical == "Advance Wars (USA)"
+    assert source == "fuzzy"
+    assert confidence == "low"
+
+
+def test_scan_roms_match_saves_uses_canonical_title_id_without_renaming_files(tmp_path):
+    rom_folder = tmp_path / "roms"
+    save_folder = tmp_path / "saves"
+    rom_folder.mkdir()
+    save_folder.mkdir()
+
+    rom = rom_folder / "Advance Wars.gba"
+    save = save_folder / "Advance Wars.sav"
+    rom.write_bytes(b"")
+    save.write_bytes(b"local save")
+
+    results = se._scan_roms_match_saves(rom_folder, save_folder, "GBA")
+
+    assert len(results) == 1
+    entry = results[0]
+    assert entry.title_id == "GBA_advance_wars_usa"
+    assert entry.path == save
+    assert entry.game_name == "Advance Wars"
+    assert entry.save_exists is True
+
+
+def test_scan_roms_match_saves_can_disable_auto_normalize(tmp_path):
+    rom_folder = tmp_path / "roms"
+    save_folder = tmp_path / "saves"
+    rom_folder.mkdir()
+    save_folder.mkdir()
+
+    rom = rom_folder / "Advance Wars.gba"
+    save = save_folder / "Advance Wars.sav"
+    rom.write_bytes(b"")
+    save.write_bytes(b"local save")
+
+    results = se._scan_roms_match_saves(
+        rom_folder,
+        save_folder,
+        "GBA",
+        enable_auto_normalize=False,
+    )
+
+    assert len(results) == 1
+    assert results[0].title_id == "GBA_advance_wars"
+
+
+def test_resolve_canonical_sync_name_uses_persistent_cache(monkeypatch, tmp_path):
+    rom = tmp_path / "Advance Wars.gba"
+    rom.write_bytes(b"")
+
+    cache_file = tmp_path / ".scan_cache.json"
+    monkeypatch.setattr(se, "SCAN_CACHE_FILE", cache_file)
+    monkeypatch.setattr(se, "_SCAN_CACHE", None)
+    monkeypatch.setattr(se, "_SCAN_CACHE_DIRTY", False)
+    monkeypatch.setattr(se, "_NOINTRO_CACHE", {})
+
+    import rom_normalizer as rn
+
+    calls = {"fuzzy": 0}
+    original_fuzzy = rn.fuzzy_filename_search
+
+    def counting_fuzzy(filename, name_index):
+        calls["fuzzy"] += 1
+        return original_fuzzy(filename, name_index)
+
+    monkeypatch.setattr(rn, "fuzzy_filename_search", counting_fuzzy)
+
+    first, source1, confidence1 = se._resolve_canonical_sync_name("GBA", rom)
+    se._flush_scan_cache()
+    assert first == "Advance Wars (USA)"
+    assert source1 == "fuzzy"
+    assert confidence1 == "low"
+    assert calls["fuzzy"] >= 1
+
+    monkeypatch.setattr(se, "_SCAN_CACHE", None)
+    monkeypatch.setattr(se, "_SCAN_CACHE_DIRTY", False)
+    monkeypatch.setattr(rn, "fuzzy_filename_search", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("cache miss")))
+
+    second, source2, confidence2 = se._resolve_canonical_sync_name("GBA", rom)
+
+    assert second == "Advance Wars (USA)"
+    assert source2 == "fuzzy"
+    assert confidence2 == "low"
+
+
+def test_make_title_id_with_region_includes_multi_region_suffix():
+    title_id = se._make_title_id_with_region(
+        "GBA",
+        "Yu Yu Hakusho - Ghostfiles - Tournament Tactics (USA, Europe).sav",
+    )
+
+    assert title_id == "GBA_yu_yu_hakusho_ghostfiles_tournament_tactics_usa_europe"
+
+
+def test_fuzzy_matching_handles_trailing_the_titles():
+    import rom_normalizer as rn
+
+    no_intro = {
+        "X": "Revenge of Shinobi, The (USA)",
+    }
+    name_index = rn.build_name_index(no_intro)
+
+    canonical = rn.fuzzy_filename_search("The Revenge of Shinobi.gba", name_index)
+
+    assert canonical == "Revenge of Shinobi, The (USA)"
+
+
+def test_fuzzy_matching_handles_article_and_digit_spacing_titles():
+    import rom_normalizer as rn
+
+    no_intro = {
+        "X": "King of Fighters EX 2, The - Howling Blood (USA)",
+    }
+    name_index = rn.build_name_index(no_intro)
+
+    canonical = rn.fuzzy_filename_search("The King of Fighters EX2.gba", name_index)
+
+    assert canonical == "King of Fighters EX 2, The - Howling Blood (USA)"
+
+
+def test_fuzzy_matching_handles_collapsed_spacing_titles():
+    import rom_normalizer as rn
+
+    no_intro = {
+        "X": "Super Dodge Ball Advance (USA)",
+    }
+    name_index = rn.build_name_index(no_intro)
+
+    canonical = rn.fuzzy_filename_search("Super Dodgeball Advance.gba", name_index)
+
+    assert canonical == "Super Dodge Ball Advance (USA)"
+
+
+def test_sync_resolution_prefers_filename_fuzzy_before_header(monkeypatch, tmp_path):
+    rom = tmp_path / "Zone of The Enders.gba"
+    rom.write_bytes(b"")
+
+    import rom_normalizer as rn
+
+    monkeypatch.setattr(se, "_NOINTRO_CACHE", {})
+    monkeypatch.setattr(rn, "find_dat_for_system", lambda system: tmp_path / "fake.dat")
+    monkeypatch.setattr(
+        rn,
+        "load_no_intro_dat",
+        lambda path: {
+            "A": "Zone of the Enders - The Fist of Mars (USA)",
+            "B": "Z.O.E. 2173 - Testament (Japan)",
+        },
+    )
+    monkeypatch.setattr(
+        rn,
+        "build_name_index",
+        lambda no_intro: {
+            "zone_of_the_enders_the_fist_of_mars": "Zone of the Enders - The Fist of Mars (USA)",
+            "z_o_e_2173_testament": "Z.O.E. 2173 - Testament (Japan)",
+        },
+    )
+    monkeypatch.setattr(
+        rn,
+        "fuzzy_filename_search",
+        lambda filename, idx: "Zone of the Enders - The Fist of Mars (USA)",
+    )
+    monkeypatch.setattr(rn, "read_rom_header_title", lambda path, system: "Z.O.E. 2173 TESTAMENT")
+    monkeypatch.setattr(
+        rn,
+        "lookup_header_in_index",
+        lambda header, idx: "Z.O.E. 2173 - Testament (Japan)",
+    )
+
+    canonical, source, confidence = se._resolve_canonical_sync_name("GBA", rom)
+
+    assert canonical == "Zone of the Enders - The Fist of Mars (USA)"
+    assert source == "fuzzy"
+    assert confidence == "low"
+
+
+def test_scan_profile_handles_single_system_analogue_pocket_subroot(tmp_path):
+    rom_root = tmp_path / "Assets" / "gba" / "common"
+    save_root = tmp_path / "Saves" / "gba" / "common"
+    rom_dir = rom_root / "all" / "A-M"
+    save_dir = save_root / "all" / "A-M"
+    rom_dir.mkdir(parents=True)
+    save_dir.mkdir(parents=True)
+
+    rom = rom_dir / "Advance Wars.gba"
+    save = save_dir / "Advance Wars.sav"
+    rom.write_bytes(b"")
+    save.write_bytes(b"save")
+
+    profile = {
+        "name": "Pocket_GBA",
+        "device_type": "Analogue Pocket",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {"system": "GBA", "enabled": True, "save_ext": ".sav", "save_folder": ""},
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "GBA"
+    assert results[0].path == save
+
+
+def test_scan_profile_preserves_relative_mirrored_save_path_for_pocket_subroot(tmp_path):
+    rom_root = tmp_path / "Assets" / "gba" / "common"
+    save_root = tmp_path / "Saves" / "gba" / "common"
+    rom_dir = rom_root / "all" / "japan"
+    rom_dir.mkdir(parents=True)
+    save_root.mkdir(parents=True)
+    rom = rom_dir / "Guru Logic Champ (Japan).gba"
+    rom.write_bytes(b"")
+
+    profile = {
+        "name": "Pocket_GBA",
+        "device_type": "Analogue Pocket",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {"system": "GBA", "enabled": True, "save_ext": ".sav", "save_folder": ""},
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].path == save_root / "all" / "japan" / "Guru Logic Champ (Japan).sav"
+    assert results[0].save_exists is False
+
+
+def test_scan_profile_keeps_alternate_paths_for_duplicate_rom_locations(tmp_path):
+    rom_root = tmp_path / "Assets" / "gba" / "common"
+    save_root = tmp_path / "Saves" / "gba" / "common"
+    rom_dir_a = rom_root / "all" / "japan"
+    rom_dir_b = rom_root / "favorites" / "japan"
+    rom_dir_a.mkdir(parents=True)
+    rom_dir_b.mkdir(parents=True)
+    save_root.mkdir(parents=True)
+    (rom_dir_a / "Guru Logic Champ (Japan).gba").write_bytes(b"")
+    (rom_dir_b / "Guru Logic Champ (Japan).gba").write_bytes(b"")
+
+    profile = {
+        "name": "Pocket_GBA",
+        "device_type": "Analogue Pocket",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {"system": "GBA", "enabled": True, "save_ext": ".sav", "save_folder": ""},
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    expected = {
+        save_root / "all" / "japan" / "Guru Logic Champ (Japan).sav",
+        save_root / "favorites" / "japan" / "Guru Logic Champ (Japan).sav",
+    }
+    found = {results[0].path, *results[0].alternate_paths}
+    assert found == expected

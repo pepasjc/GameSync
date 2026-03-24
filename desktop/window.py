@@ -60,6 +60,7 @@ class SaveManagerWindow(QMainWindow):
 
         # Per-tab state
         self.server_tab.load_ui_state(ui.get("server_saves", {}))
+        self.sync_tab.load_ui_state(ui.get("sync", {}))
         self.normalizer_tab.load_ui_state(ui.get("rom_normalizer", {}))
 
     def _save_state(self):
@@ -72,6 +73,7 @@ class SaveManagerWindow(QMainWindow):
             },
             "active_tab": self.tabs.currentIndex(),
             "server_saves": self.server_tab.save_ui_state(),
+            "sync": self.sync_tab.save_ui_state(),
             "rom_normalizer": self.normalizer_tab.save_ui_state(),
         }
         save_config(cfg)

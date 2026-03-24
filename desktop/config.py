@@ -17,7 +17,7 @@ ALL_CONSOLE_TYPES = [
     "WSWAN", "WSWANC", "ARCADE", "MAME",
 ]
 
-DEVICE_TYPES = ["Generic", "RetroArch", "MiSTer", "Analogue Pocket", "Pocket (openFPGA)", "Everdrive", "EmuDeck"]
+DEVICE_TYPES = ["Generic", "RetroArch", "MiSTer", "Analogue Pocket", "Pocket (openFPGA)", "Everdrive", "MEGA EverDrive", "EmuDeck"]
 
 SYSTEM_CHOICES = [
     "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC", "GG", "NGP",
@@ -33,6 +33,8 @@ STATUS_COLORS = {
     "not_on_server": QColor(180, 180, 180),
     "server_only":   QColor(180, 100, 255),
     "conflict":      QColor(220, 60, 60),
+    "mapping_conflict": QColor(255, 120, 40),
+    "local_duplicate_conflict": QColor(255, 140, 80),
     "error":         QColor(200, 0, 200),
     "unknown":       QColor(180, 180, 180),
 }
@@ -44,6 +46,8 @@ STATUS_LABELS = {
     "not_on_server": "Not on server",
     "server_only":   "Server only",
     "conflict":      "Conflict",
+    "mapping_conflict": "Mapping conflict",
+    "local_duplicate_conflict": "Local duplicates differ",
     "error":         "Error",
     "unknown":       "Unknown",
 }
