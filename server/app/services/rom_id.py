@@ -9,10 +9,32 @@ Examples:
 import re
 
 SYSTEM_CODES = frozenset({
-    "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC", "GG", "NGP",
-    "PCE", "PS1", "PS2", "SMS", "ATARI2600", "ATARI7800", "LYNX", "NEOGEO",
-    "32X", "SEGACD", "TG16", "WSWAN", "WSWANC", "DC", "NDS", "GC",
-    "ARCADE", "MAME", "CPS1", "CPS2", "CPS3",
+    # Nintendo handhelds
+    "GBA", "GBC", "GB", "NDS", "3DS",
+    # Nintendo home
+    "NES", "SNES", "N64", "GC", "WII",
+    # Sony
+    "PS1", "PS2", "PSP",
+    # Sega
+    "GEN", "MD",        # Mega Drive (GEN = Android, MD = legacy server)
+    "SCD", "SEGACD",    # Sega CD
+    "32X",
+    "SMS",              # Master System
+    "GG",               # Game Gear
+    "SAT",              # Saturn
+    "DC",               # Dreamcast
+    # SNK
+    "NGP", "NEOGEO", "NEOCD",
+    # NEC
+    "PCE", "TG16",
+    # Bandai
+    "WS", "WSWAN", "WSWANC",
+    # Atari
+    "A2600", "ATARI2600",
+    "A7800", "ATARI7800",
+    "LYNX",
+    # Arcade
+    "ARCADE", "MAME", "FBA", "CPS1", "CPS2", "CPS3",
 })
 
 # Regex for emulator title_id format: SYSTEM_slug
