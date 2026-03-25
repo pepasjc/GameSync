@@ -1,0 +1,569 @@
+package com.savesync.android.emulators.impl
+
+import com.savesync.android.emulators.EmulatorBase
+import com.savesync.android.emulators.SaveEntry
+import org.json.JSONObject
+import java.io.File
+
+/**
+ * @param romScanDir If non-empty, its immediate subfolders are scanned for ROMs as a
+ *   Tier-4 discovery step. Subfolder names are mapped to systems using the same
+ *   heuristics as playlist/core_name resolution.
+ *   E.g. "/storage/sdcard1/Isos" with subfolders GBA/, MegaDrive/, PS1/, …
+ */
+class RetroArchEmulator(
+    private val romScanDir: String = ""
+) : EmulatorBase() {
+
+    override val name: String = "RetroArch"
+    override val systemPrefix: String = "RETRO"
+
+    private val saveExtensions = setOf("srm", "sav", "savestate", "state", "saveram")
+
+    // Playlist filename keyword → system prefix
+    // RetroArch playlist names follow the No-Intro / Redump naming convention
+    private val playlistSystemMap = mapOf(
+        "game boy advance"          to "GBA",
+        "gba"                       to "GBA",
+        "super nintendo"            to "SNES",
+        "snes"                      to "SNES",
+        "nintendo entertainment"    to "NES",
+        " nes"                      to "NES",
+        "game boy color"            to "GBC",
+        "game boy"                  to "GB",       // must be after "game boy color/advance"
+        "nintendo 64"               to "N64",
+        "n64"                       to "N64",
+        "playstation"               to "PS1",
+        "psx"                       to "PS1",
+        "sega genesis"              to "GEN",
+        "mega drive"                to "GEN",
+        "genesis"                   to "GEN",
+        "sega master"               to "SMS",
+        "master system"             to "SMS",
+        "game gear"                 to "GG",
+        "sega cd"                   to "SCD",
+        "sega saturn"               to "SAT",
+        "saturn"                    to "SAT",
+        "pc engine"                 to "PCE",
+        "turbografx"                to "PCE",
+        "neo geo pocket"            to "NGP",
+        "wonderswan"                to "WS",
+        "atari 2600"                to "A2600",
+        "atari 7800"                to "A7800",
+        "atari lynx"                to "LYNX",
+        "nintendo ds"               to "NDS",
+        "mame"                      to "MAME",
+        "arcade"                    to "ARCADE",
+        "fba"                       to "FBA",
+        "final burn"                to "FBA",
+        "dreamcast"                 to "DC",
+        "nintendo - gamecube"       to "GC",
+        "gamecube"                  to "GC",
+        "psp"                       to "PSP"
+    )
+
+    // Known system subfolder names → system prefix
+    private val systemFolderMap = mapOf(
+        "GBA" to "GBA", "SNES" to "SNES", "NES" to "NES",
+        "GB" to "GB", "GBC" to "GBC", "N64" to "N64",
+        "PS1" to "PS1", "PSX" to "PS1", "PSP" to "PSP",
+        "GEN" to "GEN", "GENESIS" to "GEN", "MEGADRIVE" to "GEN",
+        "SMS" to "SMS", "GG" to "GG", "PCE" to "PCE",
+        "SATURN" to "SAT", "SAT" to "SAT", "DC" to "DC",
+        "ATARI" to "A2600", "LYNX" to "LYNX", "NGP" to "NGP",
+        "WS" to "WS", "WONDERSWAN" to "WS",
+        "MAME" to "MAME", "FBA" to "FBA", "ARCADE" to "ARCADE",
+        "NDS" to "NDS", "GC" to "GC"
+    )
+
+    // All candidate base directories where RetroArch might be installed
+    private fun retroArchBaseCandidates(): List<File> {
+        val ext = baseDir
+        return listOf(
+            // Standard public external storage
+            File(ext, "RetroArch"),
+            File(ext, "retroarch"),
+            // 64-bit package (most common on modern Android)
+            File(ext, "Android/data/com.retroarch.aarch64/files"),
+            // Standard package
+            File(ext, "Android/data/com.retroarch/files"),
+            // 32-bit package
+            File(ext, "Android/data/com.retroarch.ra32/files"),
+            // Some OEM/custom builds
+            File(ext, "Android/data/com.retroarch.plus/files"),
+        ).filter { it.exists() && it.isDirectory }
+    }
+
+    override fun retroarchDiagnosticPaths(): List<Pair<String, Boolean>> {
+        val ext = baseDir
+        return listOf(
+            "RetroArch", "retroarch",
+            "Android/data/com.retroarch.aarch64/files",
+            "Android/data/com.retroarch/files",
+            "Android/data/com.retroarch.ra32/files"
+        ).map { rel ->
+            val f = File(ext, rel)
+            "$rel/saves" to File(f, "saves").exists()
+        }
+    }
+
+    /**
+     * Returns the RetroArch save directory, preferring a custom path configured in retroarch.cfg.
+     *
+     * @param allowNonExistent if true, returns a best-guess path even if the directory doesn't
+     *   exist yet — used by [discoverRomEntries] so server-only entries still get a correct
+     *   expected save path (the file just hasn't been downloaded yet).
+     */
+    private fun resolveSavesDir(bases: List<File>, allowNonExistent: Boolean = false): File? {
+        // Priority 1: savefile_directory in retroarch.cfg at the base root
+        val fromRootCfg = bases.firstNotNullOfOrNull { base ->
+            parseSavefileDirectory(File(base, "retroarch.cfg"))
+                ?.let { File(it) }?.takeIf { it.exists() && it.isDirectory }
+        }
+        if (fromRootCfg != null) return fromRootCfg
+
+        // Priority 2: savefile_directory in config/retroarch.cfg (some installations)
+        val fromSubCfg = bases.firstNotNullOfOrNull { base ->
+            parseSavefileDirectory(File(base, "config/retroarch.cfg"))
+                ?.let { File(it) }?.takeIf { it.exists() && it.isDirectory }
+        }
+        if (fromSubCfg != null) return fromSubCfg
+
+        // Priority 3: standard saves/ subdirectory under any base
+        val standard = bases.map { File(it, "saves") }.firstOrNull { it.exists() }
+        if (standard != null) return standard
+
+        // Priority 4 (allowNonExistent only): expected path even if dir is absent
+        if (allowNonExistent) return bases.firstOrNull()?.let { File(it, "saves") }
+
+        return null
+    }
+
+    override fun discoverSaves(): List<SaveEntry> {
+        val bases = retroArchBaseCandidates()
+        if (bases.isEmpty()) return emptyList()
+
+        // Build playlist-based rom→system map (merging all bases)
+        val romSystemMap = bases.fold(mutableMapOf<String, String>()) { acc, base ->
+            acc.putAll(buildRomSystemMapFromPlaylists(File(base, "playlists")))
+            acc
+        }
+
+        // Build a fallback map from the user-specified ROM scan directory.
+        // This resolves system for saves whose game was never added to a RetroArch playlist
+        // (e.g. launched from the file browser). Keys are lowercase ROM names without extension.
+        val romScanSystemMap: Map<String, String> = buildRomScanSystemMap()
+
+        // Prefer the save dir declared in retroarch.cfg; fall back to the standard path.
+        val savesDir: File = resolveSavesDir(bases) ?: return emptyList()
+
+        val result = mutableListOf<SaveEntry>()
+
+        savesDir.listFiles()?.forEach { entry ->
+            if (entry.isFile) {
+                if (entry.extension.lowercase() in saveExtensions) {
+                    val romName = entry.nameWithoutExtension
+                    val lc = romName.lowercase()
+                    // Resolution priority: playlist → ROM scan dir → RETRO
+                    val system = romSystemMap[lc]
+                        ?: romSystemMap[romName]
+                        ?: romScanSystemMap[lc]
+                        ?: systemPrefix
+                    val slug = lc.replace(Regex("[^a-z0-9]+"), "_").trim('_')
+                    result.add(
+                        SaveEntry(
+                            titleId = "${system}_$slug",
+                            displayName = romName,
+                            systemName = system,
+                            saveFile = entry,
+                            saveDir = null
+                        )
+                    )
+                }
+            } else if (entry.isDirectory) {
+                // System subfolder inside saves/ (e.g. saves/GBA/romname.srm)
+                val system = systemFolderMap[entry.name.uppercase()] ?: return@forEach
+                entry.listFiles()?.forEach { file ->
+                    if (file.isFile && file.extension.lowercase() in saveExtensions) {
+                        val romName = file.nameWithoutExtension
+                        val slug = romName.lowercase()
+                            .replace(Regex("[^a-z0-9]+"), "_").trim('_')
+                        result.add(
+                            SaveEntry(
+                                titleId = "${system}_$slug",
+                                displayName = romName,
+                                systemName = system,
+                                saveFile = file,
+                                saveDir = null
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        return result
+    }
+
+    /**
+     * Builds a map of  lowercase-rom-name → system  by scanning the user's ROM directory.
+     * Used as a fallback when a save file isn't covered by any RetroArch playlist.
+     */
+    private fun buildRomScanSystemMap(): Map<String, String> {
+        if (romScanDir.isBlank()) return emptyMap()
+        val scanRoot = File(romScanDir)
+        if (!scanRoot.exists() || !scanRoot.isDirectory) return emptyMap()
+
+        val map = mutableMapOf<String, String>()
+        scanRoot.listFiles()?.filter { it.isDirectory }?.forEach { systemDir ->
+            val system = resolveSystemFromFolderName(systemDir.name) ?: return@forEach
+            systemDir.listFiles()?.forEach { file ->
+                when {
+                    file.isFile -> map[file.nameWithoutExtension.lowercase()] = system
+                    // CD games in per-game subfolders — use the folder name as the ROM name
+                    file.isDirectory -> map[file.name.lowercase()] = system
+                }
+            }
+        }
+        return map
+    }
+
+    /**
+     * Parses the `savefile_directory` key from a retroarch.cfg file.
+     * Returns null if the file doesn't exist, the key is absent, or value is "default".
+     */
+    private fun parseSavefileDirectory(cfgFile: File): String? {
+        if (!cfgFile.exists()) return null
+        return try {
+            cfgFile.useLines { lines ->
+                lines.firstNotNullOfOrNull { line ->
+                    val trimmed = line.trim()
+                    if (trimmed.startsWith("savefile_directory")) {
+                        trimmed.substringAfter('=').trim().removeSurrounding("\"").trim()
+                            .takeIf { it.isNotBlank() && it != "default" && it != ":" }
+                    } else null
+                }
+            }
+        } catch (_: Exception) { null }
+    }
+
+    /**
+     * Returns every ROM the device has for RetroArch, keyed by titleId, with the
+     * expected save-file path set (even if the file doesn't exist yet).
+     *
+     * Three-tier discovery (most reliable → least):
+     *  1. Per-system playlists in playlists/ subdir — unlimited, from library scan
+     *  2. content_history.lpl + any other root-level .lpl — limited (200 entries default)
+     *  3. Direct scan of ROM directories seen in the above playlists — catches games
+     *     never launched and handles the circular history buffer limit
+     */
+    override fun discoverRomEntries(): Map<String, SaveEntry> {
+        val bases = retroArchBaseCandidates()
+        if (bases.isEmpty()) return emptyMap()
+
+        // Use the same cfg-aware resolution as discoverSaves() so that the saveFile path
+        // on server-only entries matches exactly where RetroArch actually stores saves.
+        // allowNonExistent=true so entries still get a path even before any save exists.
+        val savesDir = resolveSavesDir(bases, allowNonExistent = true) ?: return emptyMap()
+
+        // key = romName.lowercase(), value = (system, originalRomName)
+        val romInfo = mutableMapOf<String, Pair<String, String>>()
+        // ROM directories seen in playlists — we'll scan these directly too
+        val romDirs = mutableSetOf<File>()
+
+        bases.forEach { base ->
+            // Tier 1: per-system playlists in playlists/ subdir
+            val playlistsSubdir = File(base, "playlists")
+            // Tier 2: root-level .lpl files (content_history.lpl etc.)
+            val lplFiles = buildList {
+                playlistsSubdir.listFiles()
+                    ?.filter { it.isFile && it.extension.lowercase() == "lpl" }
+                    ?.let { addAll(it) }
+                base.listFiles()
+                    ?.filter { it.isFile && it.extension.lowercase() == "lpl" }
+                    ?.let { addAll(it) }
+            }
+
+            lplFiles.forEach { lpl ->
+                try {
+                    val json = JSONObject(lpl.readText())
+                    val items = json.optJSONArray("items") ?: return@forEach
+                    for (i in 0 until items.length()) {
+                        val item = items.optJSONObject(i) ?: continue
+                        val path = item.optString("path").takeIf { it.isNotBlank() } ?: continue
+                        val coreName = item.optString("core_name").orEmpty()
+                        val romFile = File(path)
+                        val originalName = romFile.nameWithoutExtension
+                        val parentDir = romFile.parentFile
+
+                        val system = resolveSystemFromCoreName(coreName)
+                            ?: resolveSystemFromFolderName(parentDir?.name.orEmpty())
+                            ?: continue
+
+                        romInfo.putIfAbsent(originalName.lowercase(), Pair(system, originalName))
+
+                        // Collect parent directory for tier-3 direct scan
+                        if (parentDir != null && parentDir.exists()) {
+                            romDirs.add(parentDir)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        // Tier 3: scan every ROM directory we saw in playlists — finds games that were
+        // never launched (not in history) and games dropped from the circular buffer
+        val romExtensions = setOf(
+            // Nintendo handhelds
+            "gba", "agb",                           // GBA
+            "gb", "gbc", "sgb",                     // GB / GBC
+            "nds", "dsi",                           // NDS
+            // Nintendo home
+            "nes", "unf", "fds",                    // NES / Famicom Disk
+            "sfc", "smc", "snes", "fig", "swc",     // SNES (fig/swc are common dumps)
+            "n64", "z64", "v64", "n64.zip",         // N64
+            // Sony
+            "iso", "bin", "cue", "img", "mdf",      // PS1 / PS2 / Saturn / Dreamcast discs
+            "pbp", "cso", "psv",                    // PSP / PS1 compressed
+            "chd",                                  // universal compressed disc format
+            // Sega
+            "md", "gen", "smd", "32x", "68k",       // Mega Drive / Genesis / 32X
+            "sg", "sms",                            // Sega Master System / SG-1000
+            "gg",                                   // Game Gear
+            "gdi", "cdi",                           // Dreamcast
+            // Arcade / other
+            "zip", "7z",                            // MAME / FBA (compressed romsets)
+            "pce", "pce.zip",                       // PC Engine
+            "ws", "wsc",                            // WonderSwan
+            "ngp", "ngc", "ngpc",                   // Neo Geo Pocket
+            "lnx",                                  // Atari Lynx
+            "a26", "a52", "a78",                    // Atari 2600 / 5200 / 7800
+            "col",                                  // ColecoVision
+            "rvz", "gcz", "gcm",                    // GameCube compressed
+            "wbfs", "wia"                           // Wii
+        )
+        romDirs.forEach { dir ->
+            val system = resolveSystemFromFolderName(dir.name) ?: return@forEach
+            dir.listFiles()?.filter { it.isFile && it.extension.lowercase() in romExtensions }
+                ?.forEach { romFile ->
+                    val originalName = romFile.nameWithoutExtension
+                    romInfo.putIfAbsent(originalName.lowercase(), Pair(system, originalName))
+                }
+        }
+
+        // Tier 4: scan user-specified ROM directory's immediate subfolders.
+        // Each subfolder name is matched to a system (e.g. "MegaDrive" → GEN).
+        // We scan two levels deep:
+        //   Level 1 — files directly inside the system folder (e.g. Isos/GBA/game.gba)
+        //   Level 2 — one subfolder per game (e.g. Isos/Saturn/Sonic Jam/disc1.cue)
+        //             Common for CD/multi-disc games (PS1, Saturn, Dreamcast, etc.)
+        if (romScanDir.isNotBlank()) {
+            val scanRoot = File(romScanDir)
+            if (scanRoot.exists() && scanRoot.isDirectory) {
+                scanRoot.listFiles()?.filter { it.isDirectory }?.forEach { systemDir ->
+                    val system = resolveSystemFromFolderName(systemDir.name) ?: return@forEach
+
+                    systemDir.listFiles()?.forEach { entry ->
+                        when {
+                            // Level 1: ROM file directly in the system folder
+                            entry.isFile && entry.extension.lowercase() in romExtensions -> {
+                                val name = entry.nameWithoutExtension
+                                romInfo.putIfAbsent(name.lowercase(), Pair(system, name))
+                            }
+                            // Level 2: per-game subfolder (pick the first matching ROM inside)
+                            entry.isDirectory -> {
+                                val romFile = entry.listFiles()
+                                    ?.firstOrNull { it.isFile && it.extension.lowercase() in romExtensions }
+                                if (romFile != null) {
+                                    // Use the folder name as the game name (more reliable than the
+                                    // disc filename like "disc1.bin" or "track01.bin")
+                                    val name = entry.name
+                                    romInfo.putIfAbsent(name.lowercase(), Pair(system, name))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return romInfo.values.associate { (system, romName) ->
+            val slug = romName.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
+            val titleId = "${system}_$slug"
+            titleId to SaveEntry(
+                titleId = titleId,
+                displayName = romName,
+                systemName = system,
+                saveFile = File(savesDir, "$romName.srm"),  // expected path — may not exist
+                saveDir = null
+            )
+        }
+    }
+
+    /**
+     * Parses all *.lpl files in the given playlists directory.
+     * Uses two signals (in priority order):
+     *   1. core_name field  e.g. "Nintendo - Game Boy Advance (mGBA)" → GBA
+     *   2. ROM parent folder name  e.g. /Isos/GBA/ → GBA
+     *
+     * Returns map: lowercase rom-filename-without-extension → system prefix
+     */
+    private fun buildRomSystemMapFromPlaylists(playlistsDir: File): Map<String, String> {
+        if (!playlistsDir.exists()) return emptyMap()
+
+        val map = mutableMapOf<String, String>()
+        playlistsDir.listFiles()
+            ?.filter { it.isFile && it.extension.lowercase() == "lpl" }
+            ?.forEach { lpl ->
+                try {
+                    parseLplIntoMap(lpl, map)
+                } catch (_: Exception) { /* malformed, skip */ }
+            }
+        return map
+    }
+
+    private fun parseLplIntoMap(lpl: File, map: MutableMap<String, String>) {
+        val json = JSONObject(lpl.readText())
+        val items = json.optJSONArray("items") ?: return
+        for (i in 0 until items.length()) {
+            val item = items.optJSONObject(i) ?: continue
+            val path = item.optString("path").takeIf { it.isNotBlank() } ?: continue
+            val coreName = item.optString("core_name").orEmpty()
+            val romFile = File(path)
+
+            // Strip zip/compressed wrapper extension too (RetroArch saves use inner-name)
+            val baseName = romFile.nameWithoutExtension.lowercase()
+
+            val system = resolveSystemFromCoreName(coreName)
+                ?: resolveSystemFromFolderName(romFile.parentFile?.name.orEmpty())
+                ?: continue
+
+            // Don't overwrite a better (non-fallback) match already in the map
+            if (!map.containsKey(baseName)) {
+                map[baseName] = system
+            }
+        }
+    }
+
+    /**
+     * Maps core_name string → system prefix.
+     * Checks substrings so it works across all core variants.
+     */
+    private fun resolveSystemFromCoreName(coreName: String): String? {
+        val lower = coreName.lowercase()
+        return when {
+            "game boy advance" in lower                          -> "GBA"
+            "snes" in lower || "super nes" in lower
+                    || "super nintendo" in lower                 -> "SNES"
+            "nintendo 64" in lower || "n64" in lower
+                    || "parallel n64" in lower
+                    || "mupen64" in lower                        -> "N64"
+            "game boy color" in lower                           -> "GBC"
+            "game boy" in lower                                 -> "GB"
+            "nes)" in lower || "famicom" in lower
+                    || "nintendo entertainment" in lower         -> "NES"
+            "playstation" in lower && "2" !in lower             -> "PS1"
+            "saturn" in lower                                   -> "SAT"
+            "neo geo cd" in lower || "neocd" in lower           -> "NEOCD"
+            "neo geo pocket" in lower || "ngpc" in lower
+                    || "race)" in lower                         -> "NGP"
+            // Genesis/Mega Drive cores cover MS/GG/MD/CD — use folder to disambiguate
+            // (handled by folder fallback below)
+            "genesis" in lower || "mega drive" in lower
+                    || "picodrive" in lower
+                    || "genesis plus" in lower                   -> null  // defer to folder
+            "dreamcast" in lower                                -> "DC"
+            "pc engine" in lower || "turbografx" in lower       -> "PCE"
+            "arcade" in lower || "fbneo" in lower
+                    || "fbalpha" in lower || "mame" in lower     -> "ARCADE"
+            "wonderswan" in lower                               -> "WS"
+            "atari lynx" in lower || "mednafen_lynx" in lower   -> "LYNX"
+            "psp" in lower                                      -> "PSP"
+            else                                                -> null
+        }
+    }
+
+    /**
+     * Maps ROM parent folder name → system prefix.
+     * Handles all the common naming conventions users put on their SD cards,
+     * e.g. "GBA", "GameBoyAdvance", "MegaDrive", "Mega Drive", "NeoGeoCD", etc.
+     */
+    private fun resolveSystemFromFolderName(folder: String): String? {
+        val upper = folder.uppercase().replace(" ", "").replace("_", "").replace("-", "")
+        return when {
+            // ── Nintendo handhelds ──────────────────────────────────────
+            "GBA" in upper || "GAMEBOYADVANCE" in upper         -> "GBA"
+            "GBC" in upper || "GAMEBOYCOLOR" in upper
+                    || "GAMEBOY COLOR" in folder.uppercase()     -> "GBC"
+            // "GAMEBOY" must come after GBC/GBA checks
+            "GAMEBOY" in upper || upper == "GB"                 -> "GB"
+            "NDS" in upper || "NINTENDODS" in upper
+                    || "DS" == upper || "NDS" == upper           -> "NDS"
+            "3DS" in upper                                      -> "3DS"
+
+            // ── Nintendo home consoles ───────────────────────────────────
+            "SNES" in upper || "SFC" in upper
+                    || "SUPERNINTENDO" in upper
+                    || "SUPERNES" in upper                       -> "SNES"
+            "NES" in upper || "FAMICOM" in upper
+                    || upper == "NES"                            -> "NES"
+            "N64" in upper || "NINTENDO64" in upper             -> "N64"
+            "GAMECUBE" in upper || upper == "GC"                -> "GC"
+            "WII" in upper                                      -> "WII"
+
+            // ── Sony ────────────────────────────────────────────────────
+            // PS2 before PS1 so "PS2" doesn't match "PS1" check
+            "PS2" in upper || "PLAYSTATION2" in upper           -> "PS2"
+            "PS1" in upper || "PSX" in upper
+                    || "PLAYSTATION1" in upper
+                    || upper == "PLAYSTATION"
+                    || upper == "PSX"                           -> "PS1"
+            "PSP" in upper                                      -> "PSP"
+
+            // ── Sega ────────────────────────────────────────────────────
+            // MegaCD / Sega CD must come before MegaDrive / Genesis
+            "MEGACD" in upper || "SEGACD" in upper
+                    || "MEGACD" in upper                         -> "SCD"
+            "MEGADRIVE" in upper || "MEGA DRIVE" in folder.uppercase()
+                    || "GENESIS" in upper                        -> "GEN"
+            "SATURN" in upper                                   -> "SAT"
+            "DREAMCAST" in upper || upper == "DC"               -> "DC"
+            // Master System before Game Gear to avoid substring conflict
+            "MASTERSYSTEM" in upper || "SEGAMASTERSYSTEM" in upper
+                    || upper == "SMS"                           -> "SMS"
+            // Game Gear — "GG" alone, or longer forms
+            upper == "GG" || "GAMEGEAR" in upper
+                    || "GAME GEAR" in folder.uppercase()        -> "GG"
+
+            // ── SNK ─────────────────────────────────────────────────────
+            "NEOGEOCD" in upper || "NEOCD" in upper
+                    || "NCD" in upper                            -> "NEOCD"
+            "NGPC" in upper || "NEOGEOPOCKET" in upper
+                    || "NGP" in upper                           -> "NGP"
+
+            // ── Arcade ──────────────────────────────────────────────────
+            "ARCADE" in upper || "FBA" in upper
+                    || "MAME" in upper                           -> "ARCADE"
+
+            // ── NEC ─────────────────────────────────────────────────────
+            "PCE" in upper || "PCENGINE" in upper
+                    || "TURBOGRAFX" in upper                     -> "PCE"
+
+            // ── Bandai / Atari / other ───────────────────────────────────
+            "WONDERSWAN" in upper || upper == "WS"              -> "WS"
+            "LYNX" in upper                                     -> "LYNX"
+            "ATARI2600" in upper || "A2600" in upper            -> "A2600"
+            "ATARI7800" in upper || "A7800" in upper            -> "A7800"
+
+            else                                                -> null
+        }
+    }
+
+    private fun resolveSystemFromPlaylistName(playlistName: String): String? {
+        val lower = playlistName.lowercase()
+        for ((keyword, system) in playlistSystemMap) {
+            if (lower.contains(keyword)) return system
+        }
+        return null
+    }
+}
