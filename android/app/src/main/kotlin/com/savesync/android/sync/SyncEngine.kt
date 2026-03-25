@@ -62,11 +62,20 @@ class SyncEngine(
             try {
                 val hash = entry.computeHash()
                 val timestamp = entry.getTimestamp() / 1000L  // convert ms to seconds
+                val size = when {
+                    entry.systemName == "PPSSPP" && entry.saveDir != null ->
+                        entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                    entry.isMultiFile && entry.saveDir != null ->
+                        entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                    entry.saveFile != null -> entry.saveFile.length()
+                    else -> 0L
+                }
                 val lastSyncState = dao.getById(entry.titleId)
                 SyncTitle(
                     title_id = entry.titleId,
                     save_hash = hash,
                     timestamp = timestamp,
+                    size = size,
                     last_synced_hash = lastSyncState?.lastSyncedHash,
                     console_id = consoleId
                 )

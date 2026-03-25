@@ -6,6 +6,7 @@ data class SyncTitle(
     val title_id: String,
     val save_hash: String,
     val timestamp: Long,
+    val size: Long,               // required by server's TitleSyncInfo
     val last_synced_hash: String?,
     val console_id: String? = null
 )
@@ -33,7 +34,7 @@ data class SaveMeta(
 
 data class UploadResponse(
     val status: String,
-    val timestamp: Long,
+    val timestamp: String,   // ISO datetime string returned by server
     val sha256: String
 )
 
