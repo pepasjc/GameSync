@@ -44,8 +44,12 @@ class PpssppEmulator : EmulatorBase() {
      */
     private fun makeEntry(slotDir: File, code: String): SaveEntry =
         SaveEntry(
-            // Full directory name as titleId so it matches whatever the server stored.
-            titleId = slotDir.name,
+            // Use the full directory name if it's server-safe (alphanumeric only).
+            // Fall back to the 9-char product code for dirs with hyphens/underscores/etc.
+            // — those chars fail the server's title_id validation (HTTP 400/422).
+            // The product code is what the PSP homebrew client uses, so saves synced from
+            // real PSP hardware can still be matched.
+            titleId = if (validSlotDirRegex.matches(slotDir.name)) slotDir.name else code,
             // Product code as placeholder; game-name lookup in ViewModel will enrich this.
             displayName = code,
             systemName = systemPrefix,
@@ -61,9 +65,6 @@ class PpssppEmulator : EmulatorBase() {
         saveDataDir.listFiles()?.forEach { slotDir ->
             if (!slotDir.isDirectory) return@forEach
             val code = productCode(slotDir.name) ?: return@forEach
-            // Skip dirs whose full name won't pass server's title_id validation
-            // (non-alphanumeric chars like hyphens or underscores cause HTTP 400/422)
-            if (!validSlotDirRegex.matches(slotDir.name)) return@forEach
             result.add(makeEntry(slotDir, code))
         }
 
@@ -82,7 +83,6 @@ class PpssppEmulator : EmulatorBase() {
         saveDataDir.listFiles()?.forEach { slotDir ->
             if (!slotDir.isDirectory) return@forEach
             val code = productCode(slotDir.name) ?: return@forEach
-            if (!validSlotDirRegex.matches(slotDir.name)) return@forEach
             result[slotDir.name] = makeEntry(slotDir, code)
         }
 
