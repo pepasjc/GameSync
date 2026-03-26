@@ -6,6 +6,7 @@ from tabs.server_saves_tab import ServerSavesTab
 from tabs.profiles_tab import ProfilesTab
 from tabs.sync_tab import SyncTab
 from tabs.normalizer_tab import RomNormalizerTab
+from tabs.rom_collection_tab import RomCollectionTab
 
 
 class SaveManagerWindow(QMainWindow):
@@ -24,11 +25,13 @@ class SaveManagerWindow(QMainWindow):
         self.profiles_tab = ProfilesTab()
         self.sync_tab = SyncTab(self.profiles_tab)
         self.normalizer_tab = RomNormalizerTab()
+        self.collection_tab = RomCollectionTab()
 
         self.tabs.addTab(self.server_tab, "Server Saves")
         self.tabs.addTab(self.profiles_tab, "Sync Profiles")
         self.tabs.addTab(self.sync_tab, "Sync")
         self.tabs.addTab(self.normalizer_tab, "ROM Normalizer")
+        self.tabs.addTab(self.collection_tab, "ROM Collection")
 
         # Refresh sync profile list whenever the Sync tab is shown
         self.tabs.currentChanged.connect(self._on_tab_changed)
@@ -62,6 +65,7 @@ class SaveManagerWindow(QMainWindow):
         self.server_tab.load_ui_state(ui.get("server_saves", {}))
         self.sync_tab.load_ui_state(ui.get("sync", {}))
         self.normalizer_tab.load_ui_state(ui.get("rom_normalizer", {}))
+        self.collection_tab.load_ui_state(ui.get("rom_collection", {}))
 
     def _save_state(self):
         cfg = load_config()
@@ -75,6 +79,7 @@ class SaveManagerWindow(QMainWindow):
             "server_saves": self.server_tab.save_ui_state(),
             "sync": self.sync_tab.save_ui_state(),
             "rom_normalizer": self.normalizer_tab.save_ui_state(),
+            "rom_collection": self.collection_tab.save_ui_state(),
         }
         save_config(cfg)
 

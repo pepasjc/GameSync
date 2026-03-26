@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -228,6 +230,7 @@ ROM_EXTENSIONS = {
     ".ngp", ".ngc",           # NGP
     ".nds",                   # NDS
 }
+ZIP_ROM_EXTENSIONS = {".zip"}
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -247,6 +250,7 @@ class SaveFile:
     title_id_source: str = "legacy"
     title_id_confidence: str = "legacy"
     alternate_paths: list[Path] = field(default_factory=list)
+    profile_scope: str = ""
 
 
 @dataclass
@@ -458,6 +462,78 @@ def _parse_systems_config(profile: dict) -> dict[str, dict]:
     return {}
 
 
+def _profile_scope_key(profile: dict) -> str:
+    """Return a stable cache namespace for a sync profile."""
+    identity = {
+        "name": profile.get("name", ""),
+        "device_type": profile.get("device_type", ""),
+        "path": profile.get("path", ""),
+        "save_folder": profile.get("save_folder", ""),
+        "system": profile.get("system", ""),
+        "save_ext": profile.get("save_ext", ""),
+        "systems": profile.get("systems", []),
+        "systems_filter": profile.get("systems_filter", []),
+    }
+    return json.dumps(identity, sort_keys=True, separators=(",", ":"))
+
+
+def _volume_identity(path_str: str) -> str:
+    """Return a best-effort identity for the storage backing a profile path."""
+    if not path_str:
+        return ""
+    path = Path(path_str)
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+
+    anchor = resolved.anchor or str(resolved)
+    parts = [anchor]
+
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            volume_name = ctypes.create_unicode_buffer(261)
+            fs_name = ctypes.create_unicode_buffer(261)
+            serial = ctypes.c_uint()
+            max_component = ctypes.c_uint()
+            flags = ctypes.c_uint()
+            ok = ctypes.windll.kernel32.GetVolumeInformationW(
+                ctypes.c_wchar_p(anchor),
+                volume_name,
+                len(volume_name),
+                ctypes.byref(serial),
+                ctypes.byref(max_component),
+                ctypes.byref(flags),
+                fs_name,
+                len(fs_name),
+            )
+            if ok:
+                parts.append(f"serial={serial.value}")
+                if volume_name.value:
+                    parts.append(f"label={volume_name.value}")
+        except Exception:
+            pass
+
+    try:
+        stat = resolved.stat()
+        parts.append(f"dev={getattr(stat, 'st_dev', '')}")
+    except OSError:
+        pass
+    return "|".join(str(part) for part in parts if part != "")
+
+
+def _profile_runtime_scope(profile: dict) -> str:
+    """Return the profile namespace including mounted media identity."""
+    identity = {
+        "profile": _profile_scope_key(profile),
+        "rom_volume": _volume_identity(profile.get("path", "")),
+        "save_volume": _volume_identity(profile.get("save_folder", "")),
+    }
+    return json.dumps(identity, sort_keys=True, separators=(",", ":"))
+
+
 def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: bool = True) -> list[SaveFile]:
     """Walk a profile folder and return SaveFile entries for each save found.
 
@@ -491,6 +567,7 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
 
     save_folder = Path(save_folder_str) if save_folder_str else None
     rom_folder = Path(rom_folder_str) if rom_folder_str else None
+    profile_scope = _profile_runtime_scope(profile)
     # Convenience: the "active" folder for legacy save-based scanners
     folder = save_folder if (save_folder and save_folder.exists()) else (rom_folder or Path("."))
 
@@ -507,6 +584,7 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
             folder,
             progress_callback=progress_callback,
             enable_auto_normalize=enable_auto_normalize,
+            profile_scope=profile_scope,
         )
 
     elif (
@@ -530,6 +608,7 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
             progress_callback=progress_callback,
             enable_auto_normalize=enable_auto_normalize,
             mirror_relative_path=True,
+            profile_scope=profile_scope,
         )
 
     elif device_type == "MiSTer":
@@ -552,12 +631,14 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
                     sys_dir, sv_dir, sys_code, save_ext=sys_ext,
                     progress_callback=progress_callback,
                     enable_auto_normalize=enable_auto_normalize,
+                    profile_scope=profile_scope,
                 ))
         else:
             results = _scan_mister(
                 folder,
                 progress_callback=progress_callback,
                 enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
             )
 
     elif device_type == "Pocket":
@@ -565,6 +646,7 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
             folder,
             progress_callback=progress_callback,
             enable_auto_normalize=enable_auto_normalize,
+            profile_scope=profile_scope,
         )
 
     elif device_type == "Pocket (openFPGA)":
@@ -573,22 +655,25 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
                 rom_folder, save_folder, save_ext=save_ext,
                 progress_callback=progress_callback,
                 enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
             )
         elif save_folder and save_folder.exists():
             results = _scan_pocket_openfpga(
                 save_folder,
                 progress_callback=progress_callback,
                 enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
             )
         elif rom_folder and rom_folder.exists():
             results = _scan_pocket_openfpga(
                 rom_folder,
                 progress_callback=progress_callback,
                 enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
             )
 
     elif device_type == "EmuDeck":
-        results = _scan_emudeck(folder, progress_callback=progress_callback)
+        results = _scan_emudeck(folder, progress_callback=progress_callback, profile_scope=profile_scope)
 
     elif device_type == "MEGA EverDrive":
         # MEGA EverDrive Pro: gamedata/<Game Name>/bram.srm layout.
@@ -600,6 +685,7 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
                 system_override,
                 progress_callback=progress_callback,
                 enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
             )
 
     else:
@@ -610,6 +696,7 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
                     rom_folder, save_folder, system_override, save_ext=save_ext,
                     progress_callback=progress_callback,
                     enable_auto_normalize=enable_auto_normalize,
+                    profile_scope=profile_scope,
                 )
             else:
                 results = _scan_flat(
@@ -618,6 +705,7 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
                     recursive=True,
                     progress_callback=progress_callback,
                     enable_auto_normalize=enable_auto_normalize,
+                    profile_scope=profile_scope,
                 )
 
     # Apply systems filter for device types whose scan functions don't filter internally
@@ -654,6 +742,7 @@ def _build_save_file(
     save_exists: bool,
     enable_auto_normalize: bool,
     match_name: str | None = None,
+    profile_scope: str = "",
 ) -> SaveFile:
     legacy_title_id = _make_title_id_with_region(system, source_name)
     canonical_name = None
@@ -663,7 +752,7 @@ def _build_save_file(
 
     if enable_auto_normalize and path is not None:
         canonical_name, source, confidence = _resolve_canonical_sync_name(
-            system, path, match_name=match_name
+            system, path, match_name=match_name, profile_scope=profile_scope
         )
         if canonical_name:
             canonical_title_id = _make_title_id_with_region(system, canonical_name)
@@ -685,6 +774,7 @@ def _build_save_file(
         canonical_title_id=canonical_title_id,
         title_id_source=source,
         title_id_confidence=confidence,
+        profile_scope=profile_scope,
     )
 
 
@@ -692,9 +782,10 @@ def _slot_mapping_key(save: SaveFile) -> str | None:
     if save.path is None:
         return None
     try:
-        return str(save.path.resolve())
+        resolved_path = str(save.path.resolve())
     except OSError:
-        return str(save.path)
+        resolved_path = str(save.path)
+    return f"{save.profile_scope}|{resolved_path}"
 
 
 def _get_slot_mapping(save: SaveFile) -> dict[str, str] | None:
@@ -750,6 +841,7 @@ def _scan_flat(
     recursive: bool = False,
     progress_callback=None,
     enable_auto_normalize: bool = True,
+    profile_scope: str = "",
 ) -> list[SaveFile]:
     """Scan a folder of saves for a single system."""
     results = []
@@ -767,6 +859,7 @@ def _scan_flat(
                 mtime=f.stat().st_mtime,
                 save_exists=True,
                 enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
             )
             results.append(sf)
         if idx == 1 or idx % 25 == 0 or idx == total:
@@ -815,6 +908,7 @@ def _scan_roms_match_saves(
     progress_callback=None,
     enable_auto_normalize: bool = True,
     mirror_relative_path: bool = False,
+    profile_scope: str = "",
 ) -> list[SaveFile]:
     """Scan ROMs in rom_folder and find/expect saves in save_folder.
 
@@ -861,7 +955,7 @@ def _scan_roms_match_saves(
     for idx, rom_file in enumerate(candidates, start=1):
         if not rom_file.is_file():
             continue
-        if rom_file.suffix.lower() not in ROM_EXTENSIONS:
+        if rom_file.suffix.lower() not in ROM_EXTENSIONS and rom_file.suffix.lower() not in ZIP_ROM_EXTENSIONS:
             continue
         if rom_file.name.startswith("."):
             continue
@@ -896,6 +990,7 @@ def _scan_roms_match_saves(
             mtime=mtime,
             save_exists=save_exists,
             enable_auto_normalize=enable_auto_normalize,
+            profile_scope=profile_scope,
         )
         sf.path = save_path
         sf.hash = file_hash
@@ -907,7 +1002,7 @@ def _scan_roms_match_saves(
     return _dedup_saves(results)
 
 
-def _scan_retroarch(root: Path, progress_callback=None, enable_auto_normalize: bool = True) -> list[SaveFile]:
+def _scan_retroarch(root: Path, progress_callback=None, enable_auto_normalize: bool = True, profile_scope: str = "") -> list[SaveFile]:
     """Scan RetroArch saves/CoreName/game.srm structure."""
     results = []
     for core_dir in sorted(root.iterdir()):
@@ -921,6 +1016,7 @@ def _scan_retroarch(root: Path, progress_callback=None, enable_auto_normalize: b
             system,
             progress_callback=progress_callback,
             enable_auto_normalize=enable_auto_normalize,
+            profile_scope=profile_scope,
         ))
     return results
 
@@ -930,6 +1026,7 @@ def _scan_mega_everdrive(
     system: str,
     progress_callback=None,
     enable_auto_normalize: bool = True,
+    profile_scope: str = "",
 ) -> list[SaveFile]:
     """Scan MEGA EverDrive Pro gamedata/ structure.
 
@@ -959,13 +1056,14 @@ def _scan_mega_everdrive(
             save_exists=True,
             enable_auto_normalize=enable_auto_normalize,
             match_name=game_dir.name,
+            profile_scope=profile_scope,
         ))
         if idx == 1 or idx % 25 == 0 or idx == total:
             _emit_progress(progress_callback, f"Scanning {system} EverDrive folders… {idx}/{total}", idx, total)
     return _dedup_saves(results)
 
 
-def _scan_mister(root: Path, progress_callback=None, enable_auto_normalize: bool = True) -> list[SaveFile]:
+def _scan_mister(root: Path, progress_callback=None, enable_auto_normalize: bool = True, profile_scope: str = "") -> list[SaveFile]:
     """Scan MiSTer saves/<System>/ structure."""
     results = []
     for sys_dir in sorted(root.iterdir()):
@@ -979,11 +1077,12 @@ def _scan_mister(root: Path, progress_callback=None, enable_auto_normalize: bool
             system,
             progress_callback=progress_callback,
             enable_auto_normalize=enable_auto_normalize,
+            profile_scope=profile_scope,
         ))
     return results
 
 
-def _scan_pocket(root: Path, progress_callback=None, enable_auto_normalize: bool = True) -> list[SaveFile]:
+def _scan_pocket(root: Path, progress_callback=None, enable_auto_normalize: bool = True, profile_scope: str = "") -> list[SaveFile]:
     """Scan Analogue Pocket Memories/<Platform>/ structure."""
     results = []
     for plat_dir in sorted(root.iterdir()):
@@ -997,6 +1096,7 @@ def _scan_pocket(root: Path, progress_callback=None, enable_auto_normalize: bool
             system,
             progress_callback=progress_callback,
             enable_auto_normalize=enable_auto_normalize,
+            profile_scope=profile_scope,
         ))
     return results
 
@@ -1005,6 +1105,7 @@ def _scan_pocket_openfpga(
     saves_root: Path,
     progress_callback=None,
     enable_auto_normalize: bool = True,
+    profile_scope: str = "",
 ) -> list[SaveFile]:
     """Scan Analogue Pocket openFPGA layout: Saves/<system>/.../**/*.sav
 
@@ -1025,6 +1126,7 @@ def _scan_pocket_openfpga(
             recursive=True,
             progress_callback=progress_callback,
             enable_auto_normalize=enable_auto_normalize,
+            profile_scope=profile_scope,
         ))
     return results
 
@@ -1035,6 +1137,7 @@ def _scan_pocket_openfpga_from_roms(
     save_ext: str = ".sav",
     progress_callback=None,
     enable_auto_normalize: bool = True,
+    profile_scope: str = "",
 ) -> list[SaveFile]:
     """Scan Pocket openFPGA by walking the Assets (ROM) folder.
 
@@ -1065,7 +1168,7 @@ def _scan_pocket_openfpga_from_roms(
         for idx, rom_file in enumerate(candidates, start=1):
             if not rom_file.is_file():
                 continue
-            if rom_file.suffix.lower() not in ROM_EXTENSIONS:
+            if rom_file.suffix.lower() not in ROM_EXTENSIONS and rom_file.suffix.lower() not in ZIP_ROM_EXTENSIONS:
                 continue
             if rom_file.name.startswith("."):
                 continue
@@ -1092,6 +1195,7 @@ def _scan_pocket_openfpga_from_roms(
                 mtime=mtime,
                 save_exists=save_exists,
                 enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
             )
             sf.path = save_path
             sf.hash = file_hash
@@ -1129,6 +1233,60 @@ def _emit_progress(callback, message: str, current: int | None = None, total: in
         callback(message, current, total)
     except TypeError:
         callback(message)
+
+
+def _iter_zip_rom_infos(path: Path) -> list[zipfile.ZipInfo]:
+    try:
+        with zipfile.ZipFile(path) as zf:
+            return sorted(
+                [
+                    info for info in zf.infolist()
+                    if not info.is_dir() and Path(info.filename).suffix.lower() in ROM_EXTENSIONS
+                ],
+                key=lambda info: info.filename.lower(),
+            )
+    except (OSError, zipfile.BadZipFile):
+        return []
+
+
+def _read_zip_member_header_title(path: Path, info: zipfile.ZipInfo, system: str) -> str | None:
+    system = system.upper()
+    max_len = 0x80000 if system in ("PSP", "PS3") else 0x10200
+    try:
+        with zipfile.ZipFile(path) as zf:
+            with zf.open(info) as member:
+                data = member.read(max_len)
+    except (OSError, zipfile.BadZipFile, KeyError):
+        return None
+
+    file_size = info.file_size
+    title_bytes: bytes | None = None
+    if system == "GBA" and len(data) >= 0x00AC:
+        title_bytes = data[0x00A0:0x00AC]
+    elif system in ("MD", "GEN") and len(data) >= 0x0150:
+        title_bytes = data[0x0120:0x0150]
+    elif system == "N64" and len(data) >= 0x0034:
+        title_bytes = data[0x0020:0x0034]
+    elif system in ("GB", "GBC") and len(data) >= 0x0144:
+        title_bytes = data[0x0134:0x0144]
+    elif system == "SNES":
+        offset = 512 if file_size % 1024 == 512 else 0
+        data = data[offset:]
+        candidates = []
+        for addr in (0x7FC0, 0xFFC0):
+            if len(data) >= addr + 21:
+                chunk = data[addr:addr + 21]
+                printable = sum(1 for b in chunk if 0x20 <= b <= 0x7E)
+                candidates.append((printable, chunk))
+        if candidates:
+            title_bytes = max(candidates, key=lambda x: x[0])[1]
+
+    if title_bytes is None:
+        return None
+    title = title_bytes.decode("ascii", errors="ignore")
+    title = re.sub(r"[^\x20-\x7E]", " ", title).strip()
+    title = re.sub(r"\s+", " ", title).strip()
+    return title if len(title) >= 2 else None
 
 
 # ---------------------------------------------------------------------------
@@ -1172,17 +1330,17 @@ def _get_nointro_cache(system: str) -> dict[str, object]:
     return cached
 
 
-def _scan_cache_key(system: str, path: Path, match_name: str | None) -> str:
+def _scan_cache_key(profile_scope: str, system: str, path: Path, match_name: str | None) -> str:
     try:
         canonical_path = str(path.resolve())
     except OSError:
         canonical_path = str(path)
-    return f"{system.upper()}|{canonical_path}|{match_name or ''}"
+    return f"{profile_scope}|{system.upper()}|{canonical_path}|{match_name or ''}"
 
 
-def _get_cached_canonical_name(system: str, path: Path, match_name: str | None, cache_tag: str) -> tuple[str | None, str, str] | object:
+def _get_cached_canonical_name(profile_scope: str, system: str, path: Path, match_name: str | None, cache_tag: str) -> tuple[str | None, str, str] | object:
     cache = _load_scan_cache()
-    key = _scan_cache_key(system, path, match_name)
+    key = _scan_cache_key(profile_scope, system, path, match_name)
     entry = cache.get(key)
     if not isinstance(entry, dict):
         return _CACHE_MISS
@@ -1204,6 +1362,7 @@ def _get_cached_canonical_name(system: str, path: Path, match_name: str | None, 
 
 
 def _set_cached_canonical_name(
+    profile_scope: str,
     system: str,
     path: Path,
     match_name: str | None,
@@ -1217,7 +1376,7 @@ def _set_cached_canonical_name(
         stat = path.stat()
     except OSError:
         return
-    key = _scan_cache_key(system, path, match_name)
+    key = _scan_cache_key(profile_scope, system, path, match_name)
     cache[key] = {
         "mtime_ns": stat.st_mtime_ns,
         "size": stat.st_size,
@@ -1229,7 +1388,7 @@ def _set_cached_canonical_name(
     _mark_scan_cache_dirty()
 
 
-def _resolve_canonical_sync_name(system: str, path: Path, match_name: str | None = None) -> tuple[str | None, str, str]:
+def _resolve_canonical_sync_name(system: str, path: Path, match_name: str | None = None, profile_scope: str = "") -> tuple[str | None, str, str]:
     """Return canonical name plus match source/confidence for sync-time title mapping.
 
     This mirrors the ROM Normalizer matching pipeline, but does not rename any
@@ -1249,16 +1408,17 @@ def _resolve_canonical_sync_name(system: str, path: Path, match_name: str | None
     cache_tag = str(cache.get("cache_tag", f"{system}:none"))
 
     lookup_name = match_name or path.name
-    cached = _get_cached_canonical_name(system, path, match_name, cache_tag)
+    cached = _get_cached_canonical_name(profile_scope, system, path, match_name, cache_tag)
     if cached is not _CACHE_MISS:
         return cached
 
     canonical: str | None = None
     source = "legacy"
     confidence = "legacy"
+    suffix = path.suffix.lower()
 
     # 1. Exact ROM CRC32 match
-    if path.suffix.lower() in ROM_EXTENSIONS:
+    if suffix in ROM_EXTENSIONS:
         try:
             crc = rn._crc32_file(path)
         except Exception:
@@ -1267,7 +1427,16 @@ def _resolve_canonical_sync_name(system: str, path: Path, match_name: str | None
             canonical = no_intro.get(crc)
             if canonical:
                 source, confidence = "crc", "high"
-                _set_cached_canonical_name(system, path, match_name, cache_tag, canonical, source, confidence)
+                _set_cached_canonical_name(profile_scope, system, path, match_name, cache_tag, canonical, source, confidence)
+                return canonical, source, confidence
+    elif suffix in ZIP_ROM_EXTENSIONS:
+        infos = _iter_zip_rom_infos(path)
+        for info in infos:
+            crc = f"{info.CRC & 0xFFFFFFFF:08X}"
+            canonical = no_intro.get(crc)
+            if canonical:
+                source, confidence = "crc", "high"
+                _set_cached_canonical_name(profile_scope, system, path, match_name, cache_tag, canonical, source, confidence)
                 return canonical, source, confidence
 
     # 2. Fuzzy filename lookup
@@ -1280,11 +1449,28 @@ def _resolve_canonical_sync_name(system: str, path: Path, match_name: str | None
         if region_hint:
             canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
         source, confidence = "fuzzy", "low"
-        _set_cached_canonical_name(system, path, match_name, cache_tag, canonical, source, confidence)
+        _set_cached_canonical_name(profile_scope, system, path, match_name, cache_tag, canonical, source, confidence)
         return canonical, source, confidence
+    if suffix in ZIP_ROM_EXTENSIONS:
+        infos = _iter_zip_rom_infos(path)
+        for info in infos:
+            member_path = Path(info.filename)
+            canonical = rn.fuzzy_filename_search(member_path.name, name_index)
+            if canonical:
+                region_hint = (
+                    rn.extract_region_hint(member_path.name)
+                    or rn.extract_region_hint(member_path.parent.name)
+                    or rn.extract_region_hint(path.name)
+                    or rn.extract_region_hint(path.parent.name)
+                )
+                if region_hint:
+                    canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
+                source, confidence = "fuzzy", "low"
+                _set_cached_canonical_name(profile_scope, system, path, match_name, cache_tag, canonical, source, confidence)
+                return canonical, source, confidence
 
     # 3. ROM header title lookup
-    if path.suffix.lower() in ROM_EXTENSIONS:
+    if suffix in ROM_EXTENSIONS:
         header_title = rn.read_rom_header_title(path, system)
         if header_title:
             canonical = rn.lookup_header_in_index(header_title, name_index)
@@ -1296,7 +1482,27 @@ def _resolve_canonical_sync_name(system: str, path: Path, match_name: str | None
                 if region_hint:
                     canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
                 source, confidence = "header", "high"
-                _set_cached_canonical_name(system, path, match_name, cache_tag, canonical, source, confidence)
+                _set_cached_canonical_name(profile_scope, system, path, match_name, cache_tag, canonical, source, confidence)
+                return canonical, source, confidence
+    elif suffix in ZIP_ROM_EXTENSIONS:
+        infos = _iter_zip_rom_infos(path)
+        for info in infos:
+            header_title = _read_zip_member_header_title(path, info, system)
+            if not header_title:
+                continue
+            canonical = rn.lookup_header_in_index(header_title, name_index)
+            if canonical:
+                member_path = Path(info.filename)
+                region_hint = (
+                    rn.extract_region_hint(member_path.name)
+                    or rn.extract_region_hint(member_path.parent.name)
+                    or rn.extract_region_hint(path.name)
+                    or rn.extract_region_hint(path.parent.name)
+                )
+                if region_hint:
+                    canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
+                source, confidence = "header", "high"
+                _set_cached_canonical_name(profile_scope, system, path, match_name, cache_tag, canonical, source, confidence)
                 return canonical, source, confidence
 
     # 4. Parent-folder name lookup for shorthand ROM names / packs
@@ -1310,10 +1516,10 @@ def _resolve_canonical_sync_name(system: str, path: Path, match_name: str | None
             if region_hint:
                 canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
             source, confidence = "folder", "low"
-            _set_cached_canonical_name(system, path, match_name, cache_tag, canonical, source, confidence)
+            _set_cached_canonical_name(profile_scope, system, path, match_name, cache_tag, canonical, source, confidence)
             return canonical, source, confidence
 
-    _set_cached_canonical_name(system, path, match_name, cache_tag, None, source, confidence)
+    _set_cached_canonical_name(profile_scope, system, path, match_name, cache_tag, None, source, confidence)
     return None, source, confidence
 
 
@@ -1322,7 +1528,7 @@ def _make_sync_title_id(system: str, source_name: str, canonical_name: str | Non
     return _make_title_id_with_region(system, canonical_name or source_name)
 
 
-def _scan_emudeck(root: Path, progress_callback=None) -> list[SaveFile]:
+def _scan_emudeck(root: Path, progress_callback=None, profile_scope: str = "") -> list[SaveFile]:
     """Scan an EmuDeck saves root folder.
 
     Handles:
@@ -1359,6 +1565,7 @@ def _scan_emudeck(root: Path, progress_callback=None) -> list[SaveFile]:
                 mtime=f.stat().st_mtime,
                 system=system,
                 game_name=slug_to_display_name(slug),
+                profile_scope=profile_scope,
             ))
 
     # --- ppsspp: product-code folders, DATA.BIN/GAMESAV.BIN per slot ---
@@ -1387,6 +1594,7 @@ def _scan_emudeck(root: Path, progress_callback=None) -> list[SaveFile]:
                         mtime=f.stat().st_mtime,
                         system="PSP",
                         game_name=product_code,
+                        profile_scope=profile_scope,
                     )
         results.extend(psp_best.values())
 
@@ -1414,6 +1622,7 @@ def _scan_emudeck(root: Path, progress_callback=None) -> list[SaveFile]:
                         mtime=f.stat().st_mtime,
                         system="PS3",
                         game_name=product_code,
+                        profile_scope=profile_scope,
                     )
         results.extend(ps3_best.values())
 
