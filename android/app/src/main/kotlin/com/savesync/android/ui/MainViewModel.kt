@@ -47,6 +47,15 @@ sealed class SaveDetailState {
     data class Error(val message: String) : SaveDetailState()
 }
 
+sealed class NormalizePickerState {
+    object Hidden : NormalizePickerState()
+    /** Server returned multiple possible canonical names — show picker to user. */
+    data class Visible(
+        val entry: SaveEntry,
+        val options: List<String>,   // sorted: first = recommended (USA-first)
+    ) : NormalizePickerState()
+}
+
 sealed class ServerMetaState {
     object Idle : ServerMetaState()
     object Loading : ServerMetaState()
@@ -87,6 +96,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _saveDetailState = MutableStateFlow<SaveDetailState>(SaveDetailState.Idle)
     val saveDetailState: StateFlow<SaveDetailState> = _saveDetailState
+
+    private val _normalizePicker = MutableStateFlow<NormalizePickerState>(NormalizePickerState.Hidden)
+    val normalizePicker: StateFlow<NormalizePickerState> = _normalizePicker
 
     private val _retroArchPaths = MutableStateFlow<List<Pair<String, Boolean>>>(emptyList())
     val retroArchPaths: StateFlow<List<Pair<String, Boolean>>> = _retroArchPaths
@@ -608,33 +620,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun normalizeRomAndSave(entry: SaveEntry) {
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
-            if (currentSettings.serverUrl.isBlank()) {
-                _saveDetailState.value = SaveDetailState.Error("Server URL not configured")
-                return@launch
-            }
             _saveDetailState.value = SaveDetailState.Working("normalize")
             try {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val response = api.normalizeRoms(
-                    NormalizeRequest(listOf(NormalizeRomEntry(system = entry.systemName, filename = entry.displayName)))
-                )
+                val response = api.normalizeRoms(NormalizeRequest(listOf(
+                    NormalizeRomEntry(system = entry.systemName, filename = entry.displayName)
+                )))
                 val norm = response.results.firstOrNull()
                     ?: throw Exception("No result from server")
 
-                val canonicalName = norm.canonical_name
-                if (canonicalName == entry.displayName) {
+                // Build full options list: recommended first, then alternatives
+                val options = listOf(norm.canonical_name) + norm.alternatives
+
+                if (norm.alternatives.isEmpty()) {
+                    // Single result — apply directly without showing picker
+                    _saveDetailState.value = SaveDetailState.Idle
+                    applyNormalizationChoice(entry, norm.canonical_name)
+                } else {
+                    // Multiple candidates — let the user pick
+                    _saveDetailState.value = SaveDetailState.Idle
+                    _normalizePicker.value = NormalizePickerState.Visible(entry, options)
+                }
+            } catch (e: Exception) {
+                _saveDetailState.value = SaveDetailState.Error(e.message ?: "Normalize failed")
+            }
+        }
+    }
+
+    fun dismissNormalizePicker() {
+        _normalizePicker.value = NormalizePickerState.Hidden
+    }
+
+    fun applyNormalizationChoice(entry: SaveEntry, chosenName: String) {
+        _normalizePicker.value = NormalizePickerState.Hidden
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            _saveDetailState.value = SaveDetailState.Working("normalize")
+            try {
+                if (chosenName == entry.displayName) {
                     _saveDetailState.value = SaveDetailState.Success("✓ Already using canonical name")
                     return@launch
                 }
-
-                // Rename save on disk
                 val renamed = when {
                     entry.saveFile?.exists() == true -> {
-                        val dest = java.io.File(entry.saveFile.parent, "$canonicalName.${entry.saveFile.extension}")
+                        val dest = java.io.File(entry.saveFile.parent, "$chosenName.${entry.saveFile.extension}")
                         !dest.exists() && entry.saveFile.renameTo(dest)
                     }
                     entry.saveDir?.exists() == true -> {
-                        val dest = java.io.File(entry.saveDir.parent, canonicalName)
+                        val dest = java.io.File(entry.saveDir.parent, chosenName)
                         !dest.exists() && entry.saveDir.renameTo(dest)
                     }
                     else -> {
@@ -642,15 +675,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
                 }
-
                 if (!renamed) {
-                    _saveDetailState.value = SaveDetailState.Error(
-                        "Could not rename — destination already exists or file is in use"
-                    )
+                    _saveDetailState.value = SaveDetailState.Error("Could not rename — destination already exists")
                     return@launch
                 }
-
-                // Try to rename the ROM file in the ROM scan directory
+                // Try to rename ROM in romScanDir
                 val romScanDir = currentSettings.romScanDir
                 val renamedRom = if (romScanDir.isNotBlank()) {
                     val systemDir = java.io.File(romScanDir, entry.systemName)
@@ -658,15 +687,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         f.isFile && f.nameWithoutExtension == entry.displayName
                     }
                     if (romFile != null) {
-                        val dest = java.io.File(romFile.parent, "$canonicalName.${romFile.extension}")
+                        val dest = java.io.File(romFile.parent, "$chosenName.${romFile.extension}")
                         !dest.exists() && romFile.renameTo(dest)
                     } else false
                 } else false
-
                 scanSaves()
-
                 val msg = buildString {
-                    append("✓ Renamed to \"$canonicalName\"")
+                    append("✓ Renamed to \"$chosenName\"")
                     if (renamedRom) append("\n✓ ROM also renamed")
                     else if (romScanDir.isNotBlank()) append("\n⚠ ROM not found in ROM directory")
                 }

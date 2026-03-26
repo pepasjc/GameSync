@@ -79,6 +79,23 @@ _DAT_SYSTEM_MAP: list[tuple[str, str]] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Region priority for ranking candidates (lower = better / higher priority)
+# ---------------------------------------------------------------------------
+
+def _region_score(canonical: str) -> int:
+    """Score a canonical name by region preference. Lower = more preferred."""
+    n = canonical.lower()
+    if "(usa)" in n:    return 0
+    if "(world)" in n:  return 1
+    if "(europe)" in n: return 2
+    if "(japan)" in n:  return 3
+    # Demo / kiosk / proto / beta should lose to any real release
+    if any(x in n for x in ["(demo)", "(kiosk", "(proto", "(beta", "(sample)"]):
+        return 99
+    return 10  # other / unknown region
+
+
 def _system_from_dat_stem(stem: str) -> Optional[str]:
     """Return system code for a DAT file stem, or None if unrecognized."""
     lower = stem.lower()
@@ -99,8 +116,10 @@ class DatNormalizer:
         self.dats_dir = dats_dir
         # system → {CRC32_UPPER_8CHARS → canonical_name}
         self._crc_index: dict[str, dict[str, str]] = {}
-        # system → {slug → canonical_name}
+        # system → {slug → canonical_name}  (best by region priority)
         self._slug_index: dict[str, dict[str, str]] = {}
+        # system → {slug → [canonical_name, ...]}  (all candidates, for the picker)
+        self._slug_candidates: dict[str, dict[str, list[str]]] = {}
         self._load_all()
 
     def _load_all(self) -> None:
@@ -111,16 +130,23 @@ class DatNormalizer:
             if not system:
                 print(f"[dat_normalizer] Skipped (unrecognized system): {dat_path.name}")
                 continue
-            crc_map, slug_map = _parse_dat(dat_path)
-            # Merge — multiple DATs may cover the same system
+            crc_map, slug_cands = _parse_dat(dat_path)
+            # Merge CRC index
             self._crc_index.setdefault(system, {}).update(crc_map)
-            # Don't overwrite slugs from an earlier (higher-priority) DAT
-            existing = self._slug_index.setdefault(system, {})
-            for slug, name in slug_map.items():
-                existing.setdefault(slug, name)
+            # Merge slug candidates
+            sys_cands = self._slug_candidates.setdefault(system, {})
+            for slug, names in slug_cands.items():
+                existing = sys_cands.setdefault(slug, [])
+                for n in names:
+                    if n not in existing:
+                        existing.append(n)
+            # Rebuild best-per-slug index using region priority
+            sys_idx = self._slug_index.setdefault(system, {})
+            for slug, names in sys_cands.items():
+                sys_idx[slug] = min(names, key=_region_score)
             print(
                 f"[dat_normalizer] {system}: +{len(crc_map)} CRC32 "
-                f"+{len(slug_map)} names  [{dat_path.name}]"
+                f"+{sum(len(v) for v in slug_cands.values())} names  [{dat_path.name}]"
             )
 
     def normalize(
@@ -167,6 +193,17 @@ class DatNormalizer:
             "source": "filename",
         }
 
+    def search_candidates(self, system: str, filename: str) -> list[str]:
+        """Return all canonical names matching filename, sorted by region priority.
+
+        Returns the empty list when no DAT entry matches the slug.
+        The first entry is the recommended (USA-first) choice.
+        """
+        sys_key = system.upper()
+        query_slug = normalize_rom_name(Path(filename).stem)
+        raw = self._slug_candidates.get(sys_key, {}).get(query_slug, [])
+        return sorted(set(raw), key=_region_score)
+
     def available_systems(self) -> list[str]:
         return sorted(set(self._crc_index) | set(self._slug_index))
 
@@ -200,15 +237,15 @@ def get() -> Optional[DatNormalizer]:
 # Internal DAT XML parser
 # ---------------------------------------------------------------------------
 
-def _parse_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, str]]:
+def _parse_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]]:
     """Parse a No-Intro/Redump XML DAT.
 
     Returns:
-      crc_map  — {CRC32_UPPER_8 → canonical_name}
-      slug_map — {slug → canonical_name}  (first entry wins = USA/World priority)
+      crc_map        — {CRC32_UPPER_8 → canonical_name}
+      slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
     """
     crc_map: dict[str, str] = {}
-    slug_map: dict[str, str] = {}
+    slug_candidates: dict[str, list[str]] = {}
     try:
         tree = ET.parse(dat_path)
         root = tree.getroot()
@@ -217,11 +254,11 @@ def _parse_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, str]]:
             if not canonical:
                 continue
             slug = normalize_rom_name(canonical)
-            slug_map.setdefault(slug, canonical)  # first entry wins
+            slug_candidates.setdefault(slug, []).append(canonical)
             for rom in game.findall("rom"):
                 crc = rom.get("crc", "").upper().zfill(8)
                 if crc and crc != "00000000":
                     crc_map[crc] = canonical
     except Exception as exc:
         print(f"[dat_normalizer] Failed to parse {dat_path.name}: {exc}")
-    return crc_map, slug_map
+    return crc_map, slug_candidates

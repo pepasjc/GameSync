@@ -40,6 +40,7 @@ class NormalizeResult(BaseModel):
     canonical_name: str
     title_id: str
     source: str  # "dat_crc32" | "dat_filename" | "filename"
+    alternatives: list[str] = []  # other possible canonical names, sorted by region priority
 
 
 class NormalizeResponse(BaseModel):
@@ -75,11 +76,20 @@ async def normalize_batch(req: NormalizeRequest) -> NormalizeResponse:
 
         if norm:
             info = norm.normalize(sys_upper, entry.filename, entry.crc32)
+            # For CRC32 matches the answer is definitive — no picker needed.
+            # For filename matches, return all slug-equivalent candidates so the
+            # client can offer a choice (e.g. "Mario Kart DS (USA)" vs kiosk demo).
+            if info["source"] == "dat_crc32":
+                alternatives: list[str] = []
+            else:
+                all_candidates = norm.search_candidates(sys_upper, entry.filename)
+                alternatives = [c for c in all_candidates if c != info["canonical_name"]]
         else:
             # No DATs loaded — fall back to simple normalization
             stem = Path(entry.filename).stem
             slug = normalize_rom_name(stem)
             info = {"canonical_name": stem, "slug": slug, "source": "filename"}
+            alternatives = []
 
         title_id = f"{sys_upper}_{info['slug']}"
         results.append(NormalizeResult(
@@ -88,6 +98,7 @@ async def normalize_batch(req: NormalizeRequest) -> NormalizeResponse:
             canonical_name=info["canonical_name"],
             title_id=title_id,
             source=info["source"],
+            alternatives=alternatives,
         ))
 
     return NormalizeResponse(results=results)

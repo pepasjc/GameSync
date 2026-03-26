@@ -1,5 +1,6 @@
 package com.savesync.android.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,10 +34,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -54,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.storage.SyncStateEntity
 import com.savesync.android.ui.MainViewModel
+import com.savesync.android.ui.NormalizePickerState
 import com.savesync.android.ui.SaveDetailState
 import com.savesync.android.ui.ServerMetaState
 import java.text.SimpleDateFormat
@@ -72,6 +77,7 @@ fun SaveDetailScreen(
     val detailState by viewModel.saveDetailState.collectAsState()
     val serverMeta by viewModel.serverMeta.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val normalizePickerState by viewModel.normalizePicker.collectAsState()
 
     val entry = saves.find { it.titleId == titleId }
     val syncState = syncStateEntities.find { it.titleId == titleId }
@@ -95,6 +101,62 @@ fun SaveDetailScreen(
             }
             else -> Unit
         }
+    }
+
+    // Normalize name picker dialog
+    val pickerState = normalizePickerState
+    if (pickerState is NormalizePickerState.Visible) {
+        var selectedIndex by remember(pickerState) { mutableStateOf(0) }
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissNormalizePicker() },
+            title = { Text("Choose canonical name") },
+            text = {
+                Column {
+                    Text(
+                        text = "Multiple versions found. The recommended name is pre-selected.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    pickerState.options.forEachIndexed { index, name ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedIndex = index }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedIndex == index,
+                                onClick = { selectedIndex = index }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(name, style = MaterialTheme.typography.bodyMedium)
+                                if (index == 0) {
+                                    Text(
+                                        "★ Recommended",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.applyNormalizationChoice(
+                        pickerState.entry,
+                        pickerState.options[selectedIndex]
+                    )
+                }) { Text("Rename") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissNormalizePicker() }) { Text("Cancel") }
+            }
+        )
     }
 
     Scaffold(

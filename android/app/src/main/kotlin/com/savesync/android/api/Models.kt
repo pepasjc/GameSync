@@ -71,7 +71,8 @@ data class NormalizeResult(
     val canonical_name: String,
     val title_id: String,
     /** "dat_crc32" | "dat_filename" | "filename" */
-    val source: String
+    val source: String,
+    val alternatives: List<String> = emptyList()
 )
 
 data class NormalizeResponse(val results: List<NormalizeResult>)
