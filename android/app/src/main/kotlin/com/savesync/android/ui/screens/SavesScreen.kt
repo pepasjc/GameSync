@@ -375,21 +375,11 @@ fun SystemChip(systemName: String) {
 
 @Composable
 private fun SyncStatusIcon(syncState: SyncStateEntity?) {
-    val icon: String
-    val tint: Color
-    when {
-        syncState == null -> {
-            icon = "?"
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        }
-        syncState.lastSyncedHash != null -> {
-            icon = "✓"
-            tint = Color(0xFF4CAF50)
-        }
-        else -> {
-            icon = "↑"
-            tint = MaterialTheme.colorScheme.primary
-        }
+    val (icon, tint) = when {
+        syncState?.lastSyncedHash != null ->
+            "✓" to Color(0xFF4CAF50)   // synced
+        else ->
+            "↑" to MaterialTheme.colorScheme.primary  // local, never synced → needs first upload
     }
     Text(
         text = icon,

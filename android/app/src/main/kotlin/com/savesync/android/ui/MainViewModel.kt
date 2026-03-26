@@ -19,6 +19,7 @@ import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.emulators.impl.RetroArchEmulator
 import com.savesync.android.storage.Settings
 import com.savesync.android.storage.SettingsStore
+import com.savesync.android.storage.SyncStateEntity
 import com.savesync.android.sync.SyncEngine
 import com.savesync.android.sync.SyncResult
 import com.savesync.android.workers.SyncWorker
@@ -97,6 +98,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Server metadata for the currently open detail screen
     private val _serverMeta = MutableStateFlow<ServerMetaState>(ServerMetaState.Idle)
     val serverMeta: StateFlow<ServerMetaState> = _serverMeta
+
+    /** Room-backed sync state for all titles. Eagerly collected so it's populated
+     *  before the first compose frame, eliminating the "?" flash on startup. */
+    val syncStateEntities: StateFlow<List<SyncStateEntity>> =
+        db.syncStateDao().getAll()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val settings: StateFlow<Settings> = settingsStore.settingsFlow
         .stateIn(
@@ -389,6 +396,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val result = engine.sync(localSaves)
                 _syncState.value = SyncState.Success(result)
+                // Refresh list so downloaded server-only entries drop the isServerOnly flag
+                // and status icons reflect the new sync state
+                scanSaves()
             } catch (e: Exception) {
                 _syncState.value = SyncState.Error(e.message ?: "Sync failed")
             }
@@ -547,7 +557,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
                 val engine = SyncEngine(api, db, consoleId)
                 val ok = engine.uploadSave(entry)
-                if (ok) fetchServerMeta(entry.titleId)
+                if (ok) {
+                    fetchServerMeta(entry.titleId)
+                    scanSaves()  // refresh status icons in the list
+                }
                 _saveDetailState.value = if (ok)
                     SaveDetailState.Success("↑ Uploaded successfully")
                 else

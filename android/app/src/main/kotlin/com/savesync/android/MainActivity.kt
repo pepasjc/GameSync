@@ -33,7 +33,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.savesync.android.storage.AppDatabase
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.screens.SaveDetailScreen
 import com.savesync.android.ui.screens.SavesScreen
@@ -124,8 +123,9 @@ class MainActivity : ComponentActivity() {
 private fun MainApp() {
     val navController = rememberNavController()
     val viewModel: MainViewModel = viewModel()
-    val db = AppDatabase.getInstance(androidx.compose.ui.platform.LocalContext.current)
-    val syncStateEntities by db.syncStateDao().getAll().collectAsState(initial = emptyList())
+    // Collected from ViewModel (SharingStarted.Eagerly) so it's already populated
+    // by the time the first frame renders — no "?" flash on startup.
+    val syncStateEntities by viewModel.syncStateEntities.collectAsState()
 
     NavHost(navController = navController, startDestination = "saves") {
         composable("saves") {
