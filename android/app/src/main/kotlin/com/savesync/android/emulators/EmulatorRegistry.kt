@@ -18,8 +18,8 @@ object EmulatorRegistry {
     fun buildAll(romScanDir: String = ""): List<EmulatorBase> = listOf(
         RetroArchEmulator(romScanDir),
         PpssppEmulator(),
-        DraSticEmulator(),
-        MelonDsEmulator(),
+        DraSticEmulator(romScanDir),
+        MelonDsEmulator(romScanDir),
         MgbaEmulator(),
         DolphinEmulator(),
         AetherSX2Emulator()

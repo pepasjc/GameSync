@@ -154,6 +154,22 @@ class RetroArchEmulator(
         // (e.g. launched from the file browser). Keys are lowercase ROM names without extension.
         val romScanSystemMap: Map<String, String> = buildRomScanSystemMap()
 
+        // Build a map of lowercase-rom-name → ROM File path for NDS games.
+        // Used to look up the gamecode at ROM offset 0x0C so title IDs match the NDS client.
+        val ndsRomPathMap: Map<String, File> = bases.fold(mutableMapOf<String, File>()) { acc, base ->
+            acc.putAll(buildNdsRomPathMapFromPlaylists(File(base, "playlists")))
+            acc
+        }.also { map ->
+            // Also populate from the user-specified ROM scan dir (NDS subfolder)
+            ndsRomSearchDirs(romScanDir).forEach { dir ->
+                dir.listFiles()?.forEach { f ->
+                    if (f.isFile && f.extension.lowercase() in setOf("nds", "dsi")) {
+                        map.putIfAbsent(f.nameWithoutExtension.lowercase(), f)
+                    }
+                }
+            }
+        }
+
         // Prefer the save dir declared in retroarch.cfg; fall back to the standard path.
         val savesDir: File = resolveSavesDir(bases) ?: return emptyList()
 
@@ -170,9 +186,16 @@ class RetroArchEmulator(
                         ?: romScanSystemMap[lc]
                         ?: systemPrefix
                     val slug = lc.replace(Regex("[^a-z0-9]+"), "_").trim('_')
+                    // For NDS saves, derive the title ID from the ROM's gamecode (offset 0x0C)
+                    // to match the NDS homebrew client format (e.g. 00048000414D4B4A).
+                    val titleId = if (system == "NDS") {
+                        ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
+                    } else {
+                        "${system}_$slug"
+                    }
                     result.add(
                         SaveEntry(
-                            titleId = "${system}_$slug",
+                            titleId = titleId,
                             displayName = romName,
                             systemName = system,
                             saveFile = entry,
@@ -186,11 +209,17 @@ class RetroArchEmulator(
                 entry.listFiles()?.forEach { file ->
                     if (file.isFile && file.extension.lowercase() in saveExtensions) {
                         val romName = file.nameWithoutExtension
-                        val slug = romName.lowercase()
-                            .replace(Regex("[^a-z0-9]+"), "_").trim('_')
+                        val lc = romName.lowercase()
+                        val slug = lc.replace(Regex("[^a-z0-9]+"), "_").trim('_')
+                        // Apply NDS gamecode lookup for saves inside saves/NDS/ subfolder too
+                        val titleId = if (system == "NDS") {
+                            ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
+                        } else {
+                            "${system}_$slug"
+                        }
                         result.add(
                             SaveEntry(
-                                titleId = "${system}_$slug",
+                                titleId = titleId,
                                 displayName = romName,
                                 systemName = system,
                                 saveFile = file,
@@ -203,6 +232,36 @@ class RetroArchEmulator(
         }
 
         return result
+    }
+
+    /**
+     * Scans all *.lpl playlist files in [playlistsDir] for NDS ROM entries and returns
+     * a map of lowercase-rom-name → ROM File path. Used for gamecode-based title ID lookup.
+     */
+    private fun buildNdsRomPathMapFromPlaylists(playlistsDir: File): Map<String, File> {
+        if (!playlistsDir.exists()) return emptyMap()
+        val map = mutableMapOf<String, File>()
+        playlistsDir.listFiles()
+            ?.filter { it.isFile && it.extension.lowercase() == "lpl" }
+            ?.forEach { lpl ->
+                try {
+                    val json = JSONObject(lpl.readText())
+                    val items = json.optJSONArray("items") ?: return@forEach
+                    for (i in 0 until items.length()) {
+                        val item = items.optJSONObject(i) ?: continue
+                        val path = item.optString("path").takeIf { it.isNotBlank() } ?: continue
+                        val coreName = item.optString("core_name").orEmpty()
+                        val romFile = File(path)
+                        val system = resolveSystemFromCoreName(coreName)
+                            ?: resolveSystemFromFolderName(romFile.parentFile?.name.orEmpty())
+                            ?: continue
+                        if (system == "NDS" && romFile.exists()) {
+                            map.putIfAbsent(romFile.nameWithoutExtension.lowercase(), romFile)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        return map
     }
 
     /**
