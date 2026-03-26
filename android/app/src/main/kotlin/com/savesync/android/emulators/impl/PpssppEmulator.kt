@@ -13,6 +13,10 @@ class PpssppEmulator : EmulatorBase() {
     // PSP product code: 4 uppercase letters + 5 digits (e.g. ULUS10272)
     private val productCodeRegex = Regex("^[A-Z]{4}[0-9]{5}")
 
+    // Full slot directory name must be alphanumeric only (matches server's _PRODUCT_CODE_RE)
+    // e.g. "ULJS000800000" OK, "SLES00001-SAVE0" or "ULJS_DATA00" would be rejected
+    private val validSlotDirRegex = Regex("^[A-Za-z0-9]{4,31}$")
+
     private fun findSaveDataDir(): File? =
         firstExisting("PSP/SAVEDATA", "psp/SAVEDATA", "PSP/savedata")
 
@@ -57,6 +61,9 @@ class PpssppEmulator : EmulatorBase() {
         saveDataDir.listFiles()?.forEach { slotDir ->
             if (!slotDir.isDirectory) return@forEach
             val code = productCode(slotDir.name) ?: return@forEach
+            // Skip dirs whose full name won't pass server's title_id validation
+            // (non-alphanumeric chars like hyphens or underscores cause HTTP 400/422)
+            if (!validSlotDirRegex.matches(slotDir.name)) return@forEach
             result.add(makeEntry(slotDir, code))
         }
 
@@ -75,6 +82,7 @@ class PpssppEmulator : EmulatorBase() {
         saveDataDir.listFiles()?.forEach { slotDir ->
             if (!slotDir.isDirectory) return@forEach
             val code = productCode(slotDir.name) ?: return@forEach
+            if (!validSlotDirRegex.matches(slotDir.name)) return@forEach
             result[slotDir.name] = makeEntry(slotDir, code)
         }
 
