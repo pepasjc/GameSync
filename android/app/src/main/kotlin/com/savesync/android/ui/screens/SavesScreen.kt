@@ -111,7 +111,14 @@ fun SavesScreen(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                text = { Text(if (isSyncing) "Syncing…" else "Sync All") },
+                text = {
+                    val label = when {
+                        isSyncing -> "Syncing…"
+                        selectedFilter == "All" -> "Sync All"
+                        else -> "Sync $selectedFilter"
+                    }
+                    Text(label)
+                },
                 icon = {
                     if (isSyncing) {
                         CircularProgressIndicator(

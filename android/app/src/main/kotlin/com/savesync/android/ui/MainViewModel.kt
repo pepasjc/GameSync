@@ -401,11 +401,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val engine = SyncEngine(api, db, consoleId)
                 // Only sync local saves (exclude server-only entries)
                 val romScanDir = currentSettings.romScanDir
-                val localSaves = _allSaves.value.filter { !it.isServerOnly }.ifEmpty {
+                val allLocalSaves = _allSaves.value.filter { !it.isServerOnly }.ifEmpty {
                     EmulatorRegistry.discoverAllSaves(romScanDir = romScanDir).also { found ->
                         _allSaves.value = found
                     }
                 }
+                // Respect the active system filter — "All" syncs everything,
+                // any other filter scopes the sync to that system only.
+                val activeFilter = _selectedFilter.value
+                val localSaves = if (activeFilter == "All") allLocalSaves
+                                 else allLocalSaves.filter { it.systemName == activeFilter }
                 val result = engine.sync(localSaves)
                 _syncState.value = SyncState.Success(result)
                 // Refresh list so downloaded server-only entries drop the isServerOnly flag
