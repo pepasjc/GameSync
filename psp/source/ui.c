@@ -94,7 +94,7 @@ void ui_draw_list(const SyncState *state, int selected, int scroll) {
         const TitleInfo *t = &state->titles[i];
 
         const char *cursor = (i == selected) ? ">" : " ";
-        const char *plat = t->is_psx ? "PSX" : "PSP";
+        const char *plat = t->is_psx ? "PS1" : "PSP";
         const char *display = (t->name[0] && strcmp(t->name, t->game_id) != 0)
                               ? t->name : t->game_id;
         char line[56];

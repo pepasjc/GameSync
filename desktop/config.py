@@ -10,7 +10,7 @@ from PyQt6.QtGui import QColor
 CONFIG_FILE = Path(__file__).parent / "config.json"
 
 ALL_CONSOLE_TYPES = [
-    "All", "3DS", "NDS", "PSP", "PS3", "VITA", "PSX",
+    "All", "3DS", "NDS", "PSP", "PS1", "PS3", "VITA",
     "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC",
     "GG", "SMS", "PCE", "PS1", "PS2", "NGP", "DC", "GC",
     "ATARI2600", "ATARI7800", "LYNX", "NEOGEO", "32X", "SEGACD",
@@ -128,7 +128,7 @@ def detect_console_type(title_id: str) -> str:
         if uid[:4] in _PS3_PREFIXES:
             return "PS3"
         if uid[:4] in _PSX_RETAIL_PREFIXES:
-            return "PSX"
+            return "PS1"
         return "PSP"
     return "NDS"
 

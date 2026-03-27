@@ -636,7 +636,7 @@ void network_fetch_names(SyncState *state) {
             val[val_len] = '\0'; if (*p == '"') p++;
             for (int i = 0; i < state->num_titles; i++) {
                 if (strcmp(state->titles[i].game_id, key) == 0) {
-                    state->titles[i].is_psx = (strcmp(val, "PSX") == 0);
+                    state->titles[i].is_psx = (strcmp(val, "PS1") == 0 || strcmp(val, "PSX") == 0);
                     break;
                 }
             }

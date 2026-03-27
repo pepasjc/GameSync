@@ -1607,7 +1607,7 @@ def _scan_emudeck(root: Path, progress_callback=None, profile_scope: str = "") -
                 continue
             product_code = m.group(1)  # e.g. "UCES00422"
             # Classify PSone Classics (PSX retail prefixes) separately from PSP games
-            system = "PSX" if product_code[:4] in _PSX_RETAIL_PREFIXES else "PSP"
+            system = "PS1" if product_code[:4] in _PSX_RETAIL_PREFIXES else "PSP"
             # Find the actual save data file (skip icons/metadata)
             for f in sorted(slot_dir.iterdir()):
                 if not f.is_file() or f.suffix.lower() in _PSP_PS3_SKIP_EXTS:

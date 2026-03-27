@@ -35,7 +35,7 @@ def detect_platform(title_id: str) -> str:
       - 16-char hex, starts with 00048... → "NDS"  (DSiWare shown on 3DS)
       - 16-char hex, anything else         → "3DS"  (conservative fallback)
       - Starts with PCS (PCSA/PCSB/etc.)  → "VITA"
-      - 4-letter + 5-digit code, found in psx_names → "PSX"
+      - 4-letter + 5-digit code, found in psx_names → "PS1"
       - 4-letter + 5-digit code otherwise  → "PSP"
       - Anything else                      → "NDS"  (DS raw endpoint, no product code)
     """
@@ -60,7 +60,7 @@ def detect_platform(title_id: str) -> str:
     if _PSP_PREFIX_RE.match(tid):
         base = tid[:9]
         if base in _psx_names:
-            return "PSX"
+            return "PS1"
         return "PSP"
 
     # Fallback: treat as NDS (DS raw endpoint sends no product code context)
@@ -135,7 +135,7 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
     """Look up game names and platform types for a list of product codes.
 
     Returns a dict mapping input codes to (name, type) tuples.
-    Type is one of: "VITA", "PSX", "PSP", "3DS", "NDS".
+    Type is one of: "VITA", "PS1", "PSP", "3DS", "NDS".
     Unknown codes are omitted from the result.
     """
     result = {}
@@ -156,7 +156,7 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             base = code_upper[:9]
             name = _psx_names.get(base)
             if name:
-                result[code] = (name, "PSX")
+                result[code] = (name, "PS1")
                 continue
             name = _psp_names.get(base)
             if name:
@@ -221,7 +221,7 @@ def lookup_name_and_platform(title_id: str) -> tuple[str, str]:
     """Return (game_name, platform) for a title ID.
 
     game_name falls back to title_id if not found in any DB.
-    platform is always one of: "3DS", "NDS", "PSP", "PSX", "VITA".
+    platform is always one of: "3DS", "NDS", "PSP", "PS1", "VITA".
     """
     platform = detect_platform(title_id)
     typed = lookup_names_typed([title_id])

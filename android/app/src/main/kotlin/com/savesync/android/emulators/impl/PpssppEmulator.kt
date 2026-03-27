@@ -34,7 +34,7 @@ class PpssppEmulator : EmulatorBase() {
     )
 
     private fun detectSystem(productCode: String): String =
-        if (productCode.length >= 4 && productCode.take(4).uppercase() in psxRetailPrefixes) "PSX"
+        if (productCode.length >= 4 && productCode.take(4).uppercase() in psxRetailPrefixes) "PS1"
         else "PPSSPP"
 
     private fun findSaveDataDir(): File? =
