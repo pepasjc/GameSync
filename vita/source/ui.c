@@ -172,8 +172,11 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     psvDebugScreenPuts(FG_RESET);
 
     goto_rc(2, 0);
-    psvDebugScreenPrintf("Platform:%s",
-                         title->platform == PLATFORM_PSP_EMU ? " PSP (emulated)" : " PS Vita native");
+    const char *plat_str =
+        (title->platform != PLATFORM_PSP_EMU) ? " PS Vita native" :
+        title->is_psx                          ? " PSX (PSone Classic)" :
+                                                 " PSP (emulated)";
+    psvDebugScreenPrintf("Platform:%s", plat_str);
 
     goto_rc(3, 0);
     psvDebugScreenPuts(FG_YELLOW);

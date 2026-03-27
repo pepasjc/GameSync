@@ -14,6 +14,25 @@
 #include "saves.h"
 #include "sha256.h"
 
+/* Known PS1 retail disc product code prefixes.
+ * These appear in PSP/SAVEDATA when a PSone Classic is installed from PSN. */
+static const char * const PSX_PREFIXES[] = {
+    "SLUS", "SCUS", "PAPX",          /* North America */
+    "SLES", "SCES", "SCED",          /* Europe */
+    "SLPS", "SLPM", "SCPS", "SCPM",  /* Japan */
+    "SLAJ", "SLEJ", "SCAJ",          /* Other */
+    NULL
+};
+
+bool saves_is_psx_prefix(const char *game_id) {
+    if (!game_id || game_id[0] == '\0') return false;
+    char prefix[5] = {game_id[0], game_id[1], game_id[2], game_id[3], '\0'};
+    for (int i = 0; PSX_PREFIXES[i]; i++) {
+        if (strcmp(prefix, PSX_PREFIXES[i]) == 0) return true;
+    }
+    return false;
+}
+
 bool saves_is_valid_game_id(const char *game_id) {
     /* PSP save dirs start with a 9-char product code (4 uppercase + 5 digits)
      * optionally followed by a slot suffix, e.g. ULUS10272DATA00.
@@ -73,6 +92,7 @@ void saves_scan(SyncState *state) {
         memset(t, 0, sizeof(TitleInfo));
         strncpy(t->game_id, game_id, GAME_ID_LEN - 1);
         strncpy(t->name, game_id, MAX_TITLE_LEN - 1);  /* default name = ID */
+        t->is_psx = saves_is_psx_prefix(game_id);
         snprintf(t->save_dir, SAVE_DIR_LEN, "%s/%s", SAVEDATA_PATH, game_id);
 
         /* Count files and total size */

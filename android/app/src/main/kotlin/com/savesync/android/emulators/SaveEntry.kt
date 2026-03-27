@@ -17,12 +17,20 @@ data class SaveEntry(
     /** Canonical No-Intro/Redump name from DAT lookup — null if not matched */
     val canonicalName: String? = null
 ) {
+    /**
+     * True when this entry is a PSP/PSX save slot directory (DATA.BIN + PARAM.SFO + etc.),
+     * as opposed to a single save file or a generic multi-file directory.
+     * This drives the PSP bundle upload/download path in SyncEngine, independently of
+     * whether the system is "PPSSPP" (PSP game) or "PSX" (PSone Classic under PPSSPP).
+     */
+    val isPspSlot: Boolean get() = saveDir != null && !isMultiFile
+
     fun computeHash(): String {
         return when {
             isServerOnly -> ""
-            // PSP/PPSSPP: sha256 of all file contents sorted by filename (no paths).
+            // PSP slot dirs: sha256 of all file contents sorted by filename (no paths).
             // Matches the server's bundle hash and the PSP homebrew client's algorithm.
-            systemName == "PPSSPP" && saveDir != null -> HashUtils.sha256DirFiles(saveDir)
+            isPspSlot -> HashUtils.sha256DirFiles(saveDir!!)
             isMultiFile && saveDir != null -> HashUtils.sha256Dir(saveDir)
             saveFile != null -> HashUtils.sha256File(saveFile)
             else -> ""
@@ -41,8 +49,7 @@ data class SaveEntry(
     fun exists(): Boolean {
         if (isServerOnly) return false
         return when {
-            // PSP slot dir is the unit of existence
-            systemName == "PPSSPP" && saveDir != null -> saveDir.exists() && saveDir.isDirectory
+            isPspSlot -> saveDir!!.exists() && saveDir.isDirectory
             isMultiFile && saveDir != null -> saveDir.exists() && saveDir.isDirectory
             saveFile != null -> saveFile.exists() && saveFile.isFile
             else -> false
@@ -53,8 +60,8 @@ data class SaveEntry(
         return when {
             isServerOnly -> 0L
             // Use most-recently-modified file inside the slot directory
-            systemName == "PPSSPP" && saveDir != null -> {
-                saveDir.listFiles()
+            isPspSlot -> {
+                saveDir!!.listFiles()
                     ?.filter { it.isFile }
                     ?.maxOfOrNull { it.lastModified() }
                     ?: saveDir.lastModified()

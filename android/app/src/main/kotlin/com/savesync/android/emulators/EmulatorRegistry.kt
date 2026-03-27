@@ -3,6 +3,7 @@ package com.savesync.android.emulators
 import com.savesync.android.emulators.impl.AetherSX2Emulator
 import com.savesync.android.emulators.impl.DolphinEmulator
 import com.savesync.android.emulators.impl.DraSticEmulator
+import com.savesync.android.emulators.impl.DuckStationEmulator
 import com.savesync.android.emulators.impl.MelonDsEmulator
 import com.savesync.android.emulators.impl.MgbaEmulator
 import com.savesync.android.emulators.impl.PpssppEmulator
@@ -18,6 +19,7 @@ object EmulatorRegistry {
     fun buildAll(romScanDir: String = ""): List<EmulatorBase> = listOf(
         RetroArchEmulator(romScanDir),
         PpssppEmulator(),
+        DuckStationEmulator(),
         DraSticEmulator(romScanDir),
         MelonDsEmulator(romScanDir),
         MgbaEmulator(),
