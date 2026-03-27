@@ -26,6 +26,7 @@ from pathlib import Path
 from app.config import settings
 from app.models.save import SaveBundle, SaveMetadata
 from app.services import db, game_names
+from app.services.ps1_cards import is_ps1_title_id, psp_visible_stats
 from app.services.rom_id import parse_title_id as _parse_emulator_id
 
 
@@ -164,9 +165,15 @@ def store_save(
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_bytes(f.data)
 
-    # Compute bundle hash
-    all_data = b"".join(f.data for f in bundle.files)
-    bundle_hash = hashlib.sha256(all_data).hexdigest()
+    # Compute sync metadata hash. For PS1, preserve PSP/Vita-compatible hashing
+    # over the PSP-visible file set so legacy clients continue to compare correctly.
+    if is_ps1_title_id(title_id):
+        bundle_hash, save_size, file_count = psp_visible_stats([(f.path, f.data) for f in bundle.files])
+    else:
+        all_data = b"".join(f.data for f in bundle.files)
+        bundle_hash = hashlib.sha256(all_data).hexdigest()
+        save_size = bundle.total_size
+        file_count = len(bundle.files)
 
     # Look up game name and platform from local DB.
     game_name, platform = game_names.lookup_name_and_platform(title_id)
@@ -193,8 +200,8 @@ def store_save(
         last_sync=now,
         last_sync_source=source,
         save_hash=bundle_hash,
-        save_size=bundle.total_size,
-        file_count=len(bundle.files),
+        save_size=save_size,
+        file_count=file_count,
         client_timestamp=bundle.timestamp,
         server_timestamp=now,
         console_id=console_id,
@@ -218,6 +225,59 @@ def load_save_files(title_id: str, console_id: str = "") -> list[tuple[str, byte
             rel_path = file_path.relative_to(current).as_posix()
             files.append((rel_path, file_path.read_bytes()))
     return files
+
+
+def rebuild_metadata_from_current(title_id: str, source: str | None = None) -> SaveMetadata | None:
+    """Recompute metadata from the current on-disk files for a title."""
+    files = load_save_files(title_id)
+    if not files:
+        return None
+
+    existing = get_metadata(title_id)
+    if is_ps1_title_id(title_id):
+        bundle_hash, total_size, file_count = psp_visible_stats(files)
+    else:
+        all_data = b"".join(data for _, data in files)
+        bundle_hash = hashlib.sha256(all_data).hexdigest()
+        total_size = sum(len(data) for _, data in files)
+        file_count = len(files)
+
+    if existing is not None:
+        meta = SaveMetadata(
+            title_id=existing.title_id,
+            name=existing.name,
+            last_sync=existing.last_sync,
+            last_sync_source=source or existing.last_sync_source,
+            save_hash=bundle_hash,
+            save_size=total_size,
+            file_count=file_count,
+            client_timestamp=existing.client_timestamp,
+            server_timestamp=existing.server_timestamp,
+            console_id=existing.console_id,
+            platform=existing.platform,
+            system=existing.system,
+        )
+    else:
+        game_name, platform = game_names.lookup_name_and_platform(title_id)
+        parsed = _parse_emulator_id(title_id)
+        system = parsed[0] if parsed else platform
+        meta = SaveMetadata(
+            title_id=title_id,
+            name=game_name,
+            last_sync="",
+            last_sync_source=source or "migration",
+            save_hash=bundle_hash,
+            save_size=total_size,
+            file_count=file_count,
+            client_timestamp=0,
+            server_timestamp="",
+            console_id="",
+            platform=platform,
+            system=system,
+        )
+
+    db.upsert(meta.to_dict())
+    return meta
 
 
 def _prune_history(title_id: str) -> None:

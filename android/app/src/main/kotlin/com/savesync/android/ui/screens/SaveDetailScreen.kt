@@ -86,8 +86,8 @@ fun SaveDetailScreen(
     val syncState = syncStateEntities.find { it.titleId == titleId }
 
     // Auto-fetch server metadata when screen opens
-    LaunchedEffect(titleId) {
-        viewModel.fetchServerMeta(titleId)
+    LaunchedEffect(titleId, entry?.systemName) {
+        viewModel.fetchServerMeta(titleId, entry?.systemName)
     }
 
     // Show result messages
@@ -204,12 +204,18 @@ fun SaveDetailScreen(
         val isBusy = detailState is SaveDetailState.Working
 
         // Compute local hash — recompute when the underlying file is modified (e.g. after download)
-        val fileModTime = entry.saveFile?.lastModified() ?: entry.saveDir?.lastModified() ?: 0L
+        val fileModTime = when {
+            entry.saveFile != null && entry.extraFiles.isNotEmpty() ->
+                (listOf(entry.saveFile) + entry.extraFiles).filter { it.exists() }.maxOfOrNull { it.lastModified() } ?: 0L
+            else -> entry.saveFile?.lastModified() ?: entry.saveDir?.lastModified() ?: 0L
+        }
         val localHash = remember(entry.titleId, fileModTime) {
             try { entry.computeHash() } catch (_: Exception) { null }
         }
         val localSize = remember(entry.titleId, fileModTime) {
             when {
+                entry.saveFile != null && entry.extraFiles.isNotEmpty() ->
+                    (listOf(entry.saveFile) + entry.extraFiles).filter { it.exists() }.sumOf { it.length() }
                 entry.isMultiFile && entry.saveDir != null ->
                     entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
                 entry.saveFile != null ->
@@ -273,7 +279,7 @@ fun SaveDetailScreen(
                 is ServerMetaState.Found -> {
                     InfoRow("  Size", formatSize(meta.sizeBytes))
                     InfoRow("  Hash", meta.hash.take(16).let { "$it…" })
-                    if (meta.timestamp > 0) InfoRow("  Saved at", formatTimestampFull(meta.timestamp * 1000))
+                    if (meta.timestamp > 0) InfoRow("  Saved at", formatTimestampFull(meta.timestamp))
                     meta.source?.let { InfoRow("  Source", it) }
                     // Match indicator
                     val matches = localHash != null && localHash == meta.hash

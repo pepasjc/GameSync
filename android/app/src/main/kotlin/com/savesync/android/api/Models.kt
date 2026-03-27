@@ -29,7 +29,8 @@ data class SaveMeta(
     val save_hash: String?,
     val save_size: Long?,
     val client_timestamp: Long?,
-    val platform: String?
+    val platform: String?,
+    val server_timestamp: String? = null
 )
 
 data class UploadResponse(

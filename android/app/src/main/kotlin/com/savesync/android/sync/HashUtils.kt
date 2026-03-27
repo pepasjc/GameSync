@@ -67,6 +67,20 @@ object HashUtils {
         return digest.digest().toHexString()
     }
 
+    fun sha256Files(files: List<File>): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        for (file in files) {
+            file.inputStream().use { stream ->
+                val buffer = ByteArray(8192)
+                var read: Int
+                while (stream.read(buffer).also { read = it } != -1) {
+                    digest.update(buffer, 0, read)
+                }
+            }
+        }
+        return digest.digest().toHexString()
+    }
+
     private fun collectFilesRecursively(dir: File): List<File> {
         val result = mutableListOf<File>()
         dir.walkTopDown().forEach { file ->

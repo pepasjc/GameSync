@@ -21,11 +21,32 @@ interface SaveSyncApi {
         @Path("title_id") titleId: String
     ): SaveMeta
 
+    @GET("api/v1/saves/{title_id}/ps1-card/meta")
+    suspend fun getPs1CardMeta(
+        @Path("title_id") titleId: String,
+        @Query("slot") slot: Int = 0
+    ): SaveMeta
+
     @Streaming
     @GET("api/v1/saves/{title_id}/raw")
     suspend fun downloadSaveRaw(
         @Path("title_id") titleId: String
     ): Response<ResponseBody>
+
+    @Streaming
+    @GET("api/v1/saves/{title_id}/ps1-card")
+    suspend fun downloadPs1Card(
+        @Path("title_id") titleId: String,
+        @Query("slot") slot: Int = 0
+    ): Response<ResponseBody>
+
+    @POST("api/v1/saves/{title_id}/ps1-card")
+    suspend fun uploadPs1Card(
+        @Path("title_id") titleId: String,
+        @Query("slot") slot: Int = 0,
+        @Query("console_id") consoleId: String,
+        @Body body: RequestBody
+    ): UploadResponse
 
     @POST("api/v1/saves/{title_id}/raw")
     suspend fun uploadSaveRaw(

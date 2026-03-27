@@ -11,6 +11,7 @@ data class SaveEntry(
     val displayName: String,         // original filename on disk (never renamed)
     val systemName: String,
     val saveFile: File?,             // null if multi-file or server-only
+    val extraFiles: List<File> = emptyList(),  // optional companion files (e.g. DuckStation slot 2)
     val saveDir: File?,              // non-null if multi-file (e.g. PPSSPP)
     val isMultiFile: Boolean = saveDir != null,
     val isServerOnly: Boolean = false,
@@ -31,6 +32,10 @@ data class SaveEntry(
             // PSP slot dirs: sha256 of all file contents sorted by filename (no paths).
             // Matches the server's bundle hash and the PSP homebrew client's algorithm.
             isPspSlot -> HashUtils.sha256DirFiles(saveDir!!)
+            saveFile != null && extraFiles.isNotEmpty() -> {
+                val files = (listOf(saveFile) + extraFiles).filter { it.exists() }.sortedBy { it.name }
+                HashUtils.sha256Files(files)
+            }
             isMultiFile && saveDir != null -> HashUtils.sha256Dir(saveDir)
             saveFile != null -> HashUtils.sha256File(saveFile)
             else -> ""
@@ -50,6 +55,8 @@ data class SaveEntry(
         if (isServerOnly) return false
         return when {
             isPspSlot -> saveDir!!.exists() && saveDir.isDirectory
+            saveFile != null && extraFiles.isNotEmpty() ->
+                saveFile.exists() || extraFiles.any { it.exists() }
             isMultiFile && saveDir != null -> saveDir.exists() && saveDir.isDirectory
             saveFile != null -> saveFile.exists() && saveFile.isFile
             else -> false
@@ -65,6 +72,12 @@ data class SaveEntry(
                     ?.filter { it.isFile }
                     ?.maxOfOrNull { it.lastModified() }
                     ?: saveDir.lastModified()
+            }
+            saveFile != null && extraFiles.isNotEmpty() -> {
+                (listOf(saveFile) + extraFiles)
+                    .filter { it.exists() }
+                    .maxOfOrNull { it.lastModified() }
+                    ?: 0L
             }
             isMultiFile && saveDir != null -> {
                 // Use the most recently modified file in the directory

@@ -64,3 +64,18 @@ Thumbs.db
 
 # Claude
 .claude/
+
+# tools
+tools/roms
+tools/logs
+
+# desktop
+desktop/dats
+desktop/logs
+
+# others
+*.json
+*.exe
+*.bak
+*.lst
+build_output/

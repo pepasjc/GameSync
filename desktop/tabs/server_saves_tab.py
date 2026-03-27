@@ -29,6 +29,7 @@ from config import (
     delete_save,
     restore_history,
     download_raw_save,
+    download_ps1_cards,
 )
 from dialogs.history_dialog import HistoryDialog
 
@@ -219,14 +220,26 @@ class ServerSavesTab(QWidget):
             return
         data = self._row_data(rows[0])
         title_id = data.get("title_id", "")
+        console_type = detect_console_type(title_id)
+        default_name = f"{title_id}.mcd" if console_type == "PS1" else f"{title_id}.sav"
+        file_filter = "PS1 Memory Cards (*.mcd *.mcr);;All Files (*)" if console_type == "PS1" else "Save Files (*.sav *.srm);;All Files (*)"
         dest = QFileDialog.getSaveFileName(
-            self, "Save File As", f"{title_id}.sav", "Save Files (*.sav *.srm);;All Files (*)"
+            self, "Save File As", default_name, file_filter
         )[0]
         if not dest:
             return
         try:
-            download_raw_save(title_id, Path(dest))
-            QMessageBox.information(self, "Downloaded", f"Save written to:\n{dest}")
+            dest_path = Path(dest)
+            if console_type == "PS1":
+                written = download_ps1_cards(title_id, dest_path)
+                QMessageBox.information(
+                    self,
+                    "Downloaded",
+                    "PS1 card(s) written to:\n" + "\n".join(str(p) for p in written),
+                )
+            else:
+                download_raw_save(title_id, dest_path)
+                QMessageBox.information(self, "Downloaded", f"Save written to:\n{dest}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Download failed: {e}")
 

@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.OffsetDateTime
+import java.time.format.DateTimeParseException
 import java.util.concurrent.TimeUnit
 
 sealed class SyncState {
@@ -510,18 +512,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _syncState.value = SyncState.Idle
     }
 
-    fun fetchServerMeta(titleId: String) {
+    fun fetchServerMeta(titleId: String, systemName: String? = null) {
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
             if (currentSettings.serverUrl.isBlank()) return@launch
             _serverMeta.value = ServerMetaState.Loading
             try {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val meta = api.getSaveMeta(titleId)
+                val meta = if (systemName == "PS1" && !titleId.contains('_')) {
+                    api.getPs1CardMeta(titleId, slot = 0)
+                } else {
+                    api.getSaveMeta(titleId)
+                }
                 _serverMeta.value = ServerMetaState.Found(
                     hash = meta.save_hash ?: "—",
                     sizeBytes = meta.save_size ?: 0L,
-                    timestamp = meta.client_timestamp ?: 0L,
+                    timestamp = parseServerDisplayTimestamp(meta),
                     source = meta.platform
                 )
             } catch (e: retrofit2.HttpException) {
@@ -530,6 +536,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 _serverMeta.value = ServerMetaState.Error(e.message ?: "Failed")
             }
+        }
+    }
+
+    private fun parseServerDisplayTimestamp(meta: com.savesync.android.api.SaveMeta): Long {
+        meta.server_timestamp?.let { iso ->
+            try {
+                return OffsetDateTime.parse(iso).toInstant().toEpochMilli()
+            } catch (_: DateTimeParseException) {
+            }
+        }
+
+        val raw = meta.client_timestamp ?: return 0L
+        return when {
+            raw <= 0L -> 0L
+            raw in 946684800000L..4102444800000L -> raw
+            raw in 946684800L..4102444800L -> raw * 1000L
+            else -> 0L
         }
     }
 
@@ -595,7 +618,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 // Refresh server meta after a sync
-                fetchServerMeta(entry.titleId)
+                fetchServerMeta(entry.titleId, entry.systemName)
                 _saveDetailState.value = SaveDetailState.Success(msg.trim())
             } catch (e: Exception) {
                 _saveDetailState.value = SaveDetailState.Error(e.message ?: "Sync failed")
@@ -617,7 +640,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val engine = SyncEngine(api, db, consoleId)
                 val ok = engine.uploadSave(entry)
                 if (ok) {
-                    fetchServerMeta(entry.titleId)
+                    engine.recordSyncedState(entry)
+                    fetchServerMeta(entry.titleId, entry.systemName)
                     scanSaves()  // refresh status icons in the list
                 }
                 _saveDetailState.value = if (ok)
@@ -644,7 +668,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val engine = SyncEngine(api, db, consoleId)
                 val ok = engine.downloadSave(entry, entry.titleId)
                 if (ok) {
-                    fetchServerMeta(entry.titleId)
+                    engine.recordSyncedStateFromFile(entry)
+                    fetchServerMeta(entry.titleId, entry.systemName)
                     // Re-scan so the entry moves from "server only" to "local save"
                     scanSaves()
                 }

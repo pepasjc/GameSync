@@ -11,6 +11,15 @@ from app.models.save import (
     validate_any_title_id,
 )
 from app.services import storage
+from app.services.ps1_cards import (
+    create_vmp,
+    ensure_raw_slot_files,
+    get_slot_raw_from_files,
+    is_ps1_title_id,
+    psp_visible_files,
+    slot_hash_and_size,
+    slot_raw_name,
+)
 from app.services.bundle import BundleError, create_bundle, parse_bundle
 
 router = APIRouter()
@@ -57,6 +66,125 @@ async def get_save_meta(
     return meta.to_dict()
 
 
+@router.get("/saves/{title_id}/ps1-card/meta")
+async def get_ps1_card_meta(title_id: str, slot: int = Query(0, ge=0, le=1)):
+    title_id = _validate_title_id(title_id)
+    if not is_ps1_title_id(title_id):
+        raise HTTPException(status_code=400, detail="Not a PS1 title ID")
+
+    meta = storage.get_metadata(title_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="No save found for this title")
+
+    files = storage.load_save_files(title_id)
+    if not files:
+        raise HTTPException(status_code=404, detail="Save data missing on disk")
+
+    slot_meta = slot_hash_and_size(files, slot)
+    if slot_meta is None:
+        raise HTTPException(status_code=404, detail=f"No PS1 card found for slot {slot}")
+
+    save_hash, save_size = slot_meta
+    return {
+        "title_id": title_id,
+        "slot": slot,
+        "save_hash": save_hash,
+        "save_size": save_size,
+        "client_timestamp": meta.client_timestamp,
+        "server_timestamp": meta.server_timestamp,
+        "platform": meta.platform,
+        "system": meta.system,
+    }
+
+
+@router.get("/saves/{title_id}/ps1-card")
+async def download_ps1_card(title_id: str, slot: int = Query(0, ge=0, le=1)):
+    title_id = _validate_title_id(title_id)
+    if not is_ps1_title_id(title_id):
+        raise HTTPException(status_code=400, detail="Not a PS1 title ID")
+
+    meta = storage.get_metadata(title_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="No save found for this title")
+
+    files = storage.load_save_files(title_id)
+    if not files:
+        raise HTTPException(status_code=404, detail="Save data missing on disk")
+
+    raw = get_slot_raw_from_files(files, slot)
+    if raw is None:
+        raise HTTPException(status_code=404, detail=f"No PS1 card found for slot {slot}")
+
+    return Response(
+        content=raw,
+        media_type="application/octet-stream",
+        headers={
+            "X-Save-Timestamp": str(meta.client_timestamp),
+            "X-Save-Hash": hashlib.sha256(raw).hexdigest(),
+            "X-Save-Size": str(len(raw)),
+            "X-Save-Path": slot_raw_name(slot),
+        },
+    )
+
+
+@router.post("/saves/{title_id}/ps1-card")
+async def upload_ps1_card(
+    title_id: str,
+    request: Request,
+    slot: int = Query(0, ge=0, le=1),
+    console_id: str = Query(""),
+):
+    title_id = _validate_title_id(title_id)
+    if not is_ps1_title_id(title_id):
+        raise HTTPException(status_code=400, detail="Not a PS1 title ID")
+
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty request body")
+
+    files = ensure_raw_slot_files(storage.load_save_files(title_id) or [])
+
+    replaced = False
+    updated_files: list[tuple[str, bytes]] = []
+    target = slot_raw_name(slot)
+    legacy_target = f"SCEVMC{slot}.VMP"
+    for path, data in files:
+        if path == target:
+            updated_files.append((path, body))
+            replaced = True
+        elif path == legacy_target:
+            updated_files.append((path, create_vmp(body)))
+        else:
+            updated_files.append((path, data))
+    if not replaced:
+        updated_files.append((target, body))
+    if legacy_target not in {path for path, _ in updated_files}:
+        updated_files.append((legacy_target, create_vmp(body)))
+
+    bundle_files = [
+        BundleFile(
+            path=path,
+            size=len(data),
+            sha256=hashlib.sha256(data).digest(),
+            data=data,
+        )
+        for path, data in sorted(updated_files, key=lambda item: item[0])
+    ]
+    bundle = SaveBundle(
+        title_id=0,
+        timestamp=int(time.time()),
+        files=bundle_files,
+        title_id_str=title_id,
+    )
+    cid = _console_id_from_request(request, console_id)
+    meta = storage.store_save(bundle, source="ps1_card", console_id=cid)
+    return {
+        "status": "ok",
+        "timestamp": meta.last_sync,
+        "sha256": hashlib.sha256(body).hexdigest(),
+    }
+
+
 @router.get("/saves/{title_id}/consoles")
 async def list_save_consoles(title_id: str):
     """List all console slots that have saves for a title."""
@@ -73,7 +201,12 @@ async def download_save_raw(
     request: Request,
     console_id: str = Query(""),
 ):
-    """Download raw save file (first file only) - for DS client compatibility."""
+    """Download a raw single-file save.
+
+    This endpoint is only safe for titles stored as exactly one file. Multi-file
+    bundles (for example PPSSPP/PSone Classics slot directories) are not raw-save
+    compatible, so returning the "first" file would silently produce bad downloads.
+    """
     title_id = _validate_title_id(title_id)
     meta = storage.get_metadata(title_id)
     if meta is None:
@@ -82,6 +215,14 @@ async def download_save_raw(
     files = storage.load_save_files(title_id)
     if files is None or len(files) == 0:
         raise HTTPException(status_code=404, detail="Save data missing on disk")
+    if len(files) != 1:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This save is stored as a multi-file bundle and cannot be downloaded "
+                "through the raw endpoint."
+            ),
+        )
 
     path, data = files[0]
     return Response(
@@ -110,6 +251,8 @@ async def download_save(
     files = storage.load_save_files(title_id)
     if files is None:
         raise HTTPException(status_code=404, detail="Save data missing on disk")
+    if is_ps1_title_id(title_id):
+        files = psp_visible_files(files)
 
     bundle_files = []
     for path, data in files:
@@ -176,6 +319,18 @@ async def upload_save(
             status_code=400,
             detail=f"Title ID mismatch: URL={title_id}, bundle={bundle.effective_title_id}",
         )
+
+    if is_ps1_title_id(title_id):
+        ps1_files = ensure_raw_slot_files([(f.path, f.data) for f in bundle.files])
+        bundle.files = [
+            BundleFile(
+                path=path,
+                size=len(data),
+                sha256=hashlib.sha256(data).digest(),
+                data=data,
+            )
+            for path, data in sorted(ps1_files, key=lambda item: item[0])
+        ]
 
     # Conflict check
     if not force:

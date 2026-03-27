@@ -3,6 +3,7 @@ import hashlib
 from app.models.save import BundleFile, SaveBundle
 from app.services.bundle import create_bundle
 from app.services import game_names
+from app.services.ps1_cards import create_vmp, extract_raw_card
 
 
 def _make_bundle_bytes(
@@ -22,6 +23,26 @@ def _make_bundle_bytes(
         for path, data in files
     ]
     bundle = SaveBundle(title_id=title_id, timestamp=timestamp, files=bundle_files)
+    return create_bundle(bundle)
+
+
+def _make_ps1_bundle_bytes(
+    title_id: str = "SLUS01279",
+    timestamp: int = 1700000000,
+    files: list[tuple[str, bytes]] | None = None,
+) -> bytes:
+    if files is None:
+        files = [("SCEVMC0.VMP", b"\x00PMV" + b"\x00" * 0x7C + b"MC\x00\x00" + b"\x00" * (0x20000 - 4))]
+    bundle_files = [
+        BundleFile(
+            path=path,
+            size=len(data),
+            sha256=hashlib.sha256(data).digest(),
+            data=data,
+        )
+        for path, data in files
+    ]
+    bundle = SaveBundle(title_id=0, timestamp=timestamp, files=bundle_files, title_id_str=title_id)
     return create_bundle(bundle)
 
 
@@ -182,6 +203,84 @@ class TestDownloadEndpoint:
         assert len(downloaded.files) == 1
         assert downloaded.files[0].data == save_data
 
+    def test_raw_download_rejects_multi_file_bundle(self, client, auth_headers):
+        bundle = _make_bundle_bytes(files=[("ICON0.PNG", b"icon"), ("DATA.BIN", b"save")])
+        client.post(
+            "/api/v1/saves/0004000000055D00",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/0004000000055D00/raw", headers=auth_headers)
+        assert r.status_code == 409
+        assert "multi-file bundle" in r.json()["detail"].lower()
+
+    def test_ps1_card_download_extracts_raw_from_vmp(self, client, auth_headers):
+        raw = b"MC\x00\x00" + b"\x11" * (0x20000 - 4)
+        vmp = b"\x00PMV" + b"\x00" * 0x7C + raw
+        bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", vmp)])
+        client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS01279/ps1-card?slot=0", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.content == raw
+
+    def test_ps1_bundle_upload_materializes_raw_slot_files(self, client, auth_headers, tmp_save_dir):
+        raw = b"MC\x00\x00" + b"\x22" * (0x20000 - 4)
+        vmp = b"\x00PMV" + b"\x00" * 0x7C + raw
+        bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", vmp), ("PARAM.SFO", b"param")])
+        r = client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        assert (tmp_save_dir / "SLUS01279" / "current" / "slot0.mcd").read_bytes() == raw
+
+    def test_create_vmp_round_trips_raw_card(self):
+        raw = b"MC\x00\x00" + b"\x33" * (0x20000 - 4)
+        assert extract_raw_card(create_vmp(raw)) == raw
+
+    def test_ps1_card_upload_regenerates_vmp(self, client, auth_headers, tmp_save_dir):
+        raw = b"MC\x00\x00" + b"\x44" * (0x20000 - 4)
+        bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", create_vmp(raw))])
+        client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        new_raw = b"MC\x00\x00" + b"\x55" * (0x20000 - 4)
+        r = client.post(
+            "/api/v1/saves/SLUS01279/ps1-card?slot=0",
+            content=new_raw,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        vmp = (tmp_save_dir / "SLUS01279" / "current" / "SCEVMC0.VMP").read_bytes()
+        assert extract_raw_card(vmp) == new_raw
+
+    def test_ps1_bundle_download_hides_raw_slot_files(self, client, auth_headers):
+        raw = b"MC\x00\x00" + b"\x66" * (0x20000 - 4)
+        bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", create_vmp(raw)), ("PARAM.SFO", b"param")])
+        client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS01279", headers=auth_headers)
+        assert r.status_code == 200
+        from app.services.bundle import parse_bundle
+        downloaded = parse_bundle(r.content)
+        paths = sorted(f.path for f in downloaded.files)
+        assert "SCEVMC0.VMP" in paths
+        assert "slot0.mcd" not in paths
+
     def test_upload_preserves_history(self, client, auth_headers, tmp_save_dir):
         # Upload v1
         bundle1 = _make_bundle_bytes(timestamp=1000, files=[("main", b"v1")])
@@ -230,6 +329,39 @@ class TestMetadataEndpoint:
         assert data["client_timestamp"] == 1700000000
         assert data["file_count"] == 1
         assert "save_hash" in data
+
+    def test_ps1_meta_uses_psp_visible_hash(self, client, auth_headers):
+        raw = b"MC\x00\x00" + b"\x77" * (0x20000 - 4)
+        vmp = create_vmp(raw)
+        bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", vmp), ("PARAM.SFO", b"param")])
+        client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS01279/meta", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        expected = hashlib.sha256(b"param" + vmp).hexdigest()
+        assert data["save_hash"] == expected
+
+    def test_ps1_card_meta_includes_server_timestamp(self, client, auth_headers):
+        raw = b"MC\x00\x00" + b"\x78" * (0x20000 - 4)
+        bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", create_vmp(raw))])
+        client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS01279/ps1-card/meta?slot=0", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["title_id"] == "SLUS01279"
+        assert data["client_timestamp"] == 1700000000
+        assert isinstance(data["server_timestamp"], str)
+        assert data["server_timestamp"]
 
 
 class TestPs1Lookup:

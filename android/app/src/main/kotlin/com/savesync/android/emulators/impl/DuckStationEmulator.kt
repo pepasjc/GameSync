@@ -7,24 +7,15 @@ import java.io.File
 /**
  * DuckStation PS1 emulator — handles per-game memory card files (.mcd / .mcr).
  *
- * DuckStation saves one memory card per game using the game's serial number as the
- * filename, e.g. `SLUS-01234.mcd`.  The serial is normalized to a bare product code
- * for the title ID: `SLUS01234` — matching PSone Classics on PSP/Vita.
- *
- * Candidate directories (checked in order):
- *   - DuckStation/memcards/         (standard external storage layout)
- *   - duckstation/memcards/
- *   - Android/data/com.github.stenzek.duckstation/files/memcards/
- *   - Android/data/org.duckstation.duckstation/files/memcards/
- *
- * Shared memory cards (`shared_card_1.mcd`, `shared_card_2.mcd`, `Mcd001.mcd`) are
- * skipped — they contain saves for multiple games and can't be synced per-title.
- *
- * Memory card slot suffixes (`_1`, `_2` before the extension) are stripped so that
- * `SLUS-01234_1.mcd` and `SLUS-01234_2.mcd` collapse to the same title ID.  When
- * multiple slot files exist for the same serial, the most recently modified one is used.
+ * In practice DuckStation Android often names cards after the game title, e.g.
+ * `Breath of Fire IV (USA)_1.mcd`, not after the disc serial. We still normalize
+ * the title ID to the PS1 product code when we can, but the on-disk filename must
+ * match DuckStation's title-based convention so server-only downloads land in the
+ * place the emulator actually reads.
  */
-class DuckStationEmulator : EmulatorBase() {
+class DuckStationEmulator(
+    private val romScanDir: String = ""
+) : EmulatorBase() {
 
     override val name: String = "DuckStation"
     override val systemPrefix: String = "PS1"
@@ -53,18 +44,40 @@ class DuckStationEmulator : EmulatorBase() {
         return if (serialRegex.matches(code)) code else null
     }
 
-    private fun findMemcardsDir(): File? = firstExistingAbsolute(
-        File(baseDir, "DuckStation/memcards"),
-        File(baseDir, "duckstation/memcards"),
-        File(baseDir, "Android/data/com.github.stenzek.duckstation/files/memcards"),
-        File(baseDir, "Android/data/org.duckstation.duckstation/files/memcards"),
-    )
+    private fun findMemcardsDir(allowNonExistent: Boolean = false): File? {
+        val candidates = listOf(
+            File(baseDir, "Android/data/com.github.stenzek.duckstation/files/memcards"),
+            File(baseDir, "Android/data/org.duckstation.duckstation/files/memcards"),
+            File(baseDir, "DuckStation/memcards"),
+            File(baseDir, "duckstation/memcards"),
+        )
+        return candidates.firstOrNull { it.exists() && it.isDirectory }
+            ?: if (allowNonExistent) candidates.firstOrNull() else null
+    }
+
+    private fun ps1RomDirs(scanRoot: File): List<File> {
+        return listOf(
+            "PS1", "ps1", "PSX", "psx", "PlayStation", "playstation",
+            "PlayStation 1", "PlayStation1"
+        ).map { File(scanRoot, it) }.filter { it.exists() && it.isDirectory }
+    }
+
+    private fun buildRomEntry(memcardsDir: File, label: String, romFile: File): Pair<String, SaveEntry>? {
+        val titleId = readPs1Serial(romFile) ?: toPs1TitleId(label)
+        val saveFile = File(memcardsDir, "${label}_1.mcd")
+        return titleId to SaveEntry(
+            titleId = titleId,
+            displayName = label,
+            systemName = systemPrefix,
+            saveFile = saveFile,
+            saveDir = null
+        )
+    }
 
     override fun discoverSaves(): List<SaveEntry> {
         val memcardsDir = findMemcardsDir() ?: return emptyList()
-
-        // Collect best (most recently modified) mcd per slug, to handle slot variants
-        val best = mutableMapOf<String, SaveEntry>()
+        val best = mutableMapOf<String, File>()
+        val displayNames = mutableMapOf<String, String>()
 
         memcardsDir.listFiles()?.forEach { file ->
             if (!file.isFile || file.extension.lowercase() !in mcdExtensions) return@forEach
@@ -74,18 +87,53 @@ class DuckStationEmulator : EmulatorBase() {
             if (stemNoSlot.lowercase() in sharedCardNames) return@forEach
 
             val titleId = normalizeSerial(stemNoSlot) ?: toPs1TitleId(stemNoSlot)
-            val existing = best[titleId]
-            if (existing == null || file.lastModified() > (existing.saveFile?.lastModified() ?: 0L)) {
-                best[titleId] = SaveEntry(
-                    titleId = titleId,
-                    displayName = stemNoSlot,
-                    systemName = systemPrefix,
-                    saveFile = file,
-                    saveDir = null
-                )
+            val current = best[titleId]
+            val shouldReplace = when {
+                current == null -> true
+                current.nameWithoutExtension.endsWith("_2") && !file.nameWithoutExtension.endsWith("_2") -> true
+                current.nameWithoutExtension.endsWith("_1") && file.nameWithoutExtension.endsWith("_2") -> false
+                else -> file.lastModified() > current.lastModified()
             }
+            if (shouldReplace) best[titleId] = file
+            displayNames[titleId] = stemNoSlot
         }
 
-        return best.values.toList()
+        return best.map { (titleId, primary) ->
+            SaveEntry(
+                titleId = titleId,
+                displayName = displayNames[titleId] ?: primary.nameWithoutExtension,
+                systemName = systemPrefix,
+                saveFile = primary,
+                saveDir = null
+            )
+        }
+    }
+
+    override fun discoverRomEntries(): Map<String, SaveEntry> {
+        val memcardsDir = findMemcardsDir(allowNonExistent = true) ?: return emptyMap()
+        if (romScanDir.isBlank()) return emptyMap()
+
+        val scanRoot = File(romScanDir)
+        if (!scanRoot.exists() || !scanRoot.isDirectory) return emptyMap()
+
+        val result = mutableMapOf<String, SaveEntry>()
+        ps1RomDirs(scanRoot).forEach { systemDir ->
+            systemDir.listFiles()?.forEach { entry ->
+                when {
+                    entry.isFile && entry.extension.lowercase() in setOf("iso", "bin", "cue", "img", "mdf") -> {
+                        val romEntry = buildRomEntry(memcardsDir, entry.nameWithoutExtension, entry) ?: return@forEach
+                        result.putIfAbsent(romEntry.first, romEntry.second)
+                    }
+                    entry.isDirectory -> {
+                        val disc = entry.listFiles()
+                            ?.firstOrNull { it.isFile && it.extension.lowercase() in setOf("iso", "bin", "cue", "img", "mdf") }
+                            ?: return@forEach
+                        val romEntry = buildRomEntry(memcardsDir, entry.name, disc) ?: return@forEach
+                        result.putIfAbsent(romEntry.first, romEntry.second)
+                    }
+                }
+            }
+        }
+        return result
     }
 }

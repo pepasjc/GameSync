@@ -202,3 +202,39 @@ def download_raw_save(title_id: str, dest_path: Path) -> None:
     resp.raise_for_status()
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     dest_path.write_bytes(resp.content)
+
+
+def download_ps1_cards(title_id: str, dest_path: Path) -> list[Path]:
+    """Download PS1 memory card slot 0 and, if present, slot 1.
+
+    The chosen dest_path receives slot 0. If slot 1 exists on the server, it is
+    written beside dest_path using a ``_2`` suffix before the extension.
+    """
+    written: list[Path] = []
+    headers = get_api_headers()
+    base_url = get_base_url()
+
+    resp0 = requests.get(
+        f"{base_url}/api/v1/saves/{title_id}/ps1-card",
+        headers=headers,
+        params={"slot": 0},
+        timeout=30,
+    )
+    resp0.raise_for_status()
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    dest_path.write_bytes(resp0.content)
+    written.append(dest_path)
+
+    resp1 = requests.get(
+        f"{base_url}/api/v1/saves/{title_id}/ps1-card",
+        headers=headers,
+        params={"slot": 1},
+        timeout=30,
+    )
+    if resp1.status_code == 404:
+        return written
+    resp1.raise_for_status()
+    slot1_path = dest_path.with_name(f"{dest_path.stem}_2{dest_path.suffix}")
+    slot1_path.write_bytes(resp1.content)
+    written.append(slot1_path)
+    return written

@@ -10,6 +10,7 @@ import com.savesync.android.storage.SyncStateEntity
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
+import java.io.IOException
 
 private const val TAG = "SyncEngine"
 
@@ -36,9 +37,24 @@ class SyncEngine(
         // Build a map for quick lookup
         val saveMap = saves.associateBy { it.titleId }
 
+        val (ps1RawEntries, nonPs1Entries) = saves.partition { isPs1RawEntry(it) }
+        for (entry in ps1RawEntries) {
+            try {
+                when (syncPs1RawEntry(entry)) {
+                    Ps1SyncOutcome.UPLOADED -> uploaded++
+                    Ps1SyncOutcome.DOWNLOADED -> downloaded++
+                    Ps1SyncOutcome.CONFLICT -> conflicts.add(entry.displayName)
+                    Ps1SyncOutcome.UP_TO_DATE, Ps1SyncOutcome.SKIPPED -> Unit
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "PS1 sync failed for ${entry.titleId}", e)
+                errors.add("Sync error: ${entry.displayName}: ${e.message}")
+            }
+        }
+
         // Server-only entries have no local file yet — download them directly without
         // going through the sync negotiation (the server doesn't know our state for these).
-        val (serverOnlyEntries, localEntries) = saves.partition { it.isServerOnly }
+        val (serverOnlyEntries, localEntries) = nonPs1Entries.partition { it.isServerOnly }
         for (entry in serverOnlyEntries) {
             try {
                 val success = downloadSave(entry, entry.titleId)
@@ -165,8 +181,26 @@ class SyncEngine(
     suspend fun uploadSave(entry: SaveEntry): Boolean {
         return if (entry.isPspSlot) {
             uploadPspBundle(entry)
+        } else if (isPs1RawEntry(entry)) {
+            uploadPs1Card(entry)
         } else {
             uploadSaveRaw(entry)
+        }
+    }
+
+    private suspend fun uploadPs1Card(entry: SaveEntry): Boolean {
+        return try {
+            val saveFile = entry.saveFile ?: return false
+            val response = api.uploadPs1Card(
+                titleId = entry.titleId,
+                slot = 0,
+                consoleId = consoleId,
+                body = saveFile.readBytes().toRequestBody("application/octet-stream".toMediaType())
+            )
+            response.status == "ok"
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadPs1Card failed for ${entry.titleId}", e)
+            false
         }
     }
 
@@ -215,18 +249,43 @@ class SyncEngine(
     suspend fun downloadSave(entry: SaveEntry, titleId: String): Boolean {
         return if (entry.isPspSlot) {
             downloadPspBundle(entry, titleId)
+        } else if (entry.systemName == "PS1" && entry.saveFile != null) {
+            downloadPs1Card(entry, titleId)
         } else {
             downloadSaveRaw(entry, titleId)
         }
     }
 
-    private suspend fun downloadSaveRaw(entry: SaveEntry, titleId: String): Boolean {
+    private suspend fun downloadPs1Card(entry: SaveEntry, titleId: String): Boolean {
         return try {
-            val response = api.downloadSaveRaw(titleId)
+            val saveFile = entry.saveFile ?: return false
+            val response = api.downloadPs1Card(titleId, slot = 0)
             if (!response.isSuccessful) {
-                Log.e(TAG, "Download HTTP error: ${response.code()}")
-                return false
+                val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                    ?: "Download failed (${response.code()})"
+                Log.e(TAG, "PS1 card download HTTP error for $titleId slot0: $message")
+                throw IOException(message)
             }
+            val body = response.body() ?: return false
+            val bytes = body.bytes()
+            saveFile.parentFile?.mkdirs()
+            saveFile.writeBytes(bytes)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadPs1Card failed for $titleId", e)
+            false
+        }
+    }
+
+    private suspend fun downloadSaveRaw(entry: SaveEntry, titleId: String): Boolean {
+        val response = api.downloadSaveRaw(titleId)
+        if (!response.isSuccessful) {
+            val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                ?: "Download failed (${response.code()})"
+            Log.e(TAG, "Download HTTP error for $titleId: $message")
+            throw IOException(message)
+        }
+        return try {
             val body = response.body() ?: return false
             val bytes = body.bytes()
 
@@ -254,12 +313,14 @@ class SyncEngine(
      */
     private suspend fun downloadPspBundle(entry: SaveEntry, titleId: String): Boolean {
         val slotDir = entry.saveDir ?: return false
+        val response = api.downloadSaveBundle(titleId)
+        if (!response.isSuccessful) {
+            val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                ?: "Download failed (${response.code()})"
+            Log.e(TAG, "Download bundle HTTP error for $titleId: $message")
+            throw IOException(message)
+        }
         return try {
-            val response = api.downloadSaveBundle(titleId)
-            if (!response.isSuccessful) {
-                Log.e(TAG, "Download bundle HTTP error: ${response.code()}")
-                return false
-            }
             val bytes = response.body()?.bytes() ?: return false
             val files = BundleUtils.parseBundle(bytes)
             if (files.isEmpty()) return false
@@ -272,6 +333,14 @@ class SyncEngine(
             Log.e(TAG, "downloadPspBundle failed for $titleId", e)
             false
         }
+    }
+
+    suspend fun recordSyncedState(entry: SaveEntry) {
+        updateSyncState(entry)
+    }
+
+    suspend fun recordSyncedStateFromFile(entry: SaveEntry) {
+        updateSyncStateFromFile(entry)
     }
 
     private suspend fun updateSyncState(entry: SaveEntry) {
@@ -341,4 +410,83 @@ class SyncEngine(
         }
         zis.close()
     }
+
+    private fun extractErrorDetail(body: String): String {
+        return Regex("\"detail\"\\s*:\\s*\"([^\"]+)\"")
+            .find(body)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.replace("\\n", "\n")
+            ?: body
+    }
+
+    private fun isPs1RawEntry(entry: SaveEntry): Boolean {
+        return entry.systemName == "PS1" && entry.saveFile != null && !entry.isPspSlot
+    }
+
+    private suspend fun syncPs1RawEntry(entry: SaveEntry): Ps1SyncOutcome {
+        val localExists = entry.exists()
+        val localHash = if (localExists) entry.computeHash() else ""
+        val lastSyncHash = dao.getById(entry.titleId)?.lastSyncedHash
+
+        val serverMeta = try {
+            api.getPs1CardMeta(entry.titleId, slot = 0)
+        } catch (e: retrofit2.HttpException) {
+            if (e.code() == 404) null else throw e
+        }
+
+        if (serverMeta == null) {
+            if (!localExists) return Ps1SyncOutcome.SKIPPED
+            val ok = uploadPs1Card(entry)
+            if (ok) {
+                updateSyncState(entry)
+                return Ps1SyncOutcome.UPLOADED
+            }
+            throw IOException("Upload failed")
+        }
+
+        val serverHash = serverMeta.save_hash ?: ""
+        if (localExists && localHash == serverHash) {
+            return Ps1SyncOutcome.UP_TO_DATE
+        }
+
+        if (!localExists) {
+            val ok = downloadPs1Card(entry, entry.titleId)
+            if (ok) {
+                updateSyncStateFromFile(entry)
+                return Ps1SyncOutcome.DOWNLOADED
+            }
+            throw IOException("Download failed")
+        }
+
+        return when {
+            lastSyncHash != null && lastSyncHash == serverHash -> {
+                val ok = uploadPs1Card(entry)
+                if (ok) {
+                    updateSyncState(entry)
+                    Ps1SyncOutcome.UPLOADED
+                } else {
+                    throw IOException("Upload failed")
+                }
+            }
+            lastSyncHash != null && lastSyncHash == localHash -> {
+                val ok = downloadPs1Card(entry, entry.titleId)
+                if (ok) {
+                    updateSyncStateFromFile(entry)
+                    Ps1SyncOutcome.DOWNLOADED
+                } else {
+                    throw IOException("Download failed")
+                }
+            }
+            else -> Ps1SyncOutcome.CONFLICT
+        }
+    }
+}
+
+private enum class Ps1SyncOutcome {
+    UPLOADED,
+    DOWNLOADED,
+    CONFLICT,
+    UP_TO_DATE,
+    SKIPPED,
 }
