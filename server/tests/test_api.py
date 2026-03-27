@@ -2,6 +2,7 @@ import hashlib
 
 from app.models.save import BundleFile, SaveBundle
 from app.services.bundle import create_bundle
+from app.services import game_names
 
 
 def _make_bundle_bytes(
@@ -229,3 +230,49 @@ class TestMetadataEndpoint:
         assert data["client_timestamp"] == 1700000000
         assert data["file_count"] == 1
         assert "save_hash" in data
+
+
+class TestPs1Lookup:
+    def test_lookup_psx_serial_prefers_region_hint(self, monkeypatch):
+        monkeypatch.setattr(game_names, "_psx_by_slug", {"dino_crisis_2": "SCES02220"})
+        monkeypatch.setattr(game_names, "_psx_serials_by_slug", {
+            "dino_crisis_2": ["SCES02220", "SLUS01279"]
+        })
+
+        assert game_names.lookup_psx_serial("Dino Crisis 2 (USA)") == "SLUS01279"
+        assert game_names.lookup_psx_serial("Dino Crisis 2 (Europe)") == "SCES02220"
+
+    def test_normalize_endpoint_uses_region_aware_ps1_serial_lookup(self, client, auth_headers, monkeypatch):
+        class FakeNormalizer:
+            def normalize(self, system, filename, crc32=None):
+                return {
+                    "canonical_name": "Dino Crisis 2 (USA)",
+                    "slug": "dino_crisis_2",
+                    "source": "dat_filename",
+                }
+
+            def search_candidates(self, system, filename):
+                return ["Dino Crisis 2 (USA)", "Dino Crisis 2 (Europe)"]
+
+        from app.services import dat_normalizer
+
+        monkeypatch.setattr(dat_normalizer, "get", lambda: FakeNormalizer())
+        monkeypatch.setattr(game_names, "_psx_by_slug", {"dino_crisis_2": "SCES02220"})
+        monkeypatch.setattr(game_names, "_psx_serials_by_slug", {
+            "dino_crisis_2": ["SCES02220", "SLUS01279"]
+        })
+
+        r = client.post(
+            "/api/v1/normalize/batch",
+            json={
+                "roms": [
+                    {"system": "PS1", "filename": "Dino Crisis 2 (USA).cue"}
+                ]
+            },
+            headers=auth_headers,
+        )
+
+        assert r.status_code == 200
+        result = r.json()["results"][0]
+        assert result["canonical_name"] == "Dino Crisis 2 (USA)"
+        assert result["title_id"] == "SLUS01279"

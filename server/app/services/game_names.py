@@ -16,6 +16,7 @@ _vita_names: dict[str, str] = {}     # keyed by full product code e.g. "PCSE0008
 # Reverse index: normalized game name slug → PS1 retail serial (preferred over PSN codes)
 # Rebuilt by build_psx_psn_to_retail() after all databases are loaded.
 _psx_by_slug: dict[str, str] = {}
+_psx_serials_by_slug: dict[str, list[str]] = {}
 
 # PSN PSone Classic code → original retail disc serial
 # e.g. "NPUJ00662" (Parasite Eve Japan PSN) → "SLPM86034" (Parasite Eve Japan retail)
@@ -26,6 +27,7 @@ _RETAIL_RE = re.compile(r"^(SL|SC|PA)")
 
 # Strips parenthesized (USA) / bracketed [Disc1of3] tags from psxdb names before slugifying
 _BRACKET_RE = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
+_REGION_RE = re.compile(r"\((USA|Europe|Japan|World|France|Germany|Italy|Spain|Australia)\)", re.IGNORECASE)
 
 
 def _psx_name_slug(name: str) -> str:
@@ -36,6 +38,43 @@ def _psx_name_slug(name: str) -> str:
     """
     clean = _BRACKET_RE.sub("", name).strip()
     return re.sub(r"[^a-z0-9]+", "_", clean.lower()).strip("_")
+
+
+def _psx_region_hint(name: str) -> str | None:
+    match = _REGION_RE.search(name)
+    return match.group(1).upper() if match else None
+
+
+def _psx_serial_region_rank(code: str, region_hint: str | None) -> tuple[int, int, str]:
+    """Return a sortable rank for a PS1 serial, honoring the requested region."""
+    code = code.upper()
+    prefix = code[:4]
+    region_groups = {
+        "USA": {"SCUS", "SLUS", "PAPX"},
+        "EUROPE": {"SCES", "SCED", "SLES"},
+        "JAPAN": {"SCPS", "SLPS", "SLPM", "PAPX"},
+        "WORLD": set(),
+        "FRANCE": {"SLES", "SCES", "SCED"},
+        "GERMANY": {"SLES", "SCES", "SCED"},
+        "ITALY": {"SLES", "SCES", "SCED"},
+        "SPAIN": {"SLES", "SCES", "SCED"},
+        "AUSTRALIA": {"SLES", "SCES", "SCED"},
+    }
+    fallback_order = [
+        {"SCUS", "SLUS", "PAPX"},   # USA
+        {"SCES", "SCED", "SLES"},   # Europe
+        {"SCPS", "SLPS", "SLPM"},   # Japan
+    ]
+
+    if region_hint:
+        preferred = region_groups.get(region_hint.upper(), set())
+        if prefix in preferred:
+            return (0, 0 if prefix.startswith("SC") else 1, code)
+
+    for idx, group in enumerate(fallback_order, start=1):
+        if prefix in group:
+            return (idx, 0 if prefix.startswith("SC") else 1, code)
+    return (len(fallback_order) + 1, 1, code)
 
 # Patterns for platform detection
 _PSP_CODE_RE   = re.compile(r"^[A-Z]{4}\d{5}$")   # ULUS10000, ELES01234, NPUH10001
@@ -107,7 +146,7 @@ def load_database(db_path: Path | None = None) -> int:
 
     Returns the number of entries loaded.
     """
-    global _3ds_title_ids, _3ds_names, _ds_names, _psp_names, _vita_names, _psx_by_slug
+    global _3ds_title_ids, _3ds_names, _ds_names, _psp_names, _vita_names, _psx_by_slug, _psx_serials_by_slug
 
     if db_path is None:
         db_path = Path(__file__).parent.parent.parent / "data" / "3dstdb.txt"
@@ -247,7 +286,7 @@ def build_psx_psn_to_retail() -> int:
 
     Returns the number of PSN→retail mappings created.
     """
-    global _psx_by_slug, _psx_psn_to_retail
+    global _psx_by_slug, _psx_psn_to_retail, _psx_serials_by_slug
 
     # Group by name slug: slug → {retail: [...], psn: [...]}
     slug_retail: dict[str, list[str]] = {}
@@ -277,14 +316,19 @@ def build_psx_psn_to_retail() -> int:
 
     # Rebuild slug index: retail codes take priority, PSN only if no retail exists
     new_index: dict[str, str] = {}
+    slug_serials: dict[str, list[str]] = {}
     for slug, retail_codes in slug_retail.items():
         new_index[slug] = sorted(retail_codes)[0]
+        slug_serials[slug] = sorted(retail_codes)
     for slug, psn_codes in slug_psn.items():
         if slug not in new_index:
             new_index[slug] = sorted(psn_codes)[0]
+        slug_serials.setdefault(slug, []).extend(sorted(psn_codes))
 
     _psx_by_slug.clear()
     _psx_by_slug.update(new_index)
+    _psx_serials_by_slug.clear()
+    _psx_serials_by_slug.update(slug_serials)
 
     return len(_psx_psn_to_retail)
 
@@ -304,7 +348,12 @@ def lookup_psx_serial(name: str) -> str | None:
     Strips region/disc tags before matching, so both "Final Fantasy VII (USA)"
     and "Final Fantasy VII [Disc1of3]" resolve to the same serial.
     """
-    return _psx_by_slug.get(_psx_name_slug(name))
+    slug = _psx_name_slug(name)
+    candidates = _psx_serials_by_slug.get(slug)
+    if not candidates:
+        return _psx_by_slug.get(slug)
+    region_hint = _psx_region_hint(name)
+    return min(candidates, key=lambda code: _psx_serial_region_rank(code, region_hint))
 
 
 def get_name(product_code: str) -> str | None:
