@@ -4,9 +4,34 @@ import zipfile
 import sync_engine as se
 
 
-def test_resolve_canonical_sync_name_uses_nointro_fuzzy_match(tmp_path):
+def _stub_nointro_cache(monkeypatch, entries: dict[str, str]) -> None:
+    """Provide a deterministic No-Intro cache for sync tests.
+
+    The desktop regression tests should not depend on the large local DAT set
+    being present in the workspace or CI runner. Stubbing the derived cache
+    keeps the sync tests focused on resolution behavior rather than DAT I/O.
+    """
+    import rom_normalizer as rn
+
+    monkeypatch.setattr(
+        se,
+        "_get_nointro_cache",
+        lambda system: {
+            "no_intro": entries,
+            "name_index": rn.build_name_index(entries),
+            "cache_tag": f"{system}:stub",
+        },
+    )
+
+
+def test_resolve_canonical_sync_name_uses_nointro_fuzzy_match(monkeypatch, tmp_path):
     rom = tmp_path / "Advance Wars.gba"
     rom.write_bytes(b"")
+
+    _stub_nointro_cache(
+        monkeypatch,
+        {"A": "Advance Wars (USA)"},
+    )
 
     canonical, source, confidence = se._resolve_canonical_sync_name("GBA", rom)
 
@@ -15,7 +40,9 @@ def test_resolve_canonical_sync_name_uses_nointro_fuzzy_match(tmp_path):
     assert confidence == "low"
 
 
-def test_scan_roms_match_saves_uses_canonical_title_id_without_renaming_files(tmp_path):
+def test_scan_roms_match_saves_uses_canonical_title_id_without_renaming_files(
+    monkeypatch, tmp_path
+):
     rom_folder = tmp_path / "roms"
     save_folder = tmp_path / "saves"
     rom_folder.mkdir()
@@ -25,6 +52,11 @@ def test_scan_roms_match_saves_uses_canonical_title_id_without_renaming_files(tm
     save = save_folder / "Advance Wars.sav"
     rom.write_bytes(b"")
     save.write_bytes(b"local save")
+
+    _stub_nointro_cache(
+        monkeypatch,
+        {"A": "Advance Wars (USA)"},
+    )
 
     results = se._scan_roms_match_saves(rom_folder, save_folder, "GBA")
 
@@ -58,7 +90,7 @@ def test_scan_roms_match_saves_can_disable_auto_normalize(tmp_path):
     assert results[0].title_id == "GBA_advance_wars"
 
 
-def test_scan_roms_match_saves_supports_zip_roms(tmp_path):
+def test_scan_roms_match_saves_supports_zip_roms(monkeypatch, tmp_path):
     rom_folder = tmp_path / "roms"
     save_folder = tmp_path / "saves"
     rom_folder.mkdir()
@@ -70,6 +102,11 @@ def test_scan_roms_match_saves_supports_zip_roms(tmp_path):
     save = save_folder / "Advance Wars.sav"
     save.write_bytes(b"local save")
 
+    _stub_nointro_cache(
+        monkeypatch,
+        {"A": "Advance Wars (USA)"},
+    )
+
     results = se._scan_roms_match_saves(rom_folder, save_folder, "GBA")
 
     assert len(results) == 1
@@ -80,10 +117,15 @@ def test_scan_roms_match_saves_supports_zip_roms(tmp_path):
     assert entry.save_exists is True
 
 
-def test_resolve_canonical_sync_name_supports_zip_member_filename(tmp_path):
+def test_resolve_canonical_sync_name_supports_zip_member_filename(monkeypatch, tmp_path):
     rom_zip = tmp_path / "Super Dodgeball Advance.zip"
     with zipfile.ZipFile(rom_zip, "w") as zf:
         zf.writestr("Super Dodgeball Advance.gba", b"rom")
+
+    _stub_nointro_cache(
+        monkeypatch,
+        {"A": "Super Dodge Ball Advance (USA)"},
+    )
 
     canonical, source, confidence = se._resolve_canonical_sync_name("GBA", rom_zip)
 
@@ -101,6 +143,11 @@ def test_resolve_canonical_sync_name_uses_persistent_cache(monkeypatch, tmp_path
     monkeypatch.setattr(se, "_SCAN_CACHE", None)
     monkeypatch.setattr(se, "_SCAN_CACHE_DIRTY", False)
     monkeypatch.setattr(se, "_NOINTRO_CACHE", {})
+
+    _stub_nointro_cache(
+        monkeypatch,
+        {"A": "Advance Wars (USA)"},
+    )
 
     import rom_normalizer as rn
 

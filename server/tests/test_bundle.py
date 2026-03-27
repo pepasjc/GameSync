@@ -92,7 +92,7 @@ class TestBundleErrors:
         import struct
 
         data = b"3DSS" + struct.pack("<I", 99) + b"\x00" * 20
-        with pytest.raises(BundleError, match="Unsupported version"):
+        with pytest.raises(BundleError, match="Unsupported bundle version"):
             parse_bundle(data)
 
     def test_corrupted_compressed_data(self):
