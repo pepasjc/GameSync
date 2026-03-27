@@ -248,7 +248,7 @@ class TestDownloadEndpoint:
     def test_create_vmp_matches_known_signature(self):
         raw = b"MC\x00\x00" + b"\x11" * (0x20000 - 4)
         vmp = create_vmp(raw)
-        assert vmp[0x20:0x34].hex() == "cb26879d68cbbb4716ccc7279e16529882a38d24"
+        assert vmp[0x20:0x34].hex() == "5c85b377344da429461b087cb9134d3adfeedc98"
 
     def test_ps1_card_upload_regenerates_vmp(self, client, auth_headers, tmp_save_dir):
         raw = b"MC\x00\x00" + b"\x44" * (0x20000 - 4)

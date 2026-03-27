@@ -259,6 +259,23 @@ Header (28 bytes):
   [4B]  File count
   [4B]  Uncompressed payload size
 
+### PS1 / PSone Classics Notes
+
+PS1 saves are handled in two formats:
+
+- Raw memory cards for desktop emulators / DuckStation (`.mcd` / `.mcr`)
+- PSone Classics memory cards for PSP / Vita / Adrenaline (`SCEVMC0.VMP`, `SCEVMC1.VMP`)
+
+The server stores raw PS1 card images (`slot0.mcd`, `slot1.mcd`) and regenerates PSP/Vita-compatible
+`SCEVMC*.VMP` files when needed. For that regeneration it uses the upstream `mcr2vmp` reference
+implementation from:
+
+- [chrisbrasington/psp_psx_save_sync](https://github.com/chrisbrasington/psp_psx_save_sync)
+- originally based on `vita-mcr2vmp` by `@dots_tb`
+
+The bundled helper source lives under [server/third_party/mcr2vmp](/E:/projects/3dssync/server/third_party/mcr2vmp).
+That third-party code is included with its original license notice.
+
 Payload (zlib compressed):
   For each file:
     [2B]  Path length
