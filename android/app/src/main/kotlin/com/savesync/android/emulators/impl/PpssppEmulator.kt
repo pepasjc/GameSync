@@ -17,6 +17,26 @@ class PpssppEmulator : EmulatorBase() {
     // e.g. "ULJS000800000" OK, "SLES00001-SAVE0" or "ULJS_DATA00" would be rejected
     private val validSlotDirRegex = Regex("^[A-Za-z0-9]{4,31}$")
 
+    /**
+     * PS1 retail disc product code prefixes.  These appear in PSP/PPSSPP SAVEDATA when
+     * a PSone Classic was downloaded from PSN and is running under PSP emulation.
+     * The 4-letter prefix uniquely identifies PS1 retail/PSN discs vs native PSP games.
+     */
+    private val psxRetailPrefixes = setOf(
+        // North America
+        "SLUS", "SCUS", "PAPX",
+        // Europe
+        "SLES", "SCES", "SCED",
+        // Japan
+        "SLPS", "SLPM", "SCPS", "SCPM",
+        // Other regions
+        "SLAJ", "SLEJ", "SCAJ"
+    )
+
+    private fun detectSystem(productCode: String): String =
+        if (productCode.length >= 4 && productCode.take(4).uppercase() in psxRetailPrefixes) "PSX"
+        else "PPSSPP"
+
     private fun findSaveDataDir(): File? =
         firstExisting("PSP/SAVEDATA", "psp/SAVEDATA", "PSP/savedata")
 
@@ -42,8 +62,9 @@ class PpssppEmulator : EmulatorBase() {
      * @param slotDir  The PSP SAVEDATA slot directory (e.g. PSP/SAVEDATA/ULJS000800000)
      * @param code     9-char product code used as placeholder displayName
      */
-    private fun makeEntry(slotDir: File, code: String): SaveEntry =
-        SaveEntry(
+    private fun makeEntry(slotDir: File, code: String): SaveEntry {
+        val system = detectSystem(code)
+        return SaveEntry(
             // Use the full directory name if it's server-safe (alphanumeric only).
             // Fall back to the 9-char product code for dirs with hyphens/underscores/etc.
             // — those chars fail the server's title_id validation (HTTP 400/422).
@@ -52,11 +73,12 @@ class PpssppEmulator : EmulatorBase() {
             titleId = if (validSlotDirRegex.matches(slotDir.name)) slotDir.name else code,
             // Product code as placeholder; game-name lookup in ViewModel will enrich this.
             displayName = code,
-            systemName = systemPrefix,
+            systemName = system,   // "PSX" for PSone Classics, "PPSSPP" for PSP games
             saveFile = null,       // no single target file — all slot files are synced
             saveDir = slotDir,     // slot dir — used for hash, upload, download, mkdirs
-            isMultiFile = false,   // PSP path in SyncEngine/SaveEntry handles this
+            isMultiFile = false,   // isPspSlot=true drives the PSP bundle path
         )
+    }
 
     override fun discoverSaves(): List<SaveEntry> {
         val saveDataDir = findSaveDataDir() ?: return emptyList()

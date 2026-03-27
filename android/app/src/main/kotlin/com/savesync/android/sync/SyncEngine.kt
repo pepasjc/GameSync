@@ -63,8 +63,8 @@ class SyncEngine(
                 val hash = entry.computeHash()
                 val timestamp = entry.getTimestamp() / 1000L  // convert ms to seconds
                 val size = when {
-                    entry.systemName == "PPSSPP" && entry.saveDir != null ->
-                        entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                    entry.isPspSlot ->
+                        entry.saveDir!!.walkTopDown().filter { it.isFile }.sumOf { it.length() }
                     entry.isMultiFile && entry.saveDir != null ->
                         entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
                     entry.saveFile != null -> entry.saveFile.length()
@@ -163,7 +163,7 @@ class SyncEngine(
     }
 
     suspend fun uploadSave(entry: SaveEntry): Boolean {
-        return if (entry.systemName == "PPSSPP") {
+        return if (entry.isPspSlot) {
             uploadPspBundle(entry)
         } else {
             uploadSaveRaw(entry)
@@ -188,9 +188,10 @@ class SyncEngine(
     }
 
     /**
-     * Uploads a PPSSPP slot directory as a bundle v4.
+     * Uploads a PSP/PSX slot directory as a bundle v4.
      * Includes ALL files in the slot dir (DATA.BIN, ICON0.PNG, PARAM.SFO, etc.)
      * so the server hash matches the PSP homebrew client's algorithm.
+     * Used for both PPSSPP (PSP games) and PSX (PSone Classics under PPSSPP).
      */
     private suspend fun uploadPspBundle(entry: SaveEntry): Boolean {
         val slotDir = entry.saveDir ?: return false
@@ -212,7 +213,7 @@ class SyncEngine(
     }
 
     suspend fun downloadSave(entry: SaveEntry, titleId: String): Boolean {
-        return if (entry.systemName == "PPSSPP") {
+        return if (entry.isPspSlot) {
             downloadPspBundle(entry, titleId)
         } else {
             downloadSaveRaw(entry, titleId)
@@ -299,8 +300,8 @@ class SyncEngine(
     private suspend fun updateSyncStateFromFile(entry: SaveEntry) {
         try {
             val hash = when {
-                // PSP: hash = sha256(all files sorted by name, data only, no paths)
-                entry.systemName == "PPSSPP" && entry.saveDir?.exists() == true ->
+                // PSP/PSX slot: hash = sha256(all files sorted by name, data only, no paths)
+                entry.isPspSlot && entry.saveDir?.exists() == true ->
                     HashUtils.sha256DirFiles(entry.saveDir)
                 entry.saveFile?.exists() == true -> HashUtils.sha256File(entry.saveFile)
                 entry.saveDir?.exists() == true  -> HashUtils.sha256Dir(entry.saveDir)

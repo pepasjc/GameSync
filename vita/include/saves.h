@@ -21,4 +21,9 @@ int saves_write_file(const TitleInfo *title, const char *rel_path,
 bool saves_is_vita_game_id(const char *game_id);
 bool saves_is_psp_game_id(const char *game_id);
 
+/* Returns true if the first 4 characters of game_id are a known PS1 retail
+ * disc prefix (SLUS, SLES, SLPS, SCUS, SCES, SCPS, etc.).
+ * Used to classify PSone Classics stored in PSP/SAVEDATA as PSX saves. */
+bool saves_is_psx_prefix(const char *game_id);
+
 #endif

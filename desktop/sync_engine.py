@@ -675,6 +675,11 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
     elif device_type == "EmuDeck":
         results = _scan_emudeck(folder, progress_callback=progress_callback, profile_scope=profile_scope)
 
+    elif device_type == "MemCard Pro":
+        # MemCard Pro SD card: per-game PS1 memory cards in VIRTUAL MEMORY CARDS/<SERIAL>/
+        # or flat *.mcd files in the root.  path (or save_folder) points to the SD card root.
+        results = _scan_memcard_pro(folder, progress_callback=progress_callback, profile_scope=profile_scope)
+
     elif device_type == "MEGA EverDrive":
         # MEGA EverDrive Pro: gamedata/<Game Name>/bram.srm layout.
         # path (or save_folder) points to the gamedata/ folder.
@@ -1225,6 +1230,27 @@ _PSP_PS3_SKIP_EXTS = {".png", ".pmf", ".sfo", ".at3"}
 # Duckstation memory card slot suffix: "_1", "_2" before extension
 _MCD_SLOT_RE = re.compile(r"_\d+$")
 
+# PS1 retail disc product code prefixes (physical/PSN discs, not PSP games).
+# Used to classify PSone Classics inside PSP/PPSSPP SAVEDATA correctly as "PSX".
+_PSX_RETAIL_PREFIXES: frozenset[str] = frozenset({
+    # North America
+    "SLUS", "SCUS", "PAPX",
+    # Europe
+    "SLES", "SCES", "SCED",
+    # Japan
+    "SLPS", "SLPM", "SCPS", "SCPM",
+    # Other
+    "SLAJ", "SLEJ", "SCAJ",
+})
+
+# MemCard Pro: known shared/global card names that hold all games (skip during per-title scan)
+_MCD_SHARED_NAMES: frozenset[str] = frozenset({
+    "shared_card_1", "shared_card_2", "shared_card_3", "shared_card_4",
+    "mcd001", "mcd002", "mcd003", "mcd004",
+    "epsxe000", "epsxe001",
+    "memorycard", "memory card",
+})
+
 
 def _emit_progress(callback, message: str, current: int | None = None, total: int | None = None) -> None:
     if callback is None:
@@ -1580,6 +1606,8 @@ def _scan_emudeck(root: Path, progress_callback=None, profile_scope: str = "") -
             if not m:
                 continue
             product_code = m.group(1)  # e.g. "UCES00422"
+            # Classify PSone Classics (PSX retail prefixes) separately from PSP games
+            system = "PSX" if product_code[:4] in _PSX_RETAIL_PREFIXES else "PSP"
             # Find the actual save data file (skip icons/metadata)
             for f in sorted(slot_dir.iterdir()):
                 if not f.is_file() or f.suffix.lower() in _PSP_PS3_SKIP_EXTS:
@@ -1592,7 +1620,7 @@ def _scan_emudeck(root: Path, progress_callback=None, profile_scope: str = "") -
                         path=f,
                         hash=file_hash,
                         mtime=f.stat().st_mtime,
-                        system="PSP",
+                        system=system,
                         game_name=product_code,
                         profile_scope=profile_scope,
                     )
@@ -1625,6 +1653,77 @@ def _scan_emudeck(root: Path, progress_callback=None, profile_scope: str = "") -
                         profile_scope=profile_scope,
                     )
         results.extend(ps3_best.values())
+
+    return results
+
+
+def _scan_memcard_pro(
+    root: Path,
+    progress_callback=None,
+    profile_scope: str = "",
+) -> list[SaveFile]:
+    """Scan a MemCard Pro SD card for PS1 per-game memory cards.
+
+    Supports two directory layouts:
+
+    Hierarchical (MemCard PRO firmware default):
+        <root>/VIRTUAL MEMORY CARDS/<SERIAL>/MemoryCard.mcd
+        e.g.  VIRTUAL MEMORY CARDS/SLUS-01234/MemoryCard.mcd
+
+    Flat (some tools export as):
+        <root>/<SERIAL>.mcd  or  <root>/<SERIAL>.mcr
+
+    The game serial (e.g. ``SLUS-01234``) is normalized to a slug for the
+    title ID: ``PS1_slus_01234``.  Shared/global memory card names
+    (``shared_card_1``, ``Mcd001``, etc.) are skipped.
+    """
+    results: list[SaveFile] = []
+    mcd_exts = {".mcd", ".mcr"}
+
+    # Hierarchical layout: VIRTUAL MEMORY CARDS/<SERIAL>/MemoryCard.mcd (or any *.mcd)
+    vmc_dir = root / "VIRTUAL MEMORY CARDS"
+    if vmc_dir.is_dir():
+        for serial_dir in sorted(vmc_dir.iterdir()):
+            if not serial_dir.is_dir():
+                continue
+            # Pick the first .mcd/.mcr inside (typically MemoryCard.mcd)
+            mcd_files = [f for f in sorted(serial_dir.iterdir())
+                         if f.is_file() and f.suffix.lower() in mcd_exts]
+            if not mcd_files:
+                continue
+            mcd_file = max(mcd_files, key=lambda f: f.stat().st_mtime)
+            title_id = make_title_id("PS1", serial_dir.name)
+            results.append(SaveFile(
+                title_id=title_id,
+                path=mcd_file,
+                hash=_hash_file(mcd_file),
+                mtime=mcd_file.stat().st_mtime,
+                system="PS1",
+                game_name=serial_dir.name,
+                profile_scope=profile_scope,
+            ))
+
+    # Flat layout: <root>/<SERIAL>.mcd (or .mcr)
+    flat_seen: set[str] = set()
+    for mcd_file in sorted(root.iterdir()):
+        if not mcd_file.is_file() or mcd_file.suffix.lower() not in mcd_exts:
+            continue
+        stem = _MCD_SLOT_RE.sub("", mcd_file.stem)
+        if stem.lower() in _MCD_SHARED_NAMES:
+            continue
+        title_id = make_title_id("PS1", stem)
+        if title_id in flat_seen:
+            continue
+        flat_seen.add(title_id)
+        results.append(SaveFile(
+            title_id=title_id,
+            path=mcd_file,
+            hash=_hash_file(mcd_file),
+            mtime=mcd_file.stat().st_mtime,
+            system="PS1",
+            game_name=stem,
+            profile_scope=profile_scope,
+        ))
 
     return results
 

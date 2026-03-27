@@ -17,7 +17,7 @@ ALL_CONSOLE_TYPES = [
     "WSWAN", "WSWANC", "ARCADE", "MAME",
 ]
 
-DEVICE_TYPES = ["Generic", "RetroArch", "MiSTer", "Analogue Pocket", "Pocket (openFPGA)", "Everdrive", "MEGA EverDrive", "EmuDeck"]
+DEVICE_TYPES = ["Generic", "RetroArch", "MiSTer", "Analogue Pocket", "Pocket (openFPGA)", "Everdrive", "MEGA EverDrive", "EmuDeck", "MemCard Pro"]
 
 SYSTEM_CHOICES = [
     "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC", "GG", "NGP",
@@ -99,6 +99,19 @@ _PS3_PREFIXES = {"BCAS", "BCES", "BCJS", "BCKS", "BCUS",
                  "BLAS", "BLES", "BLJM", "BLJS", "BLKS", "BLUS",
                  "NPHA", "NPEA", "NPJA", "NPUA", "NPEB", "NPJB", "NPUB"}
 
+# PS1 retail disc prefixes — uniquely identify PS1 physical/PSN discs vs PSP games.
+# Used to classify product codes from PPSSPP PSone Classics, MemCard Pro, etc.
+_PSX_RETAIL_PREFIXES = {
+    # North America
+    "SLUS", "SCUS", "PAPX",
+    # Europe
+    "SLES", "SCES", "SCED",
+    # Japan
+    "SLPS", "SLPM", "SCPS", "SCPM",
+    # Other regions
+    "SLAJ", "SLEJ", "SCAJ",
+}
+
 
 def detect_console_type(title_id: str) -> str:
     title_id = title_id.strip()
@@ -114,6 +127,8 @@ def detect_console_type(title_id: str) -> str:
             return "VITA"
         if uid[:4] in _PS3_PREFIXES:
             return "PS3"
+        if uid[:4] in _PSX_RETAIL_PREFIXES:
+            return "PSX"
         return "PSP"
     return "NDS"
 
