@@ -70,6 +70,25 @@ static uint32_t path_file_size(const char *path) {
     return (uint32_t)st.st_size;
 }
 
+/* Known PS1 retail disc product code prefixes.
+ * These appear in PSP/SAVEDATA when a PSone Classic is installed from PSN. */
+static const char * const PSX_PREFIXES[] = {
+    "SLUS", "SCUS", "PAPX",          /* North America */
+    "SLES", "SCES", "SCED",          /* Europe */
+    "SLPS", "SLPM", "SCPS", "SCPM",  /* Japan */
+    "SLAJ", "SLEJ", "SCAJ",          /* Other */
+    NULL
+};
+
+bool saves_is_psx_prefix(const char *game_id) {
+    if (!game_id || game_id[0] == '\0') return false;
+    char prefix[5] = {game_id[0], game_id[1], game_id[2], game_id[3], '\0'};
+    for (int i = 0; PSX_PREFIXES[i]; i++) {
+        if (strcmp(prefix, PSX_PREFIXES[i]) == 0) return true;
+    }
+    return false;
+}
+
 bool saves_is_vita_game_id(const char *game_id) {
     /* Vita product code: PCS + uppercase letter + 5 digits = 9 chars */
     if (strlen(game_id) != 9) return false;
@@ -152,6 +171,10 @@ static void scan_dir(SyncState *state, const char *base_path, Platform platform)
         strncpy(t->name, game_id, MAX_TITLE_LEN - 1);
         snprintf(t->save_dir, SAVE_DIR_LEN, "%s/%s", base_path, game_id);
         t->platform = platform;
+        /* Detect PSone Classics early from product code prefix,
+         * before network_fetch_names() can confirm via the server. */
+        if (platform == PLATFORM_PSP_EMU)
+            t->is_psx = saves_is_psx_prefix(game_id);
 
         /* Count files and total size.
          * Use sceIoGetstat for each entry — d_stat from sceIoDread is unreliable. */

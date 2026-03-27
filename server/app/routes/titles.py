@@ -50,10 +50,16 @@ async def list_titles():
         for title in titles:
             tid = title.get("title_id", "")
 
-            # Use stored platform/name if already stamped on the metadata
+            # Use stored platform/name if already stamped on the metadata.
+            # Re-detect platform for saves stored as "PSP" or "PSX" in case
+            # they are actually PSone Classics that were uploaded before the
+            # PS1 classification was added.
             if title.get("platform") and title.get("name") != tid:
                 title["game_name"] = title["name"]
-                title["console_type"] = title["platform"]
+                platform = title["platform"]
+                if platform in ("PSP", "PSX"):
+                    platform = game_names.detect_platform(tid)
+                title["console_type"] = platform
             elif tid in typed:
                 title["game_name"] = typed[tid][0]
                 title["console_type"] = typed[tid][1]
@@ -117,4 +123,8 @@ async def lookup_game_names(request: NameLookupRequest):
 
     names = {code: entry[0] for code, entry in typed.items()}
     types = {code: entry[1] for code, entry in typed.items()}
-    return {"names": names, "types": types}
+    retail_serials = {
+        c: r for c in request.codes
+        if (r := game_names.get_psx_retail_serial(c)) is not None
+    }
+    return {"names": names, "types": types, "retail_serials": retail_serials}

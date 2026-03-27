@@ -12,9 +12,11 @@ BUNDLE_VERSION_COMPRESSED = 2
 BUNDLE_VERSION_V3 = 3  # String title_id for PSP/Vita (16 bytes ASCII, null-padded)
 BUNDLE_VERSION_V4 = 4  # String title_id for PSP/Vita (32 bytes ASCII, null-padded)
 
-# Accepts 16-char hex IDs (3DS/DS) OR 4-16 alphanumeric product codes (PSP/Vita)
+# Accepts 16-char hex IDs (3DS/DS) OR 4-31 alphanumeric product codes (PSP/Vita)
 _HEX_TITLE_ID_RE = re.compile(r"^[0-9A-F]{16}$")
 _PRODUCT_CODE_RE = re.compile(r"^[A-Z0-9]{4,31}$")
+# Emulator format: SYSTEM_slug  e.g. GBA_zelda_the_minish_cap
+_EMULATOR_TITLE_ID_RE = re.compile(r"^[A-Z0-9]{2,8}_[a-z0-9][a-z0-9_]{0,99}$")
 
 
 def is_hex_title_id(title_id: str) -> bool:
@@ -22,13 +24,19 @@ def is_hex_title_id(title_id: str) -> bool:
 
 
 def validate_any_title_id(v: str) -> str:
-    """Accept 16-char hex (3DS/DS) or 4-16 alphanumeric product codes (PSP/Vita)."""
-    v = v.upper().strip()
-    if _HEX_TITLE_ID_RE.match(v) or _PRODUCT_CODE_RE.match(v):
+    """Accept 16-char hex (3DS/DS), 4-31 alphanumeric product codes (PSP/Vita/PSX),
+    or emulator SYSTEM_slug format (e.g. GBA_zelda_the_minish_cap)."""
+    v = v.strip()
+    v_upper = v.upper()
+    if _HEX_TITLE_ID_RE.match(v_upper) or _PRODUCT_CODE_RE.match(v_upper):
+        return v_upper
+    # Emulator format preserves case (system uppercase, slug lowercase)
+    if _EMULATOR_TITLE_ID_RE.match(v):
         return v
     raise ValueError(
-        "title_id must be a 16-char hex string (3DS/DS) "
-        "or a 4-16 char alphanumeric product code (PSP/Vita)"
+        "title_id must be a 16-char hex string (3DS/DS), "
+        "a 4-31 char alphanumeric product code (PSP/Vita/PSX), "
+        "or an emulator SYSTEM_slug (e.g. GBA_zelda_the_minish_cap)"
     )
 
 
@@ -73,7 +81,8 @@ class SaveMetadata:
     client_timestamp: int  # timestamp reported by the device
     server_timestamp: str  # server wall-clock time at upload
     console_id: str = ""   # ID of the console that uploaded this save
-    platform: str = ""     # "3DS", "NDS", "PSP", "PSX", "VITA"
+    platform: str = ""     # "3DS", "NDS", "PSP", "PSX", "VITA", "GBA", "SNES", ...
+    system: str = ""       # Detailed system code: "GBA", "SNES", "3DS", "NDS", etc.
 
     def to_dict(self) -> dict:
         return {
@@ -88,6 +97,7 @@ class SaveMetadata:
             "server_timestamp": self.server_timestamp,
             "console_id": self.console_id,
             "platform": self.platform,
+            "system": self.system,
         }
 
 

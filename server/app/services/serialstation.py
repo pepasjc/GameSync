@@ -28,7 +28,7 @@ def _platform_from_systems(systems: list[str]) -> str:
     if "PlayStation Portable" in systems:
         return "PSP"
     if "PlayStation" in systems:
-        return "PSX"
+        return "PS1"
     return "PSP"  # fallback for unknown PlayStation platform
 
 

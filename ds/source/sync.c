@@ -55,13 +55,14 @@ static bool ensure_hash_cache_path(void) {
     return true;
 }
 
-static bool sync_get_cached_hash(const char *title_id_hex, uint32_t save_size, char *hash_out) {
+static bool sync_get_cached_hash(const char *title_id_hex, uint32_t save_size,
+                                  uint32_t mtime, char *hash_out) {
     if (!ensure_hash_cache_path()) return false;
 
     FILE *f = fopen(hash_cache_path, "r");
     if (!f) return false;
 
-    char line[128];
+    char line[160];
     char prefix[20];
     snprintf(prefix, sizeof(prefix), "%s=", title_id_hex);
     int prefix_len = strlen(prefix);
@@ -69,10 +70,14 @@ static bool sync_get_cached_hash(const char *title_id_hex, uint32_t save_size, c
     while (fgets(line, sizeof(line), f)) {
         if (strncmp(line, prefix, prefix_len) != 0) continue;
 
-        uint32_t cached_sz = 0;
+        // Format: TITLEID=SIZE:MTIME:HASH
+        uint32_t cached_sz = 0, cached_mtime = 0;
         const char *val = line + prefix_len;
-        if (sscanf(val, "%u:", &cached_sz) == 1 && cached_sz == save_size) {
+        if (sscanf(val, "%u:%u:", &cached_sz, &cached_mtime) == 2
+                && cached_sz == save_size && cached_mtime == mtime) {
+            // Skip past SIZE:MTIME: to get to HASH
             const char *p = strchr(val, ':');
+            if (p) p = strchr(p + 1, ':');
             if (p) {
                 strncpy(hash_out, p + 1, 64);
                 hash_out[64] = '\0';
@@ -89,7 +94,7 @@ static bool sync_get_cached_hash(const char *title_id_hex, uint32_t save_size, c
 }
 
 static bool sync_set_cached_hash(const char *title_id_hex, uint32_t save_size,
-                                  const char *hash_hex) {
+                                  uint32_t mtime, const char *hash_hex) {
     if (!ensure_hash_cache_path()) return false;
 
     int buf_size = MAX_TITLES * 110;
@@ -122,8 +127,8 @@ static bool sync_set_cached_hash(const char *title_id_hex, uint32_t save_size,
     }
     free(buf);
 
-    char entry[110];
-    snprintf(entry, sizeof(entry), "%s=%u:%s\n", title_id_hex, save_size, hash_hex);
+    char entry[130];
+    snprintf(entry, sizeof(entry), "%s=%u:%u:%s\n", title_id_hex, save_size, mtime, hash_hex);
     strcat(new_buf, entry);
 
     f = fopen(hash_cache_path, "w");
@@ -221,7 +226,7 @@ int sync_decide(SyncState *state, int title_idx, SyncDecision *decision) {
             char title_id_hex[17];
             title_id_to_hex(title->title_id, title_id_hex);
             char cached_hash[65];
-            if (sync_get_cached_hash(title_id_hex, title->save_size, cached_hash)) {
+            if (sync_get_cached_hash(title_id_hex, title->save_size, title->timestamp, cached_hash)) {
                 // Decode hex -> bytes
                 for (int j = 0; j < 32; j++) {
                     unsigned int byte;
@@ -237,7 +242,7 @@ int sync_decide(SyncState *state, int title_idx, SyncDecision *decision) {
                 if (title->hash_calculated) {
                     char hash_hex[65];
                     hash_to_hex(title->hash, hash_hex);
-                    sync_set_cached_hash(title_id_hex, title->save_size, hash_hex);
+                    sync_set_cached_hash(title_id_hex, title->save_size, title->timestamp, hash_hex);
                 }
             }
         }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Config for Save Sync.
+
+    This app is designed to connect to a user-configured, self-hosted sync server
+    on a local network (LAN). LAN servers commonly run over plain HTTP on arbitrary
+    private IP addresses (10.x, 172.16-31.x, 192.168.x). Android's domain-config
+    does not support CIDR wildcards, so we cannot restrict cleartext selectively by
+    IP range. Cleartext is therefore permitted at the base level, matching the
+    intended self-hosted-LAN-only use case.
+
+    Users who run their server with HTTPS get TLS automatically; this config does
+    not prevent HTTPS connections.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

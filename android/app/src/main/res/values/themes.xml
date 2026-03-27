@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme - using AppCompat DayNight so Compose can control everything -->
+    <style name="Theme.SaveSync" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>

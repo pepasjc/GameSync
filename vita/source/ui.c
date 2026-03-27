@@ -141,11 +141,12 @@ void ui_draw_list(const SyncState *state, int selected, int scroll) {
         psvDebugScreenPuts(CLR_LINE);
         if (sel) psvDebugScreenPuts(FG_YELLOW);
         const char *plat = (t->platform == PLATFORM_VITA) ? "VITA" :
-                           t->is_psx                      ? "PSX"  : "PSP";
+                           t->is_psx                      ? "PS1"  : "PSP";
         const char *display = (t->name[0] && strcmp(t->name, t->game_id) != 0)
                               ? t->name : t->game_id;
         char line[56];
-        snprintf(line, sizeof(line), "%s %-4s %s", sel ? ">" : " ", plat, display);
+        snprintf(line, sizeof(line), "%s %-4s %s%s", sel ? ">" : " ", plat, display,
+                 t->server_only ? " [srv]" : "");
         psvDebugScreenPrintf("%-55s", line);
         if (sel) psvDebugScreenPuts(FG_RESET);
     }
@@ -172,8 +173,11 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     psvDebugScreenPuts(FG_RESET);
 
     goto_rc(2, 0);
-    psvDebugScreenPrintf("Platform:%s",
-                         title->platform == PLATFORM_PSP_EMU ? " PSP (emulated)" : " PS Vita native");
+    const char *plat_str =
+        (title->platform != PLATFORM_PSP_EMU) ? " PS Vita native" :
+        title->is_psx                          ? " PS1 (PSone Classic)" :
+                                                 " PSP (emulated)";
+    psvDebugScreenPrintf("Platform:%s", plat_str);
 
     goto_rc(3, 0);
     psvDebugScreenPuts(FG_YELLOW);
@@ -181,7 +185,10 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     psvDebugScreenPuts(FG_RESET);
 
     goto_rc(4, 0);
-    psvDebugScreenPrintf("Local:   %u bytes  (%d files)", title->total_size, title->file_count);
+    if (title->server_only)
+        psvDebugScreenPrintf("Local:   (not on device yet)");
+    else
+        psvDebugScreenPrintf("Local:   %u bytes  (%d files)", title->total_size, title->file_count);
 
     goto_rc(5, 0);
     if (server_hash && server_hash[0]) {

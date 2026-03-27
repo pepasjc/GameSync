@@ -76,8 +76,8 @@ class TestSyncEndpoint:
         assert "0004000000055D00" in plan["upload"]
         assert plan["download"] == []
 
-    def test_no_last_synced_hash_conflicts(self, client, auth_headers):
-        """Without last_synced_hash, differing hashes -> conflict."""
+    def test_no_last_synced_hash_downloads(self, client, auth_headers):
+        """Without last_synced_hash, differing hashes prefer the server copy."""
         save_data = b"server save data"
         bundle = _make_bundle_bytes(
             title_id=0x0004000000055D00,
@@ -102,7 +102,7 @@ class TestSyncEndpoint:
         )
         assert r.status_code == 200
         plan = r.json()
-        assert "0004000000055D00" in plan["conflict"]
+        assert "0004000000055D00" in plan["download"]
 
     def test_three_way_client_changed(self, client, auth_headers):
         """last_synced == server hash, client differs -> upload."""
@@ -307,8 +307,10 @@ class TestSyncEndpoint:
         assert plan["upload"] == []
         assert plan["download"] == []
 
-    def test_same_timestamp_different_hash_conflict(self, client, auth_headers):
-        """Same timestamp but different hash -> conflict."""
+    def test_same_timestamp_different_hash_downloads_without_history(
+        self, client, auth_headers
+    ):
+        """Same timestamp still prefers download when sync history is missing."""
         save_data = b"some save"
         bundle = _make_bundle_bytes(
             title_id=0x0004000000055D00,
@@ -333,7 +335,7 @@ class TestSyncEndpoint:
         )
         assert r.status_code == 200
         plan = r.json()
-        assert "0004000000055D00" in plan["conflict"]
+        assert "0004000000055D00" in plan["download"]
 
     def test_server_only_titles(self, client, auth_headers):
         """Titles on server but not in 3DS list -> server_only."""

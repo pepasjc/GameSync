@@ -156,6 +156,11 @@ int main(int argc, char *argv[]) {
     ui_status("Scanning PSP/SAVEDATA...");
     saves_scan(&g_state);
 
+    if (has_wifi) {
+        ui_status("Checking server saves...");
+        network_merge_server_titles(&g_state);
+    }
+
     if (has_wifi && g_state.num_titles > 0) {
         ui_status("Fetching game names...");
         network_fetch_names(&g_state);
@@ -168,7 +173,8 @@ int main(int argc, char *argv[]) {
 
     if (g_state.num_titles == 0) {
         ui_clear();
-        pspDebugScreenPrintf("No PSP saves found in:\n%s\n\n", SAVEDATA_PATH);
+        pspDebugScreenPrintf("No PSP/PS1 saves found locally or on the server.\n\n");
+        pspDebugScreenPrintf("Local path:\n%s\n\n", SAVEDATA_PATH);
         pspDebugScreenPrintf("Press HOME to exit\n");
         sceKernelSleepThread();
         return 0;
@@ -245,6 +251,12 @@ int main(int argc, char *argv[]) {
         /* Square button: manual upload */
         if (just_pressed & PSP_CTRL_SQUARE && has_wifi) {
             TitleInfo *title = &g_state.titles[g_selected];
+            if (title->server_only) {
+                ui_message("This save only exists on the server.\n\nDownload it first.");
+                prev_buttons = 0;
+                redraw = true;
+                continue;
+            }
             char server_hash[65] = "";
             uint32_t server_size = 0;
             char server_last_sync[32] = "";

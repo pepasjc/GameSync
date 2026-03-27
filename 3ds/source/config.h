@@ -21,9 +21,10 @@ bool config_edit_field(const char *hint, char *buffer, int max_len);
 
 // Hash cache: skip rehashing a save if file_count and total_size are unchanged.
 // hash_out must be a 65-byte buffer.
+// mtime == 0 disables caching (used for archive saves where mtime is unavailable).
 bool config_get_cached_hash(const char *title_id_hex, int file_count, u32 total_size,
-                            char *hash_out);
+                            u32 mtime, char *hash_out);
 bool config_set_cached_hash(const char *title_id_hex, int file_count, u32 total_size,
-                            const char *hash_hex);
+                            u32 mtime, const char *hash_hex);
 
 #endif // CONFIG_H

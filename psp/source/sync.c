@@ -14,8 +14,27 @@
 
 #define RESP_BUF_SIZE (4 * 1024 * 1024)  /* 4MB for save downloads */
 
+/* Server-only entries start with no local metadata; refresh them after a
+ * successful download so the list and hash cache reflect the new files. */
+static void refresh_local_stats(TitleInfo *title) {
+    char files[MAX_FILES][MAX_FILE_LEN];
+    uint32_t sizes[MAX_FILES];
+    int n = saves_list_files(title, files, sizes, MAX_FILES);
+    if (n < 0) return;
+
+    title->file_count = n;
+    title->total_size = 0;
+    for (int i = 0; i < n; i++)
+        title->total_size += sizes[i];
+}
+
 SyncAction sync_decide(const SyncState *state, int title_idx) {
     const TitleInfo *title = &state->titles[title_idx];
+
+    /* Placeholder entries are server-side only, so the only safe action is
+     * to download them before allowing normal upload/hash decisions. */
+    if (title->server_only)
+        return SYNC_DOWNLOAD;
 
     /* Compute local hash if needed */
     TitleInfo *t = (TitleInfo *)title;
@@ -64,6 +83,9 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
     TitleInfo *title = &state->titles[title_idx];
 
     if (action == SYNC_UPLOAD) {
+        if (title->server_only)
+            return -1;
+
         /* Ensure hash is computed */
         if (!title->hash_calculated)
             if (saves_compute_hash(title) < 0) return -1;
@@ -98,6 +120,8 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
 
         int extract_r = bundle_extract(&bundle, title);
         if (extract_r == 0) {
+            title->server_only = false;
+            refresh_local_stats(title);
             /* Recompute hash after download */
             title->hash_calculated = false;
             saves_compute_hash(title);
@@ -136,6 +160,7 @@ void sync_auto_all(SyncState *state, SyncSummary *summary, SyncProgressFn progre
     char msg[64];
     for (int i = 0; i < state->num_titles; i++) {
         TitleInfo *t = &state->titles[i];
+        if (t->server_only) continue;
         if (t->hash_calculated) continue;
 
         char cached_hash[65];
@@ -208,11 +233,27 @@ void sync_auto_all(SyncState *state, SyncSummary *summary, SyncProgressFn progre
         }
     }
 
+    int server_only_count = 0;
+    for (int i = 0; i < state->num_titles; i++) {
+        if (!state->titles[i].server_only) continue;
+        server_only_count++;
+        /* Titles discovered only from /api/v1/titles never appear in the
+         * batch sync plan because they have no local hash to submit. */
+        if (progress) {
+            snprintf(msg, sizeof(msg), "Downloading server save: %s",
+                     state->titles[i].game_id);
+            progress(msg);
+        }
+        int r = sync_execute(state, i, SYNC_DOWNLOAD);
+        if (summary) { if (r == 0) summary->downloaded++; else summary->failed++; }
+    }
+
     if (summary) {
         summary->conflicts  = plan.conflict_count;
         summary->up_to_date = state->num_titles
                               - plan.upload_count
                               - plan.download_count
+                              - server_only_count
                               - plan.conflict_count;
         if (summary->up_to_date < 0) summary->up_to_date = 0;
     }

@@ -37,6 +37,7 @@ typedef struct {
     char save_dir[SAVE_DIR_LEN];        /* full path to save directory */
     Platform platform;
     bool is_psx;                        /* true if PSX classic (within PSP emu) */
+    bool server_only;                   /* true if listed from server but not yet local */
     uint8_t hash[32];                   /* SHA-256 of all save data */
     bool hash_calculated;
     bool on_server;

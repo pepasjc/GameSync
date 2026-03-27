@@ -313,18 +313,23 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
 
         char msg[128];
 
-        // Get fingerprint (file_count + total_size) cheaply without reading content
+        // Get fingerprint cheaply without reading content.
+        // mtime is only available for NDS .sav files on the real filesystem;
+        // archive saves have no mtime, so mtime=0 disables caching for them.
         int stat_fc = 0;
         u32 stat_sz = 0;
+        u32 stat_mtime = 0;
         bool has_stat = false;
         if (titles[i].is_nds && titles[i].media_type != MEDIATYPE_GAME_CARD) {
             struct stat st;
             if (stat(titles[i].sav_path, &st) == 0) {
                 stat_fc = 1;
                 stat_sz = (u32)st.st_size;
+                stat_mtime = (u32)st.st_mtime;
                 has_stat = true;
             }
         } else if (!titles[i].is_nds) {
+            // archive_stat gives no mtime — stat_mtime stays 0 (cache disabled)
             has_stat = (archive_stat(titles[i].title_id, titles[i].media_type,
                                      &stat_fc, &stat_sz) == 0);
         }
@@ -332,10 +337,10 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
         char current_hash[65] = {0};
         u32 total_size = 0;
 
-        // Try hash cache first
+        // Try hash cache first (only for NDS saves where mtime is reliable)
         char cached_hash[65];
         if (has_stat && stat_sz > 0 &&
-                config_get_cached_hash(titles[i].title_id_hex, stat_fc, stat_sz, cached_hash)) {
+                config_get_cached_hash(titles[i].title_id_hex, stat_fc, stat_sz, stat_mtime, cached_hash)) {
             snprintf(msg, sizeof(msg), "Cached %d/%d: %s",
                 i + 1, title_count, titles[i].title_id_hex);
             if (progress) progress(msg);
@@ -361,9 +366,9 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
                 bundle_compute_save_hash(files, fc, current_hash);
                 for (int j = 0; j < fc; j++) total_size += files[j].size;
                 archive_free_files(files, fc);
-                // Store in cache for next run
+                // Store in cache for next run (skipped when mtime == 0)
                 if (has_stat && stat_sz > 0)
-                    config_set_cached_hash(titles[i].title_id_hex, stat_fc, stat_sz, current_hash);
+                    config_set_cached_hash(titles[i].title_id_hex, stat_fc, stat_sz, stat_mtime, current_hash);
             } else {
                 strcpy(current_hash, "0000000000000000000000000000000000000000000000000000000000000000");
             }
