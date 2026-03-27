@@ -50,4 +50,5 @@ jobs:
 
       - name: Run desktop tests
         working-directory: desktop
-        run: python -m pytest tests -q
+        run: python -m pytest tests -v
+
