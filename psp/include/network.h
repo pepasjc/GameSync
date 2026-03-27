@@ -77,4 +77,8 @@ int network_download_save(const SyncState *state, const char *game_id,
  * Silently does nothing if the request fails. */
 void network_fetch_names(SyncState *state);
 
+/* Merge downloadable PSP/PS1 titles from the server into state->titles.
+ * Existing local entries are preserved; only missing titles are added. */
+void network_merge_server_titles(SyncState *state);
+
 #endif /* NETWORK_H */

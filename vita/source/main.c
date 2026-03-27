@@ -129,6 +129,11 @@ int main(void) {
     ui_status("Scanning saves...");
     saves_scan(&g_state);
 
+    if (has_wifi) {
+        ui_status("Checking server saves...");
+        network_merge_server_titles(&g_state);
+    }
+
     if (has_wifi && g_state.num_titles > 0) {
         ui_status("Fetching game names...");
         network_fetch_names(&g_state);
@@ -143,7 +148,7 @@ int main(void) {
     ui_message(scan_msg);
 
     if (g_state.num_titles == 0) {
-        ui_message("No saves found.\n\n"
+        ui_message("No saves found locally or on the server.\n\n"
                    "Vita saves: ux0:user/00/savedata/\n"
                    "PSP saves:  ux0:pspemu/PSP/SAVEDATA/\n\n"
                    "Check scan_vita and scan_psp_emu in config.txt.\n\n"
@@ -227,6 +232,12 @@ int main(void) {
         /* Square: manual upload */
         if ((just & SCE_CTRL_SQUARE) && has_wifi) {
             TitleInfo *title = &g_state.titles[g_selected];
+            if (title->server_only) {
+                ui_message("This save only exists on the server.\n\nDownload it first.");
+                prev_buttons = drain_buttons();
+                redraw = true;
+                continue;
+            }
             char server_hash[65] = "";
             uint32_t server_size = 0;
             char server_last_sync[32] = "";

@@ -145,7 +145,8 @@ void ui_draw_list(const SyncState *state, int selected, int scroll) {
         const char *display = (t->name[0] && strcmp(t->name, t->game_id) != 0)
                               ? t->name : t->game_id;
         char line[56];
-        snprintf(line, sizeof(line), "%s %-4s %s", sel ? ">" : " ", plat, display);
+        snprintf(line, sizeof(line), "%s %-4s %s%s", sel ? ">" : " ", plat, display,
+                 t->server_only ? " [srv]" : "");
         psvDebugScreenPrintf("%-55s", line);
         if (sel) psvDebugScreenPuts(FG_RESET);
     }
@@ -184,7 +185,10 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     psvDebugScreenPuts(FG_RESET);
 
     goto_rc(4, 0);
-    psvDebugScreenPrintf("Local:   %u bytes  (%d files)", title->total_size, title->file_count);
+    if (title->server_only)
+        psvDebugScreenPrintf("Local:   (not on device yet)");
+    else
+        psvDebugScreenPrintf("Local:   %u bytes  (%d files)", title->total_size, title->file_count);
 
     goto_rc(5, 0);
     if (server_hash && server_hash[0]) {

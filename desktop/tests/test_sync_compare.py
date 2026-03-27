@@ -330,3 +330,37 @@ def test_compare_with_server_allows_identical_duplicate_local_saves(monkeypatch,
 
     assert len(statuses) == 1
     assert statuses[0].status == "local_newer"
+
+
+def test_slot_mappings_are_scoped_per_profile(monkeypatch, tmp_path):
+    save_path = tmp_path / "Advance Wars.sav"
+    save_path.write_bytes(b"local")
+
+    monkeypatch.setattr(se, "SLOT_MAPPING_FILE", tmp_path / ".slot_mappings.json")
+    monkeypatch.setattr(se, "_SLOT_MAPPINGS", None)
+    monkeypatch.setattr(se, "_SLOT_MAPPINGS_DIRTY", False)
+
+    save_a = se.SaveFile(
+        title_id="GBA_advance_wars_usa",
+        path=save_path,
+        hash="hash-a",
+        mtime=save_path.stat().st_mtime,
+        system="GBA",
+        game_name="Advance Wars",
+        profile_scope="profile-a",
+    )
+    save_b = se.SaveFile(
+        title_id="GBA_advance_wars",
+        path=save_path,
+        hash="hash-b",
+        mtime=save_path.stat().st_mtime,
+        system="GBA",
+        game_name="Advance Wars",
+        profile_scope="profile-b",
+    )
+
+    se._set_slot_mapping(save_a, "GBA_advance_wars_usa")
+    se._set_slot_mapping(save_b, "GBA_advance_wars")
+
+    assert se._get_slot_mapping(save_a)["effective_title_id"] == "GBA_advance_wars_usa"
+    assert se._get_slot_mapping(save_b)["effective_title_id"] == "GBA_advance_wars"

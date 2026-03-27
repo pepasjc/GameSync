@@ -18,6 +18,7 @@
 
 #include "network.h"
 #include "config.h"
+#include "saves.h"
 
 #define NET_POOL_SIZE   (4 * 1024 * 1024)
 #define HTTP_POOL_SIZE  (1 * 1024 * 1024)
@@ -466,4 +467,69 @@ int network_post_json(const SyncState *state, const char *path,
                             out, out_size, &status);
     if (out_len) *out_len = r;
     return (status == 200) ? 0 : -1;
+}
+
+static bool has_title(const SyncState *state, const char *game_id) {
+    for (int i = 0; i < state->num_titles; i++) {
+        if (strcmp(state->titles[i].game_id, game_id) == 0)
+            return true;
+    }
+    return false;
+}
+
+/* Server-only titles are materialized as placeholder entries so the user can
+ * download them even when there is no local save directory yet. */
+static void add_server_title(SyncState *state, const char *game_id) {
+    if (!game_id || !game_id[0]) return;
+    if (!saves_is_vita_game_id(game_id) && !saves_is_psp_game_id(game_id)) return;
+    if (has_title(state, game_id)) return;
+    if (state->num_titles >= MAX_TITLES) return;
+
+    TitleInfo *t = &state->titles[state->num_titles++];
+    memset(t, 0, sizeof(*t));
+    strncpy(t->game_id, game_id, GAME_ID_LEN - 1);
+    strncpy(t->name, game_id, MAX_TITLE_LEN - 1);
+    if (saves_is_vita_game_id(game_id)) {
+        t->platform = PLATFORM_VITA;
+        snprintf(t->save_dir, SAVE_DIR_LEN, "%s/%s", VITA_SAVEDATA_PATH, game_id);
+    } else {
+        t->platform = PLATFORM_PSP_EMU;
+        t->is_psx = saves_is_psx_prefix(game_id);
+        snprintf(t->save_dir, SAVE_DIR_LEN, "%s/%s", PSP_SAVEDATA_PATH, game_id);
+    }
+    t->server_only = true;
+    t->on_server = true;
+}
+
+/* Merge the server title catalog into the local list so Vita/PSP/PS1 saves
+ * remain visible and downloadable even when there is no local save yet. */
+void network_merge_server_titles(SyncState *state) {
+    if (!state) return;
+
+    char url[512];
+    snprintf(url, sizeof(url), "%s/api/v1/titles", state->server_url);
+
+    static uint8_t resp[256 * 1024];
+    int status = 0;
+    int r = http_do_request(state, SCE_HTTP_METHOD_GET, url,
+                            NULL, NULL, 0, resp, sizeof(resp) - 1, &status);
+    if (r <= 0 || status != 200) return;
+    resp[r] = '\0';
+
+    char *p = (char *)resp;
+    while ((p = strstr(p, "\"title_id\"")) != NULL) {
+        p = strchr(p, ':');
+        if (!p) break;
+        p++;
+        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+        if (*p != '"') continue;
+        p++;
+
+        char game_id[GAME_ID_LEN];
+        int len = 0;
+        while (*p && *p != '"' && len < GAME_ID_LEN - 1)
+            game_id[len++] = *p++;
+        game_id[len] = '\0';
+        add_server_title(state, game_id);
+    }
 }

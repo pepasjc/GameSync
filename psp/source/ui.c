@@ -98,7 +98,8 @@ void ui_draw_list(const SyncState *state, int selected, int scroll) {
         const char *display = (t->name[0] && strcmp(t->name, t->game_id) != 0)
                               ? t->name : t->game_id;
         char line[56];
-        snprintf(line, sizeof(line), "%s %-4s %s", cursor, plat, display);
+        snprintf(line, sizeof(line), "%s %-4s %s%s", cursor, plat, display,
+                 t->server_only ? " [srv]" : "");
         pspDebugScreenPrintf("%-55s", line);
     }
 
@@ -121,7 +122,10 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
 
     pspDebugScreenPrintf("Game:   %s (%s)\n\n", title->name, title->game_id);
     pspDebugScreenPrintf("Action: %s\n\n", action_str);
-    pspDebugScreenPrintf("Local:  %u bytes\n", title->total_size);
+    if (title->server_only)
+        pspDebugScreenPrintf("Local:  (not on device yet)\n");
+    else
+        pspDebugScreenPrintf("Local:  %u bytes\n", title->total_size);
     if (server_hash && server_hash[0]) {
         pspDebugScreenPrintf("Server: %u bytes\n", server_size);
         if (server_last_sync && server_last_sync[0]) {

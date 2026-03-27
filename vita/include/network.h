@@ -51,4 +51,8 @@ int network_post_json(const SyncState *state, const char *path,
  * Silently does nothing if the request fails. */
 void network_fetch_names(SyncState *state);
 
+/* Merge downloadable Vita/PSP/PS1 titles from the server into state->titles.
+ * Existing local entries are preserved; only missing titles are added. */
+void network_merge_server_titles(SyncState *state);
+
 #endif

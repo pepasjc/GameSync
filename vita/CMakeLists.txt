@@ -17,7 +17,7 @@ string(STRIP "${APP_VERSION_STR}" APP_VERSION_STR)
 
 set(VITA_APP_NAME "Vita Save Sync")
 set(VITA_TITLEID  "VTSS00001")   # Custom title ID for the homebrew app itself
-set(VITA_VERSION  "01.00")
+set(VITA_VERSION  "00.50")
 
 add_definitions(-DAPP_VERSION="${APP_VERSION_STR}")
 

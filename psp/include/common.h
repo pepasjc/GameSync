@@ -29,6 +29,7 @@ typedef struct {
     char game_id[GAME_ID_LEN];          /* PSP product code e.g. ULUS10272 */
     char name[MAX_TITLE_LEN];           /* game name from database */
     bool is_psx;                        /* true if PSX classic */
+    bool server_only;                   /* true if listed from server but not yet local */
     char save_dir[SAVE_DIR_LEN];        /* full path to save directory */
     uint8_t hash[32];                   /* SHA-256 of all save data */
     bool hash_calculated;

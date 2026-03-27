@@ -51,11 +51,12 @@ def deploy_vpk(host, port, vpk_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Deploy Vita Save Sync VPK via FTP')
-    parser.add_argument('ip', nargs='?', default='192.168.1.17', help='Vita IP address')
+    parser.add_argument('ip', nargs='?', default='192.168.1.19', help='Vita IP address')
     parser.add_argument('port', nargs='?', type=int, default=1337, help='FTP port')
+    parser.add_argument('--build-path', default='build/vitasync.vpk', help='Path to the built VPK file')
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    vpk_path = os.path.join(script_dir, 'build', 'vitasync.vpk')
+    vpk_path = os.path.join(script_dir, args.build_path)
     
     deploy_vpk(args.ip, args.port, vpk_path)

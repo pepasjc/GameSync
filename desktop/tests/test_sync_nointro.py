@@ -1,4 +1,5 @@
 from pathlib import Path
+import zipfile
 
 import sync_engine as se
 
@@ -55,6 +56,40 @@ def test_scan_roms_match_saves_can_disable_auto_normalize(tmp_path):
 
     assert len(results) == 1
     assert results[0].title_id == "GBA_advance_wars"
+
+
+def test_scan_roms_match_saves_supports_zip_roms(tmp_path):
+    rom_folder = tmp_path / "roms"
+    save_folder = tmp_path / "saves"
+    rom_folder.mkdir()
+    save_folder.mkdir()
+
+    rom_zip = rom_folder / "Advance Wars.zip"
+    with zipfile.ZipFile(rom_zip, "w") as zf:
+        zf.writestr("Advance Wars.gba", b"rom")
+    save = save_folder / "Advance Wars.sav"
+    save.write_bytes(b"local save")
+
+    results = se._scan_roms_match_saves(rom_folder, save_folder, "GBA")
+
+    assert len(results) == 1
+    entry = results[0]
+    assert entry.title_id == "GBA_advance_wars_usa"
+    assert entry.path == save
+    assert entry.game_name == "Advance Wars"
+    assert entry.save_exists is True
+
+
+def test_resolve_canonical_sync_name_supports_zip_member_filename(tmp_path):
+    rom_zip = tmp_path / "Super Dodgeball Advance.zip"
+    with zipfile.ZipFile(rom_zip, "w") as zf:
+        zf.writestr("Super Dodgeball Advance.gba", b"rom")
+
+    canonical, source, confidence = se._resolve_canonical_sync_name("GBA", rom_zip)
+
+    assert canonical == "Super Dodge Ball Advance (USA)"
+    assert source == "fuzzy"
+    assert confidence == "low"
 
 
 def test_resolve_canonical_sync_name_uses_persistent_cache(monkeypatch, tmp_path):
@@ -273,3 +308,58 @@ def test_scan_profile_keeps_alternate_paths_for_duplicate_rom_locations(tmp_path
     }
     found = {results[0].path, *results[0].alternate_paths}
     assert found == expected
+
+
+def test_scan_cache_is_scoped_per_profile(tmp_path, monkeypatch):
+    rom = tmp_path / "Advance Wars.gba"
+    rom.write_bytes(b"")
+
+    cache_file = tmp_path / ".scan_cache.json"
+    monkeypatch.setattr(se, "SCAN_CACHE_FILE", cache_file)
+    monkeypatch.setattr(se, "_SCAN_CACHE", None)
+    monkeypatch.setattr(se, "_SCAN_CACHE_DIRTY", False)
+
+    se._set_cached_canonical_name(
+        "profile-a",
+        "GBA",
+        rom,
+        None,
+        "tag",
+        "Advance Wars (USA)",
+        "fuzzy",
+        "low",
+    )
+    se._set_cached_canonical_name(
+        "profile-b",
+        "GBA",
+        rom,
+        None,
+        "tag",
+        "Advance Wars (Europe)",
+        "fuzzy",
+        "low",
+    )
+
+    cached_a = se._get_cached_canonical_name("profile-a", "GBA", rom, None, "tag")
+    cached_b = se._get_cached_canonical_name("profile-b", "GBA", rom, None, "tag")
+
+    assert cached_a == ("Advance Wars (USA)", "fuzzy", "low")
+    assert cached_b == ("Advance Wars (Europe)", "fuzzy", "low")
+
+
+def test_profile_runtime_scope_includes_volume_identity(monkeypatch):
+    profile = {
+        "name": "GBA_Everdrive",
+        "device_type": "Everdrive",
+        "path": "J:/",
+        "save_folder": "J:/saver",
+        "system": "GBA",
+        "save_ext": ".sav",
+    }
+
+    monkeypatch.setattr(se, "_volume_identity", lambda path: f"VOL:{path}")
+
+    scope = se._profile_runtime_scope(profile)
+
+    assert '"rom_volume":"VOL:J:/"' in scope
+    assert '"save_volume":"VOL:J:/saver"' in scope
