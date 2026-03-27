@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +29,8 @@ from app.models.save import SaveBundle, SaveMetadata
 from app.services import db, game_names
 from app.services.ps1_cards import is_ps1_title_id, psp_visible_stats
 from app.services.rom_id import parse_title_id as _parse_emulator_id
+
+logger = logging.getLogger(__name__)
 
 
 def _title_dir(title_id: str) -> Path:
@@ -118,8 +121,10 @@ def list_titles() -> list[dict]:
                     if tid and tid not in db_rows:
                         meta.setdefault("system", "")
                         db_rows[tid] = meta
-                except Exception:
-                    pass
+                except json.JSONDecodeError as exc:
+                    logger.warning("Skipping malformed JSON metadata %s: %s", meta_path, exc)
+                except Exception as exc:
+                    logger.warning("Unexpected error reading metadata %s: %s", meta_path, exc)
 
     return list(db_rows.values())
 

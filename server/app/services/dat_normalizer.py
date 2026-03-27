@@ -14,10 +14,13 @@ Lookup order for each ROM:
 """
 
 import xml.etree.ElementTree as ET
+import logging
 from pathlib import Path
 from typing import Optional
 
 from app.services.rom_id import normalize_rom_name
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +149,7 @@ class DatNormalizer:
         for dat_path in sorted(self.dats_dir.glob("*.dat")):
             system = _system_from_dat_stem(dat_path.stem)
             if not system:
-                print(f"[dat_normalizer] Skipped (unrecognized system): {dat_path.name}")
+                logger.warning("[dat_normalizer] Skipped (unrecognized system): %s", dat_path.name)
                 continue
             crc_map, slug_cands = _parse_dat(dat_path)
             # Merge CRC index
@@ -162,9 +165,12 @@ class DatNormalizer:
             sys_idx = self._slug_index.setdefault(system, {})
             for slug, names in sys_cands.items():
                 sys_idx[slug] = min(names, key=_region_score)
-            print(
-                f"[dat_normalizer] {system}: +{len(crc_map)} CRC32 "
-                f"+{sum(len(v) for v in slug_cands.values())} names  [{dat_path.name}]"
+            logger.info(
+                "[dat_normalizer] %s: +%d CRC32 +%d names  [%s]",
+                system,
+                len(crc_map),
+                sum(len(v) for v in slug_cands.values()),
+                dat_path.name,
             )
 
     def normalize(
@@ -278,5 +284,5 @@ def _parse_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]]:
                 if crc and crc != "00000000":
                     crc_map[crc] = canonical
     except Exception as exc:
-        print(f"[dat_normalizer] Failed to parse {dat_path.name}: {exc}")
+        logger.error("[dat_normalizer] Failed to parse %s: %s", dat_path.name, exc)
     return crc_map, slug_candidates

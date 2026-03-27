@@ -12,7 +12,7 @@ CONFIG_FILE = Path(__file__).parent / "config.json"
 ALL_CONSOLE_TYPES = [
     "All", "3DS", "NDS", "PSP", "PS1", "PS3", "VITA",
     "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC",
-    "GG", "SMS", "PCE", "PS1", "PS2", "NGP", "DC", "GC",
+    "GG", "SMS", "PCE", "PS2", "NGP", "DC", "GC",
     "ATARI2600", "ATARI7800", "LYNX", "NEOGEO", "32X", "SEGACD",
     "WSWAN", "WSWANC", "ARCADE", "MAME",
 ]

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services import dat_normalizer, game_names
 from app.services.rom_id import normalize_rom_name
@@ -40,7 +40,7 @@ class NormalizeResult(BaseModel):
     canonical_name: str
     title_id: str
     source: str  # "dat_crc32" | "dat_filename" | "filename"
-    alternatives: list[str] = []  # other possible canonical names, sorted by region priority
+    alternatives: list[str] = Field(default_factory=list)  # other possible canonical names, sorted by region priority
 
 
 class NormalizeResponse(BaseModel):

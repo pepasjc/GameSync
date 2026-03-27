@@ -11,11 +11,13 @@ File layout on disk remains unchanged:
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Optional
 
 _conn: Optional[sqlite3.Connection] = None
 _current_db_path: Optional[Path] = None
+_lock: threading.Lock = threading.Lock()
 
 
 _CREATE_TABLE_SQL = """
@@ -85,46 +87,47 @@ def _get() -> sqlite3.Connection:
 def upsert(data: dict) -> None:
     """Insert or replace a save metadata row."""
     conn = _get()
-    conn.execute(
-        """
-        INSERT INTO saves (
-            title_id, name, system, last_sync, last_sync_source,
-            save_hash, save_size, file_count, client_timestamp,
-            server_timestamp, console_id, platform
-        ) VALUES (
-            :title_id, :name, :system, :last_sync, :last_sync_source,
-            :save_hash, :save_size, :file_count, :client_timestamp,
-            :server_timestamp, :console_id, :platform
+    with _lock:
+        conn.execute(
+            """
+            INSERT INTO saves (
+                title_id, name, system, last_sync, last_sync_source,
+                save_hash, save_size, file_count, client_timestamp,
+                server_timestamp, console_id, platform
+            ) VALUES (
+                :title_id, :name, :system, :last_sync, :last_sync_source,
+                :save_hash, :save_size, :file_count, :client_timestamp,
+                :server_timestamp, :console_id, :platform
+            )
+            ON CONFLICT(title_id) DO UPDATE SET
+                name=excluded.name,
+                system=excluded.system,
+                last_sync=excluded.last_sync,
+                last_sync_source=excluded.last_sync_source,
+                save_hash=excluded.save_hash,
+                save_size=excluded.save_size,
+                file_count=excluded.file_count,
+                client_timestamp=excluded.client_timestamp,
+                server_timestamp=excluded.server_timestamp,
+                console_id=excluded.console_id,
+                platform=excluded.platform
+            """,
+            {
+                "title_id": data.get("title_id", ""),
+                "name": data.get("name", ""),
+                "system": data.get("system", ""),
+                "last_sync": data.get("last_sync", ""),
+                "last_sync_source": data.get("last_sync_source", ""),
+                "save_hash": data.get("save_hash", ""),
+                "save_size": data.get("save_size", 0),
+                "file_count": data.get("file_count", 0),
+                "client_timestamp": data.get("client_timestamp", 0),
+                "server_timestamp": data.get("server_timestamp", ""),
+                "console_id": data.get("console_id", ""),
+                "platform": data.get("platform", ""),
+            },
         )
-        ON CONFLICT(title_id) DO UPDATE SET
-            name=excluded.name,
-            system=excluded.system,
-            last_sync=excluded.last_sync,
-            last_sync_source=excluded.last_sync_source,
-            save_hash=excluded.save_hash,
-            save_size=excluded.save_size,
-            file_count=excluded.file_count,
-            client_timestamp=excluded.client_timestamp,
-            server_timestamp=excluded.server_timestamp,
-            console_id=excluded.console_id,
-            platform=excluded.platform
-        """,
-        {
-            "title_id": data.get("title_id", ""),
-            "name": data.get("name", ""),
-            "system": data.get("system", ""),
-            "last_sync": data.get("last_sync", ""),
-            "last_sync_source": data.get("last_sync_source", ""),
-            "save_hash": data.get("save_hash", ""),
-            "save_size": data.get("save_size", 0),
-            "file_count": data.get("file_count", 0),
-            "client_timestamp": data.get("client_timestamp", 0),
-            "server_timestamp": data.get("server_timestamp", ""),
-            "console_id": data.get("console_id", ""),
-            "platform": data.get("platform", ""),
-        },
-    )
-    conn.commit()
+        conn.commit()
 
 
 def get(title_id: str) -> Optional[dict]:
@@ -146,8 +149,9 @@ def list_all() -> list[dict]:
 def delete(title_id: str) -> None:
     """Delete a metadata row."""
     conn = _get()
-    conn.execute("DELETE FROM saves WHERE title_id = ?", (title_id,))
-    conn.commit()
+    with _lock:
+        conn.execute("DELETE FROM saves WHERE title_id = ?", (title_id,))
+        conn.commit()
 
 
 def exists(title_id: str) -> bool:
@@ -162,8 +166,9 @@ def exists(title_id: str) -> bool:
 def update_name_and_platform(title_id: str, name: str, platform: str) -> None:
     """Update only the name and platform columns."""
     conn = _get()
-    conn.execute(
-        "UPDATE saves SET name=?, platform=? WHERE title_id=?",
-        (name, platform, title_id),
-    )
-    conn.commit()
+    with _lock:
+        conn.execute(
+            "UPDATE saves SET name=?, platform=? WHERE title_id=?",
+            (name, platform, title_id),
+        )
+        conn.commit()
