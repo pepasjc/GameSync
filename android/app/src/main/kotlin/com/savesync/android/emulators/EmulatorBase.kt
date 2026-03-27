@@ -22,6 +22,24 @@ abstract class EmulatorBase {
         return "${systemPrefix}_$slug"
     }
 
+    /**
+     * Builds a PS1 title ID slug from a game name, stripping region tags and disc
+     * numbers so that all discs of a multi-disc game share the same ID.
+     *
+     * "Parasite Eve (USA) (Disc 1)" → "PS1_parasite_eve"
+     * "Final Fantasy VII [Disc2of3]" → "PS1_final_fantasy_vii"
+     */
+    protected fun toPs1TitleId(name: String): String {
+        val stripped = name
+            .replace(Regex("""\s*[\(\[][^\)\]]*[\)\]]"""), "")  // strip (tags) and [tags]
+            .trim()
+        val slug = stripped
+            .lowercase()
+            .replace(Regex("[^a-z0-9]+"), "_")
+            .trim('_')
+        return "PS1_$slug"
+    }
+
     protected val baseDir: File
         get() = Environment.getExternalStorageDirectory()
 

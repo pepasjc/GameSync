@@ -222,9 +222,11 @@ class RetroArchEmulator(
                     // For NDS saves, derive the title ID from the ROM gamecode (offset 0x0C).
                     // For PS1 saves, read the disc serial from SYSTEM.CNF inside the disc image
                     // so the title ID matches the product-code format used by PPSSPP/PSP/Vita.
+                    // When no ROM is found, fall back to a region/disc-stripped slug so that
+                    // multi-disc games share the same ID (Disc 1 and Disc 2 → same entry).
                     val titleId = when (system) {
                         "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
-                        "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: "${system}_$slug"
+                        "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
                         else  -> "${system}_$slug"
                     }
                     result.add(
@@ -248,7 +250,7 @@ class RetroArchEmulator(
                         // Apply gamecode/serial lookup for saves inside system subfolders too
                         val titleId = when (system) {
                             "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
-                            "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: "${system}_$slug"
+                            "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
                             else  -> "${system}_$slug"
                         }
                         result.add(

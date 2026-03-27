@@ -73,7 +73,7 @@ class DuckStationEmulator : EmulatorBase() {
             val stemNoSlot = slotSuffixRegex.replace(file.nameWithoutExtension, "")
             if (stemNoSlot.lowercase() in sharedCardNames) return@forEach
 
-            val titleId = normalizeSerial(stemNoSlot) ?: toTitleId(stemNoSlot)
+            val titleId = normalizeSerial(stemNoSlot) ?: toPs1TitleId(stemNoSlot)
             val existing = best[titleId]
             if (existing == null || file.lastModified() > (existing.saveFile?.lastModified() ?: 0L)) {
                 best[titleId] = SaveEntry(
