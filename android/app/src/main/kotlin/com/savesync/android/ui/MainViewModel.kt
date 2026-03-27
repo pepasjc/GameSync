@@ -159,11 +159,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
 
+                    // For PS1 saves with slug-based title IDs (e.g. from DuckStation with
+                    // game-title-named memory cards, or RetroArch without a ROM scan dir),
+                    // call the normalize endpoint to resolve the disc serial from psxdb.
+                    // The server now returns a bare product code (e.g. "SCUS94163") for PS1
+                    // when a matching entry is found in its psxdb reverse index.
+                    val ps1SlugSaves = rawLocalSaves.filter { it.systemName == "PS1" && it.titleId.contains('_') }
+                    val resolvedRawSaves = if (ps1SlugSaves.isNotEmpty()) {
+                        try {
+                            val response = api.normalizeRoms(NormalizeRequest(
+                                roms = ps1SlugSaves.map { NormalizeRomEntry(system = "PS1", filename = it.displayName) }
+                            ))
+                            val serialMap = ps1SlugSaves.indices.associate { i ->
+                                val oldId = ps1SlugSaves[i].titleId
+                                val newId = response.results.getOrNull(i)?.title_id ?: oldId
+                                oldId to newId
+                            }.filter { (old, new) -> old != new && !new.contains('_') }
+                            if (serialMap.isEmpty()) rawLocalSaves
+                            else rawLocalSaves.map { entry ->
+                                val resolved = serialMap[entry.titleId]
+                                if (resolved != null) entry.copy(titleId = resolved) else entry
+                            }
+                        } catch (_: Exception) { rawLocalSaves }
+                    } else rawLocalSaves
+
                     // Enrich PPSSPP and PS1 product-code entries with proper game names from server.
                     // PS1 saves resolved via SYSTEM.CNF (RetroArch) or PSone Classic directories
                     // (PPSSPP) already carry product-code title IDs (e.g. SLUS01234) — look them up
                     // just like PSP codes. Slug-based PS1 title IDs (PS1_slug) are skipped.
-                    val productCodeEntries = rawLocalSaves.filter { entry ->
+                    val productCodeEntries = resolvedRawSaves.filter { entry ->
                         entry.systemName == "PPSSPP" ||
                         (entry.systemName == "PS1" && !entry.titleId.contains('_'))
                     }
@@ -174,13 +198,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     } else emptyMap()
 
                     val enrichedLocalSaves = if (productCodeNames.isNotEmpty()) {
-                        rawLocalSaves.map { entry ->
+                        resolvedRawSaves.map { entry ->
                             val gameName = productCodeNames[entry.titleId]
                             if (gameName != null && gameName != entry.titleId) {
                                 entry.copy(displayName = gameName, canonicalName = entry.titleId)
                             } else entry
                         }
-                    } else rawLocalSaves
+                    } else resolvedRawSaves
 
                     val serverTitleIds: Set<String> = try {
                         api.getTitles().titles.map { it.title_id }.toSet()

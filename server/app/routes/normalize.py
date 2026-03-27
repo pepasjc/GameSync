@@ -14,7 +14,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.services import dat_normalizer
+from app.services import dat_normalizer, game_names
 from app.services.rom_id import normalize_rom_name
 
 router = APIRouter()
@@ -91,7 +91,14 @@ async def normalize_batch(req: NormalizeRequest) -> NormalizeResponse:
             info = {"canonical_name": stem, "slug": slug, "source": "filename"}
             alternatives = []
 
-        title_id = f"{sys_upper}_{info['slug']}"
+        # For PS1, try to resolve the serial from psxdb using the canonical name.
+        # This lets clients (DuckStation, RetroArch) that have title-based filenames
+        # get a product-code title ID (e.g. "SCUS94163") instead of a slug.
+        if sys_upper in ("PS1", "PSX"):
+            serial = game_names.lookup_psx_serial(info["canonical_name"])
+            title_id = serial if serial else f"{sys_upper}_{info['slug']}"
+        else:
+            title_id = f"{sys_upper}_{info['slug']}"
         results.append(NormalizeResult(
             system=sys_upper,
             original_filename=entry.filename,

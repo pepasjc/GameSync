@@ -10,8 +10,25 @@ _3ds_title_ids: dict[str, str] = {}  # full 16-char hex TitleID -> name (from 3d
 _3ds_names: dict[str, str] = {}      # 4-char game code -> name (legacy, from 3dstdb.txt)
 _ds_names: dict[str, str] = {}       # 4-char game code -> name
 _psp_names: dict[str, str] = {}      # keyed by full product code e.g. "ULUS10272"
-_psx_names: dict[str, str] = {}      # keyed by full product code e.g. "NPUF30001"
+_psx_names: dict[str, str] = {}      # keyed by full product code e.g. "SCUS94163"
 _vita_names: dict[str, str] = {}     # keyed by full product code e.g. "PCSE00082"
+
+# Reverse index for PS1: normalized game name slug → serial (first disc when multi-disc)
+# Built lazily alongside _psx_names during load_database().
+_psx_by_slug: dict[str, str] = {}
+
+# Strips parenthesized (USA) / bracketed [Disc1of3] tags from psxdb names before slugifying
+_BRACKET_RE = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
+
+
+def _psx_name_slug(name: str) -> str:
+    """Normalize a psxdb game name to a plain slug for reverse lookup.
+
+    "Final Fantasy VII [Disc1of3]" → "final_fantasy_vii"
+    "007 - The World Is Not Enough" → "007_the_world_is_not_enough"
+    """
+    clean = _BRACKET_RE.sub("", name).strip()
+    return re.sub(r"[^a-z0-9]+", "_", clean.lower()).strip("_")
 
 # Patterns for platform detection
 _PSP_CODE_RE   = re.compile(r"^[A-Z]{4}\d{5}$")   # ULUS10000, ELES01234, NPUH10001
@@ -83,7 +100,7 @@ def load_database(db_path: Path | None = None) -> int:
 
     Returns the number of entries loaded.
     """
-    global _3ds_title_ids, _3ds_names, _ds_names, _psp_names, _vita_names
+    global _3ds_title_ids, _3ds_names, _ds_names, _psp_names, _vita_names, _psx_by_slug
 
     if db_path is None:
         db_path = Path(__file__).parent.parent.parent / "data" / "3dstdb.txt"
@@ -118,6 +135,11 @@ def load_database(db_path: Path | None = None) -> int:
                 if code and game_name:
                     target_dict[code] = game_name
                     added += 1
+                    # Build reverse slug index for PS1 serials
+                    if target_dict is _psx_names and _PSP_CODE_RE.match(code):
+                        slug = _psx_name_slug(game_name)
+                        if slug and slug not in _psx_by_slug:
+                            _psx_by_slug[slug] = code
 
     return added
 
@@ -209,6 +231,15 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             result[code] = (name, platform)
 
     return result
+
+
+def lookup_psx_serial(name: str) -> str | None:
+    """Return the PS1 product code for a game name or ROM filename, or None.
+
+    Strips region/disc tags before matching, so both "Final Fantasy VII (USA)"
+    and "Final Fantasy VII [Disc1of3]" resolve to the same serial.
+    """
+    return _psx_by_slug.get(_psx_name_slug(name))
 
 
 def get_name(product_code: str) -> str | None:
