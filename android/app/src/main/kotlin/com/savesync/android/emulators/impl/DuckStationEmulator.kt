@@ -8,8 +8,8 @@ import java.io.File
  * DuckStation PS1 emulator — handles per-game memory card files (.mcd / .mcr).
  *
  * DuckStation saves one memory card per game using the game's serial number as the
- * filename, e.g. `SLUS-01234.mcd`.  The serial is normalized to a slug for the
- * title ID: `PS1_slus_01234`.
+ * filename, e.g. `SLUS-01234.mcd`.  The serial is normalized to a bare product code
+ * for the title ID: `SLUS01234` — matching PSone Classics on PSP/Vita.
  *
  * Candidate directories (checked in order):
  *   - DuckStation/memcards/         (standard external storage layout)
@@ -40,6 +40,19 @@ class DuckStationEmulator : EmulatorBase() {
     // Slot suffix pattern: "_1" or "_2" immediately before the extension
     private val slotSuffixRegex = Regex("_\\d+$")
 
+    // PS1 product code: 4 uppercase letters + 5+ digits (e.g. SLUS01234)
+    private val serialRegex = Regex("^[A-Z]{4}\\d{5,}$")
+
+    /**
+     * Normalizes a memory-card filename stem to a bare PS1 product code.
+     * e.g. "SLUS-01234" → "SLUS01234", "SCUS_94163" → "SCUS94163"
+     * Returns null if the result doesn't match the expected format.
+     */
+    private fun normalizeSerial(stem: String): String? {
+        val code = stem.uppercase().replace(Regex("[^A-Z0-9]"), "")
+        return if (serialRegex.matches(code)) code else null
+    }
+
     private fun findMemcardsDir(): File? = firstExistingAbsolute(
         File(baseDir, "DuckStation/memcards"),
         File(baseDir, "duckstation/memcards"),
@@ -60,7 +73,7 @@ class DuckStationEmulator : EmulatorBase() {
             val stemNoSlot = slotSuffixRegex.replace(file.nameWithoutExtension, "")
             if (stemNoSlot.lowercase() in sharedCardNames) return@forEach
 
-            val titleId = toTitleId(stemNoSlot)
+            val titleId = normalizeSerial(stemNoSlot) ?: toTitleId(stemNoSlot)
             val existing = best[titleId]
             if (existing == null || file.lastModified() > (existing.saveFile?.lastModified() ?: 0L)) {
                 best[titleId] = SaveEntry(

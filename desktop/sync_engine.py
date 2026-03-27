@@ -1243,6 +1243,20 @@ _PSX_RETAIL_PREFIXES: frozenset[str] = frozenset({
     "SLAJ", "SLEJ", "SCAJ",
 })
 
+_PS1_SERIAL_RE = re.compile(r"^([A-Z]{4})(\d{5,})$")
+
+
+def _normalize_ps1_serial(stem: str) -> str | None:
+    """Normalize a PS1 memory-card filename stem to a bare product code.
+
+    Examples: "SLUS-01234" → "SLUS01234", "SCUS_94163" → "SCUS94163".
+    Returns None if the result doesn't look like a PS1 product code
+    (4 uppercase letters followed by 5+ digits).
+    """
+    code = re.sub(r"[^A-Z0-9]", "", stem.upper())
+    return code if _PS1_SERIAL_RE.match(code) else None
+
+
 # MemCard Pro: known shared/global card names that hold all games (skip during per-title scan)
 _MCD_SHARED_NAMES: frozenset[str] = frozenset({
     "shared_card_1", "shared_card_2", "shared_card_3", "shared_card_4",
@@ -1581,7 +1595,10 @@ def _scan_emudeck(root: Path, progress_callback=None, profile_scope: str = "") -
             # Strip memory card slot suffix (duckstation names files "Game_1.mcd")
             stem = _MCD_SLOT_RE.sub("", f.stem)
             display_name = stem + f.suffix
-            title_id = make_title_id(system, display_name)
+            # For PS1, use the normalized product code directly (e.g. SLUS01234)
+            # so saves match across DuckStation, MemCard Pro, and PSone Classics.
+            serial = _normalize_ps1_serial(stem) if system == "PS1" else None
+            title_id = serial if serial else make_title_id(system, display_name)
             file_hash = _hash_file(f)
             slug = title_id.split("_", 1)[1] if "_" in title_id else f.stem
             results.append(SaveFile(
@@ -1673,9 +1690,9 @@ def _scan_memcard_pro(
     Flat (some tools export as):
         <root>/<SERIAL>.mcd  or  <root>/<SERIAL>.mcr
 
-    The game serial (e.g. ``SLUS-01234``) is normalized to a slug for the
-    title ID: ``PS1_slus_01234``.  Shared/global memory card names
-    (``shared_card_1``, ``Mcd001``, etc.) are skipped.
+    The game serial (e.g. ``SLUS-01234``) is used directly as the title ID
+    (``SLUS01234``) so it matches PSone Classics on PSP/Vita.  Shared/global
+    memory card names (``shared_card_1``, ``Mcd001``, etc.) are skipped.
     """
     results: list[SaveFile] = []
     mcd_exts = {".mcd", ".mcr"}
@@ -1692,7 +1709,8 @@ def _scan_memcard_pro(
             if not mcd_files:
                 continue
             mcd_file = max(mcd_files, key=lambda f: f.stat().st_mtime)
-            title_id = make_title_id("PS1", serial_dir.name)
+            serial = _normalize_ps1_serial(serial_dir.name)
+            title_id = serial if serial else make_title_id("PS1", serial_dir.name)
             results.append(SaveFile(
                 title_id=title_id,
                 path=mcd_file,
@@ -1711,7 +1729,8 @@ def _scan_memcard_pro(
         stem = _MCD_SLOT_RE.sub("", mcd_file.stem)
         if stem.lower() in _MCD_SHARED_NAMES:
             continue
-        title_id = make_title_id("PS1", stem)
+        serial = _normalize_ps1_serial(stem)
+        title_id = serial if serial else make_title_id("PS1", stem)
         if title_id in flat_seen:
             continue
         flat_seen.add(title_id)
