@@ -634,17 +634,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val norm = response.results.firstOrNull()
                     ?: throw Exception("No result from server")
 
-                // Build full options list: recommended first, then alternatives
-                val options = listOf(norm.canonical_name) + norm.alternatives
+                _saveDetailState.value = SaveDetailState.Idle
 
-                if (norm.alternatives.isEmpty()) {
-                    // Single result — apply directly without showing picker
-                    _saveDetailState.value = SaveDetailState.Idle
-                    applyNormalizationChoice(entry, norm.canonical_name)
-                } else {
-                    // Multiple candidates — let the user pick
-                    _saveDetailState.value = SaveDetailState.Idle
-                    _normalizePicker.value = NormalizePickerState.Visible(entry, options)
+                when (norm.source) {
+                    "filename" -> {
+                        // No DAT entry found — server just returned the stem as-is.
+                        // Don't claim "already canonical"; tell the user no match was found.
+                        _saveDetailState.value = SaveDetailState.Error(
+                            "No match found in database for \"${entry.displayName}\". " +
+                            "Ensure a No-Intro DAT for ${entry.systemName} is loaded on the server."
+                        )
+                    }
+                    "dat_crc32" -> {
+                        // Exact CRC32 match — single authoritative answer, no picker needed.
+                        if (norm.canonical_name == entry.displayName) {
+                            _saveDetailState.value = SaveDetailState.Success("✓ Already using canonical name")
+                        } else {
+                            applyNormalizationChoice(entry, norm.canonical_name)
+                        }
+                    }
+                    else -> {
+                        // "dat_filename" — fuzzy slug match. Always show the picker so the user
+                        // can confirm and see all regional/version variants sorted by priority.
+                        val options = listOf(norm.canonical_name) + norm.alternatives
+                        _normalizePicker.value = NormalizePickerState.Visible(entry, options)
+                    }
                 }
             } catch (e: Exception) {
                 _saveDetailState.value = SaveDetailState.Error(e.message ?: "Normalize failed")
@@ -663,6 +677,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _saveDetailState.value = SaveDetailState.Working("normalize")
             try {
                 if (chosenName == entry.displayName) {
+                    // User confirmed the name is already correct (picked from the picker)
                     _saveDetailState.value = SaveDetailState.Success("✓ Already using canonical name")
                     return@launch
                 }

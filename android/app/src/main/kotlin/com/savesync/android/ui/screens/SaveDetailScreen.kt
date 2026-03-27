@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -113,32 +116,43 @@ fun SaveDetailScreen(
             text = {
                 Column {
                     Text(
-                        text = "Multiple versions found. The recommended name is pre-selected.",
+                        text = "Select the correct version. " +
+                               "USA releases are listed first; demos and protos last.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-                    pickerState.options.forEachIndexed { index, name ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedIndex = index }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedIndex == index,
-                                onClick = { selectedIndex = index }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text(name, style = MaterialTheme.typography.bodyMedium)
-                                if (index == 0) {
-                                    Text(
-                                        "★ Recommended",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                    // Scrollable list so long regional variant lists don't overflow
+                    LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                        itemsIndexed(pickerState.options) { index, name ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedIndex = index }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = selectedIndex == index,
+                                    onClick = { selectedIndex = index }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(name, style = MaterialTheme.typography.bodyMedium)
+                                    when {
+                                        index == 0 ->
+                                            Text(
+                                                "★ Recommended",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        name == pickerState.entry.displayName ->
+                                            Text(
+                                                "current name",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                    }
                                 }
                             }
                         }
@@ -151,7 +165,7 @@ fun SaveDetailScreen(
                         pickerState.entry,
                         pickerState.options[selectedIndex]
                     )
-                }) { Text("Rename") }
+                }) { Text("Apply") }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissNormalizePicker() }) { Text("Cancel") }

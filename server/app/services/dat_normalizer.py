@@ -83,17 +83,35 @@ _DAT_SYSTEM_MAP: list[tuple[str, str]] = [
 # Region priority for ranking candidates (lower = better / higher priority)
 # ---------------------------------------------------------------------------
 
-def _region_score(canonical: str) -> int:
-    """Score a canonical name by region preference. Lower = more preferred."""
+def _region_score(canonical: str) -> tuple[int, int]:
+    """Score a canonical name by region preference.
+
+    Returns a tuple (base_score, extra_paren_penalty) so that within the same
+    region, cleaner titles (fewer extra parentheticals) sort before augmented
+    releases like Virtual Console, Collector's Edition, etc.
+    Lower tuple = more preferred when sorting.
+    """
     n = canonical.lower()
-    if "(usa)" in n:    return 0
-    if "(world)" in n:  return 1
-    if "(europe)" in n: return 2
-    if "(japan)" in n:  return 3
-    # Demo / kiosk / proto / beta should lose to any real release
-    if any(x in n for x in ["(demo)", "(kiosk", "(proto", "(beta", "(sample)"]):
-        return 99
-    return 10  # other / unknown region
+
+    # Detect unwanted release types — these lose to any proper regional release
+    is_junk = any(
+        x in n for x in ["(demo)", "(kiosk", "(proto", "(beta", "(sample)", "(preview)"]
+    )
+
+    if is_junk:
+        base = 99
+    elif "(usa)" in n:    base = 0
+    elif "(world)" in n:  base = 1
+    elif "(europe)" in n: base = 2
+    elif "(japan)" in n:  base = 3
+    else:                 base = 10   # other / unknown region
+
+    # Penalize extra parenthetical groups beyond the first (the region tag).
+    # "(USA)" → extra=0, "(USA) (Virtual Console)" → extra=1, etc.
+    paren_count = canonical.count("(")
+    extra = max(0, paren_count - 1)
+
+    return (base, extra)
 
 
 def _system_from_dat_stem(stem: str) -> Optional[str]:
