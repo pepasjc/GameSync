@@ -20,6 +20,9 @@ class RetroArchEmulator(
 
     private val saveExtensions = setOf("srm", "sav", "savestate", "state", "saveram")
 
+    // PS1 disc image extensions that readPs1Serial() can handle
+    private val ps1RomExtensions = setOf("iso", "bin", "cue", "img", "mdf")
+
     // Playlist filename keyword → system prefix
     // RetroArch playlist names follow the No-Intro / Redump naming convention
     private val playlistSystemMap = mapOf(
@@ -170,6 +173,36 @@ class RetroArchEmulator(
             }
         }
 
+        // Build a map of lowercase-rom-name → ROM File path for PS1 games.
+        // Used to read the disc serial from SYSTEM.CNF inside the disc image so that
+        // title IDs match the product-code format used by the PSP/Vita clients and PPSSPP.
+        val ps1RomPathMap: Map<String, File> = bases.fold(mutableMapOf<String, File>()) { acc, base ->
+            acc.putAll(buildPs1RomPathMapFromPlaylists(File(base, "playlists")))
+            acc
+        }.also { map ->
+            if (romScanDir.isNotBlank()) {
+                val scanRoot = File(romScanDir)
+                listOf("PS1", "ps1", "PSX", "psx", "PlayStation", "playstation",
+                       "PlayStation 1", "PlayStation1").forEach { subName ->
+                    val dir = File(scanRoot, subName)
+                    if (!dir.exists() || !dir.isDirectory) return@forEach
+                    dir.listFiles()?.forEach { f ->
+                        when {
+                            f.isFile && f.extension.lowercase() in ps1RomExtensions ->
+                                map.putIfAbsent(f.nameWithoutExtension.lowercase(), f)
+                            // Multi-disc games stored in per-game subfolders: use folder name as key,
+                            // first disc image inside as the file to read the serial from
+                            f.isDirectory -> {
+                                val disc = f.listFiles()
+                                    ?.firstOrNull { it.isFile && it.extension.lowercase() in ps1RomExtensions }
+                                if (disc != null) map.putIfAbsent(f.name.lowercase(), disc)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Prefer the save dir declared in retroarch.cfg; fall back to the standard path.
         val savesDir: File = resolveSavesDir(bases) ?: return emptyList()
 
@@ -186,12 +219,13 @@ class RetroArchEmulator(
                         ?: romScanSystemMap[lc]
                         ?: systemPrefix
                     val slug = lc.replace(Regex("[^a-z0-9]+"), "_").trim('_')
-                    // For NDS saves, derive the title ID from the ROM's gamecode (offset 0x0C)
-                    // to match the NDS homebrew client format (e.g. 00048000414D4B4A).
-                    val titleId = if (system == "NDS") {
-                        ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
-                    } else {
-                        "${system}_$slug"
+                    // For NDS saves, derive the title ID from the ROM gamecode (offset 0x0C).
+                    // For PS1 saves, read the disc serial from SYSTEM.CNF inside the disc image
+                    // so the title ID matches the product-code format used by PPSSPP/PSP/Vita.
+                    val titleId = when (system) {
+                        "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
+                        "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: "${system}_$slug"
+                        else  -> "${system}_$slug"
                     }
                     result.add(
                         SaveEntry(
@@ -211,11 +245,11 @@ class RetroArchEmulator(
                         val romName = file.nameWithoutExtension
                         val lc = romName.lowercase()
                         val slug = lc.replace(Regex("[^a-z0-9]+"), "_").trim('_')
-                        // Apply NDS gamecode lookup for saves inside saves/NDS/ subfolder too
-                        val titleId = if (system == "NDS") {
-                            ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
-                        } else {
-                            "${system}_$slug"
+                        // Apply gamecode/serial lookup for saves inside system subfolders too
+                        val titleId = when (system) {
+                            "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
+                            "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: "${system}_$slug"
+                            else  -> "${system}_$slug"
                         }
                         result.add(
                             SaveEntry(
@@ -256,6 +290,36 @@ class RetroArchEmulator(
                             ?: resolveSystemFromFolderName(romFile.parentFile?.name.orEmpty())
                             ?: continue
                         if (system == "NDS" && romFile.exists()) {
+                            map.putIfAbsent(romFile.nameWithoutExtension.lowercase(), romFile)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        return map
+    }
+
+    /**
+     * Scans all *.lpl playlist files in [playlistsDir] for PS1 ROM entries and returns
+     * a map of lowercase-rom-name → ROM File path. Used for serial-based title ID lookup.
+     */
+    private fun buildPs1RomPathMapFromPlaylists(playlistsDir: File): Map<String, File> {
+        if (!playlistsDir.exists()) return emptyMap()
+        val map = mutableMapOf<String, File>()
+        playlistsDir.listFiles()
+            ?.filter { it.isFile && it.extension.lowercase() == "lpl" }
+            ?.forEach { lpl ->
+                try {
+                    val json = JSONObject(lpl.readText())
+                    val items = json.optJSONArray("items") ?: return@forEach
+                    for (i in 0 until items.length()) {
+                        val item = items.optJSONObject(i) ?: continue
+                        val path = item.optString("path").takeIf { it.isNotBlank() } ?: continue
+                        val coreName = item.optString("core_name").orEmpty()
+                        val romFile = File(path)
+                        val system = resolveSystemFromCoreName(coreName)
+                            ?: resolveSystemFromFolderName(romFile.parentFile?.name.orEmpty())
+                            ?: continue
+                        if (system == "PS1" && romFile.extension.lowercase() in ps1RomExtensions && romFile.exists()) {
                             map.putIfAbsent(romFile.nameWithoutExtension.lowercase(), romFile)
                         }
                     }

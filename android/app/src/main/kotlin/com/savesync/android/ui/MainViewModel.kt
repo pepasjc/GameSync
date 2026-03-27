@@ -159,21 +159,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
 
-                    // Enrich PPSSPP entries with proper game names from server
-                    val ppssppCodes = rawLocalSaves.filter { it.systemName == "PPSSPP" }.map { it.titleId }
-                    val pspGameNames: Map<String, String> = if (ppssppCodes.isNotEmpty()) {
+                    // Enrich PPSSPP and PS1 product-code entries with proper game names from server.
+                    // PS1 saves resolved via SYSTEM.CNF (RetroArch) or PSone Classic directories
+                    // (PPSSPP) already carry product-code title IDs (e.g. SLUS01234) — look them up
+                    // just like PSP codes. Slug-based PS1 title IDs (PS1_slug) are skipped.
+                    val productCodeEntries = rawLocalSaves.filter { entry ->
+                        entry.systemName == "PPSSPP" ||
+                        (entry.systemName == "PS1" && !entry.titleId.contains('_'))
+                    }
+                    val productCodeNames: Map<String, String> = if (productCodeEntries.isNotEmpty()) {
                         try {
-                            api.lookupGameNames(GameNameRequest(codes = ppssppCodes)).names
+                            api.lookupGameNames(GameNameRequest(codes = productCodeEntries.map { it.titleId })).names
                         } catch (_: Exception) { emptyMap() }
                     } else emptyMap()
 
-                    val enrichedLocalSaves = if (pspGameNames.isNotEmpty()) {
+                    val enrichedLocalSaves = if (productCodeNames.isNotEmpty()) {
                         rawLocalSaves.map { entry ->
-                            if (entry.systemName == "PPSSPP") {
-                                val gameName = pspGameNames[entry.titleId]
-                                if (gameName != null && gameName != entry.titleId) {
-                                    entry.copy(displayName = gameName, canonicalName = entry.titleId)
-                                } else entry
+                            val gameName = productCodeNames[entry.titleId]
+                            if (gameName != null && gameName != entry.titleId) {
+                                entry.copy(displayName = gameName, canonicalName = entry.titleId)
                             } else entry
                         }
                     } else rawLocalSaves

@@ -51,6 +51,83 @@ abstract class EmulatorBase {
     open fun discoverRomEntries(): Map<String, SaveEntry> = emptyMap()
 
     /**
+     * Reads the PS1 disc serial from an ISO/BIN/CUE disc image by parsing the ISO 9660
+     * Primary Volume Descriptor and locating SYSTEM.CNF on the disc.
+     *
+     * Supported formats:
+     *  - `.iso`        — standard 2048-byte/sector images
+     *  - `.bin` / `.img` / `.mdf` — raw 2352-byte/sector images (data at byte offset 24)
+     *  - `.cue`        — resolved to the referenced .bin file
+     *
+     * Returns a bare product code (e.g. "SLUS01234"), or null if it cannot be determined.
+     */
+    protected fun readPs1Serial(romFile: File): String? {
+        return try {
+            // Resolve .cue → the referenced .bin file
+            val file = if (romFile.extension.lowercase() == "cue") {
+                val line = romFile.readLines().firstOrNull {
+                    it.trimStart().uppercase().startsWith("FILE")
+                } ?: return null
+                val binName = line.substringAfter('"').substringBeforeLast('"')
+                File(romFile.parent, binName).takeIf { it.exists() } ?: return null
+            } else romFile
+
+            val isBin = file.extension.lowercase() in setOf("bin", "img", "mdf")
+            val sectorSize = if (isBin) 2352 else 2048
+            val dataOffset = if (isBin) 24L else 0L
+
+            fun le32(buf: ByteArray, off: Int): Int =
+                (buf[off].toInt() and 0xFF) or
+                ((buf[off + 1].toInt() and 0xFF) shl 8) or
+                ((buf[off + 2].toInt() and 0xFF) shl 16) or
+                ((buf[off + 3].toInt() and 0xFF) shl 24)
+
+            fun sector(lba: Int): ByteArray {
+                val buf = ByteArray(2048)
+                java.io.RandomAccessFile(file, "r").use { raf ->
+                    raf.seek(lba.toLong() * sectorSize + dataOffset)
+                    raf.readFully(buf)
+                }
+                return buf
+            }
+
+            // Primary Volume Descriptor is at sector 16; validate "CD001" signature
+            val pvd = sector(16)
+            if (String(pvd, 1, 5, Charsets.US_ASCII) != "CD001") return null
+
+            // Root directory record is embedded in PVD at offset 156; LBA at record offset 2
+            val rootLba = le32(pvd, 156 + 2)
+            val rootDir = sector(rootLba)
+
+            // Walk root directory entries to find SYSTEM.CNF
+            var pos = 0
+            while (pos < rootDir.size) {
+                val recLen  = rootDir[pos].toInt() and 0xFF
+                if (recLen == 0) break
+                val flags   = rootDir[pos + 25].toInt() and 0xFF
+                val nameLen = rootDir[pos + 32].toInt() and 0xFF
+                if (nameLen > 0 && flags and 0x02 == 0) {   // skip directories
+                    val name = String(rootDir, pos + 33, nameLen, Charsets.US_ASCII)
+                        .substringBefore(';').uppercase()
+                    if (name == "SYSTEM.CNF") {
+                        val fileLba  = le32(rootDir, pos + 2)
+                        val fileSize = le32(rootDir, pos + 10)
+                        val cnf = String(sector(fileLba), 0, minOf(fileSize, 512), Charsets.US_ASCII)
+                        // e.g. "BOOT = cdrom:\SLUS_01234.00;1" or "BOOT2 = cdrom:\SCES_01234.00;1"
+                        val m = Regex(
+                            """BOOT\d?\s*=\s*cdrom[:\\]+([A-Z]{4})[_-](\d{5})""",
+                            RegexOption.IGNORE_CASE
+                        ).find(cnf) ?: return null
+                        return m.groupValues[1].uppercase() + m.groupValues[2]
+                    }
+                }
+                pos += recLen
+            }
+            null
+        } catch (_: Exception) { null }
+    }
+
+    /**
      * Reads the 4-byte game code from an NDS ROM file at offset 0x0C and returns a
      * 16-char uppercase hex title ID matching the NDS homebrew client format:
      *   "00048000" + hex(gamecode bytes)
