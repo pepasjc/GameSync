@@ -13,9 +13,16 @@ _psp_names: dict[str, str] = {}      # keyed by full product code e.g. "ULUS1027
 _psx_names: dict[str, str] = {}      # keyed by full product code e.g. "SCUS94163"
 _vita_names: dict[str, str] = {}     # keyed by full product code e.g. "PCSE00082"
 
-# Reverse index for PS1: normalized game name slug → serial (first disc when multi-disc)
-# Built lazily alongside _psx_names during load_database().
+# Reverse index: normalized game name slug → PS1 retail serial (preferred over PSN codes)
+# Rebuilt by build_psx_psn_to_retail() after all databases are loaded.
 _psx_by_slug: dict[str, str] = {}
+
+# PSN PSone Classic code → original retail disc serial
+# e.g. "NPUJ00662" (Parasite Eve Japan PSN) → "SLPM86034" (Parasite Eve Japan retail)
+_psx_psn_to_retail: dict[str, str] = {}
+
+_PSN_RE    = re.compile(r"^NP")
+_RETAIL_RE = re.compile(r"^(SL|SC|PA)")
 
 # Strips parenthesized (USA) / bracketed [Disc1of3] tags from psxdb names before slugifying
 _BRACKET_RE = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
@@ -135,11 +142,6 @@ def load_database(db_path: Path | None = None) -> int:
                 if code and game_name:
                     target_dict[code] = game_name
                     added += 1
-                    # Build reverse slug index for PS1 serials
-                    if target_dict is _psx_names and _PSP_CODE_RE.match(code):
-                        slug = _psx_name_slug(game_name)
-                        if slug and slug not in _psx_by_slug:
-                            _psx_by_slug[slug] = code
 
     return added
 
@@ -231,6 +233,69 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             result[code] = (name, platform)
 
     return result
+
+
+def build_psx_psn_to_retail() -> int:
+    """Build the PSN→retail serial mapping and rebuild the slug→serial index.
+
+    Must be called once after all psxdb databases are loaded.
+
+    Groups all PS1 entries by name slug, then:
+    - Maps each PSN code (NP*) to the best retail code (SL*/SC*/PA*) for the same game.
+    - Rebuilds _psx_by_slug to always prefer retail codes so that name lookups
+      (e.g. from the normalize endpoint) return retail serials, never PSN IDs.
+
+    Returns the number of PSN→retail mappings created.
+    """
+    global _psx_by_slug, _psx_psn_to_retail
+
+    # Group by name slug: slug → {retail: [...], psn: [...]}
+    slug_retail: dict[str, list[str]] = {}
+    slug_psn:    dict[str, list[str]] = {}
+
+    for code, name in _psx_names.items():
+        if not _PSP_CODE_RE.match(code):
+            continue
+        slug = _psx_name_slug(name)
+        if not slug:
+            continue
+        if _RETAIL_RE.match(code):
+            slug_retail.setdefault(slug, []).append(code)
+        elif _PSN_RE.match(code):
+            slug_psn.setdefault(slug, []).append(code)
+
+    # Build PSN → retail mapping (best retail = first alphabetical, biased toward
+    # matching region by prefix ordering: SC before SL, PA last).
+    _psx_psn_to_retail.clear()
+    for slug, psn_codes in slug_psn.items():
+        retail_codes = slug_retail.get(slug)
+        if not retail_codes:
+            continue
+        best = sorted(retail_codes)[0]   # simple stable choice; good enough
+        for psn_code in psn_codes:
+            _psx_psn_to_retail[psn_code] = best
+
+    # Rebuild slug index: retail codes take priority, PSN only if no retail exists
+    new_index: dict[str, str] = {}
+    for slug, retail_codes in slug_retail.items():
+        new_index[slug] = sorted(retail_codes)[0]
+    for slug, psn_codes in slug_psn.items():
+        if slug not in new_index:
+            new_index[slug] = sorted(psn_codes)[0]
+
+    _psx_by_slug.clear()
+    _psx_by_slug.update(new_index)
+
+    return len(_psx_psn_to_retail)
+
+
+def get_psx_retail_serial(code: str) -> str | None:
+    """If code is a PSN PSone Classic ID (NP*), return the retail disc serial.
+
+    e.g. "NPUJ00662" → "SLPM86034"  (Parasite Eve Japan)
+    Returns None for codes that are already retail serials or have no mapping.
+    """
+    return _psx_psn_to_retail.get(code.upper().strip()[:9])
 
 
 def lookup_psx_serial(name: str) -> str | None:

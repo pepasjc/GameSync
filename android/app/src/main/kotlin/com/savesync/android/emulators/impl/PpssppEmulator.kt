@@ -33,9 +33,16 @@ class PpssppEmulator : EmulatorBase() {
         "SLAJ", "SLEJ", "SCAJ"
     )
 
-    private fun detectSystem(productCode: String): String =
-        if (productCode.length >= 4 && productCode.take(4).uppercase() in psxRetailPrefixes) "PS1"
-        else "PPSSPP"
+    private fun detectSystem(productCode: String): String {
+        val upper = productCode.uppercase()
+        return when {
+            upper.length >= 4 && upper.take(4) in psxRetailPrefixes -> "PS1"
+            // PSN PSone Classic codes start with "NP" (e.g. NPUJ00662, NPUF00001).
+            // Classify as PS1 so they get the PSN→retail serial remapping in MainViewModel.
+            upper.length >= 2 && upper.take(2) == "NP" -> "PS1"
+            else -> "PPSSPP"
+        }
+    }
 
     private fun findSaveDataDir(): File? =
         firstExisting("PSP/SAVEDATA", "psp/SAVEDATA", "PSP/savedata")

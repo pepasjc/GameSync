@@ -191,20 +191,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         entry.systemName == "PPSSPP" ||
                         (entry.systemName == "PS1" && !entry.titleId.contains('_'))
                     }
-                    val productCodeNames: Map<String, String> = if (productCodeEntries.isNotEmpty()) {
-                        try {
-                            api.lookupGameNames(GameNameRequest(codes = productCodeEntries.map { it.titleId })).names
-                        } catch (_: Exception) { emptyMap() }
-                    } else emptyMap()
+                    val gameNamePair =
+                        if (productCodeEntries.isNotEmpty()) {
+                            try {
+                                val resp = api.lookupGameNames(GameNameRequest(codes = productCodeEntries.map { it.titleId }))
+                                resp.names to (resp.retail_serials ?: emptyMap<String, String>())
+                            } catch (_: Exception) { emptyMap<String, String>() to emptyMap<String, String>() }
+                        } else emptyMap<String, String>() to emptyMap<String, String>()
+                    val productCodeNames = gameNamePair.first
+                    val retailSerials = gameNamePair.second
 
-                    val enrichedLocalSaves = if (productCodeNames.isNotEmpty()) {
-                        resolvedRawSaves.map { entry ->
-                            val gameName = productCodeNames[entry.titleId]
-                            if (gameName != null && gameName != entry.titleId) {
+                    // Apply retail serial remapping first (NP* PSone Classic codes → actual disc serials),
+                    // then enrich display names. retailSerials maps e.g. "NPUJ00662" → "SLPM86034".
+                    val enrichedLocalSaves = resolvedRawSaves.map { entry ->
+                        val retailSerial = retailSerials[entry.titleId]
+                        val effectiveId = retailSerial ?: entry.titleId
+                        val gameName = productCodeNames[effectiveId] ?: productCodeNames[entry.titleId]
+                        when {
+                            retailSerial != null -> entry.copy(
+                                titleId = retailSerial,
+                                systemName = "PS1",
+                                displayName = gameName ?: entry.displayName,
+                                canonicalName = entry.titleId  // keep NP* code as canonical reference
+                            )
+                            gameName != null && gameName != entry.titleId ->
                                 entry.copy(displayName = gameName, canonicalName = entry.titleId)
-                            } else entry
+                            else -> entry
                         }
-                    } else resolvedRawSaves
+                    }
 
                     val serverTitleIds: Set<String> = try {
                         api.getTitles().titles.map { it.title_id }.toSet()

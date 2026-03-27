@@ -81,5 +81,6 @@ data class NormalizeResponse(val results: List<NormalizeResult>)
 data class GameNameRequest(val codes: List<String>)
 data class GameNameResponse(
     val names: Map<String, String>,  // product_code -> game_name
-    val types: Map<String, String>   // product_code -> platform_type
+    val types: Map<String, String>,  // product_code -> platform_type
+    val retail_serials: Map<String, String>? = null  // PSN code -> retail disc serial (e.g. "NPUJ00662" -> "SLPM86034")
 )

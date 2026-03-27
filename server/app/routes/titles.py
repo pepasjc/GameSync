@@ -123,4 +123,8 @@ async def lookup_game_names(request: NameLookupRequest):
 
     names = {code: entry[0] for code, entry in typed.items()}
     types = {code: entry[1] for code, entry in typed.items()}
-    return {"names": names, "types": types}
+    retail_serials = {
+        c: r for c in request.codes
+        if (r := game_names.get_psx_retail_serial(c)) is not None
+    }
+    return {"names": names, "types": types, "retail_serials": retail_serials}
