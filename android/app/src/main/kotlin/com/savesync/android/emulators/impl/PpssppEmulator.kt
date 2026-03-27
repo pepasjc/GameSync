@@ -65,15 +65,18 @@ class PpssppEmulator : EmulatorBase() {
     private fun makeEntry(slotDir: File, code: String): SaveEntry {
         val system = detectSystem(code)
         return SaveEntry(
-            // Use the full directory name if it's server-safe (alphanumeric only).
-            // Fall back to the 9-char product code for dirs with hyphens/underscores/etc.
-            // — those chars fail the server's title_id validation (HTTP 400/422).
-            // The product code is what the PSP homebrew client uses, so saves synced from
-            // real PSP hardware can still be matched.
-            titleId = if (validSlotDirRegex.matches(slotDir.name)) slotDir.name else code,
+            // PSone Classics ALWAYS use the bare 9-char PS1 serial as the title ID
+            // so they match saves synced from real PSP/Vita hardware and DuckStation.
+            // e.g. SLUS00975DATA00 → titleId = "SLUS00975", not "SLUS00975DATA00".
+            //
+            // PSP games use the full slot-dir name when it is server-safe (alphanumeric)
+            // to distinguish multiple save slots (DATA00, DATA01, …) per product code.
+            titleId = if (system == "PS1") code
+                      else if (validSlotDirRegex.matches(slotDir.name)) slotDir.name
+                      else code,
             // Product code as placeholder; game-name lookup in ViewModel will enrich this.
             displayName = code,
-            systemName = system,   // "PSX" for PSone Classics, "PPSSPP" for PSP games
+            systemName = system,
             saveFile = null,       // no single target file — all slot files are synced
             saveDir = slotDir,     // slot dir — used for hash, upload, download, mkdirs
             isMultiFile = false,   // isPspSlot=true drives the PSP bundle path
