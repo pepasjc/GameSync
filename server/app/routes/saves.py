@@ -28,6 +28,15 @@ from app.services.ps2_cards import (
     get_canonical_card_from_files as get_ps2_canonical_card_from_files,
     normalize_ps2_card_format,
 )
+from app.services.gc_cards import (
+    canonical_card_name as gc_canonical_card_name,
+    gc_code_from_title_id,
+    gc_extract_gci,
+    gc_insert_gci,
+    get_card_from_files as gc_get_card_from_files,
+    get_gci_from_files as gc_get_gci_from_files,
+    is_gc_card_image,
+)
 from app.services.bundle import BundleError, create_bundle, parse_bundle
 
 router = APIRouter()
@@ -298,6 +307,149 @@ async def upload_ps1_card(
         "status": "ok",
         "timestamp": meta.last_sync,
         "sha256": hashlib.sha256(body).hexdigest(),
+    }
+
+
+@router.get("/saves/{title_id}/gc-card/meta")
+async def get_gc_card_meta(title_id: str):
+    """Return save metadata with a hash computed over the GCI bytes.
+
+    Both desktop (card image) and Android (gci) clients compare the same
+    GCI-derived hash so neither appears perpetually out of date.
+    """
+    title_id = _validate_title_id(title_id)
+    meta = storage.get_metadata(title_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="No save found for this title")
+
+    files = storage.load_save_files(title_id)
+    if not files:
+        raise HTTPException(status_code=404, detail="Save data missing on disk")
+
+    game_code = gc_code_from_title_id(title_id)
+    match = gc_get_gci_from_files(files, game_code)
+    if match is None:
+        raise HTTPException(status_code=404, detail="No GC save found for this title")
+    _, gci = match
+
+    d = meta.to_dict()
+    d["save_hash"] = hashlib.sha256(gci).hexdigest()
+    d["save_size"] = len(gci)
+    return d
+
+
+@router.get("/saves/{title_id}/gc-card")
+async def download_gc_card(
+    title_id: str,
+    format: str = Query("raw"),
+):
+    """Download a GC save.
+
+    ``?format=raw`` (default) — returns the full 8 MB card image for MemCard Pro.
+    ``?format=gci`` — extracts and returns the compact GCI for Dolphin/Android.
+    """
+    title_id = _validate_title_id(title_id)
+    fmt = format.strip().lower()
+    if fmt not in {"raw", "gci"}:
+        raise HTTPException(status_code=400, detail="format must be 'raw' or 'gci'")
+
+    meta = storage.get_metadata(title_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="No save found for this title")
+
+    files = storage.load_save_files(title_id)
+    if not files:
+        raise HTTPException(status_code=404, detail="Save data missing on disk")
+
+    if fmt == "gci":
+        game_code = gc_code_from_title_id(title_id)
+        match = gc_get_gci_from_files(files, game_code)
+        if match is None:
+            raise HTTPException(status_code=404, detail="No GC save found for this title")
+        _, content = match
+        filename = "card.gci"
+    else:
+        match = gc_get_card_from_files(files)
+        if match is None:
+            raise HTTPException(status_code=404, detail="No GC save found for this title")
+        _, content = match
+        filename = "card.raw"
+
+    return Response(
+        content=content,
+        media_type="application/octet-stream",
+        headers={
+            "X-Save-Timestamp": str(meta.client_timestamp),
+            "X-Save-Hash": hashlib.sha256(content).hexdigest(),
+            "X-Save-Size": str(len(content)),
+            "X-Save-Path": filename,
+        },
+    )
+
+
+@router.post("/saves/{title_id}/gc-card")
+async def upload_gc_card(
+    title_id: str,
+    request: Request,
+    format: str = Query("raw"),
+    console_id: str = Query(""),
+):
+    """Upload a GC save.
+
+    ``?format=raw`` (default) — accepts a full 8 MB card image from MemCard Pro.
+    ``?format=gci`` — accepts compact GCI bytes from Dolphin/Android; if a card
+    image is already stored the GCI is inserted into it, otherwise the GCI is
+    stored verbatim until the desktop overwrites with a full card.
+    """
+    title_id = _validate_title_id(title_id)
+    fmt = format.strip().lower()
+    if fmt not in {"raw", "gci"}:
+        raise HTTPException(status_code=400, detail="format must be 'raw' or 'gci'")
+
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty request body")
+
+    if fmt == "gci":
+        # Try to merge GCI into an existing card image
+        existing_files = storage.load_save_files(title_id) or []
+        existing = gc_get_card_from_files(existing_files)
+        if existing is not None and is_gc_card_image(existing[1]):
+            updated_card = gc_insert_gci(existing[1], body)
+            if updated_card is not None:
+                store_data = updated_card
+                store_name = gc_canonical_card_name()
+            else:
+                # Insert failed (block-count mismatch etc.) — store GCI as-is
+                store_data = body
+                store_name = "card.gci"
+        else:
+            # No card on server yet — store GCI; desktop will overwrite later
+            store_data = body
+            store_name = "card.gci"
+    else:
+        store_data = body
+        store_name = gc_canonical_card_name()
+
+    bundle = SaveBundle(
+        title_id=int(title_id, 16) if is_hex_title_id(title_id) else 0,
+        timestamp=int(time.time()),
+        files=[
+            BundleFile(
+                path=store_name,
+                size=len(store_data),
+                sha256=hashlib.sha256(store_data).digest(),
+                data=store_data,
+            )
+        ],
+        title_id_str="" if is_hex_title_id(title_id) else title_id,
+    )
+    cid = _console_id_from_request(request, console_id)
+    meta = storage.store_save(bundle, source="gc_card", console_id=cid)
+    return {
+        "status": "ok",
+        "timestamp": meta.last_sync,
+        "sha256": hashlib.sha256(store_data).hexdigest(),
     }
 
 
