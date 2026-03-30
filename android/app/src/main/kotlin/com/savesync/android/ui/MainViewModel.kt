@@ -349,19 +349,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             .filter { fullyEffectiveRomEntries.containsKey(it.title_id) }
                             .map { titleInfo ->
                                 val romEntry = fullyEffectiveRomEntries[titleInfo.title_id]!!
+                                val resolvedSystem = normalizeSystemCode(
+                                    titleInfo.platform
+                                        ?: titleInfo.system
+                                        ?: titleInfo.consoleType
+                                        ?: romEntry.systemName
+                                )
+                                val preferredDisplayName =
+                                    if (resolvedSystem == "PS1") {
+                                        duckStationPs1CardBaseName(
+                                            romEntry.canonicalName
+                                                ?: titleInfo.game_name
+                                                ?: titleInfo.name
+                                                ?: romEntry.displayName
+                                        )
+                                    } else {
+                                        romEntry.displayName
+                                    }
+                                val preferredSaveFile =
+                                    if (resolvedSystem == "PS1" && romEntry.saveFile != null) {
+                                        val ext = romEntry.saveFile.extension.ifBlank { "mcd" }
+                                        File(romEntry.saveFile.parentFile, "${preferredDisplayName}_1.$ext")
+                                    } else {
+                                        romEntry.saveFile
+                                    }
                                 romEntry.copy(
                                     // Normalise the system code to Android's conventions so
                                     // "MD" (desktop) and "GEN" (Android) both show the same chip.
-                                    systemName = normalizeSystemCode(
-                                        titleInfo.platform
-                                            ?: titleInfo.system
-                                            ?: titleInfo.consoleType
-                                            ?: romEntry.systemName
-                                    ),
+                                    systemName = resolvedSystem,
+                                    displayName = preferredDisplayName,
+                                    saveFile = preferredSaveFile,
                                     isServerOnly = true,
                                     canonicalName = romEntry.canonicalName
-                                        ?: titleInfo.name?.takeIf { it != romEntry.displayName }
-                                        ?: titleInfo.game_name?.takeIf { it != romEntry.displayName }
+                                        ?: titleInfo.game_name?.takeIf { it != preferredDisplayName }
+                                        ?: titleInfo.name?.takeIf { it != preferredDisplayName }
                                 )
                             }
 
@@ -589,8 +610,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val memcardsDir = DuckStationEmulator.findMemcardsDir(Environment.getExternalStorageDirectory())
             ?: return null
 
-        val displayName = titleInfo.name
-            ?: titleInfo.game_name
+        val displayName = titleInfo.game_name
+            ?: titleInfo.name
             ?: titleInfo.title_id
         val predictedBase = duckStationPs1CardBaseName(displayName)
         val predictedFile = File(memcardsDir, "${predictedBase}_1.mcd")
@@ -602,8 +623,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             saveFile = predictedFile,
             saveDir = null,
             isServerOnly = true,
-            canonicalName = titleInfo.name?.takeIf { it != displayName }
-                ?: titleInfo.game_name?.takeIf { it != displayName }
+            canonicalName = titleInfo.game_name?.takeIf { it != displayName }
+                ?: titleInfo.name?.takeIf { it != displayName }
         )
     }
 
@@ -758,12 +779,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * DuckStation commonly names per-game cards from a No-Intro-like title, but without
-     * disc markers. Keep the rest of the visible title intact so the generated filename
-     * stays readable and close to what the emulator is already likely using.
+     * disc markers. Keep region text like "(USA)" intact so the generated filename stays
+     * close to what the emulator is already likely using.
      */
     private fun duckStationPs1CardBaseName(name: String): String {
         return name
             .replace(Regex("""\s*[\(\[]\s*(disc|cd)\s*[0-9]+(?:\s*of\s*[0-9]+)?\s*[\)\]]""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s*\[[^\]]*]"""), "")
             .replace(Regex("""\s+"""), " ")
             .trim()
     }

@@ -94,15 +94,41 @@ class DuckStationEmulator(
         return if (imageCount >= 1) parent.name else romFile.nameWithoutExtension
     }
 
+    /**
+     * Clean local ROM/folder labels by stripping dump junk and disc markers, but do not
+     * invent region strings here. Server-only downloads should prefer the server title
+     * for their final filename; this helper only prevents obvious `[U] [SLUS-12345]`
+     * noise from polluting local ROM anchors.
+     */
+    private fun normalizeDuckStationCardLabel(label: String): String {
+        return label
+            .replace(
+                Regex("""\s*[\(\[]\s*(disc|cd)\s*[0-9]+(?:\s*of\s*[0-9]+)?\s*[\)\]]""", RegexOption.IGNORE_CASE),
+                ""
+            )
+            .replace(
+                Regex("""\s*[\(\[][A-Z]{4}[-_ ]?\d{5}.*?[\)\]]""", RegexOption.IGNORE_CASE),
+                ""
+            )
+            .replace(
+                Regex("""\s*[\(\[]\s*(U|E|J|USA|EUROPE|JAPAN)\s*[\)\]]""", RegexOption.IGNORE_CASE),
+                ""
+            )
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+            .ifBlank { label }
+    }
+
     private fun buildRomEntry(memcardsDir: File, label: String, romFile: File): Pair<String, SaveEntry>? {
         val titleId = readPs1Serial(romFile)
             ?: normalizeSerial(romFile.nameWithoutExtension)
             ?: normalizeSerial(label)
             ?: toPs1TitleId(label)
-        val saveFile = File(memcardsDir, "${label}_1.mcd")
+        val cardLabel = normalizeDuckStationCardLabel(label)
+        val saveFile = File(memcardsDir, "${cardLabel}_1.mcd")
         return titleId to SaveEntry(
             titleId = titleId,
-            displayName = label,
+            displayName = cardLabel,
             systemName = systemPrefix,
             saveFile = saveFile,
             saveDir = null
