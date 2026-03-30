@@ -31,6 +31,9 @@ async def lifespan(app: FastAPI):
     count_psx = game_names.load_libretro_dat_to_dicts(
         dats_dir / "Sony - PlayStation.dat"
     )
+    count_ps3 = game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Sony - PlayStation 3.dat"
+    )
     count_psp = game_names.load_libretro_dat_to_dicts(
         dats_dir / "Sony - PlayStation Portable.dat"
     )
@@ -56,7 +59,7 @@ async def lifespan(app: FastAPI):
     count_psn_retail = game_names.build_psx_psn_to_retail()
     print(
         f"Loaded {count_title_ids} 3DS TitleIDs + {count_3ds} 3DS codes + {count_ds} DS + "
-        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX + {count_wii} GC/Wii game names "
+        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX + {count_ps3} PS3 + {count_wii} GC/Wii game names "
         f"({count_psn_retail} PSN→retail mappings)"
     )
 
