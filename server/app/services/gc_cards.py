@@ -46,8 +46,8 @@ _GC_DIR2_OFFSET = 0x4000
 _GC_DENTRY_SIZE = 64
 _GC_MAX_ENTRIES = 127
 _GAMECODE_OFF = 0
-_FIRST_BLOCK_OFF = 50   # 0x32
-_BLOCK_COUNT_OFF = 52   # 0x34
+_FIRST_BLOCK_OFF = 54   # 0x36  (filename field is 0x20 = 32 bytes, per Dolphin source)
+_BLOCK_COUNT_OFF = 56   # 0x38
 
 # A GCI file is at minimum 64-byte header + 1 data block
 _MIN_GCI_SIZE = _GC_DENTRY_SIZE + _GC_BLOCK_SIZE
