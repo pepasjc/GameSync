@@ -17,7 +17,7 @@ ALL_CONSOLE_TYPES = [
     "WSWAN", "WSWANC", "ARCADE", "MAME",
 ]
 
-DEVICE_TYPES = ["Generic", "RetroArch", "MiSTer", "Analogue Pocket", "Pocket (openFPGA)", "Everdrive", "MEGA EverDrive", "EmuDeck", "MemCard Pro"]
+DEVICE_TYPES = ["Generic", "RetroArch", "MiSTer", "Analogue Pocket", "Pocket (openFPGA)", "Everdrive", "MEGA EverDrive", "EmuDeck", "MemCard Pro", "CD Folder"]
 
 SYSTEM_CHOICES = [
     "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC", "GG", "NGP",
@@ -133,6 +133,29 @@ def detect_console_type(title_id: str) -> str:
     return "NDS"
 
 
+def format_display_game_name(name: str, console_type: str = "") -> str:
+    """Return a UI-friendly game name without changing any underlying identifiers.
+
+    For PlayStation disc-based titles, the server or local matcher can legitimately
+    return names like ``Parasite Eve (USA) (Disc 1)``. DuckStation and similar tools
+    usually present the shared game title without the disc marker, so the desktop UI
+    mirrors that behavior while keeping the raw title ID / file path untouched.
+    """
+    text = (name or "").strip()
+    if not text:
+        return text
+
+    if (console_type or "").upper() == "PS1":
+        text = re.sub(
+            r"\s*[\(\[]\s*(disc|cd)\s*\d+(?:\s*of\s*\d+)?\s*[\)\]]",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 # ---------------------------------------------------------------------------
 # API helpers
 # ---------------------------------------------------------------------------
@@ -238,3 +261,19 @@ def download_ps1_cards(title_id: str, dest_path: Path) -> list[Path]:
     slot1_path.write_bytes(resp1.content)
     written.append(slot1_path)
     return written
+
+
+def download_ps2_card(title_id: str, dest_path: Path, card_format: str = "mc2") -> None:
+    """Download a PS2 memory card in either MemCard Pro (`mc2`) or PCSX2 (`ps2`) format."""
+    if card_format not in {"mc2", "ps2"}:
+        raise ValueError(f"Unsupported PS2 card format: {card_format}")
+
+    resp = requests.get(
+        f"{get_base_url()}/api/v1/saves/{title_id}/ps2-card",
+        headers=get_api_headers(),
+        params={"format": card_format},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    dest_path.write_bytes(resp.content)

@@ -1,6 +1,7 @@
 package com.savesync.android.ui
 
 import android.app.Application
+import android.os.Environment
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
@@ -17,6 +18,7 @@ import com.savesync.android.api.SaveSyncApi
 import com.savesync.android.emulators.EmulatorRegistry
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.emulators.impl.RetroArchEmulator
+import com.savesync.android.emulators.impl.DuckStationEmulator
 import com.savesync.android.storage.Settings
 import com.savesync.android.storage.SettingsStore
 import com.savesync.android.storage.SyncStateEntity
@@ -31,9 +33,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
 import java.util.concurrent.TimeUnit
+import com.savesync.android.emulators.impl.AetherSX2Emulator
 
 sealed class SyncState {
     object Idle : SyncState()
@@ -72,6 +76,7 @@ sealed class ServerMetaState {
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+    private val compactPsCodeRegex = Regex("""^[A-Z]{4}\d{5}$""")
 
     private val settingsStore = SettingsStore(application)
     private val db = SaveSyncApp.instance.database
@@ -145,10 +150,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val overrides = db.savePathOverrideDao().getAll()
                     .associate { it.filePath to it.system }
                 val romScanDir = currentSettings.romScanDir
-                val rawLocalSaves = EmulatorRegistry.discoverAllSaves(overrides, romScanDir)
+                val dolphinMemCardDir = currentSettings.dolphinMemCardDir
+                val rawLocalSaves = EmulatorRegistry.discoverAllSaves(overrides, romScanDir, dolphinMemCardDir)
 
                 // Discover all ROMs the emulators know about (with expected save paths)
-                val allRomEntries = EmulatorRegistry.discoverAllRomEntries(romScanDir)
+                val allRomEntries = EmulatorRegistry.discoverAllRomEntries(romScanDir, dolphinMemCardDir)
 
                 val serverOnlySaves: List<SaveEntry>
                 val localSaves: List<SaveEntry>
@@ -157,7 +163,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val api = try {
                         ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
                     } catch (e: Exception) {
-                        _allSaves.value = rawLocalSaves
+                        _allSaves.value = sortSaves(rawLocalSaves)
                         return@launch
                     }
 
@@ -185,23 +191,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         } catch (_: Exception) { rawLocalSaves }
                     } else rawLocalSaves
 
-                    // Enrich PPSSPP and PS1 product-code entries with proper game names from server.
-                    // PS1 saves resolved via SYSTEM.CNF (RetroArch) or PSone Classic directories
-                    // (PPSSPP) already carry product-code title IDs (e.g. SLUS01234) — look them up
-                    // just like PSP codes. Slug-based PS1 title IDs (PS1_slug) are skipped.
+                    // Enrich product-code entries with proper game names from server.
+                    // PSP slots, PS1 saves resolved via SYSTEM.CNF, and PS2 saves resolved from
+                    // installed disc images all carry compact product-code title IDs
+                    // (e.g. SLUS01234 / SLUS20002), so they can all share the same lookup flow.
+                    // Slug-based PS1/PS2 IDs (PS1_slug / PS2_slug) are skipped here.
                     val productCodeEntries = resolvedRawSaves.filter { entry ->
                         entry.systemName == "PPSSPP" ||
-                        (entry.systemName == "PS1" && !entry.titleId.contains('_'))
+                        ((entry.systemName == "PS1" || entry.systemName == "PS2") && !entry.titleId.contains('_')) ||
+                        (entry.systemName == "GC" && entry.titleId.startsWith("GC_"))
                     }
-                    val gameNamePair =
+                    val gameNameTriple =
                         if (productCodeEntries.isNotEmpty()) {
                             try {
                                 val resp = api.lookupGameNames(GameNameRequest(codes = productCodeEntries.map { it.titleId }))
-                                resp.names to (resp.retail_serials ?: emptyMap<String, String>())
-                            } catch (_: Exception) { emptyMap<String, String>() to emptyMap<String, String>() }
-                        } else emptyMap<String, String>() to emptyMap<String, String>()
-                    val productCodeNames = gameNamePair.first
-                    val retailSerials = gameNamePair.second
+                                Triple(
+                                    resp.names,
+                                    resp.types,
+                                    resp.retail_serials ?: emptyMap<String, String>()
+                                )
+                            } catch (_: Exception) {
+                                Triple(
+                                    emptyMap<String, String>(),
+                                    emptyMap<String, String>(),
+                                    emptyMap<String, String>()
+                                )
+                            }
+                        } else Triple(
+                            emptyMap<String, String>(),
+                            emptyMap<String, String>(),
+                            emptyMap<String, String>()
+                        )
+                    val productCodeNames = gameNameTriple.first
+                    val productCodeTypes = gameNameTriple.second
+                    val retailSerials = gameNameTriple.third
 
                     // Apply retail serial remapping first (NP* PSone Classic codes → actual disc serials),
                     // then enrich display names. retailSerials maps e.g. "NPUJ00662" → "SLPM86034".
@@ -209,49 +232,96 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val retailSerial = retailSerials[entry.titleId]
                         val effectiveId = retailSerial ?: entry.titleId
                         val gameName = productCodeNames[effectiveId] ?: productCodeNames[entry.titleId]
+                        val lookedUpType = productCodeTypes[effectiveId] ?: productCodeTypes[entry.titleId]
                         when {
                             retailSerial != null -> entry.copy(
                                 titleId = retailSerial,
                                 systemName = "PS1",
                                 displayName = gameName ?: entry.displayName,
-                                canonicalName = entry.titleId  // keep NP* code as canonical reference
+                                canonicalName = gameName?.takeIf { it != entry.displayName }
+                            )
+                            entry.systemName == "PPSSPP" && lookedUpType == "PS1" -> entry.copy(
+                                systemName = "PS1",
+                                displayName = gameName ?: entry.displayName,
+                                canonicalName = gameName?.takeIf { it != entry.displayName }
                             )
                             gameName != null && gameName != entry.titleId ->
-                                entry.copy(displayName = gameName, canonicalName = entry.titleId)
+                                entry.copy(
+                                    displayName = gameName,
+                                    canonicalName = gameName.takeIf { it != entry.displayName }
+                                )
                             else -> entry
                         }
                     }
 
-                    val serverTitleIds: Set<String> = try {
-                        api.getTitles().titles.map { it.title_id }.toSet()
+                    val titlesResponse = try {
+                        api.getTitles()
                     } catch (e: Exception) {
+                        _allSaves.value = sortSaves(rawLocalSaves)
+                        return@launch
+                    }
+
+                    val ps1ServerIds: Set<String> = try {
+                        api.getTitles(consoleType = "PS1").titles.map { it.title_id }.toSet()
+                    } catch (_: Exception) {
                         emptySet()
                     }
+                    val ps2ServerIds: Set<String> = try {
+                        api.getTitles(consoleType = "PS2").titles.map { it.title_id }.toSet()
+                    } catch (_: Exception) {
+                        emptySet()
+                    }
+                    val pspServerIds: Set<String> = try {
+                        api.getTitles(consoleType = "PSP").titles.map { it.title_id }.toSet()
+                    } catch (_: Exception) {
+                        emptySet()
+                    }
+
+                    val serverTitleIds: Set<String> = titlesResponse.titles.map { it.title_id }.toSet()
 
                     // Remap local save titleIds to the server's canonical ID when the
                     // systems differ only by alias (e.g. local "GEN_sonic" → server "MD_sonic").
                     // Uses androidToServerSystems (one-to-many) to try ALL possible server
                     // prefixes — e.g. for "GEN" it tries "MD_slug", "GENESIS_slug", "MEGADRIVE_slug"
                     // and picks the first one the server actually has.
-                    localSaves = enrichedLocalSaves.map { entry ->
+                    localSaves = dedupeLocalPs1Entries(
+                        reconcilePs1LocalSavesWithRomEntries(
+                            enrichedLocalSaves.map { entry ->
                         val localSys = entry.titleId.substringBefore('_')
                         val slug     = entry.titleId.substringAfter('_')
                         val serverAlias = androidToServerSystems[localSys]
                             ?.map { "${it}_$slug" }
                             ?.firstOrNull { it in serverTitleIds }
                         if (serverAlias != null) entry.copy(titleId = serverAlias) else entry
-                    }
+                            },
+                            allRomEntries
+                        )
+                    )
 
                     val localTitleIds = localSaves.map { it.titleId }.toSet()
 
                     serverOnlySaves = try {
-                        val titlesResponse = api.getTitles()
-
                         // Server titles not present locally (after alias remapping above)
                         val unmatchedServerTitles = titlesResponse.titles
                             .filter { it.title_id !in localTitleIds }
 
                         val unmatchedServerIds = unmatchedServerTitles.map { it.title_id }.toSet()
+                        val unmatchedTypeLookup = lookupServerTitleTypes(api, unmatchedServerTitles)
+                        val normalizedUnmatchedTitles = unmatchedServerTitles.map { titleInfo ->
+                            val lookedUpType = unmatchedTypeLookup[titleInfo.title_id]?.first
+                            val lookedUpName = unmatchedTypeLookup[titleInfo.title_id]?.second
+                            val forcedType = when (titleInfo.title_id) {
+                                in ps1ServerIds -> "PS1"
+                                in ps2ServerIds -> "PS2"
+                                in pspServerIds -> "PSP"
+                                else -> lookedUpType
+                            }
+                            titleInfo.copy(
+                                platform = forcedType ?: titleInfo.platform,
+                                game_name = lookedUpName ?: titleInfo.game_name,
+                                name = lookedUpName ?: titleInfo.name
+                            )
+                        }
                         val canonicalIdMap = buildCanonicalIdMap(
                             romEntries = allRomEntries.values
                                 .filter { it.titleId !in unmatchedServerIds },
@@ -263,12 +333,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                         // System alias pass for still-unmatched server titles
                         val aliasMatches = resolveBySystemAliases(
-                            unmatchedServerTitles.filter { !effectiveRomEntries.containsKey(it.title_id) },
+                            normalizedUnmatchedTitles.filter { !effectiveRomEntries.containsKey(it.title_id) },
                             effectiveRomEntries
                         )
-                        val fullyEffectiveRomEntries = effectiveRomEntries + aliasMatches
+                        val ps1Matches = buildPs1ServerOnlyMatches(
+                            normalizedUnmatchedTitles.filter {
+                                !effectiveRomEntries.containsKey(it.title_id) &&
+                                !aliasMatches.containsKey(it.title_id)
+                            },
+                            effectiveRomEntries + aliasMatches
+                        )
+                        val fullyEffectiveRomEntries = effectiveRomEntries + aliasMatches + ps1Matches
 
-                        unmatchedServerTitles
+                        val matchedServerOnly = normalizedUnmatchedTitles
                             .filter { fullyEffectiveRomEntries.containsKey(it.title_id) }
                             .map { titleInfo ->
                                 val romEntry = fullyEffectiveRomEntries[titleInfo.title_id]!!
@@ -276,7 +353,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     // Normalise the system code to Android's conventions so
                                     // "MD" (desktop) and "GEN" (Android) both show the same chip.
                                     systemName = normalizeSystemCode(
-                                        titleInfo.platform ?: titleInfo.system ?: romEntry.systemName
+                                        titleInfo.platform
+                                            ?: titleInfo.system
+                                            ?: titleInfo.consoleType
+                                            ?: romEntry.systemName
                                     ),
                                     isServerOnly = true,
                                     canonicalName = romEntry.canonicalName
@@ -284,6 +364,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                         ?: titleInfo.game_name?.takeIf { it != romEntry.displayName }
                                 )
                             }
+
+                        // Some PS1 titles still cannot be anchored to a scanned ROM entry
+                        // (missing serial, odd image format, etc.). In that case we still
+                        // surface them using a DuckStation-style predicted card filename so
+                        // the user can download them and, in many cases, DuckStation will
+                        // already pick them up.
+                        val ps1ServerOnly = normalizedUnmatchedTitles
+                            .filter { !fullyEffectiveRomEntries.containsKey(it.title_id) }
+                            .mapNotNull { titleInfo -> buildPs1ServerOnlyEntry(titleInfo) }
+
+                        // PS2 is a special case: AetherSX2 often uses shared default cards
+                        // instead of per-game saves, so there may be no local ROM/save-derived
+                        // entry to anchor a server-only title. We still surface those saves so
+                        // the user can download a per-game card and configure it manually.
+                        val ps2ServerOnly = normalizedUnmatchedTitles
+                            .filter { !fullyEffectiveRomEntries.containsKey(it.title_id) }
+                            .mapNotNull { titleInfo -> buildPs2ServerOnlyEntry(titleInfo) }
+
+                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly
                     } catch (e: Exception) {
                         emptyList()
                     }
@@ -292,10 +391,110 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     serverOnlySaves = emptyList()
                 }
 
-                _allSaves.value = localSaves + serverOnlySaves
+                _allSaves.value = sortSaves(localSaves + serverOnlySaves)
             } catch (e: Exception) {
                 _allSaves.value = emptyList()
             }
+        }
+    }
+
+    /**
+     * Keep the visible save list deterministic across emulator scans and server merges.
+     *
+     * Without an explicit sort, systems like AetherSX2 can appear to shuffle rows
+     * because local filesystem enumeration and server-only merge order are not stable.
+     */
+    private fun sortSaves(entries: List<SaveEntry>): List<SaveEntry> {
+        return entries.sortedWith(
+            compareBy<SaveEntry>(
+                { it.systemName },
+                { it.displayName.lowercase() },
+                { it.titleId },
+                { it.isServerOnly }
+            )
+        )
+    }
+
+    /**
+     * When we already have a PS1 ROM anchor with a real disc serial, prefer that over
+     * weaker local identifiers derived from filename normalization or PSN title-name
+     * lookup. This keeps DuckStation cards aligned with the installed disc's retail ID.
+     */
+    private fun reconcilePs1LocalSavesWithRomEntries(
+        entries: List<SaveEntry>,
+        romEntries: Map<String, SaveEntry>
+    ): List<SaveEntry> {
+        val ps1RomEntries = romEntries.values
+            .filter { it.systemName == "PS1" && compactPsCodeRegex.matches(it.titleId) }
+            .distinctBy { it.titleId }
+        if (ps1RomEntries.isEmpty()) return entries
+
+        return entries.map { entry ->
+            if (entry.systemName != "PS1") return@map entry
+            if (compactPsCodeRegex.matches(entry.titleId) && !entry.titleId.startsWith("NP")) {
+                return@map entry
+            }
+
+            val entryAnchor = normalizePs1Anchor(entry.displayName)
+            if (entryAnchor.isBlank()) return@map entry
+
+            val candidates = ps1RomEntries.filter { romEntry ->
+                ps1AnchorsEquivalent(entryAnchor, normalizePs1Anchor(romEntry.displayName))
+            }
+            val uniqueCandidate = candidates
+                .distinctBy { it.titleId }
+                .singleOrNull()
+                ?: return@map entry
+
+            entry.copy(
+                titleId = uniqueCandidate.titleId,
+                systemName = "PS1",
+                canonicalName = uniqueCandidate.canonicalName
+                    ?: entry.canonicalName?.takeUnless { compactPsCodeRegex.matches(it.uppercase()) }
+                    ?: uniqueCandidate.displayName.takeIf { it != entry.displayName }
+            )
+        }
+    }
+
+    /**
+     * A single DuckStation memory card file should surface as one local PS1 row. When
+     * multiple candidate IDs point at the same card, prefer the retail serial over NP*
+     * aliases or slug IDs.
+     */
+    private fun dedupeLocalPs1Entries(entries: List<SaveEntry>): List<SaveEntry> {
+        val grouped = entries.groupBy { entry ->
+            if (entry.systemName == "PS1" && !entry.isServerOnly && entry.saveFile != null) {
+                "PS1:${entry.saveFile.absolutePath.lowercase()}"
+            } else null
+        }
+
+        val keep = mutableMapOf<String, SaveEntry>()
+        for ((key, values) in grouped) {
+            if (key == null) continue
+            keep[key] = values.minWithOrNull(
+                compareBy<SaveEntry>(
+                    { ps1LocalEntryPriority(it) },
+                    { it.displayName.length },
+                    { it.titleId }
+                )
+            ) ?: continue
+        }
+
+        return entries.filter { entry ->
+            val key =
+                if (entry.systemName == "PS1" && !entry.isServerOnly && entry.saveFile != null) {
+                    "PS1:${entry.saveFile.absolutePath.lowercase()}"
+                } else null
+            key == null || keep[key] == entry
+        }
+    }
+
+    private fun ps1LocalEntryPriority(entry: SaveEntry): Int {
+        val titleId = entry.titleId.uppercase()
+        return when {
+            compactPsCodeRegex.matches(titleId) && !titleId.startsWith("NP") -> 0
+            compactPsCodeRegex.matches(titleId) -> 1
+            else -> 2
         }
     }
 
@@ -336,6 +535,260 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun normalizeSystemCode(system: String) =
         serverToAndroidSystem[system.uppercase()] ?: system
+
+    private fun buildPs2ServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo
+    ): SaveEntry? {
+        val system = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: ""
+        )
+        if (system != "PS2") return null
+
+        val memcardsDir = AetherSX2Emulator.findMemcardsDir(Environment.getExternalStorageDirectory())
+            ?: return null
+
+        val displayName = titleInfo.name
+            ?: titleInfo.game_name
+            ?: titleInfo.title_id
+        val predictedFile = File(
+            memcardsDir,
+            "${titleInfo.title_id}_${AetherSX2Emulator.sanitizeServerCardName(displayName)}.ps2"
+        )
+
+        return SaveEntry(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            systemName = "PS2",
+            saveFile = predictedFile,
+            saveDir = null,
+            isServerOnly = true,
+            canonicalName = titleInfo.name?.takeIf { it != displayName }
+                ?: titleInfo.game_name?.takeIf { it != displayName }
+        )
+    }
+
+    /**
+     * Builds a best-effort DuckStation card path for a server-only PS1 title when no
+     * ROM-derived anchor was found. DuckStation usually names per-game cards from the
+     * title rather than the serial, and often omits disc numbers, so we mimic that.
+     */
+    private fun buildPs1ServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo
+    ): SaveEntry? {
+        val system = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: ""
+        )
+        if (system != "PS1") return null
+
+        val memcardsDir = DuckStationEmulator.findMemcardsDir(Environment.getExternalStorageDirectory())
+            ?: return null
+
+        val displayName = titleInfo.name
+            ?: titleInfo.game_name
+            ?: titleInfo.title_id
+        val predictedBase = duckStationPs1CardBaseName(displayName)
+        val predictedFile = File(memcardsDir, "${predictedBase}_1.mcd")
+
+        return SaveEntry(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            systemName = "PS1",
+            saveFile = predictedFile,
+            saveDir = null,
+            isServerOnly = true,
+            canonicalName = titleInfo.name?.takeIf { it != displayName }
+                ?: titleInfo.game_name?.takeIf { it != displayName }
+        )
+    }
+
+    /**
+     * Matches unmatched PS1 server titles against installed DuckStation ROM entries.
+     *
+     * DuckStation derives per-game memory-card filenames from the ROM/game label, so
+     * PS1 server-only downloads must reuse the exact ROM-derived save path whenever
+     * possible. We therefore prefer an existing ROM anchor over synthesizing a fresh
+     * filename from the server title.
+     */
+    private fun buildPs1ServerOnlyMatches(
+        stillUnmatched: List<com.savesync.android.api.TitleInfo>,
+        romEntries: Map<String, SaveEntry>
+    ): Map<String, SaveEntry> {
+        if (stillUnmatched.isEmpty()) return emptyMap()
+
+        val ps1RomEntries = romEntries.values
+            .filter { it.systemName == "PS1" }
+            .distinctBy { it.saveFile?.absolutePath ?: it.displayName }
+        if (ps1RomEntries.isEmpty()) return emptyMap()
+
+        val byAnchor = ps1RomEntries.groupBy { normalizePs1Anchor(it.displayName) }
+        val usedAnchors = romEntries.values
+            .filter { it.systemName == "PS1" && compactPsCodeRegex.matches(it.titleId) }
+            .mapTo(mutableSetOf()) { normalizePs1Anchor(it.displayName) }
+        val result = mutableMapOf<String, SaveEntry>()
+        val groupedServerTitles = stillUnmatched
+            .filter {
+                normalizeSystemCode(
+                    it.platform
+                        ?: it.system
+                        ?: it.consoleType
+                        ?: ""
+                ) == "PS1"
+            }
+            .groupBy { normalizePs1Anchor(it.name ?: it.game_name ?: it.title_id) }
+
+        for ((anchor, titlesForAnchor) in groupedServerTitles) {
+            if (anchor.isBlank() || anchor in usedAnchors) continue
+
+            val candidates = byAnchor[anchor].orEmpty()
+            if (candidates.isEmpty()) continue
+
+            val preferredLocal = candidates.minWithOrNull(
+                compareBy<SaveEntry>(
+                    { ps1DiscPreference(it.displayName) },
+                    { it.displayName.length },
+                    { it.displayName.lowercase() }
+                )
+            ) ?: continue
+
+            val preferredTitle = titlesForAnchor.minWithOrNull(
+                compareBy<com.savesync.android.api.TitleInfo>(
+                    { ps1ServerTitlePreference(it, preferredLocal.displayName) },
+                    { (it.name ?: it.game_name ?: it.title_id).length },
+                    { (it.name ?: it.game_name ?: it.title_id).lowercase() }
+                )
+            ) ?: continue
+
+            result[preferredTitle.title_id] = preferredLocal.copy(
+                titleId = preferredTitle.title_id,
+                canonicalName = preferredLocal.canonicalName
+                    ?: preferredTitle.name?.takeIf { it != preferredLocal.displayName }
+                    ?: preferredTitle.game_name?.takeIf { it != preferredLocal.displayName }
+            )
+            usedAnchors.add(anchor)
+        }
+
+        return result
+    }
+
+    private fun ps1ServerTitlePreference(
+        titleInfo: com.savesync.android.api.TitleInfo,
+        localLabel: String
+    ): Int {
+        val localRegion = ps1RegionRank(localLabel)
+        val serverName = titleInfo.name ?: titleInfo.game_name ?: titleInfo.title_id
+        val serverRegion = ps1RegionRank(serverName)
+        val isPsnCode = titleInfo.title_id.uppercase().startsWith("NP")
+
+        return when {
+            localRegion >= 0 && serverRegion == localRegion && !isPsnCode -> 0
+            localRegion >= 0 && serverRegion == localRegion -> 1
+            !isPsnCode && serverRegion == 0 -> 2  // USA
+            !isPsnCode && serverRegion == 1 -> 3  // Europe
+            !isPsnCode && serverRegion == 2 -> 4  // Japan
+            !isPsnCode -> 5
+            serverRegion == 0 -> 6
+            serverRegion == 1 -> 7
+            serverRegion == 2 -> 8
+            else -> 9
+        }
+    }
+
+    private fun ps1RegionRank(name: String): Int {
+        val lower = name.lowercase()
+        return when {
+            "usa" in lower || "u.s.a" in lower -> 0
+            "europe" in lower || "eur" in lower || "pal" in lower -> 1
+            "japan" in lower || "jpn" in lower -> 2
+            else -> -1
+        }
+    }
+
+    /**
+     * Normalizes PS1 names to a common base so server titles like "Parasite Eve"
+     * can still anchor to local disc labels such as "Parasite Eve (USA) (Disc 1)".
+     */
+    private fun normalizePs1Anchor(name: String): String {
+        val withoutTags = name
+            .replace(Regex("""\s*[\(\[][^\)\]]*[\)\]]"""), " ")
+            .replace(Regex("""\b(disc|cd)\s*[0-9]+\b""", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("""\b[0-9]+\s*of\s*[0-9]+\b""", RegexOption.IGNORE_CASE), " ")
+
+        return withoutTags
+            .lowercase()
+            .replace(Regex("[^a-z0-9]+"), " ")
+            .trim()
+    }
+
+    private fun ps1AnchorsEquivalent(left: String, right: String): Boolean {
+        if (left.isBlank() || right.isBlank()) return false
+        if (left == right) return true
+
+        val longer: String
+        val shorter: String
+        if (left.length >= right.length) {
+            longer = left
+            shorter = right
+        } else {
+            longer = right
+            shorter = left
+        }
+
+        return shorter.length >= 8 && longer.contains(shorter)
+    }
+
+    /**
+     * Prefer the plain label or disc 1 when several installed ROMs collapse to the same
+     * base title. That gives the first server download the filename DuckStation is most
+     * likely already using locally.
+     */
+    private fun ps1DiscPreference(name: String): Int {
+        val lower = name.lowercase()
+        return when {
+            Regex("""\b(disc|cd)\s*1\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower) -> 0
+            !Regex("""\b(disc|cd)\s*[0-9]+\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower) -> 1
+            else -> 2
+        }
+    }
+
+    /**
+     * DuckStation commonly names per-game cards from a No-Intro-like title, but without
+     * disc markers. Keep the rest of the visible title intact so the generated filename
+     * stays readable and close to what the emulator is already likely using.
+     */
+    private fun duckStationPs1CardBaseName(name: String): String {
+        return name
+            .replace(Regex("""\s*[\(\[]\s*(disc|cd)\s*[0-9]+(?:\s*of\s*[0-9]+)?\s*[\)\]]""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+    }
+
+    private suspend fun lookupServerTitleTypes(
+        api: SaveSyncApi,
+        titles: List<com.savesync.android.api.TitleInfo>
+    ): Map<String, Pair<String, String>> {
+        val codes = titles.mapNotNull { titleInfo ->
+            val code = titleInfo.title_id.uppercase()
+            code.takeIf { compactPsCodeRegex.matches(it) }
+        }.distinct()
+        if (codes.isEmpty()) return emptyMap()
+
+        return try {
+            val response = api.lookupGameNames(GameNameRequest(codes = codes))
+            codes.mapNotNull { code ->
+                val type = response.types[code] ?: return@mapNotNull null
+                val name = response.names[code] ?: code
+                code to (type to name)
+            }.toMap()
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
 
     /**
      * For server titles that couldn't be matched directly, tries to find a local ROM
@@ -445,8 +898,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val engine = SyncEngine(api, db, consoleId)
                 // Only sync local saves (exclude server-only entries)
                 val romScanDir = currentSettings.romScanDir
+                val dolphinMemCardDir = currentSettings.dolphinMemCardDir
                 val allLocalSaves = _allSaves.value.filter { !it.isServerOnly }.ifEmpty {
-                    EmulatorRegistry.discoverAllSaves(romScanDir = romScanDir).also { found ->
+                    EmulatorRegistry.discoverAllSaves(romScanDir = romScanDir, dolphinMemCardDir = dolphinMemCardDir).also { found ->
                         _allSaves.value = found
                     }
                 }
@@ -471,7 +925,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         apiKey: String,
         autoSync: Boolean,
         intervalMinutes: Int,
-        romScanDir: String = ""
+        romScanDir: String = "",
+        dolphinMemCardDir: String = ""
     ) {
         viewModelScope.launch {
             settingsStore.updateSettings(
@@ -479,7 +934,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 apiKey = apiKey,
                 autoSyncEnabled = autoSync,
                 autoSyncIntervalMinutes = intervalMinutes,
-                romScanDir = romScanDir
+                romScanDir = romScanDir,
+                dolphinMemCardDir = dolphinMemCardDir
             )
             ApiClient.invalidate()
             scheduleOrCancelAutoSync(autoSync, intervalMinutes)
@@ -519,10 +975,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _serverMeta.value = ServerMetaState.Loading
             try {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val meta = if (systemName == "PS1" && !titleId.contains('_')) {
-                    api.getPs1CardMeta(titleId, slot = 0)
-                } else {
-                    api.getSaveMeta(titleId)
+                val meta = when {
+                    systemName == "PS1" && !titleId.contains('_') ->
+                        api.getPs1CardMeta(titleId, slot = 0)
+                    systemName == "PS2" && !titleId.contains('_') ->
+                        api.getPs2CardMeta(titleId, format = "ps2")
+                    systemName == "GC" && titleId.startsWith("GC_") ->
+                        api.getGcCardMeta(titleId)
+                    else -> api.getSaveMeta(titleId)
                 }
                 _serverMeta.value = ServerMetaState.Found(
                     hash = meta.save_hash ?: "—",

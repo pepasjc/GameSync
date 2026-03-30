@@ -16,11 +16,24 @@ import java.io.File
 class DuckStationEmulator(
     private val romScanDir: String = ""
 ) : EmulatorBase() {
+    companion object {
+        fun findMemcardsDir(baseDir: File, allowNonExistent: Boolean = false): File? {
+            val primary = File(baseDir, "Android/data/com.github.stenzek.duckstation/files/memcards")
+            return if (primary.exists() && primary.isDirectory) {
+                primary
+            } else if (allowNonExistent) {
+                primary
+            } else {
+                null
+            }
+        }
+    }
 
     override val name: String = "DuckStation"
     override val systemPrefix: String = "PS1"
 
     private val mcdExtensions = setOf("mcd", "mcr")
+    private val romExtensions = setOf("iso", "bin", "cue", "img", "mdf", "chd", "pbp")
 
     // Shared / global memory card names to skip
     private val sharedCardNames = setOf(
@@ -35,6 +48,14 @@ class DuckStationEmulator(
     private val serialRegex = Regex("^[A-Z]{4}\\d{5,}$")
 
     /**
+     * Serial-backed entries are stronger than slug-backed ones because they match the
+     * server title ID directly. This matters for BIN/CUE folders where the BIN may be
+     * seen first and fall back to a slug, but the paired CUE can still resolve the
+     * correct product code a moment later.
+     */
+    private fun isSerialTitleId(titleId: String): Boolean = serialRegex.matches(titleId)
+
+    /**
      * Normalizes a memory-card filename stem to a bare PS1 product code.
      * e.g. "SLUS-01234" → "SLUS01234", "SCUS_94163" → "SCUS94163"
      * Returns null if the result doesn't match the expected format.
@@ -45,14 +66,7 @@ class DuckStationEmulator(
     }
 
     private fun findMemcardsDir(allowNonExistent: Boolean = false): File? {
-        val candidates = listOf(
-            File(baseDir, "Android/data/com.github.stenzek.duckstation/files/memcards"),
-            File(baseDir, "Android/data/org.duckstation.duckstation/files/memcards"),
-            File(baseDir, "DuckStation/memcards"),
-            File(baseDir, "duckstation/memcards"),
-        )
-        return candidates.firstOrNull { it.exists() && it.isDirectory }
-            ?: if (allowNonExistent) candidates.firstOrNull() else null
+        return findMemcardsDir(baseDir, allowNonExistent)
     }
 
     private fun ps1RomDirs(scanRoot: File): List<File> {
@@ -62,8 +76,29 @@ class DuckStationEmulator(
         ).map { File(scanRoot, it) }.filter { it.exists() && it.isDirectory }
     }
 
+    /**
+     * Keeps the generated DuckStation card name close to what the emulator already uses.
+     *
+     * If the ROM lives inside a dedicated game folder that contains one or more disc
+     * images, we use that leaf folder name. Otherwise we fall back to the ROM filename
+     * itself so category folders like `Racing/` do not become bogus card names.
+     */
+    private fun romLabelFor(systemDir: File, romFile: File): String {
+        val parent = romFile.parentFile ?: return romFile.nameWithoutExtension
+        if (parent == systemDir) return romFile.nameWithoutExtension
+
+        val imageCount = parent.listFiles()
+            ?.count { it.isFile && it.extension.lowercase() in romExtensions }
+            ?: 0
+
+        return if (imageCount >= 1) parent.name else romFile.nameWithoutExtension
+    }
+
     private fun buildRomEntry(memcardsDir: File, label: String, romFile: File): Pair<String, SaveEntry>? {
-        val titleId = readPs1Serial(romFile) ?: toPs1TitleId(label)
+        val titleId = readPs1Serial(romFile)
+            ?: normalizeSerial(romFile.nameWithoutExtension)
+            ?: normalizeSerial(label)
+            ?: toPs1TitleId(label)
         val saveFile = File(memcardsDir, "${label}_1.mcd")
         return titleId to SaveEntry(
             titleId = titleId,
@@ -118,21 +153,30 @@ class DuckStationEmulator(
 
         val result = mutableMapOf<String, SaveEntry>()
         ps1RomDirs(scanRoot).forEach { systemDir ->
-            systemDir.listFiles()?.forEach { entry ->
-                when {
-                    entry.isFile && entry.extension.lowercase() in setOf("iso", "bin", "cue", "img", "mdf") -> {
-                        val romEntry = buildRomEntry(memcardsDir, entry.nameWithoutExtension, entry) ?: return@forEach
-                        result.putIfAbsent(romEntry.first, romEntry.second)
+            systemDir.walkTopDown()
+                .filter { it.isFile && it.extension.lowercase() in romExtensions }
+                .forEach { romFile ->
+                    // CHD/PBP cannot currently provide a serial through our lightweight parser,
+                    // but they still need to participate in ROM anchoring so server-only saves
+                    // can land in DuckStation's expected per-game filename.
+                    val label = romLabelFor(systemDir, romFile)
+                    val romEntry = buildRomEntry(memcardsDir, label, romFile) ?: return@forEach
+                    val (titleId, saveEntry) = romEntry
+
+                    // If a later pass finds the real serial for a title we previously saw
+                    // only as a slug, replace the weaker slug mapping with the serial one.
+                    if (isSerialTitleId(titleId)) {
+                        result.entries
+                            .firstOrNull { (_, existing) ->
+                                existing.systemName == systemPrefix &&
+                                !isSerialTitleId(existing.titleId) &&
+                                existing.displayName.equals(saveEntry.displayName, ignoreCase = true)
+                            }
+                            ?.let { stale -> result.remove(stale.key) }
                     }
-                    entry.isDirectory -> {
-                        val disc = entry.listFiles()
-                            ?.firstOrNull { it.isFile && it.extension.lowercase() in setOf("iso", "bin", "cue", "img", "mdf") }
-                            ?: return@forEach
-                        val romEntry = buildRomEntry(memcardsDir, entry.name, disc) ?: return@forEach
-                        result.putIfAbsent(romEntry.first, romEntry.second)
-                    }
+
+                    result.putIfAbsent(titleId, saveEntry)
                 }
-            }
         }
         return result
     }

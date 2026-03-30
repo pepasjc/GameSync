@@ -26,7 +26,8 @@ from config import DEVICE_TYPES, SYSTEM_CHOICES
 # Constants
 # ---------------------------------------------------------------------------
 
-SINGLE_SYSTEM_DEVICES = {"Generic", "Everdrive", "MEGA EverDrive"}
+SINGLE_SYSTEM_DEVICES = {"Generic", "Everdrive", "MEGA EverDrive", "MemCard Pro", "CD Folder"}
+MEMCARD_PRO_SYSTEMS = ["PS1", "PS2", "GC", "DC"]
 
 # Relevant systems per multi-system device type (ordered by popularity)
 DEVICE_SYSTEMS: dict[str, list[str]] = {
@@ -54,7 +55,7 @@ DEVICE_DEFAULT_EXT: dict[str, str] = {
     "EmuDeck":          ".srm",
 }
 
-SAVE_EXT_OPTIONS = [".sav", ".srm", ".mcr", ".frz", ".fs", ".mcd", ".dsv"]
+SAVE_EXT_OPTIONS = [".sav", ".srm", ".mcr", ".frz", ".fs", ".mcd", ".mc2", ".dsv", ".raw"]
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +96,7 @@ class ProfileDialog(QDialog):
     def __init__(self, profile: dict | None = None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Sync Profile" if profile else "Add Sync Profile")
+        self._loading = False
         self._init_ui()
         if profile:
             self._load(profile)
@@ -130,7 +132,8 @@ class ProfileDialog(QDialog):
         browse_game_btn.clicked.connect(self._browse_game_folder)
         game_layout.addWidget(self.game_folder_edit)
         game_layout.addWidget(browse_game_btn)
-        form.addRow("Game Folder:", game_row)
+        self._game_folder_label = QLabel("Game Folder:")
+        form.addRow(self._game_folder_label, game_row)
 
         # ── Single-system section (Generic / Everdrive) ────────────────
         self._single_widget = QWidget()
@@ -181,6 +184,23 @@ class ProfileDialog(QDialog):
         sep_layout.addWidget(browse_save_btn)
         sep_layout.addWidget(clear_save_btn)
         layout.addRow("Save Folder:", sep_row)
+
+        # Redump DAT file (optional, only shown for CD Folder profiles)
+        dat_row = QWidget()
+        dat_layout = QHBoxLayout(dat_row)
+        dat_layout.setContentsMargins(0, 0, 0, 0)
+        self.dat_file_edit = QLineEdit()
+        self.dat_file_edit.setPlaceholderText("Optional Redump DAT for canonical game names…")
+        browse_dat_btn = QPushButton("Browse…")
+        browse_dat_btn.clicked.connect(self._browse_dat_file)
+        clear_dat_btn = QPushButton("Clear")
+        clear_dat_btn.clicked.connect(self.dat_file_edit.clear)
+        dat_layout.addWidget(self.dat_file_edit)
+        dat_layout.addWidget(browse_dat_btn)
+        dat_layout.addWidget(clear_dat_btn)
+        self._dat_row_label = QLabel("Redump DAT:")
+        layout.addRow(self._dat_row_label, dat_row)
+        self._dat_row_widget = dat_row
 
     def _build_multi_section(self):
         layout = QVBoxLayout(self._multi_widget)
@@ -258,12 +278,62 @@ class ProfileDialog(QDialog):
         is_single = device_type in SINGLE_SYSTEM_DEVICES
         self._single_widget.setVisible(is_single)
         self._multi_widget.setVisible(not is_single)
+
+        is_memcard = device_type == "MemCard Pro"
+        self._set_single_system_choices(device_type)
+        # Show Redump DAT field only for CD Folder profiles
+        is_cd = device_type == "CD Folder"
+        self._dat_row_label.setVisible(is_cd)
+        self._dat_row_widget.setVisible(is_cd)
+        self._game_folder_label.setText("Root Folder:" if is_memcard else "Game Folder:")
+        if is_memcard:
+            self.game_folder_edit.setPlaceholderText("MemCard Pro root folder or MemoryCards folder...")
+            self.single_save_folder_edit.setPlaceholderText("Leave empty — not used for MemCard Pro")
+        else:
+            self.game_folder_edit.setPlaceholderText("Root game / ROM folder...")
+            self.single_save_folder_edit.setPlaceholderText("Leave empty — saves are in same folder as games")
+
+        # Card-manager and CD-folder profiles default to PS1 + .mcd.
+        if (is_cd or is_memcard) and not self._loading:
+            self._apply_single_system_defaults("PS1")
+
         if is_single:
             self.setMinimumSize(480, 0)
         else:
             self.setMinimumSize(580, 520)
             self._populate_systems_table(device_type)
         self.adjustSize()
+
+    def _set_single_system_choices(self, device_type: str) -> None:
+        """Restrict the system picker for device-specific single-system profiles."""
+        current = self.system_combo.currentText()
+        choices = MEMCARD_PRO_SYSTEMS if device_type == "MemCard Pro" else SYSTEM_CHOICES
+        self.system_combo.blockSignals(True)
+        self.system_combo.clear()
+        self.system_combo.addItems(choices)
+        if current in choices:
+            self.system_combo.setCurrentText(current)
+        elif choices:
+            self.system_combo.setCurrentIndex(0)
+        self.system_combo.blockSignals(False)
+
+    def _apply_single_system_defaults(self, system: str) -> None:
+        """Apply sensible defaults when a profile implies a specific system."""
+        idx = self.system_combo.findText(system)
+        if idx >= 0:
+            self.system_combo.setCurrentIndex(idx)
+        default_ext = {
+            "PS1": ".mcd",
+            "PS2": ".mc2",
+            "GC": ".raw",
+            "DC": ".bin",
+        }.get(system)
+        if default_ext:
+            ext_idx = self.save_ext_combo.findText(default_ext)
+            if ext_idx >= 0:
+                self.save_ext_combo.setCurrentIndex(ext_idx)
+            else:
+                self.save_ext_combo.setCurrentText(default_ext)
 
     def _on_system_selection_changed(self):
         has_selection = bool(self.systems_table.selectedItems())
@@ -367,53 +437,68 @@ class ProfileDialog(QDialog):
         if folder:
             self.multi_save_folder_edit.setText(folder)
 
+    def _browse_dat_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Redump DAT File", "", "DAT Files (*.dat);;All Files (*)"
+        )
+        if path:
+            self.dat_file_edit.setText(path)
+
     # ------------------------------------------------------------------
     # Load / save profile data
     # ------------------------------------------------------------------
 
     def _load(self, profile: dict):
-        self.name_edit.setText(profile.get("name", ""))
+        self._loading = True
+        try:
+            self.name_edit.setText(profile.get("name", ""))
 
-        idx = self.device_combo.findText(profile.get("device_type", "Generic"))
-        if idx >= 0:
-            self.device_combo.setCurrentIndex(idx)
-
-        self.game_folder_edit.setText(profile.get("path", ""))
-
-        device_type = profile.get("device_type", "Generic")
-
-        if device_type in SINGLE_SYSTEM_DEVICES:
-            idx = self.system_combo.findText(profile.get("system", "GBA"))
+            idx = self.device_combo.findText(profile.get("device_type", "Generic"))
             if idx >= 0:
-                self.system_combo.setCurrentIndex(idx)
-            self.save_ext_combo.setCurrentText(profile.get("save_ext", ".sav"))
-            self.single_save_folder_edit.setText(profile.get("save_folder", ""))
-        else:
-            self.multi_save_folder_edit.setText(profile.get("save_folder", ""))
+                self.device_combo.setCurrentIndex(idx)
 
-            # Build existing dict from whichever format the profile uses
-            existing: dict[str, dict] = {}
-            if "systems" in profile:
-                # New format
-                for s in profile["systems"]:
-                    existing[s["system"]] = s
-            elif "systems_filter" in profile:
-                # Old format: systems_filter is a list of enabled system codes
-                sf = set(profile.get("systems_filter") or [])
-                all_systems = DEVICE_SYSTEMS.get(device_type, list(SYSTEM_CHOICES))
-                if sf:
-                    for s in all_systems:
-                        existing[s] = {"enabled": s in sf, "save_ext": profile.get("save_ext", ".sav")}
-                # If sf is empty, all systems enabled — leave existing empty so defaults apply
+            self.game_folder_edit.setText(profile.get("path", ""))
 
-            self._populate_systems_table(device_type, existing or None)
+            device_type = profile.get("device_type", "Generic")
+
+            if device_type in SINGLE_SYSTEM_DEVICES:
+                idx = self.system_combo.findText(profile.get("system", "GBA"))
+                if idx >= 0:
+                    self.system_combo.setCurrentIndex(idx)
+                self.save_ext_combo.setCurrentText(profile.get("save_ext", ".sav"))
+                self.single_save_folder_edit.setText(profile.get("save_folder", ""))
+                if device_type == "CD Folder":
+                    self.dat_file_edit.setText(profile.get("dat_path", ""))
+            else:
+                self.multi_save_folder_edit.setText(profile.get("save_folder", ""))
+
+                # Build existing dict from whichever format the profile uses
+                existing: dict[str, dict] = {}
+                if "systems" in profile:
+                    # New format
+                    for s in profile["systems"]:
+                        existing[s["system"]] = s
+                elif "systems_filter" in profile:
+                    # Old format: systems_filter is a list of enabled system codes
+                    sf = set(profile.get("systems_filter") or [])
+                    all_systems = DEVICE_SYSTEMS.get(device_type, list(SYSTEM_CHOICES))
+                    if sf:
+                        for s in all_systems:
+                            existing[s] = {"enabled": s in sf, "save_ext": profile.get("save_ext", ".sav")}
+                    # If sf is empty, all systems enabled — leave existing empty so defaults apply
+
+                self._populate_systems_table(device_type, existing or None)
+        finally:
+            self._loading = False
 
     def _accept(self):
         if not self.name_edit.text().strip():
             QMessageBox.warning(self, "Validation", "Profile name is required.")
             return
         if not self.game_folder_edit.text().strip():
-            QMessageBox.warning(self, "Validation", "Game folder path is required.")
+            device_type = self.device_combo.currentText()
+            message = "Root folder path is required." if device_type == "MemCard Pro" else "Game folder path is required."
+            QMessageBox.warning(self, "Validation", message)
             return
         self.accept()
 
@@ -430,12 +515,17 @@ class ProfileDialog(QDialog):
             ext = self.save_ext_combo.currentText().strip()
             if not ext.startswith("."):
                 ext = "." + ext
-            return {
+            result = {
                 **base,
                 "save_folder": self.single_save_folder_edit.text().strip(),
                 "system":      self.system_combo.currentText(),
                 "save_ext":    ext or ".sav",
             }
+            if device_type == "CD Folder":
+                dat_path = self.dat_file_edit.text().strip()
+                if dat_path:
+                    result["dat_path"] = dat_path
+            return result
         else:
             systems = []
             for row in range(self.systems_table.rowCount()):

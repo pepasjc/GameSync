@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -24,6 +25,57 @@ from PyQt6.QtGui import QColor
 from config import load_config, SYSTEM_CHOICES
 
 
+# Regex to extract a disc number from a folder name — used to restore the
+# correct disc tag after a disc-agnostic fuzzy match.
+_DISC_NUMBER_RE = re.compile(r'\((?:Disc|Disk|CD)\s*(\d+)\)', re.IGNORECASE)
+
+# CD image file extensions — presence of any of these marks a subfolder as a disc
+_CD_DATA_EXTS = frozenset({".iso", ".bin", ".img", ".mdf", ".chd"})
+_CD_ALL_EXTS  = frozenset({".cue", ".iso", ".bin", ".img", ".mdf", ".chd"})
+
+
+def _find_cd_data_file(game_dir: Path) -> "Path | None":
+    """Return the best file to CRC-fingerprint for a CD game folder.
+
+    Preference order:
+      1. Track 01 .bin referenced by the first .cue file (most accurate for Redump)
+      2. First .iso file
+      3. First .bin file (fallback when no .cue present)
+
+    Returns None if no usable file is found.
+    """
+    try:
+        files = list(game_dir.iterdir())
+    except OSError:
+        return None
+
+    # Look for a .cue and parse its first FILE reference
+    for cue in sorted(f for f in files if f.suffix.lower() == ".cue"):
+        try:
+            for line in cue.read_text(encoding="utf-8", errors="replace").splitlines():
+                stripped = line.strip()
+                if stripped.upper().startswith("FILE"):
+                    # FILE "name.bin" BINARY  or  FILE name.bin BINARY
+                    name = stripped.split('"')[1] if '"' in stripped else stripped.split()[1]
+                    bin_path = game_dir / name
+                    if bin_path.exists():
+                        return bin_path
+        except Exception:
+            pass
+
+    # Fallback: first .iso
+    for f in sorted(files):
+        if f.is_file() and f.suffix.lower() == ".iso":
+            return f
+
+    # Fallback: first .bin
+    for f in sorted(files):
+        if f.is_file() and f.suffix.lower() == ".bin":
+            return f
+
+    return None
+
+
 class NormalizeScanWorker(QThread):
     finished = pyqtSignal(list)   # list of dicts: old, new, source, subfolder
     progress = pyqtSignal(str)
@@ -44,6 +96,85 @@ class NormalizeScanWorker(QThread):
         name_index = rn.build_name_index(self.no_intro) if self.no_intro else {}
 
         is_mega_everdrive = self.device_type == "MEGA EverDrive"
+        is_cd_folder = self.device_type == "CD Folder"
+
+        # ── CD Folder mode: scan game subdirectories, not individual track files ──
+        if is_cd_folder:
+            try:
+                subfolders = sorted(
+                    d for d in self.folder.iterdir() if d.is_dir()
+                )
+            except OSError:
+                self.finished.emit([])
+                return
+
+            results = []
+            total = len(subfolders)
+            for i, game_dir in enumerate(subfolders):
+                self.progress.emit(f"Scanning {i + 1}/{total}: {game_dir.name}")
+
+                # Skip folders with no CD image files
+                try:
+                    has_cd = any(
+                        f.is_file() and f.suffix.lower() in _CD_ALL_EXTS
+                        for f in game_dir.iterdir()
+                    )
+                except OSError:
+                    has_cd = False
+                if not has_cd:
+                    continue
+
+                source = "filename"
+                new_stem = game_dir.name   # default: no rename
+
+                if self.no_intro:
+                    # Step 1: CRC match on the data track file
+                    data_file = _find_cd_data_file(game_dir)
+                    if data_file:
+                        self.progress.emit(
+                            f"CRC: {i + 1}/{total}: {game_dir.name} ({data_file.name})"
+                        )
+                        try:
+                            crc = rn._crc32_file(data_file)
+                            canonical = self.no_intro.get(crc)
+                            if canonical:
+                                new_stem = canonical
+                                source = "No-Intro"
+                        except Exception:
+                            pass
+
+                    # Step 2: fuzzy folder-name match (fallback)
+                    if source == "filename":
+                        canonical = rn.fuzzy_filename_search(game_dir.name, name_index)
+                        if canonical:
+                            # Restore the correct disc number from the actual folder name
+                            disc_m = _DISC_NUMBER_RE.search(game_dir.name)
+                            if disc_m:
+                                disc_num = disc_m.group(1)
+                                canonical = _DISC_NUMBER_RE.sub(
+                                    f"(Disc {disc_num})", canonical
+                                )
+                            new_stem = canonical
+                            source = "Fuzzy"
+
+                    # Step 3: normalize fallback (if enabled)
+                    if source == "filename" and self.normalize_fallback:
+                        new_stem = rn.normalize_name(game_dir.name)
+                        # source stays "filename" (yellow)
+
+                new_dir = game_dir.parent / new_stem
+                if new_dir != game_dir:
+                    results.append({
+                        "old": game_dir,
+                        "new": new_dir,
+                        "source": source,
+                        "subfolder": "",
+                        "companions": [],
+                        "has_save": False,
+                    })
+
+            self.finished.emit(results)
+            return
 
         # Pre-index save files from the save folder (stem → list of Path).
         # Using rglob so nested structures (e.g. Pocket's snes/common/all/A-F/) are
@@ -243,7 +374,7 @@ class RomNormalizerTab(QWidget):
         save_folder_row.addWidget(clear_save_btn)
         save_folder_row.addWidget(QLabel("Device:"))
         self.device_combo = QComboBox()
-        self.device_combo.addItems(["Standard", "MEGA EverDrive"])
+        self.device_combo.addItems(["Standard", "MEGA EverDrive", "CD Folder"])
         self.device_combo.currentTextChanged.connect(self._on_device_changed)
         save_folder_row.addWidget(self.device_combo)
         layout.addLayout(save_folder_row)
@@ -359,7 +490,12 @@ class RomNormalizerTab(QWidget):
         device_type = profile.get("device_type", "")
 
         # Set device combo — triggers _on_device_changed which updates label/placeholder
-        combo_device = "MEGA EverDrive" if device_type == "MEGA EverDrive" else "Standard"
+        if device_type == "MEGA EverDrive":
+            combo_device = "MEGA EverDrive"
+        elif device_type == "CD Folder":
+            combo_device = "CD Folder"
+        else:
+            combo_device = "Standard"
         self.device_combo.setCurrentText(combo_device)
 
         self.folder_edit.setText(profile.get("path", ""))
@@ -372,13 +508,30 @@ class RomNormalizerTab(QWidget):
             if idx >= 0:
                 self.system_combo.setCurrentIndex(idx)
 
+        # For CD Folder profiles, auto-load the Redump DAT if one is configured
+        if device_type == "CD Folder":
+            dat_path_str = profile.get("dat_path", "")
+            if dat_path_str:
+                dat_path = Path(dat_path_str)
+                if dat_path.exists():
+                    self._load_dat(dat_path)
+
     def _on_device_changed(self, device: str):
         if device == "MEGA EverDrive":
             self.save_folder_label.setText("Gamedata Folder:")
             self.save_folder_edit.setPlaceholderText("Path to gamedata/ folder (e.g. J:/MEGA/gamedata)")
+        elif device == "CD Folder":
+            self.save_folder_label.setText("Save Folder:")
+            self.save_folder_edit.setPlaceholderText(
+                "Optional — separate save folder (e.g. DuckStation memcards/)"
+            )
+            self.folder_edit.setPlaceholderText(
+                "CD game folder — each subfolder is one disc (e.g. J:/PS1)"
+            )
         else:
             self.save_folder_label.setText("Save Folder:")
             self.save_folder_edit.setPlaceholderText("Optional — separate save folder (e.g. Everdrive SAVE/ dir)...")
+            self.folder_edit.setPlaceholderText("Path to ROM/save folder (searched recursively)...")
         self._device_type = device
 
     def _browse_save_folder(self):

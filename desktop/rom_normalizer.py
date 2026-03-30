@@ -233,11 +233,12 @@ _SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
     "LYNX":      ["Lynx"],
     "WSWAN":     ["WonderSwan"],
     "SAT":       ["Sega - Saturn", "Saturn"],
+    "SEGACD":    ["Sega - Mega-CD", "Mega-CD", "Sega CD"],
     "PS1":       ["Sony - PlayStation"],
     "PS2":       ["Sony - PlayStation 2"],
     "PSP":       ["Sony - PlayStation Portable"],
     "PS3":       ["Sony - PlayStation 3"],
-    "DC":        ["Dreamcast"],
+    "DC":        ["Sega - Dreamcast", "Dreamcast"],
     "GC":        ["GameCube", "Gamecube"],
     "NDS":       ["Nintendo DS"],
     "ATARI2600": ["Atari 2600"],
@@ -245,6 +246,104 @@ _SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
 }
 
 DATS_DIR = Path(__file__).parent / "dats"
+
+
+def load_redump_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """Parse a Redump XML DAT file for disc-based systems (PS1, Saturn, Dreamcast, etc.).
+
+    Redump DATs share the same XML structure as No-Intro but each <game> entry may
+    contain multiple <rom> elements — one per CD track.  This function maps every
+    track's CRC32 to its game name, and also builds a disc-agnostic name index.
+
+    Returns:
+        (crc_to_name, disc_agnostic_index)
+
+        crc_to_name:
+            CRC32 (8-char uppercase hex) → canonical Redump game name.
+            ANY track's CRC maps to the full game name (including disc tag).
+            e.g. ``"AB12CD34"`` → ``"Parasite Eve (USA) (Disc 1)"``
+
+        disc_agnostic_index:
+            Disc-agnostic slug → canonical name with disc tag stripped.
+            Used for folder-name matching without a CRC.
+            e.g. ``"parasite_eve"`` → ``"Parasite Eve (USA)"``
+            Multi-disc duplicates are resolved by region priority (USA > Japan > Europe).
+    """
+    try:
+        tree = ET.parse(dat_path)
+    except Exception as e:
+        print(f"WARNING: Could not parse Redump DAT file: {e}")
+        return {}, {}
+
+    crc_to_name: dict[str, str] = {}
+    disc_agnostic: dict[str, str] = {}
+    disc_priority: dict[str, int] = {}
+
+    root = tree.getroot()
+    for game in root.findall(".//game"):
+        name = game.get("name", "")
+        if not name:
+            continue
+        # Map every track CRC to this game's full name
+        for rom in game.findall("rom"):
+            crc = rom.get("crc", "").upper()
+            if crc:
+                crc_to_name[crc] = name
+
+        # Build disc-agnostic index: strip disc tag, then normalize
+        name_no_disc = _DISC_RE.sub("", name).strip()
+        slug = normalize_name(name_no_disc)
+        if not slug:
+            continue
+        p = _region_priority(name)
+        if slug not in disc_agnostic:
+            disc_agnostic[slug] = name_no_disc
+            disc_priority[slug] = p
+        else:
+            existing_p = disc_priority[slug]
+            if p < existing_p or (
+                p == existing_p
+                and _tag_count(name_no_disc) < _tag_count(disc_agnostic[slug])
+            ):
+                disc_agnostic[slug] = name_no_disc
+                disc_priority[slug] = p
+
+    return crc_to_name, disc_agnostic
+
+
+def build_redump_name_index(crc_to_name: dict[str, str]) -> dict[str, str]:
+    """Build a disc-agnostic slug → canonical name index from a Redump CRC dict.
+
+    Convenience wrapper: accepts the first value returned by ``load_redump_dat``
+    and produces the same disc-agnostic index as the second return value.
+
+    Useful when you already have a ``crc_to_name`` dict and need the folder-name
+    lookup index separately.
+
+    Returns:
+        ``{disc_agnostic_slug: canonical_name_without_disc_tag}``
+        e.g. ``{"parasite_eve": "Parasite Eve (USA)"}``
+    """
+    disc_agnostic: dict[str, str] = {}
+    disc_priority: dict[str, int] = {}
+    for name in crc_to_name.values():
+        name_no_disc = _DISC_RE.sub("", name).strip()
+        slug = normalize_name(name_no_disc)
+        if not slug:
+            continue
+        p = _region_priority(name)
+        if slug not in disc_agnostic:
+            disc_agnostic[slug] = name_no_disc
+            disc_priority[slug] = p
+        else:
+            existing_p = disc_priority[slug]
+            if p < existing_p or (
+                p == existing_p
+                and _tag_count(name_no_disc) < _tag_count(disc_agnostic[slug])
+            ):
+                disc_agnostic[slug] = name_no_disc
+                disc_priority[slug] = p
+    return disc_agnostic
 
 
 def find_dat_for_system(system: str) -> Path | None:

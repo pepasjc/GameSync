@@ -1,7 +1,8 @@
 """Sync engine for ROM-based save syncing (RetroArch, MiSTer, Analogue Pocket, etc.).
 
 Standalone module — does not import from the server codebase.
-Uses the server's raw save API for upload/download.
+Uses dedicated server save endpoints when a platform needs format-aware
+conversion (for example PS1/PS2 memory cards), and `/raw` for simpler systems.
 """
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import struct
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -212,7 +214,12 @@ POCKET_OPENFPGA_FOLDER_MAP: dict[str, str] = {
 }
 
 # Save file extensions to consider
-SAVE_EXTENSIONS = {".sav", ".srm", ".mcr", ".frz", ".fs", ".mcd", ".dsv", ".ps2"}
+SAVE_EXTENSIONS = {".sav", ".srm", ".mcr", ".frz", ".fs", ".mcd", ".dsv", ".ps2", ".mc2", ".raw"}
+
+# CD game image extensions — presence of any of these inside a subfolder marks it as a CD game
+CD_ROM_EXTENSIONS: frozenset[str] = frozenset({
+    ".cue", ".iso", ".bin", ".img", ".mdf", ".chd",
+})
 
 # ROM file extensions used when scanning ROM folders (Pocket openFPGA etc.)
 ROM_EXTENSIONS = {
@@ -676,9 +683,15 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
         results = _scan_emudeck(folder, progress_callback=progress_callback, profile_scope=profile_scope)
 
     elif device_type == "MemCard Pro":
-        # MemCard Pro SD card: per-game PS1 memory cards in VIRTUAL MEMORY CARDS/<SERIAL>/
-        # or flat *.mcd files in the root.  path (or save_folder) points to the SD card root.
-        results = _scan_memcard_pro(folder, progress_callback=progress_callback, profile_scope=profile_scope)
+        # MemCard Pro is a card-manager profile, not a ROM folder. The selected
+        # system determines which card layout to scan inside the chosen root.
+        if system_override in {"PS1", "PS2", "GC", "DC"}:
+            results = _scan_memcard_pro(
+                folder,
+                system_override,
+                progress_callback=progress_callback,
+                profile_scope=profile_scope,
+            )
 
     elif device_type == "MEGA EverDrive":
         # MEGA EverDrive Pro: gamedata/<Game Name>/bram.srm layout.
@@ -690,6 +703,32 @@ def scan_profile(profile: dict, progress_callback=None, enable_auto_normalize: b
                 system_override,
                 progress_callback=progress_callback,
                 enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
+            )
+
+    elif device_type == "CD Folder":
+        # CD Folder: game_root/<Game Name (Region) (Disc N)>/ structure.
+        # Each subfolder containing a .cue/.iso/.bin/.chd file is one disc.
+        # Multi-disc games share a single server slot (disc tags stripped from title_id).
+        # Optional Redump DAT provides canonical game names.
+        if rom_folder and rom_folder.exists():
+            redump_index: Optional[dict[str, str]] = None
+            dat_path_str = profile.get("dat_path", "")
+            if dat_path_str:
+                dat_file = Path(dat_path_str)
+                if dat_file.exists():
+                    try:
+                        import rom_normalizer as _rn
+                        _, redump_index = _rn.load_redump_dat(dat_file)
+                    except Exception:
+                        pass
+            results = _scan_cd_game_folders(
+                rom_folder,
+                save_folder=save_folder if (save_folder and save_folder.exists()) else None,
+                system=system_override if system_override in SYSTEM_CODES else "PS1",
+                redump_index=redump_index,
+                save_ext=save_ext,
+                progress_callback=progress_callback,
                 profile_scope=profile_scope,
             )
 
@@ -1068,6 +1107,177 @@ def _scan_mega_everdrive(
     return _dedup_saves(results)
 
 
+def _scan_cd_game_folders(
+    game_root: Path,
+    save_folder: Optional[Path],
+    system: str,
+    redump_index: Optional[dict[str, str]] = None,
+    save_ext: str = ".mcd",
+    progress_callback=None,
+    profile_scope: str = "",
+) -> list[SaveFile]:
+    """Scan a folder-per-game CD ROM structure.
+
+    Expected layout::
+
+        game_root/
+            Parasite Eve (USA) (Disc 1)/     ← subfolder = one disc
+                Parasite Eve (USA) (Disc 1).cue
+                Parasite Eve (USA) (Disc 1) (Track 01).bin
+                ...
+            Parasite Eve (USA) (Disc 2)/
+                ...
+            Final Fantasy VII (USA)/         ← single-disc game
+                Final Fantasy VII (USA).iso
+
+    Each subdirectory that contains at least one CD image file (.cue, .iso, .bin,
+    .img, .mdf, .chd) is treated as a single disc.  Multi-disc games are grouped by
+    their disc-agnostic title ID (all parenthetical tags stripped via
+    ``normalize_rom_name()``) so all discs of a game share one server slot.
+
+    Title IDs use the same format as Android's ``toPs1TitleId()``:
+        ``"Parasite Eve (USA) (Disc 1)"`` → ``"PS1_parasite_eve"``
+
+    If a Redump disc-agnostic name index is provided (``{slug: canonical_name}``),
+    it is used for display names; otherwise the folder name is used (disc tag stripped).
+
+    The save file is located by matching the disc-agnostic slug against files in
+    ``save_folder`` (if given), or as a file inside the first disc subfolder.
+    Slot suffixes like ``_1``, ``_2`` are stripped from save stems before matching.
+    """
+    if not save_ext.startswith("."):
+        save_ext = "." + save_ext
+
+    all_save_exts = frozenset({save_ext, ".mcd", ".mcr", ".sav", ".srm", ".frz"})
+
+    # ── Index save_folder by disc-agnostic slug ───────────────────────────────
+    # slug -> best save path (prefer save_ext match, then others)
+    save_index: dict[str, Path] = {}
+    if save_folder and save_folder.exists():
+        try:
+            for f in sorted(save_folder.iterdir()):
+                if not f.is_file() or f.suffix.lower() not in all_save_exts:
+                    continue
+                # Strip slot suffix e.g. "_1" before normalizing
+                stem_no_slot = _MCD_SLOT_RE.sub("", f.stem)
+                slug = normalize_rom_name(stem_no_slot)
+                if not slug or slug == "unknown":
+                    continue
+                # Prefer save_ext match; otherwise keep first found
+                if slug not in save_index or f.suffix.lower() == save_ext:
+                    save_index[slug] = f
+        except OSError:
+            pass
+
+    # ── Discover disc subdirectories ──────────────────────────────────────────
+    # groups: disc_agnostic_slug -> {"display_name": str, "folders": [Path]}
+    groups: dict[str, dict] = {}
+    try:
+        candidates = sorted(game_root.iterdir())
+    except OSError:
+        return []
+
+    for entry in candidates:
+        if not entry.is_dir():
+            continue
+        # Check that this subfolder actually contains a CD image file
+        try:
+            has_cd = any(
+                f.is_file() and f.suffix.lower() in CD_ROM_EXTENSIONS
+                for f in entry.iterdir()
+            )
+        except OSError:
+            continue
+        if not has_cd:
+            continue
+
+        slug = normalize_rom_name(entry.name)
+        if not slug or slug == "unknown":
+            continue
+
+        if slug not in groups:
+            # Display name: folder name with disc tag stripped but region kept
+            display = _DISC_RE.sub("", entry.name).strip()
+            groups[slug] = {"display_name": display, "folders": [entry]}
+        else:
+            groups[slug]["folders"].append(entry)
+
+    if not groups:
+        return []
+
+    # ── Build one SaveFile per grouped game ───────────────────────────────────
+    results: list[SaveFile] = []
+    group_list = sorted(groups.items())
+    total = len(group_list)
+
+    for idx, (slug, info) in enumerate(group_list, start=1):
+        display_name = info["display_name"]
+        first_folder: Path = info["folders"][0]
+
+        # Canonical name from Redump index (e.g. "Parasite Eve (USA)") or folder name
+        canonical_name: Optional[str] = redump_index.get(slug) if redump_index else None
+        game_name = canonical_name or display_name
+
+        # Title ID: SYSTEM_slug — disc-agnostic, no region (matches Android toPs1TitleId)
+        title_id = f"{system}_{slug}"
+
+        # ── Locate save file ─────────────────────────────────────────────────
+        save_path: Optional[Path] = None
+        save_exists = False
+        file_hash = ""
+        mtime = 0.0
+
+        if slug in save_index:
+            # Found an existing save file in the save_folder
+            save_path = save_index[slug]
+            save_exists = save_path.exists()
+        elif save_folder is not None:
+            # Save_folder configured but no save yet — derive expected path
+            save_path = save_folder / f"{display_name}{save_ext}"
+        else:
+            # No separate save folder — look inside the first disc subfolder
+            for ext_try in (save_ext, ".mcd", ".mcr", ".sav", ".srm"):
+                candidate = first_folder / f"{first_folder.name}{ext_try}"
+                if candidate.exists():
+                    save_path = candidate
+                    save_exists = True
+                    break
+            if save_path is None:
+                # Expected path for future download
+                save_path = first_folder / f"{first_folder.name}{save_ext}"
+
+        if save_exists and save_path is not None and save_path.exists():
+            try:
+                file_hash = _hash_file(save_path)
+                mtime = save_path.stat().st_mtime
+            except OSError:
+                save_exists = False
+
+        results.append(SaveFile(
+            title_id=title_id,
+            path=save_path,
+            hash=file_hash,
+            mtime=mtime,
+            system=system,
+            game_name=game_name,
+            save_exists=save_exists,
+            legacy_title_id=title_id,
+            canonical_title_id=title_id,
+            title_id_source="cd_folder",
+            title_id_confidence="high" if canonical_name else "filename",
+            profile_scope=profile_scope,
+        ))
+
+        if idx == 1 or idx % 25 == 0 or idx == total:
+            _emit_progress(
+                progress_callback,
+                f"Scanning {system} CD folders… {idx}/{total}",
+                idx, total,
+            )
+
+    return results
+
+
 def _scan_mister(root: Path, progress_callback=None, enable_auto_normalize: bool = True, profile_scope: str = "") -> list[SaveFile]:
     """Scan MiSTer saves/<System>/ structure."""
     results = []
@@ -1245,6 +1455,19 @@ _PSX_RETAIL_PREFIXES: frozenset[str] = frozenset({
 
 _PS1_SERIAL_RE = re.compile(r"^([A-Z]{4})(\d{5,})$")
 
+# MemCard Pro GC: disc folders named e.g. DL-DOL-GBZE-USA
+_GC_DISC_ID_RE = re.compile(r"^DL-DOL-([A-Z0-9]{4})-[A-Z]{2,3}$")
+
+
+def _gc_code_from_folder(folder_name: str) -> str | None:
+    """Extract the 4-char GC game code from a MemCard Pro disc folder name.
+
+    "DL-DOL-GBZE-USA" → "GBZE"
+    Returns None if the folder name doesn't match the expected pattern.
+    """
+    m = _GC_DISC_ID_RE.match(folder_name.upper())
+    return m.group(1) if m else None
+
 
 def _normalize_ps1_serial(stem: str) -> str | None:
     """Normalize a PS1 memory-card filename stem to a bare product code.
@@ -1255,6 +1478,82 @@ def _normalize_ps1_serial(stem: str) -> str | None:
     """
     code = re.sub(r"[^A-Z0-9]", "", stem.upper())
     return code if _PS1_SERIAL_RE.match(code) else None
+
+
+# ---------------------------------------------------------------------------
+# GC memory card helpers (MemCard Pro ↔ Dolphin .gci conversion)
+# ---------------------------------------------------------------------------
+
+_GC_BLOCK_SIZE = 0x2000        # 8 192 bytes per GC block
+_GC_DIR1_OFFSET = 0x2000       # block 1 — primary directory
+_GC_DIR2_OFFSET = 0x4000       # block 2 — directory backup
+_GC_DENTRY_SIZE = 64           # bytes per directory entry
+_GC_MAX_ENTRIES = 127          # directory holds at most 127 entries
+# Within each 64-byte DEntry:
+#   [0:4]   game code (ASCII)
+#   [50:52] first_block (big-endian uint16) — absolute block index in card
+#   [52:54] block_count (big-endian uint16)
+_GC_DENTRY_GAMECODE_OFF = 0
+_GC_DENTRY_FIRST_BLOCK_OFF = 54   # 0x36  (filename field is 0x20 = 32 bytes, per Dolphin source)
+_GC_DENTRY_BLOCK_COUNT_OFF = 56   # 0x38
+
+
+def gc_extract_gci(card_bytes: bytes, game_code: str) -> bytes | None:
+    """Extract a single game's save data from an 8 MB GC memory card image.
+
+    Returns the canonical GCI layout: 64-byte directory entry header followed
+    by the raw data blocks, or None if the game code is not found.
+
+    ``game_code`` is the 4-character GC identifier (e.g. "GM4E").
+    """
+    code_bytes = game_code.upper().encode("ascii")
+    if len(code_bytes) != 4:
+        return None
+    if len(card_bytes) < _GC_DIR1_OFFSET + _GC_MAX_ENTRIES * _GC_DENTRY_SIZE:
+        return None
+
+    for i in range(_GC_MAX_ENTRIES):
+        entry_off = _GC_DIR1_OFFSET + i * _GC_DENTRY_SIZE
+        entry = card_bytes[entry_off : entry_off + _GC_DENTRY_SIZE]
+        if len(entry) < _GC_DENTRY_SIZE:
+            break
+        # Unused/deleted entries are 0xFF-filled
+        if entry[0:4] == b"\xff\xff\xff\xff":
+            continue
+        if entry[_GC_DENTRY_GAMECODE_OFF : _GC_DENTRY_GAMECODE_OFF + 4] != code_bytes:
+            continue
+        # Found the entry
+        first_block = struct.unpack_from(">H", entry, _GC_DENTRY_FIRST_BLOCK_OFF)[0]
+        block_count = struct.unpack_from(">H", entry, _GC_DENTRY_BLOCK_COUNT_OFF)[0]
+        data_start = first_block * _GC_BLOCK_SIZE
+        data_end = data_start + block_count * _GC_BLOCK_SIZE
+        if data_end > len(card_bytes):
+            return None
+        return entry + card_bytes[data_start:data_end]
+
+    return None
+
+
+def _should_use_ps1_card_endpoint(title_id: str, system: str | None = None) -> bool:
+    """Return True when this save should use the dedicated PS1 card endpoints.
+
+    PS1 and PS2 retail serials share the same basic shape (four letters plus
+    digits), so endpoint selection must prefer the explicit system when the
+    caller has it. The title-id-only fallback is kept for older call sites.
+    """
+    if system:
+        return system.upper() == "PS1"
+    return _normalize_ps1_serial(title_id) is not None
+
+
+def _should_use_ps2_card_endpoint(system: str | None = None) -> bool:
+    """Return True when this save should use the dedicated PS2 card endpoints.
+
+    PS2 retail serials overlap PS1 prefixes, so the explicit system is the only
+    safe signal here. The PS2 card API defaults to canonical `.mc2`, which is
+    what MemCard Pro expects locally.
+    """
+    return (system or "").upper() == "PS2"
 
 
 # MemCard Pro: known shared/global card names that hold all games (skip during per-title scan)
@@ -1676,29 +1975,194 @@ def _scan_emudeck(root: Path, progress_callback=None, profile_scope: str = "") -
 
 def _scan_memcard_pro(
     root: Path,
+    system: str = "PS1",
     progress_callback=None,
     profile_scope: str = "",
 ) -> list[SaveFile]:
-    """Scan a MemCard Pro SD card for PS1 per-game memory cards.
+    """Scan a MemCard Pro root for per-title memory cards.
 
-    Supports two directory layouts:
+    The profile points at the card manager root, not at a ROM folder.
 
-    Hierarchical (MemCard PRO firmware default):
-        <root>/VIRTUAL MEMORY CARDS/<SERIAL>/MemoryCard.mcd
-        e.g.  VIRTUAL MEMORY CARDS/SLUS-01234/MemoryCard.mcd
+    PS1 layout under ``MemoryCards/``:
 
-    Flat (some tools export as):
-        <root>/<SERIAL>.mcd  or  <root>/<SERIAL>.mcr
+        <root>/MemoryCards/SLUS-00594/
+            SLUS-00594.txt
+            SLUS-00594-1.mcd
+            ...
+            SLUS-00594-8.mcd
 
-    The game serial (e.g. ``SLUS-01234``) is used directly as the title ID
-    (``SLUS01234``) so it matches PSone Classics on PSP/Vita.  Shared/global
-    memory card names (``shared_card_1``, ``Mcd001``, etc.) are skipped.
+    PS2 layout under ``PS2/``:
+
+        <root>/PS2/SLUS-20002/
+            name.txt
+            SLUS-20002-1.mc2
+
+    We only sync slot 1 with the server for now. Shared/global card folders
+    like ``MemoryCard1`` are ignored because they do not map to a single title.
+    Older PS1 export layouts are still accepted as fallbacks.
     """
+    if system not in {"PS1", "PS2", "GC"}:
+        return []
+
     results: list[SaveFile] = []
+
+    if system == "GC":
+        candidates = sorted(root.iterdir())
+        total = len(candidates)
+        for idx, disc_dir in enumerate(candidates, start=1):
+            if not disc_dir.is_dir():
+                continue
+            gc_code = _gc_code_from_folder(disc_dir.name)
+            if not gc_code:
+                continue
+
+            # Find the slot-1 .raw file: <folder>/<folder>-1.raw
+            slot1: Path | None = None
+            preferred_name = f"{disc_dir.name}-1"
+            for raw_file in sorted(disc_dir.iterdir()):
+                if not raw_file.is_file() or raw_file.suffix.lower() != ".raw":
+                    continue
+                stem = raw_file.stem
+                if stem == preferred_name or stem.endswith("-1"):
+                    slot1 = raw_file
+                    if stem == preferred_name:
+                        break
+            if slot1 is None:
+                continue
+
+            title_id = f"GC_{gc_code.lower()}"
+            # Hash only the extracted GCI bytes so the hash matches what
+            # we actually upload to the server (and what Dolphin stores).
+            try:
+                card_bytes = slot1.read_bytes()
+                gci_bytes = gc_extract_gci(card_bytes, gc_code)
+            except OSError:
+                gci_bytes = None
+            if gci_bytes is not None:
+                save_hash = hashlib.sha256(gci_bytes).hexdigest()
+            else:
+                save_hash = _hash_file(slot1)
+            results.append(SaveFile(
+                title_id=title_id,
+                path=slot1,
+                hash=save_hash,
+                mtime=slot1.stat().st_mtime,
+                system="GC",
+                game_name=disc_dir.name,
+                profile_scope=profile_scope,
+            ))
+            if idx == 1 or idx % 25 == 0 or idx == total:
+                _emit_progress(
+                    progress_callback,
+                    f"Scanning GC MemCard Pro folders. {idx}/{total}",
+                    idx,
+                    total,
+                )
+        return results
+
+    if system == "PS2":
+        ps2_root = root / "PS2" if (root / "PS2").is_dir() else root
+        if not ps2_root.is_dir():
+            return []
+
+        candidates = sorted(ps2_root.iterdir())
+        total = len(candidates)
+        for idx, serial_dir in enumerate(candidates, start=1):
+            if not serial_dir.is_dir():
+                continue
+            serial = _normalize_ps1_serial(serial_dir.name)
+            if not serial:
+                continue
+
+            slot1: Path | None = None
+            preferred_name = f"{serial_dir.name}-1"
+            for card_file in sorted(serial_dir.iterdir()):
+                if not card_file.is_file() or card_file.suffix.lower() not in {".mc2", ".ps2"}:
+                    continue
+                stem = card_file.stem
+                if stem == preferred_name or stem.endswith("-1"):
+                    slot1 = card_file
+                    if stem == preferred_name:
+                        break
+            if slot1 is None:
+                continue
+
+            name_txt = serial_dir / "name.txt"
+            if name_txt.is_file():
+                try:
+                    game_name = name_txt.read_text(encoding="utf-8", errors="ignore").strip() or serial_dir.name
+                except OSError:
+                    game_name = serial_dir.name
+            else:
+                game_name = serial_dir.name
+
+            results.append(SaveFile(
+                title_id=serial,
+                path=slot1,
+                hash=_hash_file(slot1),
+                mtime=slot1.stat().st_mtime,
+                system="PS2",
+                game_name=game_name,
+                profile_scope=profile_scope,
+            ))
+            if idx == 1 or idx % 25 == 0 or idx == total:
+                _emit_progress(
+                    progress_callback,
+                    f"Scanning PS2 MemCard Pro folders. {idx}/{total}",
+                    idx,
+                    total,
+                )
+        return results
+
     mcd_exts = {".mcd", ".mcr"}
+    card_root = root / "MemoryCards" if (root / "MemoryCards").is_dir() else root
+
+    # Card-manager layout: MemoryCards/<SERIAL>/<SERIAL>-1.mcd
+    if card_root.is_dir():
+        candidates = sorted(card_root.iterdir())
+        total = len(candidates)
+        for idx, serial_dir in enumerate(candidates, start=1):
+            if not serial_dir.is_dir():
+                continue
+            serial = _normalize_ps1_serial(serial_dir.name)
+            if not serial:
+                continue
+
+            slot1: Path | None = None
+            preferred_name = f"{serial_dir.name}-1"
+            for mcd_file in sorted(serial_dir.iterdir()):
+                if not mcd_file.is_file() or mcd_file.suffix.lower() not in mcd_exts:
+                    continue
+                stem = mcd_file.stem
+                if stem == preferred_name or stem.endswith("-1"):
+                    slot1 = mcd_file
+                    if stem == preferred_name:
+                        break
+            if slot1 is None:
+                continue
+
+            results.append(SaveFile(
+                title_id=serial,
+                path=slot1,
+                hash=_hash_file(slot1),
+                mtime=slot1.stat().st_mtime,
+                system="PS1",
+                game_name=serial_dir.name,
+                profile_scope=profile_scope,
+            ))
+            if idx == 1 or idx % 25 == 0 or idx == total:
+                _emit_progress(
+                    progress_callback,
+                    f"Scanning PS1 MemCard Pro folders. {idx}/{total}",
+                    idx,
+                    total,
+                )
+
+    if results:
+        return results
 
     # Hierarchical layout: VIRTUAL MEMORY CARDS/<SERIAL>/MemoryCard.mcd (or any *.mcd)
-    vmc_dir = root / "VIRTUAL MEMORY CARDS"
+    vmc_dir = card_root / "VIRTUAL MEMORY CARDS"
     if vmc_dir.is_dir():
         for serial_dir in sorted(vmc_dir.iterdir()):
             if not serial_dir.is_dir():
@@ -1773,6 +2237,8 @@ def compare_with_server(
     seen_title_ids: set[str] = set()
     server_titles: dict[str, dict] = {}
     server_loaded = False
+    ps1_meta_cache: dict[str, dict[str, str] | None] = {}
+    gc_meta_cache: dict[str, dict[str, str] | None] = {}
 
     _emit_progress(progress_callback, "Loading server save index…", 0, max(len(saves), 1))
     try:
@@ -1855,6 +2321,14 @@ def compare_with_server(
         server_hash = meta.get("save_hash", "")
         server_ts = meta.get("server_timestamp", "")
         server_name = meta.get("name", "") or meta.get("game_name", "")
+        ps1_meta = _load_ps1_card_meta(save.title_id, base_url, headers, timeout, ps1_meta_cache)
+        if ps1_meta:
+            server_hash = ps1_meta.get("save_hash", server_hash)
+            server_ts = ps1_meta.get("server_timestamp", server_ts)
+        gc_meta = _load_gc_card_meta(save.title_id, base_url, headers, timeout, gc_meta_cache)
+        if gc_meta:
+            server_hash = gc_meta.get("save_hash", server_hash)
+            server_ts = gc_meta.get("server_timestamp", server_ts)
         duplicate_conflict, duplicate_note = _detect_duplicate_local_conflict(save)
 
         if not save.save_exists:
@@ -1887,6 +2361,14 @@ def compare_with_server(
         name = title.get("name") or title.get("game_name") or tid
         server_hash = title.get("save_hash", "")
         server_ts = title.get("server_timestamp", "")
+        ps1_meta = _load_ps1_card_meta(tid, base_url, headers, timeout, ps1_meta_cache)
+        if ps1_meta:
+            server_hash = ps1_meta.get("save_hash", server_hash)
+            server_ts = ps1_meta.get("server_timestamp", server_ts)
+        gc_meta = _load_gc_card_meta(tid, base_url, headers, timeout, gc_meta_cache)
+        if gc_meta:
+            server_hash = gc_meta.get("save_hash", server_hash)
+            server_ts = gc_meta.get("server_timestamp", server_ts)
         phantom = SaveFile(
             title_id=tid,
             path=None,
@@ -1905,6 +2387,75 @@ def compare_with_server(
 
     _flush_slot_mappings()
     return results
+
+
+def _load_ps1_card_meta(
+    title_id: str,
+    base_url: str,
+    headers: dict,
+    timeout: int,
+    cache: dict[str, dict[str, str]],
+) -> dict[str, str] | None:
+    """Fetch raw-card metadata for PS1 titles.
+
+    The generic `/api/v1/titles` index reports the PSP/Vita-visible save hash for
+    PS1 titles, but desktop PS1 clients compare raw `.mcd` memory cards. Use the
+    dedicated `ps1-card/meta` endpoint so MemCard Pro and DuckStation-style profiles
+    compare like-for-like and do not appear perpetually out of date.
+    """
+    if title_id in cache:
+        return cache[title_id]
+    if not _normalize_ps1_serial(title_id):
+        cache[title_id] = None
+        return None
+    try:
+        resp = requests.get(
+            f"{base_url}/api/v1/saves/{title_id}/ps1-card/meta",
+            headers=headers,
+            params={"slot": 0},
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        meta = resp.json()
+        cache[title_id] = meta
+        return meta
+    except requests.RequestException:
+        cache[title_id] = None
+        return None
+
+
+def _load_gc_card_meta(
+    title_id: str,
+    base_url: str,
+    headers: dict,
+    timeout: int,
+    cache: dict[str, dict[str, str]],
+) -> dict[str, str] | None:
+    """Fetch GCI-based metadata for GC titles.
+
+    The generic ``/titles`` index reports the hash of the stored file (which
+    may be an 8 MB card image) but desktop GC profiles compare GCI bytes.
+    Use the dedicated ``gc-card/meta`` endpoint so both desktop (card image)
+    and Android (gci) profiles compare the same GCI-derived hash.
+    """
+    if title_id in cache:
+        return cache[title_id]
+    if not title_id.upper().startswith("GC_"):
+        cache[title_id] = None
+        return None
+    try:
+        resp = requests.get(
+            f"{base_url}/api/v1/saves/{title_id}/gc-card/meta",
+            headers=headers,
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        meta = resp.json()
+        cache[title_id] = meta
+        return meta
+    except requests.RequestException:
+        cache[title_id] = None
+        return None
 
 
 def _determine_status(
@@ -1934,21 +2485,53 @@ def upload_save(
     path: Path,
     base_url: str,
     headers: dict,
+    system: str | None = None,
     force: bool = False,
     timeout: int = 30,
 ) -> None:
-    """Upload a raw save file to the server via POST /api/v1/saves/{title_id}/raw."""
+    """Upload a local save file to the correct server endpoint.
+
+    PS1 and PS2 memory-card clients use dedicated card endpoints so the server
+    can convert formats as needed. PS1 regenerates PSP/Vita-compatible VMP
+    files, while PS2 stores canonical `.mc2` and converts to `.ps2` on demand
+    for PCSX2/Aether clients. Other systems still use `/raw`.
+    """
     params = {"force": "true"} if force else {}
     data = path.read_bytes()
-    resp = requests.post(
-        f"{base_url}/api/v1/saves/{title_id}/raw",
-        headers={**headers, "Content-Type": "application/octet-stream"},
-        params=params,
-        data=data,
-        timeout=timeout,
-    )
+    if _should_use_ps1_card_endpoint(title_id, system):
+        resp = requests.post(
+            f"{base_url}/api/v1/saves/{title_id}/ps1-card",
+            headers={**headers, "Content-Type": "application/octet-stream"},
+            params=params,
+            data=data,
+            timeout=timeout,
+        )
+    elif _should_use_ps2_card_endpoint(system):
+        resp = requests.post(
+            f"{base_url}/api/v1/saves/{title_id}/ps2-card",
+            headers={**headers, "Content-Type": "application/octet-stream"},
+            params=params,
+            data=data,
+            timeout=timeout,
+        )
+    elif (system or "").upper() == "GC":
+        resp = requests.post(
+            f"{base_url}/api/v1/saves/{title_id}/gc-card",
+            headers={**headers, "Content-Type": "application/octet-stream"},
+            params={**params, "format": "raw"},
+            data=data,
+            timeout=timeout,
+        )
+    else:
+        resp = requests.post(
+            f"{base_url}/api/v1/saves/{title_id}/raw",
+            headers={**headers, "Content-Type": "application/octet-stream"},
+            params=params,
+            data=data,
+            timeout=timeout,
+        )
     resp.raise_for_status()
-    # Update local state with hash of uploaded file
+    # Update local state with the hash of the uploaded raw payload.
     local_hash = hashlib.sha256(data).hexdigest()
     _update_state(title_id, local_hash)
 
@@ -1958,14 +2541,40 @@ def download_save(
     dest_path: Path,
     base_url: str,
     headers: dict,
+    system: str | None = None,
     timeout: int = 30,
 ) -> str:
-    """Download save from server to dest_path. Returns the server hash."""
-    resp = requests.get(
-        f"{base_url}/api/v1/saves/{title_id}/raw",
-        headers=headers,
-        timeout=timeout,
-    )
+    """Download a save to dest_path and return the server-side hash.
+
+    PS1 and PS2 memory-card clients use dedicated card endpoints so desktop
+    profiles receive emulator/native card images instead of generic raw blobs.
+    """
+    if _should_use_ps1_card_endpoint(title_id, system):
+        resp = requests.get(
+            f"{base_url}/api/v1/saves/{title_id}/ps1-card",
+            headers=headers,
+            params={"slot": 0},
+            timeout=timeout,
+        )
+    elif _should_use_ps2_card_endpoint(system):
+        resp = requests.get(
+            f"{base_url}/api/v1/saves/{title_id}/ps2-card",
+            headers=headers,
+            timeout=timeout,
+        )
+    elif (system or "").upper() == "GC":
+        resp = requests.get(
+            f"{base_url}/api/v1/saves/{title_id}/gc-card",
+            headers=headers,
+            params={"format": "raw"},
+            timeout=timeout,
+        )
+    else:
+        resp = requests.get(
+            f"{base_url}/api/v1/saves/{title_id}/raw",
+            headers=headers,
+            timeout=timeout,
+        )
     resp.raise_for_status()
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     dest_path.write_bytes(resp.content)

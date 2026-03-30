@@ -16,15 +16,15 @@ object EmulatorRegistry {
      * @param romScanDir Optional path whose immediate subfolders are scanned for ROMs
      *   by folder name (e.g. "/sdcard/Isos" with subfolders GBA/, MegaDrive/, PS1/, …).
      */
-    fun buildAll(romScanDir: String = ""): List<EmulatorBase> = listOf(
+    fun buildAll(romScanDir: String = "", dolphinMemCardDir: String = ""): List<EmulatorBase> = listOf(
         RetroArchEmulator(romScanDir),
         PpssppEmulator(),
         DuckStationEmulator(romScanDir),
         DraSticEmulator(romScanDir),
         MelonDsEmulator(romScanDir),
         MgbaEmulator(),
-        DolphinEmulator(),
-        AetherSX2Emulator()
+        DolphinEmulator(dolphinMemCardDir),
+        AetherSX2Emulator(romScanDir)
     )
 
     /**
@@ -34,9 +34,10 @@ object EmulatorRegistry {
      */
     fun discoverAllSaves(
         overrides: Map<String, String> = emptyMap(),
-        romScanDir: String = ""
+        romScanDir: String = "",
+        dolphinMemCardDir: String = ""
     ): List<SaveEntry> {
-        return buildAll(romScanDir).flatMap { emulator ->
+        return buildAll(romScanDir, dolphinMemCardDir).flatMap { emulator ->
             try {
                 emulator.discoverSaves()
                     .filter { it.exists() }
@@ -53,9 +54,9 @@ object EmulatorRegistry {
      * only when the corresponding ROM is installed).
      * @param romScanDir Optional directory whose subfolders are scanned for ROMs
      */
-    fun discoverAllRomEntries(romScanDir: String = ""): Map<String, SaveEntry> {
+    fun discoverAllRomEntries(romScanDir: String = "", dolphinMemCardDir: String = ""): Map<String, SaveEntry> {
         val result = mutableMapOf<String, SaveEntry>()
-        buildAll(romScanDir).forEach { emulator ->
+        buildAll(romScanDir, dolphinMemCardDir).forEach { emulator ->
             try { result.putAll(emulator.discoverRomEntries()) } catch (_: Exception) {}
         }
         return result

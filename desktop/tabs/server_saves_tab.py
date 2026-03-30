@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
+    QInputDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -24,12 +25,14 @@ from PyQt6.QtCore import Qt
 from config import (
     ALL_CONSOLE_TYPES,
     detect_console_type,
+    format_display_game_name,
     fetch_all_saves,
     fetch_history,
     delete_save,
     restore_history,
     download_raw_save,
     download_ps1_cards,
+    download_ps2_card,
 )
 from dialogs.history_dialog import HistoryDialog
 
@@ -95,7 +98,10 @@ class ServerSavesTab(QWidget):
         for save in self.saves:
             title_id = save.get("title_id", "")
             console_type = save.get("console_type", detect_console_type(title_id))
-            name = save.get("game_name", title_id)
+            name = format_display_game_name(
+                save.get("game_name", title_id),
+                console_type,
+            )
             last_sync = save.get("last_sync", "")
             try:
                 dt = datetime.fromisoformat(last_sync.replace("Z", "+00:00"))
@@ -116,7 +122,12 @@ class ServerSavesTab(QWidget):
             self.table.setItem(row, 5, QTableWidgetItem(str(files)))
             self.table.item(row, 0).setData(
                 Qt.ItemDataRole.UserRole,
-                {"title_id": title_id, "console_id": save.get("console_id", "")},
+                {
+                    "title_id": title_id,
+                    "console_id": save.get("console_id", ""),
+                    "console_type": console_type,
+                    "game_name": name,
+                },
             )
 
     def _apply_filter(self):
@@ -220,9 +231,35 @@ class ServerSavesTab(QWidget):
             return
         data = self._row_data(rows[0])
         title_id = data.get("title_id", "")
-        console_type = detect_console_type(title_id)
-        default_name = f"{title_id}.mcd" if console_type == "PS1" else f"{title_id}.sav"
-        file_filter = "PS1 Memory Cards (*.mcd *.mcr);;All Files (*)" if console_type == "PS1" else "Save Files (*.sav *.srm);;All Files (*)"
+        console_type = data.get("console_type", detect_console_type(title_id))
+        game_name = data.get("game_name", title_id)
+
+        if console_type == "PS1":
+            default_name = f"{title_id}.mcd"
+            file_filter = "PS1 Memory Cards (*.mcd *.mcr);;All Files (*)"
+        elif console_type == "PS2":
+            selected_format, ok = QInputDialog.getItem(
+                self,
+                "PS2 Download Format",
+                "Download card as:",
+                ["mc2 (MemCard Pro)", "ps2 (PCSX2 / AetherSX2)"],
+                0,
+                False,
+            )
+            if not ok:
+                return
+            card_format = "ps2" if selected_format.startswith("ps2") else "mc2"
+            suffix = ".ps2" if card_format == "ps2" else ".mc2"
+            default_name = f"{game_name}{suffix}"
+            file_filter = (
+                "PS2 Cards (*.ps2 *.mc2);;All Files (*)"
+                if card_format == "ps2"
+                else "PS2 Cards (*.mc2 *.ps2);;All Files (*)"
+            )
+        else:
+            default_name = f"{title_id}.sav"
+            file_filter = "Save Files (*.sav *.srm);;All Files (*)"
+
         dest = QFileDialog.getSaveFileName(
             self, "Save File As", default_name, file_filter
         )[0]
@@ -237,6 +274,9 @@ class ServerSavesTab(QWidget):
                     "Downloaded",
                     "PS1 card(s) written to:\n" + "\n".join(str(p) for p in written),
                 )
+            elif console_type == "PS2":
+                download_ps2_card(title_id, dest_path, card_format=card_format)
+                QMessageBox.information(self, "Downloaded", f"PS2 card written to:\n{dest}")
             else:
                 download_raw_save(title_id, dest_path)
                 QMessageBox.information(self, "Downloaded", f"Save written to:\n{dest}")

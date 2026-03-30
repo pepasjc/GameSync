@@ -76,7 +76,9 @@ fun SettingsScreen(
     var autoSync by remember { mutableStateOf(false) }
     var intervalMinutes by remember { mutableStateOf(15) }
     var romScanDir by remember { mutableStateOf("") }
+    var dolphinMemCardDir by remember { mutableStateOf("") }
     var showFolderPicker by remember { mutableStateOf(false) }
+    var showDolphinFolderPicker by remember { mutableStateOf(false) }
     var settingsLoaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(settings) {
@@ -86,6 +88,7 @@ fun SettingsScreen(
             autoSync = settings.autoSyncEnabled
             intervalMinutes = settings.autoSyncIntervalMinutes
             romScanDir = settings.romScanDir
+            dolphinMemCardDir = settings.dolphinMemCardDir
             settingsLoaded = true
         }
     }
@@ -182,7 +185,7 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, romScanDir)
+                        viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, romScanDir, dolphinMemCardDir)
                         savedConfirmation = true
                     },
                     modifier = Modifier.weight(1f),
@@ -382,6 +385,59 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
+            // --- Dolphin GC ---
+            Text("Dolphin (GameCube)", style = MaterialTheme.typography.titleMedium)
+
+            Text(
+                text = "Path to the Dolphin GC memory card folder (e.g. /sdcard/dolphin-mmjr/GC). " +
+                       "Required if your saves are on an SD card or a different Dolphin variant. " +
+                       "Leave empty to use the default dolphin-mmjr path on internal storage.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Dolphin GC Folder",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = if (dolphinMemCardDir.isNotBlank()) dolphinMemCardDir else "Default (dolphin-mmjr/GC)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (dolphinMemCardDir.isNotBlank())
+                            MaterialTheme.colorScheme.onSurface
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = { showDolphinFolderPicker = true }) {
+                    Icon(
+                        Icons.Default.FolderOpen,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Browse")
+                }
+            }
+
+            if (dolphinMemCardDir.isNotBlank()) {
+                OutlinedButton(
+                    onClick = { dolphinMemCardDir = "" },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Clear Dolphin Path")
+                }
+            }
+
+            HorizontalDivider()
+
             // --- App info ---
             Spacer(Modifier.height(4.dp))
             Text(
@@ -407,7 +463,19 @@ fun SettingsScreen(
                 showFolderPicker = false
                 // Auto-save immediately so the setting persists even without
                 // pressing "Save", and so the ROM scan diagnostic picks it up.
-                viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, path)
+                viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, path, dolphinMemCardDir)
+            }
+        )
+    }
+
+    if (showDolphinFolderPicker) {
+        FolderPickerDialog(
+            initialPath = dolphinMemCardDir,
+            onDismiss = { showDolphinFolderPicker = false },
+            onFolderSelected = { path ->
+                dolphinMemCardDir = path
+                showDolphinFolderPicker = false
+                viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, romScanDir, path)
             }
         )
     }

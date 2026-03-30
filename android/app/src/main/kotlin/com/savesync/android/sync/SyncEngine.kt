@@ -37,24 +37,26 @@ class SyncEngine(
         // Build a map for quick lookup
         val saveMap = saves.associateBy { it.titleId }
 
-        val (ps1RawEntries, nonPs1Entries) = saves.partition { isPs1RawEntry(it) }
-        for (entry in ps1RawEntries) {
+        val (rawCardEntries, otherEntries) = saves.partition {
+            isPs1RawEntry(it) || isPs2RawEntry(it) || isGcRawEntry(it)
+        }
+        for (entry in rawCardEntries) {
             try {
-                when (syncPs1RawEntry(entry)) {
-                    Ps1SyncOutcome.UPLOADED -> uploaded++
-                    Ps1SyncOutcome.DOWNLOADED -> downloaded++
-                    Ps1SyncOutcome.CONFLICT -> conflicts.add(entry.displayName)
-                    Ps1SyncOutcome.UP_TO_DATE, Ps1SyncOutcome.SKIPPED -> Unit
+                when (syncRawCardEntry(entry)) {
+                    RawCardSyncOutcome.UPLOADED -> uploaded++
+                    RawCardSyncOutcome.DOWNLOADED -> downloaded++
+                    RawCardSyncOutcome.CONFLICT -> conflicts.add(entry.displayName)
+                    RawCardSyncOutcome.UP_TO_DATE, RawCardSyncOutcome.SKIPPED -> Unit
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "PS1 sync failed for ${entry.titleId}", e)
+                Log.e(TAG, "Raw-card sync failed for ${entry.titleId}", e)
                 errors.add("Sync error: ${entry.displayName}: ${e.message}")
             }
         }
 
         // Server-only entries have no local file yet — download them directly without
         // going through the sync negotiation (the server doesn't know our state for these).
-        val (serverOnlyEntries, localEntries) = nonPs1Entries.partition { it.isServerOnly }
+        val (serverOnlyEntries, localEntries) = otherEntries.partition { it.isServerOnly }
         for (entry in serverOnlyEntries) {
             try {
                 val success = downloadSave(entry, entry.titleId)
@@ -183,6 +185,10 @@ class SyncEngine(
             uploadPspBundle(entry)
         } else if (isPs1RawEntry(entry)) {
             uploadPs1Card(entry)
+        } else if (isPs2RawEntry(entry)) {
+            uploadPs2Card(entry)
+        } else if (isGcRawEntry(entry)) {
+            uploadGcCard(entry)
         } else {
             uploadSaveRaw(entry)
         }
@@ -200,6 +206,22 @@ class SyncEngine(
             response.status == "ok"
         } catch (e: Exception) {
             Log.e(TAG, "uploadPs1Card failed for ${entry.titleId}", e)
+            false
+        }
+    }
+
+    private suspend fun uploadPs2Card(entry: SaveEntry): Boolean {
+        return try {
+            val saveFile = entry.saveFile ?: return false
+            val response = api.uploadPs2Card(
+                titleId = entry.titleId,
+                format = "ps2",
+                consoleId = consoleId,
+                body = saveFile.readBytes().toRequestBody("application/octet-stream".toMediaType())
+            )
+            response.status == "ok"
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadPs2Card failed for ${entry.titleId}", e)
             false
         }
     }
@@ -251,6 +273,13 @@ class SyncEngine(
             downloadPspBundle(entry, titleId)
         } else if (entry.systemName == "PS1" && entry.saveFile != null) {
             downloadPs1Card(entry, titleId)
+        } else if (entry.systemName == "PS2" && entry.saveFile != null) {
+            downloadPs2Card(entry, titleId)
+        } else if (entry.systemName == "GC") {
+            // Always route GC through the /gc-card endpoint (format=gci).
+            // If saveFile is null (server-only, Dolphin not configured) this
+            // returns false rather than falling through to /raw and writing 8 MB.
+            downloadGcCard(entry, titleId)
         } else {
             downloadSaveRaw(entry, titleId)
         }
@@ -273,6 +302,27 @@ class SyncEngine(
             true
         } catch (e: Exception) {
             Log.e(TAG, "downloadPs1Card failed for $titleId", e)
+            false
+        }
+    }
+
+    private suspend fun downloadPs2Card(entry: SaveEntry, titleId: String): Boolean {
+        return try {
+            val saveFile = entry.saveFile ?: return false
+            val response = api.downloadPs2Card(titleId, format = "ps2")
+            if (!response.isSuccessful) {
+                val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                    ?: "Download failed (${response.code()})"
+                Log.e(TAG, "PS2 card download HTTP error for $titleId: $message")
+                throw IOException(message)
+            }
+            val body = response.body() ?: return false
+            val bytes = body.bytes()
+            saveFile.parentFile?.mkdirs()
+            saveFile.writeBytes(bytes)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadPs2Card failed for $titleId", e)
             false
         }
     }
@@ -424,66 +474,137 @@ class SyncEngine(
         return entry.systemName == "PS1" && entry.saveFile != null && !entry.isPspSlot
     }
 
-    private suspend fun syncPs1RawEntry(entry: SaveEntry): Ps1SyncOutcome {
+    private fun isPs2RawEntry(entry: SaveEntry): Boolean {
+        return entry.systemName == "PS2" && entry.saveFile != null
+    }
+
+    private fun isGcRawEntry(entry: SaveEntry): Boolean {
+        return entry.systemName == "GC"
+    }
+
+    private suspend fun uploadGcCard(entry: SaveEntry): Boolean {
+        return try {
+            val saveFile = entry.saveFile ?: return false
+            val bytes = saveFile.readBytes()
+            val requestBody = bytes.toRequestBody("application/octet-stream".toMediaType())
+            val response = api.uploadGcCard(
+                titleId = entry.titleId,
+                format = "gci",
+                consoleId = consoleId,
+                body = requestBody
+            )
+            response.status == "ok"
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadGcCard failed for ${entry.titleId}", e)
+            false
+        }
+    }
+
+    private suspend fun downloadGcCard(entry: SaveEntry, titleId: String): Boolean {
+        return try {
+            val saveFile = entry.saveFile ?: return false
+            val response = api.downloadGcCard(titleId, format = "gci")
+            if (!response.isSuccessful) {
+                val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                    ?: "Download failed (${response.code()})"
+                Log.e(TAG, "downloadGcCard error for $titleId: $message")
+                return false
+            }
+            val bytes = response.body()?.bytes() ?: return false
+            saveFile.parentFile?.mkdirs()
+            saveFile.writeBytes(bytes)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadGcCard failed for $titleId", e)
+            false
+        }
+    }
+
+    private suspend fun syncRawCardEntry(entry: SaveEntry): RawCardSyncOutcome {
         val localExists = entry.exists()
         val localHash = if (localExists) entry.computeHash() else ""
         val lastSyncHash = dao.getById(entry.titleId)?.lastSyncedHash
 
         val serverMeta = try {
-            api.getPs1CardMeta(entry.titleId, slot = 0)
+            when (entry.systemName) {
+                "PS1" -> api.getPs1CardMeta(entry.titleId, slot = 0)
+                "PS2" -> api.getPs2CardMeta(entry.titleId, format = "ps2")
+                "GC"  -> api.getGcCardMeta(entry.titleId)
+                else -> null
+            }
         } catch (e: retrofit2.HttpException) {
             if (e.code() == 404) null else throw e
         }
 
         if (serverMeta == null) {
-            if (!localExists) return Ps1SyncOutcome.SKIPPED
-            val ok = uploadPs1Card(entry)
+            if (!localExists) return RawCardSyncOutcome.SKIPPED
+            val ok = when (entry.systemName) {
+                "PS1" -> uploadPs1Card(entry)
+                "PS2" -> uploadPs2Card(entry)
+                "GC"  -> uploadGcCard(entry)
+                else -> false
+            }
             if (ok) {
                 updateSyncState(entry)
-                return Ps1SyncOutcome.UPLOADED
+                return RawCardSyncOutcome.UPLOADED
             }
             throw IOException("Upload failed")
         }
 
         val serverHash = serverMeta.save_hash ?: ""
         if (localExists && localHash == serverHash) {
-            return Ps1SyncOutcome.UP_TO_DATE
+            return RawCardSyncOutcome.UP_TO_DATE
         }
 
         if (!localExists) {
-            val ok = downloadPs1Card(entry, entry.titleId)
+            val ok = when (entry.systemName) {
+                "PS1" -> downloadPs1Card(entry, entry.titleId)
+                "PS2" -> downloadPs2Card(entry, entry.titleId)
+                "GC"  -> downloadGcCard(entry, entry.titleId)
+                else -> false
+            }
             if (ok) {
                 updateSyncStateFromFile(entry)
-                return Ps1SyncOutcome.DOWNLOADED
+                return RawCardSyncOutcome.DOWNLOADED
             }
             throw IOException("Download failed")
         }
 
         return when {
             lastSyncHash != null && lastSyncHash == serverHash -> {
-                val ok = uploadPs1Card(entry)
+                val ok = when (entry.systemName) {
+                    "PS1" -> uploadPs1Card(entry)
+                    "PS2" -> uploadPs2Card(entry)
+                    "GC"  -> uploadGcCard(entry)
+                    else -> false
+                }
                 if (ok) {
                     updateSyncState(entry)
-                    Ps1SyncOutcome.UPLOADED
+                    RawCardSyncOutcome.UPLOADED
                 } else {
                     throw IOException("Upload failed")
                 }
             }
             lastSyncHash != null && lastSyncHash == localHash -> {
-                val ok = downloadPs1Card(entry, entry.titleId)
+                val ok = when (entry.systemName) {
+                    "PS1" -> downloadPs1Card(entry, entry.titleId)
+                    "PS2" -> downloadPs2Card(entry, entry.titleId)
+                    "GC"  -> downloadGcCard(entry, entry.titleId)
+                    else -> false
+                }
                 if (ok) {
                     updateSyncStateFromFile(entry)
-                    Ps1SyncOutcome.DOWNLOADED
+                    RawCardSyncOutcome.DOWNLOADED
                 } else {
                     throw IOException("Download failed")
                 }
             }
-            else -> Ps1SyncOutcome.CONFLICT
+            else -> RawCardSyncOutcome.CONFLICT
         }
     }
 }
 
-private enum class Ps1SyncOutcome {
+private enum class RawCardSyncOutcome {
     UPLOADED,
     DOWNLOADED,
     CONFLICT,
