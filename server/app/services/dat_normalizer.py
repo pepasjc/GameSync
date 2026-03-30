@@ -1,10 +1,13 @@
 """
 No-Intro / Redump DAT file normalizer service.
 
-Drop any No-Intro or Redump XML DAT file into  server/data/dats/
+Drop any No-Intro/Redump XML **or** libretro clrmamepro text DAT file into
+server/data/dats/.  Both formats are auto-detected by inspecting the first
+non-empty line of the file.
+
 The filename is used to auto-detect the system, e.g.:
   "Nintendo - Game Boy Advance (20240101-123456).dat"  → GBA
-  "Sega - Mega Drive - Genesis.dat"                    → GEN
+  "Sega - Mega Drive - Genesis.dat"                    → MD
   "Sony - PlayStation.dat"                             → PS1
 
 Lookup order for each ROM:
@@ -13,6 +16,7 @@ Lookup order for each ROM:
   3. Fallback — just normalize the filename string
 """
 
+import re
 import xml.etree.ElementTree as ET
 import logging
 from pathlib import Path
@@ -29,62 +33,76 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _DAT_SYSTEM_MAP: list[tuple[str, str]] = [
     # Nintendo handhelds
-    ("game boy advance",        "GBA"),
-    ("game boy color",          "GBC"),
-    ("game boy",                "GB"),    # must come after GBC / GBA
-    ("nintendo - nes",          "NES"),
-    ("nintendo entertainment",  "NES"),
-    ("famicom",                 "NES"),
-    ("super nintendo",          "SNES"),
-    ("snes",                    "SNES"),
-    ("sfc",                     "SNES"),
-    ("nintendo 64",             "N64"),
-    ("nintendo - ds",           "NDS"),
-    ("nintendo ds",             "NDS"),
+    ("game boy advance", "GBA"),
+    ("game boy color", "GBC"),
+    ("game boy", "GB"),  # must come after GBC / GBA
+    ("super nintendo entertainment system", "SNES"),  # must come before NES catch-alls
+    ("nintendo - nes", "NES"),
+    ("nintendo entertainment", "NES"),
+    ("famicom", "NES"),
+    ("super nintendo", "SNES"),
+    ("snes", "SNES"),
+    ("sfc", "SNES"),
+    ("nintendo 64", "N64"),
+    ("nintendo - nintendo 3ds (digital)", "3DS"),  # before plain 3DS
+    ("nintendo - nintendo 3ds", "3DS"),
+    ("nintendo - ds", "NDS"),
+    ("nintendo ds", "NDS"),
+    ("nintendo dsi", "NDS"),
     # Nintendo home
-    ("gamecube",                "GC"),
-    ("nintendo - wii",          "WII"),
+    ("gamecube", "GC"),
+    ("nintendo - gamecube", "GC"),
+    ("nintendo - wii", "WII"),
     # Sony
-    ("playstation2",            "PS2"),
-    ("playstation 2",           "PS2"),
-    ("playstation portable",    "PSP"),
-    ("psp",                     "PSP"),
-    ("playstation",             "PS1"),   # catch-all — after PS2 / PSP
+    ("playstation2", "PS2"),
+    ("playstation 2", "PS2"),
+    ("playstation 3", "PS3"),
+    ("playstation portable (psn)", "PSP"),  # before plain PSP
+    ("playstation portable", "PSP"),
+    ("psp", "PSP"),
+    ("playstation vita", "VITA"),
+    ("playstation", "PS1"),  # catch-all — after PS2 / PS3 / PSP / Vita
     # Sega
-    ("mega-cd",                 "SCD"),
-    ("mega cd",                 "SCD"),
-    ("sega cd",                 "SCD"),
-    ("mega drive",              "GEN"),
-    ("genesis",                 "GEN"),
-    ("sega master system",      "SMS"),
-    ("master system",           "SMS"),
-    ("game gear",               "GG"),
-    ("saturn",                  "SAT"),
-    ("dreamcast",               "DC"),
+    ("mega-cd", "SEGACD"),
+    ("mega cd", "SEGACD"),
+    ("sega cd", "SEGACD"),
+    ("mega drive", "MD"),
+    ("genesis", "MD"),
+    ("sega master system", "SMS"),
+    ("master system", "SMS"),
+    ("mark iii", "SMS"),
+    ("game gear", "GG"),
+    ("saturn", "SAT"),
+    ("dreamcast", "DC"),
     # SNK
-    ("neo geo pocket",          "NGP"),
-    ("neogeo pocket",           "NGP"),
-    ("neo geo cd",              "NEOCD"),
-    ("neogeo cd",               "NEOCD"),
+    ("neo geo pocket color", "NGP"),  # before plain neo geo pocket
+    ("neo geo pocket", "NGP"),
+    ("neogeo pocket", "NGP"),
+    ("neo geo cd", "NEOCD"),
+    ("neogeo cd", "NEOCD"),
     # NEC
-    ("pc engine",               "PCE"),
-    ("turbografx",              "PCE"),
+    ("pc engine", "PCE"),
+    ("turbografx", "PCE"),
     # Bandai
-    ("wonderswan",              "WS"),
+    ("wonderswan color", "WSWAN"),  # before plain wonderswan
+    ("wonderswan", "WSWAN"),
     # Atari
-    ("atari 2600",              "A2600"),
-    ("atari 7800",              "A7800"),
-    ("atari lynx",              "LYNX"),
-    ("lynx",                    "LYNX"),
+    ("atari - 2600", "A2600"),
+    ("atari 2600", "A2600"),
+    ("atari - 7800", "A7800"),
+    ("atari 7800", "A7800"),
+    ("atari lynx", "LYNX"),
+    ("lynx", "LYNX"),
     # Arcade
-    ("mame",                    "MAME"),
-    ("arcade",                  "ARCADE"),
+    ("mame", "MAME"),
+    ("arcade", "ARCADE"),
 ]
 
 
 # ---------------------------------------------------------------------------
 # Region priority for ranking candidates (lower = better / higher priority)
 # ---------------------------------------------------------------------------
+
 
 def _region_score(canonical: str) -> tuple[int, int]:
     """Score a canonical name by region preference.
@@ -103,11 +121,16 @@ def _region_score(canonical: str) -> tuple[int, int]:
 
     if is_junk:
         base = 99
-    elif "(usa)" in n:    base = 0
-    elif "(world)" in n:  base = 1
-    elif "(europe)" in n: base = 2
-    elif "(japan)" in n:  base = 3
-    else:                 base = 10   # other / unknown region
+    elif "(usa)" in n:
+        base = 0
+    elif "(world)" in n:
+        base = 1
+    elif "(europe)" in n:
+        base = 2
+    elif "(japan)" in n:
+        base = 3
+    else:
+        base = 10  # other / unknown region
 
     # Penalize extra parenthetical groups beyond the first (the region tag).
     # "(USA)" → extra=0, "(USA) (Virtual Console)" → extra=1, etc.
@@ -130,6 +153,7 @@ def _system_from_dat_stem(stem: str) -> Optional[str]:
 # DatNormalizer class
 # ---------------------------------------------------------------------------
 
+
 class DatNormalizer:
     """Loads No-Intro/Redump DAT files and provides ROM name lookups."""
 
@@ -149,7 +173,9 @@ class DatNormalizer:
         for dat_path in sorted(self.dats_dir.glob("*.dat")):
             system = _system_from_dat_stem(dat_path.stem)
             if not system:
-                logger.warning("[dat_normalizer] Skipped (unrecognized system): %s", dat_path.name)
+                logger.warning(
+                    "[dat_normalizer] Skipped (unrecognized system): %s", dat_path.name
+                )
                 continue
             crc_map, slug_cands = _parse_dat(dat_path)
             # Merge CRC index
@@ -261,8 +287,40 @@ def get() -> Optional[DatNormalizer]:
 # Internal DAT XML parser
 # ---------------------------------------------------------------------------
 
+
 def _parse_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]]:
-    """Parse a No-Intro/Redump XML DAT.
+    """Parse a No-Intro/Redump DAT — XML or libretro clrmamepro text format.
+
+    Auto-detects format by inspecting the first non-empty line:
+      - Starts with "<"       → No-Intro/Redump XML
+      - Starts with "clrmame" → libretro clrmamepro text
+
+    Returns:
+      crc_map         — {CRC32_UPPER_8 → canonical_name}
+      slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
+    """
+    try:
+        with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
+            for first_line in fh:
+                stripped = first_line.strip()
+                if stripped:
+                    break
+            else:
+                stripped = ""
+
+        if stripped.startswith("<"):
+            return _parse_xml_dat(dat_path)
+        else:
+            return _parse_clrmamepro_dat(dat_path)
+    except Exception as exc:
+        logger.error(
+            "[dat_normalizer] Failed to detect format of %s: %s", dat_path.name, exc
+        )
+        return {}, {}
+
+
+def _parse_xml_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Parse a standard No-Intro/Redump XML DAT.
 
     Returns:
       crc_map        — {CRC32_UPPER_8 → canonical_name}
@@ -284,5 +342,65 @@ def _parse_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]]:
                 if crc and crc != "00000000":
                     crc_map[crc] = canonical
     except Exception as exc:
-        logger.error("[dat_normalizer] Failed to parse %s: %s", dat_path.name, exc)
+        logger.error("[dat_normalizer] Failed to parse XML %s: %s", dat_path.name, exc)
+    return crc_map, slug_candidates
+
+
+_ROM_LINE_RE = re.compile(r"\brom\s*\(.*?\bcrc\s+([0-9A-Fa-f]{1,8})\b", re.IGNORECASE)
+
+
+def _parse_clrmamepro_dat(
+    dat_path: Path,
+) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Parse a libretro clrmamepro text-format DAT.
+
+    Format::
+
+        game (
+            name "Canonical Title (Region)"
+            region "USA"
+            rom ( name "file.ext" size 12345 crc AABBCCDD md5 ... )
+        )
+
+    A game block may contain multiple rom lines (multi-disc / multi-track);
+    all their CRC32s are indexed to the same canonical name.
+
+    Returns:
+      crc_map         — {CRC32_UPPER_8 → canonical_name}
+      slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
+    """
+    crc_map: dict[str, str] = {}
+    slug_candidates: dict[str, list[str]] = {}
+
+    _NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
+
+    try:
+        current_name: str | None = None
+
+        with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                m = _NAME_RE.match(line)
+                if m:
+                    current_name = m.group(1).strip()
+                    continue
+
+                # rom ( ... crc XXXXXXXX ... )
+                rm = _ROM_LINE_RE.search(line)
+                if rm and current_name:
+                    crc = rm.group(1).upper().zfill(8)
+                    if crc and crc != "00000000":
+                        crc_map[crc] = current_name
+
+                # end of block
+                if line.strip() == ")" and current_name:
+                    slug = normalize_rom_name(current_name)
+                    cands = slug_candidates.setdefault(slug, [])
+                    if current_name not in cands:
+                        cands.append(current_name)
+                    current_name = None
+
+    except Exception as exc:
+        logger.error(
+            "[dat_normalizer] Failed to parse clrmamepro %s: %s", dat_path.name, exc
+        )
     return crc_map, slug_candidates

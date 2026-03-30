@@ -6,36 +6,63 @@ Examples:
     SNES_super_mario_world
     MD_sonic_the_hedgehog
 """
+
 import re
 
-SYSTEM_CODES = frozenset({
-    # Nintendo handhelds
-    "GBA", "GBC", "GB", "NDS", "3DS",
-    # Nintendo home
-    "NES", "SNES", "N64", "GC", "WII",
-    # Sony
-    "PS1", "PS2", "PSP",
-    # Sega
-    "GEN", "MD",        # Mega Drive (GEN = Android, MD = legacy server)
-    "SCD", "SEGACD",    # Sega CD
-    "32X",
-    "SMS",              # Master System
-    "GG",               # Game Gear
-    "SAT",              # Saturn
-    "DC",               # Dreamcast
-    # SNK
-    "NGP", "NEOGEO", "NEOCD",
-    # NEC
-    "PCE", "TG16",
-    # Bandai
-    "WS", "WSWAN", "WSWANC",
-    # Atari
-    "A2600", "ATARI2600",
-    "A7800", "ATARI7800",
-    "LYNX",
-    # Arcade
-    "ARCADE", "MAME", "FBA", "CPS1", "CPS2", "CPS3",
-})
+SYSTEM_CODES = frozenset(
+    {
+        # Nintendo handhelds
+        "GBA",
+        "GBC",
+        "GB",
+        "NDS",
+        "3DS",
+        # Nintendo home
+        "NES",
+        "SNES",
+        "N64",
+        "GC",
+        "WII",
+        # Sony
+        "PS1",
+        "PS2",
+        "PSP",
+        # Sega
+        "GEN",
+        "MD",  # Mega Drive / Genesis (both accepted; MD is canonical)
+        "SCD",
+        "SEGACD",  # Sega CD (both accepted; SEGACD is canonical)
+        "32X",
+        "SMS",  # Master System
+        "GG",  # Game Gear
+        "SAT",  # Saturn
+        "DC",  # Dreamcast
+        # SNK
+        "NGP",
+        "NEOGEO",
+        "NEOCD",
+        # NEC
+        "PCE",
+        "TG16",
+        # Bandai
+        "WS",
+        "WSWAN",  # WonderSwan (WSWAN canonical; WS is legacy)
+        "WSWANC",
+        # Atari
+        "A2600",  # Atari 2600 (A2600 canonical; ATARI2600 is legacy)
+        "ATARI2600",
+        "A7800",  # Atari 7800 (A7800 canonical; ATARI7800 is legacy)
+        "ATARI7800",
+        "LYNX",
+        # Arcade
+        "ARCADE",
+        "MAME",
+        "FBA",
+        "CPS1",
+        "CPS2",
+        "CPS3",
+    }
+)
 
 # Regex for emulator title_id format: SYSTEM_slug
 _EMULATOR_TITLE_ID_RE = re.compile(r"^([A-Z0-9]{2,8})_([a-z0-9][a-z0-9_]{0,99})$")
@@ -73,7 +100,7 @@ def normalize_rom_name(filename: str) -> str:
         dot_idx = name.rfind(".")
         if dot_idx <= 0:
             break
-        suffix = name[dot_idx + 1:]
+        suffix = name[dot_idx + 1 :]
         if 1 <= len(suffix) <= 5 and suffix.isalnum():
             name = name[:dot_idx]
         else:
@@ -95,7 +122,9 @@ def make_title_id(system: str, rom_filename: str) -> str:
     """Return canonical title_id e.g. GBA_zelda_the_minish_cap."""
     system = system.upper().strip()
     if system not in SYSTEM_CODES:
-        raise ValueError(f"Unknown system code: {system!r}. Valid codes: {sorted(SYSTEM_CODES)}")
+        raise ValueError(
+            f"Unknown system code: {system!r}. Valid codes: {sorted(SYSTEM_CODES)}"
+        )
     return f"{system}_{normalize_rom_name(rom_filename)}"
 
 
