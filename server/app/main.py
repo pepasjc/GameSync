@@ -25,9 +25,10 @@ async def lifespan(app: FastAPI):
     count_psx = game_names.load_database(data_dir / "psxdb.txt")
     count_psx += game_names.load_database(data_dir / "unsorted_psx.txt")
     count_psn_retail = game_names.build_psx_psn_to_retail()
+    count_wii = game_names.load_database(data_dir / "wiidb.txt")
     print(
         f"Loaded {count_title_ids} 3DS TitleIDs + {count_3ds} 3DS codes + {count_ds} DS + "
-        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX game names "
+        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX + {count_wii} GC/Wii game names "
         f"({count_psn_retail} PSN→retail mappings)"
     )
 

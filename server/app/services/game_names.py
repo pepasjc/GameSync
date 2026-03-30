@@ -1,4 +1,4 @@
-"""Game name lookup service using 3dstdb.txt, dstdb.txt, psptdb.txt, vitatdb.txt."""
+"""Game name lookup service using 3dstdb.txt, dstdb.txt, psptdb.txt, vitatdb.txt, wiidb.txt."""
 
 import re
 from pathlib import Path
@@ -12,6 +12,7 @@ _ds_names: dict[str, str] = {}       # 4-char game code -> name
 _psp_names: dict[str, str] = {}      # keyed by full product code e.g. "ULUS10272"
 _psx_names: dict[str, str] = {}      # keyed by full product code e.g. "SCUS94163"
 _vita_names: dict[str, str] = {}     # keyed by full product code e.g. "PCSE00082"
+_wii_names: dict[str, str] = {}      # 4-char GC/Wii game code -> name e.g. "GALE" -> "Super Smash Bros. Melee"
 
 # Reverse index: normalized game name slug → PS1 retail serial (preferred over PSN codes)
 # Rebuilt by build_psx_psn_to_retail() after all databases are loaded.
@@ -143,10 +144,11 @@ def load_database(db_path: Path | None = None) -> int:
       - pspdb.txt       → _psp_names
       - vitadb.txt      → _vita_names
       - psxdb.txt       → _psx_names
+      - wiidb.txt       → _wii_names  (keyed by first 4 chars of 6-char GC/Wii code)
 
     Returns the number of entries loaded.
     """
-    global _3ds_title_ids, _3ds_names, _ds_names, _psp_names, _vita_names, _psx_by_slug, _psx_serials_by_slug
+    global _3ds_title_ids, _3ds_names, _ds_names, _psp_names, _vita_names, _psx_by_slug, _psx_serials_by_slug, _wii_names
 
     if db_path is None:
         db_path = Path(__file__).parent.parent.parent / "data" / "3dstdb.txt"
@@ -155,18 +157,21 @@ def load_database(db_path: Path | None = None) -> int:
         return 0
 
     fname = db_path.name.lower()
-    if "3dstitledb" in fname:
-        target_dict = _3ds_title_ids
-    elif "vita" in fname:
-        target_dict = _vita_names
-    elif "psx" in fname:
-        target_dict = _psx_names
-    elif "psp" in fname:
-        target_dict = _psp_names
-    elif "ds" in fname and "3ds" not in fname:
-        target_dict = _ds_names
-    else:
-        target_dict = _3ds_names
+    is_wii = "wii" in fname
+
+    if not is_wii:
+        if "3dstitledb" in fname:
+            target_dict = _3ds_title_ids
+        elif "vita" in fname:
+            target_dict = _vita_names
+        elif "psx" in fname:
+            target_dict = _psx_names
+        elif "psp" in fname:
+            target_dict = _psp_names
+        elif "ds" in fname and "3ds" not in fname:
+            target_dict = _ds_names
+        else:
+            target_dict = _3ds_names
 
     added = 0
     with open(db_path, "r", encoding="utf-8") as f:
@@ -178,7 +183,17 @@ def load_database(db_path: Path | None = None) -> int:
             if len(parts) == 2:
                 code = parts[0].strip().upper()
                 game_name = parts[1].strip()
-                if code and game_name:
+                if not code or not game_name:
+                    continue
+                if is_wii:
+                    # wiidb codes are 6 chars (e.g. "GALE01"); index by first 4 (game+region).
+                    # Skip header and non-game entries.
+                    if len(code) >= 4 and code[:4].isalnum():
+                        key = code[:4]
+                        if key not in _wii_names:
+                            _wii_names[key] = game_name
+                            added += 1
+                else:
                     target_dict[code] = game_name
                     added += 1
 
@@ -251,6 +266,14 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
                 if name:
                     platform = "NDS" if _ds_names.get(game_code) else "3DS"
                     result[code] = (name, platform)
+            continue
+
+        # GC/Wii emulator format: GC_xxxx (e.g. GC_gbze → game code GBZE)
+        if code_upper.startswith("GC_") and len(code_upper) >= 6:
+            game_code = code_upper[3:7]
+            name = _wii_names.get(game_code)
+            if name:
+                result[code] = (name, "GC")
             continue
 
         if len(code_upper) >= 10 and "-" in code_upper:
