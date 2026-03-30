@@ -4,6 +4,7 @@ from app.models.save import BundleFile, SaveBundle
 from app.services.bundle import create_bundle
 from app.services import game_names
 from app.services.ps1_cards import create_vmp, extract_raw_card
+from app.services import serialstation
 
 
 def _make_bundle_bytes(
@@ -89,6 +90,54 @@ class TestTitlesEndpoint:
         titles = r.json()["titles"]
         assert len(titles) == 1
         assert titles[0]["title_id"] == "0004000000055D00"
+
+    def test_titles_names_uses_serialstation_for_ps2_codes(self, client, auth_headers, monkeypatch):
+        async def fake_lookup_batch(codes):
+            assert codes == ["SLPM65590"]
+            return {"SLPM65590": ("Densha de Go! FINAL", "PS2")}
+
+        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
+
+        r = client.post(
+            "/api/v1/titles/names",
+            json={"codes": ["SLPM65590"]},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["names"]["SLPM65590"] == "Densha de Go! FINAL"
+        assert body["types"]["SLPM65590"] == "PS2"
+
+    def test_titles_can_filter_by_console_type(self, client, auth_headers, monkeypatch):
+        bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
+        client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle_ps1,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        bundle_psp = _make_ps1_bundle_bytes(title_id="ULUS10272")
+        client.post(
+            "/api/v1/saves/ULUS10272",
+            content=bundle_psp,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        async def fake_lookup_batch(codes):
+            result = {}
+            if "SLUS01279" in codes:
+                result["SLUS01279"] = ("Dino Crisis 2", "PS1")
+            if "ULUS10272" in codes:
+                result["ULUS10272"] = ("God of War", "PSP")
+            return result
+
+        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
+
+        r = client.get("/api/v1/titles?console_type=PS1", headers=auth_headers)
+        assert r.status_code == 200
+        titles = r.json()["titles"]
+        assert [t["title_id"] for t in titles] == ["SLUS01279"]
+        assert titles[0]["console_type"] == "PS1"
 
 
 class TestUploadEndpoint:
