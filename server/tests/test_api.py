@@ -4,6 +4,7 @@ from app.models.save import BundleFile, SaveBundle
 from app.services.bundle import create_bundle
 from app.services import game_names
 from app.services.ps1_cards import create_vmp, extract_raw_card
+from app.services.ps2_cards import add_ecc, strip_ecc
 from app.services import serialstation
 
 
@@ -34,6 +35,26 @@ def _make_ps1_bundle_bytes(
 ) -> bytes:
     if files is None:
         files = [("SCEVMC0.VMP", b"\x00PMV" + b"\x00" * 0x7C + b"MC\x00\x00" + b"\x00" * (0x20000 - 4))]
+    bundle_files = [
+        BundleFile(
+            path=path,
+            size=len(data),
+            sha256=hashlib.sha256(data).digest(),
+            data=data,
+        )
+        for path, data in files
+    ]
+    bundle = SaveBundle(title_id=0, timestamp=timestamp, files=bundle_files, title_id_str=title_id)
+    return create_bundle(bundle)
+
+
+def _make_ps2_bundle_bytes(
+    title_id: str = "SLUS20002",
+    timestamp: int = 1700000000,
+    files: list[tuple[str, bytes]] | None = None,
+) -> bytes:
+    if files is None:
+        files = [("card.mc2", bytes([0xAB]) * (512 * 16384))]
     bundle_files = [
         BundleFile(
             path=path,
@@ -317,6 +338,63 @@ class TestDownloadEndpoint:
         assert r.status_code == 200
         vmp = (tmp_save_dir / "SLUS01279" / "current" / "SCEVMC0.VMP").read_bytes()
         assert extract_raw_card(vmp) == new_raw
+
+    def test_ps2_card_download_defaults_to_mc2(self, client, auth_headers):
+        mc2 = bytes((i % 251 for i in range(512 * 16384)))
+        bundle = _make_ps2_bundle_bytes(files=[("card.mc2", mc2)])
+        client.post(
+            "/api/v1/saves/SLUS20002",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS20002/ps2-card", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.content == mc2
+        assert r.headers["X-Save-Path"] == "card.mc2"
+
+    def test_ps2_card_download_can_render_ps2_format(self, client, auth_headers):
+        mc2 = bytes((i % 239 for i in range(512 * 16384)))
+        bundle = _make_ps2_bundle_bytes(files=[("card.mc2", mc2)])
+        client.post(
+            "/api/v1/saves/SLUS20002",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS20002/ps2-card?format=ps2", headers=auth_headers)
+        assert r.status_code == 200
+        assert len(r.content) == 528 * 16384
+        assert strip_ecc(r.content) == mc2
+
+    def test_ps2_card_upload_accepts_ps2_and_stores_mc2(self, client, auth_headers, tmp_save_dir):
+        mc2 = bytes((i % 197 for i in range(512 * 16384)))
+        ps2 = add_ecc(mc2)
+
+        r = client.post(
+            "/api/v1/saves/SLUS20002/ps2-card?format=ps2",
+            content=ps2,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        assert (tmp_save_dir / "SLUS20002" / "current" / "card.mc2").read_bytes() == mc2
+
+    def test_ps2_card_meta_uses_requested_format_hash(self, client, auth_headers):
+        mc2 = bytes((i % 211 for i in range(512 * 16384)))
+        bundle = _make_ps2_bundle_bytes(files=[("card.mc2", mc2)])
+        client.post(
+            "/api/v1/saves/SLUS20002",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS20002/ps2-card/meta?format=ps2", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        expected = add_ecc(mc2)
+        assert data["format"] == "ps2"
+        assert data["save_hash"] == hashlib.sha256(expected).hexdigest()
+        assert data["save_size"] == len(expected)
 
     def test_ps1_bundle_download_hides_raw_slot_files(self, client, auth_headers):
         raw = b"MC\x00\x00" + b"\x66" * (0x20000 - 4)

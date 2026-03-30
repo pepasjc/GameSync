@@ -20,6 +20,14 @@ from app.services.ps1_cards import (
     slot_hash_and_size,
     slot_raw_name,
 )
+from app.services.ps2_cards import (
+    canonical_card_name,
+    card_hash_and_size as ps2_card_hash_and_size,
+    convert_card_for_format,
+    extract_canonical_card as extract_ps2_canonical_card,
+    get_canonical_card_from_files as get_ps2_canonical_card_from_files,
+    normalize_ps2_card_format,
+)
 from app.services.bundle import BundleError, create_bundle, parse_bundle
 
 router = APIRouter()
@@ -125,6 +133,114 @@ async def download_ps1_card(title_id: str, slot: int = Query(0, ge=0, le=1)):
             "X-Save-Path": slot_raw_name(slot),
         },
     )
+
+
+@router.get("/saves/{title_id}/ps2-card/meta")
+async def get_ps2_card_meta(
+    title_id: str,
+    format: str = Query("mc2"),
+):
+    title_id = _validate_title_id(title_id)
+    card_format = normalize_ps2_card_format(format)
+
+    meta = storage.get_metadata(title_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="No save found for this title")
+
+    files = storage.load_save_files(title_id)
+    if not files:
+        raise HTTPException(status_code=404, detail="Save data missing on disk")
+
+    card_meta = ps2_card_hash_and_size(files, card_format)
+    if card_meta is None:
+        raise HTTPException(status_code=404, detail="No PS2 card found for this title")
+
+    save_hash, save_size = card_meta
+    return {
+        "title_id": title_id,
+        "format": card_format,
+        "save_hash": save_hash,
+        "save_size": save_size,
+        "client_timestamp": meta.client_timestamp,
+        "server_timestamp": meta.server_timestamp,
+        "platform": meta.platform,
+        "system": meta.system,
+    }
+
+
+@router.get("/saves/{title_id}/ps2-card")
+async def download_ps2_card(
+    title_id: str,
+    format: str = Query("mc2"),
+):
+    title_id = _validate_title_id(title_id)
+    card_format = normalize_ps2_card_format(format)
+
+    meta = storage.get_metadata(title_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="No save found for this title")
+
+    files = storage.load_save_files(title_id)
+    if not files:
+        raise HTTPException(status_code=404, detail="Save data missing on disk")
+
+    match = get_ps2_canonical_card_from_files(files)
+    if match is None:
+        raise HTTPException(status_code=404, detail="No PS2 card found for this title")
+
+    _, canonical = match
+    rendered = convert_card_for_format(canonical, card_format)
+    return Response(
+        content=rendered,
+        media_type="application/octet-stream",
+        headers={
+            "X-Save-Timestamp": str(meta.client_timestamp),
+            "X-Save-Hash": hashlib.sha256(rendered).hexdigest(),
+            "X-Save-Size": str(len(rendered)),
+            "X-Save-Path": f"card.{card_format}",
+        },
+    )
+
+
+@router.post("/saves/{title_id}/ps2-card")
+async def upload_ps2_card(
+    title_id: str,
+    request: Request,
+    format: str = Query("mc2"),
+    console_id: str = Query(""),
+):
+    title_id = _validate_title_id(title_id)
+    card_format = normalize_ps2_card_format(format)
+
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty request body")
+
+    try:
+        canonical = extract_ps2_canonical_card(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    bundle = SaveBundle(
+        title_id=int(title_id, 16) if is_hex_title_id(title_id) else 0,
+        timestamp=int(time.time()),
+        files=[
+            BundleFile(
+                path=canonical_card_name(),
+                size=len(canonical),
+                sha256=hashlib.sha256(canonical).digest(),
+                data=canonical,
+            )
+        ],
+        title_id_str="" if is_hex_title_id(title_id) else title_id,
+    )
+    cid = _console_id_from_request(request, console_id)
+    meta = storage.store_save(bundle, source="ps2_card", console_id=cid)
+    return {
+        "status": "ok",
+        "timestamp": meta.last_sync,
+        "sha256": hashlib.sha256(canonical).hexdigest(),
+    }
 
 
 @router.post("/saves/{title_id}/ps1-card")
