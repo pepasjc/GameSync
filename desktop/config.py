@@ -10,52 +10,118 @@ from PyQt6.QtGui import QColor
 CONFIG_FILE = Path(__file__).parent / "config.json"
 
 ALL_CONSOLE_TYPES = [
-    "All", "3DS", "NDS", "PSP", "PS1", "PS3", "VITA",
-    "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC",
-    "GG", "SMS", "PCE", "PS2", "NGP", "DC", "GC",
-    "ATARI2600", "ATARI7800", "LYNX", "NEOGEO", "32X", "SEGACD",
-    "WSWAN", "WSWANC", "ARCADE", "MAME",
+    "All",
+    "3DS",
+    "NDS",
+    "PSP",
+    "PS1",
+    "PS3",
+    "VITA",
+    "GBA",
+    "SNES",
+    "NES",
+    "MD",
+    "N64",
+    "GB",
+    "GBC",
+    "GG",
+    "SMS",
+    "PCE",
+    "PS2",
+    "NGP",
+    "DC",
+    "GC",
+    "SAT",
+    "A2600",
+    "A7800",
+    "LYNX",
+    "NEOGEO",
+    "32X",
+    "SEGACD",
+    "WSWAN",
+    "WSWANC",
+    "ARCADE",
+    "MAME",
 ]
 
-DEVICE_TYPES = ["Generic", "RetroArch", "MiSTer", "Analogue Pocket", "Pocket (openFPGA)", "Everdrive", "MEGA EverDrive", "EmuDeck", "MemCard Pro", "CD Folder"]
+DEVICE_TYPES = [
+    "Generic",
+    "RetroArch",
+    "MiSTer",
+    "Analogue Pocket",
+    "Pocket (openFPGA)",
+    "Everdrive",
+    "MEGA EverDrive",
+    "SAROO",
+    "EmuDeck",
+    "MemCard Pro",
+    "CD Folder",
+]
 
 SYSTEM_CHOICES = [
-    "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC", "GG", "NGP",
-    "PCE", "PS1", "PS2", "PSP", "PS3", "SMS", "ATARI2600", "ATARI7800", "LYNX", "NEOGEO",
-    "32X", "SAT", "SEGACD", "TG16", "WSWAN", "WSWANC", "DC", "NDS", "GC",
-    "ARCADE", "MAME",
+    "GBA",
+    "SNES",
+    "NES",
+    "MD",
+    "N64",
+    "GB",
+    "GBC",
+    "GG",
+    "NGP",
+    "PCE",
+    "PS1",
+    "PS2",
+    "PSP",
+    "PS3",
+    "SMS",
+    "A2600",
+    "A7800",
+    "LYNX",
+    "NEOGEO",
+    "32X",
+    "SAT",
+    "SEGACD",
+    "TG16",
+    "WSWAN",
+    "WSWANC",
+    "DC",
+    "NDS",
+    "GC",
+    "ARCADE",
+    "MAME",
 ]
 
 STATUS_COLORS = {
-    "up_to_date":    QColor(0, 200, 0),
-    "local_newer":   QColor(0, 160, 255),
-    "server_newer":  QColor(255, 200, 0),
+    "up_to_date": QColor(0, 200, 0),
+    "local_newer": QColor(0, 160, 255),
+    "server_newer": QColor(255, 200, 0),
     "not_on_server": QColor(180, 180, 180),
-    "server_only":   QColor(180, 100, 255),
-    "conflict":      QColor(220, 60, 60),
+    "server_only": QColor(180, 100, 255),
+    "conflict": QColor(220, 60, 60),
     "mapping_conflict": QColor(255, 120, 40),
     "local_duplicate_conflict": QColor(255, 140, 80),
-    "error":         QColor(200, 0, 200),
-    "unknown":       QColor(180, 180, 180),
+    "error": QColor(200, 0, 200),
+    "unknown": QColor(180, 180, 180),
 }
 
 STATUS_LABELS = {
-    "up_to_date":    "Up to date",
-    "local_newer":   "Local newer",
-    "server_newer":  "Server newer",
+    "up_to_date": "Up to date",
+    "local_newer": "Local newer",
+    "server_newer": "Server newer",
     "not_on_server": "Not on server",
-    "server_only":   "Server only",
-    "conflict":      "Conflict",
+    "server_only": "Server only",
+    "conflict": "Conflict",
     "mapping_conflict": "Mapping conflict",
     "local_duplicate_conflict": "Local duplicates differ",
-    "error":         "Error",
-    "unknown":       "Unknown",
+    "error": "Error",
+    "unknown": "Unknown",
 }
 
 
 # ---------------------------------------------------------------------------
 # Config helpers
 # ---------------------------------------------------------------------------
+
 
 def load_config() -> dict:
     if CONFIG_FILE.exists():
@@ -95,21 +161,47 @@ _HEX_TITLE_RE = re.compile(r"^[0-9A-Fa-f]{16}$")
 _PS_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")
 _EMULATOR_RE = re.compile(r"^([A-Z0-9]{2,8})_[a-z0-9]")
 
-_PS3_PREFIXES = {"BCAS", "BCES", "BCJS", "BCKS", "BCUS",
-                 "BLAS", "BLES", "BLJM", "BLJS", "BLKS", "BLUS",
-                 "NPHA", "NPEA", "NPJA", "NPUA", "NPEB", "NPJB", "NPUB"}
+_PS3_PREFIXES = {
+    "BCAS",
+    "BCES",
+    "BCJS",
+    "BCKS",
+    "BCUS",
+    "BLAS",
+    "BLES",
+    "BLJM",
+    "BLJS",
+    "BLKS",
+    "BLUS",
+    "NPHA",
+    "NPEA",
+    "NPJA",
+    "NPUA",
+    "NPEB",
+    "NPJB",
+    "NPUB",
+}
 
 # PS1 retail disc prefixes — uniquely identify PS1 physical/PSN discs vs PSP games.
 # Used to classify product codes from PPSSPP PSone Classics, MemCard Pro, etc.
 _PSX_RETAIL_PREFIXES = {
     # North America
-    "SLUS", "SCUS", "PAPX",
+    "SLUS",
+    "SCUS",
+    "PAPX",
     # Europe
-    "SLES", "SCES", "SCED",
+    "SLES",
+    "SCES",
+    "SCED",
     # Japan
-    "SLPS", "SLPM", "SCPS", "SCPM",
+    "SLPS",
+    "SLPM",
+    "SCPS",
+    "SCPM",
     # Other regions
-    "SLAJ", "SLEJ", "SCAJ",
+    "SLAJ",
+    "SLEJ",
+    "SCAJ",
 }
 
 
@@ -159,6 +251,7 @@ def format_display_game_name(name: str, console_type: str = "") -> str:
 # ---------------------------------------------------------------------------
 # API helpers
 # ---------------------------------------------------------------------------
+
 
 def fetch_all_saves() -> list[dict]:
     resp = requests.get(

@@ -46,6 +46,27 @@ sealed class SyncState {
     data class Error(val message: String) : SyncState()
 }
 
+/**
+ * Describes the sync relationship between a local save and the server.
+ * Used for filtering and status display in the saves list.
+ */
+enum class SaveSyncStatus(val label: String) {
+    /** Local hash matches server hash — fully synced. */
+    SYNCED("Synced"),
+    /** Exists locally but never synced / no server copy. */
+    LOCAL_ONLY("Local Only"),
+    /** Exists on server but not locally. */
+    SERVER_ONLY("Server Only"),
+    /** Local changed since last sync, server unchanged → needs upload. */
+    LOCAL_NEWER("Local Newer"),
+    /** Server changed since last sync, local unchanged → needs download. */
+    SERVER_NEWER("Server Newer"),
+    /** Both sides changed since last sync → conflict. */
+    CONFLICT("Conflict"),
+    /** No sync state recorded and hashes differ — unknown relationship. */
+    UNKNOWN("Not Synced")
+}
+
 sealed class SaveDetailState {
     object Idle : SaveDetailState()
     data class Working(val action: String) : SaveDetailState()
@@ -88,15 +109,118 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedFilter = MutableStateFlow<String>("All")
     val selectedFilter: StateFlow<String> = _selectedFilter
 
-    // Filtered view of saves, derived from _allSaves + _selectedFilter
-    val saves: StateFlow<List<SaveEntry>> = combine(_allSaves, _selectedFilter) { all, filter ->
-        if (filter == "All") all else all.filter { it.systemName == filter }
+    // Search query (filters by display name, canonical name, or title ID)
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+
+    // Status filter ("All" means no status filter)
+    private val _statusFilter = MutableStateFlow<SaveSyncStatus?>(null)
+    val statusFilter: StateFlow<SaveSyncStatus?> = _statusFilter
+
+    /** Room-backed sync state for all titles. Eagerly collected so it's populated
+     *  before the first compose frame, eliminating the "?" flash on startup. */
+    val syncStateEntities: StateFlow<List<SyncStateEntity>> =
+        db.syncStateDao().getAll()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Computes the sync status for a save entry by comparing local hash,
+     * server hash, and last-synced hash from the Room database.
+     *
+     * When [cheapOnly] is true, skip the expensive file-hash computation and
+     * only return statuses derivable from metadata (isServerOnly, presence of
+     * lastSyncedHash). Used during composition to avoid disk I/O on the main thread.
+     */
+    fun computeSyncStatus(
+        entry: SaveEntry,
+        syncState: SyncStateEntity?,
+        cheapOnly: Boolean = false
+    ): SaveSyncStatus {
+        if (entry.isServerOnly) return SaveSyncStatus.SERVER_ONLY
+
+        val lastSyncedHash = syncState?.lastSyncedHash
+        if (lastSyncedHash == null) {
+            // Never synced
+            return SaveSyncStatus.LOCAL_ONLY
+        }
+
+        if (cheapOnly) {
+            // Cheap mode: we know it was synced at least once; assume SYNCED
+            // unless background computation says otherwise.
+            return SaveSyncStatus.SYNCED
+        }
+
+        // Full mode (called from background coroutine in combine transform)
+        val localHash = try { entry.computeHash() } catch (_: Exception) { "" }
+        val localChanged = localHash.isNotEmpty() && localHash != lastSyncedHash
+
+        // Without eagerly fetching server meta for every entry, we can only
+        // tell "local changed since last sync" vs "matches last sync".
+        // The full three-way comparison happens during actual sync.
+        return when {
+            localChanged -> SaveSyncStatus.LOCAL_NEWER
+            else -> SaveSyncStatus.SYNCED
+        }
+    }
+
+    // Filtered view of saves, derived from _allSaves + _selectedFilter + _searchQuery + _statusFilter + syncStateEntities
+    val saves: StateFlow<List<SaveEntry>> = combine(
+        _allSaves,
+        _selectedFilter,
+        _searchQuery,
+        _statusFilter,
+        syncStateEntities
+    ) { args: Array<*> ->
+        @Suppress("UNCHECKED_CAST")
+        val all = args[0] as List<SaveEntry>
+        val systemFilter = args[1] as String
+        val query = args[2] as String
+        val statusFilter = args[3] as SaveSyncStatus?
+        @Suppress("UNCHECKED_CAST")
+        val syncEntities = args[4] as List<SyncStateEntity>
+
+        var result = all
+
+        // System filter
+        if (systemFilter != "All") {
+            result = result.filter { it.systemName == systemFilter }
+        }
+
+        // Text search
+        if (query.isNotBlank()) {
+            val q = query.lowercase().trim()
+            result = result.filter { entry ->
+                entry.displayName.lowercase().contains(q) ||
+                entry.titleId.lowercase().contains(q) ||
+                (entry.canonicalName?.lowercase()?.contains(q) == true)
+            }
+        }
+
+        // Status filter
+        if (statusFilter != null) {
+            val syncMap = syncEntities.associateBy { it.titleId }
+            result = result.filter { entry ->
+                computeSyncStatus(entry, syncMap[entry.titleId]) == statusFilter
+            }
+        }
+
+        result
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // "All" + distinct sorted system names present in _allSaves
     val availableFilters: StateFlow<List<String>> = _allSaves.map { saves ->
         listOf("All") + saves.map { it.systemName }.distinct().sorted()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), listOf("All"))
+
+    // Status filter options that have at least one matching entry
+    val availableStatusFilters: StateFlow<List<SaveSyncStatus>> = combine(
+        _allSaves, syncStateEntities
+    ) { allSaves, syncEntities ->
+        val syncMap = syncEntities.associateBy { it.titleId }
+        allSaves.map { computeSyncStatus(it, syncMap[it.titleId]) }
+            .distinct()
+            .sortedBy { it.ordinal }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState
@@ -118,12 +242,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _serverMeta = MutableStateFlow<ServerMetaState>(ServerMetaState.Idle)
     val serverMeta: StateFlow<ServerMetaState> = _serverMeta
 
-    /** Room-backed sync state for all titles. Eagerly collected so it's populated
-     *  before the first compose frame, eliminating the "?" flash on startup. */
-    val syncStateEntities: StateFlow<List<SyncStateEntity>> =
-        db.syncStateDao().getAll()
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
     val settings: StateFlow<Settings> = settingsStore.settingsFlow
         .stateIn(
             scope = viewModelScope,
@@ -132,11 +250,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
 
     init {
+        // Restore persisted filter preferences before scanning
+        viewModelScope.launch {
+            val lastSystem = settingsStore.getLastSystemFilter()
+            val lastStatusName = settingsStore.getLastStatusFilter()
+            _selectedFilter.value = lastSystem
+            _statusFilter.value = lastStatusName?.let { name ->
+                SaveSyncStatus.entries.find { it.name == name }
+            }
+        }
         scanSaves()
     }
 
     fun setFilter(system: String) {
         _selectedFilter.value = system
+        viewModelScope.launch {
+            settingsStore.saveFilterPreferences(system, _statusFilter.value?.name)
+        }
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun setStatusFilter(status: SaveSyncStatus?) {
+        _statusFilter.value = status
+        viewModelScope.launch {
+            settingsStore.saveFilterPreferences(_selectedFilter.value, status?.name)
+        }
     }
 
     fun scanSaves() {
@@ -282,7 +423,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // Remap local save titleIds to the server's canonical ID when the
                     // systems differ only by alias (e.g. local "GEN_sonic" → server "MD_sonic").
                     // Uses androidToServerSystems (one-to-many) to try ALL possible server
-                    // prefixes — e.g. for "GEN" it tries "MD_slug", "GENESIS_slug", "MEGADRIVE_slug"
+                    // prefixes — e.g. for "SEGACD" it tries "SCD_slug"
                     // and picks the first one the server actually has.
                     localSaves = dedupeLocalPs1Entries(
                         reconcilePs1LocalSavesWithRomEntries(
@@ -374,8 +515,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                         romEntry.saveFile
                                     }
                                 romEntry.copy(
-                                    // Normalise the system code to Android's conventions so
-                                    // "MD" (desktop) and "GEN" (Android) both show the same chip.
+                                    // Normalise legacy system codes to canonical form so
+                                    // server aliases (e.g. "SCD", "GEN", "WS") map correctly.
                                     systemName = resolvedSystem,
                                     displayName = preferredDisplayName,
                                     saveFile = preferredSaveFile,
@@ -412,7 +553,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     serverOnlySaves = emptyList()
                 }
 
-                _allSaves.value = sortSaves(localSaves + serverOnlySaves)
+                _allSaves.value = sortSaves(dedupeAliasedEntries(localSaves + serverOnlySaves))
             } catch (e: Exception) {
                 _allSaves.value = emptyList()
             }
@@ -434,6 +575,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 { it.isServerOnly }
             )
         )
+    }
+
+    /**
+     * Collapse alias-equivalent IDs such as GEN/GENESIS/MEGADRIVE -> MD so the same
+     * logical save does not appear multiple times after local and server merges.
+     */
+    private fun dedupeAliasedEntries(entries: List<SaveEntry>): List<SaveEntry> {
+        return entries
+            .groupBy { aliasDedupKey(it) }
+            .values
+            .map { group ->
+                group.minWithOrNull(
+                    compareBy<SaveEntry>(
+                        { if (it.isServerOnly) 1 else 0 },
+                        { if (it.exists()) 0 else 1 },
+                        { aliasPrefixPriority(it) },
+                        { it.displayName.length },
+                        { it.titleId }
+                    )
+                )!!
+            }
+    }
+
+    private fun aliasDedupKey(entry: SaveEntry): String {
+        val titleId = entry.titleId
+        val idx = titleId.indexOf('_')
+        if (idx <= 0) return titleId
+        val normalizedSystem = normalizeSystemCode(titleId.substring(0, idx))
+        val slug = titleId.substring(idx + 1)
+        return "${normalizedSystem}_$slug"
+    }
+
+    private fun aliasPrefixPriority(entry: SaveEntry): Int {
+        val titleId = entry.titleId
+        val idx = titleId.indexOf('_')
+        if (idx <= 0) return 0
+        val prefix = titleId.substring(0, idx)
+        return if (prefix == normalizeSystemCode(prefix)) 0 else 1
     }
 
     /**
@@ -520,20 +699,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Maps legacy/server-side system codes → Android-side canonical codes.
+     * Maps legacy/server-side system codes → canonical codes.
      * Used to normalise system names for display and for deduplication.
-     * The desktop client and older server records use different names for some systems.
+     * Legacy saves on the server may use older codes from previous client versions.
      */
     private val serverToAndroidSystem = mapOf(
-        // Sega — desktop uses MD/SEGACD, Android uses GEN/SCD
-        "MD"        to "GEN",
-        "GENESIS"   to "GEN",
-        "MEGADRIVE" to "GEN",
-        "SEGACD"    to "SCD",
-        // Bandai
-        "WSWAN"     to "WS",
-        "WSWANC"    to "WS",
-        // Atari
+        // Sega — GENESIS, MEGADRIVE, and GEN are all aliases for MD
+        "GENESIS"   to "MD",
+        "MEGADRIVE" to "MD",
+        "GEN"       to "MD",
+        // SCD is a legacy alias for SEGACD (older Android uploads used SCD)
+        "SCD"       to "SEGACD",
+        // WS is a legacy alias for WSWAN (older Android uploads used WS)
+        "WS"        to "WSWAN",
+        // ATARI2600/ATARI7800 are legacy aliases (older desktop uploads used these)
         "ATARI2600" to "A2600",
         "ATARI7800" to "A7800",
     )
@@ -541,8 +720,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Maps each Android-side system code to ALL possible server-side system codes.
      *
-     * Multiple server codes can map to the same Android code (e.g. "MD", "GENESIS", and
-     * "MEGADRIVE" all → "GEN"), so a simple [associate] reverse would silently drop all but
+     * Multiple server codes can map to the same Android code (e.g. "GENESIS" and
+     * "MEGADRIVE" both → "MD"), so a simple [associate] reverse would silently drop all but
      * the last entry.  This one-to-many map avoids that by grouping all variants together,
      * so we try every possible server prefix when remapping a local titleId.
      */
@@ -551,7 +730,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Normalises a system code to Android's canonical form for display.
-     * "MD" → "GEN", "SEGACD" → "SCD", "WSWAN" → "WS", etc.
+     * "SCD" → "SEGACD", "WS" → "WSWAN", etc.
      * Codes already in Android form are returned unchanged.
      */
     private fun normalizeSystemCode(system: String) =

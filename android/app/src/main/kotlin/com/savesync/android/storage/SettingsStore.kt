@@ -43,6 +43,9 @@ class SettingsStore(private val context: Context) {
         val DOLPHIN_MEM_CARD_DIR = stringPreferencesKey("dolphin_mem_card_dir")
         /** Tracks whether we've already attempted to restore from external backup */
         val BACKUP_RESTORED = booleanPreferencesKey("backup_restored")
+        /** Remembered UI filter state */
+        val LAST_SYSTEM_FILTER = stringPreferencesKey("last_system_filter")
+        val LAST_STATUS_FILTER = stringPreferencesKey("last_status_filter")
     }
 
     /**
@@ -127,6 +130,31 @@ class SettingsStore(private val context: Context) {
             }
         }
         return id
+    }
+
+    // ── UI filter preferences ───────────────────────────────────────────────
+
+    /** Returns the last saved system filter (e.g. "GBA") or "All" if none saved. */
+    suspend fun getLastSystemFilter(): String {
+        val prefs = context.dataStore.data.first()
+        return prefs[Keys.LAST_SYSTEM_FILTER] ?: "All"
+    }
+
+    /** Returns the last saved status filter name (e.g. "SYNCED") or null if none. */
+    suspend fun getLastStatusFilter(): String? {
+        val prefs = context.dataStore.data.first()
+        return prefs[Keys.LAST_STATUS_FILTER]
+    }
+
+    suspend fun saveFilterPreferences(systemFilter: String, statusFilter: String?) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.LAST_SYSTEM_FILTER] = systemFilter
+            if (statusFilter != null) {
+                prefs[Keys.LAST_STATUS_FILTER] = statusFilter
+            } else {
+                prefs.remove(Keys.LAST_STATUS_FILTER)
+            }
+        }
     }
 
     // ── Backup helpers ────────────────────────────────────────────────────────

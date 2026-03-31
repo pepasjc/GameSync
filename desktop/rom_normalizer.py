@@ -29,6 +29,7 @@ Normalization rules (same as the server's rom_id.py):
 
 Save files (.sav, .srm, .mcr, .frz) with the same stem as the ROM are renamed alongside it.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -51,11 +52,15 @@ _REV_RE = re.compile(
 )
 _DISC_RE = re.compile(r"\s*\((?:Disc|Disk|CD)\s*\d+\)", re.IGNORECASE)
 _EXTRA_RE = re.compile(r"\s*\([^)]+\)")
-_BRACKET_RE = re.compile(r"\s*\[[^\]]*\]")   # strip [T+Eng], [Hack], etc.
+_BRACKET_RE = re.compile(r"\s*\[[^\]]*\]")  # strip [T+Eng], [Hack], etc.
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 _MULTI_UNDERSCORE_RE = re.compile(r"_+")
-_TRAILING_ARTICLE_SLUG_RE = re.compile(r"^(?P<main>.+)_(?P<article>the|a|an)$", re.IGNORECASE)
-_LETTER_DIGIT_BOUNDARY_RE = re.compile(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", re.IGNORECASE)
+_TRAILING_ARTICLE_SLUG_RE = re.compile(
+    r"^(?P<main>.+)_(?P<article>the|a|an)$", re.IGNORECASE
+)
+_LETTER_DIGIT_BOUNDARY_RE = re.compile(
+    r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", re.IGNORECASE
+)
 
 # Trailing patch/translation metadata to strip when matching header titles.
 # Handles patterns like: _eng_v31, _ger, _v1_0, _r2, _rev2, _patch, _hack, etc.
@@ -80,9 +85,21 @@ _PATCH_SUFFIX_RE = re.compile(
 
 # Roman numeral ↔ arabic mapping (1–15 covers virtually all game sequels)
 _ROMAN_TO_ARABIC: dict[str, str] = {
-    "i": "1", "ii": "2", "iii": "3", "iv": "4", "v": "5",
-    "vi": "6", "vii": "7", "viii": "8", "ix": "9", "x": "10",
-    "xi": "11", "xii": "12", "xiii": "13", "xiv": "14", "xv": "15",
+    "i": "1",
+    "ii": "2",
+    "iii": "3",
+    "iv": "4",
+    "v": "5",
+    "vi": "6",
+    "vii": "7",
+    "viii": "8",
+    "ix": "9",
+    "x": "10",
+    "xi": "11",
+    "xii": "12",
+    "xiii": "13",
+    "xiv": "14",
+    "xv": "15",
 }
 _ARABIC_TO_ROMAN: dict[str, str] = {v: k for k, v in _ROMAN_TO_ARABIC.items()}
 
@@ -90,11 +107,35 @@ SAVE_EXTENSIONS = {".sav", ".srm", ".mcr", ".frz", ".fs", ".rtc"}
 # Companion file extensions handled by find_companion_files (not scanned as ROMs)
 COMPANION_EXTENSIONS = {".msu", ".pcm", ".cue"}
 ROM_EXTENSIONS = {
-    ".gba", ".gb", ".gbc", ".sfc", ".smc", ".nes", ".md", ".gen",
-    ".n64", ".z64", ".v64", ".gg", ".sms", ".pce", ".ngp", ".ngc",
-    ".ws", ".wsc", ".lnx", ".nds", ".a26", ".a78", ".rom", ".bin",
-    ".iso", ".cso", ".pbp", ".pkg",   # PSP / PS3
-    ".mdf",                            # Saturn / Alcohol 120%
+    ".gba",
+    ".gb",
+    ".gbc",
+    ".sfc",
+    ".smc",
+    ".nes",
+    ".md",
+    ".gen",
+    ".n64",
+    ".z64",
+    ".v64",
+    ".gg",
+    ".sms",
+    ".pce",
+    ".ngp",
+    ".ngc",
+    ".ws",
+    ".wsc",
+    ".lnx",
+    ".nds",
+    ".a26",
+    ".a78",
+    ".rom",
+    ".bin",
+    ".iso",
+    ".cso",
+    ".pbp",
+    ".pkg",  # PSP / PS3
+    ".mdf",  # Saturn / Alcohol 120%
 }
 
 
@@ -106,13 +147,13 @@ def normalize_name(filename: str) -> str:
         dot_idx = name.rfind(".")
         if dot_idx <= 0:
             break
-        suffix = name[dot_idx + 1:]
+        suffix = name[dot_idx + 1 :]
         if 1 <= len(suffix) <= 5 and suffix.isalnum():
             name = name[:dot_idx]
         else:
             break
 
-    name = _BRACKET_RE.sub("", name)   # strip [T+Eng], [Hack], [!] etc.
+    name = _BRACKET_RE.sub("", name)  # strip [T+Eng], [Hack], [!] etc.
     name = _REGION_RE.sub("", name)
     name = _REV_RE.sub("", name)
     name = _DISC_RE.sub("", name)
@@ -197,9 +238,32 @@ def _crc32_file(path: Path) -> str:
 
 
 def load_no_intro_dat(dat_path: Path) -> dict[str, str]:
-    """Parse a No-Intro XML DAT file.
+    """Parse a No-Intro DAT file (XML or libretro clrmamepro text format).
+
+    Auto-detects format by inspecting the first non-empty line.
+
     Returns a dict mapping CRC32 (uppercase 8-char hex) -> canonical name.
     """
+    try:
+        with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
+            for first_line in fh:
+                stripped = first_line.strip()
+                if stripped:
+                    break
+            else:
+                stripped = ""
+    except Exception as e:
+        print(f"WARNING: Could not read DAT file: {e}")
+        return {}
+
+    if stripped.startswith("<"):
+        return _load_no_intro_xml(dat_path)
+    else:
+        return _load_clrmamepro_dat(dat_path)
+
+
+def _load_no_intro_xml(dat_path: Path) -> dict[str, str]:
+    """Parse a No-Intro/Redump XML DAT.  Returns CRC32 → canonical name."""
     try:
         tree = ET.parse(dat_path)
     except Exception as e:
@@ -217,43 +281,71 @@ def load_no_intro_dat(dat_path: Path) -> dict[str, str]:
     return crc_to_name
 
 
+_CLRMAME_ROM_RE = re.compile(
+    r"\brom\s*\(.*?\bcrc\s+([0-9A-Fa-f]{1,8})\b", re.IGNORECASE
+)
+_CLRMAME_NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
+
+
+def _load_clrmamepro_dat(dat_path: Path) -> dict[str, str]:
+    """Parse a libretro clrmamepro text-format DAT.  Returns CRC32 → canonical name."""
+    crc_to_name: dict[str, str] = {}
+    current_name: str | None = None
+    try:
+        with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                m = _CLRMAME_NAME_RE.match(line)
+                if m:
+                    current_name = m.group(1).strip()
+                    continue
+                rm = _CLRMAME_ROM_RE.search(line)
+                if rm and current_name:
+                    crc = rm.group(1).upper().zfill(8)
+                    if crc and crc != "00000000":
+                        crc_to_name[crc] = current_name
+                if line.strip() == ")":
+                    current_name = None
+    except Exception as e:
+        print(f"WARNING: Could not parse clrmamepro DAT file: {e}")
+    return crc_to_name
+
+
 # Maps --system code to keywords to search for in DAT filenames
 _SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
-    "SNES":      ["Super Nintendo"],
-    "NES":       ["Nintendo Entertainment System"],
-    "GBA":       ["Game Boy Advance"],
-    "GBC":       ["Game Boy Color"],
-    "GB":        ["Game Boy"],
-    "N64":       ["Nintendo 64"],
-    "MD":        ["Mega Drive", "Genesis"],
-    "GG":        ["Game Gear"],
-    "SMS":       ["Master System"],
-    "PCE":       ["PC Engine", "TurboGrafx"],
-    "NGP":       ["Neo Geo Pocket"],
-    "LYNX":      ["Lynx"],
-    "WSWAN":     ["WonderSwan"],
-    "SAT":       ["Sega - Saturn", "Saturn"],
-    "SEGACD":    ["Sega - Mega-CD", "Mega-CD", "Sega CD"],
-    "PS1":       ["Sony - PlayStation"],
-    "PS2":       ["Sony - PlayStation 2"],
-    "PSP":       ["Sony - PlayStation Portable"],
-    "PS3":       ["Sony - PlayStation 3"],
-    "DC":        ["Sega - Dreamcast", "Dreamcast"],
-    "GC":        ["GameCube", "Gamecube"],
-    "NDS":       ["Nintendo DS"],
-    "ATARI2600": ["Atari 2600"],
-    "ATARI7800": ["Atari 7800"],
+    "SNES": ["Super Nintendo"],
+    "NES": ["Nintendo Entertainment System"],
+    "GBA": ["Game Boy Advance"],
+    "GBC": ["Game Boy Color"],
+    "GB": ["Game Boy"],
+    "N64": ["Nintendo 64"],
+    "MD": ["Mega Drive", "Genesis"],
+    "GG": ["Game Gear"],
+    "SMS": ["Master System"],
+    "PCE": ["PC Engine", "TurboGrafx"],
+    "NGP": ["Neo Geo Pocket"],
+    "LYNX": ["Lynx"],
+    "WSWAN": ["WonderSwan"],
+    "SAT": ["Sega - Saturn", "Saturn"],
+    "SEGACD": ["Sega - Mega-CD", "Mega-CD", "Sega CD"],
+    "PS1": ["Sony - PlayStation"],
+    "PS2": ["Sony - PlayStation 2"],
+    "PSP": ["Sony - PlayStation Portable"],
+    "PS3": ["Sony - PlayStation 3"],
+    "DC": ["Sega - Dreamcast", "Dreamcast"],
+    "GC": ["GameCube", "Gamecube"],
+    "NDS": ["Nintendo DS"],
+    "A2600": ["Atari 2600"],
+    "A7800": ["Atari 7800"],
 }
 
 DATS_DIR = Path(__file__).parent / "dats"
 
 
 def load_redump_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, str]]:
-    """Parse a Redump XML DAT file for disc-based systems (PS1, Saturn, Dreamcast, etc.).
+    """Parse a Redump DAT file for disc-based systems (PS1, Saturn, Dreamcast, etc.).
 
-    Redump DATs share the same XML structure as No-Intro but each <game> entry may
-    contain multiple <rom> elements — one per CD track.  This function maps every
-    track's CRC32 to its game name, and also builds a disc-agnostic name index.
+    Accepts both Redump XML format and libretro clrmamepro text format.
+    Auto-detects format by inspecting the first non-empty line.
 
     Returns:
         (crc_to_name, disc_agnostic_index)
@@ -269,45 +361,9 @@ def load_redump_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, str]]:
             e.g. ``"parasite_eve"`` → ``"Parasite Eve (USA)"``
             Multi-disc duplicates are resolved by region priority (USA > Japan > Europe).
     """
-    try:
-        tree = ET.parse(dat_path)
-    except Exception as e:
-        print(f"WARNING: Could not parse Redump DAT file: {e}")
-        return {}, {}
-
-    crc_to_name: dict[str, str] = {}
-    disc_agnostic: dict[str, str] = {}
-    disc_priority: dict[str, int] = {}
-
-    root = tree.getroot()
-    for game in root.findall(".//game"):
-        name = game.get("name", "")
-        if not name:
-            continue
-        # Map every track CRC to this game's full name
-        for rom in game.findall("rom"):
-            crc = rom.get("crc", "").upper()
-            if crc:
-                crc_to_name[crc] = name
-
-        # Build disc-agnostic index: strip disc tag, then normalize
-        name_no_disc = _DISC_RE.sub("", name).strip()
-        slug = normalize_name(name_no_disc)
-        if not slug:
-            continue
-        p = _region_priority(name)
-        if slug not in disc_agnostic:
-            disc_agnostic[slug] = name_no_disc
-            disc_priority[slug] = p
-        else:
-            existing_p = disc_priority[slug]
-            if p < existing_p or (
-                p == existing_p
-                and _tag_count(name_no_disc) < _tag_count(disc_agnostic[slug])
-            ):
-                disc_agnostic[slug] = name_no_disc
-                disc_priority[slug] = p
-
+    # Get CRC→name using the format-detecting loader, then build disc-agnostic index
+    crc_to_name = load_no_intro_dat(dat_path)
+    disc_agnostic = build_redump_name_index(crc_to_name)
     return crc_to_name, disc_agnostic
 
 
@@ -356,6 +412,149 @@ def find_dat_for_system(system: str) -> Path | None:
             if kw.lower() in dat_file.name.lower():
                 return dat_file
     return None
+
+
+# Maps system code to a keyword fragment that identifies a libretro DAT filename.
+_LIBRETRO_DAT_KEYWORDS: dict[str, str] = {
+    "SAT": "Sega - Saturn",
+    "PS1": "Sony - PlayStation",
+    "PS2": "Sony - PlayStation 2",
+    "SEGACD": "Sega - Mega-CD",
+    "DC": "Sega - Dreamcast",
+    "GC": "Nintendo - GameCube",
+    "NDS": "Nintendo - Nintendo DS",
+    "GBA": "Nintendo - Game Boy Advance",
+}
+
+# Region priority for libretro DAT name selection (lower index = higher priority).
+# For Japanese product codes (ending in G) we prefer Japan; for H codes prefer USA/Europe.
+_LIBRETRO_REGION_PRIORITY: list[str] = [
+    "Japan",
+    "USA",
+    "Europe",
+    "Germany",
+    "France",
+    "Spain",
+]
+
+
+def _libretro_region_priority(region: str, serial: str) -> int:
+    """Return priority score for a libretro DAT entry. Lower = better match."""
+    # Japanese product codes end in G; prefer Japan for those.
+    # North-American codes end in H; prefer USA for those.
+    serial_upper = serial.upper()
+    if serial_upper.endswith("G") or serial_upper.startswith("GS-"):
+        preferred = ["Japan", "USA", "Europe"]
+    elif serial_upper.endswith("H") or serial_upper.endswith("H-50"):
+        preferred = ["USA", "Europe", "Japan"]
+    else:
+        preferred = _LIBRETRO_REGION_PRIORITY
+    try:
+        return preferred.index(region)
+    except ValueError:
+        return len(preferred)
+
+
+def load_libretro_dat(dat_path: Path) -> dict[str, str]:
+    """Parse a libretro clrmamepro DAT file and return serial → game name mapping.
+
+    The clrmamepro format looks like::
+
+        game (
+            name "Game Title (Region)"
+            region "Japan"
+            serial "T-12345G"
+            rom ( ... )
+        )
+
+    When multiple entries share the same serial (e.g. multi-disc or revisions),
+    the entry with the best region match for that serial's origin is kept.
+    Disc tags like ``(Disc 1)`` are stripped from the stored name.
+
+    Returns:
+        ``{serial_string: canonical_game_name}``
+    """
+    try:
+        text = dat_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        print(f"WARNING: Could not read libretro DAT: {e}")
+        return {}
+
+    serial_to_name: dict[str, str] = {}
+    serial_priority: dict[str, int] = {}
+
+    # Parse game blocks line-by-line
+    in_game = False
+    cur_name = ""
+    cur_region = ""
+    cur_serials: list[str] = []
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped == "game (":
+            in_game = True
+            cur_name = ""
+            cur_region = ""
+            cur_serials = []
+        elif stripped == ")" and in_game:
+            # End of game block — register all serials found
+            if cur_name and cur_serials:
+                name_no_disc = _DISC_RE.sub("", cur_name).strip()
+                for serial in cur_serials:
+                    # Skip disc-index suffixes like T-21301G-0, GS-9076-2.
+                    # The disc-index is a single digit appended after a letter
+                    # (e.g. ...G-0, ...H-1).  Do NOT skip serials that naturally
+                    # end in digits like GS-9169 or T-18003G (the number is part
+                    # of the code itself).
+                    if re.search(r"[A-Za-z]-\d$", serial):
+                        continue
+                    priority = _libretro_region_priority(cur_region, serial)
+                    if (
+                        serial not in serial_to_name
+                        or priority < serial_priority[serial]
+                    ):
+                        serial_to_name[serial] = name_no_disc
+                        serial_priority[serial] = priority
+            in_game = False
+        elif in_game:
+            m = re.match(r'\s+name\s+"(.+)"', line)
+            if m:
+                cur_name = m.group(1)
+                continue
+            m = re.match(r'\s+region\s+"(.+)"', line)
+            if m:
+                cur_region = m.group(1)
+                continue
+            m = re.match(r'\s+serial\s+"(.+)"', line)
+            if m:
+                cur_serials.append(m.group(1))
+
+    return serial_to_name
+
+
+def find_libretro_dat_for_system(system: str) -> Path | None:
+    """Search the dats/ folder for a libretro clrmamepro DAT for the given system.
+
+    Libretro DATs are identified by containing the system keyword in the filename
+    and are expected to be named like ``Sega - Saturn (libretro).dat``.
+    Falls back to any filename match if the explicit ``(libretro)`` tag is absent.
+
+    Returns the Path if found, else None.
+    """
+    if not DATS_DIR.exists():
+        return None
+    keyword = _LIBRETRO_DAT_KEYWORDS.get(system.upper())
+    if not keyword:
+        return None
+
+    kw_lower = keyword.lower()
+    candidates = [f for f in DATS_DIR.glob("*.dat") if kw_lower in f.name.lower()]
+    if not candidates:
+        return None
+
+    # Prefer files that explicitly carry "(libretro)" in the name
+    libretro_candidates = [f for f in candidates if "libretro" in f.name.lower()]
+    return libretro_candidates[0] if libretro_candidates else candidates[0]
 
 
 # When multiple region variants share the same base name, prefer in this order.
@@ -438,7 +637,7 @@ def _slug_roman_variants(slug: str) -> list[str]:
     for i, part in enumerate(parts):
         replacement = _ROMAN_TO_ARABIC.get(part) or _ARABIC_TO_ROMAN.get(part)
         if replacement:
-            variants.append("_".join(parts[:i] + [replacement] + parts[i + 1:]))
+            variants.append("_".join(parts[:i] + [replacement] + parts[i + 1 :]))
     return variants
 
 
@@ -488,7 +687,9 @@ def lookup_header_in_index(header_title: str, name_index: dict[str, str]) -> str
     parts = stripped.split("_")
     for n_remove in range(1, min(3, len(parts))):
         prefix = "_".join(parts[:-n_remove])
-        if "_" not in prefix:   # require at least 2 word-segments to limit false positives
+        if (
+            "_" not in prefix
+        ):  # require at least 2 word-segments to limit false positives
             break
         candidates.append(prefix)
         candidates.extend(_matching_slug_variants(prefix))
@@ -567,7 +768,9 @@ def fuzzy_filename_search(filename: str, name_index: dict[str, str]) -> str | No
     # Compact comparison: ignore underscore boundaries entirely so cases like
     # "dodgeball" vs "dodge_ball" still match. Only accept a unique hit.
     compact = _collapsed_slug(stripped if stripped != slug else slug)
-    compact_matches = [v for k, v in name_index.items() if _collapsed_slug(k) == compact and _allow(v)]
+    compact_matches = [
+        v for k, v in name_index.items() if _collapsed_slug(k) == compact and _allow(v)
+    ]
     if len(compact_matches) == 1:
         return compact_matches[0]
 
@@ -576,7 +779,11 @@ def fuzzy_filename_search(filename: str, name_index: dict[str, str]) -> str | No
     if result and _allow(result):
         return result
 
-    reverse = [v for k, v in name_index.items() if slug.startswith(k + "_") and "_" in k and _allow(v)]
+    reverse = [
+        v
+        for k, v in name_index.items()
+        if slug.startswith(k + "_") and "_" in k and _allow(v)
+    ]
     if len(reverse) == 1:
         return reverse[0]
 
@@ -585,7 +792,9 @@ def fuzzy_filename_search(filename: str, name_index: dict[str, str]) -> str | No
     parts = (stripped if stripped != slug else slug).split("_")
     for n_remove in range(1, min(3, len(parts))):
         prefix = "_".join(parts[:-n_remove])
-        if "_" not in prefix:   # require at least 2 word-segments to limit false positives
+        if (
+            "_" not in prefix
+        ):  # require at least 2 word-segments to limit false positives
             break
         if prefix in seen:
             continue
@@ -615,10 +824,11 @@ def fuzzy_filename_search(filename: str, name_index: dict[str, str]) -> str | No
     slug_parts = slug.split("_")
     for n_keep in range(min(len(slug_parts) - 1, 3), 1, -1):
         tail = "_".join(slug_parts[-n_keep:])
-        if len(tail) < 5:   # require enough characters to avoid accidental matches
+        if len(tail) < 5:  # require enough characters to avoid accidental matches
             continue
-        tail_matches = [v for k, v in name_index.items()
-                        if k.endswith("_" + tail) and _allow(v)]
+        tail_matches = [
+            v for k, v in name_index.items() if k.endswith("_" + tail) and _allow(v)
+        ]
         if len(tail_matches) == 1:
             return tail_matches[0]
 
@@ -628,22 +838,23 @@ def fuzzy_filename_search(filename: str, name_index: dict[str, str]) -> str | No
 def _parse_sfo_title(sfo_data: bytes) -> str | None:
     """Extract the TITLE string from a PARAM.SFO binary blob (PSP/PS3 format)."""
     import struct
+
     if len(sfo_data) < 20 or sfo_data[:4] != b"\x00PSF":
         return None
     try:
         key_table_off = struct.unpack_from("<I", sfo_data, 8)[0]
         val_table_off = struct.unpack_from("<I", sfo_data, 12)[0]
-        num_entries   = struct.unpack_from("<I", sfo_data, 16)[0]
+        num_entries = struct.unpack_from("<I", sfo_data, 16)[0]
         for i in range(min(num_entries, 64)):
             entry = 20 + i * 16
             if entry + 16 > len(sfo_data):
                 break
-            key_off  = struct.unpack_from("<H",  sfo_data, entry)[0]
-            dtype    = sfo_data[entry + 3]          # 2 = UTF8 null-terminated
-            data_len = struct.unpack_from("<I",  sfo_data, entry + 4)[0]
-            val_off  = struct.unpack_from("<I",  sfo_data, entry + 12)[0]
+            key_off = struct.unpack_from("<H", sfo_data, entry)[0]
+            dtype = sfo_data[entry + 3]  # 2 = UTF8 null-terminated
+            data_len = struct.unpack_from("<I", sfo_data, entry + 4)[0]
+            val_off = struct.unpack_from("<I", sfo_data, entry + 12)[0]
             key_start = key_table_off + key_off
-            key_end   = sfo_data.find(b"\x00", key_start)
+            key_end = sfo_data.find(b"\x00", key_start)
             if key_end < 0:
                 continue
             key = sfo_data[key_start:key_end].decode("ascii", errors="ignore")
@@ -707,7 +918,7 @@ def read_rom_header_title(path: Path, system: str) -> str | None:
         candidates = []
         for addr in (0x7FC0, 0xFFC0):
             if len(data) >= addr + 21:
-                chunk = data[addr:addr + 21]
+                chunk = data[addr : addr + 21]
                 printable = sum(1 for b in chunk if 0x20 <= b <= 0x7E)
                 candidates.append((printable, chunk))
         if candidates:
@@ -718,9 +929,12 @@ def read_rom_header_title(path: Path, system: str) -> str | None:
         # ISO (2048 B/sector): sector 0 starts at file offset 0x000.
         # Raw BIN (2352 B/sector): sector 0 data starts at file offset 0x010 (after 16-byte sync header).
         sat_magic = b"SEGA SEGASATURN "
-        sector_offsets = [0x000, 0x010]   # ISO, then raw BIN
+        sector_offsets = [0x000, 0x010]  # ISO, then raw BIN
         for sec_off in sector_offsets:
-            if len(data) >= sec_off + 0x60 + 32 and data[sec_off:sec_off + 16] == sat_magic:
+            if (
+                len(data) >= sec_off + 0x60 + 32
+                and data[sec_off : sec_off + 16] == sat_magic
+            ):
                 title_bytes = data[sec_off + 0x60 : sec_off + 0x80]
                 break
 
@@ -729,6 +943,7 @@ def read_rom_header_title(path: Path, system: str) -> str | None:
         if ext == ".pbp":
             # PBP header: magic \x00PBP at offset 0, PARAM.SFO offset at bytes 8–11
             import struct
+
             if len(data) >= 12 and data[:4] == b"\x00PBP":
                 sfo_off = struct.unpack_from("<I", data, 8)[0]
                 if sfo_off < len(data):
@@ -797,7 +1012,9 @@ def extract_region_hint(filename: str) -> str | None:
     return None
 
 
-def find_region_preferred(canonical: str, no_intro: dict[str, str], region_hint: str) -> str:
+def find_region_preferred(
+    canonical: str, no_intro: dict[str, str], region_hint: str
+) -> str:
     """Return a same-base No-Intro entry that matches region_hint.
 
     If the hinted region has no entry, falls back in priority order:
@@ -878,7 +1095,8 @@ def patch_cue_references(cue_path: Path, old_stem: str, new_stem: str) -> None:
 def find_roms(folder: Path) -> list[Path]:
     """Return all ROM files in folder and subfolders (recursive, by extension)."""
     return sorted(
-        f for f in folder.rglob("*")
+        f
+        for f in folder.rglob("*")
         if f.is_file() and f.suffix.lower() in ROM_EXTENSIONS
     )
 
@@ -949,21 +1167,28 @@ def apply_renames(renames: list[tuple[Path, Path]]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Normalize ROM (and save) filenames")
-    parser.add_argument("folder", type=Path, help="Folder containing ROMs (searched recursively)")
     parser.add_argument(
-        "--system", default=None,
+        "folder", type=Path, help="Folder containing ROMs (searched recursively)"
+    )
+    parser.add_argument(
+        "--system",
+        default=None,
         help="System code (e.g. SNES, GBA, NES) — auto-discovers matching DAT from dats/ folder",
     )
     parser.add_argument(
-        "--apply", action="store_true",
+        "--apply",
+        action="store_true",
         help="Apply renames (default: preview only)",
     )
     parser.add_argument(
-        "--dat", type=Path, default=None,
+        "--dat",
+        type=Path,
+        default=None,
         help="No-Intro XML DAT file for canonical names (overrides --system DAT discovery)",
     )
     parser.add_argument(
-        "--no-crc", action="store_true",
+        "--no-crc",
+        action="store_true",
         help="Skip CRC32 lookup, use filename normalization only",
     )
     args = parser.parse_args()

@@ -38,19 +38,20 @@ class RetroArchEmulator(
         "n64"                       to "N64",
         "playstation"               to "PS1",
         "psx"                       to "PS1",
-        "sega genesis"              to "GEN",
-        "mega drive"                to "GEN",
-        "genesis"                   to "GEN",
+        "sega genesis"              to "MD",
+        "mega drive"                to "MD",
+        "genesis"                   to "MD",
         "sega master"               to "SMS",
         "master system"             to "SMS",
         "game gear"                 to "GG",
-        "sega cd"                   to "SCD",
+        "sega cd"                   to "SEGACD",
         "sega saturn"               to "SAT",
         "saturn"                    to "SAT",
         "pc engine"                 to "PCE",
         "turbografx"                to "PCE",
         "neo geo pocket"            to "NGP",
-        "wonderswan"                to "WS",
+        "wonderswan color"          to "WSWANC",
+        "wonderswan"                to "WSWAN",
         "atari 2600"                to "A2600",
         "atari 7800"                to "A7800",
         "atari lynx"                to "LYNX",
@@ -70,11 +71,12 @@ class RetroArchEmulator(
         "GBA" to "GBA", "SNES" to "SNES", "NES" to "NES",
         "GB" to "GB", "GBC" to "GBC", "N64" to "N64",
         "PS1" to "PS1", "PSX" to "PS1", "PSP" to "PSP",
-        "GEN" to "GEN", "GENESIS" to "GEN", "MEGADRIVE" to "GEN",
+        "GEN" to "MD", "GENESIS" to "MD", "MEGADRIVE" to "MD", "MD" to "MD",
         "SMS" to "SMS", "GG" to "GG", "PCE" to "PCE",
         "SATURN" to "SAT", "SAT" to "SAT", "DC" to "DC",
         "ATARI" to "A2600", "LYNX" to "LYNX", "NGP" to "NGP",
-        "WS" to "WS", "WONDERSWAN" to "WS",
+        "WS" to "WSWAN", "WSWAN" to "WSWAN", "WSWANC" to "WSWANC",
+        "WONDERSWAN" to "WSWAN", "WONDERSWANCOLOR" to "WSWANC",
         "MAME" to "MAME", "FBA" to "FBA", "ARCADE" to "ARCADE",
         "NDS" to "NDS", "GC" to "GC"
     )
@@ -218,16 +220,15 @@ class RetroArchEmulator(
                         ?: romSystemMap[romName]
                         ?: romScanSystemMap[lc]
                         ?: systemPrefix
-                    val slug = lc.replace(Regex("[^a-z0-9]+"), "_").trim('_')
                     // For NDS saves, derive the title ID from the ROM gamecode (offset 0x0C).
                     // For PS1 saves, read the disc serial from SYSTEM.CNF inside the disc image
                     // so the title ID matches the product-code format used by PPSSPP/PSP/Vita.
                     // When no ROM is found, fall back to a region/disc-stripped slug so that
                     // multi-disc games share the same ID (Disc 1 and Disc 2 → same entry).
                     val titleId = when (system) {
-                        "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
+                        "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: toTitleId(romName, system)
                         "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
-                        else  -> "${system}_$slug"
+                        else  -> toTitleId(romName, system)
                     }
                     result.add(
                         SaveEntry(
@@ -246,12 +247,11 @@ class RetroArchEmulator(
                     if (file.isFile && file.extension.lowercase() in saveExtensions) {
                         val romName = file.nameWithoutExtension
                         val lc = romName.lowercase()
-                        val slug = lc.replace(Regex("[^a-z0-9]+"), "_").trim('_')
                         // Apply gamecode/serial lookup for saves inside system subfolders too
                         val titleId = when (system) {
-                            "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: "${system}_$slug"
+                            "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: toTitleId(romName, system)
                             "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
-                            else  -> "${system}_$slug"
+                            else  -> toTitleId(romName, system)
                         }
                         result.add(
                             SaveEntry(
@@ -513,8 +513,7 @@ class RetroArchEmulator(
         }
 
         return romInfo.values.associate { (system, romName) ->
-            val slug = romName.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
-            val titleId = "${system}_$slug"
+            val titleId = toTitleId(romName, system)
             titleId to SaveEntry(
                 titleId = titleId,
                 displayName = romName,
@@ -601,7 +600,8 @@ class RetroArchEmulator(
             "pc engine" in lower || "turbografx" in lower       -> "PCE"
             "arcade" in lower || "fbneo" in lower
                     || "fbalpha" in lower || "mame" in lower     -> "ARCADE"
-            "wonderswan" in lower                               -> "WS"
+            "wonderswan color" in lower                      -> "WSWANC"
+            "wonderswan" in lower                               -> "WSWAN"
             "atari lynx" in lower || "mednafen_lynx" in lower   -> "LYNX"
             "psp" in lower                                      -> "PSP"
             else                                                -> null
@@ -648,9 +648,9 @@ class RetroArchEmulator(
             // ── Sega ────────────────────────────────────────────────────
             // MegaCD / Sega CD must come before MegaDrive / Genesis
             "MEGACD" in upper || "SEGACD" in upper
-                    || "MEGACD" in upper                         -> "SCD"
+                    || "MEGACD" in upper                         -> "SEGACD"
             "MEGADRIVE" in upper || "MEGA DRIVE" in folder.uppercase()
-                    || "GENESIS" in upper                        -> "GEN"
+                    || "GENESIS" in upper                        -> "MD"
             "SATURN" in upper                                   -> "SAT"
             "DREAMCAST" in upper || upper == "DC"               -> "DC"
             // Master System before Game Gear to avoid substring conflict
@@ -675,7 +675,10 @@ class RetroArchEmulator(
                     || "TURBOGRAFX" in upper                     -> "PCE"
 
             // ── Bandai / Atari / other ───────────────────────────────────
-            "WONDERSWAN" in upper || upper == "WS"              -> "WS"
+            "WONDERSWANCOLOR" in upper || "WSWANC" in upper
+                    || upper == "WONDERSWAN COLOR"               -> "WSWANC"
+            "WONDERSWAN" in upper || upper == "WS"
+                    || upper == "WSWAN"                          -> "WSWAN"
             "LYNX" in upper                                     -> "LYNX"
             "ATARI2600" in upper || "A2600" in upper            -> "A2600"
             "ATARI7800" in upper || "A7800" in upper            -> "A7800"

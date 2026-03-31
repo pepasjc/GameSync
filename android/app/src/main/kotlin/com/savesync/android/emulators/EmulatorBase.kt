@@ -10,16 +10,66 @@ abstract class EmulatorBase {
     abstract fun discoverSaves(): List<SaveEntry>
 
     /**
-     * Converts a ROM name to a title ID slug.
-     * Lowercases, replaces non-alphanumeric characters with underscores,
-     * collapses multiple underscores, trims, and prepends systemPrefix_.
+     * Known geographic region names that are preserved in title ID slugs.
+     * Matches the desktop sync_engine.py `_REGION_NAMES` set.
      */
-    protected fun toTitleId(romName: String): String {
-        val slug = romName
+    private val regionNames = setOf(
+        "usa", "europe", "japan", "world", "germany", "france", "italy", "spain",
+        "australia", "brazil", "korea", "china", "netherlands", "sweden",
+        "denmark", "norway", "finland", "asia"
+    )
+
+    /** Regex matching any `(...)` or `[...]` tag (with optional leading whitespace). */
+    private val tagRegex = Regex("""\s*[\(\[][^\)\]]*[\)\]]""")
+
+    /** Regex matching the inner content of `(...)` groups for region extraction. */
+    private val parenContentRegex = Regex("""\(([^)]+)\)""")
+
+    /**
+     * Extracts geographic region tokens from parenthetical tags in a name.
+     * e.g. "Sonic (USA, Europe)" → ["usa", "europe"]
+     */
+    private fun extractRegions(name: String): List<String> {
+        val regions = mutableListOf<String>()
+        val seen = mutableSetOf<String>()
+        for (match in parenContentRegex.findAll(name)) {
+            for (part in match.groupValues[1].split(",")) {
+                val token = part.trim().lowercase()
+                if (token in regionNames && token !in seen) {
+                    seen.add(token)
+                    regions.add(token)
+                }
+            }
+        }
+        return regions
+    }
+
+    /**
+     * Converts a ROM name to a title ID slug.
+     *
+     * Strips all parenthetical/bracket tags, then re-appends geographic region
+     * names so that regional saves stay in separate server slots.  Matches the
+     * desktop sync_engine.py `_make_title_id_with_region` logic.
+     *
+     * "Shining Force CD (USA) (3R)" → "SEGACD_shining_force_cd_usa"
+     * "Sonic (USA, Europe)"         → "MD_sonic_usa_europe"
+     * "Super Mario World"           → "SNES_super_mario_world"
+     */
+    protected fun toTitleId(romName: String): String = toTitleId(romName, systemPrefix)
+
+    /**
+     * Overload accepting an explicit system prefix (for callers like RetroArch
+     * that resolve the system dynamically per-ROM rather than using [systemPrefix]).
+     */
+    protected fun toTitleId(romName: String, system: String): String {
+        val regions = extractRegions(romName)
+        val stripped = romName.replace(tagRegex, "").trim()
+        val slug = stripped
             .lowercase()
             .replace(Regex("[^a-z0-9]+"), "_")
             .trim('_')
-        return "${systemPrefix}_$slug"
+        val base = "${system}_$slug"
+        return if (regions.isNotEmpty()) "${base}_${regions.joinToString("_")}" else base
     }
 
     /**

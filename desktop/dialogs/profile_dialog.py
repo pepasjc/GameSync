@@ -26,41 +26,103 @@ from config import DEVICE_TYPES, SYSTEM_CHOICES
 # Constants
 # ---------------------------------------------------------------------------
 
-SINGLE_SYSTEM_DEVICES = {"Generic", "Everdrive", "MEGA EverDrive", "MemCard Pro", "CD Folder"}
+SINGLE_SYSTEM_DEVICES = {
+    "Generic",
+    "Everdrive",
+    "MEGA EverDrive",
+    "SAROO",
+    "MemCard Pro",
+    "CD Folder",
+}
 MEMCARD_PRO_SYSTEMS = ["PS1", "PS2", "GC", "DC"]
 
 # Relevant systems per multi-system device type (ordered by popularity)
 DEVICE_SYSTEMS: dict[str, list[str]] = {
     "MiSTer": [
-        "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC", "GG", "SMS", "PCE",
-        "ATARI2600", "ATARI7800", "LYNX", "NEOGEO", "32X", "SEGACD", "PS1",
+        "GBA",
+        "SNES",
+        "NES",
+        "MD",
+        "N64",
+        "GB",
+        "GBC",
+        "GG",
+        "SMS",
+        "PCE",
+        "A2600",
+        "A7800",
+        "LYNX",
+        "NEOGEO",
+        "32X",
+        "SEGACD",
+        "PS1",
     ],
     "RetroArch": list(SYSTEM_CHOICES),
     "Analogue Pocket": [
-        "GB", "GBA", "GBC", "GG", "SMS", "NES", "SNES", "MD", "NGP", "PCE", "LYNX", "WSWAN", "WSWANC",
+        "GB",
+        "GBA",
+        "GBC",
+        "GG",
+        "SMS",
+        "NES",
+        "SNES",
+        "MD",
+        "NGP",
+        "PCE",
+        "LYNX",
+        "WSWAN",
+        "WSWANC",
     ],
     "Pocket (openFPGA)": [
-        "GB", "GBA", "GBC", "GG", "SMS", "NES", "SNES", "MD", "N64", "NGP",
-        "PCE", "LYNX", "WSWAN", "WSWANC", "PS1", "32X", "SEGACD", "SAT",
+        "GB",
+        "GBA",
+        "GBC",
+        "GG",
+        "SMS",
+        "NES",
+        "SNES",
+        "MD",
+        "N64",
+        "NGP",
+        "PCE",
+        "LYNX",
+        "WSWAN",
+        "WSWANC",
+        "PS1",
+        "32X",
+        "SEGACD",
+        "SAT",
     ],
     "EmuDeck": list(SYSTEM_CHOICES),
 }
 
 # Default save extension per multi-system device type
 DEVICE_DEFAULT_EXT: dict[str, str] = {
-    "MiSTer":           ".sav",
-    "RetroArch":        ".srm",
-    "Analogue Pocket":  ".sav",
+    "MiSTer": ".sav",
+    "RetroArch": ".srm",
+    "Analogue Pocket": ".sav",
     "Pocket (openFPGA)": ".sav",
-    "EmuDeck":          ".srm",
+    "EmuDeck": ".srm",
 }
 
-SAVE_EXT_OPTIONS = [".sav", ".srm", ".mcr", ".frz", ".fs", ".mcd", ".mc2", ".dsv", ".raw"]
+SAVE_EXT_OPTIONS = [
+    ".sav",
+    ".srm",
+    ".mcr",
+    ".frz",
+    ".fs",
+    ".mcd",
+    ".mc2",
+    ".dsv",
+    ".raw",
+    ".bkr",
+]
 
 
 # ---------------------------------------------------------------------------
 # Delegate: drop-down combo for the Save Ext column
 # ---------------------------------------------------------------------------
+
 
 class SaveExtDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
@@ -85,6 +147,7 @@ class SaveExtDelegate(QStyledItemDelegate):
 # ---------------------------------------------------------------------------
 # Main dialog
 # ---------------------------------------------------------------------------
+
 
 class ProfileDialog(QDialog):
     """Add / edit a sync profile.
@@ -175,7 +238,9 @@ class ProfileDialog(QDialog):
         sep_layout = QHBoxLayout(sep_row)
         sep_layout.setContentsMargins(0, 0, 0, 0)
         self.single_save_folder_edit = QLineEdit()
-        self.single_save_folder_edit.setPlaceholderText("Leave empty — saves are in same folder as games")
+        self.single_save_folder_edit.setPlaceholderText(
+            "Leave empty — saves are in same folder as games"
+        )
         browse_save_btn = QPushButton("Browse...")
         browse_save_btn.clicked.connect(self._browse_single_save_folder)
         clear_save_btn = QPushButton("Clear")
@@ -190,7 +255,9 @@ class ProfileDialog(QDialog):
         dat_layout = QHBoxLayout(dat_row)
         dat_layout.setContentsMargins(0, 0, 0, 0)
         self.dat_file_edit = QLineEdit()
-        self.dat_file_edit.setPlaceholderText("Optional Redump DAT for canonical game names…")
+        self.dat_file_edit.setPlaceholderText(
+            "Optional Redump DAT for canonical game names…"
+        )
         browse_dat_btn = QPushButton("Browse…")
         browse_dat_btn.clicked.connect(self._browse_dat_file)
         clear_dat_btn = QPushButton("Clear")
@@ -211,7 +278,9 @@ class ProfileDialog(QDialog):
         save_root_row = QHBoxLayout()
         save_root_row.addWidget(QLabel("Save Folder:"))
         self.multi_save_folder_edit = QLineEdit()
-        self.multi_save_folder_edit.setPlaceholderText("Leave empty — saves co-located with game folder")
+        self.multi_save_folder_edit.setPlaceholderText(
+            "Leave empty — saves co-located with game folder"
+        )
         save_root_row.addWidget(self.multi_save_folder_edit, 1)
         browse_save_root_btn = QPushButton("Browse...")
         browse_save_root_btn.clicked.connect(self._browse_multi_save_folder)
@@ -237,7 +306,9 @@ class ProfileDialog(QDialog):
 
         # Systems table
         self.systems_table = QTableWidget(0, 4)
-        self.systems_table.setHorizontalHeaderLabels(["", "System", "Save Ext", "Save Folder Override"])
+        self.systems_table.setHorizontalHeaderLabels(
+            ["", "System", "Save Ext", "Save Folder Override"]
+        )
         hdr = self.systems_table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
@@ -247,18 +318,24 @@ class ProfileDialog(QDialog):
         self.systems_table.setColumnWidth(1, 90)
         self.systems_table.setColumnWidth(2, 90)
         self.systems_table.setItemDelegateForColumn(2, SaveExtDelegate(self))
-        self.systems_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.systems_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.systems_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.systems_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
         self.systems_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.DoubleClicked |
-            QAbstractItemView.EditTrigger.SelectedClicked
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.SelectedClicked
         )
         self.systems_table.verticalHeader().setVisible(False)
         layout.addWidget(self.systems_table)
 
         # Browse override button
         override_row = QHBoxLayout()
-        self.browse_override_btn = QPushButton("Browse Override Folder for Selected System…")
+        self.browse_override_btn = QPushButton(
+            "Browse Override Folder for Selected System…"
+        )
         self.browse_override_btn.setEnabled(False)
         self.browse_override_btn.clicked.connect(self._browse_override_folder)
         override_row.addWidget(self.browse_override_btn)
@@ -268,7 +345,9 @@ class ProfileDialog(QDialog):
         override_row.addStretch()
         layout.addLayout(override_row)
 
-        self.systems_table.selectionModel().selectionChanged.connect(self._on_system_selection_changed)
+        self.systems_table.selectionModel().selectionChanged.connect(
+            self._on_system_selection_changed
+        )
 
     # ------------------------------------------------------------------
     # Signal handlers
@@ -280,22 +359,42 @@ class ProfileDialog(QDialog):
         self._multi_widget.setVisible(not is_single)
 
         is_memcard = device_type == "MemCard Pro"
+        is_saroo = device_type == "SAROO"
         self._set_single_system_choices(device_type)
         # Show Redump DAT field only for CD Folder profiles
         is_cd = device_type == "CD Folder"
         self._dat_row_label.setVisible(is_cd)
         self._dat_row_widget.setVisible(is_cd)
-        self._game_folder_label.setText("Root Folder:" if is_memcard else "Game Folder:")
+        self._game_folder_label.setText(
+            "Root Folder:" if is_memcard else "Game Folder:"
+        )
         if is_memcard:
-            self.game_folder_edit.setPlaceholderText("MemCard Pro root folder or MemoryCards folder...")
-            self.single_save_folder_edit.setPlaceholderText("Leave empty — not used for MemCard Pro")
+            self.game_folder_edit.setPlaceholderText(
+                "MemCard Pro root folder or MemoryCards folder..."
+            )
+            self.single_save_folder_edit.setPlaceholderText(
+                "Leave empty — not used for MemCard Pro"
+            )
+        elif is_saroo:
+            self.game_folder_edit.setPlaceholderText(
+                "Saroo SD card root folder (contains SS_SAVE.BIN)…"
+            )
+            self.single_save_folder_edit.setPlaceholderText(
+                "Mednafen save folder (optional — for emulator sync)"
+            )
         else:
             self.game_folder_edit.setPlaceholderText("Root game / ROM folder...")
-            self.single_save_folder_edit.setPlaceholderText("Leave empty — saves are in same folder as games")
+            self.single_save_folder_edit.setPlaceholderText(
+                "Leave empty — saves are in same folder as games"
+            )
 
         # Card-manager and CD-folder profiles default to PS1 + .mcd.
         if (is_cd or is_memcard) and not self._loading:
             self._apply_single_system_defaults("PS1")
+
+        # SAROO is always SAT; lock system and hide save-ext picker
+        if is_saroo and not self._loading:
+            self._apply_single_system_defaults("SAT")
 
         if is_single:
             self.setMinimumSize(480, 0)
@@ -307,7 +406,9 @@ class ProfileDialog(QDialog):
     def _set_single_system_choices(self, device_type: str) -> None:
         """Restrict the system picker for device-specific single-system profiles."""
         current = self.system_combo.currentText()
-        choices = MEMCARD_PRO_SYSTEMS if device_type == "MemCard Pro" else SYSTEM_CHOICES
+        choices = (
+            MEMCARD_PRO_SYSTEMS if device_type == "MemCard Pro" else SYSTEM_CHOICES
+        )
         self.system_combo.blockSignals(True)
         self.system_combo.clear()
         self.system_combo.addItems(choices)
@@ -327,6 +428,7 @@ class ProfileDialog(QDialog):
             "PS2": ".mc2",
             "GC": ".raw",
             "DC": ".bin",
+            "SAT": ".bkr",
         }.get(system)
         if default_ext:
             ext_idx = self.save_ext_combo.findText(default_ext)
@@ -346,7 +448,9 @@ class ProfileDialog(QDialog):
     # Systems table helpers
     # ------------------------------------------------------------------
 
-    def _populate_systems_table(self, device_type: str, existing: dict[str, dict] | None = None):
+    def _populate_systems_table(
+        self, device_type: str, existing: dict[str, dict] | None = None
+    ):
         """Fill the systems table for *device_type*.
 
         existing: {system_code: {enabled, save_ext, save_folder}} for pre-loading saved values.
@@ -364,9 +468,13 @@ class ProfileDialog(QDialog):
 
             # Col 0 — enabled checkbox (no text)
             cb_item = QTableWidgetItem()
-            cb_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            cb_item.setFlags(
+                Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable
+            )
             enabled = info.get("enabled", True)
-            cb_item.setCheckState(Qt.CheckState.Checked if enabled else Qt.CheckState.Unchecked)
+            cb_item.setCheckState(
+                Qt.CheckState.Checked if enabled else Qt.CheckState.Unchecked
+            )
             self.systems_table.setItem(row, 0, cb_item)
 
             # Col 1 — system name (read-only)
@@ -484,7 +592,10 @@ class ProfileDialog(QDialog):
                     all_systems = DEVICE_SYSTEMS.get(device_type, list(SYSTEM_CHOICES))
                     if sf:
                         for s in all_systems:
-                            existing[s] = {"enabled": s in sf, "save_ext": profile.get("save_ext", ".sav")}
+                            existing[s] = {
+                                "enabled": s in sf,
+                                "save_ext": profile.get("save_ext", ".sav"),
+                            }
                     # If sf is empty, all systems enabled — leave existing empty so defaults apply
 
                 self._populate_systems_table(device_type, existing or None)
@@ -497,7 +608,11 @@ class ProfileDialog(QDialog):
             return
         if not self.game_folder_edit.text().strip():
             device_type = self.device_combo.currentText()
-            message = "Root folder path is required." if device_type == "MemCard Pro" else "Game folder path is required."
+            message = (
+                "Root folder path is required."
+                if device_type == "MemCard Pro"
+                else "Game folder path is required."
+            )
             QMessageBox.warning(self, "Validation", message)
             return
         self.accept()
@@ -506,9 +621,9 @@ class ProfileDialog(QDialog):
         device_type = self.device_combo.currentText()
 
         base = {
-            "name":        self.name_edit.text().strip(),
+            "name": self.name_edit.text().strip(),
             "device_type": device_type,
-            "path":        self.game_folder_edit.text().strip(),
+            "path": self.game_folder_edit.text().strip(),
         }
 
         if device_type in SINGLE_SYSTEM_DEVICES:
@@ -518,8 +633,8 @@ class ProfileDialog(QDialog):
             result = {
                 **base,
                 "save_folder": self.single_save_folder_edit.text().strip(),
-                "system":      self.system_combo.currentText(),
-                "save_ext":    ext or ".sav",
+                "system": self.system_combo.currentText(),
+                "save_ext": ext or ".sav",
             }
             if device_type == "CD Folder":
                 dat_path = self.dat_file_edit.text().strip()
@@ -529,23 +644,27 @@ class ProfileDialog(QDialog):
         else:
             systems = []
             for row in range(self.systems_table.rowCount()):
-                cb   = self.systems_table.item(row, 0)
-                sys  = self.systems_table.item(row, 1)
-                ext  = self.systems_table.item(row, 2)
-                fld  = self.systems_table.item(row, 3)
+                cb = self.systems_table.item(row, 0)
+                sys = self.systems_table.item(row, 1)
+                ext = self.systems_table.item(row, 2)
+                fld = self.systems_table.item(row, 3)
                 if not sys:
                     continue
                 ext_val = (ext.text().strip() if ext else ".sav") or ".sav"
                 if not ext_val.startswith("."):
                     ext_val = "." + ext_val
-                systems.append({
-                    "system":      sys.text(),
-                    "enabled":     cb.checkState() == Qt.CheckState.Checked if cb else True,
-                    "save_ext":    ext_val,
-                    "save_folder": fld.text().strip() if fld else "",
-                })
+                systems.append(
+                    {
+                        "system": sys.text(),
+                        "enabled": cb.checkState() == Qt.CheckState.Checked
+                        if cb
+                        else True,
+                        "save_ext": ext_val,
+                        "save_folder": fld.text().strip() if fld else "",
+                    }
+                )
             return {
                 **base,
                 "save_folder": self.multi_save_folder_edit.text().strip(),
-                "systems":     systems,
+                "systems": systems,
             }
