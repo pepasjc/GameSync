@@ -11,14 +11,14 @@ Layout (1280 × 800 full-screen):
   │            Game list (LazyColumn equivalent)          │
   │                                                       │
   ├───────────────────────────────────────────────────────┤
-  │  Controls: [A] Upload  [B] Download  [X] Sync  …     │
+  │  Controls: [A] Info  [B] Exit  [X] Sync  …           │
   └───────────────────────────────────────────────────────┘
 
 Gamepad mapping (polled via pygame in a QTimer):
   D-pad / L-stick ↑↓  →  navigate list
   D-pad ←→            →  cycle system filter
   A                   →  open save info dialog (upload/download from there)
-  B                   →  (no action on main list)
+  B                   →  close app (with confirmation)
   X                   →  sync selected (upload OR download depending on status)
   Y                   →  refresh
   L1                  →  prev system filter
@@ -745,6 +745,17 @@ class MainWindow(QMainWindow):
             )
             self._start_scan()
 
+    def _confirm_close(self):
+        dlg = ConfirmDialog(
+            title="Exit SaveSync",
+            message="Close the SaveSync app?",
+            confirm_label="Exit",
+            confirm_color=theme.STATUS_CONFLICT,
+            parent=self,
+        )
+        if dlg.exec() == dlg.DialogCode.Accepted:
+            self.close()
+
     # ──────────────────────────────────────────────────────────────
     # Keyboard input (also catches gamepad-via-keyboard mapping)
     # ──────────────────────────────────────────────────────────────
@@ -774,6 +785,8 @@ class MainWindow(QMainWindow):
             self._cycle_system(1)
         elif key in (Qt.Key.Key_Return, Qt.Key.Key_A, Qt.Key.Key_Space):
             self._action_detail()
+        elif key == Qt.Key.Key_B:
+            self._confirm_close()
         elif key == Qt.Key.Key_X:
             self._action_sync()
         elif key == Qt.Key.Key_Y:
@@ -888,7 +901,7 @@ class MainWindow(QMainWindow):
         if btn_pressed(0):
             self._action_detail()  # A — open save info
         if btn_pressed(1):
-            pass  # B — no action on main list (back)
+            self._confirm_close()  # B — close app
         if btn_pressed(2):
             self._action_sync()  # X
         if btn_pressed(3):

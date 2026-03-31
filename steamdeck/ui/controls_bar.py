@@ -72,6 +72,7 @@ class ControlsBar(QWidget):
 
         self._hints = [
             ButtonHint("A", theme.BTN_A, "Info"),
+            ButtonHint("B", theme.BTN_B, "Exit"),
             ButtonHint("X", theme.BTN_X, "Sync"),
             ButtonHint("Y", theme.BTN_Y, "Refresh"),
             ButtonHint("L1", theme.BTN_L, "System"),
