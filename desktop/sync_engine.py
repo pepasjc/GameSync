@@ -12,7 +12,9 @@ import json
 import os
 import re
 import struct
+import time
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -491,6 +493,132 @@ def _hash_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _iter_dir_files(path: Path) -> list[tuple[str, Path]]:
+    files: list[tuple[str, Path]] = []
+    for fp in sorted(path.rglob("*")):
+        if fp.is_file():
+            rel = fp.relative_to(path).as_posix()
+            files.append((rel, fp))
+    return files
+
+
+def _hash_dir_files(path: Path) -> str:
+    """Match the server's multi-file bundle hash: sorted file contents only."""
+    h = hashlib.sha256()
+    for _, fp in _iter_dir_files(path):
+        with open(fp, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+    return h.hexdigest()
+
+
+def _hash_path(path: Path) -> str:
+    return _hash_dir_files(path) if path.is_dir() else _hash_file(path)
+
+
+def _create_dir_bundle(title_id: str, root_dir: Path) -> bytes:
+    files: list[tuple[str, bytes, bytes]] = []
+    for rel_path, fp in _iter_dir_files(root_dir):
+        data = fp.read_bytes()
+        files.append((rel_path, data, hashlib.sha256(data).digest()))
+
+    if not files:
+        raise ValueError(f"No files found in {root_dir}")
+
+    file_table = bytearray()
+    file_data = bytearray()
+    for rel_path, data, sha256 in files:
+        path_bytes = rel_path.encode("utf-8")
+        file_table += struct.pack("<H", len(path_bytes))
+        file_table += path_bytes
+        file_table += struct.pack("<I", len(data))
+        file_table += sha256
+        file_data += data
+
+    payload = bytes(file_table) + bytes(file_data)
+    compressed = zlib.compress(payload, 6)
+    title_id_bytes = title_id.encode("ascii")
+
+    header = bytearray(b"3DSS")
+    if len(title_id_bytes) <= 31:
+        header += struct.pack("<I", 4)
+        header += title_id_bytes[:31].ljust(32, b"\x00")
+    else:
+        header += struct.pack("<I", 5)
+        header += title_id_bytes[:63].ljust(64, b"\x00")
+    header += struct.pack("<I", int(time.time()))
+    header += struct.pack("<I", len(files))
+    header += struct.pack("<I", len(payload))
+    return bytes(header) + compressed
+
+
+def _parse_dir_bundle(data: bytes) -> list[tuple[str, bytes]]:
+    if len(data) < 8 or data[:4] != b"3DSS":
+        raise ValueError("Not a valid 3DSS bundle")
+
+    (version,) = struct.unpack_from("<I", data, 4)
+    if version == 5:
+        offset = 4 + 4 + 64 + 4
+    elif version == 4:
+        offset = 4 + 4 + 32 + 4
+    elif version == 3:
+        offset = 4 + 4 + 16 + 4
+    elif version in (1, 2):
+        offset = 4 + 4 + 8 + 4
+    else:
+        raise ValueError(f"Unknown bundle version: {version}")
+
+    file_count = struct.unpack_from("<I", data, offset)[0]
+    offset += 4
+    size_field = struct.unpack_from("<I", data, offset)[0]
+    offset += 4
+
+    if version == 1:
+        payload = data[offset:]
+    else:
+        payload = zlib.decompress(data[offset:])
+        if len(payload) != size_field:
+            raise ValueError("Bundle payload size mismatch")
+
+    pos = 0
+    entries: list[tuple[str, int]] = []
+    for _ in range(file_count):
+        path_len = struct.unpack_from("<H", payload, pos)[0]
+        pos += 2
+        rel_path = payload[pos : pos + path_len].decode("utf-8")
+        pos += path_len
+        size = struct.unpack_from("<I", payload, pos)[0]
+        pos += 4
+        pos += 32
+        entries.append((rel_path, size))
+
+    files: list[tuple[str, bytes]] = []
+    for rel_path, size in entries:
+        files.append((rel_path, payload[pos : pos + size]))
+        pos += size
+    return files
+
+
+def _clear_dir_contents(path: Path) -> None:
+    if not path.exists():
+        return
+    for fp in sorted(path.rglob("*"), reverse=True):
+        if fp.is_file():
+            fp.unlink()
+        elif fp.is_dir():
+            fp.rmdir()
+
+
+def _extract_bundle_to_dir(data: bytes, dest_dir: Path) -> None:
+    files = _parse_dir_bundle(data)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    _clear_dir_contents(dest_dir)
+    for rel_path, content in files:
+        target = dest_dir / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+
+
 def _unique_existing_save_paths(save: SaveFile) -> list[Path]:
     """Return unique existing local save paths for this entry."""
     paths: list[Path] = []
@@ -514,7 +642,7 @@ def _detect_duplicate_local_conflict(save: SaveFile) -> tuple[bool, str]:
         if save.path is not None and path == save.path and save.hash:
             hash_val = save.hash
         else:
-            hash_val = _hash_file(path)
+            hash_val = _hash_path(path)
         hashes_by_path.append((path, hash_val))
         seen_hashes.add(hash_val)
 
@@ -2437,7 +2565,6 @@ def _scan_emudeck(
     # --- rpcs3: product-code folders, SYS-DATA/DATA.DAT/GAME per save ---
     rpcs3_saves = root / "rpcs3" / "saves"
     if rpcs3_saves.exists():
-        ps3_best: dict[str, SaveFile] = {}
         for save_dir in sorted(rpcs3_saves.iterdir()):
             if not save_dir.is_dir():
                 continue
@@ -2445,22 +2572,21 @@ def _scan_emudeck(
             if not m:
                 continue
             product_code = m.group(1)  # e.g. "BLJM60055"
-            for f in sorted(save_dir.rglob("*")):
-                if not f.is_file() or f.suffix.lower() in _PSP_PS3_SKIP_EXTS:
-                    continue
-                existing = ps3_best.get(product_code)
-                if existing is None or f.stat().st_mtime > existing.mtime:
-                    file_hash = _hash_file(f)
-                    ps3_best[product_code] = SaveFile(
-                        title_id=product_code,
-                        path=f,
-                        hash=file_hash,
-                        mtime=f.stat().st_mtime,
-                        system="PS3",
-                        game_name=product_code,
-                        profile_scope=profile_scope,
-                    )
-        results.extend(ps3_best.values())
+            files = _iter_dir_files(save_dir)
+            if not files:
+                continue
+            latest_mtime = max(fp.stat().st_mtime for _, fp in files)
+            results.append(
+                SaveFile(
+                    title_id=save_dir.name.upper(),
+                    path=save_dir,
+                    hash=_hash_dir_files(save_dir),
+                    mtime=latest_mtime,
+                    system="PS3",
+                    game_name=save_dir.name,
+                    profile_scope=profile_scope,
+                )
+            )
 
     return results
 
@@ -3048,45 +3174,57 @@ def upload_save(
     PS1 and PS2 memory-card clients use dedicated card endpoints so the server
     can convert formats as needed. PS1 regenerates PSP/Vita-compatible VMP
     files, while PS2 stores canonical `.mc2` and converts to `.ps2` on demand
-    for PCSX2/Aether clients. Other systems still use `/raw`.
+    for PCSX2/Aether clients. PS3 save folders use a 3DSS directory bundle.
+    Other systems still use `/raw`.
     """
     params = {"force": "true"} if force else {}
-    data = path.read_bytes()
-    if _should_use_ps1_card_endpoint(title_id, system):
+    is_ps3_dir = (system or "").upper() == "PS3" and path.is_dir()
+    if is_ps3_dir:
+        data = _create_dir_bundle(title_id, path)
         resp = requests.post(
-            f"{base_url}/api/v1/saves/{title_id}/ps1-card",
+            f"{base_url}/api/v1/saves/{title_id}",
             headers={**headers, "Content-Type": "application/octet-stream"},
             params=params,
             data=data,
             timeout=timeout,
         )
-    elif _should_use_ps2_card_endpoint(system):
-        resp = requests.post(
-            f"{base_url}/api/v1/saves/{title_id}/ps2-card",
-            headers={**headers, "Content-Type": "application/octet-stream"},
-            params=params,
-            data=data,
-            timeout=timeout,
-        )
-    elif (system or "").upper() == "GC":
-        resp = requests.post(
-            f"{base_url}/api/v1/saves/{title_id}/gc-card",
-            headers={**headers, "Content-Type": "application/octet-stream"},
-            params={**params, "format": "raw"},
-            data=data,
-            timeout=timeout,
-        )
+        local_hash = _hash_dir_files(path)
     else:
-        resp = requests.post(
-            f"{base_url}/api/v1/saves/{title_id}/raw",
-            headers={**headers, "Content-Type": "application/octet-stream"},
-            params=params,
-            data=data,
-            timeout=timeout,
-        )
+        data = path.read_bytes()
+        local_hash = hashlib.sha256(data).hexdigest()
+        if _should_use_ps1_card_endpoint(title_id, system):
+            resp = requests.post(
+                f"{base_url}/api/v1/saves/{title_id}/ps1-card",
+                headers={**headers, "Content-Type": "application/octet-stream"},
+                params=params,
+                data=data,
+                timeout=timeout,
+            )
+        elif _should_use_ps2_card_endpoint(system):
+            resp = requests.post(
+                f"{base_url}/api/v1/saves/{title_id}/ps2-card",
+                headers={**headers, "Content-Type": "application/octet-stream"},
+                params=params,
+                data=data,
+                timeout=timeout,
+            )
+        elif (system or "").upper() == "GC":
+            resp = requests.post(
+                f"{base_url}/api/v1/saves/{title_id}/gc-card",
+                headers={**headers, "Content-Type": "application/octet-stream"},
+                params={**params, "format": "raw"},
+                data=data,
+                timeout=timeout,
+            )
+        else:
+            resp = requests.post(
+                f"{base_url}/api/v1/saves/{title_id}/raw",
+                headers={**headers, "Content-Type": "application/octet-stream"},
+                params=params,
+                data=data,
+                timeout=timeout,
+            )
     resp.raise_for_status()
-    # Update local state with the hash of the uploaded raw payload.
-    local_hash = hashlib.sha256(data).hexdigest()
     _update_state(title_id, local_hash)
 
 
@@ -3102,8 +3240,15 @@ def download_save(
 
     PS1 and PS2 memory-card clients use dedicated card endpoints so desktop
     profiles receive emulator/native card images instead of generic raw blobs.
+    PS3 save folders use the bundle endpoint and are extracted into dest_path.
     """
-    if _should_use_ps1_card_endpoint(title_id, system):
+    if (system or "").upper() == "PS3" and dest_path.is_dir():
+        resp = requests.get(
+            f"{base_url}/api/v1/saves/{title_id}",
+            headers=headers,
+            timeout=timeout,
+        )
+    elif _should_use_ps1_card_endpoint(title_id, system):
         resp = requests.get(
             f"{base_url}/api/v1/saves/{title_id}/ps1-card",
             headers=headers,
@@ -3130,10 +3275,14 @@ def download_save(
             timeout=timeout,
         )
     resp.raise_for_status()
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-    dest_path.write_bytes(resp.content)
-    server_hash = resp.headers.get(
-        "X-Save-Hash", hashlib.sha256(resp.content).hexdigest()
-    )
+    if (system or "").upper() == "PS3" and dest_path.is_dir():
+        _extract_bundle_to_dir(resp.content, dest_path)
+        server_hash = resp.headers.get("X-Save-Hash", _hash_dir_files(dest_path))
+    else:
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        dest_path.write_bytes(resp.content)
+        server_hash = resp.headers.get(
+            "X-Save-Hash", hashlib.sha256(resp.content).hexdigest()
+        )
     _update_state(title_id, server_hash)
     return server_hash

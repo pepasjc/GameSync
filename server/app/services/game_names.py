@@ -102,6 +102,7 @@ _PSP_CODE_RE = re.compile(r"^[A-Z]{4}\d{5}$")  # ULUS10000, ELES01234, NPUH10001
 _PSP_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")  # same but allows slot suffix
 _VITA_CODE_RE = re.compile(r"^PCS[A-Z]\d{5}$")  # PCSE00000, PCSB12345, PCSG00001
 _PS3_CODE_RE = re.compile(r"^BL[A-Z]{2}\d{5}$")  # BLUS30289, BLES01017, BLJM61131
+_PS3_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")  # BLUS30289-SAVE00, NPUB12345, etc.
 
 # 3DS title ID high-word prefixes (first 5 hex chars of the 16-char ID)
 _3DS_HIGH_PREFIXES = {
@@ -150,8 +151,8 @@ def detect_platform(title_id: str) -> str:
     if _VITA_CODE_RE.match(tid) or (len(tid) >= 4 and tid[:3] == "PCS"):
         return "VITA"
 
-    # PS3: BL[A-Z][A-Z]##### (BLUS, BLES, BLJM, BLAS, etc.)
-    if _PS3_CODE_RE.match(tid):
+    # PS3: BL[A-Z][A-Z]##### optionally followed by a save-dir suffix.
+    if _PS3_CODE_RE.match(tid[:9]) and _PS3_PREFIX_RE.match(tid):
         return "PS3"
 
     # PSP / PSX: 4 letters + 5 digits (optionally with slot suffix)
@@ -446,9 +447,10 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
                 result[code] = (name, "VITA")
             continue
 
-        # PS3 product code (BL[A-Z][A-Z]##### format, 9 chars)
-        if _PS3_CODE_RE.match(code_upper):
-            name = _ps3_names.get(code_upper)
+        # PS3 product code or save-directory ID. Look up by the 9-char base.
+        base = code_upper[:9]
+        if _PS3_CODE_RE.match(base) and _PS3_PREFIX_RE.match(code_upper):
+            name = _ps3_names.get(base)
             if name:
                 result[code] = (name, "PS3")
             continue

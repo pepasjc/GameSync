@@ -17,27 +17,32 @@ Layout (1280 × 800 full-screen):
 Gamepad mapping (polled via pygame in a QTimer):
   D-pad / L-stick ↑↓  →  navigate list
   D-pad ←→            →  cycle system filter
-  A                   →  upload selected (or open detail if no local save)
-  B                   →  download selected
+  A                   →  open save info dialog (upload/download from there)
+  B                   →  (no action on main list)
   X                   →  sync selected (upload OR download depending on status)
-  Y                   →  toggle search / refresh
+  Y                   →  refresh
   L1                  →  prev system filter
   R1                  →  next system filter
   L2                  →  prev status filter
   R2                  →  next status filter
   Start               →  settings
-  Select              →  toggle show-all / needs-action
+  Select              →  toggle search
 """
 
 import time
-from typing import Optional
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QProgressBar, QSizePolicy,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QProgressBar,
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject
-from PyQt6.QtGui import QFont, QColor, QKeyEvent
+from PyQt6.QtGui import QFont, QKeyEvent
 
 from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
 from scanner import scan_all
@@ -48,9 +53,11 @@ from .game_list import GameListView
 from .controls_bar import ControlsBar
 from .settings_dialog import SettingsDialog
 from .detail_dialog import DetailDialog
+from .confirm_dialog import ConfirmDialog, ResultDialog
 
 try:
     import pygame
+
     _PYGAME_OK = True
 except ImportError:
     _PYGAME_OK = False
@@ -59,21 +66,28 @@ except ImportError:
 # Background workers
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class ScanWorker(QObject):
     progress = pyqtSignal(str)
     finished = pyqtSignal(list)  # list[GameEntry]
 
-    def __init__(self, emulation_path: str):
+    def __init__(self, emulation_path: str, rom_scan_dir: str = ""):
         super().__init__()
         self._path = emulation_path
+        self._rom_scan_dir = rom_scan_dir
 
     def run(self):
-        results = scan_all(self._path, progress_cb=self.progress.emit)
+        results = scan_all(
+            self._path,
+            rom_scan_dir=self._rom_scan_dir,
+            progress_cb=self.progress.emit,
+        )
         self.finished.emit(results)
 
 
 class ServerWorker(QObject):
     """Fetches server saves and enriches GameEntry objects with sync status."""
+
     finished = pyqtSignal(list)  # updated list[GameEntry]
 
     def __init__(self, entries: list[GameEntry], client: SyncClient):
@@ -81,33 +95,133 @@ class ServerWorker(QObject):
         self._entries = entries
         self._client = client
 
+    def _enrich_title_ids(self):
+        """
+        For PS1 (and PS2) entries that have slug-based title_ids (e.g.
+        "PS1_breath_of_fire_iv_usa") and a known ROM filename, ask the server
+        to resolve the ROM filename to a product serial (e.g. "SCUS94463").
+
+        This handles CHD files and other formats where local ISO parsing failed.
+        """
+        # Collect entries that need server lookup:
+        # - title_id starts with "PS1_" or "PS2_" (slug-based, no serial extracted)
+        # - rom_filename is available (so we can send it to the server)
+        needs_lookup: list[GameEntry] = []
+        rom_entries: list[dict[str, str]] = []
+        for entry in self._entries:
+            if entry.rom_filename and (
+                entry.title_id.startswith("PS1_") or entry.title_id.startswith("PS2_")
+            ):
+                needs_lookup.append(entry)
+                system = "PS1" if entry.title_id.startswith("PS1_") else "PS2"
+                rom_entries.append({"system": system, "filename": entry.rom_filename})
+
+        if not rom_entries:
+            return
+
+        # Batch lookup via server
+        resolved = self._client.normalize_batch(rom_entries)
+        if not resolved:
+            return
+
+        # Apply resolved serial title_ids
+        for entry in needs_lookup:
+            new_tid = resolved.get(entry.rom_filename)
+            if new_tid and new_tid != entry.title_id:
+                # Server returned a different (better) title_id — likely a real serial
+                old_tid = entry.title_id
+                entry.title_id = new_tid
+                print(f"[Enrich] {old_tid} -> {new_tid} (from {entry.rom_filename})")
+
+    def _enrich_display_names(self):
+        """
+        Resolve product-code display names to real game names via the server.
+
+        Mirrors Android MainViewModel's enrichment step: collects entries
+        where display_name is a raw code (PSP/PS serial, 3DS/NDS hex ID)
+        OR where the title_id starts with "GC_" (Dolphin saves whose GCI
+        filename descriptions are less clean than the server's database).
+        Batch-queries POST /api/v1/titles/names, updates display_name and
+        system.
+        """
+        import re
+
+        # Patterns that indicate the display name is just a code, not a real name
+        _PRODUCT_CODE_RE = re.compile(r"^[A-Z]{4}\d{5}")  # PSP/PS1/PS2/PS3/VITA
+        _HEX16_RE = re.compile(r"^[0-9A-Fa-f]{16}$")  # 3DS title IDs
+        _HEX8_RE = re.compile(r"^[0-9A-Fa-f]{8}$")  # NDS title IDs
+
+        codes_to_lookup: list[str] = []
+        code_to_entries: dict[str, list[GameEntry]] = {}
+
+        for entry in self._entries:
+            name = entry.display_name
+            needs_name = (
+                name == entry.title_id  # scanner just used title_id as name
+                or bool(_PRODUCT_CODE_RE.match(name))
+                or bool(_HEX16_RE.match(name))
+                or bool(_HEX8_RE.match(name))
+                or entry.title_id.startswith("GC_")  # GCI descriptions < server DB
+            )
+            if not needs_name:
+                continue
+
+            # Use title_id as the lookup code (server resolves by code)
+            code = entry.title_id
+            if code not in code_to_entries:
+                code_to_entries[code] = []
+                codes_to_lookup.append(code)
+            code_to_entries[code].append(entry)
+
+        if not codes_to_lookup:
+            return
+
+        result = self._client.lookup_names(codes_to_lookup)
+        names = result.get("names", {})
+        types = result.get("types", {})
+
+        # Server platform label -> our system code mapping
+        _PLATFORM_TO_SYSTEM = {
+            "PSP": "PSP",
+            "PSX": "PS1",
+            "PS1": "PS1",
+            "PS2": "PS2",
+            "PS3": "PS3",
+            "VITA": "VITA",
+            "3DS": "3DS",
+            "NDS": "NDS",
+        }
+
+        for code, entries in code_to_entries.items():
+            resolved_name = names.get(code)
+            resolved_type = types.get(code)
+            for entry in entries:
+                if resolved_name:
+                    entry.display_name = resolved_name
+                    print(f"[Names] {code} -> {resolved_name}")
+                if resolved_type and entry.system == "?":
+                    mapped = _PLATFORM_TO_SYSTEM.get(resolved_type, resolved_type)
+                    entry.system = mapped
+
     def run(self):
+        # ── Enrich slug-based PS1/PS2 title_ids with server serial lookup ──
+        self._enrich_title_ids()
+
+        # ── Enrich display names (product codes -> real game names) ──
+        self._enrich_display_names()
+
         server_saves = self._client.get_server_saves()
         updated = []
         for entry in self._entries:
             entry.status = self._client.compute_status(entry, server_saves)
             info = server_saves.get(entry.title_id)
             if info:
-                entry.server_hash = info.get("hash")
-                entry.server_timestamp = info.get("timestamp")
-                entry.server_size = info.get("size")
-            updated.append(entry)
-
-        # Also add server-only entries (saves on server but not found locally)
-        local_ids = {e.title_id for e in updated}
-        for title_id, info in server_saves.items():
-            if title_id in local_ids:
-                continue
-            entry = GameEntry(
-                title_id=title_id,
-                display_name=info.get("game_name") or title_id,
-                system=_infer_system(title_id),
-                emulator="Server",
-                status=SyncStatus.SERVER_ONLY,
-                server_hash=info.get("hash"),
-                server_timestamp=info.get("timestamp"),
-                server_size=info.get("size"),
-            )
+                entry.server_hash = info.get("save_hash")
+                entry.server_timestamp = info.get("client_timestamp")
+                entry.server_size = info.get("save_size")
+                # Also pick up server game_name if we still don't have a good one
+                if entry.display_name == entry.title_id and info.get("game_name"):
+                    entry.display_name = info["game_name"]
             updated.append(entry)
 
         self.finished.emit(updated)
@@ -119,9 +233,27 @@ def _infer_system(title_id: str) -> str:
     if len(parts) == 2 and 2 <= len(parts[0]) <= 8 and parts[0].isupper():
         return parts[0]
     # PlayStation product codes: SLUS, SCES, UCUS, BLUS, etc.
-    for prefix, sys in [("SLUS", "PS1"), ("SLES", "PS1"), ("SCUS", "PS1"), ("SCES", "PS1"),
-                         ("NPJH", "PSP"), ("UCUS", "PSP"), ("ULUS", "PSP"), ("UCES", "PSP"),
-                         ("BLUS", "PS3"), ("BLES", "PS3"), ("BCUS", "PS3"), ("BCES", "PS3")]:
+    for prefix, sys in [
+        ("SLUS", "PS1"),
+        ("SLES", "PS1"),
+        ("SCUS", "PS1"),
+        ("SCES", "PS1"),
+        ("SLPS", "PS1"),
+        ("SLPM", "PS1"),
+        ("SCPS", "PS1"),
+        ("SCPM", "PS1"),
+        ("NPJH", "PSP"),
+        ("UCUS", "PSP"),
+        ("ULUS", "PSP"),
+        ("UCES", "PSP"),
+        ("ULJS", "PSP"),
+        ("NPUG", "PSP"),
+        ("NPJG", "PSP"),
+        ("BLUS", "PS3"),
+        ("BLES", "PS3"),
+        ("BCUS", "PS3"),
+        ("BCES", "PS3"),
+    ]:
         if title_id.startswith(prefix):
             return sys
     return "?"
@@ -136,7 +268,7 @@ ALL_STATUSES = "All"
 
 STATUS_FILTER_CYCLE = [
     ALL_STATUSES,
-    "Needs Action",   # upload + download + conflict
+    "Needs Action",  # upload + download + conflict
     STATUS_LABEL[SyncStatus.LOCAL_NEWER],
     STATUS_LABEL[SyncStatus.SERVER_NEWER],
     STATUS_LABEL[SyncStatus.CONFLICT],
@@ -147,7 +279,9 @@ STATUS_FILTER_CYCLE = [
 ]
 
 NEEDS_ACTION_STATUSES = {
-    SyncStatus.LOCAL_NEWER, SyncStatus.SERVER_NEWER, SyncStatus.CONFLICT,
+    SyncStatus.LOCAL_NEWER,
+    SyncStatus.SERVER_NEWER,
+    SyncStatus.CONFLICT,
     SyncStatus.LOCAL_ONLY,
 }
 
@@ -166,6 +300,7 @@ def _matches_status_filter(entry: GameEntry, filt: str) -> bool:
 # ──────────────────────────────────────────────────────────────────────────────
 # Main Window
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -340,7 +475,10 @@ class MainWindow(QMainWindow):
         self._check_server_status()
 
         self._scan_thread = QThread()
-        self._scan_worker = ScanWorker(self._config["emulation_path"])
+        self._scan_worker = ScanWorker(
+            self._config["emulation_path"],
+            self._config.get("rom_scan_dir", ""),
+        )
         self._scan_worker.moveToThread(self._scan_thread)
         self._scan_thread.started.connect(self._scan_worker.run)
         self._scan_worker.progress.connect(self._on_scan_progress)
@@ -383,12 +521,15 @@ class MainWindow(QMainWindow):
             filtered = [e for e in filtered if e.system == self._system_filter]
 
         if self._status_filter != ALL_STATUSES:
-            filtered = [e for e in filtered if _matches_status_filter(e, self._status_filter)]
+            filtered = [
+                e for e in filtered if _matches_status_filter(e, self._status_filter)
+            ]
 
         if self._search_text:
             q = self._search_text.lower()
             filtered = [
-                e for e in filtered
+                e
+                for e in filtered
                 if q in e.display_name.lower() or q in e.title_id.lower()
             ]
 
@@ -481,9 +622,41 @@ class MainWindow(QMainWindow):
         entry = self._list_view.selected_entry()
         if not entry or not entry.save_path or not entry.save_path.exists():
             return
+
+        # Build confirmation message
+        size_str = ""
+        if entry.save_size:
+            kb = entry.save_size / 1024
+            size_str = f"\nLocal save size: {kb:.1f} KB"
+        msg = (
+            f"Upload local save for '{entry.display_name}' to the server?\n"
+            f"Title ID: {entry.title_id}{size_str}"
+        )
+        if entry.server_hash:
+            msg += "\n\nThis will overwrite the existing server save."
+
+        dlg = ConfirmDialog(
+            title="Upload Save",
+            message=msg,
+            confirm_label="Upload",
+            confirm_color=theme.STATUS_UPLOAD,
+            parent=self,
+        )
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+
         self._set_scanning(True, f"Uploading {entry.display_name}…")
-        ok = self._client.upload_save(entry)
+        ok = self._client.upload_save(entry, force=True)
         self._set_scanning(False)
+
+        ResultDialog(
+            ok,
+            f"'{entry.display_name}' uploaded successfully."
+            if ok
+            else f"Upload failed for '{entry.display_name}'.",
+            parent=self,
+        ).exec()
+
         if ok:
             entry.status = SyncStatus.SYNCED
             self._apply_filters()
@@ -494,9 +667,41 @@ class MainWindow(QMainWindow):
             return
         if entry.save_path is None:
             return
+
+        # Build confirmation message
+        size_str = ""
+        if entry.server_size:
+            kb = entry.server_size / 1024
+            size_str = f"\nServer save size: {kb:.1f} KB"
+        msg = (
+            f"Download server save for '{entry.display_name}'?\n"
+            f"Title ID: {entry.title_id}{size_str}"
+        )
+        if entry.save_path and entry.save_path.exists():
+            msg += "\n\nThis will overwrite your local save file."
+
+        dlg = ConfirmDialog(
+            title="Download Save",
+            message=msg,
+            confirm_label="Download",
+            confirm_color=theme.STATUS_DOWNLOAD,
+            parent=self,
+        )
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+
         self._set_scanning(True, f"Downloading {entry.display_name}…")
-        ok = self._client.download_save(entry)
+        ok = self._client.download_save(entry, force=True)
         self._set_scanning(False)
+
+        ResultDialog(
+            ok,
+            f"'{entry.display_name}' downloaded successfully."
+            if ok
+            else f"Download failed for '{entry.display_name}'.",
+            parent=self,
+        ).exec()
+
         if ok:
             entry.status = SyncStatus.SYNCED
             self._apply_filters()
@@ -510,8 +715,11 @@ class MainWindow(QMainWindow):
             self._action_upload()
         elif entry.status in (SyncStatus.SERVER_NEWER, SyncStatus.SERVER_ONLY):
             self._action_download()
+        elif entry.status == SyncStatus.CONFLICT:
+            # For conflicts, show detail dialog which has both upload/download options
+            self._action_detail()
         else:
-            # Open detail dialog for conflict / synced / unknown
+            # Open detail dialog for synced / unknown / no-save
             self._action_detail()
 
     def _action_detail(self):
@@ -564,16 +772,12 @@ class MainWindow(QMainWindow):
             self._cycle_system(-1)
         elif key == Qt.Key.Key_Right:
             self._cycle_system(1)
-        elif key in (Qt.Key.Key_Return, Qt.Key.Key_A):
-            self._action_upload()
-        elif key == Qt.Key.Key_B:
-            self._action_download()
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_A, Qt.Key.Key_Space):
+            self._action_detail()
         elif key == Qt.Key.Key_X:
             self._action_sync()
         elif key == Qt.Key.Key_Y:
             self._action_refresh()
-        elif key == Qt.Key.Key_Space:
-            self._action_detail()
         elif key == Qt.Key.Key_F1 or key == Qt.Key.Key_BracketLeft:
             self._cycle_system(-1)
         elif key == Qt.Key.Key_F2 or key == Qt.Key.Key_BracketRight:
@@ -607,17 +811,59 @@ class MainWindow(QMainWindow):
         try:
             pygame.init()
             pygame.joystick.init()
-            if pygame.joystick.get_count() > 0:
-                self._joystick = pygame.joystick.Joystick(0)
-                self._joystick.init()
+            self._btn_state: dict[int | str, bool] = {}
+            self._axis_nav_time = 0.0
+            self._try_grab_joystick()
+
             self._gamepad_timer = QTimer(self)
             self._gamepad_timer.setInterval(16)  # ~60 Hz
             self._gamepad_timer.timeout.connect(self._poll_gamepad)
             self._gamepad_timer.start()
-            self._btn_state: dict[int, bool] = {}
-            self._axis_nav_time = 0.0
+
+            # Hot-plug: re-scan for joysticks every 2 seconds
+            self._hotplug_timer = QTimer(self)
+            self._hotplug_timer.setInterval(2000)
+            self._hotplug_timer.timeout.connect(self._check_hotplug)
+            self._hotplug_timer.start()
         except Exception as e:
             print(f"[Gamepad] pygame init failed: {e}")
+
+    def _try_grab_joystick(self):
+        """Grab the first available joystick, or None."""
+        try:
+            pygame.joystick.quit()
+            pygame.joystick.init()
+            count = pygame.joystick.get_count()
+            if count > 0:
+                js = pygame.joystick.Joystick(0)
+                js.init()
+                if self._joystick is None:
+                    name = js.get_name()
+                    print(
+                        f"[Gamepad] Connected: {name} ({js.get_numbuttons()} buttons, "
+                        f"{js.get_numaxes()} axes, {js.get_numhats()} hats)"
+                    )
+                self._joystick = js
+            else:
+                if self._joystick is not None:
+                    print("[Gamepad] Disconnected")
+                self._joystick = None
+        except Exception:
+            self._joystick = None
+
+    def _check_hotplug(self):
+        """Periodically re-scan for joystick connect/disconnect."""
+        had_js = self._joystick is not None
+        try:
+            cur_count = pygame.joystick.get_count()
+        except Exception:
+            cur_count = 0
+        has_js = cur_count > 0
+
+        # Only re-grab if state changed (connected/disconnected)
+        if has_js != had_js:
+            self._try_grab_joystick()
+            self._btn_state.clear()
 
     def _poll_gamepad(self):
         if not _PYGAME_OK or self._joystick is None:
@@ -639,14 +885,22 @@ class MainWindow(QMainWindow):
             self._btn_state[idx] = cur
             return cur and not prev
 
-        if btn_pressed(0):   self._action_upload()     # A
-        if btn_pressed(1):   self._action_download()   # B
-        if btn_pressed(2):   self._action_sync()       # X
-        if btn_pressed(3):   self._action_refresh()    # Y
-        if btn_pressed(4):   self._cycle_system(-1)    # L1
-        if btn_pressed(5):   self._cycle_system(1)     # R1
-        if btn_pressed(6):   self._toggle_search()     # Select/View
-        if btn_pressed(7):   self._open_settings()     # Start/Menu
+        if btn_pressed(0):
+            self._action_detail()  # A — open save info
+        if btn_pressed(1):
+            pass  # B — no action on main list (back)
+        if btn_pressed(2):
+            self._action_sync()  # X
+        if btn_pressed(3):
+            self._action_refresh()  # Y
+        if btn_pressed(4):
+            self._cycle_system(-1)  # L1
+        if btn_pressed(5):
+            self._cycle_system(1)  # R1
+        if btn_pressed(6):
+            self._toggle_search()  # Select/View
+        if btn_pressed(7):
+            self._open_settings()  # Start/Menu
 
         # ── D-pad (HAT) ───────────────────────────────────────────
         try:
@@ -668,7 +922,8 @@ class MainWindow(QMainWindow):
         except Exception:
             l2, r2 = -1.0, -1.0
 
-        if btn_pressed(8):   pass  # Steam button — ignore
+        if btn_pressed(8):
+            pass  # Steam button — ignore
         # L2/R2 pressed detection via axis crossing threshold
         l2_prev = self._btn_state.get("l2", False)
         r2_prev = self._btn_state.get("r2", False)
@@ -676,8 +931,10 @@ class MainWindow(QMainWindow):
         r2_cur = r2 > 0.5
         self._btn_state["l2"] = l2_cur
         self._btn_state["r2"] = r2_cur
-        if l2_cur and not l2_prev:   self._cycle_status(-1)
-        if r2_cur and not r2_prev:   self._cycle_status(1)
+        if l2_cur and not l2_prev:
+            self._cycle_status(-1)
+        if r2_cur and not r2_prev:
+            self._cycle_status(1)
 
         # ── Navigation with repeat ────────────────────────────────
         DEADZONE = 0.4
@@ -690,8 +947,10 @@ class MainWindow(QMainWindow):
             nav_y = 1
 
         nav_x = 0
-        if hat_x == -1:   nav_x = -1
-        elif hat_x == 1:  nav_x = 1
+        if hat_x == -1:
+            nav_x = -1
+        elif hat_x == 1:
+            nav_x = 1
 
         if nav_y != 0 or nav_x != 0:
             if now - self._axis_nav_time >= REPEAT_DELAY:
@@ -707,6 +966,7 @@ class MainWindow(QMainWindow):
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def _font(size: int, bold: bool = False) -> QFont:
     f = QFont()

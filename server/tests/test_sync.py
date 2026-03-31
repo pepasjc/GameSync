@@ -356,6 +356,51 @@ class TestSyncEndpoint:
         plan = r.json()
         assert "0004000000055D00" in plan["server_only"]
 
+    def test_server_only_platform_filter_can_scope_non_hex_clients(self, client, auth_headers):
+        ps3_bundle = create_bundle(
+            SaveBundle(
+                title_id=0,
+                timestamp=1700000000,
+                title_id_str="BLUS30464-SAVE00",
+                files=[
+                    BundleFile(
+                        path="PARAM.SFO",
+                        size=5,
+                        sha256=hashlib.sha256(b"param").digest(),
+                        data=b"param",
+                    )
+                ],
+            )
+        )
+        psp_bundle = create_bundle(
+            SaveBundle(
+                title_id=0,
+                timestamp=1700000000,
+                title_id_str="ULUS10272DATA00",
+                files=[
+                    BundleFile(
+                        path="DATA.BIN",
+                        size=4,
+                        sha256=hashlib.sha256(b"save").digest(),
+                        data=b"save",
+                    )
+                ],
+            )
+        )
+
+        _upload(client, auth_headers, "BLUS30464-SAVE00", ps3_bundle)
+        _upload(client, auth_headers, "ULUS10272DATA00", psp_bundle)
+
+        r = client.post(
+            "/api/v1/sync",
+            json={"titles": [], "platforms": ["PS3"]},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        plan = r.json()
+        assert "BLUS30464-SAVE00" in plan["server_only"]
+        assert "ULUS10272DATA00" not in plan["server_only"]
+
     def test_mixed_scenario(self, client, auth_headers):
         """Multiple titles in different states."""
         # Upload two saves to server

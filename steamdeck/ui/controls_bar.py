@@ -41,12 +41,17 @@ class ButtonHint(QLabel):
 
         painter.setFont(font)
         painter.setPen(QColor("#ffffff"))
-        painter.drawText(0, (h - 22) // 2, pill_w, 22, Qt.AlignmentFlag.AlignCenter, self._button)
+        painter.drawText(
+            0, (h - 22) // 2, pill_w, 22, Qt.AlignmentFlag.AlignCenter, self._button
+        )
 
         # Label
         painter.setPen(QColor(theme.TEXT_SECONDARY))
         painter.drawText(
-            pill_w + 4, 0, self.width() - pill_w - 4, h,
+            pill_w + 4,
+            0,
+            self.width() - pill_w - 4,
+            h,
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
             self._label,
         )
@@ -66,8 +71,7 @@ class ControlsBar(QWidget):
         layout.setSpacing(16)
 
         self._hints = [
-            ButtonHint("A", theme.BTN_A, "Upload"),
-            ButtonHint("B", theme.BTN_B, "Download"),
+            ButtonHint("A", theme.BTN_A, "Info"),
             ButtonHint("X", theme.BTN_X, "Sync"),
             ButtonHint("Y", theme.BTN_Y, "Refresh"),
             ButtonHint("L1", theme.BTN_L, "System"),
@@ -78,11 +82,3 @@ class ControlsBar(QWidget):
         for h in self._hints:
             layout.addWidget(h)
         layout.addStretch()
-
-    def set_upload_label(self, label: str = "Upload") -> None:
-        self._hints[0]._label = label
-        self._hints[0].update()
-
-    def set_download_label(self, label: str = "Download") -> None:
-        self._hints[1]._label = label
-        self._hints[1].update()

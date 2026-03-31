@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Generator
 
-from .base import sha256_dir, find_paths
+from .base import find_paths, sha256_dir_tree_files
 from .models import GameEntry
 
 FLATPAK_RPCS3_DATA = (
@@ -12,6 +12,7 @@ FLATPAK_RPCS3_DATA = (
 EMUDECK_RPCS3_SAVES = Path.home() / "Emulation/saves/rpcs3"
 
 import re
+
 _PS3_ID_RE = re.compile(r"^[A-Z]{4}\d{5}")
 
 
@@ -20,7 +21,9 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
     Scan RPCS3 save data.
     Structure: savedata/<TITLE_ID>/ each containing SYS-DATA, DATA.DAT etc.
     """
+    emu_saves = emulation_path / "saves" / "rpcs3"
     saves_root = find_paths(
+        emu_saves,
         EMUDECK_RPCS3_SAVES,
         FLATPAK_RPCS3_DATA,
     )
@@ -39,9 +42,11 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
         if not m:
             continue
 
-        # The game ID is always the first 9 chars (XXXX + 5 digits)
+        # The game ID is always the first 9 chars (XXXX + 5 digits). Keep the
+        # full save-directory name as the server slot key so multiple PS3 save
+        # slots for the same title do not collapse into one.
         game_id = folder_name[:9].upper()
-        title_id = f"PS3_{game_id}"
+        title_id = folder_name.upper()
 
         # Use the full folder name as display (includes save slot identifier)
         display_name = folder_name
@@ -66,7 +71,7 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
                 save_mtime=mtime,
             )
             try:
-                entry.save_hash = sha256_dir(save_dir)
+                entry.save_hash = sha256_dir_tree_files(save_dir)
                 entry.save_size = sum(
                     f.stat().st_size for f in save_dir.rglob("*") if f.is_file()
                 )

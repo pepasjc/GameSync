@@ -21,22 +21,22 @@ from config import load_sync_state, save_sync_state
 
 _BUNDLE_MAGIC = b"3DSS"
 _BUNDLE_V4 = 4
+_BUNDLE_V5 = 5
 
 
-def _create_psp_bundle(title_id: str, slot_dir: Path) -> bytes:
+def _create_dir_bundle(title_id: str, slot_dir: Path) -> bytes:
     """
-    Create a 3DSS v4 bundle from a PSP SAVEDATA slot directory.
-    All files in the directory are included, sorted by name.
-    Matches Android's BundleUtils.createBundle() output.
+    Create a 3DSS bundle from a save directory.
+    Files are included recursively, sorted by relative path.
     """
     files: list[tuple[str, bytes, bytes]] = []  # (name, data, sha256_hash)
 
-    for fp in sorted(slot_dir.iterdir(), key=lambda f: f.name):
+    for fp in sorted(slot_dir.rglob("*")):
         if not fp.is_file():
             continue
         data = fp.read_bytes()
         h = hashlib.sha256(data).digest()
-        files.append((fp.name, data, h))
+        files.append((fp.relative_to(slot_dir).as_posix(), data, h))
 
     if not files:
         raise ValueError(f"No files found in {slot_dir}")
@@ -58,13 +58,16 @@ def _create_psp_bundle(title_id: str, slot_dir: Path) -> bytes:
     uncompressed_size = len(payload)
     compressed = zlib.compress(payload, 6)
 
-    # Build v4 header
+    # Build v4/v5 header
     header = bytearray()
     header += _BUNDLE_MAGIC
-    header += struct.pack("<I", _BUNDLE_V4)
-    # Title ID: 32 bytes, null-padded, uppercase ASCII
-    tid_bytes = title_id.upper().encode("ascii")[:31]
-    header += tid_bytes + b"\x00" * (32 - len(tid_bytes))
+    raw_tid = title_id.upper().encode("ascii")
+    if len(raw_tid) <= 31:
+        header += struct.pack("<I", _BUNDLE_V4)
+        header += raw_tid[:31].ljust(32, b"\x00")
+    else:
+        header += struct.pack("<I", _BUNDLE_V5)
+        header += raw_tid[:63].ljust(64, b"\x00")
     header += struct.pack("<I", timestamp)
     header += struct.pack("<I", len(files))
     header += struct.pack("<I", uncompressed_size)
@@ -72,17 +75,24 @@ def _create_psp_bundle(title_id: str, slot_dir: Path) -> bytes:
     return bytes(header) + compressed
 
 
-def _parse_psp_bundle(data: bytes) -> list[tuple[str, bytes]]:
+def _parse_dir_bundle(data: bytes) -> list[tuple[str, bytes]]:
     """
-    Parse a 3DSS v3 or v4 bundle, returning list of (filename, file_data).
-    Used for downloading PSP saves from the server.
+    Parse a 3DSS v3/v4/v5 bundle, returning list of (filename, file_data).
+    Used for downloading PSP/PS3 directory saves from the server.
     """
     if len(data) < 4 or data[:4] != _BUNDLE_MAGIC:
         raise ValueError("Not a valid 3DSS bundle")
 
     version = struct.unpack_from("<I", data, 4)[0]
 
-    if version == 4:
+    if version == 5:
+        offset = 4 + 4 + 64 + 4
+        file_count = struct.unpack_from("<I", data, offset)[0]
+        offset += 4
+        uncompressed_size = struct.unpack_from("<I", data, offset)[0]
+        offset += 4
+        payload = zlib.decompress(data[offset:])
+    elif version == 4:
         # v4: 4 magic + 4 version + 32 title_id + 4 timestamp + 4 file_count + 4 uncompressed_size
         offset = 4 + 4 + 32 + 4
         file_count = struct.unpack_from("<I", data, offset)[0]
@@ -211,6 +221,37 @@ class SyncClient:
         return {}
 
     # ------------------------------------------------------------------
+    # Game name / platform lookup
+    # ------------------------------------------------------------------
+
+    def lookup_names(self, codes: list[str]) -> dict:
+        """
+        Call POST /api/v1/titles/names to resolve product codes to game names.
+
+        Args:
+            codes: list of product codes (e.g. ["ULUS10567", "0004000000055D00"])
+
+        Returns:
+            {"names": {"CODE": "Game Name", ...},
+             "types": {"CODE": "PSP", ...},
+             "retail_serials": {"PSN_CODE": "RETAIL_SERIAL", ...}}
+        """
+        if not codes:
+            return {"names": {}, "types": {}, "retail_serials": {}}
+        try:
+            r = requests.post(
+                f"{self.base_url}/titles/names",
+                json={"codes": codes},
+                headers={**self.headers, "Content-Type": "application/json"},
+                timeout=self._timeout,
+            )
+            if r.status_code == 200:
+                return r.json()
+        except Exception as exc:
+            print(f"[LookupNames] batch lookup failed: {exc}")
+        return {"names": {}, "types": {}, "retail_serials": {}}
+
+    # ------------------------------------------------------------------
     # Card metadata (for three-way hash on PS1/PS2/GC)
     # ------------------------------------------------------------------
 
@@ -256,7 +297,7 @@ class SyncClient:
         try:
             if entry.is_psp_slot:
                 # PSP: create a 3DSS v4 bundle and upload via bundle endpoint
-                data = _create_psp_bundle(title_id, save_path)
+                data = _create_dir_bundle(title_id, save_path)
                 url = f"{self.base_url}/saves/{title_id}"
                 params = {"source": "psp_emu"}
                 if force:
@@ -272,13 +313,15 @@ class SyncClient:
                     timeout=30,
                 )
             elif entry.is_multi_file and save_path.is_dir():
-                # Generic multi-file: zip and upload as raw
-                data = _zip_dir(save_path)
-                url = f"{self.base_url}/saves/{title_id}/raw"
+                # Multi-file directory saves (for example RPCS3) use the bundle endpoint.
+                data = _create_dir_bundle(title_id, save_path)
+                url = f"{self.base_url}/saves/{title_id}"
+                params = {"source": "ps3_emu"} if system == "PS3" else {}
                 if force:
-                    url += "?force=true"
+                    params["force"] = "true"
                 r = requests.post(
                     url,
+                    params=params,
                     data=data,
                     headers={
                         **self.headers,
@@ -341,7 +384,7 @@ class SyncClient:
                 if r.status_code != 200:
                     return False
 
-                files = _parse_psp_bundle(r.content)
+                files = _parse_dir_bundle(r.content)
                 save_path.mkdir(parents=True, exist_ok=True)
                 # Clear existing files in slot dir
                 for existing in save_path.iterdir():
@@ -356,12 +399,22 @@ class SyncClient:
                 return True
 
             elif entry.is_multi_file and save_path.is_dir():
-                # Generic multi-file: download raw and unzip
-                url = f"{self.base_url}/saves/{title_id}/raw"
+                # Multi-file directory saves (for example RPCS3) use the bundle endpoint.
+                url = f"{self.base_url}/saves/{title_id}"
                 r = requests.get(url, headers=self.headers, timeout=30)
                 if r.status_code != 200:
                     return False
-                _unzip_to_dir(r.content, save_path)
+                files = _parse_dir_bundle(r.content)
+                save_path.mkdir(parents=True, exist_ok=True)
+                for existing in sorted(save_path.rglob("*"), reverse=True):
+                    if existing.is_file():
+                        existing.unlink()
+                    elif existing.is_dir():
+                        existing.rmdir()
+                for name, data in files:
+                    target = save_path / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(data)
             else:
                 # Single file: route by system
                 if system == "PS1":

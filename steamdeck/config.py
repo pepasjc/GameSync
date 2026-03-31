@@ -11,24 +11,44 @@ DEFAULT_CONFIG = {
     "port": 8000,
     "api_key": "",
     "emulation_path": "",  # auto-detected if empty
+    "rom_scan_dir": "",  # additional ROM scan directory (e.g. external drive)
 }
 
 
 def find_emulation_path() -> str:
     """Auto-detect EmuDeck installation path."""
+    import sys
+
     candidates = [
         Path.home() / "Emulation",
-        Path("/run/media/mmcblk0p1/Emulation"),
-        Path("/run/media/mmcblk1p1/Emulation"),
     ]
-    # Check user-labelled SD card mounts
-    for base in [Path("/run/media/deck"), Path("/run/media") / Path.home().name]:
-        if base.exists():
-            try:
-                for mount in base.iterdir():
-                    candidates.append(mount / "Emulation")
-            except PermissionError:
-                pass
+
+    # Linux: SD card mounts
+    if sys.platform != "win32":
+        candidates.extend(
+            [
+                Path("/run/media/mmcblk0p1/Emulation"),
+                Path("/run/media/mmcblk1p1/Emulation"),
+            ]
+        )
+        for base in [Path("/run/media/deck"), Path("/run/media") / Path.home().name]:
+            if base.exists():
+                try:
+                    for mount in base.iterdir():
+                        candidates.append(mount / "Emulation")
+                except PermissionError:
+                    pass
+
+    # Windows: check common locations and drive roots
+    if sys.platform == "win32":
+        import string
+
+        # Check common folder names on all drives
+        for letter in string.ascii_uppercase:
+            drive = Path(f"{letter}:\\")
+            if drive.exists():
+                for name in ("Emulation", "EmuDeck", "Emudeck"):
+                    candidates.append(drive / name)
 
     for path in candidates:
         if path.exists() and (path / "roms").exists():

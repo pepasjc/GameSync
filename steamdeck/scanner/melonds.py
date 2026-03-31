@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Generator
 
-from .base import normalize_rom_name, sha256_file, find_paths
+from .base import sha256_file, find_paths, to_title_id
 from .models import GameEntry
 
 FLATPAK_MELON_DATA = Path.home() / ".var/app/net.kuribo64.melonDS/data/melonDS"
@@ -15,7 +15,11 @@ SAVE_EXTENSIONS = {".sav", ".dsv", ".bin"}
 def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
     """Scan melonDS NDS save files."""
     # melonDS can store saves next to ROMs or in a dedicated saves folder
+    emu_saves = emulation_path / "saves" / "melonds"
     saves_dirs = [
+        emu_saves / "saves",
+        emu_saves,
+        EMUDECK_MELON_SAVES / "saves",
         EMUDECK_MELON_SAVES,
         FLATPAK_MELON_DATA / "saves",
         FLATPAK_MELON_DATA,
@@ -33,8 +37,7 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
             if save_file.suffix.lower() not in SAVE_EXTENSIONS:
                 continue
 
-            slug = normalize_rom_name(save_file.stem)
-            title_id = f"NDS_{slug}"
+            title_id = to_title_id(save_file.stem, "NDS")
             if title_id in seen:
                 continue
             seen.add(title_id)

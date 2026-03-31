@@ -24,6 +24,30 @@ def _make_bundle(
     return SaveBundle(title_id=title_id, timestamp=timestamp, files=bundle_files)
 
 
+def _make_string_bundle(
+    title_id: str,
+    timestamp: int = 1700000000,
+    files: list[tuple[str, bytes]] | None = None,
+) -> SaveBundle:
+    if files is None:
+        files = [("main", b"save data here")]
+    bundle_files = [
+        BundleFile(
+            path=path,
+            size=len(data),
+            sha256=hashlib.sha256(data).digest(),
+            data=data,
+        )
+        for path, data in files
+    ]
+    return SaveBundle(
+        title_id=0,
+        timestamp=timestamp,
+        files=bundle_files,
+        title_id_str=title_id,
+    )
+
+
 class TestBundleRoundTrip:
     def test_single_file(self):
         original = _make_bundle()
@@ -77,6 +101,23 @@ class TestBundleRoundTrip:
 
         assert parsed.title_id == 0x00040000001B5000
         assert parsed.title_id_hex == "00040000001B5000"
+
+    def test_string_title_id_v4_round_trip(self):
+        original = _make_string_bundle("ULUS10272DATA00")
+        data = create_bundle(original)
+        parsed = parse_bundle(data)
+
+        assert parsed.effective_title_id == "ULUS10272DATA00"
+        assert parsed.files[0].data == b"save data here"
+
+    def test_string_title_id_v5_round_trip(self):
+        title_id = "BLUS30464-AUTOSAVE-SLOT-0000000000000000000000000001"
+        original = _make_string_bundle(title_id)
+        data = create_bundle(original)
+        parsed = parse_bundle(data)
+
+        assert parsed.effective_title_id == title_id
+        assert parsed.files[0].data == b"save data here"
 
 
 class TestBundleErrors:

@@ -9,12 +9,12 @@ from typing import Optional
 class SyncStatus(Enum):
     UNKNOWN = "unknown"
     SYNCED = "synced"
-    LOCAL_NEWER = "local_newer"   # local changed since last sync → needs upload
-    SERVER_NEWER = "server_newer" # server changed since last sync → needs download
-    LOCAL_ONLY = "local_only"     # server has no save yet → upload
-    SERVER_ONLY = "server_only"   # no local save → can download
-    CONFLICT = "conflict"         # both changed independently
-    NO_SAVE = "no_save"           # game found but no save file exists locally
+    LOCAL_NEWER = "local_newer"  # local changed since last sync -> needs upload
+    SERVER_NEWER = "server_newer"  # server changed since last sync -> needs download
+    LOCAL_ONLY = "local_only"  # server has no save yet -> upload
+    SERVER_ONLY = "server_only"  # no local save -> can download
+    CONFLICT = "conflict"  # both changed independently
+    NO_SAVE = "no_save"  # game found but no save file exists locally
 
 
 STATUS_LABEL = {
@@ -82,16 +82,23 @@ DEFAULT_SYSTEM_COLOR = "#424242"
 
 @dataclass
 class GameEntry:
-    title_id: str                         # Server slot key, e.g. "GBA_pokemon_emerald"
-    display_name: str                     # Human-readable name
-    system: str                           # System code, e.g. "GBA"
-    emulator: str                         # Source emulator name
-    save_path: Optional[Path] = None      # Local save file (or dir for multi-file)
-    rom_path: Optional[Path] = None       # ROM file (for RetroArch games)
-    save_hash: Optional[str] = None       # SHA-256 of local save
+    title_id: str  # Server slot key, e.g. "GBA_pokemon_emerald"
+    display_name: str  # Human-readable name
+    system: str  # System code, e.g. "GBA"
+    emulator: str  # Source emulator name
+    save_path: Optional[Path] = None  # Local save file (or dir for multi-file)
+    rom_path: Optional[Path] = None  # ROM file (for RetroArch games)
+    rom_filename: Optional[str] = (
+        None  # Original ROM filename (for server serial lookup)
+    )
+    save_hash: Optional[str] = None  # SHA-256 of local save
     save_mtime: float = 0.0
     save_size: int = 0
-    is_multi_file: bool = False           # True for PPSSPP/RPCS3 (dir-based saves)
+    is_multi_file: bool = False  # True for PPSSPP/RPCS3 (dir-based saves)
+    is_psp_slot: bool = False  # True for PSP SAVEDATA slot dirs (bundle protocol)
+    extra_files: list[Path] = field(
+        default_factory=list
+    )  # Additional save files (GC multi-gci)
     # Sync state
     status: SyncStatus = SyncStatus.UNKNOWN
     server_hash: Optional[str] = None

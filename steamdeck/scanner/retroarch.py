@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Generator, Optional
 
-from .base import normalize_rom_name, sha256_file, find_paths
+from .base import sha256_file, find_paths, to_title_id
 from .models import GameEntry
 
 # RetroArch Flatpak paths
@@ -71,50 +71,79 @@ CORE_SYSTEM_MAP = {
 
 # Map: ROM folder name → (system_code, [core_save_subdirs], [save_exts])
 ROM_FOLDER_MAP = {
-    "gba":          ("GBA",    ["mGBA", "gpsp", "VBA-M", "VBA Next"],                   [".srm", ".sav"]),
-    "gb":           ("GB",     ["Gambatte", "SameBoy", "mGBA", "TGB Dual"],               [".srm", ".sav"]),
-    "gbc":          ("GBC",    ["Gambatte", "SameBoy", "mGBA"],                           [".srm", ".sav"]),
-    "snes":         ("SNES",   ["Snes9x", "Snes9x 2010", "bsnes", "bsnes-hd beta", "Mesen-S"], [".srm"]),
-    "nes":          ("NES",    ["Nestopia UE", "FCEUmm", "Mesen", "QuickNES"],            [".srm", ".sav"]),
-    "n64":          ("N64",    ["Mupen64Plus-Next", "ParaLLEl N64"],                      [".srm"]),
-    "genesis":      ("MD",     ["Genesis Plus GX", "Genesis Plus GX Wide", "PicoDrive", "BlastEm"], [".srm"]),
-    "megadrive":    ("MD",     ["Genesis Plus GX", "Genesis Plus GX Wide", "PicoDrive"], [".srm"]),
-    "mastersystem": ("SMS",    ["Genesis Plus GX", "PicoDrive"],                          [".srm"]),
-    "gamegear":     ("GG",     ["Genesis Plus GX"],                                       [".srm"]),
-    "32x":          ("32X",    ["PicoDrive"],                                             [".srm"]),
-    "segacd":       ("SEGACD", ["Genesis Plus GX", "PicoDrive"],                          [".srm", ".bak"]),
-    "pce":          ("PCE",    ["Beetle PCE", "Beetle PCE Fast"],                         [".srm"]),
-    "pcecd":        ("PCECD",  ["Beetle PCE", "Beetle PCE Fast"],                         [".srm"]),
-    "tg16":         ("TG16",   ["Beetle PCE", "Beetle PCE Fast"],                         [".srm"]),
-    "tgcd":         ("TGCD",   ["Beetle PCE", "Beetle PCE Fast"],                         [".srm"]),
-    "atari2600":    ("A2600",  ["Stella", "Stella 2014"],                                  [".srm"]),
-    "atari7800":    ("A7800",  ["ProSystem"],                                              [".srm"]),
-    "lynx":         ("LYNX",   ["Beetle Lynx", "Handy"],                                  [".srm"]),
-    "ngp":          ("NGP",    ["Beetle NeoPop", "RACE"],                                  [".srm"]),
-    "ngpc":         ("NGPC",   ["Beetle NeoPop", "RACE"],                                  [".srm"]),
-    "wonderswan":   ("WSWAN",  ["Beetle Cygne"],                                           [".srm"]),
-    "wonderswancolor": ("WSWANC", ["Beetle Cygne"],                                        [".srm"]),
-    "neogeo":       ("NEOGEO", ["FinalBurn Neo", "MAME 2003-Plus", "MAME"],                [".srm"]),
-    "arcade":       ("ARCADE", ["FinalBurn Neo", "MAME 2003-Plus", "MAME"],                [".srm"]),
-    "fba":          ("ARCADE", ["FinalBurn Neo"],                                          [".srm"]),
+    "gba": ("GBA", ["mGBA", "gpsp", "VBA-M", "VBA Next"], [".srm", ".sav"]),
+    "gb": ("GB", ["Gambatte", "SameBoy", "mGBA", "TGB Dual"], [".srm", ".sav"]),
+    "gbc": ("GBC", ["Gambatte", "SameBoy", "mGBA"], [".srm", ".sav"]),
+    "snes": (
+        "SNES",
+        ["Snes9x", "Snes9x 2010", "bsnes", "bsnes-hd beta", "Mesen-S"],
+        [".srm"],
+    ),
+    "nes": ("NES", ["Nestopia UE", "FCEUmm", "Mesen", "QuickNES"], [".srm", ".sav"]),
+    "n64": ("N64", ["Mupen64Plus-Next", "ParaLLEl N64"], [".srm"]),
+    "genesis": (
+        "MD",
+        ["Genesis Plus GX", "Genesis Plus GX Wide", "PicoDrive", "BlastEm"],
+        [".srm"],
+    ),
+    "megadrive": (
+        "MD",
+        ["Genesis Plus GX", "Genesis Plus GX Wide", "PicoDrive"],
+        [".srm"],
+    ),
+    "mastersystem": ("SMS", ["Genesis Plus GX", "PicoDrive"], [".srm"]),
+    "gamegear": ("GG", ["Genesis Plus GX"], [".srm"]),
+    "32x": ("32X", ["PicoDrive"], [".srm"]),
+    "segacd": ("SEGACD", ["Genesis Plus GX", "PicoDrive"], [".srm", ".bak"]),
+    "pce": ("PCE", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
+    "pcecd": ("PCECD", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
+    "tg16": ("TG16", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
+    "tgcd": ("TGCD", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
+    "atari2600": ("A2600", ["Stella", "Stella 2014"], [".srm"]),
+    "atari7800": ("A7800", ["ProSystem"], [".srm"]),
+    "lynx": ("LYNX", ["Beetle Lynx", "Handy"], [".srm"]),
+    "ngp": ("NGP", ["Beetle NeoPop", "RACE"], [".srm"]),
+    "ngpc": ("NGPC", ["Beetle NeoPop", "RACE"], [".srm"]),
+    "wonderswan": ("WSWAN", ["Beetle Cygne"], [".srm"]),
+    "wonderswancolor": ("WSWANC", ["Beetle Cygne"], [".srm"]),
+    "neogeo": ("NEOGEO", ["FinalBurn Neo", "MAME 2003-Plus", "MAME"], [".srm"]),
+    "arcade": ("ARCADE", ["FinalBurn Neo", "MAME 2003-Plus", "MAME"], [".srm"]),
+    "fba": ("ARCADE", ["FinalBurn Neo"], [".srm"]),
 }
 
 # ROM file extensions to recognize
 ROM_EXTENSIONS = {
-    ".gba", ".gb", ".gbc",
-    ".smc", ".sfc", ".fig",
-    ".nes", ".fds",
-    ".z64", ".n64", ".v64",
-    ".md", ".gen", ".smd",
-    ".sms", ".gg",
+    ".gba",
+    ".gb",
+    ".gbc",
+    ".smc",
+    ".sfc",
+    ".fig",
+    ".nes",
+    ".fds",
+    ".z64",
+    ".n64",
+    ".v64",
+    ".md",
+    ".gen",
+    ".smd",
+    ".sms",
+    ".gg",
     ".32x",
-    ".cue", ".chd", ".iso", ".bin",
+    ".cue",
+    ".chd",
+    ".iso",
+    ".bin",
     ".pce",
-    ".a26", ".a78",
+    ".a26",
+    ".a78",
     ".lnx",
-    ".ngp", ".ngc",
-    ".ws", ".wsc",
-    ".zip", ".7z",
+    ".ngp",
+    ".ngc",
+    ".ws",
+    ".wsc",
+    ".zip",
+    ".7z",
 }
 
 
@@ -216,16 +245,19 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
     Scan RetroArch saves, yielding GameEntry objects.
     Uses playlist-first strategy, falls back to ROM directory scan.
     """
-    # Locate RetroArch config and saves
+    # Locate RetroArch config and saves — prefer user-configured emulation_path
+    emu_ra = emulation_path / "saves" / "retroarch"
     ra_config_dir = find_paths(
+        emu_ra,
         FLATPAK_RA_DATA,
-        emulation_path / "saves" / "retroarch",
         Path.home() / ".config" / "retroarch",
     )
     if ra_config_dir is None:
         return
 
     saves_dir = find_paths(
+        emu_ra / "saves",
+        emu_ra,
         EMUDECK_RA_SAVES,
         ra_config_dir / "saves",
         _resolve_saves_dir(ra_config_dir),
@@ -243,8 +275,7 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
         if not rom_path.exists():
             continue
         rom_stem = rom_path.stem
-        slug = normalize_rom_name(rom_stem)
-        title_id = f"{system}_{slug}"
+        title_id = to_title_id(rom_stem, system)
         if title_id in seen_title_ids:
             continue
         seen_title_ids.add(title_id)
@@ -283,8 +314,7 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
             if rom_file.suffix.lower() not in ROM_EXTENSIONS:
                 continue
             rom_stem = rom_file.stem
-            slug = normalize_rom_name(rom_stem)
-            title_id = f"{system}_{slug}"
+            title_id = to_title_id(rom_stem, system)
             if title_id in seen_title_ids:
                 continue
             seen_title_ids.add(title_id)

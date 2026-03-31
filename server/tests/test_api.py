@@ -68,6 +68,31 @@ def _make_ps2_bundle_bytes(
     return create_bundle(bundle)
 
 
+def _make_string_bundle_bytes(
+    title_id: str,
+    timestamp: int = 1700000000,
+    files: list[tuple[str, bytes]] | None = None,
+) -> bytes:
+    if files is None:
+        files = [("main", b"save data here")]
+    bundle_files = [
+        BundleFile(
+            path=path,
+            size=len(data),
+            sha256=hashlib.sha256(data).digest(),
+            data=data,
+        )
+        for path, data in files
+    ]
+    bundle = SaveBundle(
+        title_id=0,
+        timestamp=timestamp,
+        files=bundle_files,
+        title_id_str=title_id,
+    )
+    return create_bundle(bundle)
+
+
 class TestStatusEndpoint:
     def test_status_no_auth_needed(self, client):
         r = client.get("/api/v1/status")
@@ -412,6 +437,32 @@ class TestDownloadEndpoint:
         paths = sorted(f.path for f in downloaded.files)
         assert "SCEVMC0.VMP" in paths
         assert "slot0.mcd" not in paths
+
+    def test_ps3_save_dir_round_trips_as_string_bundle(self, client, auth_headers):
+        title_id = "BLUS30464-AUTOSAVE-SLOT-0000000000000000000000000001"
+        bundle = _make_string_bundle_bytes(
+            title_id=title_id,
+            files=[("PARAM.SFO", b"param"), ("USR-DATA/SAVE.DAT", b"save-data")],
+        )
+        r = client.post(
+            f"/api/v1/saves/{title_id}",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+
+        meta = client.get(f"/api/v1/saves/{title_id}/meta", headers=auth_headers).json()
+        assert meta["title_id"] == title_id
+        assert meta["platform"] == "PS3"
+        assert meta["system"] == "PS3"
+
+        r = client.get(f"/api/v1/saves/{title_id}", headers=auth_headers)
+        assert r.status_code == 200
+        from app.services.bundle import parse_bundle
+
+        downloaded = parse_bundle(r.content)
+        assert downloaded.effective_title_id == title_id
+        assert sorted(f.path for f in downloaded.files) == ["PARAM.SFO", "USR-DATA/SAVE.DAT"]
 
     def test_upload_preserves_history(self, client, auth_headers, tmp_save_dir):
         # Upload v1

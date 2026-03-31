@@ -9,6 +9,7 @@ This repo contains:
 - `ds/`: Nintendo DS / DSi client
 - `desktop/`: PyQt desktop client
 - `psp/`: PSP client
+- `ps3/`: PS3 client scaffold (Apollo-based design in progress)
 - `vita/`: PS Vita client
 
 ## What It Does
@@ -248,6 +249,7 @@ More technical details live in `docs/`:
 - [docs/sync-profiles.md](docs/sync-profiles.md)
 - [docs/technical-overview.md](docs/technical-overview.md)
 - [docs/ps1-sync.md](docs/ps1-sync.md)
+- [docs/ps3-sync.md](docs/ps3-sync.md)
 
 ## License
 

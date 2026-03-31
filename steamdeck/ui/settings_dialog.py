@@ -1,8 +1,15 @@
 """Settings dialog — server config + emulation path."""
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFileDialog, QSpinBox, QFrame,
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QFileDialog,
+    QSpinBox,
+    QFrame,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -73,6 +80,18 @@ class SettingsDialog(QDialog):
         path_row.addWidget(browse_btn)
         layout.addLayout(path_row)
 
+        rom_row = QHBoxLayout()
+        self._rom_path = QLineEdit(config.get("rom_scan_dir", ""))
+        self._rom_path.setObjectName("searchBox")
+        self._rom_path.setPlaceholderText("(optional) Additional ROM directory")
+        rom_browse_btn = QPushButton("Browse…")
+        rom_browse_btn.setFixedWidth(90)
+        rom_browse_btn.clicked.connect(self._browse_rom_path)
+        rom_row.addWidget(QLabel("ROM scan dir"))
+        rom_row.addWidget(self._rom_path)
+        rom_row.addWidget(rom_browse_btn)
+        layout.addLayout(rom_row)
+
         layout.addWidget(_separator())
         layout.addStretch()
 
@@ -89,11 +108,23 @@ class SettingsDialog(QDialog):
 
     def _browse_path(self):
         path = QFileDialog.getExistingDirectory(
-            self, "Select Emulation Folder",
+            self,
+            "Select Emulation Folder",
             self._emu_path.text() or str(__import__("pathlib").Path.home()),
         )
         if path:
             self._emu_path.setText(path)
+
+    def _browse_rom_path(self):
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Select ROM Directory",
+            self._rom_path.text()
+            or self._emu_path.text()
+            or str(__import__("pathlib").Path.home()),
+        )
+        if path:
+            self._rom_path.setText(path)
 
     def get_config(self) -> dict:
         return {
@@ -101,12 +132,19 @@ class SettingsDialog(QDialog):
             "port": self._port_spin.value(),
             "api_key": self._api_key["edit"].text().strip(),
             "emulation_path": self._emu_path.text().strip(),
+            "rom_scan_dir": self._rom_path.text().strip(),
         }
 
     def keyPressEvent(self, event):
-        if event.key() in (Qt.Key.Key_Escape, Qt.Key.Key_Backspace):
+        # Let text inputs handle their own keys (Backspace, Enter, etc.)
+        focused = self.focusWidget()
+        is_editing = isinstance(focused, (QLineEdit, QSpinBox))
+
+        if event.key() == Qt.Key.Key_Escape:
             self.reject()
-        elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+        elif event.key() == Qt.Key.Key_Backspace and not is_editing:
+            self.reject()
+        elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not is_editing:
             self.accept()
         else:
             super().keyPressEvent(event)

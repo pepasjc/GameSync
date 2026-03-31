@@ -51,6 +51,7 @@ from app.models.save import (
     BUNDLE_VERSION_COMPRESSED,
     BUNDLE_VERSION_V3,
     BUNDLE_VERSION_V4,
+    BUNDLE_VERSION_V5,
     BundleFile,
     SaveBundle,
 )
@@ -111,7 +112,8 @@ def _parse_payload(data: bytes, file_count: int) -> list[BundleFile]:
 def parse_bundle(data: bytes) -> SaveBundle:
     """Parse a binary save bundle into a SaveBundle object.
 
-    Supports v1 (uncompressed), v2 (zlib compressed), and v3 (string title_id + zlib).
+    Supports v1 (uncompressed), v2 (zlib compressed), and string title_id
+    variants v3/v4/v5 for PSP/Vita/PS3 saves.
     """
     if len(data) < 28:
         raise BundleError("Bundle too small for header")
@@ -133,6 +135,15 @@ def parse_bundle(data: bytes) -> SaveBundle:
         (title_id_int,) = struct.unpack_from(">Q", data, offset)
         offset += 8
         title_id_str = ""
+
+    elif version == BUNDLE_VERSION_V5:
+        # v5: 64-byte ASCII null-padded string title_id
+        if offset + 64 > len(data):
+            raise BundleError("Truncated v5 title_id string")
+        raw = data[offset : offset + 64]
+        offset += 64
+        title_id_str = raw.rstrip(b"\x00").decode("ascii").upper()
+        title_id_int = 0
 
     elif version == BUNDLE_VERSION_V4:
         # v4: 32-byte ASCII null-padded string title_id
@@ -224,11 +235,15 @@ def create_bundle(bundle: SaveBundle, compress: bool = True) -> bytes:
     parts.append(BUNDLE_MAGIC)
 
     if bundle.title_id_str:
-        # v4: string title_id, always compressed
+        # v4/v5: string title_id, always compressed
         compressed_payload = zlib.compress(payload, level=6)
-        parts.append(struct.pack("<I", BUNDLE_VERSION_V4))
-        # 32-byte null-padded ASCII title_id
-        tid_bytes = bundle.title_id_str.encode("ascii")[:31].ljust(32, b"\x00")
+        raw_tid = bundle.title_id_str.encode("ascii")
+        if len(raw_tid) <= 31:
+            parts.append(struct.pack("<I", BUNDLE_VERSION_V4))
+            tid_bytes = raw_tid[:31].ljust(32, b"\x00")
+        else:
+            parts.append(struct.pack("<I", BUNDLE_VERSION_V5))
+            tid_bytes = raw_tid[:63].ljust(64, b"\x00")
         parts.append(tid_bytes)
         parts.append(struct.pack("<I", bundle.timestamp))
         parts.append(struct.pack("<I", len(bundle.files)))
