@@ -161,7 +161,7 @@ class SyncClient:
 
     def get_server_saves(self) -> dict[str, dict]:
         """
-        Returns {title_id: {hash, timestamp, size, game_name, ...}}.
+        Returns {title_id: {save_hash, last_sync, save_size, name, ...}}.
         """
         try:
             r = requests.get(
@@ -402,7 +402,7 @@ class SyncClient:
         last_synced_hash = state.get(entry.title_id)
 
         server_info = server_saves.get(entry.title_id)
-        server_hash = server_info["hash"] if server_info else None
+        server_hash = server_info.get("save_hash") if server_info else None
 
         local_hash = entry.save_hash
 
