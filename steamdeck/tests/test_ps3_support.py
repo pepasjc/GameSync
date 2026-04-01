@@ -42,6 +42,29 @@ def test_rpcs3_scan_accepts_nested_saves_layout(tmp_path):
     assert results[0].save_path == save_dir
 
 
+def test_rpcs3_scan_accepts_emudeck_storage_layout(tmp_path):
+    emulation = tmp_path / "Emulation"
+    save_dir = (
+        emulation
+        / "storage"
+        / "rpcs3"
+        / "dev_hdd0"
+        / "home"
+        / "00000001"
+        / "savedata"
+        / "BLUS30464-AUTOSAVE-01"
+    )
+    save_dir.mkdir(parents=True)
+    (save_dir / "PARAM.SFO").write_bytes(b"param")
+    (save_dir / "GAME.DAT").write_bytes(b"game")
+
+    results = list(rpcs3.scan(emulation))
+
+    assert len(results) == 1
+    assert results[0].title_id == "BLUS30464-AUTOSAVE-01"
+    assert results[0].save_path == save_dir
+
+
 def test_build_ps3_server_only_entries_infers_rpcs3_destination(tmp_path):
     emulation = tmp_path / "Emulation"
     server_saves = {
@@ -81,6 +104,26 @@ def test_build_ps3_server_only_entries_uses_nested_saves_layout_when_present(tmp
 
     assert len(entries) == 1
     assert entries[0].save_path == nested_root / "BLUS30464-AUTOSAVE-01"
+
+
+def test_build_ps3_server_only_entries_accepts_console_type(tmp_path):
+    emulation = tmp_path / "Emulation"
+    server_saves = {
+        "BLUS30464-AUTOSAVE-01": {
+            "title_id": "BLUS30464-AUTOSAVE-01",
+            "name": "Demon's Souls",
+            "console_type": "PS3",
+            "system": "",
+            "platform": "",
+            "save_hash": "server-hash",
+        }
+    }
+
+    entries = rpcs3.build_server_only_entries(server_saves, set(), emulation)
+
+    assert len(entries) == 1
+    assert entries[0].title_id == "BLUS30464-AUTOSAVE-01"
+    assert entries[0].status == SyncStatus.SERVER_ONLY
 
 
 def test_sync_client_downloads_ps3_bundle_into_missing_directory(monkeypatch, tmp_path):

@@ -136,18 +136,29 @@ class SettingsDialog(QDialog):
         }
 
     def keyPressEvent(self, event):
+        if self.handle_gamepad_key(event.key()):
+            return
+        super().keyPressEvent(event)
+
+    def handle_gamepad_key(self, key: int) -> bool:
         # Let text inputs handle their own keys (Backspace, Enter, etc.)
         focused = self.focusWidget()
         is_editing = isinstance(focused, (QLineEdit, QSpinBox))
 
-        if event.key() == Qt.Key.Key_Escape:
+        if key in (Qt.Key.Key_Escape, Qt.Key.Key_B) and not is_editing:
             self.reject()
-        elif event.key() == Qt.Key.Key_Backspace and not is_editing:
+            return True
+        if key == Qt.Key.Key_Backspace and not is_editing:
             self.reject()
-        elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not is_editing:
+            return True
+        if key in (
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_A,
+        ) and not is_editing:
             self.accept()
-        else:
-            super().keyPressEvent(event)
+            return True
+        return False
 
 
 def _field(label: str, value: str) -> dict:

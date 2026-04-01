@@ -9,6 +9,9 @@ from .models import GameEntry, SyncStatus
 FLATPAK_RPCS3_DATA = (
     Path.home() / ".var/app/net.rpcs3.RPCS3/data/rpcs3/dev_hdd0/home/00000001/savedata"
 )
+EMUDECK_RPCS3_STORAGE_DATA = (
+    Path.home() / "Emulation/storage/rpcs3/dev_hdd0/home/00000001/savedata"
+)
 EMUDECK_RPCS3_SAVES = Path.home() / "Emulation/saves/rpcs3"
 EMUDECK_RPCS3_SAVE_DIRS = Path.home() / "Emulation/saves/rpcs3/saves"
 
@@ -22,10 +25,12 @@ def resolve_saves_root(emulation_path: Path) -> Path | None:
     return find_paths(
         emu_saves / "saves",
         emu_saves,
+        emulation_path / "storage" / "rpcs3" / "dev_hdd0" / "home" / "00000001" / "savedata",
         emulation_path / "rpcs3" / "saves",
         emulation_path / "rpcs3",
         EMUDECK_RPCS3_SAVE_DIRS,
         EMUDECK_RPCS3_SAVES,
+        EMUDECK_RPCS3_STORAGE_DATA,
         FLATPAK_RPCS3_DATA,
     )
 
@@ -49,7 +54,12 @@ def build_server_only_entries(
         if title_id in seen_ids:
             continue
 
-        system = (info.get("system") or "").upper()
+        system = (
+            info.get("system")
+            or info.get("console_type")
+            or info.get("platform")
+            or ""
+        ).upper()
         if system != "PS3":
             continue
 

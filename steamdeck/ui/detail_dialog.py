@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
     QLabel,
     QPushButton,
     QFrame,
@@ -45,6 +46,35 @@ class DetailDialog(QDialog):
         self.setStyleSheet(theme.STYLESHEET)
         self._entry = entry
         self._client = sync_client
+        self.setObjectName("detailDialog")
+        self.setStyleSheet(
+            theme.STYLESHEET
+            + f"""
+QDialog#detailDialog {{
+    background: {theme.BG_DIALOG};
+}}
+QWidget#detailContent, QScrollArea#detailScroll, QScrollArea#detailScroll QWidget {{
+    background: {theme.BG_DIALOG};
+}}
+QFrame#detailCard {{
+    background: {theme.BG_TOPBAR};
+    border: 1px solid {theme.TEXT_DIM};
+    border-radius: 8px;
+}}
+QLabel#detailValue {{
+    color: {theme.TEXT_PRIMARY};
+    background: transparent;
+}}
+QLabel#detailValueMono {{
+    color: {theme.ACCENT};
+    background: transparent;
+}}
+QLabel#detailLabel {{
+    color: {theme.TEXT_SECONDARY};
+    background: transparent;
+}}
+"""
+        )
 
         root = QVBoxLayout(self)
         root.setSpacing(0)
@@ -52,12 +82,15 @@ class DetailDialog(QDialog):
 
         # ── Scrollable content area ───────────────────────────────
         scroll = QScrollArea()
+        scroll.setObjectName("detailScroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setStyleSheet(
             f"QScrollArea {{ background: {theme.BG_DIALOG}; border: none; }}"
         )
+        scroll.viewport().setStyleSheet(f"background: {theme.BG_DIALOG};")
         content = QWidget()
+        content.setObjectName("detailContent")
         layout = QVBoxLayout(content)
         layout.setSpacing(10)
         layout.setContentsMargins(28, 24, 28, 12)
@@ -101,21 +134,19 @@ class DetailDialog(QDialog):
 
         # ── Identity section ──────────────────────────────────────
         layout.addWidget(_section_header("Identity"))
-        grid = QVBoxLayout()
-        grid.setSpacing(4)
-        grid.addLayout(_row("Title ID", entry.title_id))
+        grid = _card_layout()
+        grid.addLayout(_row("Title ID", entry.title_id or "Unknown"))
         if entry.display_name != entry.title_id:
             grid.addLayout(_row("Display Name", entry.display_name))
-        grid.addLayout(_row("Emulator", entry.emulator))
-        grid.addLayout(_row("System", entry.system))
-        layout.addLayout(grid)
+        grid.addLayout(_row("Emulator", entry.emulator or "Unknown"))
+        grid.addLayout(_row("System", entry.system or "Unknown"))
+        layout.addWidget(_wrap_card(grid))
 
         layout.addWidget(_separator())
 
         # ── Local save section ────────────────────────────────────
         layout.addWidget(_section_header("Local Save", theme.STATUS_UPLOAD))
-        local_grid = QVBoxLayout()
-        local_grid.setSpacing(4)
+        local_grid = _card_layout()
 
         if entry.save_path:
             save_p = entry.save_path
@@ -145,14 +176,13 @@ class DetailDialog(QDialog):
             no_lbl.setStyleSheet(f"color:{theme.TEXT_DIM}; font-style:italic;")
             local_grid.addWidget(no_lbl)
 
-        layout.addLayout(local_grid)
+        layout.addWidget(_wrap_card(local_grid))
 
         layout.addWidget(_separator())
 
         # ── Server save section ───────────────────────────────────
         layout.addWidget(_section_header("Server Save", theme.STATUS_DOWNLOAD))
-        server_grid = QVBoxLayout()
-        server_grid.setSpacing(4)
+        server_grid = _card_layout()
 
         if entry.server_hash:
             server_grid.addLayout(_row("Hash", entry.server_hash, mono=True))
@@ -182,7 +212,7 @@ class DetailDialog(QDialog):
             no_lbl.setStyleSheet(f"color:{theme.TEXT_DIM}; font-style:italic;")
             server_grid.addWidget(no_lbl)
 
-        layout.addLayout(server_grid)
+        layout.addWidget(_wrap_card(server_grid))
 
         layout.addStretch()
 
@@ -296,17 +326,25 @@ class DetailDialog(QDialog):
     # ──────────────────────────────────────────────────────────────
 
     def keyPressEvent(self, event: QKeyEvent):
-        key = event.key()
+        if self.handle_gamepad_key(event.key()):
+            return
+        super().keyPressEvent(event)
+
+    def handle_gamepad_key(self, key: int) -> bool:
         if key in (Qt.Key.Key_Escape, Qt.Key.Key_B, Qt.Key.Key_Backspace):
             self.reject()
-        elif key in (Qt.Key.Key_Return, Qt.Key.Key_A):
+            return True
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_A):
             if self._upload_btn:
                 self._do_upload()
-        elif key == Qt.Key.Key_X:
+                return True
+            return False
+        if key == Qt.Key.Key_X:
             if self._download_btn:
                 self._do_download()
-        else:
-            super().keyPressEvent(event)
+                return True
+            return False
+        return False
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -330,21 +368,35 @@ def _row(label: str, value: str, mono: bool = False) -> QHBoxLayout:
     row = QHBoxLayout()
     row.setSpacing(8)
     lbl = QLabel(label + ":")
+    lbl.setObjectName("detailLabel")
     lbl.setFixedWidth(120)
-    lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
     lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
 
-    val = QLabel(value)
+    val = QLabel(str(value))
+    val.setObjectName("detailValueMono" if mono else "detailValue")
     val.setWordWrap(True)
     val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     if mono:
         mf = QFont("Consolas, Courier New, monospace")
         mf.setPointSize(9)
         val.setFont(mf)
-        val.setStyleSheet(f"color:{theme.ACCENT};")
     row.addWidget(lbl)
     row.addWidget(val, 1)
     return row
+
+
+def _card_layout() -> QVBoxLayout:
+    layout = QVBoxLayout()
+    layout.setSpacing(8)
+    layout.setContentsMargins(14, 12, 14, 12)
+    return layout
+
+
+def _wrap_card(inner_layout: QVBoxLayout) -> QFrame:
+    frame = QFrame()
+    frame.setObjectName("detailCard")
+    frame.setLayout(inner_layout)
+    return frame
 
 
 def _separator() -> QFrame:

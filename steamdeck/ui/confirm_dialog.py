@@ -75,13 +75,18 @@ class ConfirmDialog(QDialog):
         layout.addLayout(btn_row)
 
     def keyPressEvent(self, event: QKeyEvent):
-        key = event.key()
+        if self.handle_gamepad_key(event.key()):
+            return
+        super().keyPressEvent(event)
+
+    def handle_gamepad_key(self, key: int) -> bool:
         if key in (Qt.Key.Key_Return, Qt.Key.Key_A):
             self.accept()
-        elif key in (Qt.Key.Key_Escape, Qt.Key.Key_B, Qt.Key.Key_Backspace):
+            return True
+        if key in (Qt.Key.Key_Escape, Qt.Key.Key_B, Qt.Key.Key_Backspace):
             self.reject()
-        else:
-            super().keyPressEvent(event)
+            return True
+        return False
 
 
 class ResultDialog(QDialog):
@@ -126,7 +131,11 @@ class ResultDialog(QDialog):
         layout.addLayout(btn_row)
 
     def keyPressEvent(self, event: QKeyEvent):
-        key = event.key()
+        if self.handle_gamepad_key(event.key()):
+            return
+        super().keyPressEvent(event)
+
+    def handle_gamepad_key(self, key: int) -> bool:
         if key in (
             Qt.Key.Key_Return,
             Qt.Key.Key_A,
@@ -135,5 +144,5 @@ class ResultDialog(QDialog):
             Qt.Key.Key_Backspace,
         ):
             self.accept()
-        else:
-            super().keyPressEvent(event)
+            return True
+        return False

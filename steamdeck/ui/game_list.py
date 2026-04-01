@@ -20,6 +20,17 @@ from . import theme
 EntryRole = Qt.ItemDataRole.UserRole + 1
 
 
+def _find_selection_row(entries: list[GameEntry], selected_title_id: str | None) -> int:
+    """Return the row that should stay selected after a list refresh."""
+    if not entries:
+        return -1
+    if selected_title_id is not None:
+        for row, entry in enumerate(entries):
+            if entry.title_id == selected_title_id:
+                return row
+    return 0
+
+
 class GameListModel(QAbstractListModel):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -180,9 +191,16 @@ class GameListView(QListView):
         self.setMouseTracking(True)
 
     def set_entries(self, entries: list[GameEntry]) -> None:
+        selected = self.selected_entry()
+        selected_title_id = selected.title_id if selected else None
         self._model.set_entries(entries)
-        if entries:
-            self.setCurrentIndex(self._model.index(0, 0))
+        target_row = _find_selection_row(entries, selected_title_id)
+        if target_row < 0:
+            return
+
+        new_idx = self._model.index(target_row, 0)
+        self.setCurrentIndex(new_idx)
+        self.scrollTo(new_idx, QAbstractItemView.ScrollHint.EnsureVisible)
 
     def selected_entry(self) -> GameEntry | None:
         idx = self.currentIndex()
