@@ -1,0 +1,48 @@
+#ifndef PS3SYNC_NETWORK_H
+#define PS3SYNC_NETWORK_H
+
+#include "common.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#define SYNC_PLAN_MAX 256
+
+typedef struct {
+    char upload[SYNC_PLAN_MAX][GAME_ID_LEN];
+    int  upload_count;
+    char download[SYNC_PLAN_MAX][GAME_ID_LEN];
+    int  download_count;
+    char conflict[SYNC_PLAN_MAX][GAME_ID_LEN];
+    int  conflict_count;
+} NetworkSyncPlan;
+
+int  network_init(void);
+void network_cleanup(void);
+
+bool network_check_server(const SyncState *state);
+
+/* Fetch metadata for one save from the server.
+ * Returns 0 on success, 1 if not found (404), negative on error. */
+int  network_get_save_info(const SyncState *state, const char *game_code,
+                           char *hash_out, uint32_t *size_out,
+                           char *last_sync_out);
+
+/* Merge server title list into state (adds server-only placeholder entries). */
+void network_merge_server_titles(SyncState *state);
+
+/* Fetch game names from the server and populate state->titles[].name. */
+void network_fetch_names(SyncState *state);
+
+/* Ask the server for a sync plan (upload/download/conflict per title). */
+int  network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan);
+
+/* Upload a bundle. Returns 0 on success, non-zero on error. */
+int  network_upload_save(const SyncState *state, const char *game_code,
+                         const uint8_t *bundle, uint32_t bundle_size);
+
+/* Download a bundle into out. Returns body length on success, <=0 on error. */
+int  network_download_save(const SyncState *state, const char *game_code,
+                           uint8_t *out, uint32_t out_size);
+
+#endif /* PS3SYNC_NETWORK_H */

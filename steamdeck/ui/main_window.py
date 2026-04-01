@@ -30,6 +30,7 @@ Gamepad mapping (polled via pygame in a QTimer):
 """
 
 import time
+from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -45,7 +46,7 @@ from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
-from scanner import scan_all
+from scanner import scan_all, rpcs3
 from sync_client import SyncClient
 from config import load_config, save_config
 from . import theme
@@ -90,10 +91,11 @@ class ServerWorker(QObject):
 
     finished = pyqtSignal(list)  # updated list[GameEntry]
 
-    def __init__(self, entries: list[GameEntry], client: SyncClient):
+    def __init__(self, entries: list[GameEntry], client: SyncClient, emulation_path: str):
         super().__init__()
         self._entries = entries
         self._client = client
+        self._emulation_path = Path(emulation_path)
 
     def _enrich_title_ids(self):
         """
@@ -223,6 +225,11 @@ class ServerWorker(QObject):
                 if entry.display_name == entry.title_id and info.get("game_name"):
                     entry.display_name = info["game_name"]
             updated.append(entry)
+
+        seen_ids = {entry.title_id for entry in updated}
+        updated.extend(
+            rpcs3.build_server_only_entries(server_saves, seen_ids, self._emulation_path)
+        )
 
         self.finished.emit(updated)
 
@@ -497,7 +504,11 @@ class MainWindow(QMainWindow):
 
         # Enrich with server status
         self._server_thread = QThread()
-        self._server_worker = ServerWorker(list(entries), self._client)
+        self._server_worker = ServerWorker(
+            list(entries),
+            self._client,
+            self._config["emulation_path"],
+        )
         self._server_worker.moveToThread(self._server_thread)
         self._server_thread.started.connect(self._server_worker.run)
         self._server_worker.finished.connect(self._on_server_finished)

@@ -398,7 +398,7 @@ class SyncClient:
                 _update_state(title_id, server_hash)
                 return True
 
-            elif entry.is_multi_file and save_path.is_dir():
+            elif entry.is_multi_file:
                 # Multi-file directory saves (for example RPCS3) use the bundle endpoint.
                 url = f"{self.base_url}/saves/{title_id}"
                 r = requests.get(url, headers=self.headers, timeout=30)
