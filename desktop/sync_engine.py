@@ -3242,7 +3242,7 @@ def download_save(
     profiles receive emulator/native card images instead of generic raw blobs.
     PS3 save folders use the bundle endpoint and are extracted into dest_path.
     """
-    if (system or "").upper() == "PS3" and dest_path.is_dir():
+    if (system or "").upper() == "PS3":
         resp = requests.get(
             f"{base_url}/api/v1/saves/{title_id}",
             headers=headers,
@@ -3275,7 +3275,7 @@ def download_save(
             timeout=timeout,
         )
     resp.raise_for_status()
-    if (system or "").upper() == "PS3" and dest_path.is_dir():
+    if (system or "").upper() == "PS3":
         _extract_bundle_to_dir(resp.content, dest_path)
         server_hash = resp.headers.get("X-Save-Hash", _hash_dir_files(dest_path))
     else:

@@ -565,3 +565,87 @@ def test_compare_with_server_uses_ps1_card_meta_for_ps1_titles(monkeypatch, tmp_
     assert statuses[0].status == "up_to_date"
     assert statuses[0].server_hash == local_hash
     assert ("http://example/api/v1/saves/SLUS00594/ps1-card/meta", {"slot": 0}) in calls
+
+
+def test_scan_emudeck_rpcs3_uses_full_folder_name_as_title_id(tmp_path):
+    root = tmp_path / "Emulation"
+    save_dir = root / "rpcs3" / "saves" / "BLUS30464-AUTOSAVE-01"
+    save_dir.mkdir(parents=True)
+    (save_dir / "PARAM.SFO").write_bytes(b"param")
+    (save_dir / "GAME.DAT").write_bytes(b"game")
+
+    results = se._scan_emudeck(root)
+
+    assert len(results) == 1
+    assert results[0].title_id == "BLUS30464-AUTOSAVE-01"
+    assert results[0].path == save_dir
+    assert results[0].system == "PS3"
+    assert results[0].hash == se._hash_dir_files(save_dir)
+
+
+def test_upload_save_uses_bundle_endpoint_for_ps3_directories(monkeypatch, tmp_path):
+    save_dir = tmp_path / "BLUS30464-AUTOSAVE-01"
+    save_dir.mkdir()
+    (save_dir / "PARAM.SFO").write_bytes(b"param")
+    (save_dir / "GAME.DAT").write_bytes(b"game")
+    calls = []
+
+    class PostResponse:
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, headers=None, params=None, data=None, timeout=None):
+        calls.append((url, params, data))
+        return PostResponse()
+
+    monkeypatch.setattr(se.requests, "post", fake_post)
+    monkeypatch.setattr(se, "_update_state", lambda title_id, hash_val: None)
+
+    se.upload_save(
+        "BLUS30464-AUTOSAVE-01",
+        save_dir,
+        "http://example",
+        {"X-API-Key": "x"},
+        system="PS3",
+    )
+
+    assert calls[0][0] == "http://example/api/v1/saves/BLUS30464-AUTOSAVE-01"
+    assert calls[0][1] == {}
+    assert calls[0][2][:4] == b"3DSS"
+
+
+def test_download_save_extracts_ps3_bundle_into_missing_directory(monkeypatch, tmp_path):
+    dest = tmp_path / "BLUS30464-AUTOSAVE-01"
+    source = tmp_path / "server-copy"
+    source.mkdir()
+    (source / "PARAM.SFO").write_bytes(b"param")
+    (source / "GAME.DAT").write_bytes(b"game")
+    calls = []
+
+    class GetResponse:
+        content = se._create_dir_bundle("BLUS30464-AUTOSAVE-01", source)
+        headers = {"X-Save-Hash": "server-ps3-hash"}
+
+        def raise_for_status(self):
+            return None
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        calls.append((url, params))
+        return GetResponse()
+
+    monkeypatch.setattr(se.requests, "get", fake_get)
+    monkeypatch.setattr(se, "_update_state", lambda title_id, hash_val: None)
+
+    server_hash = se.download_save(
+        "BLUS30464-AUTOSAVE-01",
+        dest,
+        "http://example",
+        {"X-API-Key": "x"},
+        system="PS3",
+    )
+
+    assert calls == [("http://example/api/v1/saves/BLUS30464-AUTOSAVE-01", None)]
+    assert dest.is_dir()
+    assert (dest / "PARAM.SFO").read_bytes() == b"param"
+    assert (dest / "GAME.DAT").read_bytes() == b"game"
+    assert server_hash == "server-ps3-hash"
