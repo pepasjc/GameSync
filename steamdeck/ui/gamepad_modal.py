@@ -41,6 +41,9 @@ class GamepadModalMixin:
             self._gamepad_timer.setInterval(16)
             self._gamepad_timer.timeout.connect(self._poll_modal_gamepad)
             self._gamepad_timer.start()
+            finished = getattr(self, "finished", None)
+            if finished is not None:
+                finished.connect(self._notify_parent_gamepad_handoff)
         except Exception:
             self._modal_joystick = None
 
@@ -99,3 +102,13 @@ class GamepadModalMixin:
                 key = modal_gamepad_key(idx)
                 if key is not None:
                     self.handle_gamepad_key(key)
+
+    def _notify_parent_gamepad_handoff(self, *_args) -> None:
+        """Tell the parent window to ignore held inputs after this modal closes."""
+        parent = self.parent()
+        while parent is not None:
+            handoff = getattr(parent, "suppress_gamepad_until_release", None)
+            if callable(handoff):
+                handoff()
+                return
+            parent = parent.parent()

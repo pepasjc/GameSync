@@ -2,12 +2,41 @@
 
 import hashlib
 import io
+import re
 import struct
 import time
 import zipfile
 import zlib
 from pathlib import Path
 from typing import Optional
+
+# Matches PS3/PSP/PS1/PS2 product codes: 4 uppercase letters + 5 digits (+ optional suffix)
+_PS3_CODE_RE = re.compile(r"^([A-Z]{4}\d{5})")
+
+
+def _find_server_save(server_saves: dict, title_id: str) -> "dict | None":
+    """
+    Look up a server save entry for *title_id*, with fallback prefix matching
+    for PS3-style IDs where local and server may differ by a save-slot suffix.
+
+    e.g. local BLJS10001 matches server BLJS10001GAME (and vice-versa).
+    """
+    info = server_saves.get(title_id)
+    if info is not None:
+        return info
+    m = _PS3_CODE_RE.match(title_id)
+    if not m:
+        return None
+    code9 = m.group(1)
+    # Exact 9-char key on server
+    info = server_saves.get(code9)
+    if info is not None:
+        return info
+    # Any server key that shares the same 9-char base code
+    for sid, sinfo in server_saves.items():
+        if _PS3_CODE_RE.match(sid) and sid[:9] == code9:
+            return sinfo
+    return None
 
 import requests
 
@@ -454,7 +483,7 @@ class SyncClient:
         state = load_sync_state()
         last_synced_hash = state.get(entry.title_id)
 
-        server_info = server_saves.get(entry.title_id)
+        server_info = _find_server_save(server_saves, entry.title_id)
         server_hash = server_info.get("save_hash") if server_info else None
 
         local_hash = entry.save_hash

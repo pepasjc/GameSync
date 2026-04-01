@@ -373,10 +373,32 @@ int network_download_save(const SyncState *state, const char *game_code,
 
 /* ---- Merge server titles ---- */
 
-static bool has_title(const SyncState *state, const char *game_code) {
-    for (int i = 0; i < state->num_titles; i++)
-        if (strcmp(state->titles[i].game_code, game_code) == 0) return true;
-    return false;
+/*
+ * Find a local title that matches a server title_id.
+ * Matches by (in order):
+ *   1. Exact title_id match
+ *   2. Exact game_code match
+ *   3. 9-char prefix match — handles variants like BLJS10001GAME vs BLJS10001
+ * Returns index into state->titles, or -1 if not found.
+ */
+static int find_local_title(const SyncState *state, const char *server_id) {
+    char code9[10];
+    int i;
+    size_t slen = strlen(server_id);
+
+    if (slen >= 9) {
+        memcpy(code9, server_id, 9);
+        code9[9] = '\0';
+    } else {
+        code9[0] = '\0';
+    }
+
+    for (i = 0; i < state->num_titles; i++) {
+        if (strcmp(state->titles[i].title_id,  server_id) == 0) return i;
+        if (strcmp(state->titles[i].game_code, server_id) == 0) return i;
+        if (code9[0] && strcmp(state->titles[i].game_code, code9) == 0) return i;
+    }
+    return -1;
 }
 
 void network_merge_server_titles(SyncState *state) {
@@ -398,23 +420,33 @@ void network_merge_server_titles(SyncState *state) {
         if (*p != '"') continue;
         p++;
 
-        char game_code[GAME_ID_LEN];
+        char server_id[GAME_ID_LEN];
         int len = 0;
         while (*p && *p != '"' && len < GAME_ID_LEN - 1)
-            game_code[len++] = *p++;
-        game_code[len] = '\0';
+            server_id[len++] = *p++;
+        server_id[len] = '\0';
 
-        if (!saves_is_relevant_game_code(game_code)) continue;
-        if (has_title(state, game_code)) continue;
+        if (!saves_is_relevant_game_code(server_id)) continue;
+
+        /* If a local title matches (exact or by 9-char prefix), just flag it
+           as present on the server — don't create a duplicate entry. */
+        int existing = find_local_title(state, server_id);
+        if (existing >= 0) {
+            state->titles[existing].on_server = true;
+            continue;
+        }
+
         if (state->num_titles >= MAX_TITLES) break;
 
         TitleInfo *t = &state->titles[state->num_titles++];
         memset(t, 0, sizeof(*t));
-        strncpy(t->game_code, game_code, sizeof(t->game_code) - 1);
-        strncpy(t->title_id,  game_code, sizeof(t->title_id)  - 1);
-        strncpy(t->name,      game_code, sizeof(t->name)      - 1);
-        /* Local path unknown for server-only entries; left empty */
-        t->kind        = apollo_detect_save_kind(game_code);
+        /* Store the full server title_id but extract 9-char game_code for lookup */
+        strncpy(t->title_id,  server_id, sizeof(t->title_id)  - 1);
+        apollo_extract_game_code(server_id, t->game_code, sizeof(t->game_code));
+        if (t->game_code[0] == '\0')
+            strncpy(t->game_code, server_id, sizeof(t->game_code) - 1);
+        strncpy(t->name, t->game_code, sizeof(t->name) - 1);
+        t->kind        = apollo_detect_save_kind(t->game_code);
         t->server_only = true;
         t->on_server   = true;
     }

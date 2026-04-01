@@ -9,7 +9,7 @@ if str(STEAMDECK_ROOT) not in sys.path:
 
 from scanner import rpcs3  # noqa: E402
 from scanner.models import GameEntry, SyncStatus  # noqa: E402
-from sync_client import SyncClient, _create_dir_bundle  # noqa: E402
+from sync_client import SyncClient, _create_dir_bundle, _find_server_save  # noqa: E402
 
 
 def test_rpcs3_scan_uses_full_folder_name_as_title_id(tmp_path):
@@ -163,3 +163,101 @@ def test_sync_client_downloads_ps3_bundle_into_missing_directory(monkeypatch, tm
     assert dest.is_dir()
     assert (dest / "PARAM.SFO").read_bytes() == b"param"
     assert (dest / "GAME.DAT").read_bytes() == b"game"
+
+
+# ── Prefix-matching helpers ──────────────────────────────────────────────────
+
+
+def test_find_server_save_exact_match():
+    saves = {"BLJS10001": {"save_hash": "abc"}}
+    assert _find_server_save(saves, "BLJS10001") == {"save_hash": "abc"}
+
+
+def test_find_server_save_local_bare_server_suffixed():
+    """Local has BLJS10001, server stored it as BLJS10001GAME."""
+    saves = {"BLJS10001GAME": {"save_hash": "abc"}}
+    result = _find_server_save(saves, "BLJS10001")
+    assert result == {"save_hash": "abc"}
+
+
+def test_find_server_save_local_suffixed_server_bare():
+    """Local has BLJS10001GAME, server stored it as BLJS10001."""
+    saves = {"BLJS10001": {"save_hash": "xyz"}}
+    result = _find_server_save(saves, "BLJS10001GAME")
+    assert result == {"save_hash": "xyz"}
+
+
+def test_find_server_save_no_match_different_game():
+    saves = {"BLJS10002": {"save_hash": "abc"}}
+    assert _find_server_save(saves, "BLJS10001") is None
+
+
+def test_find_server_save_ignores_non_ps3_ids():
+    """Slug-based IDs (GBA_, NDS_, etc.) don't trigger prefix matching."""
+    saves = {"GBA_pokemon_ruby": {"save_hash": "abc"}}
+    assert _find_server_save(saves, "GBA_pokemon_ruby_usa") is None
+
+
+def test_build_server_only_skips_local_suffixed_variant(tmp_path):
+    """Server has BLJS10001GAME; local already scanned BLJS10001 — no duplicate."""
+    emulation = tmp_path / "Emulation"
+    server_saves = {
+        "BLJS10001GAME": {
+            "title_id": "BLJS10001GAME",
+            "system": "PS3",
+            "save_hash": "server-hash",
+        }
+    }
+    # Local scan already found the bare code variant
+    seen_ids = {"BLJS10001"}
+    entries = rpcs3.build_server_only_entries(server_saves, seen_ids, emulation)
+    assert entries == []
+
+
+def test_build_server_only_skips_server_bare_when_local_suffixed(tmp_path):
+    """Server has BLJS10001; local already scanned BLJS10001GAME — no duplicate."""
+    emulation = tmp_path / "Emulation"
+    server_saves = {
+        "BLJS10001": {
+            "title_id": "BLJS10001",
+            "system": "PS3",
+            "save_hash": "server-hash",
+        }
+    }
+    seen_ids = {"BLJS10001GAME"}
+    entries = rpcs3.build_server_only_entries(server_saves, seen_ids, emulation)
+    assert entries == []
+
+
+def test_compute_status_matches_server_with_suffix(monkeypatch):
+    """compute_status finds server save when local is bare code, server has suffix."""
+    client = SyncClient("example", 8000, "key")
+    monkeypatch.setattr("sync_client.load_sync_state", lambda: {})
+
+    entry = GameEntry(
+        title_id="BLJS10001",
+        display_name="Ridge Racer",
+        system="PS3",
+        emulator="RPCS3",
+        save_hash="local-hash",
+    )
+    server_saves = {"BLJS10001GAME": {"save_hash": "local-hash"}}
+    status = client.compute_status(entry, server_saves)
+    assert status == SyncStatus.SYNCED
+
+
+def test_compute_status_matches_server_bare_when_local_suffixed(monkeypatch):
+    """compute_status finds server save when local has suffix, server is bare code."""
+    client = SyncClient("example", 8000, "key")
+    monkeypatch.setattr("sync_client.load_sync_state", lambda: {})
+
+    entry = GameEntry(
+        title_id="BLJS10001GAME",
+        display_name="Ridge Racer",
+        system="PS3",
+        emulator="RPCS3",
+        save_hash="local-hash",
+    )
+    server_saves = {"BLJS10001": {"save_hash": "local-hash"}}
+    status = client.compute_status(entry, server_saves)
+    assert status == SyncStatus.SYNCED

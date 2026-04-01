@@ -48,7 +48,7 @@ from PyQt6.QtGui import QFont, QKeyEvent
 
 from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
 from scanner import scan_all, rpcs3
-from sync_client import SyncClient
+from sync_client import SyncClient, _find_server_save
 from config import load_config, save_config
 from . import theme
 from .game_list import GameListView
@@ -169,8 +169,16 @@ class ServerWorker(QObject):
             if not needs_name:
                 continue
 
-            # Use title_id as the lookup code (server resolves by code)
+            # Use title_id as the lookup code (server resolves by code).
+            # For PS3 saves with slot suffixes (e.g. BLJS10001GAME), trim to
+            # the 9-char base code so the server DB can resolve the name.
             code = entry.title_id
+            if (
+                entry.system == "PS3"
+                and len(code) > 9
+                and _PRODUCT_CODE_RE.match(code)
+            ):
+                code = code[:9]
             if code not in code_to_entries:
                 code_to_entries[code] = []
                 codes_to_lookup.append(code)
@@ -217,7 +225,7 @@ class ServerWorker(QObject):
         updated = []
         for entry in self._entries:
             entry.status = self._client.compute_status(entry, server_saves)
-            info = server_saves.get(entry.title_id)
+            info = _find_server_save(server_saves, entry.title_id)
             if info:
                 entry.server_hash = info.get("save_hash")
                 entry.server_timestamp = info.get("client_timestamp")
@@ -355,6 +363,7 @@ class MainWindow(QMainWindow):
         self._gamepad_timer = None
         self._joystick = None
         self._modal_was_active = False
+        self._suppress_gamepad_until_release = False
         self._last_nav_time = 0.0
         self._nav_repeat_delay = 0.15  # seconds
         if _PYGAME_OK:
@@ -915,6 +924,30 @@ class MainWindow(QMainWindow):
         self._btn_state["r2"] = r2 > 0.5
         self._axis_nav_time = 0.0
 
+    def suppress_gamepad_until_release(self) -> None:
+        """Ignore controller input until all active buttons/axes are released."""
+        self._suppress_gamepad_until_release = True
+        self._prime_main_button_state()
+
+    def _capture_gamepad_state(self) -> tuple[dict[int, bool], tuple[int, int], float, float]:
+        buttons: dict[int, bool] = {}
+        for idx in range(9):
+            try:
+                buttons[idx] = bool(self._joystick.get_button(idx))
+            except Exception:
+                buttons[idx] = False
+        try:
+            hat = self._joystick.get_hat(0)
+            hat_x, hat_y = hat
+        except Exception:
+            hat_x, hat_y = 0, 0
+        try:
+            l2 = self._joystick.get_axis(4)
+            r2 = self._joystick.get_axis(5)
+        except Exception:
+            l2, r2 = -1.0, -1.0
+        return buttons, (hat_x, hat_y), l2, r2
+
     def _poll_gamepad(self):
         if not _PYGAME_OK or self._joystick is None:
             return
@@ -926,13 +959,23 @@ class MainWindow(QMainWindow):
         now = time.monotonic()
         modal = QApplication.activeModalWidget()
         dialog_target = modal if modal is not None and modal is not self else None
+        buttons, hat, l2, r2 = self._capture_gamepad_state()
+        hat_x, hat_y = hat
+
+        if self._suppress_gamepad_until_release:
+            for idx, current in buttons.items():
+                self._btn_state[idx] = current
+            self._btn_state["l2"] = l2 > 0.5
+            self._btn_state["r2"] = r2 > 0.5
+            self._axis_nav_time = 0.0
+            any_pressed = any(buttons.values()) or hat_x != 0 or hat_y != 0 or l2 > 0.5 or r2 > 0.5
+            if not any_pressed:
+                self._suppress_gamepad_until_release = False
+            return
 
         # ── Buttons (edge-triggered) ──────────────────────────────
         def btn_pressed(idx: int) -> bool:
-            try:
-                cur = bool(self._joystick.get_button(idx))
-            except Exception:
-                return False
+            cur = buttons.get(idx, False)
             prev = self._btn_state.get(idx, False)
             self._btn_state[idx] = cur
             return cur and not prev
@@ -941,11 +984,6 @@ class MainWindow(QMainWindow):
             self._modal_was_active = True
             for idx in range(9):
                 btn_pressed(idx)
-            try:
-                l2 = self._joystick.get_axis(4)
-                r2 = self._joystick.get_axis(5)
-            except Exception:
-                l2, r2 = -1.0, -1.0
             self._btn_state["l2"] = l2 > 0.5
             self._btn_state["r2"] = r2 > 0.5
             self._axis_nav_time = 0.0
@@ -978,12 +1016,6 @@ class MainWindow(QMainWindow):
                 self._open_settings()  # Start/Menu
 
         # ── D-pad (HAT) ───────────────────────────────────────────
-        try:
-            hat = self._joystick.get_hat(0)
-            hat_x, hat_y = hat
-        except Exception:
-            hat_x, hat_y = 0, 0
-
         # ── Left stick Y axis ─────────────────────────────────────
         try:
             axis_y = self._joystick.get_axis(1)  # +1 = down
@@ -991,12 +1023,6 @@ class MainWindow(QMainWindow):
             axis_y = 0.0
 
         # ── L2 / R2 for status filter ─────────────────────────────
-        try:
-            l2 = self._joystick.get_axis(4)
-            r2 = self._joystick.get_axis(5)
-        except Exception:
-            l2, r2 = -1.0, -1.0
-
         if btn_pressed(8):
             pass  # Steam button — ignore
         # L2/R2 pressed detection via axis crossing threshold

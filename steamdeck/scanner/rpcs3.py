@@ -18,6 +18,26 @@ EMUDECK_RPCS3_SAVE_DIRS = Path.home() / "Emulation/saves/rpcs3/saves"
 import re
 
 _PS3_ID_RE = re.compile(r"^[A-Z]{4}\d{5}")
+_PS3_CODE_RE = re.compile(r"^([A-Z]{4}\d{5})")
+
+
+def _is_seen_by_locals(server_title_id: str, seen_ids: set[str]) -> bool:
+    """
+    Return True if *server_title_id* is already covered by a local scan entry.
+
+    Handles the case where local and server differ by a save-slot suffix,
+    e.g. server has BLJS10001GAME but local scanned BLJS10001 (or vice-versa).
+    """
+    if server_title_id in seen_ids:
+        return True
+    m = _PS3_CODE_RE.match(server_title_id)
+    if not m:
+        return False
+    code9 = m.group(1)
+    return any(
+        sid == code9 or (_PS3_CODE_RE.match(sid) and sid[:9] == code9)
+        for sid in seen_ids
+    )
 
 
 def resolve_saves_root(emulation_path: Path) -> Path | None:
@@ -51,7 +71,7 @@ def build_server_only_entries(
     results: list[GameEntry] = []
 
     for title_id, info in server_saves.items():
-        if title_id in seen_ids:
+        if _is_seen_by_locals(title_id, seen_ids):
             continue
 
         system = (
