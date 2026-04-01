@@ -15,15 +15,17 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 from . import theme
+from .gamepad_modal import GamepadModalMixin
 
 
-class SettingsDialog(QDialog):
+class SettingsDialog(QDialog, GamepadModalMixin):
     def __init__(self, config: dict, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
         self.setMinimumWidth(580)
         self.setStyleSheet(theme.STYLESHEET)
+        self._init_gamepad_modal()
 
         layout = QVBoxLayout(self)
         layout.setSpacing(16)

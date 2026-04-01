@@ -27,9 +27,10 @@ from scanner.models import (
 )
 from . import theme
 from .confirm_dialog import ConfirmDialog, ResultDialog
+from .gamepad_modal import GamepadModalMixin
 
 
-class DetailDialog(QDialog):
+class DetailDialog(QDialog, GamepadModalMixin):
     """
     Full save-info popup showing local + server metadata, file paths,
     hashes, timestamps, and sync status.  Gamepad-friendly.
@@ -46,6 +47,7 @@ class DetailDialog(QDialog):
         self.setStyleSheet(theme.STYLESHEET)
         self._entry = entry
         self._client = sync_client
+        self._init_gamepad_modal()
         self.setObjectName("detailDialog")
         self.setStyleSheet(
             theme.STYLESHEET

@@ -5,9 +5,10 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from . import theme
+from .gamepad_modal import GamepadModalMixin
 
 
-class ConfirmDialog(QDialog):
+class ConfirmDialog(QDialog, GamepadModalMixin):
     """
     Modal confirmation dialog styled for gamepad use.
 
@@ -30,6 +31,7 @@ class ConfirmDialog(QDialog):
         self.setMinimumWidth(480)
         self.setMaximumWidth(640)
         self.setStyleSheet(theme.STYLESHEET)
+        self._init_gamepad_modal()
 
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
@@ -89,7 +91,7 @@ class ConfirmDialog(QDialog):
         return False
 
 
-class ResultDialog(QDialog):
+class ResultDialog(QDialog, GamepadModalMixin):
     """Brief result notification after an action completes."""
 
     def __init__(
@@ -103,6 +105,7 @@ class ResultDialog(QDialog):
         self.setModal(True)
         self.setMinimumWidth(400)
         self.setStyleSheet(theme.STYLESHEET)
+        self._init_gamepad_modal()
 
         layout = QVBoxLayout(self)
         layout.setSpacing(14)

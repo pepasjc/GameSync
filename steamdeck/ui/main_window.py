@@ -43,7 +43,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QProgressBar,
 )
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject, QEvent
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
@@ -912,30 +912,27 @@ class MainWindow(QMainWindow):
             self._btn_state[idx] = cur
             return cur and not prev
 
-        def dispatch_modal_button(idx: int) -> bool:
-            if dialog_target is None:
-                return False
-            key = _modal_gamepad_key(idx)
-            if key is None:
-                return False
-            handler = getattr(dialog_target, "handle_gamepad_key", None)
-            if callable(handler):
-                return bool(handler(key))
-            _send_key_to_widget(dialog_target, key)
-            return True
+        if dialog_target is not None:
+            for idx in range(9):
+                btn_pressed(idx)
+            try:
+                l2 = self._joystick.get_axis(4)
+                r2 = self._joystick.get_axis(5)
+            except Exception:
+                l2, r2 = -1.0, -1.0
+            self._btn_state["l2"] = l2 > 0.5
+            self._btn_state["r2"] = r2 > 0.5
+            self._axis_nav_time = 0.0
+            return
 
         if btn_pressed(0):
-            if not dispatch_modal_button(0):
-                self._action_detail()  # A — open save info
+            self._action_detail()  # A — open save info
         if btn_pressed(1):
-            if not dispatch_modal_button(1):
-                self._confirm_close()  # B — close app
+            self._confirm_close()  # B — close app
         if btn_pressed(2):
-            if not dispatch_modal_button(2):
-                self._action_sync()  # X
+            self._action_sync()  # X
         if btn_pressed(3):
-            if not dispatch_modal_button(3):
-                self._action_refresh()  # Y
+            self._action_refresh()  # Y
         if btn_pressed(4):
             if dialog_target is None:
                 self._cycle_system(-1)  # L1
@@ -1024,19 +1021,3 @@ def _font(size: int, bold: bool = False) -> QFont:
     if bold:
         f.setBold(True)
     return f
-
-
-def _send_key_to_widget(widget: QWidget, key: Qt.Key) -> None:
-    """Forward a synthetic key press to the active modal dialog."""
-    event = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
-    QApplication.sendEvent(widget, event)
-
-
-def _modal_gamepad_key(button_idx: int) -> Qt.Key | None:
-    """Map Steam Deck face buttons to dialog key handlers."""
-    return {
-        0: Qt.Key.Key_A,
-        1: Qt.Key.Key_B,
-        2: Qt.Key.Key_X,
-        3: Qt.Key.Key_Y,
-    }.get(button_idx)
