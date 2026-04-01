@@ -54,10 +54,25 @@ class GamepadModalMixin:
                 js = pygame.joystick.Joystick(0)
                 js.init()
                 self._modal_joystick = js
+                self._prime_modal_button_state()
             else:
                 self._modal_joystick = None
         except Exception:
             self._modal_joystick = None
+
+    def _prime_modal_button_state(self) -> None:
+        """Capture current button states so held buttons don't auto-fire on open."""
+        if not _PYGAME_OK or self._modal_joystick is None:
+            return
+        try:
+            pygame.event.pump()
+        except Exception:
+            return
+        for idx in range(4):
+            try:
+                self._modal_btn_state[idx] = bool(self._modal_joystick.get_button(idx))
+            except Exception:
+                self._modal_btn_state[idx] = False
 
     def _poll_modal_gamepad(self) -> None:
         if QApplication.activeModalWidget() is not self:
