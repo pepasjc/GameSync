@@ -354,6 +354,7 @@ class MainWindow(QMainWindow):
         # Gamepad polling
         self._gamepad_timer = None
         self._joystick = None
+        self._modal_was_active = False
         self._last_nav_time = 0.0
         self._nav_repeat_delay = 0.15  # seconds
         if _PYGAME_OK:
@@ -890,6 +891,30 @@ class MainWindow(QMainWindow):
             self._try_grab_joystick()
             self._btn_state.clear()
 
+    def _prime_main_button_state(self) -> None:
+        """Capture current button states so modal-close presses don't leak through."""
+        if not _PYGAME_OK or self._joystick is None:
+            return
+        try:
+            pygame.event.pump()
+        except Exception:
+            return
+
+        for idx in range(9):
+            try:
+                self._btn_state[idx] = bool(self._joystick.get_button(idx))
+            except Exception:
+                self._btn_state[idx] = False
+
+        try:
+            l2 = self._joystick.get_axis(4)
+            r2 = self._joystick.get_axis(5)
+        except Exception:
+            l2, r2 = -1.0, -1.0
+        self._btn_state["l2"] = l2 > 0.5
+        self._btn_state["r2"] = r2 > 0.5
+        self._axis_nav_time = 0.0
+
     def _poll_gamepad(self):
         if not _PYGAME_OK or self._joystick is None:
             return
@@ -913,6 +938,7 @@ class MainWindow(QMainWindow):
             return cur and not prev
 
         if dialog_target is not None:
+            self._modal_was_active = True
             for idx in range(9):
                 btn_pressed(idx)
             try:
@@ -923,6 +949,11 @@ class MainWindow(QMainWindow):
             self._btn_state["l2"] = l2 > 0.5
             self._btn_state["r2"] = r2 > 0.5
             self._axis_nav_time = 0.0
+            return
+
+        if self._modal_was_active:
+            self._modal_was_active = False
+            self._prime_main_button_state()
             return
 
         if btn_pressed(0):
