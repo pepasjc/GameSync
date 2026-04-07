@@ -42,6 +42,7 @@
 #define SFO_HEADER_SIZE     20
 #define SFO_INDEX_ENTRY_SIZE 16
 #define SFO_MAX_FILE_SIZE   65536  /* generous upper bound */
+#define SFO_SAVEDATA_DIRECTORY_MAX 64
 
 /* Parameter formats */
 #define SFO_FMT_UTF8        0x0004
@@ -57,6 +58,11 @@
 #define SFO_PARAMS_BYTE0_DEFAULT     0x01
 #define SFO_PARAMS_UNK4_OFFSET      20
 #define SFO_PARAMS_UNK4_DEFAULT     1
+#define SFO_PARAMS_FLAGS_DEFAULT     0x03
+#define SFO_PARAMS_BYTE2_DEFAULT     0x01
+#define SFO_PARAMS_COUNTER_SLOT_DEFAULT 0x03
+#define SFO_PARAMS_COUNTER3_OFFSET   16
+#define SFO_PARAMS_COUNTER3_DEFAULT  3
 
 /* ---- LE read/write helpers ---- */
 
@@ -78,6 +84,25 @@ static void wr32(uint8_t *p, uint32_t v) {
     p[1] = (uint8_t)(v >> 8);
     p[2] = (uint8_t)(v >> 16);
     p[3] = (uint8_t)(v >> 24);
+}
+
+static uint32_t align_up_4(uint32_t v) {
+    return (v + 3U) & ~3U;
+}
+
+static bool is_rpcs3_sfo_entry(const char *key_name) {
+    if (!key_name) return false;
+    if (key_name[0] == '*') return true;
+    if (strcmp(key_name, "RPCS3_BLIST") == 0) return true;
+    return false;
+}
+
+static uint32_t normalized_param_max(const char *key_name, uint32_t param_max) {
+    if (key_name && strcmp(key_name, "SAVEDATA_DIRECTORY") == 0 &&
+        param_max < SFO_SAVEDATA_DIRECTORY_MAX) {
+        return SFO_SAVEDATA_DIRECTORY_MAX;
+    }
+    return param_max;
 }
 
 /* ---- SFO patching ---- */
@@ -231,6 +256,8 @@ int sfo_patch(const char *sfo_path, const sfo_patch_t *patch) {
         if (strcmp(key_name, "PARAMS") == 0 &&
             (param_fmt == SFO_FMT_UTF8_S || param_fmt == SFO_FMT_UTF8)) {
             if (param_max >= SFO_PARAMS_MIN_SIZE) {
+                bool params_was_truncated = (param_len < SFO_PARAMS_MIN_SIZE);
+
                 /* Fix format type: RPCS3 uses 0x0204, real PS3 uses 0x0004 */
                 if (param_fmt != SFO_FMT_UTF8) {
                     wr16(idx + 2, SFO_FMT_UTF8);
@@ -259,6 +286,23 @@ int sfo_patch(const char *sfo_path, const sfo_patch_t *patch) {
                 if (rd32(data_ptr + SFO_PARAMS_UNK4_OFFSET) == 0) {
                     wr32(data_ptr + SFO_PARAMS_UNK4_OFFSET, SFO_PARAMS_UNK4_DEFAULT);
                     debug_log("sfo_patch: set PARAMS unk4 = 1");
+                }
+
+                /* RPCS3 often stores an effectively-empty PARAMS blob
+                 * (len=1). When we expand that for a real PS3 save, seed the
+                 * metadata counters with the native-style defaults observed
+                 * in working saves instead of leaving them all zero. */
+                if (params_was_truncated ||
+                    (data_ptr[1] == 0x00 && data_ptr[2] == 0x00 &&
+                     data_ptr[3] == 0x00 && data_ptr[4] == 0x00 &&
+                     rd32(data_ptr + SFO_PARAMS_COUNTER3_OFFSET) == 0)) {
+                    data_ptr[1] = SFO_PARAMS_FLAGS_DEFAULT;
+                    data_ptr[2] = SFO_PARAMS_BYTE2_DEFAULT;
+                    data_ptr[3] = SFO_PARAMS_COUNTER_SLOT_DEFAULT;
+                    data_ptr[4] = SFO_PARAMS_COUNTER_SLOT_DEFAULT;
+                    wr32(data_ptr + SFO_PARAMS_COUNTER3_OFFSET,
+                         SFO_PARAMS_COUNTER3_DEFAULT);
+                    debug_log("sfo_patch: initialized PARAMS counters/flags");
                 }
 
                 /* Patch user_id at offsets 24 and 44 (two copies, LE u32) */
@@ -311,6 +355,96 @@ int sfo_patch(const char *sfo_path, const sfo_patch_t *patch) {
         }
 
         (void)param_len;
+    }
+
+    /* Rebuild the SFO without RPCS3-only metadata entries so the result
+     * matches a native PS3 save layout more closely. */
+    {
+        uint32_t kept_entries = 0;
+        uint32_t key_bytes = 0;
+        uint32_t data_bytes = 0;
+        bool removed_any = false;
+
+        for (uint32_t i = 0; i < num_entries; i++) {
+            uint8_t *idx = buf + SFO_HEADER_SIZE + i * SFO_INDEX_ENTRY_SIZE;
+            uint16_t key_off   = rd16(idx);
+            uint32_t param_max = rd32(idx + 8);
+            const char *key_name = (const char *)(buf + key_table_off + key_off);
+            uint32_t effective_max = normalized_param_max(key_name, param_max);
+
+            if (is_rpcs3_sfo_entry(key_name)) {
+                removed_any = true;
+                debug_log("sfo_patch: removing RPCS3 entry %s", key_name);
+                continue;
+            }
+
+            kept_entries++;
+            key_bytes += (uint32_t)strlen(key_name) + 1U;
+            data_bytes += align_up_4(effective_max);
+        }
+
+        if (removed_any) {
+            uint32_t new_key_off = SFO_HEADER_SIZE + kept_entries * SFO_INDEX_ENTRY_SIZE;
+            uint32_t new_data_off = align_up_4(new_key_off + key_bytes);
+            uint32_t new_size = new_data_off + data_bytes;
+            uint8_t *new_buf = (uint8_t *)calloc(1, new_size);
+            uint32_t new_i = 0;
+            uint32_t next_key = 0;
+            uint32_t next_data = 0;
+
+            if (!new_buf) {
+                debug_log("sfo_patch: rebuild alloc failed");
+                goto done;
+            }
+
+            wr32(new_buf + 0, SFO_MAGIC);
+            wr32(new_buf + 4, SFO_VERSION);
+            wr32(new_buf + 8, new_key_off);
+            wr32(new_buf + 12, new_data_off);
+            wr32(new_buf + 16, kept_entries);
+
+            for (uint32_t i = 0; i < num_entries; i++) {
+                uint8_t *idx = buf + SFO_HEADER_SIZE + i * SFO_INDEX_ENTRY_SIZE;
+                uint16_t key_off   = rd16(idx);
+                uint16_t param_fmt = rd16(idx + 2);
+                uint32_t param_len = rd32(idx + 4);
+                uint32_t param_max = rd32(idx + 8);
+                uint32_t data_off  = rd32(idx + 12);
+                const char *key_name = (const char *)(buf + key_table_off + key_off);
+                uint8_t *data_ptr = buf + data_table_off + data_off;
+
+                if (is_rpcs3_sfo_entry(key_name)) continue;
+
+                uint8_t *new_idx = new_buf + SFO_HEADER_SIZE + new_i * SFO_INDEX_ENTRY_SIZE;
+                size_t key_len = strlen(key_name) + 1U;
+                uint32_t effective_max = normalized_param_max(key_name, param_max);
+                uint32_t data_span = align_up_4(effective_max);
+                uint32_t copy_len = param_max;
+                if (copy_len > effective_max) copy_len = effective_max;
+
+                wr16(new_idx + 0, (uint16_t)next_key);
+                wr16(new_idx + 2, param_fmt);
+                wr32(new_idx + 4, param_len);
+                wr32(new_idx + 8, effective_max);
+                wr32(new_idx + 12, next_data);
+
+                memcpy(new_buf + new_key_off + next_key, key_name, key_len);
+                memcpy(new_buf + new_data_off + next_data, data_ptr, copy_len);
+
+                next_key += (uint32_t)key_len;
+                next_data += data_span;
+                new_i++;
+            }
+
+            free(buf);
+            buf = new_buf;
+            fsize = (long)new_size;
+            key_table_off = new_key_off;
+            data_table_off = new_data_off;
+            num_entries = kept_entries;
+            debug_log("sfo_patch: rebuilt SFO without RPCS3 entries (%u entries)",
+                      kept_entries);
+        }
     }
 
     /* Write patched SFO back */

@@ -32,6 +32,56 @@ from app.services.rom_id import parse_title_id as _parse_emulator_id
 
 logger = logging.getLogger(__name__)
 
+_TRACE_TITLE_IDS = {"BLJS10001GAME"}
+_PS3_HASH_SKIP_NAMES = {"PARAM.SFO", "PARAM.PFD"}
+
+
+def _trace_files(stage: str, title_id: str, files: list[tuple[str, bytes]]) -> None:
+    if title_id not in _TRACE_TITLE_IDS:
+        return
+    details = ", ".join(
+        f"{path}({len(data)}:{hashlib.sha256(data).hexdigest()})"
+        for path, data in files
+    )
+    logger.info("ps3 trace %s %s files=[%s]", stage, title_id, details)
+
+
+def _is_ps3_hash_ignored(path: str) -> bool:
+    name = Path(path).name.upper()
+    if name in _PS3_HASH_SKIP_NAMES:
+        return True
+    return Path(name).suffix.upper() == ".PNG"
+
+
+def _ps3_visible_stats(files: list[tuple[str, bytes]]) -> tuple[str, int, int]:
+    visible = sorted(
+        ((path, data) for path, data in files if not _is_ps3_hash_ignored(path)),
+        key=lambda item: item[0],
+    )
+    h = hashlib.sha256()
+    total_size = 0
+
+    for _path, data in visible:
+        h.update(data)
+        total_size += len(data)
+
+    return h.hexdigest(), total_size, len(visible)
+
+
+def comparable_files(title_id: str, files: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
+    """Return the file set that should participate in sync comparison."""
+    if is_ps1_title_id(title_id):
+        from app.services.ps1_cards import psp_visible_files
+
+        return psp_visible_files(files)
+    if game_names.detect_platform(title_id) == "PS3":
+        return [
+            (path, data)
+            for path, data in files
+            if not _is_ps3_hash_ignored(path)
+        ]
+    return files
+
 
 def _title_dir(title_id: str) -> Path:
     return settings.save_dir / title_id
@@ -165,6 +215,7 @@ def store_save(
 
     # Write new save files
     current.mkdir(parents=True, exist_ok=True)
+    _trace_files("store-write", title_id, [(f.path, f.data) for f in bundle.files])
     for f in bundle.files:
         file_path = current / f.path
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -174,6 +225,10 @@ def store_save(
     # over the PSP-visible file set so legacy clients continue to compare correctly.
     if is_ps1_title_id(title_id):
         bundle_hash, save_size, file_count = psp_visible_stats([(f.path, f.data) for f in bundle.files])
+    elif game_names.detect_platform(title_id) == "PS3":
+        bundle_hash, save_size, file_count = _ps3_visible_stats(
+            [(f.path, f.data) for f in bundle.files]
+        )
     else:
         all_data = b"".join(f.data for f in bundle.files)
         bundle_hash = hashlib.sha256(all_data).hexdigest()
@@ -229,6 +284,7 @@ def load_save_files(title_id: str, console_id: str = "") -> list[tuple[str, byte
         if file_path.is_file():
             rel_path = file_path.relative_to(current).as_posix()
             files.append((rel_path, file_path.read_bytes()))
+    _trace_files("load-current", title_id, files)
     return files
 
 
@@ -241,6 +297,8 @@ def rebuild_metadata_from_current(title_id: str, source: str | None = None) -> S
     existing = get_metadata(title_id)
     if is_ps1_title_id(title_id):
         bundle_hash, total_size, file_count = psp_visible_stats(files)
+    elif game_names.detect_platform(title_id) == "PS3":
+        bundle_hash, total_size, file_count = _ps3_visible_stats(files)
     else:
         all_data = b"".join(data for _, data in files)
         bundle_hash = hashlib.sha256(all_data).hexdigest()

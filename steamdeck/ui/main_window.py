@@ -227,6 +227,7 @@ class ServerWorker(QObject):
             entry.status = self._client.compute_status(entry, server_saves)
             info = _find_server_save(server_saves, entry.title_id)
             if info:
+                entry.server_title_id = info.get("title_id") or entry.title_id
                 entry.server_hash = info.get("save_hash")
                 entry.server_timestamp = info.get("client_timestamp")
                 entry.server_size = info.get("save_size")

@@ -90,9 +90,10 @@ int pfd_resign(const char *save_dir_path, const pfd_keys_t *keys);
  * Create a brand-new PARAM.PFD for a save directory that doesn't have one
  * (e.g. saves synced from RPCS3 or other emulators).
  *
- * Enumerates all regular files in save_dir_path (except PARAM.PFD itself),
- * builds a v4 PFD hash table, computes all HMAC-SHA1 hashes for the target
- * console/user identity in keys, and writes PARAM.PFD to save_dir_path.
+ * Enumerates the protected files in save_dir_path, builds the fixed-size
+ * save-data tables used by native PS3 saves, computes all HMAC-SHA1 hashes
+ * for the target console/user identity in keys, and writes PARAM.PFD to
+ * save_dir_path.
  *
  * Entry keys are left zeroed (plaintext saves, no file encryption).
  *

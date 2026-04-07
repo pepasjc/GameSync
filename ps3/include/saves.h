@@ -17,6 +17,7 @@ int  saves_read_file(const TitleInfo *title, const char *name,
                      uint8_t *buf, uint32_t buf_size);
 int  saves_write_file(const TitleInfo *title, const char *name,
                       const uint8_t *buf, uint32_t size);
+int  saves_normalize_permissions(const char *root_path);
 bool saves_has_upload_source(const TitleInfo *title);
 
 /* Returns true for PS3/PS1 game codes (4 UPPER + 5 digits, not Vita PC*) */

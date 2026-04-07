@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 
 import sync_engine as se
@@ -580,7 +581,7 @@ def test_scan_emudeck_rpcs3_uses_full_folder_name_as_title_id(tmp_path):
     assert results[0].title_id == "BLUS30464-AUTOSAVE-01"
     assert results[0].path == save_dir
     assert results[0].system == "PS3"
-    assert results[0].hash == se._hash_dir_files(save_dir)
+    assert results[0].hash == se._hash_ps3_dir_files(save_dir)
 
 
 def test_upload_save_uses_bundle_endpoint_for_ps3_directories(monkeypatch, tmp_path):
@@ -612,6 +613,49 @@ def test_upload_save_uses_bundle_endpoint_for_ps3_directories(monkeypatch, tmp_p
     assert calls[0][0] == "http://example/api/v1/saves/BLUS30464-AUTOSAVE-01"
     assert calls[0][1] == {}
     assert calls[0][2][:4] == b"3DSS"
+
+
+def test_upload_save_skips_param_pfd_for_ps3_directories(monkeypatch, tmp_path):
+    save_dir = tmp_path / "BLJS10001GAME"
+    save_dir.mkdir()
+    (save_dir / "PARAM.SFO").write_bytes(b"param")
+    (save_dir / "GAME").write_bytes(b"game")
+    (save_dir / "PARAM.PFD").write_bytes(b"pfd")
+    calls = []
+
+    class PostResponse:
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, headers=None, params=None, data=None, timeout=None):
+        calls.append((url, params, data))
+        return PostResponse()
+
+    monkeypatch.setattr(se.requests, "post", fake_post)
+    monkeypatch.setattr(se, "_update_state", lambda title_id, hash_val: None)
+
+    se.upload_save(
+        "BLJS10001GAME",
+        save_dir,
+        "http://example",
+        {"X-API-Key": "x"},
+        system="PS3",
+    )
+
+    names = [name for name, _data in se._parse_dir_bundle(calls[0][2])]
+    assert names == ["GAME", "PARAM.SFO"]
+
+
+def test_hash_ps3_dir_files_ignores_ps3_metadata_and_pngs(tmp_path):
+    save_dir = tmp_path / "BLJS10001GAME"
+    save_dir.mkdir()
+    (save_dir / "GAME").write_bytes(b"game")
+    (save_dir / "PARAM.SFO").write_bytes(b"param")
+    (save_dir / "PARAM.PFD").write_bytes(b"pfd")
+    (save_dir / "ICON0.PNG").write_bytes(b"icon")
+    (save_dir / "PIC1.PNG").write_bytes(b"pic")
+
+    assert se._hash_ps3_dir_files(save_dir) == hashlib.sha256(b"game").hexdigest()
 
 
 def test_download_save_extracts_ps3_bundle_into_missing_directory(monkeypatch, tmp_path):

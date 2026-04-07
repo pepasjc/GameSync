@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import re
 import time
 
@@ -40,9 +41,22 @@ from app.services.gc_cards import (
 from app.services.bundle import BundleError, create_bundle, parse_bundle
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Accepts 16-char hex (3DS/DS) or 4-16 alphanumeric product codes (PSP/Vita)
 _TITLE_ID_RE = re.compile(r"^[0-9A-Za-z]{4,16}$")
+
+_TRACE_TITLE_IDS = {"BLJS10001GAME"}
+
+
+def _trace_title_files(stage: str, title_id: str, files: list[tuple[str, bytes]]) -> None:
+    if title_id not in _TRACE_TITLE_IDS:
+        return
+    details = ", ".join(
+        f"{path}({len(data)}:{hashlib.sha256(data).hexdigest()})"
+        for path, data in files
+    )
+    logger.info("ps3 trace %s %s files=[%s]", stage, title_id, details)
 
 
 def _validate_title_id(title_id: str) -> str:
@@ -81,6 +95,37 @@ async def get_save_meta(
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
     return meta.to_dict()
+
+
+@router.get("/saves/{title_id}/manifest")
+async def get_save_manifest(
+    title_id: str,
+    request: Request,
+    console_id: str = Query(""),
+):
+    title_id = _validate_title_id(title_id)
+    meta = storage.get_metadata(title_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="No save found for this title")
+
+    files = storage.load_save_files(title_id)
+    if not files:
+        raise HTTPException(status_code=404, detail="Save data missing on disk")
+
+    comparable = storage.comparable_files(title_id, files)
+    lines = [
+        f"{path}\t{len(data)}\t{hashlib.sha256(data).hexdigest()}"
+        for path, data in comparable
+    ]
+    return Response(
+        content=("\n".join(lines) + ("\n" if lines else "")).encode("utf-8"),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "X-Save-Timestamp": str(meta.client_timestamp),
+            "X-Save-Hash": meta.save_hash,
+            "X-Save-File-Count": str(len(comparable)),
+        },
+    )
 
 
 @router.get("/saves/{title_id}/ps1-card/meta")
@@ -522,6 +567,8 @@ async def download_save(
     if is_ps1_title_id(title_id):
         files = psp_visible_files(files)
 
+    _trace_title_files("download-response", title_id, files)
+
     bundle_files = []
     for path, data in files:
         bundle_files.append(
@@ -599,6 +646,12 @@ async def upload_save(
             )
             for path, data in sorted(ps1_files, key=lambda item: item[0])
         ]
+
+    _trace_title_files(
+        "upload-request",
+        title_id,
+        [(f.path, f.data) for f in bundle.files],
+    )
 
     # Conflict check
     if not force:

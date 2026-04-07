@@ -9,6 +9,7 @@
  *   Cross   (X)      Smart sync (auto decide upload/download)
  *   Square  (□)      Force upload to server
  *   Triangle(△)      Force download from server
+ *   R1               Compare local files with the server copy
  *   Select           Auto-sync all saves
  *   Circle  (○)      Rescan + rehash saves
  *   Start            Exit
@@ -23,6 +24,7 @@
 #include "network.h"
 #include "resign.h"
 #include "saves.h"
+#include "sha256.h"
 #include "state.h"
 #include "sync.h"
 #include "ui.h"
@@ -31,6 +33,7 @@
 #include <io/pad.h>
 #include <sysutil/sysutil.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -49,6 +52,7 @@
 #define MASK_L1       (1U << 10)
 #define MASK_L2       (1U << 11)
 #define MASK_R2       (1U << 12)
+#define MASK_R1       (1U << 13)
 
 /* MAX_PADS is already defined in <io/pad.h> as 127; we use a smaller cap */
 #define PAD_COUNT    7
@@ -74,6 +78,7 @@ static unsigned int read_buttons(void) {
         if (paddata.BTN_SELECT)   btns |= MASK_SELECT;
         if (paddata.BTN_START)    btns |= MASK_START;
         if (paddata.BTN_L1)       btns |= MASK_L1;
+        if (paddata.BTN_R1)       btns |= MASK_R1;
         if (paddata.BTN_L2)       btns |= MASK_L2;
         if (paddata.BTN_R2)       btns |= MASK_R2;
         break;  /* first connected pad only */
@@ -114,6 +119,215 @@ static void sysutil_cb(u64 status, u64 param, void *userdata) {
 static int g_visible[MAX_TITLES];
 static int g_visible_count = 0;
 static bool g_show_server_only = true;
+
+typedef struct {
+    char path[MAX_FILE_LEN];
+    uint32_t size;
+    char hash_hex[65];
+} FileManifestEntry;
+
+static int find_manifest_entry(const FileManifestEntry *entries, int count, const char *path) {
+    for (int i = 0; i < count; i++) {
+        if (strcmp(entries[i].path, path) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int parse_manifest_text(char *text, FileManifestEntry *entries, int max_entries) {
+    int count = 0;
+    char *line = text;
+
+    while (line && *line && count < max_entries) {
+        char *next = strchr(line, '\n');
+        char *tab1;
+        char *tab2;
+        size_t path_len;
+
+        if (next) {
+            *next = '\0';
+        }
+        if (!line[0]) {
+            line = next ? (next + 1) : NULL;
+            continue;
+        }
+
+        tab1 = strchr(line, '\t');
+        if (!tab1) {
+            line = next ? (next + 1) : NULL;
+            continue;
+        }
+        tab2 = strchr(tab1 + 1, '\t');
+        if (!tab2) {
+            line = next ? (next + 1) : NULL;
+            continue;
+        }
+
+        path_len = (size_t)(tab1 - line);
+        if (path_len >= sizeof(entries[count].path)) {
+            path_len = sizeof(entries[count].path) - 1;
+        }
+        memcpy(entries[count].path, line, path_len);
+        entries[count].path[path_len] = '\0';
+        entries[count].size = (uint32_t)strtoul(tab1 + 1, NULL, 10);
+        snprintf(entries[count].hash_hex, sizeof(entries[count].hash_hex), "%s", tab2 + 1);
+        count++;
+
+        line = next ? (next + 1) : NULL;
+    }
+
+    return count;
+}
+
+static bool compute_local_file_hash(const TitleInfo *title, const char *name, uint32_t size, char hash_hex_out[65]) {
+    uint8_t *buf;
+    uint8_t hash[32];
+
+    if (!title || !name || !hash_hex_out) {
+        return false;
+    }
+
+    if (size == 0) {
+        sha256(NULL, 0, hash);
+        hash_to_hex(hash, hash_hex_out);
+        return true;
+    }
+
+    buf = (uint8_t *)malloc(size);
+    if (!buf) {
+        return false;
+    }
+    if (saves_read_file(title, name, buf, size) < 0) {
+        free(buf);
+        return false;
+    }
+    sha256(buf, size, hash);
+    free(buf);
+    hash_to_hex(hash, hash_hex_out);
+    return true;
+}
+
+static void show_file_compare(SyncState *state, const TitleInfo *title) {
+    char local_names[MAX_FILES][MAX_FILE_LEN];
+    uint32_t local_sizes[MAX_FILES];
+    FileManifestEntry local_entries[MAX_FILES];
+    FileManifestEntry server_entries[MAX_FILES];
+    bool server_seen[MAX_FILES];
+    char manifest[16384];
+    char message[4096];
+    int local_count_raw;
+    int local_count = 0;
+    int server_count = 0;
+    int matched = 0;
+    int different = 0;
+    int local_only = 0;
+    int server_only = 0;
+    int lines = 0;
+    size_t used = 0;
+    int mr;
+
+    if (!state || !title) {
+        return;
+    }
+
+    if (title->server_only) {
+        ui_message("This save only exists on the server.\n\nCreate a local save first to compare files.");
+        return;
+    }
+
+    local_count_raw = saves_list_files(title, local_names, local_sizes, MAX_FILES);
+    if (local_count_raw < 0) {
+        ui_message("Failed to read local files for %s.", title->game_code);
+        return;
+    }
+
+    for (int i = 0; i < local_count_raw && local_count < MAX_FILES; i++) {
+        if (title->kind == SAVE_KIND_PS3 && hash_should_skip_ps3_file(local_names[i])) {
+            continue;
+        }
+        snprintf(local_entries[local_count].path, sizeof(local_entries[local_count].path), "%s", local_names[i]);
+        local_entries[local_count].size = local_sizes[i];
+        if (!compute_local_file_hash(title, local_names[i], local_sizes[i], local_entries[local_count].hash_hex)) {
+            ui_message("Failed to hash local file:\n%s", local_names[i]);
+            return;
+        }
+        local_count++;
+    }
+
+    ui_status("Fetching server manifest: %s", title->game_code);
+    mr = network_get_save_manifest(state, title->title_id, manifest, sizeof(manifest));
+    if (mr < 0) {
+        ui_message("Failed to fetch server manifest for %s.\n(code %d)", title->game_code, mr);
+        return;
+    }
+    if (mr == 0) {
+        server_count = parse_manifest_text(manifest, server_entries, MAX_FILES);
+    }
+    memset(server_seen, 0, sizeof(server_seen));
+
+    used += (size_t)snprintf(
+        message + used, sizeof(message) - used,
+        "File compare: %s\n\n", title->game_code
+    );
+
+    for (int i = 0; i < local_count; i++) {
+        int server_idx = find_manifest_entry(server_entries, server_count, local_entries[i].path);
+        const char *label;
+
+        if (server_idx < 0) {
+            label = "LOCAL";
+            local_only++;
+        } else if (strcmp(local_entries[i].hash_hex, server_entries[server_idx].hash_hex) == 0) {
+            label = "SYNC";
+            matched++;
+            server_seen[server_idx] = true;
+        } else {
+            label = "DIFF";
+            different++;
+            server_seen[server_idx] = true;
+        }
+
+        if (lines < 14 && used < sizeof(message)) {
+            used += (size_t)snprintf(
+                message + used, sizeof(message) - used,
+                "[%s] %s\n", label, local_entries[i].path
+            );
+            lines++;
+        }
+    }
+
+    for (int i = 0; i < server_count; i++) {
+        if (server_seen[i]) {
+            continue;
+        }
+        server_only++;
+        if (lines < 14 && used < sizeof(message)) {
+            used += (size_t)snprintf(
+                message + used, sizeof(message) - used,
+                "[SERVER] %s\n", server_entries[i].path
+            );
+            lines++;
+        }
+    }
+
+    if ((local_count + server_only) > lines && used < sizeof(message)) {
+        used += (size_t)snprintf(
+            message + used, sizeof(message) - used,
+            "...\n"
+        );
+    }
+
+    if (used < sizeof(message)) {
+        snprintf(
+            message + used, sizeof(message) - used,
+            "\nSynced: %d  Different: %d  Local only: %d  Server only: %d",
+            matched, different, local_only, server_only
+        );
+    }
+
+    ui_message("%s", message);
+}
 
 static void rebuild_visible(const SyncState *state) {
     int i;
@@ -394,9 +608,21 @@ int main(void) {
             redraw = true;
         }
 
+        /* R1: compare local files against the server copy */
+        if ((just & MASK_R1) && has_net && g_visible_count > 0) {
+            show_file_compare(state, &state->titles[g_visible[selected]]);
+            redraw = true;
+        }
+
         /* Cross (X): smart sync */
         if ((just & MASK_CROSS) && has_net && g_visible_count > 0) {
             TitleInfo *title = &state->titles[g_visible[selected]];
+            if (title->kind == SAVE_KIND_PS3 && title->server_only) {
+                ui_message("This PS3 save only exists on the server.\n\n"
+                           "Create a save in the game first, then sync again.");
+                redraw = true;
+                continue;
+            }
             ui_status("Analyzing %s...", title->game_code);
 
             SyncAction action = sync_decide(state, g_visible[selected]);
@@ -420,7 +646,8 @@ int main(void) {
                                "-3=bundle error\n"
                                "-4=network/server error\n"
                                "-5=write error\n"
-                               "-6=no upload source (decrypt/export)\n\n"
+                               "-6=no upload source (decrypt/export)\n"
+                               "-7=create a local save first\n\n"
                                "See %s for details.", r, DEBUG_LOG_FILE);
             }
             redraw = true;
@@ -430,7 +657,12 @@ int main(void) {
         if ((just & MASK_SQUARE) && has_net && g_visible_count > 0) {
             TitleInfo *title = &state->titles[g_visible[selected]];
             if (title->server_only) {
-                ui_message("This save only exists on the server.\nDownload it first (Triangle).");
+                if (title->kind == SAVE_KIND_PS3) {
+                    ui_message("This PS3 save only exists on the server.\n\n"
+                               "Create a save in the game first, then sync again.");
+                } else {
+                    ui_message("This save only exists on the server.\nDownload it first (Triangle).");
+                }
             } else {
                 char server_hash[65] = "";
                 uint32_t server_size = 0;
@@ -450,6 +682,12 @@ int main(void) {
         /* Triangle (△): force download */
         if ((just & MASK_TRIANGLE) && has_net && g_visible_count > 0) {
             TitleInfo *title = &state->titles[g_visible[selected]];
+            if (title->kind == SAVE_KIND_PS3 && title->server_only) {
+                ui_message("This PS3 save only exists on the server.\n\n"
+                           "Create a save in the game first, then sync again.");
+                redraw = true;
+                continue;
+            }
             char server_hash[65] = "";
             uint32_t server_size = 0;
             char server_last_sync[32] = "";
@@ -473,10 +711,12 @@ int main(void) {
                        "Downloaded: %d\n"
                        "Up to date: %d\n"
                        "Conflicts:  %d\n"
+                       "Skipped:    %d\n"
                        "Failed:     %d\n\n"
                        "Press Cross to continue.",
                        summary.uploaded, summary.downloaded,
-                       summary.up_to_date, summary.conflicts, summary.failed);
+                       summary.up_to_date, summary.conflicts,
+                       summary.skipped, summary.failed);
             redraw = true;
         }
 

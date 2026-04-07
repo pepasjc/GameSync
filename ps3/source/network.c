@@ -446,6 +446,33 @@ int network_get_save_info(const SyncState *state, const char *title_id,
     return 0;
 }
 
+int network_get_save_manifest(const SyncState *state, const char *title_id,
+                              char *manifest_out, uint32_t manifest_out_size) {
+    char path[256];
+    int status = 0;
+    int r;
+
+    if (!manifest_out || manifest_out_size == 0) {
+        return -1;
+    }
+
+    snprintf(path, sizeof(path), "/api/v1/saves/%s/manifest", title_id);
+    r = http_request(state, "GET", path,
+                     NULL, NULL, 0,
+                     (uint8_t *)manifest_out, manifest_out_size - 1, &status);
+    if (status == 404) {
+        manifest_out[0] = '\0';
+        return 1;
+    }
+    if (r < 0 || status != 200) {
+        manifest_out[0] = '\0';
+        return (status > 0) ? -status : -1;
+    }
+
+    manifest_out[r] = '\0';
+    return 0;
+}
+
 int network_upload_save(const SyncState *state, const char *title_id,
                          const uint8_t *bundle, uint32_t bundle_size) {
     char path[256];

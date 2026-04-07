@@ -102,6 +102,7 @@ class GameEntry:
     # Sync state
     status: SyncStatus = SyncStatus.UNKNOWN
     server_hash: Optional[str] = None
+    server_title_id: Optional[str] = None
     server_timestamp: Optional[float] = None
     server_size: Optional[int] = None
     last_synced_hash: Optional[str] = None

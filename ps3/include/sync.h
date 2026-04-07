@@ -16,6 +16,7 @@ typedef struct {
     int downloaded;
     int up_to_date;
     int conflicts;
+    int skipped;
     int failed;
 } SyncSummary;
 
@@ -31,7 +32,8 @@ SyncAction sync_decide(const SyncState *state, int title_idx);
  *   -3 = bundle format error
  *   -4 = network/server error
  *   -5 = write error
- *   -6 = PS3 Apollo export zip missing/invalid */
+ *   -6 = PS3 Apollo export zip missing/invalid
+ *   -7 = PS3 server-only save requires a local slot */
 int sync_execute(SyncState *state, int title_idx, SyncAction action);
 
 /* Auto-sync all titles using the server sync plan. */

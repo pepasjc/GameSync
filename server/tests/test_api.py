@@ -199,6 +199,29 @@ class TestUploadEndpoint:
         assert data["status"] == "ok"
         assert "sha256" in data
 
+    def test_upload_ps3_hash_ignores_metadata_and_pngs(self, client, auth_headers):
+        bundle = _make_string_bundle_bytes(
+            title_id="BLJS10001GAME",
+            files=[
+                ("GAME", b"game"),
+                ("PARAM.SFO", b"param"),
+                ("PARAM.PFD", b"pfd"),
+                ("ICON0.PNG", b"icon"),
+                ("PIC1.PNG", b"pic"),
+            ],
+        )
+        r = client.post(
+            "/api/v1/saves/BLJS10001GAME",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        assert r.json()["sha256"] == hashlib.sha256(b"game").hexdigest()
+
+        meta = client.get("/api/v1/saves/BLJS10001GAME/meta", headers=auth_headers)
+        assert meta.status_code == 200
+        assert meta.json()["save_hash"] == hashlib.sha256(b"game").hexdigest()
+
     def test_upload_empty_body(self, client, auth_headers):
         r = client.post(
             "/api/v1/saves/0004000000055D00",
@@ -297,6 +320,33 @@ class TestDownloadEndpoint:
         downloaded = parse_bundle(r.content)
         assert len(downloaded.files) == 1
         assert downloaded.files[0].data == save_data
+
+    def test_ps3_manifest_filters_metadata_and_pngs(self, client, auth_headers):
+        bundle = _make_string_bundle_bytes(
+            title_id="BLJS10001GAME",
+            files=[
+                ("GAME", b"game"),
+                ("PARAM.SFO", b"param"),
+                ("PARAM.PFD", b"pfd"),
+                ("ICON0.PNG", b"icon"),
+                ("PIC1.PNG", b"pic"),
+                ("USR-DATA/SAVE2.DAT", b"save2"),
+            ],
+        )
+        client.post(
+            "/api/v1/saves/BLJS10001GAME",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/BLJS10001GAME/manifest", headers=auth_headers)
+        assert r.status_code == 200
+        lines = [line for line in r.text.splitlines() if line]
+        assert lines == [
+            f"GAME\t4\t{hashlib.sha256(b'game').hexdigest()}",
+            f"USR-DATA/SAVE2.DAT\t5\t{hashlib.sha256(b'save2').hexdigest()}",
+        ]
+        assert r.headers["X-Save-File-Count"] == "2"
 
     def test_raw_download_rejects_multi_file_bundle(self, client, auth_headers):
         bundle = _make_bundle_bytes(files=[("ICON0.PNG", b"icon"), ("DATA.BIN", b"save")])

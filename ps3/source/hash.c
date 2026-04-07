@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 
 typedef struct {
@@ -44,6 +45,25 @@ static int compare_entries(const void *a, const void *b) {
     const HashFileEntry *left = (const HashFileEntry *)a;
     const HashFileEntry *right = (const HashFileEntry *)b;
     return strcmp(left->rel_path, right->rel_path);
+}
+
+bool hash_should_skip_ps3_file(const char *rel_path) {
+    const char *name;
+    const char *ext;
+
+    if (!rel_path || !rel_path[0]) {
+        return false;
+    }
+
+    name = strrchr(rel_path, '/');
+    name = name ? (name + 1) : rel_path;
+
+    if (strcasecmp(name, "PARAM.SFO") == 0 || strcasecmp(name, "PARAM.PFD") == 0) {
+        return true;
+    }
+
+    ext = strrchr(name, '.');
+    return ext && strcasecmp(ext, ".PNG") == 0;
 }
 
 static bool append_entry(
@@ -108,6 +128,9 @@ static bool collect_dir_entries(
                 return false;
             }
         } else if (S_ISREG(st.st_mode)) {
+            if (hash_should_skip_ps3_file(child_rel)) {
+                continue;
+            }
             if (!append_entry(entries, count, capacity, child_full, child_rel)) {
                 closedir(dir);
                 return false;

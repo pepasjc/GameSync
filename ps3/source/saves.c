@@ -151,9 +151,49 @@ static void mkdir_parents_for_file(const char *file_path) {
             continue;
         }
         tmp[i] = '\0';
-        mkdir(tmp, 0755);
+        mkdir(tmp, 0700);
         tmp[i] = '/';
     }
+}
+
+static int chmod_tree(const char *root_path) {
+    DIR *dir;
+    struct dirent *entry;
+
+    if (!root_path || !root_path[0]) {
+        return -1;
+    }
+    if (chmod(root_path, 0700) != 0) {
+        return -1;
+    }
+
+    dir = opendir(root_path);
+    if (!dir) {
+        return -1;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        char child_path[PATH_LEN];
+        struct stat st;
+
+        if (is_dot_name(entry->d_name)) {
+            continue;
+        }
+
+        path_join(root_path, entry->d_name, child_path, sizeof(child_path));
+        if (!path_stat(child_path, &st)) {
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            chmod_tree(child_path);
+        } else if (S_ISREG(st.st_mode)) {
+            chmod(child_path, 0644);
+        }
+    }
+
+    closedir(dir);
+    return 0;
 }
 
 static void uppercase_copy(char *out, size_t out_size, const char *value) {
@@ -815,11 +855,11 @@ int saves_write_file(const TitleInfo *title, const char *name,
         char dir_path[PATH_LEN];
         strncpy(dir_path, title->local_path, sizeof(dir_path) - 1);
         char *slash = strrchr(dir_path, '/');
-        if (slash) { *slash = '\0'; mkdir(dir_path, 0755); }
+        if (slash) { *slash = '\0'; mkdir(dir_path, 0700); }
         strncpy(path, title->local_path, sizeof(path) - 1);
         path[sizeof(path) - 1] = '\0';
     } else {
-        mkdir(title->local_path, 0755);
+        mkdir(title->local_path, 0700);
         snprintf(path, sizeof(path), "%s/%s", title->local_path, name);
         mkdir_parents_for_file(path);
     }
@@ -841,6 +881,10 @@ int saves_write_file(const TitleInfo *title, const char *name,
 
     fclose(f);
     return 0;
+}
+
+int saves_normalize_permissions(const char *root_path) {
+    return chmod_tree(root_path);
 }
 
 bool saves_has_upload_source(const TitleInfo *title) {

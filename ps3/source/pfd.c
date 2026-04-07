@@ -444,6 +444,59 @@ static void build_file_hash_key(const uint8_t secure_file_id[16],
     }
 }
 
+/* Build the 16-byte IV used to AES-wrap PFD entry keys.
+ * This mirrors decrypt.c's build_iv_hash_key() and Apollo's key schedule. */
+static void build_entry_key_iv(const uint8_t secure_file_id[16],
+                                uint8_t iv_out[16]) {
+    int j = 0;
+    for (int i = 0; i < 16; i++) {
+        switch (i) {
+            case 1:  iv_out[i] = 0x0B; break;
+            case 2:  iv_out[i] = 0x0F; break;
+            case 5:  iv_out[i] = 0x0E; break;
+            case 8:  iv_out[i] = 0x0A; break;
+            default: iv_out[i] = secure_file_id[j++]; break;
+        }
+    }
+}
+
+/* Deterministically synthesize a 64-byte entry key for files that are
+ * represented in PARAM.PFD but not encrypted on disk (notably PARAM.SFO).
+ * Working native saves keep a non-zero wrapped key blob for PARAM.SFO; using
+ * an all-zero blob is the last major structural difference in our create path.
+ */
+static void synthesize_plain_entry_key(const char *filename, uint64_t file_size,
+                                        uint8_t entry_key_out[64]) {
+    uint32_t seed = 0x3D55AACC;
+    for (const char *p = filename; *p; p++)
+        seed = seed * 31 + (uint8_t)*p;
+    seed ^= (uint32_t)file_size;
+    seed ^= 0x53464F31U;  /* "SFO1" salt to keep it distinct from data-file keys */
+
+    for (int k = 0; k < 64; k++) {
+        seed = seed * 1103515245U + 12345U;
+        entry_key_out[k] = (uint8_t)(seed >> 16);
+    }
+}
+
+static int encrypt_pfd_entry_key(const uint8_t entry_key_plain[64],
+                                  const uint8_t secure_file_id[16],
+                                  const pfd_keys_t *keys,
+                                  uint8_t entry_key_enc_out[64]) {
+    uint8_t iv[16];
+    aes_context aes;
+
+    build_entry_key_iv(secure_file_id, iv);
+    aes_setkey_enc(&aes, keys->syscon_manager_key, 128);
+
+    if (aes_crypt_cbc(&aes, AES_ENCRYPT, 64, iv,
+                       (uint8_t *)entry_key_plain, entry_key_enc_out) != 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 /* ---- Update file hashes for one entry ---- */
 
 /*
@@ -658,15 +711,17 @@ static int pfd_export(pfd_file_t *pfd, const pfd_keys_t *keys) {
  * Used when a save was synced from an emulator (e.g. RPCS3) that never
  * generates PARAM.PFD. Without it a real PS3 refuses to load the save.
  *
- * We enumerate all regular files in save_dir_path (excluding PARAM.PFD),
- * build a v4 hash table, compute all HMAC-SHA1 file hashes for the target
- * console/user, and write a valid PARAM.PFD.
+ * We enumerate the protected files in save_dir_path, build the standard
+ * fixed-size save-data tables used by real PS3 saves, compute all HMAC-SHA1
+ * file hashes for the target console/user, and write a valid PARAM.PFD.
  *
  * If entry_keys is non-NULL, the encrypted entry keys are written into
  * the PFD entry table before computing HMAC signatures.
  */
 
-#define PFD_MAX_ENTRIES  64   /* max files in one PS3 save directory */
+#define PFD_MAX_ENTRIES            114  /* reserved entry slots in real save PFDs */
+#define PFD_HASH_TABLE_CAPACITY     57  /* fixed X/Y table size used by PS3 saves */
+#define PFD_RESERVED_ENTRY_SLOTS   114  /* fixed protected-file table size */
 
 /* Hash used by the PS3 for filename → bucket assignment (Apollo: (h<<5)-h+c = h*31+c) */
 static uint64_t pfd_hash_filename(const char *name) {
@@ -676,15 +731,26 @@ static uint64_t pfd_hash_filename(const char *name) {
     return h;
 }
 
-/* Smallest power of 2 >= n, minimum 8 (gives ~50% load factor) */
-static uint64_t pfd_choose_capacity(int num_files) {
-    uint64_t cap = 8;
-    while (cap < (uint64_t)num_files * 2)
-        cap <<= 1;
-    return cap;
+static bool pfd_should_track_file(const char *name) {
+    if (strcmp(name, "PARAM.PFD") == 0) return false; /* skip self */
+
+    /* Keep PARAM.SFO protected, but skip metadata assets that are present
+     * on disk and shown on XMB without being tracked by the working PFDs we
+     * compared (ICON0/PIC1/etc.). */
+    if (strcmp(name, "PARAM.SFO") == 0) return true;
+    if (strcmp(name, "ICON0.PNG") == 0) return false;
+    if (strcmp(name, "ICON1.PAM") == 0) return false;
+    if (strcmp(name, "PIC0.PNG") == 0) return false;
+    if (strcmp(name, "PIC1.PNG") == 0) return false;
+    if (strcmp(name, "PIC1.PAM") == 0) return false;
+    if (strcmp(name, "SND0.AT3") == 0) return false;
+
+    return true;
 }
 
-/* Enumerate regular files in dir_path (except PARAM.PFD), sorted by name */
+/* Enumerate protected files in dir_path.
+ * PARAM.SFO is always placed first to match the accepted PS3 PFDs we observed.
+ * The remaining protected files are sorted by name for deterministic output. */
 static int pfd_collect_files(const char *dir_path,
                               char names[PFD_MAX_ENTRIES][PFD_MAX_FILE_NAME],
                               uint64_t sizes[PFD_MAX_ENTRIES]) {
@@ -695,7 +761,7 @@ static int pfd_collect_files(const char *dir_path,
     struct dirent *ent;
     while ((ent = readdir(d)) != NULL && count < PFD_MAX_ENTRIES) {
         if (ent->d_name[0] == '.') continue;                    /* . and .. */
-        if (strcmp(ent->d_name, "PARAM.PFD") == 0) continue;   /* skip self */
+        if (!pfd_should_track_file(ent->d_name)) continue;
 
         char fpath[600];
         snprintf(fpath, sizeof(fpath), "%s/%s", dir_path, ent->d_name);
@@ -710,13 +776,33 @@ static int pfd_collect_files(const char *dir_path,
     }
     closedir(d);
 
-    /* Insertion-sort by name for deterministic ordering */
+    /* PARAM.SFO first, then insertion-sort the rest by name. */
+    int start = 0;
+    for (int i = 0; i < count; i++) {
+        if (strcmp(names[i], "PARAM.SFO") == 0) {
+            if (i != 0) {
+                char tmp_name[PFD_MAX_FILE_NAME];
+                uint64_t tmp_size = sizes[i];
+                strncpy(tmp_name, names[i], PFD_MAX_FILE_NAME);
+                for (int j = i; j > 0; j--) {
+                    strncpy(names[j], names[j - 1], PFD_MAX_FILE_NAME);
+                    sizes[j] = sizes[j - 1];
+                }
+                strncpy(names[0], tmp_name, PFD_MAX_FILE_NAME);
+                sizes[0] = tmp_size;
+            }
+            start = 1;
+            break;
+        }
+    }
+
     for (int i = 1; i < count; i++) {
+        if (i < start) continue;
         char tmp_name[PFD_MAX_FILE_NAME];
         uint64_t tmp_size = sizes[i];
         strncpy(tmp_name, names[i], PFD_MAX_FILE_NAME);
         int j = i - 1;
-        while (j >= 0 && strcmp(names[j], tmp_name) > 0) {
+        while (j >= start && strcmp(names[j], tmp_name) > 0) {
             strncpy(names[j + 1], names[j], PFD_MAX_FILE_NAME);
             sizes[j + 1] = sizes[j];
             j--;
@@ -746,19 +832,23 @@ int pfd_create_encrypted(const char *save_dir_path, const pfd_keys_t *keys,
         debug_log("pfd_create: no files found in %s", save_dir_path);
         return -1;
     }
-    debug_log("pfd_create: %d files to hash", num_files);
+    if (num_files > PFD_RESERVED_ENTRY_SLOTS) {
+        debug_log("pfd_create: too many protected files (%d)", num_files);
+        return -1;
+    }
+    debug_log("pfd_create: %d protected files to hash", num_files);
 
     /* --- Determine layout ---
      *
-     * Real PS3 PFDs use num_reserved = 2 * capacity (a large pre-allocated
-     * entry table).  The sentinel value for "no entry" in hash table slots
-     * and additional_index chain terminators is num_reserved (one-past-end),
-     * NOT 0xFFFFFFFFFFFFFFFF.
+     * Real PS3 save-data PFDs use the fixed 57/114 table geometry documented
+     * by Apollo/psdevwiki. The sentinel value for "no entry" in hash table
+     * slots and additional_index chain terminators is num_reserved
+     * (one-past-end), NOT 0xFFFFFFFFFFFFFFFF.
      *
      * The file is padded to PFD_MAX_FILE_SIZE (32KB) to match real PS3
      * firmware expectations. */
-    uint64_t capacity     = pfd_choose_capacity(num_files);
-    uint64_t num_reserved = capacity * 2;  /* pre-allocated entry slots */
+    uint64_t capacity     = PFD_HASH_TABLE_CAPACITY;
+    uint64_t num_reserved = PFD_RESERVED_ENTRY_SLOTS;
 
     size_t content_size = (size_t)OFF_HASH_TABLE
         + 24                                          /* ht header: cap + reserved + used */
@@ -856,6 +946,7 @@ int pfd_create_encrypted(const char *save_dir_path, const pfd_keys_t *keys,
         write_be64(pfd->data + pfd->ht_indices_off + bucket * 8, (uint64_t)i);
 
         /* Write encrypted entry key if provided */
+        bool wrote_entry_key = false;
         if (entry_keys && num_keys > 0) {
             for (int k = 0; k < num_keys; k++) {
                 if (strcmp(entry_keys[k].filename, names[i]) == 0) {
@@ -868,8 +959,27 @@ int pfd_create_encrypted(const char *save_dir_path, const pfd_keys_t *keys,
                     }
                     debug_log("pfd_create: set entry key for %s (orig_size=%llu)",
                               names[i], (unsigned long long)entry_keys[k].original_size);
+                    wrote_entry_key = true;
                     break;
                 }
+            }
+        }
+
+        /* PARAM.SFO is not encrypted on disk, but working native saves still
+         * carry a wrapped non-zero 64-byte key blob in its PFD entry. */
+        if (!wrote_entry_key &&
+            strcmp(names[i], "PARAM.SFO") == 0 &&
+            keys->has_secure_file_id) {
+            uint8_t sfo_plain_key[64];
+            uint8_t sfo_enc_key[64];
+
+            synthesize_plain_entry_key(names[i], file_sizes[i], sfo_plain_key);
+            if (encrypt_pfd_entry_key(sfo_plain_key, keys->secure_file_id,
+                                      keys, sfo_enc_key) == 0) {
+                memcpy(ep + ENT_OFF_KEY, sfo_enc_key, 64);
+                debug_log("pfd_create: synthesized PARAM.SFO entry key");
+            } else {
+                debug_log("pfd_create: failed to synthesize PARAM.SFO entry key");
             }
         }
     }

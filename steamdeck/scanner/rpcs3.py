@@ -1,9 +1,10 @@
 """RPCS3 PS3 scanner for EmuDeck on Steam Deck."""
 
+import hashlib
 from pathlib import Path
 from typing import Generator
 
-from .base import find_paths, sha256_dir_tree_files
+from .base import find_paths
 from .models import GameEntry, SyncStatus
 
 FLATPAK_RPCS3_DATA = (
@@ -19,40 +20,82 @@ import re
 
 _PS3_ID_RE = re.compile(r"^[A-Z]{4}\d{5}")
 _PS3_CODE_RE = re.compile(r"^([A-Z]{4}\d{5})")
+_PS3_HASH_SKIP_NAMES = {"PARAM.SFO", "PARAM.PFD"}
+
+
+def _is_ps3_hash_ignored(path: Path) -> bool:
+    name = path.name.upper()
+    if name in _PS3_HASH_SKIP_NAMES:
+        return True
+    return path.suffix.upper() == ".PNG"
+
+
+def _ps3_base_code(title_id: str) -> str | None:
+    m = _PS3_CODE_RE.match(title_id)
+    return m.group(1) if m else None
 
 
 def _is_seen_by_locals(server_title_id: str, seen_ids: set[str]) -> bool:
     """
     Return True if *server_title_id* is already covered by a local scan entry.
 
-    Handles the case where local and server differ by a save-slot suffix,
-    e.g. server has BLJS10001GAME but local scanned BLJS10001 (or vice-versa).
+    Handles only the legacy case where one side uses the bare 9-char product
+    code and the other uses a full save-folder name.
+
+    Different suffixed PS3 save-folder names are treated as distinct saves.
     """
     if server_title_id in seen_ids:
         return True
-    m = _PS3_CODE_RE.match(server_title_id)
-    if not m:
+    code9 = _ps3_base_code(server_title_id)
+    if not code9:
         return False
-    code9 = m.group(1)
-    return any(
-        sid == code9 or (_PS3_CODE_RE.match(sid) and sid[:9] == code9)
-        for sid in seen_ids
-    )
+
+    is_bare_server = server_title_id == code9
+    if is_bare_server:
+        return any((_ps3_base_code(sid) == code9) for sid in seen_ids)
+
+    # Suffixed server entry: only consider it covered if the exact same folder
+    # was scanned locally, or if a legacy bare-code local entry exists.
+    return code9 in seen_ids
 
 
 def resolve_saves_root(emulation_path: Path) -> Path | None:
     emu_saves = emulation_path / "saves" / "rpcs3"
     return find_paths(
-        emu_saves / "saves",
-        emu_saves,
         emulation_path / "storage" / "rpcs3" / "dev_hdd0" / "home" / "00000001" / "savedata",
+        FLATPAK_RPCS3_DATA,
         emulation_path / "rpcs3" / "saves",
         emulation_path / "rpcs3",
+        EMUDECK_RPCS3_STORAGE_DATA,
+        emu_saves / "saves",
+        emu_saves,
         EMUDECK_RPCS3_SAVE_DIRS,
         EMUDECK_RPCS3_SAVES,
-        EMUDECK_RPCS3_STORAGE_DATA,
-        FLATPAK_RPCS3_DATA,
     )
+
+
+def _hash_ps3_save_dir(save_dir: Path) -> str:
+    h = hashlib.sha256()
+    for fp in sorted(save_dir.rglob("*")):
+        if not fp.is_file():
+            continue
+        if _is_ps3_hash_ignored(fp):
+            continue
+        with open(fp, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+    return h.hexdigest()
+
+
+def _ps3_save_size(save_dir: Path) -> int:
+    total = 0
+    for fp in save_dir.rglob("*"):
+        if not fp.is_file():
+            continue
+        if _is_ps3_hash_ignored(fp):
+            continue
+        total += fp.stat().st_size
+    return total
 
 
 def default_save_path(emulation_path: Path, title_id: str) -> Path:
@@ -93,6 +136,7 @@ def build_server_only_entries(
                 is_multi_file=True,
                 status=SyncStatus.SERVER_ONLY,
                 server_hash=info.get("save_hash"),
+                server_title_id=title_id,
                 server_timestamp=info.get("client_timestamp"),
                 server_size=info.get("save_size"),
             )
@@ -152,10 +196,8 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
                 save_mtime=mtime,
             )
             try:
-                entry.save_hash = sha256_dir_tree_files(save_dir)
-                entry.save_size = sum(
-                    f.stat().st_size for f in save_dir.rglob("*") if f.is_file()
-                )
+                entry.save_hash = _hash_ps3_save_dir(save_dir)
+                entry.save_size = _ps3_save_size(save_dir)
             except Exception:
                 pass
             seen[title_id] = entry

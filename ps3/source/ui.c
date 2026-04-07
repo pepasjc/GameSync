@@ -181,7 +181,7 @@ void ui_draw_list(
     );
     draw_text(24, SCREEN_HEIGHT - 28, dim, status_line ? status_line : "Ready.");
     draw_textf(24, SCREEN_HEIGHT - 46, dim,
-        "Up/Dn: nav   X: sync   Sq: upload   Tri: download   O: rescan   L1: filter[%s]   L2/R2: user   Start: exit",
+        "Up/Dn: nav   X: sync   Sq: upload   Tri: download   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   Start: exit",
         show_server_only ? "ON" : "OFF");
 
     if (visible_count == 0) {

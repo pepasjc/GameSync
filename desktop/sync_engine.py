@@ -512,13 +512,33 @@ def _hash_dir_files(path: Path) -> str:
     return h.hexdigest()
 
 
+def _hash_ps3_dir_files(path: Path) -> str:
+    """PS3 emulator hash that ignores disposable PS3 metadata/media files."""
+    h = hashlib.sha256()
+    for rel_path, fp in _iter_dir_files(path):
+        name = Path(rel_path).name.upper()
+        if name in {"PARAM.SFO", "PARAM.PFD"} or Path(rel_path).suffix.upper() == ".PNG":
+            continue
+        with open(fp, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+    return h.hexdigest()
+
+
 def _hash_path(path: Path) -> str:
     return _hash_dir_files(path) if path.is_dir() else _hash_file(path)
 
 
-def _create_dir_bundle(title_id: str, root_dir: Path) -> bytes:
+def _create_dir_bundle(
+    title_id: str,
+    root_dir: Path,
+    skip_names: set[str] | None = None,
+) -> bytes:
     files: list[tuple[str, bytes, bytes]] = []
+    skip = {name.upper() for name in (skip_names or set())}
     for rel_path, fp in _iter_dir_files(root_dir):
+        if fp.name.upper() in skip:
+            continue
         data = fp.read_bytes()
         files.append((rel_path, data, hashlib.sha256(data).digest()))
 
@@ -2580,7 +2600,7 @@ def _scan_emudeck(
                 SaveFile(
                     title_id=save_dir.name.upper(),
                     path=save_dir,
-                    hash=_hash_dir_files(save_dir),
+                    hash=_hash_ps3_dir_files(save_dir),
                     mtime=latest_mtime,
                     system="PS3",
                     game_name=save_dir.name,
@@ -3180,7 +3200,7 @@ def upload_save(
     params = {"force": "true"} if force else {}
     is_ps3_dir = (system or "").upper() == "PS3" and path.is_dir()
     if is_ps3_dir:
-        data = _create_dir_bundle(title_id, path)
+        data = _create_dir_bundle(title_id, path, skip_names={"PARAM.PFD"})
         resp = requests.post(
             f"{base_url}/api/v1/saves/{title_id}",
             headers={**headers, "Content-Type": "application/octet-stream"},
@@ -3188,7 +3208,7 @@ def upload_save(
             data=data,
             timeout=timeout,
         )
-        local_hash = _hash_dir_files(path)
+        local_hash = _hash_ps3_dir_files(path)
     else:
         data = path.read_bytes()
         local_hash = hashlib.sha256(data).hexdigest()
@@ -3277,7 +3297,7 @@ def download_save(
     resp.raise_for_status()
     if (system or "").upper() == "PS3":
         _extract_bundle_to_dir(resp.content, dest_path)
-        server_hash = resp.headers.get("X-Save-Hash", _hash_dir_files(dest_path))
+        server_hash = resp.headers.get("X-Save-Hash", _hash_ps3_dir_files(dest_path))
     else:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_bytes(resp.content)

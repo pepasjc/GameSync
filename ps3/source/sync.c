@@ -33,6 +33,7 @@
 #define SYNC_ERR_NETWORK  (-4)
 #define SYNC_ERR_EXTRACT  (-5)
 #define SYNC_ERR_EXPORT   (-6)
+#define SYNC_ERR_NEEDS_LOCAL_SLOT (-7)
 
 /* Refresh file_count / total_size after a successful download */
 static void refresh_local_stats(TitleInfo *title) {
@@ -125,6 +126,14 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
 
     if (action == SYNC_FAILED) {
         return SYNC_ERR_NETWORK;
+    }
+
+    if (action == SYNC_DOWNLOAD &&
+        title->kind == SAVE_KIND_PS3 &&
+        title->server_only) {
+        debug_log("sync_execute: blocking server-only PS3 download for %s until a local save exists",
+                  title->title_id);
+        return SYNC_ERR_NEEDS_LOCAL_SLOT;
     }
 
     if (action == SYNC_UPLOAD) {
@@ -335,8 +344,8 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
                                   title->title_id);
                     }
                 } else {
-                    /* Fresh download (no existing local save): full resign —
-                     * patches PARAM.SFO ownership and creates PARAM.PFD. */
+                    /* Fresh download (no existing local save): patch ownership,
+                     * encrypt save data, and create PARAM.PFD from scratch. */
                     int rr = resign_save(title, state);
                     if (rr != 0) {
                         debug_log("sync_execute: resign failed for %s (non-fatal)",
@@ -344,6 +353,12 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
                     }
                 }
                 pump_callbacks();
+                if (title->kind == SAVE_KIND_PS3) {
+                    int pr = saves_normalize_permissions(title->local_path);
+                    debug_log("sync_execute: normalize_permissions -> %d for %s",
+                              pr, title->title_id);
+                }
+                debug_dump_savedata_permissions(state->savedata_root, title->local_path);
             }
 
             title->server_only = false;
@@ -464,6 +479,13 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
     int srv_only_count = 0;
     for (int i = 0; i < state->num_titles; i++) {
         if (!state->titles[i].server_only) continue;
+        if (state->titles[i].kind == SAVE_KIND_PS3) {
+            debug_log("sync_auto_all: skipping server-only PS3 save %s until a local slot exists",
+                      state->titles[i].title_id);
+            if (summary) summary->skipped++;
+            srv_only_count++;
+            continue;
+        }
         srv_only_count++;
         if (progress) {
             snprintf(msg, sizeof(msg), "Downloading server save: %s",

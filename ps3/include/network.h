@@ -33,6 +33,8 @@ bool network_check_server(const SyncState *state);
 int  network_get_save_info(const SyncState *state, const char *game_code,
                            char *hash_out, uint32_t *size_out,
                            char *last_sync_out);
+int  network_get_save_manifest(const SyncState *state, const char *title_id,
+                               char *manifest_out, uint32_t manifest_out_size);
 
 /* Merge server title list into state (adds server-only placeholder entries). */
 void network_merge_server_titles(SyncState *state);

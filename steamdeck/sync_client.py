@@ -3,6 +3,7 @@
 import hashlib
 import io
 import re
+import shutil
 import struct
 import time
 import zipfile
@@ -14,29 +15,41 @@ from typing import Optional
 _PS3_CODE_RE = re.compile(r"^([A-Z]{4}\d{5})")
 
 
+def _ps3_base_code(title_id: str) -> str | None:
+    m = _PS3_CODE_RE.match(title_id)
+    return m.group(1) if m else None
+
+
 def _find_server_save(server_saves: dict, title_id: str) -> "dict | None":
     """
     Look up a server save entry for *title_id*, with fallback prefix matching
-    for PS3-style IDs where local and server may differ by a save-slot suffix.
+    for legacy PS3-style IDs where one side uses only the 9-char product code
+    and the other uses a full save-folder name.
 
-    e.g. local BLJS10001 matches server BLJS10001GAME (and vice-versa).
+    This does not match two different suffixed save-folder names for the same
+    base product code because those are distinct PS3 save slots.
     """
     info = server_saves.get(title_id)
     if info is not None:
         return info
-    m = _PS3_CODE_RE.match(title_id)
-    if not m:
+    code9 = _ps3_base_code(title_id)
+    if not code9:
         return None
-    code9 = m.group(1)
-    # Exact 9-char key on server
-    info = server_saves.get(code9)
-    if info is not None:
-        return info
-    # Any server key that shares the same 9-char base code
-    for sid, sinfo in server_saves.items():
-        if _PS3_CODE_RE.match(sid) and sid[:9] == code9:
-            return sinfo
-    return None
+
+    is_bare_local = title_id == code9
+    if is_bare_local:
+        # Legacy local bare-code entry: match any server save rooted in this code.
+        info = server_saves.get(code9)
+        if info is not None:
+            return info
+        for sid, sinfo in server_saves.items():
+            if _ps3_base_code(sid) == code9:
+                return sinfo
+        return None
+
+    # Full local save-folder name: only fall back to the exact bare-code server
+    # entry for legacy data, never to a different suffixed folder.
+    return server_saves.get(code9)
 
 import requests
 
@@ -51,17 +64,25 @@ from config import load_sync_state, save_sync_state
 _BUNDLE_MAGIC = b"3DSS"
 _BUNDLE_V4 = 4
 _BUNDLE_V5 = 5
+_PS3_BUNDLE_SKIP = {"PARAM.PFD"}
 
 
-def _create_dir_bundle(title_id: str, slot_dir: Path) -> bytes:
+def _create_dir_bundle(
+    title_id: str,
+    slot_dir: Path,
+    skip_names: set[str] | None = None,
+) -> bytes:
     """
     Create a 3DSS bundle from a save directory.
     Files are included recursively, sorted by relative path.
     """
     files: list[tuple[str, bytes, bytes]] = []  # (name, data, sha256_hash)
+    skip = {name.upper() for name in (skip_names or set())}
 
     for fp in sorted(slot_dir.rglob("*")):
         if not fp.is_file():
+            continue
+        if fp.name.upper() in skip:
             continue
         data = fp.read_bytes()
         h = hashlib.sha256(data).digest()
@@ -320,6 +341,7 @@ class SyncClient:
             return False
 
         title_id = entry.title_id
+        remote_title_id = entry.server_title_id or title_id
         system = entry.system
         save_path = entry.save_path
 
@@ -327,7 +349,7 @@ class SyncClient:
             if entry.is_psp_slot:
                 # PSP: create a 3DSS v4 bundle and upload via bundle endpoint
                 data = _create_dir_bundle(title_id, save_path)
-                url = f"{self.base_url}/saves/{title_id}"
+                url = f"{self.base_url}/saves/{remote_title_id}"
                 params = {"source": "psp_emu"}
                 if force:
                     params["force"] = "true"
@@ -343,8 +365,9 @@ class SyncClient:
                 )
             elif entry.is_multi_file and save_path.is_dir():
                 # Multi-file directory saves (for example RPCS3) use the bundle endpoint.
-                data = _create_dir_bundle(title_id, save_path)
-                url = f"{self.base_url}/saves/{title_id}"
+                skip = _PS3_BUNDLE_SKIP if system == "PS3" else None
+                data = _create_dir_bundle(title_id, save_path, skip_names=skip)
+                url = f"{self.base_url}/saves/{remote_title_id}"
                 params = {"source": "ps3_emu"} if system == "PS3" else {}
                 if force:
                     params["force"] = "true"
@@ -364,13 +387,13 @@ class SyncClient:
                     data = f.read()
 
                 if system == "PS1":
-                    url = f"{self.base_url}/saves/{title_id}/ps1-card"
+                    url = f"{self.base_url}/saves/{remote_title_id}/ps1-card"
                 elif system == "PS2":
-                    url = f"{self.base_url}/saves/{title_id}/ps2-card"
+                    url = f"{self.base_url}/saves/{remote_title_id}/ps2-card"
                 elif system == "GC":
-                    url = f"{self.base_url}/saves/{title_id}/gc-card?format=gci"
+                    url = f"{self.base_url}/saves/{remote_title_id}/gc-card?format=gci"
                 else:
-                    url = f"{self.base_url}/saves/{title_id}/raw"
+                    url = f"{self.base_url}/saves/{remote_title_id}/raw"
 
                 if force:
                     url += "&force=true" if "?" in url else "?force=true"
@@ -402,13 +425,14 @@ class SyncClient:
             return False
 
         title_id = entry.title_id
+        remote_title_id = entry.server_title_id or title_id
         system = entry.system
         save_path = entry.save_path
 
         try:
             if entry.is_psp_slot:
                 # PSP: download bundle and extract to slot directory
-                url = f"{self.base_url}/saves/{title_id}"
+                url = f"{self.base_url}/saves/{remote_title_id}"
                 r = requests.get(url, headers=self.headers, timeout=30)
                 if r.status_code != 200:
                     return False
@@ -429,17 +453,14 @@ class SyncClient:
 
             elif entry.is_multi_file:
                 # Multi-file directory saves (for example RPCS3) use the bundle endpoint.
-                url = f"{self.base_url}/saves/{title_id}"
+                url = f"{self.base_url}/saves/{remote_title_id}"
                 r = requests.get(url, headers=self.headers, timeout=30)
                 if r.status_code != 200:
                     return False
                 files = _parse_dir_bundle(r.content)
+                if save_path.exists():
+                    shutil.rmtree(save_path)
                 save_path.mkdir(parents=True, exist_ok=True)
-                for existing in sorted(save_path.rglob("*"), reverse=True):
-                    if existing.is_file():
-                        existing.unlink()
-                    elif existing.is_dir():
-                        existing.rmdir()
                 for name, data in files:
                     target = save_path / name
                     target.parent.mkdir(parents=True, exist_ok=True)
@@ -447,13 +468,13 @@ class SyncClient:
             else:
                 # Single file: route by system
                 if system == "PS1":
-                    url = f"{self.base_url}/saves/{title_id}/ps1-card?slot=0"
+                    url = f"{self.base_url}/saves/{remote_title_id}/ps1-card?slot=0"
                 elif system == "PS2":
-                    url = f"{self.base_url}/saves/{title_id}/ps2-card?format=ps2"
+                    url = f"{self.base_url}/saves/{remote_title_id}/ps2-card?format=ps2"
                 elif system == "GC":
-                    url = f"{self.base_url}/saves/{title_id}/gc-card?format=gci"
+                    url = f"{self.base_url}/saves/{remote_title_id}/gc-card?format=gci"
                 else:
-                    url = f"{self.base_url}/saves/{title_id}/raw"
+                    url = f"{self.base_url}/saves/{remote_title_id}/raw"
 
                 r = requests.get(url, headers=self.headers, timeout=30)
                 if r.status_code != 200:

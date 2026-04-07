@@ -1,12 +1,14 @@
 #include "export_zip.h"
 
 #include "apollo.h"
+#include "hash.h"
 #include "sha256.h"
 #include "ui.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include <zlib.h>
 
@@ -436,6 +438,8 @@ bool export_zip_hash_files_sha256(
     ExportZipInfo *info;
     SHA256_CTX ctx;
     uint8_t *buf;
+    int included_count = 0;
+    uint32_t included_size = 0;
 
     if (!zip_path || !hash_out) {
         return false;
@@ -453,6 +457,11 @@ bool export_zip_hash_files_sha256(
     buf = NULL;
 
     for (int i = 0; i < info->file_count; i++) {
+        uint32_t next_total;
+
+        if (hash_should_skip_ps3_file(info->files[i].path)) {
+            continue;
+        }
         ui_status("Hashing export %d/%d: %s", i + 1, info->file_count, info->files[i].path);
         if (info->files[i].size > 0) {
             buf = (uint8_t *)malloc(info->files[i].size);
@@ -468,15 +477,22 @@ bool export_zip_hash_files_sha256(
             sha256_update(&ctx, buf, info->files[i].size);
             free(buf);
         }
+        next_total = included_size + info->files[i].size;
+        if (next_total < included_size) {
+            included_size = 0xFFFFFFFFU;
+        } else {
+            included_size = next_total;
+        }
+        included_count++;
         pump_callbacks();
     }
 
     sha256_final(&ctx, hash_out);
     if (file_count_out) {
-        *file_count_out = info->file_count;
+        *file_count_out = included_count;
     }
     if (total_size_out) {
-        *total_size_out = info->total_size;
+        *total_size_out = included_size;
     }
     free(info);
     return true;
