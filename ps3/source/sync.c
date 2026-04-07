@@ -402,6 +402,93 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
     return result;
 }
 
+void sync_refresh_statuses(SyncState *state, SyncProgressFn progress) {
+    NetworkSyncPlan plan;
+    char msg[128];
+
+    if (!state) {
+        return;
+    }
+
+    for (int i = 0; i < state->num_titles; i++) {
+        TitleInfo *t = &state->titles[i];
+        if (t->server_only) {
+            t->status = TITLE_STATUS_SERVER_ONLY;
+        } else if (!t->on_server) {
+            t->status = TITLE_STATUS_LOCAL_ONLY;
+        } else {
+            t->status = TITLE_STATUS_UNKNOWN;
+        }
+    }
+
+    for (int i = 0; i < state->num_titles; i++) {
+        TitleInfo *t = &state->titles[i];
+        if (t->server_only || t->hash_calculated) {
+            continue;
+        }
+
+        char cached[65];
+        if (state_get_cached_hash(t->title_id, t->file_count, t->total_size, cached)) {
+            if (hash_from_hex(cached, t->hash)) {
+                t->hash_calculated = true;
+                continue;
+            }
+        }
+
+        if (progress) {
+            snprintf(msg, sizeof(msg), "Hashing %d/%d: %s",
+                     i + 1, state->num_titles, t->game_code);
+            progress(msg);
+        }
+        if (saves_compute_hash(t) == 0) {
+            char hx[65];
+            hash_to_hex(t->hash, hx);
+            state_set_cached_hash(t->title_id, t->file_count, t->total_size, hx);
+        }
+        pump_callbacks();
+    }
+
+    if (progress) {
+        progress("Checking sync status...");
+    }
+    if (network_get_sync_plan(state, &plan) != 0) {
+        debug_log("sync_refresh_statuses: get_sync_plan failed");
+        return;
+    }
+
+    for (int i = 0; i < state->num_titles; i++) {
+        TitleInfo *t = &state->titles[i];
+        if (!t->server_only && t->on_server && t->hash_calculated) {
+            t->status = TITLE_STATUS_SYNCED;
+        }
+    }
+
+    for (int i = 0; i < plan.upload_count; i++) {
+        for (int j = 0; j < state->num_titles; j++) {
+            if (strcmp(state->titles[j].title_id, plan.upload[i]) == 0) {
+                state->titles[j].status = TITLE_STATUS_UPLOAD;
+                break;
+            }
+        }
+    }
+    for (int i = 0; i < plan.download_count; i++) {
+        for (int j = 0; j < state->num_titles; j++) {
+            if (strcmp(state->titles[j].title_id, plan.download[i]) == 0) {
+                state->titles[j].status = TITLE_STATUS_DOWNLOAD;
+                break;
+            }
+        }
+    }
+    for (int i = 0; i < plan.conflict_count; i++) {
+        for (int j = 0; j < state->num_titles; j++) {
+            if (strcmp(state->titles[j].title_id, plan.conflict[i]) == 0) {
+                state->titles[j].status = TITLE_STATUS_CONFLICT;
+                break;
+            }
+        }
+    }
+}
+
 /* ---- sync_auto_all ---- */
 
 void sync_auto_all(SyncState *state, SyncSummary *summary,

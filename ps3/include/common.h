@@ -52,9 +52,12 @@ typedef struct {
     bool upload_is_zip;
     bool server_only;
     bool on_server;
+    bool server_meta_loaded;
     TitleStatus status;
     uint32_t total_size;
+    uint32_t server_size;
     int file_count;
+    char server_hash[65];
 } TitleInfo;
 
 typedef struct {

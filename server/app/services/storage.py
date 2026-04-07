@@ -188,6 +188,24 @@ def get_metadata(title_id: str, console_id: str = "") -> SaveMetadata | None:
     return _load_json_metadata(title_id)
 
 
+def get_metadata_for_sync(title_id: str, console_id: str = "") -> SaveMetadata | None:
+    """Load metadata used for sync comparison.
+
+    PS3 save hashes were recently redefined to ignore PARAM.* and PNG metadata.
+    Existing DB rows may still hold the older hash, so refresh PS3 metadata from
+    the current on-disk files before comparing.
+    """
+    meta = get_metadata(title_id, console_id)
+    if meta is None:
+        return None
+
+    if game_names.detect_platform(title_id) == "PS3":
+        refreshed = rebuild_metadata_from_current(title_id)
+        if refreshed is not None:
+            return refreshed
+    return meta
+
+
 def store_save(
     bundle: SaveBundle, source: str = "3ds", console_id: str = "", game_code: str = ""
 ) -> SaveMetadata:

@@ -329,6 +329,24 @@ static void show_file_compare(SyncState *state, const TitleInfo *title) {
     ui_message("%s", message);
 }
 
+static void fetch_selected_server_meta(const SyncState *state, TitleInfo *title) {
+    char last_sync[32] = "";
+    uint32_t server_size = 0;
+    int r;
+
+    if (!state || !title || !state->network_connected || !title->on_server || title->server_meta_loaded) {
+        return;
+    }
+
+    title->server_hash[0] = '\0';
+    r = network_get_save_info(state, title->title_id, title->server_hash, &server_size, last_sync);
+    title->server_size = (r == 0) ? server_size : 0;
+    title->server_meta_loaded = true;
+    if (r != 0) {
+        title->server_hash[0] = '\0';
+    }
+}
+
 static void rebuild_visible(const SyncState *state) {
     int i;
     g_visible_count = 0;
@@ -397,6 +415,7 @@ int main(void) {
     char vmc_root[PATH_LEN];
     bool config_created = false;
     int selected = 0, scroll = 0;
+    int last_selected_title = -1;
     unsigned int prev_buttons = 0;
     bool redraw = true;
 
@@ -516,9 +535,14 @@ int main(void) {
         network_merge_server_titles(state);
         ui_status("Fetching game names...");
         network_fetch_names(state);
+        sync_refresh_statuses(state, sync_progress_cb);
     }
 
     rebuild_visible(state);
+    if (has_net && g_visible_count > 0) {
+        fetch_selected_server_meta(state, &state->titles[g_visible[selected]]);
+        last_selected_title = g_visible[selected];
+    }
     snprintf(status_line, sizeof(status_line),
              "Found %d save(s). %s",
              state->num_titles,
@@ -553,23 +577,27 @@ int main(void) {
         if ((just & MASK_DOWN) && g_visible_count > 0) {
             selected = (selected + 1) % g_visible_count;
             update_scroll(selected, &scroll, g_visible_count);
+            if (has_net) last_selected_title = -1;
             redraw = true;
         }
         if ((just & MASK_UP) && g_visible_count > 0) {
             selected = (selected - 1 + g_visible_count) % g_visible_count;
             update_scroll(selected, &scroll, g_visible_count);
+            if (has_net) last_selected_title = -1;
             redraw = true;
         }
         if ((just & MASK_RIGHT) && g_visible_count > 0) {
             selected += LIST_VISIBLE;
             if (selected >= g_visible_count) selected = g_visible_count - 1;
             update_scroll(selected, &scroll, g_visible_count);
+            if (has_net) last_selected_title = -1;
             redraw = true;
         }
         if ((just & MASK_LEFT) && g_visible_count > 0) {
             selected -= LIST_VISIBLE;
             if (selected < 0) selected = 0;
             update_scroll(selected, &scroll, g_visible_count);
+            if (has_net) last_selected_title = -1;
             redraw = true;
         }
 
@@ -588,10 +616,12 @@ int main(void) {
                     ui_status("Refreshing server list...");
                     network_merge_server_titles(state);
                     network_fetch_names(state);
+                    sync_refresh_statuses(state, sync_progress_cb);
                 }
                 rebuild_visible(state);
                 selected = 0;
                 scroll = 0;
+                last_selected_title = -1;
                 snprintf(status_line, sizeof(status_line),
                          "User %08d — %d save(s).", next, state->num_titles);
             }
@@ -605,6 +635,7 @@ int main(void) {
             if (selected >= g_visible_count)
                 selected = g_visible_count > 0 ? g_visible_count - 1 : 0;
             update_scroll(selected, &scroll, g_visible_count);
+            if (has_net) last_selected_title = -1;
             redraw = true;
         }
 
@@ -638,9 +669,11 @@ int main(void) {
                           action == SYNC_UPLOAD ? "Uploading" : "Downloading",
                           title->game_code);
                 int r = sync_execute(state, g_visible[selected], action);
-                if (r == 0)
+                if (r == 0) {
+                    title->server_meta_loaded = false;
+                    title->server_hash[0] = '\0';
                     ui_message("Done! (%s)", title->game_code);
-                else
+                } else
                     ui_message("Failed! (code %d)\n\n"
                                "-2=read/hash error\n"
                                "-3=bundle error\n"
@@ -672,7 +705,11 @@ int main(void) {
                 if (ui_confirm(title, SYNC_UPLOAD, server_hash, server_size, server_last_sync)) {
                     ui_status("Uploading %s...", title->game_code);
                     int r = sync_execute(state, g_visible[selected], SYNC_UPLOAD);
-                    if (r == 0) ui_message("Upload OK!");
+                    if (r == 0) {
+                        title->server_meta_loaded = false;
+                        title->server_hash[0] = '\0';
+                        ui_message("Upload OK!");
+                    }
                     else        ui_message("Upload failed! (code %d)", r);
                 }
             }
@@ -696,7 +733,11 @@ int main(void) {
             if (ui_confirm(title, SYNC_DOWNLOAD, server_hash, server_size, server_last_sync)) {
                 ui_status("Downloading %s...", title->game_code);
                 int r = sync_execute(state, g_visible[selected], SYNC_DOWNLOAD);
-                if (r == 0) ui_message("Download OK!");
+                if (r == 0) {
+                    title->server_meta_loaded = false;
+                    title->server_hash[0] = '\0';
+                    ui_message("Download OK!");
+                }
                 else        ui_message("Download failed! (code %d)", r);
             }
             redraw = true;
@@ -728,11 +769,19 @@ int main(void) {
                 ui_status("Refreshing server list...");
                 network_merge_server_titles(state);
                 network_fetch_names(state);
+                sync_refresh_statuses(state, sync_progress_cb);
             }
             rebuild_visible(state);
             if (selected >= g_visible_count)
                 selected = g_visible_count > 0 ? g_visible_count - 1 : 0;
             update_scroll(selected, &scroll, g_visible_count);
+            if (has_net) last_selected_title = -1;
+            redraw = true;
+        }
+
+        if (has_net && g_visible_count > 0 && (last_selected_title != g_visible[selected])) {
+            fetch_selected_server_meta(state, &state->titles[g_visible[selected]]);
+            last_selected_title = g_visible[selected];
             redraw = true;
         }
 

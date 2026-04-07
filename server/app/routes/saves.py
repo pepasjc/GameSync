@@ -91,7 +91,7 @@ async def get_save_meta(
     console_id: str = Query(""),
 ):
     title_id = _validate_title_id(title_id)
-    meta = storage.get_metadata(title_id)
+    meta = storage.get_metadata_for_sync(title_id)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
     return meta.to_dict()
@@ -104,7 +104,7 @@ async def get_save_manifest(
     console_id: str = Query(""),
 ):
     title_id = _validate_title_id(title_id)
-    meta = storage.get_metadata(title_id)
+    meta = storage.get_metadata_for_sync(title_id)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
 

@@ -36,6 +36,9 @@ SyncAction sync_decide(const SyncState *state, int title_idx);
  *   -7 = PS3 server-only save requires a local slot */
 int sync_execute(SyncState *state, int title_idx, SyncAction action);
 
+/* Refresh list statuses using the same whole-save sync plan logic. */
+void sync_refresh_statuses(SyncState *state, SyncProgressFn progress);
+
 /* Auto-sync all titles using the server sync plan. */
 void sync_auto_all(SyncState *state, SyncSummary *summary, SyncProgressFn progress);
 

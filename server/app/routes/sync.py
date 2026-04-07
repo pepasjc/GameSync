@@ -52,7 +52,7 @@ async def sync(request: SyncRequest) -> SyncPlan:
         client_title_ids.add(title.title_id)
 
         # Look up the shared save slot for the title
-        server_meta = storage.get_metadata(title.title_id)
+        server_meta = storage.get_metadata_for_sync(title.title_id)
 
         if server_meta is None:
             # No save on server for this title -> upload

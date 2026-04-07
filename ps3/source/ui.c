@@ -250,8 +250,8 @@ void ui_draw_list(
                 snprintf(hash_hex, sizeof(hash_hex), "not computed");
             }
 
-            boxRGBA(g_screen, 1020, 88, SCREEN_WIDTH - 24, 380, 12, 18, 30, 255);
-            rectangleRGBA(g_screen, 1020, 88, SCREEN_WIDTH - 24, 380, border.r, border.g, border.b, 255);
+            boxRGBA(g_screen, 1020, 88, SCREEN_WIDTH - 24, 430, 12, 18, 30, 255);
+            rectangleRGBA(g_screen, 1020, 88, SCREEN_WIDTH - 24, 430, border.r, border.g, border.b, 255);
             static const char *status_names[] = {
                 "Unknown", "Local only", "Server only",
                 "Synced", "Need upload", "Need download", "Conflict"
@@ -266,8 +266,18 @@ void ui_draw_list(
             draw_textf(1036, 218, white, "Size: %u", (unsigned int)title->total_size);
             draw_text(1036, 244, dim, "Path:");
             draw_text(1036, 266, white, title->server_only ? "(not on device)" : title->local_path);
-            draw_text(1036, 296, dim, "Hash:");
+            draw_text(1036, 296, dim, "Local Hash:");
             draw_text(1036, 318, white, hash_hex);
+            draw_text(1036, 348, dim, "Server Hash:");
+            if (!title->on_server) {
+                draw_text(1036, 370, dim, "(not on server)");
+            } else if (!title->server_meta_loaded) {
+                draw_text(1036, 370, dim, "(loading...)");
+            } else if (title->server_hash[0]) {
+                draw_text(1036, 370, white, title->server_hash);
+            } else {
+                draw_text(1036, 370, dim, "(unavailable)");
+            }
         }
     }
 
