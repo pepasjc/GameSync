@@ -30,7 +30,8 @@ SyncAction sync_decide(const SyncState *state, int title_idx);
  *   -2 = hash/read error
  *   -3 = bundle format error
  *   -4 = network/server error
- *   -5 = write error */
+ *   -5 = write error
+ *   -6 = PS3 Apollo export zip missing/invalid */
 int sync_execute(SyncState *state, int title_idx, SyncAction action);
 
 /* Auto-sync all titles using the server sync plan. */

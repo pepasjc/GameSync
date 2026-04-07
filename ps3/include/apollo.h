@@ -10,6 +10,8 @@ bool apollo_extract_game_code(const char *save_dir_name, char *game_code_out, si
 bool apollo_extract_ps1_title_id(const char *vm1_name, char *title_id_out, size_t out_size);
 
 void apollo_get_ps3_savedata_root(const SyncState *state, char *out, size_t out_size);
+void apollo_get_ps3_export_root(int usb_index, char *out, size_t out_size);
+void apollo_get_ps3_usb_savedata_root(int usb_index, char *out, size_t out_size);
 void apollo_get_ps1_vmc_root(char *out, size_t out_size);
 void apollo_get_ps1_usb_vmc_root(int usb_index, char *out, size_t out_size);
 

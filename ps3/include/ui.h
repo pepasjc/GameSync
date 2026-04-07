@@ -6,6 +6,13 @@
 
 bool ui_init(char *error_buf, size_t error_buf_size);
 void ui_shutdown(void);
+
+/* Called from the sysutil callback in main.c */
+void ui_notify_exit(void);
+void ui_notify_menu_open(void);
+void ui_notify_menu_close(void);
+int  ui_exit_requested(void);
+int  ui_menu_open(void);
 void ui_clear(void);
 
 /* Show a one-line progress/status message immediately (non-blocking). */

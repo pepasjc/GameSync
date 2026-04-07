@@ -23,7 +23,7 @@ CXXFLAGS    := $(CFLAGS)
 ASFLAGS     := $(CFLAGS)
 LDFLAGS     += -L$(PSL1GHT)/portlibs/ppu/lib
 LD          := ppu-gcc
-LIBS        := -lSDL_gfx -lSDL -lrsx -lgcm_sys -laudio -lsysutil -lio -lnet -lsysmodule -lrt -llv2 -lz -lm
+LIBS        := -lSDL_gfx -lSDL -lrsx -lgcm_sys -laudio -lsysutil -lio -lnet -lnetctl -lsysmodule -lrt -llv2 -lpolarssl -lz -lm
 
 CPPFILES    :=
 CFILES      := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
@@ -36,6 +36,13 @@ include $(PSL1GHT)/ppu_rules
 .PHONY: all clean
 
 all: $(TARGET).pkg
+
+# Copy games.conf into the package so it's installed alongside EBOOT.BIN
+$(TARGET).pkg: $(BUILD)/pkg/USRDIR/games.conf
+
+$(BUILD)/pkg/USRDIR/games.conf: data/games.conf | $(BUILD)
+	@mkdir -p $(BUILD)/pkg/USRDIR
+	cp data/games.conf $(BUILD)/pkg/USRDIR/games.conf
 
 $(BUILD):
 	mkdir -p $(BUILD)

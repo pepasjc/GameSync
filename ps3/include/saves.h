@@ -17,8 +17,13 @@ int  saves_read_file(const TitleInfo *title, const char *name,
                      uint8_t *buf, uint32_t buf_size);
 int  saves_write_file(const TitleInfo *title, const char *name,
                       const uint8_t *buf, uint32_t size);
+bool saves_has_upload_source(const TitleInfo *title);
 
 /* Returns true for PS3/PS1 game codes (4 UPPER + 5 digits, not Vita PC*) */
 bool saves_is_relevant_game_code(const char *id);
+
+/* Returns true if name is a PS3 save metadata file that should be preserved
+ * when syncing into an existing save slot (PARAM.SFO, PARAM.PFD, icons, etc.) */
+bool saves_is_ps3_metadata_file(const char *name);
 
 #endif /* PS3SYNC_SAVES_H */

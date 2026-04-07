@@ -320,6 +320,19 @@ def download_raw_save(title_id: str, dest_path: Path) -> None:
     dest_path.write_bytes(resp.content)
 
 
+def download_ps3_save(title_id: str, dest_path: Path) -> None:
+    """Download a PS3 save bundle and extract it into dest_path."""
+    from sync_engine import _extract_bundle_to_dir
+
+    resp = requests.get(
+        f"{get_base_url()}/api/v1/saves/{title_id}",
+        headers=get_api_headers(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    _extract_bundle_to_dir(resp.content, dest_path)
+
+
 def download_ps1_cards(title_id: str, dest_path: Path) -> list[Path]:
     """Download PS1 memory card slot 0 and, if present, slot 1.
 

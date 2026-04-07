@@ -19,6 +19,7 @@
 
 #include <sysmodule/sysmodule.h>
 #include <net/net.h>
+#include <net/netctl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -29,14 +30,22 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <errno.h>
+
 
 /* If socketclose() is required by your PSL1GHT version, change this: */
 #define NET_CLOSE(s)  close(s)
 
+/* TCP connect timeout in seconds */
+#define CONNECT_TIMEOUT_SEC  8
+
 /* Maximum response body size for bundle downloads (8 MB) */
 #define HTTP_RESP_SIZE  (8 * 1024 * 1024)
 
-static bool g_initialized = false;
+static bool         g_initialized  = false;
+static NetProgressFn g_progress_cb = NULL;
+
+void network_set_progress_cb(NetProgressFn cb) { g_progress_cb = cb; }
 
 /* ---- URL parsing ---- */
 
@@ -93,26 +102,61 @@ static int tcp_connect(const char *host, int port) {
     int s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (s < 0) { debug_log("net: socket() failed %d", s); return -1; }
 
-    /* 15-second receive timeout */
-    struct timeval tv = { .tv_sec = 15, .tv_usec = 0 };
-    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    /* Set send timeout so blocking connect doesn't hang indefinitely.
+     * On LAN, ENETUNREACH comes back immediately anyway; this covers the
+     * rare case where a SYN is dropped with no RST. */
+    struct timeval stv = { .tv_sec = CONNECT_TIMEOUT_SEC, .tv_usec = 0 };
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &stv, sizeof(stv));
 
-    if (connect(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        debug_log("net: connect(%s:%d) failed", host, port);
+    if (connect(s, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        debug_log("net: connect(%s:%d) failed err=%d", host, port, errno);
         NET_CLOSE(s);
         return -1;
     }
+
+    /* 1-second recv timeout so the body read loop can pump callbacks
+     * between chunks without blocking indefinitely. */
+    struct timeval rtv = { .tv_sec = 1, .tv_usec = 0 };
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &rtv, sizeof(rtv));
+
+    /* 1-second send timeout so upload chunks don't block indefinitely.
+     * On real PS3 hardware (unlike RPCS3), a stalled send() without
+     * sysutil pumping causes the firmware to consider the app frozen. */
+    struct timeval stv_send = { .tv_sec = 1, .tv_usec = 0 };
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &stv_send, sizeof(stv_send));
+
     return s;
 }
 
-/* ---- Send all bytes ---- */
+/* ---- Send all bytes (with callback pumping) ----
+ *
+ * Sends in 64KB chunks.  Between chunks (and on SO_SNDTIMEO timeouts)
+ * the progress callback is invoked so sysUtilCheckCallback() gets called.
+ * On real PS3 firmware, failing to pump sysutil for several seconds while
+ * blocking in send() makes the system consider the app frozen — this does
+ * NOT happen on RPCS3. */
 
 static bool send_all(int s, const uint8_t *buf, uint32_t size) {
     uint32_t sent = 0;
     while (sent < size) {
-        int n = (int)send(s, buf + sent, size - sent, 0);
-        if (n <= 0) return false;
-        sent += (uint32_t)n;
+        uint32_t chunk = size - sent;
+        if (chunk > 65536) chunk = 65536;
+
+        int n = (int)send(s, buf + sent, chunk, 0);
+        if (n > 0) {
+            sent += (uint32_t)n;
+            /* Pump callbacks between chunks so the OS knows we're alive */
+            if (g_progress_cb)
+                g_progress_cb(sent, (int)size);
+        } else if (n == 0) {
+            return false;  /* connection closed */
+        } else {
+            /* SO_SNDTIMEO fired — pump callbacks, keep trying */
+            if (g_progress_cb && g_progress_cb(sent, (int)size))
+                return false;  /* abort requested */
+            if (errno != EAGAIN && errno != EWOULDBLOCK && errno != ETIMEDOUT)
+                return false;  /* hard error */
+        }
     }
     return true;
 }
@@ -198,40 +242,58 @@ static int http_request(const SyncState *state,
         }
     }
 
-    /* Read status line */
+    /* Read status line — pump callbacks afterward */
     char line[512];
     read_line(s, line, sizeof(line));
+    if (g_progress_cb) g_progress_cb(0, -1);
+
     int status = 0;
     const char *sp = strchr(line, ' ');
     if (sp) status = atoi(sp + 1);
     if (status_out) *status_out = status;
     debug_log("net: %s %s -> HTTP %d", method, api_path, status);
 
-    /* Read headers, look for Content-Length */
+    /* Read headers, look for Content-Length.
+     * Pump callbacks between header lines so the firmware doesn't
+     * consider us frozen during slow responses on real hardware. */
     int content_length = -1;
     while (1) {
         int n = read_line(s, line, sizeof(line));
         if (n == 0) break;
         if (strncasecmp(line, "Content-Length:", 15) == 0)
             content_length = atoi(line + 15);
+        if (g_progress_cb) g_progress_cb(0, -1);
     }
 
-    /* Read body */
+    /* Read body. SO_RCVTIMEO is 1 second so each recv() returns promptly,
+     * allowing the progress callback to pump sysutil between chunks.
+     * On real PS3 firmware (unlike RPCS3), failure to call
+     * sysUtilCheckCallback() for several seconds causes the system to
+     * consider the app frozen.  We therefore pump callbacks on EVERY
+     * recv iteration — not just for large responses. */
     int total = 0;
     if (resp_buf && resp_buf_size > 0) {
-        uint32_t cap = resp_buf_size - 1;
-        if (content_length > 0) {
-            uint32_t want = (uint32_t)content_length < cap ? (uint32_t)content_length : cap;
-            while ((uint32_t)total < want) {
-                int n = (int)recv(s, resp_buf + total, want - (uint32_t)total, 0);
-                if (n <= 0) break;
+        uint32_t cap  = resp_buf_size - 1;
+        uint32_t want = (content_length > 0 && (uint32_t)content_length < cap)
+                        ? (uint32_t)content_length : cap;
+
+        while ((uint32_t)total < want) {
+            uint32_t chunk = want - (uint32_t)total;
+            if (chunk > 65536) chunk = 65536;
+            int n = (int)recv(s, resp_buf + total, chunk, 0);
+            if (n > 0) {
                 total += n;
+            } else if (n == 0) {
+                break;  /* server closed connection */
+            } else {
+                /* Hard error (not a timeout) — give up */
+                if (errno != EAGAIN && errno != EWOULDBLOCK && errno != ETIMEDOUT)
+                    break;
             }
-        } else {
-            while ((uint32_t)total < cap) {
-                int n = (int)recv(s, resp_buf + total, cap - (uint32_t)total, 0);
-                if (n <= 0) break;
-                total += n;
+            /* Always pump callbacks so the PS3 OS doesn't kill us */
+            if (g_progress_cb) {
+                if (g_progress_cb((uint32_t)total, content_length))
+                    { NET_CLOSE(s); return -1; }
             }
         }
         resp_buf[total] = '\0';
@@ -291,15 +353,54 @@ static int parse_id_array(const char *json, const char *key,
 
 int network_init(void) {
     if (g_initialized) return 0;
+
     sysModuleLoad(SYSMODULE_NET);
+
     int ret = netInitialize();
     if (ret < 0) {
         debug_log("net: netInitialize failed %d", ret);
         sysModuleUnload(SYSMODULE_NET);
         return ret;
     }
+
+    /* Best-effort: wait for IP to be assigned (state 3 = IPObtained).
+     * On HEN the XMB already has a connection; DHCP usually completes fast.
+     * netCtlInit may return non-zero if already initialised — that's fine. */
+    sysModuleLoad(SYSMODULE_NETCTL);
+    netCtlInit();
+
+    s32 ctl_state = 0;
+    netCtlGetState(&ctl_state);
+    debug_log("net: netctl state=%d", (int)ctl_state);
+
+    if (ctl_state != NET_CTL_STATE_IPObtained) {
+        debug_log("net: waiting for IP (state=%d)...", (int)ctl_state);
+        /* Wait up to 15 seconds (NET_CTL_STATE_IPObtained == 3) */
+        for (int i = 0; i < 150 && ctl_state != NET_CTL_STATE_IPObtained; i++) {
+            usleep(100000);
+            netCtlGetState(&ctl_state);
+        }
+        debug_log("net: netctl final state=%d", (int)ctl_state);
+    }
+
+    /* Log diagnostic info regardless of state */
+    {
+        union net_ctl_info info;
+        if (netCtlGetInfo(NET_CTL_INFO_IP_ADDRESS, &info) == 0)
+            debug_log("net: IP address = %s", info.ip_address);
+        else
+            debug_log("net: IP address = (unavailable)");
+        if (netCtlGetInfo(NET_CTL_INFO_DEFAULT_ROUTE, &info) == 0)
+            debug_log("net: gateway    = %s", info.default_route);
+        if (netCtlGetInfo(NET_CTL_INFO_DEVICE, &info) == 0)
+            debug_log("net: device     = %s", info.device == NET_CTL_DEVICE_WIRELESS ? "WiFi" : "Wired");
+    }
+
+    netCtlTerm();
+    sysModuleUnload(SYSMODULE_NETCTL);
+
     g_initialized = true;
-    debug_log("net: initialized");
+    debug_log("net: initialized (netctl final state=%d)", (int)ctl_state);
     return 0;
 }
 
@@ -319,11 +420,11 @@ bool network_check_server(const SyncState *state) {
     return r >= 0 && status == 200;
 }
 
-int network_get_save_info(const SyncState *state, const char *game_code,
-                          char *hash_out, uint32_t *size_out,
-                          char *last_sync_out) {
+int network_get_save_info(const SyncState *state, const char *title_id,
+                           char *hash_out, uint32_t *size_out,
+                           char *last_sync_out) {
     char path[256];
-    snprintf(path, sizeof(path), "/api/v1/saves/%s/meta", game_code);
+    snprintf(path, sizeof(path), "/api/v1/saves/%s/meta", title_id);
 
     static uint8_t resp[1024];
     int status = 0;
@@ -345,11 +446,11 @@ int network_get_save_info(const SyncState *state, const char *game_code,
     return 0;
 }
 
-int network_upload_save(const SyncState *state, const char *game_code,
-                        const uint8_t *bundle, uint32_t bundle_size) {
+int network_upload_save(const SyncState *state, const char *title_id,
+                         const uint8_t *bundle, uint32_t bundle_size) {
     char path[256];
     snprintf(path, sizeof(path), "/api/v1/saves/%s?force=true&source=ps3",
-             game_code);
+             title_id);
 
     static uint8_t resp[512];
     int status = 0;
@@ -359,10 +460,10 @@ int network_upload_save(const SyncState *state, const char *game_code,
     return (status == 200) ? 0 : (status > 0 ? status : -1);
 }
 
-int network_download_save(const SyncState *state, const char *game_code,
-                          uint8_t *out, uint32_t out_size) {
+int network_download_save(const SyncState *state, const char *title_id,
+                           uint8_t *out, uint32_t out_size) {
     char path[256];
-    snprintf(path, sizeof(path), "/api/v1/saves/%s", game_code);
+    snprintf(path, sizeof(path), "/api/v1/saves/%s", title_id);
 
     int status = 0;
     int r = http_request(state, "GET", path,
@@ -377,28 +478,52 @@ int network_download_save(const SyncState *state, const char *game_code,
  * Find a local title that matches a server title_id.
  * Matches by (in order):
  *   1. Exact title_id match
- *   2. Exact game_code match
- *   3. 9-char prefix match — handles variants like BLJS10001GAME vs BLJS10001
+ *   2. Exact game_code match, but only when the server_id is the bare 9-char
+ *      product code for a legacy save entry
  * Returns index into state->titles, or -1 if not found.
  */
 static int find_local_title(const SyncState *state, const char *server_id) {
-    char code9[10];
     int i;
     size_t slen = strlen(server_id);
 
-    if (slen >= 9) {
-        memcpy(code9, server_id, 9);
-        code9[9] = '\0';
-    } else {
-        code9[0] = '\0';
-    }
-
     for (i = 0; i < state->num_titles; i++) {
         if (strcmp(state->titles[i].title_id,  server_id) == 0) return i;
-        if (strcmp(state->titles[i].game_code, server_id) == 0) return i;
-        if (code9[0] && strcmp(state->titles[i].game_code, code9) == 0) return i;
+        if (slen == 9 && strcmp(state->titles[i].game_code, server_id) == 0) return i;
     }
     return -1;
+}
+
+static int count_titles_with_code(const SyncState *state, const char *game_code) {
+    int count = 0;
+    for (int i = 0; i < state->num_titles; i++) {
+        if (strcmp(state->titles[i].game_code, game_code) == 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static void format_slot_name(const TitleInfo *title, const char *base_name,
+                             char *out, size_t out_size) {
+    const char *suffix;
+
+    if (!title || !base_name || !out || out_size == 0) {
+        return;
+    }
+
+    suffix = title->title_id;
+    if (strlen(title->title_id) > 9) {
+        suffix = title->title_id + 9;
+        if (*suffix == '-' || *suffix == '_' || *suffix == '.') {
+            suffix++;
+        }
+    }
+
+    if (!suffix[0] || strcmp(suffix, title->title_id) == 0) {
+        snprintf(out, out_size, "%s", base_name);
+    } else {
+        snprintf(out, out_size, "%s [%s]", base_name, suffix);
+    }
 }
 
 void network_merge_server_titles(SyncState *state) {
@@ -428,8 +553,9 @@ void network_merge_server_titles(SyncState *state) {
 
         if (!saves_is_relevant_game_code(server_id)) continue;
 
-        /* If a local title matches (exact or by 9-char prefix), just flag it
-           as present on the server — don't create a duplicate entry. */
+        /* If a local title matches exactly, or the server only has a legacy
+           bare 9-char product-code entry for this save, just flag it as
+           present on the server — don't create a duplicate entry. */
         int existing = find_local_title(state, server_id);
         if (existing >= 0) {
             state->titles[existing].on_server = true;
@@ -449,6 +575,21 @@ void network_merge_server_titles(SyncState *state) {
         t->kind        = apollo_detect_save_kind(t->game_code);
         t->server_only = true;
         t->on_server   = true;
+        t->status      = TITLE_STATUS_SERVER_ONLY;
+        /* Set download destination using the detected savedata root */
+        snprintf(t->local_path, sizeof(t->local_path), "%s/%s",
+                 state->savedata_root[0] ? state->savedata_root
+                                         : "/dev_hdd0/home/00000001/savedata",
+                 server_id);
+    }
+
+    /* Set initial status for all titles based on local/server presence */
+    for (int i = 0; i < state->num_titles; i++) {
+        TitleInfo *t = &state->titles[i];
+        if (t->status != TITLE_STATUS_SERVER_ONLY) {
+            t->status = t->on_server ? TITLE_STATUS_UNKNOWN
+                                     : TITLE_STATUS_LOCAL_ONLY;
+        }
     }
 }
 
@@ -503,11 +644,17 @@ void network_fetch_names(SyncState *state) {
         }
         val[vlen] = '\0'; if (*p == '"') p++;
 
+        int same_code = count_titles_with_code(state, key);
         for (int i = 0; i < state->num_titles; i++) {
-            if (strcmp(state->titles[i].game_code, key) == 0) {
+            if (strcmp(state->titles[i].game_code, key) != 0) {
+                continue;
+            }
+            if (same_code > 1 && state->titles[i].kind == SAVE_KIND_PS3) {
+                format_slot_name(&state->titles[i], val, state->titles[i].name,
+                                 sizeof(state->titles[i].name));
+            } else {
                 strncpy(state->titles[i].name, val, MAX_TITLE_LEN - 1);
                 state->titles[i].name[MAX_TITLE_LEN - 1] = '\0';
-                break;
             }
         }
     }
@@ -541,7 +688,7 @@ int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
         hash_hex[64] = '\0';
 
         char last_hash[65] = "";
-        bool has_last = state_get_last_hash(t->game_code, last_hash);
+        bool has_last = state_get_last_hash(t->title_id, last_hash);
 
         if (!first) json[pos++] = ',';
         first = false;
@@ -551,12 +698,12 @@ int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
                 "{\"title_id\":\"%s\",\"save_hash\":\"%s\","
                 "\"timestamp\":0,\"size\":%u,"
                 "\"last_synced_hash\":\"%s\"}",
-                t->game_code, hash_hex, t->total_size, last_hash);
+                t->title_id, hash_hex, t->total_size, last_hash);
         } else {
             pos += snprintf(json + pos, (size_t)(json_cap - pos),
                 "{\"title_id\":\"%s\",\"save_hash\":\"%s\","
                 "\"timestamp\":0,\"size\":%u}",
-                t->game_code, hash_hex, t->total_size);
+                t->title_id, hash_hex, t->total_size);
         }
     }
     pos += snprintf(json + pos, (size_t)(json_cap - pos), "]}");

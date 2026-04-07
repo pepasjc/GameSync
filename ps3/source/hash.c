@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "sha256.h"
+#include "ui.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -132,6 +133,7 @@ static bool hash_file_stream(FILE *fp, SHA256_CTX *ctx, uint32_t *size_out) {
             total = next;
         }
         sha256_update(ctx, buffer, bytes);
+        pump_callbacks();
     }
 
     if (ferror(fp)) {
@@ -152,6 +154,7 @@ bool hash_file_sha256(const char *path, uint8_t hash_out[32], uint32_t *size_out
         return false;
     }
 
+    ui_status("Hashing file: %s", path);
     sha256_init(&ctx);
     if (!hash_file_stream(fp, &ctx, size_out)) {
         fclose(fp);
@@ -181,6 +184,7 @@ bool hash_dir_files_sha256(
         return false;
     }
 
+    ui_status("Found %d files to hash", (int)count);
     qsort(entries, count, sizeof(HashFileEntry), compare_entries);
 
     sha256_init(&ctx);
@@ -193,12 +197,14 @@ bool hash_dir_files_sha256(
             free(entries);
             return false;
         }
+        ui_status("Hashing file %d/%d: %s", (int)i + 1, (int)count, entries[i].rel_path);
         if (!hash_file_stream(fp, &ctx, &file_size)) {
             fclose(fp);
             free(entries);
             return false;
         }
         fclose(fp);
+        ui_status("Finished file %d/%d: %s", (int)i + 1, (int)count, entries[i].rel_path);
 
         next_total = total_size + file_size;
         if (next_total < total_size) {
@@ -206,8 +212,10 @@ bool hash_dir_files_sha256(
         } else {
             total_size = next_total;
         }
+        pump_callbacks();
     }
 
+    ui_status("Finalizing combined hash");
     sha256_final(&ctx, hash_out);
     if (file_count_out) {
         *file_count_out = (int)count;
@@ -216,6 +224,7 @@ bool hash_dir_files_sha256(
         *total_size_out = total_size;
     }
 
+    ui_status("Finished combined hash");
     free(entries);
     return true;
 }

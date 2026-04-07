@@ -9,6 +9,7 @@
 #include "saves.h"
 #include "sha256.h"
 #include "debug.h"
+#include "ui.h"
 
 #include <zlib.h>
 #include <time.h>
@@ -17,6 +18,7 @@
 #include <stdlib.h>
 
 #define MAX_PAYLOAD  (8 * 1024 * 1024)   /* 8 MB uncompressed max */
+#define ZLIB_CHUNK   32768U
 
 /* ---- LE read/write helpers ---- */
 
@@ -43,6 +45,122 @@ static void write_le16(uint8_t *p, uint16_t v) {
     p[1] = (uint8_t)(v >> 8);
 }
 
+static int compress_payload(const uint8_t *payload, uint32_t payload_size,
+                            uint8_t *compressed, uLongf *compressed_size) {
+    z_stream zs;
+    int zr;
+
+    memset(&zs, 0, sizeof(zs));
+    if (deflateInit(&zs, 6) != Z_OK) {
+        return -1;
+    }
+
+    zs.next_in = (Bytef *)payload;
+    zs.avail_in = 0;
+    zs.next_out = compressed;
+    zs.avail_out = 0;
+
+    while (1) {
+        int flush;
+
+        if (zs.avail_in == 0 && zs.total_in < payload_size) {
+            uInt chunk = (uInt)(payload_size - (uint32_t)zs.total_in);
+            if (chunk > ZLIB_CHUNK) chunk = ZLIB_CHUNK;
+            zs.next_in = (Bytef *)(payload + zs.total_in);
+            zs.avail_in = chunk;
+        }
+        if (zs.avail_out == 0) {
+            uLongf remaining = *compressed_size - zs.total_out;
+            uInt chunk = (uInt)remaining;
+            if (chunk > ZLIB_CHUNK) chunk = ZLIB_CHUNK;
+            if (chunk == 0) {
+                deflateEnd(&zs);
+                return -1;
+            }
+            zs.next_out = compressed + zs.total_out;
+            zs.avail_out = chunk;
+        }
+
+        flush = (zs.total_in >= payload_size) ? Z_FINISH : Z_NO_FLUSH;
+        zr = deflate(&zs, flush);
+        pump_callbacks();
+
+        if (zr == Z_STREAM_END) {
+            *compressed_size = zs.total_out;
+            deflateEnd(&zs);
+            return 0;
+        }
+        if (zr != Z_OK) {
+            deflateEnd(&zs);
+            return -1;
+        }
+    }
+}
+
+static int uncompress_payload(const uint8_t *data, uint32_t size,
+                              uint8_t *payload, uint32_t payload_size,
+                              uLongf *actual_size) {
+    z_stream zs;
+    int zr;
+
+    memset(&zs, 0, sizeof(zs));
+    if (inflateInit(&zs) != Z_OK) {
+        return -1;
+    }
+
+    zs.next_in = (Bytef *)data;
+    zs.avail_in = 0;
+    zs.next_out = payload;
+    zs.avail_out = 0;
+
+    while (1) {
+        if (zs.avail_in == 0 && zs.total_in < size) {
+            uInt chunk = (uInt)(size - (uint32_t)zs.total_in);
+            if (chunk > ZLIB_CHUNK) chunk = ZLIB_CHUNK;
+            zs.next_in = (Bytef *)(data + zs.total_in);
+            zs.avail_in = chunk;
+        }
+        if (zs.avail_out == 0 && zs.total_out < payload_size) {
+            uInt chunk = (uInt)(payload_size - (uint32_t)zs.total_out);
+            if (chunk > ZLIB_CHUNK) chunk = ZLIB_CHUNK;
+            zs.next_out = payload + zs.total_out;
+            zs.avail_out = chunk;
+        }
+
+        zr = inflate(&zs, Z_NO_FLUSH);
+        pump_callbacks();
+
+        if (zr == Z_STREAM_END) {
+            *actual_size = zs.total_out;
+            inflateEnd(&zs);
+            return 0;
+        }
+        if (zr != Z_OK) {
+            inflateEnd(&zs);
+            return -1;
+        }
+        if (zs.total_out >= payload_size && zr != Z_STREAM_END) {
+            inflateEnd(&zs);
+            return -1;
+        }
+    }
+}
+
+static void sha256_buffer_pumped(const uint8_t *data, uint32_t size, uint8_t hash[32]) {
+    SHA256_CTX ctx;
+    uint32_t off = 0;
+
+    sha256_init(&ctx);
+    while (off < size) {
+        uint32_t chunk = size - off;
+        if (chunk > ZLIB_CHUNK) chunk = ZLIB_CHUNK;
+        sha256_update(&ctx, data + off, chunk);
+        off += chunk;
+        pump_callbacks();
+    }
+    sha256_final(&ctx, hash);
+}
+
 /* ---- bundle_create ---- */
 
 int bundle_create(const TitleInfo *title, uint8_t **out_data, uint32_t *out_size) {
@@ -56,6 +174,7 @@ int bundle_create(const TitleInfo *title, uint8_t **out_data, uint32_t *out_size
     }
 
     /* ---- Read file data ---- */
+    ui_status("Reading save files: %s", title->game_code);
     uint8_t **file_data = (uint8_t **)malloc((size_t)n * sizeof(uint8_t *));
     if (!file_data) return -1;
 
@@ -73,6 +192,7 @@ int bundle_create(const TitleInfo *title, uint8_t **out_data, uint32_t *out_size
             goto fail_data;
         }
         file_sizes[i] = (uint32_t)r;
+        pump_callbacks();
     }
 
     /* ---- Build uncompressed payload ---- */
@@ -88,13 +208,14 @@ int bundle_create(const TitleInfo *title, uint8_t **out_data, uint32_t *out_size
     uint32_t off = 0;
 
     /* File table */
+    ui_status("Hashing bundle files: %s", title->game_code);
     for (int i = 0; i < n; i++) {
         uint16_t path_len = (uint16_t)strlen(file_names[i]);
         write_le16(payload + off, path_len); off += 2;
         memcpy(payload + off, file_names[i], path_len); off += path_len;
         write_le32(payload + off, file_sizes[i]); off += 4;
         uint8_t fhash[32];
-        sha256(file_data[i], file_sizes[i], fhash);
+        sha256_buffer_pumped(file_data[i], file_sizes[i], fhash);
         memcpy(payload + off, fhash, 32); off += 32;
     }
     /* File data */
@@ -105,15 +226,17 @@ int bundle_create(const TitleInfo *title, uint8_t **out_data, uint32_t *out_size
     uint32_t payload_size = off;
 
     /* ---- Compress ---- */
+    ui_status("Compressing bundle: %s", title->game_code);
     uLongf csize = compressBound((uLong)payload_size);
     uint8_t *compressed = (uint8_t *)malloc(csize);
     if (!compressed) { free(payload); goto fail_data; }
 
-    if (compress2(compressed, &csize, payload, (uLong)payload_size, 6) != Z_OK) {
-        debug_log("bundle: compress2 failed");
+    if (compress_payload(payload, payload_size, compressed, &csize) != 0) {
+        debug_log("bundle: compress failed");
         free(compressed); free(payload); goto fail_data;
     }
     free(payload);
+    pump_callbacks();
 
     /* ---- Assemble bundle ---- */
     uint32_t bundle_size = BUNDLE_HEADER_SIZE + (uint32_t)csize;
@@ -123,7 +246,7 @@ int bundle_create(const TitleInfo *title, uint8_t **out_data, uint32_t *out_size
     memcpy(bundle, BUNDLE_MAGIC, 4);
     write_le32(bundle + 4, BUNDLE_VERSION_V4);
     memset(bundle + 8, 0, 32);
-    strncpy((char *)(bundle + 8), title->game_code, 31);
+    strncpy((char *)(bundle + 8), title->title_id, 31);
     write_le32(bundle + 40, (uint32_t)time(NULL));
     write_le32(bundle + 44, (uint32_t)n);
     write_le32(bundle + 48, payload_size);
@@ -169,18 +292,23 @@ int bundle_parse(const uint8_t *data, uint32_t size, Bundle *bundle) {
     uint8_t *payload = (uint8_t *)malloc(uncompressed_size);
     if (!payload) return -1;
 
+    ui_status("Decompressing bundle: %s", bundle->game_id);
     uLongf actual = uncompressed_size;
-    if (uncompress(payload, &actual,
-                   data + BUNDLE_HEADER_SIZE,
-                   size  - BUNDLE_HEADER_SIZE) != Z_OK) {
+    if (uncompress_payload(data + BUNDLE_HEADER_SIZE,
+                   size - BUNDLE_HEADER_SIZE,
+                   payload,
+                   uncompressed_size,
+                   &actual) != 0) {
         debug_log("bundle: uncompress failed");
         free(payload); return -1;
     }
     if (actual != uncompressed_size) { free(payload); return -1; }
+    pump_callbacks();
 
     bundle->data_buf = payload;
 
     uint32_t off = 0;
+    ui_status("Reading bundle table: %s", bundle->game_id);
     for (int i = 0; i < bundle->file_count; i++) {
         if (off + 2 > actual) { free(payload); return -1; }
         uint16_t path_len = read_le16(payload + off); off += 2;
@@ -199,12 +327,13 @@ int bundle_parse(const uint8_t *data, uint32_t size, Bundle *bundle) {
         memcpy(bundle->files[i].hash, payload + off, 32); off += 32;
     }
 
+    ui_status("Verifying bundle files: %s", bundle->game_id);
     for (int i = 0; i < bundle->file_count; i++) {
         if (off + bundle->files[i].size > actual) { free(payload); return -1; }
         bundle->files[i].data = payload + off;
 
         uint8_t computed[32];
-        sha256(bundle->files[i].data, bundle->files[i].size, computed);
+        sha256_buffer_pumped(bundle->files[i].data, bundle->files[i].size, computed);
         if (memcmp(computed, bundle->files[i].hash, 32) != 0) {
             debug_log("bundle: hash mismatch for file %s", bundle->files[i].path);
             free(payload); return -1;
@@ -219,7 +348,10 @@ int bundle_parse(const uint8_t *data, uint32_t size, Bundle *bundle) {
 /* ---- bundle_extract ---- */
 
 int bundle_extract(const Bundle *bundle, TitleInfo *title) {
+    ui_status("Writing save files: %s", title->game_code);
     for (int i = 0; i < bundle->file_count; i++) {
+        ui_status("Writing file %d/%d: %s", i + 1, bundle->file_count,
+                  bundle->files[i].path);
         int r = saves_write_file(title,
                                  bundle->files[i].path,
                                  bundle->files[i].data,
@@ -228,6 +360,7 @@ int bundle_extract(const Bundle *bundle, TitleInfo *title) {
             debug_log("bundle: write_file %s failed", bundle->files[i].path);
             return -1;
         }
+        pump_callbacks();
     }
     return 0;
 }

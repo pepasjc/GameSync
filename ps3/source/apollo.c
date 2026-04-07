@@ -37,7 +37,7 @@ bool apollo_is_ps3_save_dir(const char *name) {
         return false;
     }
     for (int i = 0; i < 4; i++) {
-        if (!isupper((unsigned char)name[i])) {
+        if (!isalpha((unsigned char)name[i])) {
             return false;
         }
     }
@@ -48,7 +48,7 @@ bool apollo_is_ps3_save_dir(const char *name) {
     }
     for (size_t i = 9; name[i] != '\0'; i++) {
         unsigned char c = (unsigned char)name[i];
-        if (!(isupper(c) || isdigit(c) || c == '-' || c == '_' || c == '.')) {
+        if (!(isalpha(c) || isdigit(c) || c == '-' || c == '_' || c == '.')) {
             return false;
         }
     }
@@ -115,7 +115,9 @@ bool apollo_extract_game_code(const char *save_dir_name, char *game_code_out, si
     if (!apollo_is_ps3_save_dir(save_dir_name) || out_size < 10) {
         return false;
     }
-    memcpy(game_code_out, save_dir_name, 9);
+    for (int i = 0; i < 9; i++) {
+        game_code_out[i] = ascii_upper(save_dir_name[i]);
+    }
     game_code_out[9] = '\0';
     return true;
 }
@@ -176,6 +178,14 @@ void apollo_get_ps3_savedata_root(const SyncState *state, char *out, size_t out_
         "/dev_hdd0/home/%s/savedata",
         state->ps3_user[0] ? state->ps3_user : "00000001"
     );
+}
+
+void apollo_get_ps3_export_root(int usb_index, char *out, size_t out_size) {
+    snprintf(out, out_size, "/dev_usb%03d/PS3/EXPORT", usb_index);
+}
+
+void apollo_get_ps3_usb_savedata_root(int usb_index, char *out, size_t out_size) {
+    snprintf(out, out_size, "/dev_usb%03d/PS3/SAVEDATA", usb_index);
 }
 
 void apollo_get_ps1_vmc_root(char *out, size_t out_size) {

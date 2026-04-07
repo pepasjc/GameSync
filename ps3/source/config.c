@@ -25,6 +25,7 @@ static void config_apply_defaults(SyncState *state) {
     strncpy(state->ps3_user, "00000001", sizeof(state->ps3_user) - 1);
     state->scan_ps3 = true;
     state->scan_ps1 = true;
+    state->selected_user = 0;  /* 0 = auto-detect on first run */
 }
 
 bool config_load(
@@ -91,9 +92,20 @@ bool config_load(
             state->scan_ps3 = atoi(value) != 0;
         } else if (strcmp(key, "scan_ps1") == 0) {
             state->scan_ps1 = atoi(value) != 0;
+        } else if (strcmp(key, "selected_user") == 0) {
+            state->selected_user = atoi(value);
         }
     }
     fclose(fp);
+
+    /* Sync ps3_user string from selected_user if one was saved.
+     * selected_user is the authoritative source — ps3_user is its
+     * formatted string representation used by SFO patching and PFD
+     * key derivation. */
+    if (state->selected_user > 0) {
+        snprintf(state->ps3_user, sizeof(state->ps3_user),
+                 "%08d", state->selected_user);
+    }
 
     if (state->server_url[0] == '\0') {
         snprintf(error_buf, error_buf_size, "server_url not set in %s", CONFIG_PATH);
@@ -122,6 +134,7 @@ bool config_save(const SyncState *state) {
     fprintf(fp, "ps3_user=%s\n", state->ps3_user);
     fprintf(fp, "scan_ps3=%d\n", state->scan_ps3 ? 1 : 0);
     fprintf(fp, "scan_ps1=%d\n", state->scan_ps1 ? 1 : 0);
+    fprintf(fp, "selected_user=%d\n", state->selected_user);
     fclose(fp);
     return true;
 }

@@ -17,6 +17,12 @@ typedef struct {
     int  conflict_count;
 } NetworkSyncPlan;
 
+/* Optional callback called during large transfers.
+ * Receives bytes downloaded so far and total (-1 if unknown).
+ * Return non-zero to abort the transfer. */
+typedef int (*NetProgressFn)(uint32_t downloaded, int total);
+void network_set_progress_cb(NetProgressFn cb);
+
 int  network_init(void);
 void network_cleanup(void);
 

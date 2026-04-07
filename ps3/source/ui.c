@@ -4,6 +4,7 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_gfxPrimitives.h>
 #include <io/pad.h>
+#include <sysutil/sysutil.h>
 
 #include <stdbool.h>
 #include <stdarg.h>
@@ -12,6 +13,14 @@
 #include <unistd.h>
 
 static char g_status_line[256];
+static volatile int g_ui_exit = 0;   /* set by sysutil EXIT_GAME */
+static volatile int g_xmb_open = 0;  /* set by sysutil MENU_OPEN/CLOSE */
+
+void ui_notify_exit(void)       { g_ui_exit  = 1; }
+void ui_notify_menu_open(void)  { g_xmb_open = 1; }
+void ui_notify_menu_close(void) { g_xmb_open = 0; }
+int  ui_exit_requested(void)    { return g_ui_exit; }
+int  ui_menu_open(void)         { return g_xmb_open; }
 
 #define MAX_PADS_UI 7
 
@@ -96,6 +105,9 @@ void ui_draw_message(const char *title, const char *message, const char *footer)
     if (!g_screen) {
         return;
     }
+    if (g_xmb_open) {
+        return;
+    }
 
     ui_clear();
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1, 8, 10, 18, 255);
@@ -146,7 +158,9 @@ void ui_draw_list(
     UiColor accent = {88, 208, 255};
     UiColor hilite = {255, 222, 89};
     UiColor border = {44, 58, 82};
-    UiColor svr_color = {120, 130, 150};
+    if (g_xmb_open) {
+        return;
+    }
 
     ui_clear();
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
@@ -159,16 +173,15 @@ void ui_draw_list(
         24,
         y,
         dim,
-        "Console: %s | User: %s | Showing: %d of %d%s",
-        state->console_id,
-        state->ps3_user,
+        "User: %08d | Showing: %d of %d%s",
+        state->selected_user,
         visible_count,
         state->num_titles,
         config_created ? " | debug config auto-created" : ""
     );
     draw_text(24, SCREEN_HEIGHT - 28, dim, status_line ? status_line : "Ready.");
     draw_textf(24, SCREEN_HEIGHT - 46, dim,
-        "Up/Down: navigate   X: sync   □: upload   △: download   ○: rescan   L1: server-only [%s]",
+        "Up/Dn: nav   X: sync   Sq: upload   Tri: download   O: rescan   L1: filter[%s]   L2/R2: user   Start: exit",
         show_server_only ? "ON" : "OFF");
 
     if (visible_count == 0) {
@@ -183,19 +196,39 @@ void ui_draw_list(
             const TitleInfo *title = &state->titles[visible[i]];
             char line[256];
             bool is_selected = (i == selected);
-            bool is_svr = title->server_only;
-            UiColor color = is_selected ? hilite : (is_svr ? svr_color : white);
-            char marker = is_selected ? '>' : (is_svr ? '~' : ' ');
+
+            /* Status label and base color */
+            const char *status_label;
+            UiColor status_color;
+            switch (title->status) {
+                case TITLE_STATUS_LOCAL_ONLY:
+                    status_label = "LOC "; status_color = (UiColor){255, 200,  80}; break;
+                case TITLE_STATUS_SERVER_ONLY:
+                    status_label = "SVR "; status_color = (UiColor){ 80, 180, 255}; break;
+                case TITLE_STATUS_SYNCED:
+                    status_label = "SYNC"; status_color = (UiColor){ 80, 220, 120}; break;
+                case TITLE_STATUS_UPLOAD:
+                    status_label = "UP  "; status_color = (UiColor){140, 180, 255}; break;
+                case TITLE_STATUS_DOWNLOAD:
+                    status_label = "DL  "; status_color = (UiColor){ 80, 220, 220}; break;
+                case TITLE_STATUS_CONFLICT:
+                    status_label = "CONF"; status_color = (UiColor){255,  80,  80}; break;
+                default:
+                    status_label = "?   "; status_color = (UiColor){160, 168, 184}; break;
+            }
+
+            UiColor color = is_selected ? hilite : status_color;
+            char marker = is_selected ? '>' : ' ';
             const char *display_name = title->name[0] ? title->name : "";
             snprintf(
                 line,
                 sizeof(line),
-                "%c %-3s  %-12.12s  %-44.44s  files=%-2d  size=%u",
+                "%c [%s] %-3s  %-10.10s  %-40.40s  %u",
                 marker,
+                status_label,
                 kind_label(title),
                 title->game_code,
                 display_name,
-                title->file_count,
                 (unsigned int)title->total_size
             );
             draw_text(28, LIST_START_Y + ((i - scroll_offset) * LINE_HEIGHT), color, line);
@@ -219,16 +252,22 @@ void ui_draw_list(
 
             boxRGBA(g_screen, 1020, 88, SCREEN_WIDTH - 24, 380, 12, 18, 30, 255);
             rectangleRGBA(g_screen, 1020, 88, SCREEN_WIDTH - 24, 380, border.r, border.g, border.b, 255);
-            draw_textf(1036, 104, accent, "Selected: %s%s",
-                       title->game_code, title->server_only ? " [server only]" : "");
-            draw_textf(1036, 128, white, "Name: %.50s", title->name[0] ? title->name : "(unknown)");
-            draw_textf(1036, 152, white, "Kind: %s", kind_label(title));
-            draw_textf(1036, 174, white, "Files: %d", title->file_count);
-            draw_textf(1036, 196, white, "Size: %u", (unsigned int)title->total_size);
-            draw_text(1036, 222, dim, "Path:");
-            draw_text(1036, 244, white, title->server_only ? "(not on device)" : title->local_path);
-            draw_text(1036, 274, dim, "Hash:");
-            draw_text(1036, 296, white, hash_hex);
+            static const char *status_names[] = {
+                "Unknown", "Local only", "Server only",
+                "Synced", "Need upload", "Need download", "Conflict"
+            };
+            int sidx = (int)title->status;
+            if (sidx < 0 || sidx > 6) sidx = 0;
+            draw_textf(1036, 104, accent, "Selected: %s", title->game_code);
+            draw_textf(1036, 128, white, "Status: %s", status_names[sidx]);
+            draw_textf(1036, 152, white, "Name: %.46s", title->name[0] ? title->name : "(unknown)");
+            draw_textf(1036, 174, white, "Kind: %s", kind_label(title));
+            draw_textf(1036, 196, white, "Files: %d", title->file_count);
+            draw_textf(1036, 218, white, "Size: %u", (unsigned int)title->total_size);
+            draw_text(1036, 244, dim, "Path:");
+            draw_text(1036, 266, white, title->server_only ? "(not on device)" : title->local_path);
+            draw_text(1036, 296, dim, "Hash:");
+            draw_text(1036, 318, white, hash_hex);
         }
     }
 
@@ -243,6 +282,8 @@ static void drain_buttons(void) {
     padData paddata;
     int done = 0;
     while (!done) {
+        sysUtilCheckCallback();
+        if (g_ui_exit || g_xmb_open) return;
         done = 1;
         ioPadGetInfo(&padinfo);
         for (int i = 0; i < MAX_PADS_UI; i++) {
@@ -268,6 +309,7 @@ void ui_status(const char *fmt, ...) {
     va_end(args);
 
     if (!g_screen) return;
+    if (g_xmb_open) return;
 
     ui_clear();
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
@@ -318,11 +360,19 @@ void ui_message(const char *fmt, ...) {
     padData paddata;
     int prev_cross = 1;
     while (1) {
+        sysUtilCheckCallback();
+        if (g_ui_exit) return;
+        if (g_xmb_open) {
+            SDL_PumpEvents();
+            usleep(50000);
+            continue;
+        }
         SDL_PumpEvents();
         ioPadGetInfo(&padinfo);
         for (int i = 0; i < MAX_PADS_UI; i++) {
             if (!padinfo.status[i]) continue;
             ioPadGetData(i, &paddata);
+            if (paddata.BTN_START) { ui_notify_exit(); return; }
             if (!prev_cross && paddata.BTN_CROSS) return;
             prev_cross = paddata.BTN_CROSS;
         }
@@ -398,11 +448,19 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
         padData paddata2;
         int prev2 = 1;
         while (1) {
+            sysUtilCheckCallback();
+            if (g_ui_exit) return false;
+            if (g_xmb_open) {
+                SDL_PumpEvents();
+                usleep(50000);
+                continue;
+            }
             SDL_PumpEvents();
             ioPadGetInfo(&padinfo2);
             for (int i = 0; i < MAX_PADS_UI; i++) {
                 if (!padinfo2.status[i]) continue;
                 ioPadGetData(i, &paddata2);
+                if (paddata2.BTN_START) { ui_notify_exit(); return false; }
                 if (!prev2 && (paddata2.BTN_CROSS || paddata2.BTN_CIRCLE)) return false;
                 prev2 = paddata2.BTN_CROSS | paddata2.BTN_CIRCLE;
             }
@@ -419,11 +477,19 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     padData paddata;
     int prev_cross = 1, prev_circle = 1;
     while (1) {
+        sysUtilCheckCallback();
+        if (g_ui_exit) return false;
+        if (g_xmb_open) {
+            SDL_PumpEvents();
+            usleep(50000);
+            continue;
+        }
         SDL_PumpEvents();
         ioPadGetInfo(&padinfo);
         for (int i = 0; i < MAX_PADS_UI; i++) {
             if (!padinfo.status[i]) continue;
             ioPadGetData(i, &paddata);
+            if (paddata.BTN_START) { ui_notify_exit(); return false; }
             if (!prev_cross  && paddata.BTN_CROSS)  return true;
             if (!prev_circle && paddata.BTN_CIRCLE) return false;
             prev_cross  = paddata.BTN_CROSS;

@@ -25,14 +25,15 @@ from PyQt6.QtCore import Qt
 from config import (
     ALL_CONSOLE_TYPES,
     detect_console_type,
-    format_display_game_name,
-    fetch_all_saves,
-    fetch_history,
     delete_save,
-    restore_history,
-    download_raw_save,
     download_ps1_cards,
     download_ps2_card,
+    download_ps3_save,
+    download_raw_save,
+    fetch_all_saves,
+    fetch_history,
+    format_display_game_name,
+    restore_history,
 )
 from dialogs.history_dialog import HistoryDialog
 
@@ -256,17 +257,26 @@ class ServerSavesTab(QWidget):
                 if card_format == "ps2"
                 else "PS2 Cards (*.mc2 *.ps2);;All Files (*)"
             )
+        elif console_type == "PS3":
+            dest = QFileDialog.getExistingDirectory(
+                self,
+                "Select Destination Folder",
+            )
+            if not dest:
+                return
+            dest_path = Path(dest)
+            if dest_path.name.upper() != title_id.upper():
+                dest_path = dest_path / title_id
         else:
             default_name = f"{title_id}.sav"
             file_filter = "Save Files (*.sav *.srm);;All Files (*)"
-
-        dest = QFileDialog.getSaveFileName(
-            self, "Save File As", default_name, file_filter
-        )[0]
-        if not dest:
-            return
-        try:
+            dest = QFileDialog.getSaveFileName(
+                self, "Save File As", default_name, file_filter
+            )[0]
+            if not dest:
+                return
             dest_path = Path(dest)
+        try:
             if console_type == "PS1":
                 written = download_ps1_cards(title_id, dest_path)
                 QMessageBox.information(
@@ -277,9 +287,20 @@ class ServerSavesTab(QWidget):
             elif console_type == "PS2":
                 download_ps2_card(title_id, dest_path, card_format=card_format)
                 QMessageBox.information(self, "Downloaded", f"PS2 card written to:\n{dest}")
+            elif console_type == "PS3":
+                download_ps3_save(title_id, dest_path)
+                QMessageBox.information(
+                    self,
+                    "Downloaded",
+                    f"PS3 save folder written to:\n{dest_path}",
+                )
             else:
                 download_raw_save(title_id, dest_path)
-                QMessageBox.information(self, "Downloaded", f"Save written to:\n{dest}")
+                QMessageBox.information(
+                    self,
+                    "Downloaded",
+                    f"Save written to:\n{dest_path}",
+                )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Download failed: {e}")
 

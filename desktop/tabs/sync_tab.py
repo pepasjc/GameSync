@@ -1,4 +1,5 @@
 import re
+import shutil
 from pathlib import Path
 
 import requests
@@ -32,6 +33,21 @@ from config import (
 
 
 _PS_TITLE_ID_RE = re.compile(r"^[A-Z]{4}\d{5}$")
+
+
+def _copy_save_payload(source: Path, dest: Path) -> None:
+    """Copy a downloaded save artifact, preserving directory-based saves like PS3."""
+    if source.is_dir():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists() and dest.is_file():
+            dest.unlink()
+        elif dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(source, dest)
+        return
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, dest)
 
 
 class ScanWorker(QThread):
@@ -768,10 +784,8 @@ class SyncTab(QWidget):
                     title_id, path, base_url, headers, system=system
                 )
             else:
-                # Avoid re-downloading from the server for duplicate ROM locations.
-                data = unique_paths[0].read_bytes()
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(data)
+                # Avoid re-downloading from the server for duplicate local locations.
+                _copy_save_payload(unique_paths[0], path)
         return server_hash
 
     def _keep_local(self, status_idx: int):
@@ -970,12 +984,19 @@ class SyncTab(QWidget):
                 filename_stem = st.save.title_id
         # Use per-system save_ext if available (new format), else default .sav
         save_ext = ".sav"
+        has_system_override = False
         if "systems" in profile:
             sys_info = next(
                 (s for s in profile["systems"] if s.get("system") == system), {}
             )
+            has_system_override = bool(sys_info.get("save_folder", ""))
             save_ext = sys_info.get("save_ext", ".sav") or ".sav"
         filename = filename_stem + save_ext
+
+        if system == "PS3":
+            if device_type == "EmuDeck" and not has_system_override:
+                return save_root / "rpcs3" / "saves" / st.save.title_id
+            return save_root / st.save.title_id
 
         if device_type == "MemCard Pro":
             if system == "PS1":
