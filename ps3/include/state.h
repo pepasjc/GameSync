@@ -9,14 +9,15 @@ bool state_get_cached_hash(
     const char *title_id,
     int file_count,
     uint32_t total_size,
+    uint32_t stamp,
     char *hash_out
 );
 bool state_set_cached_hash(
     const char *title_id,
     int file_count,
     uint32_t total_size,
+    uint32_t stamp,
     const char *hash_hex
 );
 
 #endif /* PS3SYNC_STATE_H */
-

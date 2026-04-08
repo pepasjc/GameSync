@@ -135,10 +135,11 @@ bool state_get_cached_hash(
     const char *title_id,
     int file_count,
     uint32_t total_size,
+    uint32_t stamp,
     char *hash_out
 ) {
     char key[96];
-    snprintf(key, sizeof(key), "%s:%d:%u", title_id, file_count, total_size);
+    snprintf(key, sizeof(key), "%s:%d:%u:%08x", title_id, file_count, total_size, stamp);
     return kv_get(HASH_CACHE_FILE, key, hash_out, 65);
 }
 
@@ -146,10 +147,11 @@ bool state_set_cached_hash(
     const char *title_id,
     int file_count,
     uint32_t total_size,
+    uint32_t stamp,
     const char *hash_hex
 ) {
     char key[96];
-    snprintf(key, sizeof(key), "%s:%d:%u", title_id, file_count, total_size);
+    snprintf(key, sizeof(key), "%s:%d:%u:%08x", title_id, file_count, total_size, stamp);
     ui_status("Writing hash cache file");
     return kv_set(HASH_CACHE_FILE, key, hash_hex);
 }

@@ -12,6 +12,7 @@ VPATH       := $(foreach dir,$(SOURCES),$(CURDIR)/$(dir))
 TITLE       := GameSync PS3
 APPID       := 3DSSYNC00
 CONTENTID   := UP0001-$(APPID)_00-0000000000000000
+ICON0       := $(CURDIR)/assets/ICON0.PNG
 
 APP_VERSION_STR := $(shell cat $(CURDIR)/../VERSION | tr -d '[:space:]')
 ifeq ($(APP_VERSION_STR),)
@@ -38,15 +39,11 @@ include $(PSL1GHT)/ppu_rules
 all: $(TARGET).pkg
 
 # Copy games.conf into the package so it's installed alongside EBOOT.BIN
-$(TARGET).pkg: $(BUILD)/pkg/USRDIR/games.conf $(BUILD)/pkg/ICON0.PNG
+$(TARGET).pkg: $(BUILD)/pkg/USRDIR/games.conf
 
 $(BUILD)/pkg/USRDIR/games.conf: data/games.conf | $(BUILD)
 	@mkdir -p $(BUILD)/pkg/USRDIR
 	cp data/games.conf $(BUILD)/pkg/USRDIR/games.conf
-
-$(BUILD)/pkg/ICON0.PNG: assets/ICON0.PNG | $(BUILD)
-	@mkdir -p $(BUILD)/pkg
-	cp assets/ICON0.PNG $(BUILD)/pkg/ICON0.PNG
 
 $(BUILD):
 	mkdir -p $(BUILD)

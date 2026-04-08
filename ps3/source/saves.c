@@ -60,6 +60,46 @@ static bool path_is_regular(const char *path, uint32_t *size_out) {
     return true;
 }
 
+static uint32_t cache_stamp_bytes(uint32_t stamp, const void *data, size_t size) {
+    const uint8_t *bytes = (const uint8_t *)data;
+    for (size_t i = 0; i < size; i++) {
+        stamp ^= bytes[i];
+        stamp *= 16777619u;
+    }
+    return stamp;
+}
+
+static uint32_t cache_stamp_u32(uint32_t stamp, uint32_t value) {
+    uint8_t bytes[4];
+    bytes[0] = (uint8_t)(value & 0xFF);
+    bytes[1] = (uint8_t)((value >> 8) & 0xFF);
+    bytes[2] = (uint8_t)((value >> 16) & 0xFF);
+    bytes[3] = (uint8_t)((value >> 24) & 0xFF);
+    return cache_stamp_bytes(stamp, bytes, sizeof(bytes));
+}
+
+static uint32_t cache_stamp_path_stat(const char *rel_path, const struct stat *st) {
+    uint32_t stamp = 2166136261u;
+    uint32_t size = 0;
+    uint32_t mtime = 0;
+
+    if (st && st->st_size > 0) {
+        if ((unsigned long long)st->st_size > 0xFFFFFFFFULL) {
+            size = 0xFFFFFFFFU;
+        } else {
+            size = (uint32_t)st->st_size;
+        }
+    }
+    if (st && st->st_mtime > 0) {
+        mtime = (uint32_t)st->st_mtime;
+    }
+
+    stamp = cache_stamp_bytes(stamp, rel_path, strlen(rel_path));
+    stamp = cache_stamp_u32(stamp, size);
+    stamp = cache_stamp_u32(stamp, mtime);
+    return stamp;
+}
+
 static void sort_name_entries(char names[][MAX_FILE_LEN], uint32_t *sizes, int count) {
     if (count <= 1) {
         return;
@@ -335,7 +375,8 @@ static bool collect_dir_hash_stats_recursive(
     const char *path,
     const char *rel_prefix,
     uint32_t *total_size,
-    int *file_count
+    int *file_count,
+    uint32_t *stamp
 ) {
     DIR *dir;
     struct dirent *entry;
@@ -367,7 +408,7 @@ static bool collect_dir_hash_stats_recursive(
         }
 
         if (S_ISDIR(st.st_mode)) {
-            if (!collect_dir_hash_stats_recursive(child_path, rel_path, total_size, file_count)) {
+            if (!collect_dir_hash_stats_recursive(child_path, rel_path, total_size, file_count, stamp)) {
                 closedir(dir);
                 return false;
             }
@@ -376,6 +417,9 @@ static bool collect_dir_hash_stats_recursive(
                 continue;
             }
             (*file_count)++;
+            if (stamp) {
+                *stamp ^= cache_stamp_path_stat(rel_path, &st);
+            }
             if (st.st_size > 0) {
                 unsigned long long new_size = (unsigned long long)(*total_size)
                     + (unsigned long long)st.st_size;
@@ -389,13 +433,57 @@ static bool collect_dir_hash_stats_recursive(
 }
 
 static bool collect_dir_hash_stats(const char *path, uint32_t *total_size, int *file_count) {
+    return collect_dir_hash_stats_recursive(path, "", total_size, file_count, NULL);
+}
+
+static bool collect_dir_hash_cache_key(
+    const char *path,
+    uint32_t *total_size,
+    int *file_count,
+    uint32_t *stamp
+) {
     if (total_size) {
         *total_size = 0;
     }
     if (file_count) {
         *file_count = 0;
     }
-    return collect_dir_hash_stats_recursive(path, "", total_size, file_count);
+    if (stamp) {
+        *stamp = 0;
+    }
+    return collect_dir_hash_stats_recursive(path, "", total_size, file_count, stamp);
+}
+
+static bool collect_file_hash_cache_key(
+    const char *path,
+    uint32_t *total_size,
+    int *file_count,
+    uint32_t *stamp
+) {
+    struct stat st;
+
+    if (!path_stat(path, &st) || !S_ISREG(st.st_mode)) {
+        return false;
+    }
+
+    if (total_size) {
+        if (st.st_size < 0) {
+            *total_size = 0;
+        } else if ((unsigned long long)st.st_size > 0xFFFFFFFFULL) {
+            *total_size = 0xFFFFFFFFU;
+        } else {
+            *total_size = (uint32_t)st.st_size;
+        }
+    }
+    if (file_count) {
+        *file_count = 1;
+    }
+    if (stamp) {
+        const char *name = strrchr(path, '/');
+        name = name ? (name + 1) : path;
+        *stamp = cache_stamp_path_stat(name, &st);
+    }
+    return true;
 }
 
 static void add_ps3_title(
@@ -815,6 +903,7 @@ bool saves_calculate_hash(TitleInfo *title) {
     char computed_hex[65];
     int cache_file_count;
     uint32_t cache_total_size;
+    uint32_t cache_stamp;
     const char *ps3_hash_source;
     char decrypt_temp[PATH_LEN];
     bool did_decrypt = false;
@@ -823,8 +912,8 @@ bool saves_calculate_hash(TitleInfo *title) {
         return false;
     }
 
-    saves_get_hash_cache_key_stats(title, &cache_file_count, &cache_total_size);
-    if (state_get_cached_hash(title->title_id, cache_file_count, cache_total_size, cached_hex)
+    saves_get_hash_cache_key(title, &cache_file_count, &cache_total_size, &cache_stamp);
+    if (state_get_cached_hash(title->title_id, cache_file_count, cache_total_size, cache_stamp, cached_hex)
             && hash_from_hex(cached_hex, title->hash)) {
         ui_status("Using cached hash: %s", title->game_code);
         title->hash_calculated = true;
@@ -885,7 +974,14 @@ bool saves_calculate_hash(TitleInfo *title) {
 
     ui_status("Writing hash cache: %s", title->game_code);
     hash_to_hex(title->hash, computed_hex);
-    state_set_cached_hash(title->title_id, title->hash_file_count, title->hash_total_size, computed_hex);
+    saves_get_hash_cache_key(title, &cache_file_count, &cache_total_size, &cache_stamp);
+    state_set_cached_hash(
+        title->title_id,
+        cache_file_count,
+        cache_total_size,
+        cache_stamp,
+        computed_hex
+    );
     ui_status("Finished hash cache: %s", title->game_code);
     title->hash_calculated = true;
     return true;
@@ -1019,9 +1115,51 @@ bool saves_has_upload_source(const TitleInfo *title) {
     return title->local_path[0] != '\0';
 }
 
-bool saves_get_hash_cache_key_stats(const TitleInfo *title, int *file_count_out, uint32_t *total_size_out) {
+bool saves_get_hash_cache_key(
+    const TitleInfo *title,
+    int *file_count_out,
+    uint32_t *total_size_out,
+    uint32_t *stamp_out
+) {
     if (!title) {
         return false;
+    }
+
+    if (title->kind == SAVE_KIND_PS3) {
+        if (title->upload_is_zip && title->upload_path[0]) {
+            return collect_file_hash_cache_key(
+                title->upload_path,
+                total_size_out,
+                file_count_out,
+                stamp_out
+            );
+        }
+        if (title->upload_path[0]) {
+            return collect_dir_hash_cache_key(
+                title->upload_path,
+                total_size_out,
+                file_count_out,
+                stamp_out
+            );
+        }
+        if (title->local_path[0]) {
+            return collect_dir_hash_cache_key(
+                title->local_path,
+                total_size_out,
+                file_count_out,
+                stamp_out
+            );
+        }
+        return false;
+    }
+
+    if (title->kind == SAVE_KIND_PS1_VM1 && title->local_path[0]) {
+        return collect_file_hash_cache_key(
+            title->local_path,
+            total_size_out,
+            file_count_out,
+            stamp_out
+        );
     }
 
     if (file_count_out) {
@@ -1029,6 +1167,9 @@ bool saves_get_hash_cache_key_stats(const TitleInfo *title, int *file_count_out,
     }
     if (total_size_out) {
         *total_size_out = title->hash_total_size > 0 ? title->hash_total_size : title->total_size;
+    }
+    if (stamp_out) {
+        *stamp_out = 0;
     }
     return true;
 }

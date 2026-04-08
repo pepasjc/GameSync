@@ -73,6 +73,15 @@ static bool should_skip_automatic_hash(const TitleInfo *title) {
     return false;
 }
 
+static bool should_auto_sync_title(const TitleInfo *title) {
+    if (!title) {
+        return false;
+    }
+
+    /* For now, batch sync is PS3-only. PS1 saves remain manual. */
+    return title->kind == SAVE_KIND_PS3;
+}
+
 /* ---- sync_decide ---- */
 
 SyncAction sync_decide(const SyncState *state, int title_idx) {
@@ -461,8 +470,15 @@ void sync_refresh_statuses(SyncState *state, SyncProgressFn progress) {
         char cached[65];
         int cache_file_count = t->file_count;
         uint32_t cache_total_size = t->total_size;
-        saves_get_hash_cache_key_stats(t, &cache_file_count, &cache_total_size);
-        if (state_get_cached_hash(t->title_id, cache_file_count, cache_total_size, cached) &&
+        uint32_t cache_stamp = 0;
+        saves_get_hash_cache_key(t, &cache_file_count, &cache_total_size, &cache_stamp);
+        if (state_get_cached_hash(
+                t->title_id,
+                cache_file_count,
+                cache_total_size,
+                cache_stamp,
+                cached
+            ) &&
             hash_from_hex(cached, t->hash)) {
             t->hash_calculated = true;
         } else {
@@ -517,6 +533,9 @@ void sync_refresh_statuses(SyncState *state, SyncProgressFn progress) {
 
 void sync_auto_all(SyncState *state, SyncSummary *summary,
                    SyncProgressFn progress) {
+    int skipped_auto = 0;
+    bool saved_hash_flags[MAX_TITLES];
+
     if (summary) memset(summary, 0, sizeof(SyncSummary));
 
     char msg[128];
@@ -524,6 +543,10 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
     /* Hash all local titles first (use cache where possible) */
     for (int i = 0; i < state->num_titles; i++) {
         TitleInfo *t = &state->titles[i];
+        if (!should_auto_sync_title(t)) {
+            skipped_auto++;
+            continue;
+        }
         if (t->server_only || t->hash_calculated) continue;
         if (should_skip_automatic_hash(t)) {
             debug_log("sync_auto_all: skipping automatic hash for auxiliary source %s",
@@ -534,9 +557,10 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
         char cached[65];
         int cache_file_count = t->file_count;
         uint32_t cache_total_size = t->total_size;
-        saves_get_hash_cache_key_stats(t, &cache_file_count, &cache_total_size);
+        uint32_t cache_stamp = 0;
+        saves_get_hash_cache_key(t, &cache_file_count, &cache_total_size, &cache_stamp);
         if (state_get_cached_hash(t->title_id,
-                                  cache_file_count, cache_total_size, cached)) {
+                                  cache_file_count, cache_total_size, cache_stamp, cached)) {
             if (hash_from_hex(cached, t->hash)) {
                 t->hash_calculated = true;
                 continue;
@@ -550,24 +574,50 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
         }
         if (saves_compute_hash(t) == 0) {
             char hx[65]; hash_to_hex(t->hash, hx);
-            state_set_cached_hash(t->title_id, t->hash_file_count, t->hash_total_size, hx);
+            saves_get_hash_cache_key(t, &cache_file_count, &cache_total_size, &cache_stamp);
+            state_set_cached_hash(
+                t->title_id,
+                cache_file_count,
+                cache_total_size,
+                cache_stamp,
+                hx
+            );
         }
         pump_callbacks();
     }
 
     if (progress) progress("Requesting sync plan from server...");
 
+    for (int i = 0; i < state->num_titles; i++) {
+        saved_hash_flags[i] = state->titles[i].hash_calculated;
+        if (!should_auto_sync_title(&state->titles[i])) {
+            state->titles[i].hash_calculated = false;
+        }
+    }
+
     static NetworkSyncPlan plan;
     if (network_get_sync_plan(state, &plan) != 0) {
+        for (int i = 0; i < state->num_titles; i++) {
+            state->titles[i].hash_calculated = saved_hash_flags[i];
+        }
         debug_log("sync_auto_all: get_sync_plan failed");
         if (summary) summary->failed = state->num_titles;
         return;
     }
+    for (int i = 0; i < state->num_titles; i++) {
+        state->titles[i].hash_calculated = saved_hash_flags[i];
+    }
+
 
     /* Upload */
     for (int i = 0; i < plan.upload_count; i++) {
         for (int j = 0; j < state->num_titles; j++) {
             if (strcmp(state->titles[j].title_id, plan.upload[i]) != 0) continue;
+            if (!should_auto_sync_title(&state->titles[j])) {
+                debug_log("sync_auto_all: skipping non-PS3 upload %s",
+                          state->titles[j].title_id);
+                break;
+            }
             if (progress) {
                 snprintf(msg, sizeof(msg), "Uploading %d/%d: %s",
                          i + 1, plan.upload_count, plan.upload[i]);
@@ -583,6 +633,11 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
     for (int i = 0; i < plan.download_count; i++) {
         for (int j = 0; j < state->num_titles; j++) {
             if (strcmp(state->titles[j].title_id, plan.download[i]) != 0) continue;
+            if (!should_auto_sync_title(&state->titles[j])) {
+                debug_log("sync_auto_all: skipping non-PS3 download %s",
+                          state->titles[j].title_id);
+                break;
+            }
             if (progress) {
                 snprintf(msg, sizeof(msg), "Downloading %d/%d: %s",
                          i + 1, plan.download_count, plan.download[i]);
@@ -598,6 +653,11 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
     int srv_only_count = 0;
     for (int i = 0; i < state->num_titles; i++) {
         if (!state->titles[i].server_only) continue;
+        if (!should_auto_sync_title(&state->titles[i])) {
+            debug_log("sync_auto_all: skipping non-PS3 server-only save %s",
+                      state->titles[i].title_id);
+            continue;
+        }
         if (state->titles[i].kind == SAVE_KIND_PS3) {
             debug_log("sync_auto_all: skipping server-only PS3 save %s until a local slot exists",
                       state->titles[i].title_id);
@@ -617,11 +677,13 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
 
     if (summary) {
         summary->conflicts  = plan.conflict_count;
+        summary->skipped   += skipped_auto;
         summary->up_to_date = state->num_titles
                               - plan.upload_count
                               - plan.download_count
                               - srv_only_count
                               - plan.conflict_count;
+        summary->up_to_date -= skipped_auto;
         if (summary->up_to_date < 0) summary->up_to_date = 0;
     }
 }

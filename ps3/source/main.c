@@ -10,9 +10,10 @@
  *   Square  (□)      Force upload to server
  *   Triangle(△)      Force download from server
  *   R1               Compare local files with the server copy
- *   Select           Hash selected save now
+ *   R3               Sync all saves automatically (skip conflicts)
+ *   L3               Hash selected save now
  *   Circle  (○)      Rescan + rehash saves
- *   Start            Exit
+ *   Hold Start       Exit
  */
 
 #include "apollo.h"
@@ -47,12 +48,18 @@
 #define MASK_SQUARE   (1U << 5)
 #define MASK_TRIANGLE (1U << 6)
 #define MASK_CIRCLE   (1U << 7)
-#define MASK_SELECT   (1U << 8)
+#define MASK_L3       (1U << 8)
 #define MASK_START    (1U << 9)
 #define MASK_L1       (1U << 10)
 #define MASK_L2       (1U << 11)
 #define MASK_R2       (1U << 12)
 #define MASK_R1       (1U << 13)
+#define MASK_R3       (1U << 14)
+#define START_EXIT_HOLD_FRAMES 45
+
+static bool start_exit_active(unsigned int btns) {
+    return (btns & MASK_START) != 0;
+}
 
 /* MAX_PADS is already defined in <io/pad.h> as 127; we use a smaller cap */
 #define PAD_COUNT    7
@@ -75,12 +82,13 @@ static unsigned int read_buttons(void) {
         if (paddata.BTN_SQUARE)   btns |= MASK_SQUARE;
         if (paddata.BTN_TRIANGLE) btns |= MASK_TRIANGLE;
         if (paddata.BTN_CIRCLE)   btns |= MASK_CIRCLE;
-        if (paddata.BTN_SELECT)   btns |= MASK_SELECT;
+        if (paddata.BTN_L3)       btns |= MASK_L3;
         if (paddata.BTN_START)    btns |= MASK_START;
         if (paddata.BTN_L1)       btns |= MASK_L1;
         if (paddata.BTN_R1)       btns |= MASK_R1;
         if (paddata.BTN_L2)       btns |= MASK_L2;
         if (paddata.BTN_R2)       btns |= MASK_R2;
+        if (paddata.BTN_R3)       btns |= MASK_R3;
         break;  /* first connected pad only */
     }
     return btns;
@@ -106,7 +114,14 @@ static void sysutil_cb(u64 status, u64 param, void *userdata) {
             ui_notify_exit();
             break;
         case SYSUTIL_MENU_OPEN:
+            /* PSL1GHT apps do not expose a supported way to suppress the
+             * PS/Home menu entirely. On this title, opening it has been
+             * freezing some consoles, so treat it as an immediate request
+             * to leave the app cleanly instead of trying to stay resident
+             * beneath the XMB overlay. */
+            g_exit_requested = 1;
             ui_notify_menu_open();
+            ui_notify_exit();
             break;
         case SYSUTIL_MENU_CLOSE:
             ui_notify_menu_close();
@@ -429,6 +444,7 @@ int main(void) {
     int configured_user = 0;
     int selected = 0, scroll = 0;
     int last_selected_title = -1;
+    int start_hold_frames = 0;
     unsigned int prev_buttons = 0;
     bool redraw = true;
 
@@ -586,10 +602,25 @@ int main(void) {
         unsigned int just = btns & ~prev_buttons;
         prev_buttons = btns;
 
-        /* Exit */
-        if (just & MASK_START) {
-            debug_log("exit via START");
-            break;
+        /* Exit only after START is held for a short moment.
+         * Requiring an exact button state proved too strict on real pads,
+         * where extra transient bits can prevent the hold from ever
+         * accumulating. */
+        if (start_exit_active(btns)) {
+            if (start_hold_frames < START_EXIT_HOLD_FRAMES) {
+                start_hold_frames++;
+                if (just & MASK_START) {
+                    snprintf(status_line, sizeof(status_line),
+                             "Hold START to exit.");
+                    redraw = true;
+                }
+            }
+            if (start_hold_frames >= START_EXIT_HOLD_FRAMES) {
+                debug_log("exit via held START");
+                break;
+            }
+        } else {
+            start_hold_frames = 0;
         }
 
         /* Navigation */
@@ -661,6 +692,53 @@ int main(void) {
         /* R1: compare local files against the server copy */
         if ((just & MASK_R1) && has_net && g_visible_count > 0) {
             show_file_compare(state, &state->titles[g_visible[selected]]);
+            redraw = true;
+        }
+
+        /* R3: smart sync all saves, skipping conflicts */
+        if (just & MASK_R3) {
+            if (!has_net) {
+                ui_message("Server is offline.\n\nConnect to GameSync first to sync all saves.");
+            } else if (state->num_titles <= 0) {
+                ui_message("No saves found to sync.");
+            } else {
+                SyncSummary summary;
+                ui_status("Syncing all saves...");
+                sync_auto_all(state, &summary, sync_progress_cb);
+                for (int i = 0; i < state->num_titles; i++) {
+                    state->titles[i].server_meta_loaded = false;
+                    state->titles[i].server_hash[0] = '\0';
+                }
+                snprintf(
+                    status_line,
+                    sizeof(status_line),
+                    "All sync: %d up, %d down, %d current, %d conflicts, %d skipped, %d failed.",
+                    summary.uploaded,
+                    summary.downloaded,
+                    summary.up_to_date,
+                    summary.conflicts,
+                    summary.skipped,
+                    summary.failed
+                );
+                ui_message(
+                    "Sync all finished.\n\n"
+                    "Uploaded: %d\n"
+                    "Downloaded: %d\n"
+                    "Up to date: %d\n"
+                    "Conflicts skipped: %d\n"
+                    "Skipped: %d\n"
+                    "Failed: %d",
+                    summary.uploaded,
+                    summary.downloaded,
+                    summary.up_to_date,
+                    summary.conflicts,
+                    summary.skipped,
+                    summary.failed
+                );
+                if (g_visible_count > 0 && selected < g_visible_count) {
+                    last_selected_title = -1;
+                }
+            }
             redraw = true;
         }
 
@@ -762,8 +840,8 @@ int main(void) {
             redraw = true;
         }
 
-        /* Select: hash selected save now and refresh its status */
-        if ((just & MASK_SELECT) && g_visible_count > 0) {
+        /* L3: hash selected save now and refresh its status */
+        if ((just & MASK_L3) && g_visible_count > 0) {
             TitleInfo *title = &state->titles[g_visible[selected]];
             title->hash_calculated = false;
             ui_status("Hashing %s...", title->game_code);
