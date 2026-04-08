@@ -137,6 +137,28 @@ class TestTitlesEndpoint:
         assert len(titles) == 1
         assert titles[0]["title_id"] == "0004000000055D00"
 
+    def test_titles_refresh_ps3_hash_from_current_files(self, client, auth_headers, tmp_save_dir):
+        title_id = "NPUB30096-SAVEGAME"
+        bundle = _make_string_bundle_bytes(
+            title_id=title_id,
+            files=[("PARAM.SFO", b"param"), ("SAVEDATA", b"v1")],
+        )
+        client.post(
+            f"/api/v1/saves/{title_id}",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        current = tmp_save_dir / title_id / "current"
+        (current / "SAVEDATA").write_bytes(b"v2")
+
+        r = client.get("/api/v1/titles", headers=auth_headers)
+        assert r.status_code == 200
+        titles = r.json()["titles"]
+        assert len(titles) == 1
+        assert titles[0]["title_id"] == title_id
+        assert titles[0]["save_hash"] == hashlib.sha256(b"v2").hexdigest()
+
     def test_titles_names_uses_serialstation_for_ps2_codes(self, client, auth_headers, monkeypatch):
         async def fake_lookup_batch(codes):
             assert codes == ["SLPM65590"]

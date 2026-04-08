@@ -35,6 +35,16 @@ def _resolve_console_type(title: dict, typed: dict[str, tuple[str, str]]) -> str
 async def list_titles(console_type: str | None = Query(default=None)):
     titles = storage.list_titles()
 
+    # Keep PS3 listing hashes aligned with /meta and /sync by refreshing rows
+    # from the current on-disk files before we hand them to clients.
+    for idx, title in enumerate(titles):
+        tid = title.get("title_id", "")
+        if not tid:
+            continue
+        meta = storage.get_metadata_for_sync(tid)
+        if meta is not None:
+            titles[idx] = meta.to_dict()
+
     if titles:
         # For titles missing name/platform in metadata (old saves), do a batch lookup
         codes_needing_lookup = [

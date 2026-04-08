@@ -10,6 +10,7 @@ env/
 
 # Server save data
 server/saves/
+server/data/archive/
 
 # 3DS build artifacts
 3ds/build/
@@ -72,6 +73,7 @@ tools/logs
 # desktop
 desktop/dats
 desktop/logs
+desktop/ps3saves
 
 # others
 *.json
@@ -79,3 +81,11 @@ desktop/logs
 *.bak
 *.lst
 build_output/
+
+# ps3
+ps3/debug/
+ps3/build/
+ps3/tools/
+*.pkg
+*.self
+*.elf
