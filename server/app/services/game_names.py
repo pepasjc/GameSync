@@ -118,10 +118,77 @@ _3DS_HIGH_PREFIXES = {
 _NDS_HIGH_PREFIXES = {"00048"}
 
 
+def _detect_playstation_platform_heuristic(title_id: str) -> str | None:
+    """Best-effort PlayStation platform detection from a serial/save-dir ID.
+
+    Mirrors the PS-family save-kind heuristic used by the native clients:
+
+    - `U***#####`                       -> PSP
+    - `PC**#####`                      -> VITA
+    - `PB**#####`                      -> PS2
+    - `B***#####`                      -> PS3
+    - `NP?B#####`                      -> PS3
+    - `NP?H#####`, `NP?G#####`         -> PSP
+    - `NP?D#####`                      -> PS2
+    - `SL**/SC**` ranges               -> PS1 or PS2 depending on serial range
+
+    Returns None when the input does not look like a PlayStation serial.
+    """
+    tid = title_id.upper().strip()
+    if len(tid) < 9 or not _PSP_PREFIX_RE.match(tid):
+        return None
+
+    base = tid[:9]
+
+    if base[0] == "U":
+        return "PSP"
+
+    if base.startswith("PC"):
+        return "VITA"
+
+    if base.startswith("PB"):
+        return "PS2"
+
+    if base[0] == "B":
+        return "PS3"
+
+    if base.startswith("NP"):
+        platform_char = base[3]
+        if platform_char == "B":
+            return "PS3"
+        if platform_char in {"H", "G"}:
+            return "PSP"
+        if platform_char == "D":
+            return "PS2"
+        return "PS3"
+
+    if base[0] == "S":
+        try:
+            serial_num = int(base[4:9])
+        except ValueError:
+            return "PS1"
+
+        if base.startswith("SLUS") and serial_num >= 20000:
+            return "PS2"
+        if base.startswith("SCUS") and serial_num >= 97000:
+            return "PS2"
+        if base.startswith("SLES") and serial_num >= 50000:
+            return "PS2"
+        if base.startswith("SCES") and serial_num >= 50000:
+            return "PS2"
+        if base.startswith("SLPS") and serial_num >= 20000:
+            return "PS2"
+        if base.startswith("SCPS") and serial_num >= 20000:
+            return "PS2"
+        return "PS1"
+
+    return "PS3"
+
+
 def detect_platform(title_id: str) -> str:
     """Return the platform string for a title ID.
 
-    Returns one of: "3DS", "NDS", "PSP", "PSX", "VITA", or an emulator
+    Returns one of: "3DS", "NDS", "PSP", "PS1", "PS2", "PS3", "VITA", or an emulator
     system code like "GBA", "SNES", "MD", etc.
 
     Rules:
@@ -129,9 +196,7 @@ def detect_platform(title_id: str) -> str:
       - 16-char hex, starts with 00040... → "3DS"
       - 16-char hex, starts with 00048... → "NDS"  (DSiWare shown on 3DS)
       - 16-char hex, anything else         → "3DS"  (conservative fallback)
-      - Starts with PCS (PCSA/PCSB/etc.)  → "VITA"
-      - 4-letter + 5-digit code, found in psx_names → "PS1"
-      - 4-letter + 5-digit code otherwise  → "PSP"
+      - Known PlayStation-family serials    → PS1 / PS2 / PS3 / PSP / VITA heuristic
       - Anything else                      → "NDS"  (DS raw endpoint, no product code)
     """
     # Emulator format: SYSTEM_slug (e.g. GBA_zelda_the_minish_cap)
@@ -151,16 +216,16 @@ def detect_platform(title_id: str) -> str:
     if _VITA_CODE_RE.match(tid) or (len(tid) >= 4 and tid[:3] == "PCS"):
         return "VITA"
 
-    # PS3: BL[A-Z][A-Z]##### optionally followed by a save-dir suffix.
-    if _PS3_CODE_RE.match(tid[:9]) and _PS3_PREFIX_RE.match(tid):
+    base = tid[:9]
+
+    # Prefer the PS3 DB when the 9-char base is known there, since PS3 PSN IDs
+    # overlap with PSP serial families.
+    if base in _ps3_names:
         return "PS3"
 
-    # PSP / PSX: 4 letters + 5 digits (optionally with slot suffix)
-    if _PSP_PREFIX_RE.match(tid):
-        base = tid[:9]
-        if base in _psx_names:
-            return "PS1"
-        return "PSP"
+    heuristic = _detect_playstation_platform_heuristic(tid)
+    if heuristic:
+        return heuristic
 
     # Fallback: treat as NDS (DS raw endpoint sends no product code context)
     return "NDS"
@@ -432,7 +497,7 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
     """Look up game names and platform types for a list of product codes.
 
     Returns a dict mapping input codes to (name, type) tuples.
-    Type is one of: "VITA", "PS1", "PSP", "3DS", "NDS".
+    Type is one of: "VITA", "PS1", "PS2", "PS3", "PSP", "3DS", "NDS".
     Unknown codes are omitted from the result.
     """
     result = {}
@@ -447,22 +512,32 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
                 result[code] = (name, "VITA")
             continue
 
-        # PS3 product code or save-directory ID. Look up by the 9-char base.
         base = code_upper[:9]
-        if _PS3_CODE_RE.match(base) and _PS3_PREFIX_RE.match(code_upper):
+
+        # Prefer PS3 DB hits first because PS3 PSN serials overlap with PSP.
+        if base in _ps3_names:
             name = _ps3_names.get(base)
             if name:
                 result[code] = (name, "PS3")
             continue
 
-        # PSX/PSP product code — may have a slot suffix (e.g. ULUS10272DATA00).
-        # Always look up by the 9-char base; return result keyed by original code.
-        if _PSP_PREFIX_RE.match(code_upper):
-            base = code_upper[:9]
+        platform = _detect_playstation_platform_heuristic(code_upper)
+        if platform == "VITA":
+            name = _vita_names.get(base)
+            if name:
+                result[code] = (name, "VITA")
+            continue
+        if platform == "PS3":
+            name = _ps3_names.get(base)
+            if name:
+                result[code] = (name, "PS3")
+            continue
+        if platform == "PS1":
             name = _psx_names.get(base)
             if name:
                 result[code] = (name, "PS1")
-                continue
+            continue
+        if platform == "PSP":
             name = _psp_names.get(base)
             if name:
                 result[code] = (name, "PSP")

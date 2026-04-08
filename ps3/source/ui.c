@@ -29,7 +29,6 @@ int  ui_menu_open(void)         { return g_xmb_open; }
 #define LINE_HEIGHT   22
 #define LIST_START_Y  95
 #define LIST_VISIBLE_ROWS 35
-#define START_EXIT_HOLD_TICKS 14
 
 static SDL_Surface *g_screen = NULL;
 
@@ -38,22 +37,6 @@ typedef struct {
     Uint8 g;
     Uint8 b;
 } UiColor;
-
-static bool start_exit_held(const padData *paddata, int *hold_ticks) {
-    if (!paddata || !hold_ticks) {
-        return false;
-    }
-
-    if (paddata->BTN_START) {
-        if (*hold_ticks < START_EXIT_HOLD_TICKS) {
-            (*hold_ticks)++;
-        }
-    } else {
-        *hold_ticks = 0;
-    }
-
-    return *hold_ticks >= START_EXIT_HOLD_TICKS;
-}
 
 static void draw_text(int x, int y, UiColor color, const char *text) {
     if (!g_screen || !text) {
@@ -198,7 +181,7 @@ void ui_draw_list(
     );
     draw_text(24, SCREEN_HEIGHT - 28, dim, status_line ? status_line : "Ready.");
     draw_textf(24, SCREEN_HEIGHT - 46, dim,
-        "Up/Dn: nav   X: sync   R3: sync all   Sq: upload   Tri: download   L3: hash   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   Hold Start: exit",
+        "Up/Dn: nav   X: sync   R3: sync all   Sq: upload   Tri: download   L3: hash   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   PS/Home: exit",
         show_server_only ? "ON" : "OFF");
 
     if (visible_count == 0) {
@@ -317,7 +300,7 @@ static void drain_buttons(void) {
             if (!padinfo.status[i]) continue;
             ioPadGetData(i, &paddata);
             if (paddata.BTN_CROSS || paddata.BTN_CIRCLE || paddata.BTN_SQUARE ||
-                paddata.BTN_TRIANGLE || paddata.BTN_START || paddata.BTN_L3 || paddata.BTN_R3 ||
+                paddata.BTN_TRIANGLE || paddata.BTN_L3 || paddata.BTN_R3 ||
                 paddata.BTN_UP || paddata.BTN_DOWN) {
                 done = 0;
             }
@@ -378,7 +361,7 @@ void ui_message(const char *fmt, ...) {
         if (*cursor == '\n') cursor++;
     }
 
-    draw_text(24, SCREEN_HEIGHT - 28, (UiColor){160, 168, 184}, "Cross: continue   Hold Start: exit");
+    draw_text(24, SCREEN_HEIGHT - 28, (UiColor){160, 168, 184}, "Cross: continue   PS/Home: exit");
 
     SDL_PumpEvents();
     SDL_Flip(g_screen);
@@ -386,7 +369,6 @@ void ui_message(const char *fmt, ...) {
     padInfo padinfo;
     padData paddata;
     int prev_cross = 1;
-    int start_hold_ticks = 0;
     while (1) {
         sysUtilCheckCallback();
         if (g_ui_exit) return;
@@ -400,7 +382,6 @@ void ui_message(const char *fmt, ...) {
         for (int i = 0; i < MAX_PADS_UI; i++) {
             if (!padinfo.status[i]) continue;
             ioPadGetData(i, &paddata);
-            if (start_exit_held(&paddata, &start_hold_ticks)) { ui_notify_exit(); return; }
             if (!prev_cross && paddata.BTN_CROSS) return;
             prev_cross = paddata.BTN_CROSS;
         }
@@ -468,14 +449,13 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     }
 
     if (action == SYNC_UP_TO_DATE) {
-        draw_text(24, SCREEN_HEIGHT - 28, dim, "Cross: OK   Hold Start: exit");
+        draw_text(24, SCREEN_HEIGHT - 28, dim, "Cross: OK   PS/Home: exit");
         SDL_PumpEvents();
         SDL_Flip(g_screen);
 
         padInfo padinfo2;
         padData paddata2;
         int prev2 = 1;
-        int start_hold_ticks = 0;
         while (1) {
             sysUtilCheckCallback();
             if (g_ui_exit) return false;
@@ -489,7 +469,6 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
             for (int i = 0; i < MAX_PADS_UI; i++) {
                 if (!padinfo2.status[i]) continue;
                 ioPadGetData(i, &paddata2);
-                if (start_exit_held(&paddata2, &start_hold_ticks)) { ui_notify_exit(); return false; }
                 if (!prev2 && (paddata2.BTN_CROSS || paddata2.BTN_CIRCLE)) return false;
                 prev2 = paddata2.BTN_CROSS | paddata2.BTN_CIRCLE;
             }
@@ -497,7 +476,7 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
         }
     }
 
-    draw_text(24, SCREEN_HEIGHT - 28, dim, "Cross: Confirm   Circle: Cancel   Hold Start: exit");
+    draw_text(24, SCREEN_HEIGHT - 28, dim, "Cross: Confirm   Circle: Cancel   PS/Home: exit");
 
     SDL_PumpEvents();
     SDL_Flip(g_screen);
@@ -505,7 +484,6 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     padInfo padinfo;
     padData paddata;
     int prev_cross = 1, prev_circle = 1;
-    int start_hold_ticks = 0;
     while (1) {
         sysUtilCheckCallback();
         if (g_ui_exit) return false;
@@ -519,7 +497,6 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
         for (int i = 0; i < MAX_PADS_UI; i++) {
             if (!padinfo.status[i]) continue;
             ioPadGetData(i, &paddata);
-            if (start_exit_held(&paddata, &start_hold_ticks)) { ui_notify_exit(); return false; }
             if (!prev_cross  && paddata.BTN_CROSS)  return true;
             if (!prev_circle && paddata.BTN_CIRCLE) return false;
             prev_cross  = paddata.BTN_CROSS;

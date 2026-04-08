@@ -176,6 +176,28 @@ class TestTitlesEndpoint:
         assert body["names"]["SLPM65590"] == "Densha de Go! FINAL"
         assert body["types"]["SLPM65590"] == "PS2"
 
+    def test_titles_names_prefers_ps3_db_for_psn_style_ps3_codes(
+        self, client, auth_headers, monkeypatch
+    ):
+        monkeypatch.setitem(game_names._ps3_names, "NPUB30096", "Hard Corps Uprising")
+
+        r = client.post(
+            "/api/v1/titles/names",
+            json={"codes": ["NPUB30096-SAVEGAME"]},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["names"]["NPUB30096-SAVEGAME"] == "Hard Corps Uprising"
+        assert body["types"]["NPUB30096-SAVEGAME"] == "PS3"
+
+    def test_detect_platform_uses_playstation_serial_heuristics(self):
+        assert game_names.detect_platform("NPUB30096-SAVEGAME") == "PS3"
+        assert game_names.detect_platform("NPUH10001") == "PSP"
+        assert game_names.detect_platform("PCSE00082") == "VITA"
+        assert game_names.detect_platform("SLUS01279") == "PS1"
+        assert game_names.detect_platform("SLUS20002") == "PS2"
+
     def test_titles_can_filter_by_console_type(self, client, auth_headers, monkeypatch):
         bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
         client.post(

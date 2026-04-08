@@ -13,7 +13,7 @@
  *   R3               Sync all saves automatically (skip conflicts)
  *   L3               Hash selected save now
  *   Circle  (○)      Rescan + rehash saves
- *   Hold Start       Exit
+ *   PS/Home          Exit
  */
 
 #include "apollo.h"
@@ -49,17 +49,11 @@
 #define MASK_TRIANGLE (1U << 6)
 #define MASK_CIRCLE   (1U << 7)
 #define MASK_L3       (1U << 8)
-#define MASK_START    (1U << 9)
-#define MASK_L1       (1U << 10)
-#define MASK_L2       (1U << 11)
-#define MASK_R2       (1U << 12)
-#define MASK_R1       (1U << 13)
-#define MASK_R3       (1U << 14)
-#define START_EXIT_HOLD_FRAMES 45
-
-static bool start_exit_active(unsigned int btns) {
-    return (btns & MASK_START) != 0;
-}
+#define MASK_L1       (1U << 9)
+#define MASK_L2       (1U << 10)
+#define MASK_R2       (1U << 11)
+#define MASK_R1       (1U << 12)
+#define MASK_R3       (1U << 13)
 
 /* MAX_PADS is already defined in <io/pad.h> as 127; we use a smaller cap */
 #define PAD_COUNT    7
@@ -83,7 +77,6 @@ static unsigned int read_buttons(void) {
         if (paddata.BTN_TRIANGLE) btns |= MASK_TRIANGLE;
         if (paddata.BTN_CIRCLE)   btns |= MASK_CIRCLE;
         if (paddata.BTN_L3)       btns |= MASK_L3;
-        if (paddata.BTN_START)    btns |= MASK_START;
         if (paddata.BTN_L1)       btns |= MASK_L1;
         if (paddata.BTN_R1)       btns |= MASK_R1;
         if (paddata.BTN_L2)       btns |= MASK_L2;
@@ -444,7 +437,6 @@ int main(void) {
     int configured_user = 0;
     int selected = 0, scroll = 0;
     int last_selected_title = -1;
-    int start_hold_frames = 0;
     unsigned int prev_buttons = 0;
     bool redraw = true;
 
@@ -475,10 +467,11 @@ int main(void) {
     ui_status("Loading config...");
     if (!config_load(state, &config_created, error_buf, sizeof(error_buf))) {
         debug_log("config error: %s", error_buf);
-        ui_draw_message("GameSync PS3", error_buf, "Press START to exit");
+        ui_draw_message("GameSync PS3", error_buf, "Press PS/Home to exit");
         while (1) {
             SDL_PumpEvents();
-            if (read_buttons() & MASK_START) break;
+            sysUtilCheckCallback();
+            if (g_exit_requested || ui_exit_requested()) break;
             usleep(100000);
         }
         ioPadEnd();
@@ -601,27 +594,6 @@ int main(void) {
         unsigned int btns = read_buttons();
         unsigned int just = btns & ~prev_buttons;
         prev_buttons = btns;
-
-        /* Exit only after START is held for a short moment.
-         * Requiring an exact button state proved too strict on real pads,
-         * where extra transient bits can prevent the hold from ever
-         * accumulating. */
-        if (start_exit_active(btns)) {
-            if (start_hold_frames < START_EXIT_HOLD_FRAMES) {
-                start_hold_frames++;
-                if (just & MASK_START) {
-                    snprintf(status_line, sizeof(status_line),
-                             "Hold START to exit.");
-                    redraw = true;
-                }
-            }
-            if (start_hold_frames >= START_EXIT_HOLD_FRAMES) {
-                debug_log("exit via held START");
-                break;
-            }
-        } else {
-            start_hold_frames = 0;
-        }
 
         /* Navigation */
         if ((just & MASK_DOWN) && g_visible_count > 0) {
