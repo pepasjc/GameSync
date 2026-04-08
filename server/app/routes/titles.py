@@ -72,6 +72,9 @@ async def list_titles(console_type: str | None = Query(default=None)):
 
         for title in titles:
             tid = title.get("title_id", "")
+            retail_serial = game_names.get_psx_retail_serial(tid)
+            if retail_serial:
+                title["retail_serial"] = retail_serial
 
             # Use stored platform/name if already stamped on the metadata.
             # Re-detect platform for saves stored as "PSP" or "PSX" in case

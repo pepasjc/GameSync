@@ -11,7 +11,7 @@ from app.models.save import (
     is_hex_title_id,
     validate_any_title_id,
 )
-from app.services import storage
+from app.services import game_names, storage
 from app.services.ps1_cards import (
     create_vmp,
     ensure_raw_slot_files,
@@ -84,6 +84,25 @@ def _resolve_console_id(cid: str, source: str) -> str:
     return cid
 
 
+def _resolve_ps1_title_alias(title_id: str) -> str:
+    """Resolve a PS1 retail serial to the stored server title ID when possible."""
+    if storage.get_metadata(title_id) is not None:
+        return title_id
+
+    if not is_ps1_title_id(title_id):
+        return title_id
+
+    wanted = title_id.upper()
+    for row in storage.list_titles():
+        candidate = str(row.get("title_id", "")).upper()
+        if not candidate or candidate == wanted:
+            continue
+        if game_names.get_psx_retail_serial(candidate) == wanted:
+            return candidate
+
+    return title_id
+
+
 @router.get("/saves/{title_id}/meta")
 async def get_save_meta(
     title_id: str,
@@ -134,11 +153,12 @@ async def get_ps1_card_meta(title_id: str, slot: int = Query(0, ge=0, le=1)):
     if not is_ps1_title_id(title_id):
         raise HTTPException(status_code=400, detail="Not a PS1 title ID")
 
-    meta = storage.get_metadata(title_id)
+    resolved_title_id = _resolve_ps1_title_alias(title_id)
+    meta = storage.get_metadata(resolved_title_id)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    files = storage.load_save_files(title_id)
+    files = storage.load_save_files(resolved_title_id)
     if not files:
         raise HTTPException(status_code=404, detail="Save data missing on disk")
 
@@ -165,11 +185,12 @@ async def download_ps1_card(title_id: str, slot: int = Query(0, ge=0, le=1)):
     if not is_ps1_title_id(title_id):
         raise HTTPException(status_code=400, detail="Not a PS1 title ID")
 
-    meta = storage.get_metadata(title_id)
+    resolved_title_id = _resolve_ps1_title_alias(title_id)
+    meta = storage.get_metadata(resolved_title_id)
     if meta is None:
         raise HTTPException(status_code=404, detail="No save found for this title")
 
-    files = storage.load_save_files(title_id)
+    files = storage.load_save_files(resolved_title_id)
     if not files:
         raise HTTPException(status_code=404, detail="Save data missing on disk")
 
@@ -308,11 +329,13 @@ async def upload_ps1_card(
     if not is_ps1_title_id(title_id):
         raise HTTPException(status_code=400, detail="Not a PS1 title ID")
 
+    resolved_title_id = _resolve_ps1_title_alias(title_id)
+
     body = await request.body()
     if not body:
         raise HTTPException(status_code=400, detail="Empty request body")
 
-    files = ensure_raw_slot_files(storage.load_save_files(title_id) or [])
+    files = ensure_raw_slot_files(storage.load_save_files(resolved_title_id) or [])
 
     replaced = False
     updated_files: list[tuple[str, bytes]] = []
@@ -344,7 +367,7 @@ async def upload_ps1_card(
         title_id=0,
         timestamp=int(time.time()),
         files=bundle_files,
-        title_id_str=title_id,
+        title_id_str=resolved_title_id,
     )
     cid = _console_id_from_request(request, console_id)
     meta = storage.store_save(bundle, source="ps1_card", console_id=cid)
