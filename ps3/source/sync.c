@@ -47,6 +47,32 @@ static void refresh_local_stats(TitleInfo *title) {
         title->total_size += sizes[i];
 }
 
+static bool title_has_real_local_dir(const TitleInfo *title) {
+    struct stat st;
+
+    if (!title || !title->local_path[0]) {
+        return false;
+    }
+    return stat(title->local_path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static bool should_skip_automatic_hash(const TitleInfo *title) {
+    if (!title) {
+        return false;
+    }
+
+    /* Apollo export zips / USB-only sources are auxiliary upload sources.
+     * Don't hash them during startup refresh or auto-sync; they can still be
+     * hashed on-demand for an explicit upload. */
+    if (title->kind == SAVE_KIND_PS3 &&
+        title->upload_path[0] != '\0' &&
+        !title_has_real_local_dir(title)) {
+        return true;
+    }
+
+    return false;
+}
+
 /* ---- sync_decide ---- */
 
 SyncAction sync_decide(const SyncState *state, int title_idx) {
@@ -426,24 +452,22 @@ void sync_refresh_statuses(SyncState *state, SyncProgressFn progress) {
         if (t->server_only || t->hash_calculated) {
             continue;
         }
+        if (should_skip_automatic_hash(t)) {
+            debug_log("sync_refresh_statuses: skipping automatic hash for auxiliary source %s",
+                      t->title_id);
+            continue;
+        }
 
         char cached[65];
-        if (state_get_cached_hash(t->title_id, t->file_count, t->total_size, cached)) {
-            if (hash_from_hex(cached, t->hash)) {
-                t->hash_calculated = true;
-                continue;
-            }
-        }
-
-        if (progress) {
-            snprintf(msg, sizeof(msg), "Hashing %d/%d: %s",
-                     i + 1, state->num_titles, t->game_code);
-            progress(msg);
-        }
-        if (saves_compute_hash(t) == 0) {
-            char hx[65];
-            hash_to_hex(t->hash, hx);
-            state_set_cached_hash(t->title_id, t->file_count, t->total_size, hx);
+        int cache_file_count = t->file_count;
+        uint32_t cache_total_size = t->total_size;
+        saves_get_hash_cache_key_stats(t, &cache_file_count, &cache_total_size);
+        if (state_get_cached_hash(t->title_id, cache_file_count, cache_total_size, cached) &&
+            hash_from_hex(cached, t->hash)) {
+            t->hash_calculated = true;
+        } else {
+            debug_log("sync_refresh_statuses: no cache for %s, leaving status unresolved until explicit sync",
+                      t->title_id);
         }
         pump_callbacks();
     }
@@ -501,10 +525,18 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
     for (int i = 0; i < state->num_titles; i++) {
         TitleInfo *t = &state->titles[i];
         if (t->server_only || t->hash_calculated) continue;
+        if (should_skip_automatic_hash(t)) {
+            debug_log("sync_auto_all: skipping automatic hash for auxiliary source %s",
+                      t->title_id);
+            continue;
+        }
 
         char cached[65];
+        int cache_file_count = t->file_count;
+        uint32_t cache_total_size = t->total_size;
+        saves_get_hash_cache_key_stats(t, &cache_file_count, &cache_total_size);
         if (state_get_cached_hash(t->title_id,
-                                  t->file_count, t->total_size, cached)) {
+                                  cache_file_count, cache_total_size, cached)) {
             if (hash_from_hex(cached, t->hash)) {
                 t->hash_calculated = true;
                 continue;
@@ -518,7 +550,7 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
         }
         if (saves_compute_hash(t) == 0) {
             char hx[65]; hash_to_hex(t->hash, hx);
-            state_set_cached_hash(t->title_id, t->file_count, t->total_size, hx);
+            state_set_cached_hash(t->title_id, t->hash_file_count, t->hash_total_size, hx);
         }
         pump_callbacks();
     }

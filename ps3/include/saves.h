@@ -19,6 +19,7 @@ int  saves_write_file(const TitleInfo *title, const char *name,
                       const uint8_t *buf, uint32_t size);
 int  saves_normalize_permissions(const char *root_path);
 bool saves_has_upload_source(const TitleInfo *title);
+bool saves_get_hash_cache_key_stats(const TitleInfo *title, int *file_count_out, uint32_t *total_size_out);
 
 /* Returns true for PS3/PS1 game codes (4 UPPER + 5 digits, not Vita PC*) */
 bool saves_is_relevant_game_code(const char *id);

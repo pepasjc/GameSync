@@ -1,7 +1,7 @@
 /*
- * PS3 Save Sync - Main
+ * PS3 GameSync - Main
  *
- * Syncs PS3 and PS1 saves with the Save Sync server over WiFi.
+ * Syncs PS3 and PS1 saves with the GameSync server over WiFi.
  *
  * Controller layout:
  *   Up / Down        Navigate save list
@@ -10,7 +10,7 @@
  *   Square  (□)      Force upload to server
  *   Triangle(△)      Force download from server
  *   R1               Compare local files with the server copy
- *   Select           Auto-sync all saves
+ *   Select           Hash selected save now
  *   Circle  (○)      Rescan + rehash saves
  *   Start            Exit
  */
@@ -381,6 +381,18 @@ static void sync_progress_cb(const char *msg) {
     ui_status("%s", msg);
 }
 
+static const char *title_status_label(TitleStatus status) {
+    switch (status) {
+        case TITLE_STATUS_LOCAL_ONLY:  return "LOC";
+        case TITLE_STATUS_SERVER_ONLY: return "SVR";
+        case TITLE_STATUS_SYNCED:      return "SYNC";
+        case TITLE_STATUS_UPLOAD:      return "UP";
+        case TITLE_STATUS_DOWNLOAD:    return "DL";
+        case TITLE_STATUS_CONFLICT:    return "CONF";
+        default:                       return "?";
+    }
+}
+
 /* Pump system callbacks + SDL events — used as g_pump_callback so that
  * long-running operations (zlib, SHA-256, file I/O) in sync/bundle/hash
  * modules keep the PS3 Lv2 kernel happy.  Without this, the kernel
@@ -414,6 +426,7 @@ int main(void) {
     char savedata_root[PATH_LEN];
     char vmc_root[PATH_LEN];
     bool config_created = false;
+    int configured_user = 0;
     int selected = 0, scroll = 0;
     int last_selected_title = -1;
     unsigned int prev_buttons = 0;
@@ -446,7 +459,7 @@ int main(void) {
     ui_status("Loading config...");
     if (!config_load(state, &config_created, error_buf, sizeof(error_buf))) {
         debug_log("config error: %s", error_buf);
-        ui_draw_message("Save Sync PS3", error_buf, "Press START to exit");
+        ui_draw_message("GameSync PS3", error_buf, "Press START to exit");
         while (1) {
             SDL_PumpEvents();
             if (read_buttons() & MASK_START) break;
@@ -458,6 +471,7 @@ int main(void) {
         return 1;
     }
     config_load_console_id(state);
+    configured_user = state->selected_user;
     debug_log("config ok  server=%s user=%s", state->server_url, state->ps3_user);
 
     /* --- Resign subsystem init (detects PSID, sets up crypto keys) --- */
@@ -528,6 +542,11 @@ int main(void) {
     apollo_get_ps3_savedata_root(state, savedata_root, sizeof(savedata_root));
     apollo_get_ps1_vmc_root(vmc_root, sizeof(vmc_root));
     saves_scan(state);
+    if (configured_user == 0 && state->selected_user > 0) {
+        snprintf(state->ps3_user, sizeof(state->ps3_user), "%08d", state->selected_user);
+        config_save(state);
+        debug_log("persisted auto-detected user %08d", state->selected_user);
+    }
     /* Hashing is deferred — sync_decide/sync_execute compute it on demand */
 
     if (has_net) {
@@ -743,21 +762,34 @@ int main(void) {
             redraw = true;
         }
 
-        /* Select: auto-sync all */
-        if ((just & MASK_SELECT) && has_net) {
-            SyncSummary summary;
-            sync_auto_all(state, &summary, sync_progress_cb);
-            ui_message("Auto-sync complete:\n\n"
-                       "Uploaded:   %d\n"
-                       "Downloaded: %d\n"
-                       "Up to date: %d\n"
-                       "Conflicts:  %d\n"
-                       "Skipped:    %d\n"
-                       "Failed:     %d\n\n"
-                       "Press Cross to continue.",
-                       summary.uploaded, summary.downloaded,
-                       summary.up_to_date, summary.conflicts,
-                       summary.skipped, summary.failed);
+        /* Select: hash selected save now and refresh its status */
+        if ((just & MASK_SELECT) && g_visible_count > 0) {
+            TitleInfo *title = &state->titles[g_visible[selected]];
+            title->hash_calculated = false;
+            ui_status("Hashing %s...", title->game_code);
+            if (saves_compute_hash(title) == 0) {
+                if (has_net) {
+                    if (title->server_only) {
+                        title->status = TITLE_STATUS_SERVER_ONLY;
+                    } else {
+                        SyncAction action = sync_decide(state, g_visible[selected]);
+                        if (action == SYNC_UP_TO_DATE) {
+                            title->status = TITLE_STATUS_SYNCED;
+                        } else if (action == SYNC_FAILED) {
+                            title->status = TITLE_STATUS_UNKNOWN;
+                        }
+                    }
+                    title->server_meta_loaded = false;
+                    title->server_hash[0] = '\0';
+                } else if (!title->on_server) {
+                    title->status = TITLE_STATUS_LOCAL_ONLY;
+                }
+                ui_message("Hash refreshed for %s.\n\nStatus: %s",
+                           title->game_code, title_status_label(title->status));
+            } else {
+                title->status = TITLE_STATUS_UNKNOWN;
+                ui_message("Hash failed for %s.", title->game_code);
+            }
             redraw = true;
         }
 

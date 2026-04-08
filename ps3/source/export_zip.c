@@ -497,3 +497,52 @@ bool export_zip_hash_files_sha256(
     free(info);
     return true;
 }
+
+bool export_zip_comparable_stats(
+    const char *zip_path,
+    int *file_count_out,
+    uint32_t *total_size_out
+) {
+    ExportZipInfo *info;
+    int included_count = 0;
+    uint32_t included_size = 0;
+
+    if (!zip_path) {
+        return false;
+    }
+
+    info = (ExportZipInfo *)malloc(sizeof(*info));
+    if (!info) {
+        return false;
+    }
+    if (!export_zip_parse(zip_path, info)) {
+        free(info);
+        return false;
+    }
+
+    for (int i = 0; i < info->file_count; i++) {
+        uint32_t next_total;
+
+        if (hash_should_skip_ps3_file(info->files[i].path)) {
+            continue;
+        }
+
+        next_total = included_size + info->files[i].size;
+        if (next_total < included_size) {
+            included_size = 0xFFFFFFFFU;
+        } else {
+            included_size = next_total;
+        }
+        included_count++;
+    }
+
+    if (file_count_out) {
+        *file_count_out = included_count;
+    }
+    if (total_size_out) {
+        *total_size_out = included_size;
+    }
+
+    free(info);
+    return true;
+}

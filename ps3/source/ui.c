@@ -111,7 +111,7 @@ void ui_draw_message(const char *title, const char *message, const char *footer)
 
     ui_clear();
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1, 8, 10, 18, 255);
-    draw_text(24, y, (UiColor){88, 208, 255}, title ? title : "Save Sync PS3");
+    draw_text(24, y, (UiColor){88, 208, 255}, title ? title : "GameSync PS3");
     y += 36;
 
     if (message) {
@@ -165,7 +165,7 @@ void ui_draw_list(
     ui_clear();
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
     rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48, border.r, border.g, border.b, 255);
-    draw_textf(24, y, accent, "Save Sync PS3 v%s", APP_VERSION);
+    draw_textf(24, y, accent, "GameSync PS3 v%s", APP_VERSION);
     y += 22;
     draw_textf(24, y, white, "Server: %s", state->server_url);
     y += 18;
@@ -181,7 +181,7 @@ void ui_draw_list(
     );
     draw_text(24, SCREEN_HEIGHT - 28, dim, status_line ? status_line : "Ready.");
     draw_textf(24, SCREEN_HEIGHT - 46, dim,
-        "Up/Dn: nav   X: sync   Sq: upload   Tri: download   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   Start: exit",
+        "Up/Dn: nav   X: sync   Sq: upload   Tri: download   Sel: hash   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   Start: exit",
         show_server_only ? "ON" : "OFF");
 
     if (visible_count == 0) {
@@ -323,7 +323,7 @@ void ui_status(const char *fmt, ...) {
 
     ui_clear();
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
-    draw_text(24, 18, (UiColor){88, 208, 255}, "Save Sync PS3");
+    draw_text(24, 18, (UiColor){88, 208, 255}, "GameSync PS3");
     draw_text(24, SCREEN_HEIGHT / 2 - 10, (UiColor){240, 240, 240}, g_status_line);
 
     SDL_PumpEvents();
@@ -345,7 +345,7 @@ void ui_message(const char *fmt, ...) {
 
     ui_clear();
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
-    draw_text(24, 18, (UiColor){88, 208, 255}, "Save Sync PS3");
+    draw_text(24, 18, (UiColor){88, 208, 255}, "GameSync PS3");
 
     int y = 80;
     const char *cursor = buf;
@@ -409,7 +409,7 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
 
     ui_clear();
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
-    draw_text(24, 18, (UiColor){88, 208, 255}, "Save Sync PS3 -- Confirm");
+    draw_text(24, 18, (UiColor){88, 208, 255}, "GameSync PS3 -- Confirm");
 
     int y = 80;
     UiColor white = {240, 240, 240};

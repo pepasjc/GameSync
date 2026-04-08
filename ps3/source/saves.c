@@ -1,6 +1,7 @@
 #include "saves.h"
 
 #include "apollo.h"
+#include "decrypt.h"
 #include "export_zip.h"
 #include "hash.h"
 #include "state.h"
@@ -330,6 +331,73 @@ static bool collect_dir_stats(const char *path, uint32_t *total_size, int *file_
     return true;
 }
 
+static bool collect_dir_hash_stats_recursive(
+    const char *path,
+    const char *rel_prefix,
+    uint32_t *total_size,
+    int *file_count
+) {
+    DIR *dir;
+    struct dirent *entry;
+
+    dir = opendir(path);
+    if (!dir) {
+        return false;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        char child_path[PATH_LEN];
+        char rel_path[MAX_FILE_LEN];
+        struct stat st;
+
+        if (is_dot_name(entry->d_name)) {
+            continue;
+        }
+
+        path_join(path, entry->d_name, child_path, sizeof(child_path));
+        if (rel_prefix && rel_prefix[0]) {
+            snprintf(rel_path, sizeof(rel_path), "%s/%s", rel_prefix, entry->d_name);
+        } else {
+            snprintf(rel_path, sizeof(rel_path), "%s", entry->d_name);
+        }
+        rel_path[sizeof(rel_path) - 1] = '\0';
+
+        if (!path_stat(child_path, &st)) {
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            if (!collect_dir_hash_stats_recursive(child_path, rel_path, total_size, file_count)) {
+                closedir(dir);
+                return false;
+            }
+        } else if (S_ISREG(st.st_mode)) {
+            if (hash_should_skip_ps3_file(rel_path)) {
+                continue;
+            }
+            (*file_count)++;
+            if (st.st_size > 0) {
+                unsigned long long new_size = (unsigned long long)(*total_size)
+                    + (unsigned long long)st.st_size;
+                *total_size = new_size > 0xFFFFFFFFULL ? 0xFFFFFFFFU : (uint32_t)new_size;
+            }
+        }
+    }
+
+    closedir(dir);
+    return true;
+}
+
+static bool collect_dir_hash_stats(const char *path, uint32_t *total_size, int *file_count) {
+    if (total_size) {
+        *total_size = 0;
+    }
+    if (file_count) {
+        *file_count = 0;
+    }
+    return collect_dir_hash_stats_recursive(path, "", total_size, file_count);
+}
+
 static void add_ps3_title(
     SyncState *state,
     const char *dir_name,
@@ -362,6 +430,11 @@ static void add_ps3_title(
     title->kind = kind;
     title->total_size = total_size;
     title->file_count = file_count;
+    title->hash_total_size = total_size;
+    title->hash_file_count = file_count;
+    if (kind == SAVE_KIND_PS3) {
+        collect_dir_hash_stats(dir_path, &title->hash_total_size, &title->hash_file_count);
+    }
 }
 
 static void add_ps1_title(
@@ -387,6 +460,8 @@ static void add_ps1_title(
     title->kind = SAVE_KIND_PS1_VM1;
     title->total_size = total_size;
     title->file_count = 1;
+    title->hash_total_size = total_size;
+    title->hash_file_count = 1;
 }
 
 static void attach_export_zip(
@@ -404,6 +479,11 @@ static void attach_export_zip(
     idx = find_matching_export_title(state, zip_info->title_id);
     if (idx >= 0) {
         title = &state->titles[idx];
+        if (title->local_path[0] != '\0' && path_is_dir(title->local_path)) {
+            debug_log("scan: keeping HDD save as hash source for %s; ignoring export zip %s",
+                      title->title_id, zip_path);
+            return;
+        }
     } else {
         if (state->num_titles >= MAX_TITLES) {
             return;
@@ -425,6 +505,9 @@ static void attach_export_zip(
     title->upload_is_zip = true;
     title->file_count = zip_info->file_count;
     title->total_size = zip_info->total_size;
+    title->hash_file_count = zip_info->file_count;
+    title->hash_total_size = zip_info->total_size;
+    export_zip_comparable_stats(zip_path, &title->hash_file_count, &title->hash_total_size);
     title->hash_calculated = false;
 }
 
@@ -449,6 +532,11 @@ static void attach_export_dir(
 
     if (idx >= 0) {
         title = &state->titles[idx];
+        if (title->local_path[0] != '\0' && path_is_dir(title->local_path)) {
+            debug_log("scan: keeping HDD save as hash source for %s; ignoring usb dir %s",
+                      title->title_id, dir_path);
+            return;
+        }
     } else {
         if (state->num_titles >= MAX_TITLES) {
             return;
@@ -470,6 +558,9 @@ static void attach_export_dir(
     title->upload_is_zip = false;
     title->file_count = file_count;
     title->total_size = total_size;
+    title->hash_total_size = total_size;
+    title->hash_file_count = file_count;
+    collect_dir_hash_stats(dir_path, &title->hash_total_size, &title->hash_file_count);
     title->hash_calculated = false;
 }
 
@@ -722,12 +813,18 @@ void saves_scan(SyncState *state) {
 bool saves_calculate_hash(TitleInfo *title) {
     char cached_hex[65];
     char computed_hex[65];
+    int cache_file_count;
+    uint32_t cache_total_size;
+    const char *ps3_hash_source;
+    char decrypt_temp[PATH_LEN];
+    bool did_decrypt = false;
 
     if (!title) {
         return false;
     }
 
-    if (state_get_cached_hash(title->title_id, title->file_count, title->total_size, cached_hex)
+    saves_get_hash_cache_key_stats(title, &cache_file_count, &cache_total_size);
+    if (state_get_cached_hash(title->title_id, cache_file_count, cache_total_size, cached_hex)
             && hash_from_hex(cached_hex, title->hash)) {
         ui_status("Using cached hash: %s", title->game_code);
         title->hash_calculated = true;
@@ -735,35 +832,60 @@ bool saves_calculate_hash(TitleInfo *title) {
     }
 
     if (title->kind == SAVE_KIND_PS3) {
+        ps3_hash_source = title->upload_path[0] ? title->upload_path : title->local_path;
+        if (!ps3_hash_source[0]) {
+            return false;
+        }
+        if (!title->upload_is_zip && !title->upload_path[0] && title->local_path[0]) {
+            decrypt_temp[0] = '\0';
+            if (decrypt_save(title, decrypt_temp, sizeof(decrypt_temp)) != 0 || !decrypt_temp[0]) {
+                debug_log("hash: decrypt_save failed for %s", title->title_id);
+                return false;
+            }
+            ps3_hash_source = decrypt_temp;
+            did_decrypt = true;
+        }
         if (title->upload_is_zip) {
             int file_count = 0;
             uint32_t total_size = 0;
-            if (!export_zip_hash_files_sha256(title->upload_path, title->hash, &file_count, &total_size)) {
+            if (!export_zip_hash_files_sha256(ps3_hash_source, title->hash, &file_count, &total_size)) {
                 return false;
             }
+            title->hash_file_count = file_count;
+            title->hash_total_size = total_size;
             title->file_count = file_count;
             title->total_size = total_size;
         } else {
             int file_count = 0;
             uint32_t total_size = 0;
-            if (!hash_dir_files_sha256(title->upload_path, title->hash, &file_count, &total_size)) {
+            if (!hash_dir_files_sha256(ps3_hash_source, title->hash, &file_count, &total_size)) {
+                if (did_decrypt) {
+                    decrypt_cleanup(decrypt_temp);
+                }
                 return false;
             }
+            title->hash_file_count = file_count;
+            title->hash_total_size = total_size;
             title->file_count = file_count;
             title->total_size = total_size;
+        }
+        if (did_decrypt) {
+            decrypt_cleanup(decrypt_temp);
         }
     } else if (title->kind == SAVE_KIND_PS1_VM1) {
         if (!hash_file_sha256(title->local_path, title->hash, &title->total_size)) {
             return false;
         }
         title->file_count = 1;
+        title->hash_file_count = 1;
+        title->hash_total_size = title->total_size;
     } else {
         return false;
     }
 
     ui_status("Writing hash cache: %s", title->game_code);
     hash_to_hex(title->hash, computed_hex);
-    state_set_cached_hash(title->title_id, title->file_count, title->total_size, computed_hex);
+    state_set_cached_hash(title->title_id, title->hash_file_count, title->hash_total_size, computed_hex);
     ui_status("Finished hash cache: %s", title->game_code);
     title->hash_calculated = true;
     return true;
@@ -895,6 +1017,20 @@ bool saves_has_upload_source(const TitleInfo *title) {
         return title->upload_path[0] != '\0';
     }
     return title->local_path[0] != '\0';
+}
+
+bool saves_get_hash_cache_key_stats(const TitleInfo *title, int *file_count_out, uint32_t *total_size_out) {
+    if (!title) {
+        return false;
+    }
+
+    if (file_count_out) {
+        *file_count_out = title->hash_file_count > 0 ? title->hash_file_count : title->file_count;
+    }
+    if (total_size_out) {
+        *total_size_out = title->hash_total_size > 0 ? title->hash_total_size : title->total_size;
+    }
+    return true;
 }
 
 bool saves_is_ps3_metadata_file(const char *name) {

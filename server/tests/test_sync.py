@@ -2,6 +2,7 @@ import hashlib
 
 from app.models.save import BundleFile, SaveBundle
 from app.services.bundle import create_bundle
+from app.services import db
 
 
 def _make_bundle_bytes(
@@ -211,6 +212,61 @@ class TestSyncEndpoint:
         assert r.status_code == 200
         plan = r.json()
         assert "0004000000055D00" in plan["conflict"]
+
+    def test_ps3_sync_rebuilds_stale_server_hash_metadata(self, client, auth_headers):
+        bundle = _make_bundle_bytes(
+            title_id=0,
+            timestamp=1000,
+            files=[
+                ("GAME", b"game"),
+                ("PARAM.SFO", b"param"),
+                ("ICON0.PNG", b"icon"),
+            ],
+        )
+        # Use string-title-id bundle for PS3 save-dir IDs.
+        bundle_files = [
+            BundleFile(
+                path=path,
+                size=len(data),
+                sha256=hashlib.sha256(data).digest(),
+                data=data,
+            )
+            for path, data in [
+                ("GAME", b"game"),
+                ("PARAM.SFO", b"param"),
+                ("ICON0.PNG", b"icon"),
+            ]
+        ]
+        ps3_bundle = SaveBundle(title_id=0, timestamp=1000, files=bundle_files, title_id_str="BLJS10001GAME")
+        r = client.post(
+            "/api/v1/saves/BLJS10001GAME",
+            content=create_bundle(ps3_bundle),
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+
+        stale = db.get("BLJS10001GAME")
+        assert stale is not None
+        stale["save_hash"] = "stale_hash_" * 6 + "st"
+        db.upsert(stale)
+
+        r = client.post(
+            "/api/v1/sync",
+            json={
+                "titles": [
+                    {
+                        "title_id": "BLJS10001GAME",
+                        "save_hash": hashlib.sha256(b"game").hexdigest(),
+                        "timestamp": 1000,
+                        "size": 4,
+                    }
+                ]
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        plan = r.json()
+        assert "BLJS10001GAME" in plan["up_to_date"]
 
     def test_multi_console_scenario(self, client, auth_headers):
         """Full A -> B -> A multi-console flow."""

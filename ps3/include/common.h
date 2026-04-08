@@ -45,7 +45,7 @@ typedef struct {
     char game_code[16];           /* server ID e.g. BCUS98233 or SLUS12345 */
     char name[MAX_TITLE_LEN];
     char local_path[PATH_LEN];
-    char upload_path[PATH_LEN];   /* source used for hash/upload (Apollo export zip for PS3) */
+    char upload_path[PATH_LEN];   /* auxiliary upload source (USB/export) when no HDD save is present */
     SaveKind kind;
     uint8_t hash[32];
     bool hash_calculated;
@@ -57,6 +57,8 @@ typedef struct {
     uint32_t total_size;
     uint32_t server_size;
     int file_count;
+    uint32_t hash_total_size;
+    int hash_file_count;
     char server_hash[65];
 } TitleInfo;
 

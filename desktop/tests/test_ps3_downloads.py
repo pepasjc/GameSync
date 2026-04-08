@@ -3,6 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
+pytest.importorskip("PyQt6")
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication

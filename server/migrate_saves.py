@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""migrate_saves.py — one-shot migration script for the 3ds_sync save directory.
+"""migrate_saves.py — one-shot migration script for the GameSync save directory.
 
 What it does
 ============
@@ -13,7 +13,7 @@ What it does
 
 Usage
 =====
-    cd /path/to/3ds_sync/server
+    cd /path/to/GameSync/server
     python3 migrate_saves.py [--saves-dir PATH] [--dry-run]
 
 The script is idempotent: running it multiple times is safe.
@@ -243,7 +243,7 @@ def migrate(saves_dir: Path, dry_run: bool = False) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Migrate 3ds_sync save directory")
+    parser = argparse.ArgumentParser(description="Migrate GameSync save directory")
     parser.add_argument(
         "--saves-dir",
         default=str(Path(__file__).parent / "saves"),

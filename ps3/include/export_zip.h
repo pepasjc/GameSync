@@ -38,5 +38,8 @@ bool export_zip_hash_files_sha256(const char *zip_path,
                                   uint8_t hash_out[32],
                                   int *file_count_out,
                                   uint32_t *total_size_out);
+bool export_zip_comparable_stats(const char *zip_path,
+                                 int *file_count_out,
+                                 uint32_t *total_size_out);
 
 #endif /* PS3SYNC_EXPORT_ZIP_H */
