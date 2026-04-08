@@ -32,7 +32,7 @@ def _resolve_console_type(title: dict, typed: dict[str, tuple[str, str]]) -> str
 
 
 @router.get("/titles")
-async def list_titles(console_type: str | None = Query(default=None)):
+async def list_titles(console_type: list[str] | None = Query(default=None)):
     titles = storage.list_titles()
 
     # Keep PS3 listing hashes aligned with /meta and /sync by refreshing rows
@@ -92,10 +92,10 @@ async def list_titles(console_type: str | None = Query(default=None)):
                 title["console_type"] = console
 
     if console_type:
-        wanted = console_type.upper()
+        wanted = {value.upper() for value in console_type if value}
         titles = [
             title for title in titles
-            if (title.get("console_type") or "").upper() == wanted
+            if (title.get("console_type") or "").upper() in wanted
         ]
 
     return {"titles": titles}
