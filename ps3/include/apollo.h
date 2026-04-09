@@ -6,6 +6,7 @@
 bool apollo_is_ps3_save_dir(const char *name);
 SaveKind apollo_detect_save_kind(const char *game_code);
 bool apollo_is_ps1_vm1_file(const char *name);
+bool apollo_is_ps1_card_file(const char *name);
 bool apollo_extract_game_code(const char *save_dir_name, char *game_code_out, size_t out_size);
 bool apollo_extract_ps1_title_id(const char *vm1_name, char *title_id_out, size_t out_size);
 

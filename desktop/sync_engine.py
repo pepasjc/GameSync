@@ -58,6 +58,7 @@ SYSTEM_CODES = frozenset(
         "CPS1",
         "CPS2",
         "CPS3",
+        "FDS",
     }
 )
 
@@ -309,6 +310,8 @@ ROM_EXTENSIONS = {
     ".ngp",
     ".ngc",  # NGP
     ".nds",  # NDS
+    ".fds",  # Famicom Disk System
+    ".qd",   # Famicom Disk System Quick Disk
 }
 ZIP_ROM_EXTENSIONS = {".zip"}
 
@@ -481,6 +484,34 @@ def clear_scan_cache() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Filesystem helpers
+# ---------------------------------------------------------------------------
+
+
+def _safe_walk(folder: Path, recursive: bool = True) -> list[Path]:
+    """Return a sorted list of Paths under *folder*, skipping unreadable entries.
+
+    Uses os.walk so that a single corrupted directory entry (WinError 1392 etc.)
+    only skips that entry instead of crashing the whole scan.
+    """
+    results: list[Path] = []
+    if recursive:
+        for dirpath, dirnames, filenames in os.walk(folder, onerror=lambda _: None):
+            dp = Path(dirpath)
+            for name in filenames:
+                results.append(dp / name)
+            # also yield subdirectories so callers that check is_dir() still work
+            for name in dirnames:
+                results.append(dp / name)
+    else:
+        try:
+            for entry in os.scandir(folder):
+                results.append(Path(entry.path))
+        except OSError:
+            pass
+    return sorted(results)
+
+
 # Hash helpers
 # ---------------------------------------------------------------------------
 
@@ -774,7 +805,10 @@ def _profile_runtime_scope(profile: dict) -> str:
 
 
 def scan_profile(
-    profile: dict, progress_callback=None, enable_auto_normalize: bool = True
+    profile: dict,
+    progress_callback=None,
+    enable_auto_normalize: bool = True,
+    saves_only: bool = False,
 ) -> list[SaveFile]:
     """Walk a profile folder and return SaveFile entries for each save found.
 
@@ -858,6 +892,7 @@ def scan_profile(
             enable_auto_normalize=enable_auto_normalize,
             mirror_relative_path=True,
             profile_scope=profile_scope,
+            saves_only=saves_only,
         )
 
     elif device_type == "MiSTer":
@@ -885,6 +920,7 @@ def scan_profile(
                         progress_callback=progress_callback,
                         enable_auto_normalize=enable_auto_normalize,
                         profile_scope=profile_scope,
+                        saves_only=saves_only,
                     )
                 )
         else:
@@ -1018,6 +1054,7 @@ def scan_profile(
                     progress_callback=progress_callback,
                     enable_auto_normalize=enable_auto_normalize,
                     profile_scope=profile_scope,
+                    saves_only=saves_only,
                 )
             else:
                 results = _scan_flat(
@@ -1177,7 +1214,7 @@ def _scan_flat(
 ) -> list[SaveFile]:
     """Scan a folder of saves for a single system."""
     results = []
-    candidates = sorted(folder.rglob("*") if recursive else folder.iterdir())
+    candidates = _safe_walk(folder, recursive=recursive)
     total = len(candidates)
     for idx, f in enumerate(candidates, start=1):
         if f.is_file() and f.suffix.lower() in SAVE_EXTENSIONS:
@@ -1250,6 +1287,7 @@ def _scan_roms_match_saves(
     enable_auto_normalize: bool = True,
     mirror_relative_path: bool = False,
     profile_scope: str = "",
+    saves_only: bool = False,
 ) -> list[SaveFile]:
     """Scan ROMs in rom_folder and find/expect saves in save_folder.
 
@@ -1267,7 +1305,7 @@ def _scan_roms_match_saves(
     # mirrored layouts like Pocket single-system sub-roots preserve relative paths.
     save_index: dict[object, Path] = {}
     if save_folder.exists():
-        save_candidates = sorted(save_folder.rglob("*"))
+        save_candidates = _safe_walk(save_folder, recursive=True)
         save_total = len(save_candidates)
         for idx, f in enumerate(save_candidates, start=1):
             if not f.is_file():
@@ -1297,11 +1335,49 @@ def _scan_roms_match_saves(
                     save_total,
                 )
 
+    # Fast path: skip ROM walk entirely, return only saves that already exist.
+    # Used for the quick first-pass scan before the full ROM library walk.
+    if saves_only:
+        fast_results: list[SaveFile] = []
+        items = list(save_index.items())
+        total = len(items)
+        for idx, (stem, save_path) in enumerate(items, start=1):
+            try:
+                file_hash = _hash_file(save_path)
+                mtime = save_path.stat().st_mtime
+            except OSError:
+                continue
+            sf = _build_save_file(
+                system=system,
+                game_name=save_path.stem,
+                source_name=save_path.name,
+                path=save_path,
+                file_hash=file_hash,
+                mtime=mtime,
+                save_exists=True,
+                enable_auto_normalize=enable_auto_normalize,
+                match_name=save_path.stem,  # fuzzy lookup uses stem, not "name.sav"
+                profile_scope=profile_scope,
+            )
+            if idx == 1 or idx % 25 == 0 or idx == total:
+                _emit_progress(
+                    progress_callback,
+                    f"Indexing {system} saves… {idx}/{total}",
+                    idx,
+                    total,
+                )
+            fast_results.append(sf)
+        return _dedup_saves(fast_results)
+
     results: list[SaveFile] = []
-    candidates = sorted(rom_folder.rglob("*") if recursive else rom_folder.iterdir())
+    matched_save_paths: set[Path] = set()
+    candidates = _safe_walk(rom_folder, recursive=recursive)
     total = len(candidates)
     for idx, rom_file in enumerate(candidates, start=1):
-        if not rom_file.is_file():
+        try:
+            if not rom_file.is_file():
+                continue
+        except OSError:
             continue
         if (
             rom_file.suffix.lower() not in ROM_EXTENSIONS
@@ -1332,9 +1408,15 @@ def _scan_roms_match_saves(
             mtime = 0.0
             save_exists = False
         else:
-            file_hash = _hash_file(save_path)
-            mtime = save_path.stat().st_mtime
-            save_exists = True
+            matched_save_paths.add(save_path)
+            try:
+                file_hash = _hash_file(save_path)
+                mtime = save_path.stat().st_mtime
+                save_exists = True
+            except OSError:
+                file_hash = ""
+                mtime = 0.0
+                save_exists = False
 
         sf = _build_save_file(
             system=system,
@@ -1356,6 +1438,31 @@ def _scan_roms_match_saves(
             _emit_progress(
                 progress_callback, f"Scanning {system} ROMs… {idx}/{total}", idx, total
             )
+
+    # Include saves that exist in the save folder but have no matching ROM file.
+    # This handles saves for games whose ROM was removed from the card — they
+    # should still sync with the server rather than appear as server-only.
+    unmatched = [p for p in save_index.values() if p not in matched_save_paths]
+    for save_path in unmatched:
+        try:
+            file_hash = _hash_file(save_path)
+            mtime = save_path.stat().st_mtime
+        except OSError:
+            continue
+        sf = _build_save_file(
+            system=system,
+            game_name=save_path.stem,
+            source_name=save_path.name,
+            path=save_path,
+            file_hash=file_hash,
+            mtime=mtime,
+            save_exists=True,
+            enable_auto_normalize=enable_auto_normalize,
+            match_name=save_path.stem,
+            profile_scope=profile_scope,
+        )
+        results.append(sf)
+
     return _dedup_saves(results)
 
 
@@ -2297,6 +2404,11 @@ def _resolve_canonical_sync_name(
     This mirrors the ROM Normalizer matching pipeline, but does not rename any
     local files. The resolved canonical name is used only to decide which
     server slot the save belongs to.
+
+    CRC32 is intentionally skipped here — reading entire ROM files from a slow
+    device (USB flash, SD card) for every game makes the scan unbearably slow.
+    Fuzzy filename matching is fast (in-memory) and accurate enough for the
+    sync use case. The ROM Normalizer tab uses CRC when renaming files.
     """
     try:
         import rom_normalizer as rn
@@ -2322,47 +2434,7 @@ def _resolve_canonical_sync_name(
     confidence = "legacy"
     suffix = path.suffix.lower()
 
-    # 1. Exact ROM CRC32 match
-    if suffix in ROM_EXTENSIONS:
-        try:
-            crc = rn._crc32_file(path)
-        except Exception:
-            crc = ""
-        if crc:
-            canonical = no_intro.get(crc)
-            if canonical:
-                source, confidence = "crc", "high"
-                _set_cached_canonical_name(
-                    profile_scope,
-                    system,
-                    path,
-                    match_name,
-                    cache_tag,
-                    canonical,
-                    source,
-                    confidence,
-                )
-                return canonical, source, confidence
-    elif suffix in ZIP_ROM_EXTENSIONS:
-        infos = _iter_zip_rom_infos(path)
-        for info in infos:
-            crc = f"{info.CRC & 0xFFFFFFFF:08X}"
-            canonical = no_intro.get(crc)
-            if canonical:
-                source, confidence = "crc", "high"
-                _set_cached_canonical_name(
-                    profile_scope,
-                    system,
-                    path,
-                    match_name,
-                    cache_tag,
-                    canonical,
-                    source,
-                    confidence,
-                )
-                return canonical, source, confidence
-
-    # 2. Fuzzy filename lookup
+    # Fuzzy filename lookup (in-memory — no file I/O)
     canonical = rn.fuzzy_filename_search(lookup_name, name_index)
     if canonical:
         region_hint = rn.extract_region_hint(lookup_name) or rn.extract_region_hint(

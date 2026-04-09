@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 static bool is_ps1_prefix(const char *value) {
     static const char *const prefixes[] = {
@@ -68,6 +69,29 @@ bool apollo_is_ps1_vm1_file(const char *name) {
         && ascii_upper(name[len - 1]) == '1';
 }
 
+bool apollo_is_ps1_card_file(const char *name) {
+    static const char *const exts[] = {
+        ".VMP", ".MCR", ".GME", ".VM1", ".MCD", ".VGS", ".VMC", ".BIN", ".SRM"
+    };
+    size_t len;
+
+    if (!name) {
+        return false;
+    }
+
+    len = strlen(name);
+    for (size_t i = 0; i < sizeof(exts) / sizeof(exts[0]); i++) {
+        size_t ext_len = strlen(exts[i]);
+        if (len < ext_len) {
+            continue;
+        }
+        if (strcasecmp(name + len - ext_len, exts[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 SaveKind apollo_detect_save_kind(const char *game_code) {
     int num;
     if (!game_code || strlen(game_code) < 9) return SAVE_KIND_PS3;
@@ -126,7 +150,7 @@ bool apollo_extract_ps1_title_id(const char *vm1_name, char *title_id_out, size_
     size_t len;
     size_t pos;
 
-    if (!vm1_name || !title_id_out || out_size < 10 || !apollo_is_ps1_vm1_file(vm1_name)) {
+    if (!vm1_name || !title_id_out || out_size < 10 || !apollo_is_ps1_card_file(vm1_name)) {
         return false;
     }
 

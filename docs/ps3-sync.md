@@ -39,6 +39,7 @@ Supported, but not part of auto-sync yet:
 - scan PS1 memory card images
 - manual per-save sync remains available
 - `R3` batch sync skips PS1 titles on purpose for now
+- manual sync uses the dedicated PS1 raw-card server endpoints
 
 ## Save Identity
 
@@ -185,6 +186,12 @@ Apollo-related assumptions that remain useful here:
 - PS3 HDD saves live under `/dev_hdd0/home/<user>/savedata/`
 - PS1 cards may exist in Apollo-managed locations
 - exported saves and USB saves are useful as auxiliary sources
+
+For PS1 specifically:
+
+- Apollo-style `.VM1` cards are treated as raw local card images for sync
+- GameSync compares raw card bytes instead of PSP/Vita-visible container files
+- manual PS1 upload/download goes through `/api/v1/saves/{title_id}/ps1-card?slot=0`
 
 GameSync itself owns:
 

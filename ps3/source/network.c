@@ -42,6 +42,10 @@
 /* Maximum response body size for bundle downloads (8 MB) */
 #define HTTP_RESP_SIZE  (8 * 1024 * 1024)
 
+#define WEBMAN_HOST             "127.0.0.1"
+#define WEBMAN_PORT             80
+#define WEBMAN_FAKE_USB_PATH    "/dev_hdd0/tmp/fakeusb"
+
 static bool         g_initialized  = false;
 static NetProgressFn g_progress_cb = NULL;
 
@@ -303,6 +307,92 @@ static int http_request(const SyncState *state,
     return total;
 }
 
+static bool http_local_get(const char *host, int port, const char *path, int *status_out) {
+    int s;
+    char line[512];
+    char hdr[512];
+    int hlen;
+    int status = 0;
+
+    s = tcp_connect(host, port);
+    if (s < 0) {
+        debug_log("webman: connect failed for %s:%d", host, port);
+        return false;
+    }
+
+    hlen = snprintf(hdr, sizeof(hdr),
+        "GET %s HTTP/1.0\r\n"
+        "Host: %s:%d\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        path, host, port);
+    if (!send_all(s, (const uint8_t *)hdr, (uint32_t)hlen)) {
+        debug_log("webman: send failed for %s", path);
+        NET_CLOSE(s);
+        return false;
+    }
+
+    read_line(s, line, sizeof(line));
+    if (line[0]) {
+        const char *sp = strchr(line, ' ');
+        if (sp) {
+            status = atoi(sp + 1);
+        }
+    }
+    if (status_out) {
+        *status_out = status;
+    }
+    debug_log("webman: GET %s -> HTTP %d", path, status);
+
+    while (read_line(s, line, sizeof(line)) > 0) {
+    }
+
+    while (recv(s, line, sizeof(line), 0) > 0) {
+    }
+
+    NET_CLOSE(s);
+    return status >= 200 && status < 400;
+}
+
+bool network_activate_fake_usb(void) {
+    bool remap_ok;
+    bool eject_ok;
+    bool insert_ok;
+
+    remap_ok = http_local_get(
+        WEBMAN_HOST,
+        WEBMAN_PORT,
+        "/remap.ps3?src=/dev_usb000&to=" WEBMAN_FAKE_USB_PATH,
+        NULL
+    );
+    if (!remap_ok) {
+        debug_log("webman: fake usb remap unavailable");
+        return false;
+    }
+
+    eject_ok = http_local_get(
+        WEBMAN_HOST,
+        WEBMAN_PORT,
+        "/xmb.ps3$eject/dev_usb000",
+        NULL
+    );
+    if (!eject_ok) {
+        debug_log("webman: fake usb eject failed (continuing)");
+    }
+
+    insert_ok = http_local_get(
+        WEBMAN_HOST,
+        WEBMAN_PORT,
+        "/xmb.ps3$insert/dev_usb000",
+        NULL
+    );
+    if (!insert_ok) {
+        debug_log("webman: fake usb insert failed");
+    }
+
+    return remap_ok && insert_ok;
+}
+
 /* ---- JSON helpers ---- */
 
 static void parse_json_str(const char *json, const char *key,
@@ -420,11 +510,27 @@ bool network_check_server(const SyncState *state) {
     return r >= 0 && status == 200;
 }
 
-int network_get_save_info(const SyncState *state, const char *title_id,
+static bool title_uses_ps1_card_api(const TitleInfo *title) {
+    return title &&
+           (title->kind == SAVE_KIND_PS1 || title->kind == SAVE_KIND_PS1_VM1);
+}
+
+int network_get_save_info(const SyncState *state, const TitleInfo *title,
                            char *hash_out, uint32_t *size_out,
                            char *last_sync_out) {
     char path[256];
-    snprintf(path, sizeof(path), "/api/v1/saves/%s/meta", title_id);
+    const char *title_id;
+
+    if (!title) {
+        return -1;
+    }
+
+    title_id = title->title_id;
+    if (title_uses_ps1_card_api(title)) {
+        snprintf(path, sizeof(path), "/api/v1/saves/%s/ps1-card/meta?slot=0", title_id);
+    } else {
+        snprintf(path, sizeof(path), "/api/v1/saves/%s/meta", title_id);
+    }
 
     static uint8_t resp[1024];
     int status = 0;
@@ -442,6 +548,9 @@ int network_get_save_info(const SyncState *state, const char *title_id,
     if (last_sync_out) {
         last_sync_out[0] = '\0';
         parse_json_str(json, "last_sync", last_sync_out, 32);
+        if (!last_sync_out[0]) {
+            parse_json_str(json, "server_timestamp", last_sync_out, 32);
+        }
     }
     return 0;
 }
@@ -487,12 +596,49 @@ int network_upload_save(const SyncState *state, const char *title_id,
     return (status == 200) ? 0 : (status > 0 ? status : -1);
 }
 
+int network_upload_ps1_card(const SyncState *state, const TitleInfo *title,
+                            const uint8_t *card_data, uint32_t card_size) {
+    char path[256];
+
+    if (!title || !card_data) {
+        return -1;
+    }
+
+    snprintf(path, sizeof(path), "/api/v1/saves/%s/ps1-card?slot=0",
+             title->title_id);
+
+    static uint8_t resp[512];
+    int status = 0;
+    http_request(state, "POST", path,
+                 "application/octet-stream", card_data, card_size,
+                 resp, sizeof(resp), &status);
+    return (status == 200) ? 0 : (status > 0 ? status : -1);
+}
+
 int network_download_save(const SyncState *state, const char *title_id,
                            uint8_t *out, uint32_t out_size) {
     char path[256];
     snprintf(path, sizeof(path), "/api/v1/saves/%s", title_id);
 
     int status = 0;
+    int r = http_request(state, "GET", path,
+                         NULL, NULL, 0, out, out_size, &status);
+    if (status != 200) return (status > 0) ? -status : -1;
+    return r;
+}
+
+int network_download_ps1_card(const SyncState *state, const TitleInfo *title,
+                              uint8_t *out, uint32_t out_size) {
+    char path[256];
+    int status = 0;
+
+    if (!title || !out) {
+        return -1;
+    }
+
+    snprintf(path, sizeof(path), "/api/v1/saves/%s/ps1-card?slot=0",
+             title->title_id);
+
     int r = http_request(state, "GET", path,
                          NULL, NULL, 0, out, out_size, &status);
     if (status != 200) return (status > 0) ? -status : -1;
@@ -556,15 +702,20 @@ static void format_slot_name(const TitleInfo *title, const char *base_name,
 void network_merge_server_titles(SyncState *state) {
     if (!state) return;
 
-    static uint8_t resp[256 * 1024];
+    /* Full libraries can exceed 256 KiB once multiple systems are stored.
+       Keep this comfortably above the current desktop-visible payload size
+       so late entries (like PS1 server-only saves) are not truncated. */
+    static uint8_t resp[512 * 1024];
     int status = 0;
-    int r = http_request(state, "GET", "/api/v1/titles",
+    int r = http_request(state, "GET", "/api/v1/titles?console_type=PS3&console_type=PS1",
                          NULL, NULL, 0, resp, sizeof(resp) - 1, &status);
     if (r <= 0 || status != 200) return;
     resp[r] = '\0';
 
     const char *p = (const char *)resp;
     while ((p = strstr(p, "\"title_id\"")) != NULL) {
+        const char *obj_start = p;
+        const char *obj_end;
         p = strchr(p, ':');
         if (!p) break;
         p++;
@@ -573,41 +724,94 @@ void network_merge_server_titles(SyncState *state) {
         p++;
 
         char server_id[GAME_ID_LEN];
+        char effective_id[GAME_ID_LEN];
+        char retail_serial[GAME_ID_LEN];
         int len = 0;
         while (*p && *p != '"' && len < GAME_ID_LEN - 1)
             server_id[len++] = *p++;
         server_id[len] = '\0';
+        strncpy(effective_id, server_id, sizeof(effective_id) - 1);
+        effective_id[sizeof(effective_id) - 1] = '\0';
+        retail_serial[0] = '\0';
 
-        if (!saves_is_relevant_game_code(server_id)) continue;
+        obj_end = strchr(obj_start, '}');
+        if (obj_end) {
+            const char *rp = strstr(obj_start, "\"retail_serial\"");
+            if (rp && rp < obj_end) {
+                rp = strchr(rp, ':');
+                if (rp) {
+                    rp++;
+                    while (*rp == ' ' || *rp == '\t') rp++;
+                    if (*rp == '"') {
+                        int rlen = 0;
+                        rp++;
+                        while (*rp && *rp != '"' && rlen < GAME_ID_LEN - 1)
+                            retail_serial[rlen++] = *rp++;
+                        retail_serial[rlen] = '\0';
+                    }
+                }
+            }
+        }
+        if (retail_serial[0]) {
+            strncpy(effective_id, retail_serial, sizeof(effective_id) - 1);
+            effective_id[sizeof(effective_id) - 1] = '\0';
+        }
+
+        debug_log("server merge: title_id=%s effective_id=%s retail_serial=%s",
+                  server_id,
+                  effective_id,
+                  retail_serial[0] ? retail_serial : "(none)");
+        if (!saves_is_relevant_game_code(effective_id)) {
+            debug_log("server merge: skip title_id=%s effective_id=%s reason=not_relevant_game_code",
+                      server_id, effective_id);
+            continue;
+        }
 
         /* If a local title matches exactly, or the server only has a legacy
            bare 9-char product-code entry for this save, just flag it as
            present on the server — don't create a duplicate entry. */
-        int existing = find_local_title(state, server_id);
+        int existing = find_local_title(state, effective_id);
         if (existing >= 0) {
             state->titles[existing].on_server = true;
+            debug_log("server merge: matched existing title_id=%s local_index=%d local_path=%s",
+                      effective_id, existing, state->titles[existing].local_path);
             continue;
         }
 
-        if (state->num_titles >= MAX_TITLES) break;
+        if (state->num_titles >= MAX_TITLES) {
+            debug_log("server merge: stop reason=max_titles");
+            break;
+        }
 
         TitleInfo *t = &state->titles[state->num_titles++];
         memset(t, 0, sizeof(*t));
         /* Store the full server title_id but extract 9-char game_code for lookup */
-        strncpy(t->title_id,  server_id, sizeof(t->title_id)  - 1);
-        apollo_extract_game_code(server_id, t->game_code, sizeof(t->game_code));
+        strncpy(t->title_id,  effective_id, sizeof(t->title_id)  - 1);
+        apollo_extract_game_code(effective_id, t->game_code, sizeof(t->game_code));
         if (t->game_code[0] == '\0')
-            strncpy(t->game_code, server_id, sizeof(t->game_code) - 1);
+            strncpy(t->game_code, effective_id, sizeof(t->game_code) - 1);
         strncpy(t->name, t->game_code, sizeof(t->name) - 1);
         t->kind        = apollo_detect_save_kind(t->game_code);
+        if (t->kind == SAVE_KIND_PS1) {
+            char vmc_root[PATH_LEN];
+            t->kind = SAVE_KIND_PS1_VM1;
+            apollo_get_ps1_vmc_root(vmc_root, sizeof(vmc_root));
+            snprintf(t->local_path, sizeof(t->local_path), "%s/%s.VM1",
+                     vmc_root, effective_id);
+            debug_log("server merge: added ps1 server_only title_id=%s local_path=%s",
+                      t->title_id, t->local_path);
+        } else {
+            /* Set download destination using the detected savedata root */
+            snprintf(t->local_path, sizeof(t->local_path), "%s/%s",
+                     state->savedata_root[0] ? state->savedata_root
+                                             : "/dev_hdd0/home/00000001/savedata",
+                     effective_id);
+            debug_log("server merge: added title_id=%s kind=%d local_path=%s",
+                      t->title_id, (int)t->kind, t->local_path);
+        }
         t->server_only = true;
         t->on_server   = true;
         t->status      = TITLE_STATUS_SERVER_ONLY;
-        /* Set download destination using the detected savedata root */
-        snprintf(t->local_path, sizeof(t->local_path), "%s/%s",
-                 state->savedata_root[0] ? state->savedata_root
-                                         : "/dev_hdd0/home/00000001/savedata",
-                 server_id);
     }
 
     /* Set initial status for all titles based on local/server presence */
@@ -618,6 +822,7 @@ void network_merge_server_titles(SyncState *state) {
                                      : TITLE_STATUS_LOCAL_ONLY;
         }
     }
+    debug_log("server merge: done total_titles=%d", state->num_titles);
 }
 
 /* ---- Fetch game names ---- */
@@ -695,7 +900,9 @@ int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
     /* Count titles with computed hashes */
     int count = 0;
     for (int i = 0; i < state->num_titles; i++)
-        if (!state->titles[i].server_only && state->titles[i].hash_calculated) count++;
+        if (!state->titles[i].server_only &&
+            state->titles[i].hash_calculated &&
+            state->titles[i].kind == SAVE_KIND_PS3) count++;
     if (count == 0) return 0;
 
     int json_cap = 64 + count * 260;
@@ -707,7 +914,7 @@ int network_get_sync_plan(const SyncState *state, NetworkSyncPlan *plan) {
     bool first = true;
     for (int i = 0; i < state->num_titles; i++) {
         const TitleInfo *t = &state->titles[i];
-        if (t->server_only || !t->hash_calculated) continue;
+        if (t->server_only || !t->hash_calculated || t->kind != SAVE_KIND_PS3) continue;
 
         char hash_hex[65];
         for (int j = 0; j < 32; j++)

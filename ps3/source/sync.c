@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <dirent.h>
 #include <sys/stat.h>
 
 #define SYNC_ERR_HASH     (-2)
@@ -34,6 +35,97 @@
 #define SYNC_ERR_EXTRACT  (-5)
 #define SYNC_ERR_EXPORT   (-6)
 #define SYNC_ERR_NEEDS_LOCAL_SLOT (-7)
+
+#define FAKE_USB_ROOT          "/dev_hdd0/tmp/fakeusb"
+#define FAKE_USB_PS3_SAVEDATA  FAKE_USB_ROOT "/PS3/SAVEDATA"
+
+static void remove_tree(const char *path) {
+    DIR *dir;
+    struct dirent *ent;
+
+    if (!path || !path[0]) {
+        return;
+    }
+
+    dir = opendir(path);
+    if (!dir) {
+        remove(path);
+        return;
+    }
+
+    while ((ent = readdir(dir)) != NULL) {
+        char child[PATH_LEN];
+        struct stat st;
+
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
+            continue;
+        }
+
+        snprintf(child, sizeof(child), "%s/%s", path, ent->d_name);
+        if (stat(child, &st) != 0) {
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            remove_tree(child);
+        } else {
+            remove(child);
+        }
+    }
+
+    closedir(dir);
+    rmdir(path);
+}
+
+static void ensure_dir_tree(const char *path) {
+    char tmp[PATH_LEN];
+    size_t len;
+
+    if (!path || !path[0]) {
+        return;
+    }
+
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    len = strlen(tmp);
+    for (size_t i = 1; i < len; i++) {
+        if (tmp[i] != '/') {
+            continue;
+        }
+        tmp[i] = '\0';
+        mkdir(tmp, 0700);
+        tmp[i] = '/';
+    }
+    mkdir(tmp, 0700);
+}
+
+static int stage_server_only_ps3_to_fake_usb(const TitleInfo *title, Bundle *bundle) {
+    TitleInfo fake_title;
+    char stage_path[PATH_LEN];
+    struct stat st;
+
+    if (!title || !bundle) {
+        return SYNC_ERR_EXTRACT;
+    }
+
+    ensure_dir_tree(FAKE_USB_PS3_SAVEDATA);
+
+    snprintf(stage_path, sizeof(stage_path), "%s/%s", FAKE_USB_PS3_SAVEDATA, title->title_id);
+    if (stat(stage_path, &st) == 0 && S_ISDIR(st.st_mode)) {
+        remove_tree(stage_path);
+    }
+
+    memset(&fake_title, 0, sizeof(fake_title));
+    memcpy(&fake_title, title, sizeof(fake_title));
+    snprintf(fake_title.local_path, sizeof(fake_title.local_path), "%s", stage_path);
+    fake_title.server_only = false;
+
+    if (bundle_extract(bundle, &fake_title) < 0) {
+        return SYNC_ERR_EXTRACT;
+    }
+
+    saves_normalize_permissions(fake_title.local_path);
+    return 0;
+}
 
 /* Refresh file_count / total_size after a successful download */
 static void refresh_local_stats(TitleInfo *title) {
@@ -82,6 +174,69 @@ static bool should_auto_sync_title(const TitleInfo *title) {
     return title->kind == SAVE_KIND_PS3;
 }
 
+static bool is_ps1_card_title(const TitleInfo *title) {
+    return title &&
+           (title->kind == SAVE_KIND_PS1 || title->kind == SAVE_KIND_PS1_VM1);
+}
+
+static void refresh_non_ps3_status(TitleInfo *title, const SyncState *state) {
+    char local_hash[65];
+    char server_hash[65] = "";
+    char last_hash[65] = "";
+    uint32_t server_size = 0;
+    int r;
+
+    if (!title || !is_ps1_card_title(title)) {
+        return;
+    }
+
+    if (title->server_only) {
+        title->status = TITLE_STATUS_SERVER_ONLY;
+        return;
+    }
+
+    r = network_get_save_info(state, title, server_hash, &server_size, NULL);
+    if (r == 1) {
+        title->on_server = false;
+        title->status = TITLE_STATUS_LOCAL_ONLY;
+        title->server_hash[0] = '\0';
+        title->server_size = 0;
+        return;
+    }
+    if (r < 0) {
+        title->status = title->on_server ? TITLE_STATUS_UNKNOWN : TITLE_STATUS_LOCAL_ONLY;
+        return;
+    }
+
+    title->on_server = true;
+    title->server_size = server_size;
+    strncpy(title->server_hash, server_hash, sizeof(title->server_hash) - 1);
+    title->server_hash[sizeof(title->server_hash) - 1] = '\0';
+
+    if (!title->hash_calculated) {
+        title->status = TITLE_STATUS_UNKNOWN;
+        return;
+    }
+
+    hash_to_hex(title->hash, local_hash);
+    if (strcmp(local_hash, server_hash) == 0) {
+        title->status = TITLE_STATUS_SYNCED;
+        return;
+    }
+
+    if (state_get_last_hash(title->title_id, last_hash)) {
+        if (strcmp(last_hash, server_hash) == 0) {
+            title->status = TITLE_STATUS_UPLOAD;
+        } else if (strcmp(last_hash, local_hash) == 0) {
+            title->status = TITLE_STATUS_DOWNLOAD;
+        } else {
+            title->status = TITLE_STATUS_CONFLICT;
+        }
+    } else {
+        title->status = TITLE_STATUS_DOWNLOAD;
+    }
+}
+
 /* ---- sync_decide ---- */
 
 SyncAction sync_decide(const SyncState *state, int title_idx) {
@@ -108,7 +263,7 @@ SyncAction sync_decide(const SyncState *state, int title_idx) {
     /* Query server */
     char server_hash[65] = "";
     uint32_t server_size = 0;
-    int r = network_get_save_info(state, title->title_id,
+    int r = network_get_save_info(state, title,
                                   server_hash, &server_size, NULL);
     debug_log("  get_save_info -> %d  server_hash=%s", r, server_hash);
 
@@ -163,16 +318,61 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
         return SYNC_ERR_NETWORK;
     }
 
-    if (action == SYNC_DOWNLOAD &&
-        title->kind == SAVE_KIND_PS3 &&
-        title->server_only) {
-        debug_log("sync_execute: blocking server-only PS3 download for %s until a local save exists",
-                  title->title_id);
-        return SYNC_ERR_NEEDS_LOCAL_SLOT;
-    }
-
     if (action == SYNC_UPLOAD) {
         if (title->server_only) return SYNC_ERR_HASH;
+
+        if (is_ps1_card_title(title)) {
+            struct stat st;
+            uint32_t card_size;
+            uint8_t *card_data;
+
+            if (stat(title->local_path, &st) != 0 || !S_ISREG(st.st_mode)) {
+                return SYNC_ERR_EXPORT;
+            }
+
+            if (!title->hash_calculated) {
+                ui_status("Hashing local save: %s", title->game_code);
+                if (saves_compute_hash(title) < 0) {
+                    return SYNC_ERR_HASH;
+                }
+                pump_callbacks();
+            }
+
+            if (st.st_size < 0) {
+                return SYNC_ERR_EXPORT;
+            }
+            card_size = (uint32_t)st.st_size;
+            card_data = (uint8_t *)malloc(card_size > 0 ? card_size : 1);
+            if (!card_data) {
+                return SYNC_ERR_NETWORK;
+            }
+
+            if (saves_read_file(title, "", card_data, card_size) < 0) {
+                free(card_data);
+                return SYNC_ERR_EXPORT;
+            }
+
+            ui_status("Uploading PS1 card: %s", title->game_code);
+            int nr = network_upload_ps1_card(state, title, card_data, card_size);
+            free(card_data);
+
+            if (nr == 0) {
+                char hx[65];
+                hash_to_hex(title->hash, hx);
+                state_set_last_hash(title->title_id, hx);
+                title->status = TITLE_STATUS_SYNCED;
+                title->on_server = true;
+                strncpy(title->server_hash, hx, sizeof(title->server_hash) - 1);
+                title->server_hash[sizeof(title->server_hash) - 1] = '\0';
+                title->server_size = card_size;
+                result = 0;
+            } else {
+                result = SYNC_ERR_NETWORK;
+            }
+
+            debug_log("sync_execute result -> %d", result);
+            return result;
+        }
 
         /* For PS3 HDD saves without an export zip, try on-console decryption.
          * This decrypts the save files to a temp directory and sets upload_path
@@ -282,6 +482,47 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
         }
 
     } else if (action == SYNC_DOWNLOAD) {
+        if (is_ps1_card_title(title)) {
+            uint8_t *resp;
+            int nr;
+
+            resp = (uint8_t *)malloc(256 * 1024);
+            if (!resp) return SYNC_ERR_NETWORK;
+
+            ui_status("Downloading PS1 card: %s", title->game_code);
+            nr = network_download_ps1_card(state, title, resp, 256 * 1024);
+            if (nr <= 0) {
+                free(resp);
+                return SYNC_ERR_NETWORK;
+            }
+
+            if (saves_write_file(title, "", resp, (uint32_t)nr) < 0) {
+                free(resp);
+                return SYNC_ERR_EXTRACT;
+            }
+            free(resp);
+
+            title->server_only = false;
+            title->on_server = true;
+            refresh_local_stats(title);
+            title->hash_calculated = false;
+            ui_status("Hashing extracted save: %s", title->game_code);
+            saves_compute_hash(title);
+            pump_callbacks();
+            if (title->hash_calculated) {
+                char hx[65];
+                hash_to_hex(title->hash, hx);
+                state_set_last_hash(title->title_id, hx);
+                strncpy(title->server_hash, hx, sizeof(title->server_hash) - 1);
+                title->server_hash[sizeof(title->server_hash) - 1] = '\0';
+            }
+            title->server_size = (uint32_t)nr;
+            title->status = TITLE_STATUS_SYNCED;
+            result = 0;
+            debug_log("sync_execute result -> %d", result);
+            return result;
+        }
+
         uint8_t *resp = (uint8_t *)malloc(8 * 1024 * 1024);
         if (!resp) return SYNC_ERR_NETWORK;
 
@@ -358,7 +599,7 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
             ui_status("Finished extracting files: %s", title->game_code);
             pump_callbacks();
 
-            if (title->kind == SAVE_KIND_PS3) {
+            if (title->kind == SAVE_KIND_PS3 && !title->server_only) {
                 if (local_save_exists) {
                     /* RPCS3 -> PS3: re-encrypt data files using the existing
                      * keys from PARAM.PFD (same key, new content), then just
@@ -396,23 +637,31 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
                 debug_dump_savedata_permissions(state->savedata_root, title->local_path);
             }
 
-            title->server_only = false;
-            title->on_server   = true;
-            refresh_local_stats(title);
-            pump_callbacks();
-            title->hash_calculated = false;
-            ui_status("Hashing extracted save: %s", title->game_code);
-            saves_compute_hash(title);
-            pump_callbacks();
-            if (title->hash_calculated) {
-                ui_status("Saving sync state: %s", title->game_code);
-                char hx[65]; hash_to_hex(title->hash, hx);
-                state_set_last_hash(title->title_id, hx);
-                ui_status("Finished sync state: %s", title->game_code);
+            if (title->kind == SAVE_KIND_PS3 && title->server_only) {
+                result = stage_server_only_ps3_to_fake_usb(title, bundle);
+                if (result == 0) {
+                    title->status = TITLE_STATUS_SERVER_ONLY;
+                    ui_status("Staged to Fake USB: %s", title->game_code);
+                }
+            } else {
+                title->server_only = false;
+                title->on_server   = true;
+                refresh_local_stats(title);
+                pump_callbacks();
+                title->hash_calculated = false;
+                ui_status("Hashing extracted save: %s", title->game_code);
+                saves_compute_hash(title);
+                pump_callbacks();
+                if (title->hash_calculated) {
+                    ui_status("Saving sync state: %s", title->game_code);
+                    char hx[65]; hash_to_hex(title->hash, hx);
+                    state_set_last_hash(title->title_id, hx);
+                    ui_status("Finished sync state: %s", title->game_code);
+                }
+                title->status = TITLE_STATUS_SYNCED;
+                ui_status("Download complete: %s", title->game_code);
+                result = 0;
             }
-            title->status = TITLE_STATUS_SYNCED;
-            ui_status("Download complete: %s", title->game_code);
-            result = 0;
         } else {
             result = SYNC_ERR_EXTRACT;
         }
@@ -466,7 +715,6 @@ void sync_refresh_statuses(SyncState *state, SyncProgressFn progress) {
                       t->title_id);
             continue;
         }
-
         char cached[65];
         int cache_file_count = t->file_count;
         uint32_t cache_total_size = t->total_size;
@@ -493,6 +741,9 @@ void sync_refresh_statuses(SyncState *state, SyncProgressFn progress) {
     }
     if (network_get_sync_plan(state, &plan) != 0) {
         debug_log("sync_refresh_statuses: get_sync_plan failed");
+        for (int i = 0; i < state->num_titles; i++) {
+            refresh_non_ps3_status(&state->titles[i], state);
+        }
         return;
     }
 
@@ -527,6 +778,10 @@ void sync_refresh_statuses(SyncState *state, SyncProgressFn progress) {
             }
         }
     }
+
+    for (int i = 0; i < state->num_titles; i++) {
+        refresh_non_ps3_status(&state->titles[i], state);
+    }
 }
 
 /* ---- sync_auto_all ---- */
@@ -553,7 +808,6 @@ void sync_auto_all(SyncState *state, SyncSummary *summary,
                       t->title_id);
             continue;
         }
-
         char cached[65];
         int cache_file_count = t->file_count;
         uint32_t cache_total_size = t->total_size;

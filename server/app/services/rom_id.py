@@ -23,6 +23,8 @@ SYSTEM_CODES = frozenset(
         "N64",
         "GC",
         "WII",
+        "FDS",
+        "N64DD",
         # Sony
         "PS1",
         "PS2",
@@ -43,6 +45,7 @@ SYSTEM_CODES = frozenset(
         "NEOCD",
         # NEC
         "PCE",
+        "PCECD",
         "TG16",
         # Bandai
         "WS",

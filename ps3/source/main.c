@@ -13,6 +13,7 @@
  *   R3               Sync all saves automatically (skip conflicts)
  *   L3               Hash selected save now
  *   Circle  (○)      Rescan + rehash saves
+ *   Start            Open config editor
  *   PS/Home          Exit
  */
 
@@ -54,6 +55,7 @@
 #define MASK_R2       (1U << 11)
 #define MASK_R1       (1U << 12)
 #define MASK_R3       (1U << 13)
+#define MASK_START    (1U << 14)
 
 /* MAX_PADS is already defined in <io/pad.h> as 127; we use a smaller cap */
 #define PAD_COUNT    7
@@ -82,6 +84,7 @@ static unsigned int read_buttons(void) {
         if (paddata.BTN_L2)       btns |= MASK_L2;
         if (paddata.BTN_R2)       btns |= MASK_R2;
         if (paddata.BTN_R3)       btns |= MASK_R3;
+        if (paddata.BTN_START)    btns |= MASK_START;
         break;  /* first connected pad only */
     }
     return btns;
@@ -127,12 +130,21 @@ static void sysutil_cb(u64 status, u64 param, void *userdata) {
 static int g_visible[MAX_TITLES];
 static int g_visible_count = 0;
 static bool g_show_server_only = true;
+static void sync_progress_cb(const char *msg);
 
 typedef struct {
     char path[MAX_FILE_LEN];
     uint32_t size;
     char hash_hex[65];
 } FileManifestEntry;
+
+typedef struct {
+    char server_url[256];
+    char api_key[128];
+    int selected_user;
+    bool scan_ps3;
+    bool scan_ps1;
+} ConfigDraft;
 
 static int find_manifest_entry(const FileManifestEntry *entries, int count, const char *path) {
     for (int i = 0; i < count; i++) {
@@ -141,6 +153,43 @@ static int find_manifest_entry(const FileManifestEntry *entries, int count, cons
         }
     }
     return -1;
+}
+
+static void show_fake_usb_stage_result(const TitleInfo *title) {
+    bool activated;
+
+    if (!title) {
+        return;
+    }
+
+    activated = network_activate_fake_usb();
+    if (activated) {
+        ui_message(
+            "Staged to Fake USB: %s\n\n"
+            "webMAN refreshed dev_usb000.\n"
+            "Open XMB Saved Data Utility and copy it from the Fake USB view.",
+            title->game_code
+        );
+    } else {
+        ui_message(
+            "Staged to Fake USB: %s\n\n"
+            "webMAN auto-refresh was not available.\n"
+            "If the Fake USB view does not appear, refresh it manually and then continue from XMB.",
+            title->game_code
+        );
+    }
+}
+
+static void show_ps1_download_result(const TitleInfo *title) {
+    if (!title) {
+        return;
+    }
+
+    ui_message(
+        "PS1 card downloaded: %s\n\n"
+        "If the PS3 does not recognize the updated card immediately, run Rebuild Database.",
+        title->game_code
+    );
 }
 
 static int parse_manifest_text(char *text, FileManifestEntry *entries, int max_entries) {
@@ -186,6 +235,272 @@ static int parse_manifest_text(char *text, FileManifestEntry *entries, int max_e
     }
 
     return count;
+}
+
+static void config_draft_from_state(ConfigDraft *draft, const SyncState *state) {
+    if (!draft || !state) {
+        return;
+    }
+    memset(draft, 0, sizeof(*draft));
+    strncpy(draft->server_url, state->server_url, sizeof(draft->server_url) - 1);
+    strncpy(draft->api_key, state->api_key, sizeof(draft->api_key) - 1);
+    draft->selected_user = state->selected_user;
+    draft->scan_ps3 = state->scan_ps3;
+    draft->scan_ps1 = state->scan_ps1;
+}
+
+static void config_draft_apply(SyncState *state, const ConfigDraft *draft) {
+    if (!state || !draft) {
+        return;
+    }
+
+    strncpy(state->server_url, draft->server_url, sizeof(state->server_url) - 1);
+    state->server_url[sizeof(state->server_url) - 1] = '\0';
+    strncpy(state->api_key, draft->api_key, sizeof(state->api_key) - 1);
+    state->api_key[sizeof(state->api_key) - 1] = '\0';
+    state->selected_user = draft->selected_user;
+    state->scan_ps3 = draft->scan_ps3;
+    state->scan_ps1 = draft->scan_ps1;
+
+    if (state->selected_user > 0) {
+        snprintf(state->ps3_user, sizeof(state->ps3_user),
+                 "%08d", state->selected_user);
+    } else {
+        strncpy(state->ps3_user, "00000001", sizeof(state->ps3_user) - 1);
+        state->ps3_user[sizeof(state->ps3_user) - 1] = '\0';
+    }
+    config_load_console_id(state);
+}
+
+static const char *text_editor_charset(void) {
+    return " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/._-?&=%+[]()@,";
+}
+
+static int charset_index_for_char(char c) {
+    const char *charset = text_editor_charset();
+    const char *p = strchr(charset, c);
+    return p ? (int)(p - charset) : 0;
+}
+
+static bool run_text_editor(const char *label, char *value, size_t value_size) {
+    unsigned int prev_buttons = 0;
+    int cursor = 0;
+    char original[256];
+    const char *charset = text_editor_charset();
+    int charset_len = (int)strlen(charset);
+
+    if (!value || value_size == 0) {
+        return false;
+    }
+
+    strncpy(original, value, sizeof(original) - 1);
+    original[sizeof(original) - 1] = '\0';
+    cursor = (int)strlen(value);
+
+    while (1) {
+        unsigned int btns;
+        unsigned int just;
+        int len;
+
+        SDL_PumpEvents();
+        sysUtilCheckCallback();
+        if (g_exit_requested || ui_exit_requested()) {
+            return false;
+        }
+        if (ui_menu_open()) {
+            usleep(50000);
+            continue;
+        }
+
+        ui_draw_text_editor(label, value, cursor);
+
+        btns = read_buttons();
+        just = btns & ~prev_buttons;
+        prev_buttons = btns;
+        len = (int)strlen(value);
+
+        if (just & MASK_LEFT) {
+            if (cursor > 0) cursor--;
+        }
+        if (just & MASK_RIGHT) {
+            if (cursor < len) cursor++;
+        }
+        if (just & MASK_UP) {
+            int idx;
+            if (cursor >= len) {
+                if ((size_t)len + 1 < value_size) {
+                    value[len] = ' ';
+                    value[len + 1] = '\0';
+                    len++;
+                } else {
+                    usleep(50000);
+                    continue;
+                }
+            }
+            idx = charset_index_for_char(value[cursor]);
+            idx = (idx + 1) % charset_len;
+            value[cursor] = charset[idx];
+        }
+        if (just & MASK_DOWN) {
+            int idx;
+            if (cursor >= len) {
+                if ((size_t)len + 1 < value_size) {
+                    value[len] = ' ';
+                    value[len + 1] = '\0';
+                    len++;
+                } else {
+                    usleep(50000);
+                    continue;
+                }
+            }
+            idx = charset_index_for_char(value[cursor]);
+            idx = (idx - 1 + charset_len) % charset_len;
+            value[cursor] = charset[idx];
+        }
+        if (just & MASK_SQUARE) {
+            if ((size_t)len + 1 < value_size) {
+                memmove(value + cursor + 1, value + cursor, (size_t)(len - cursor + 1));
+                value[cursor] = ' ';
+            }
+        }
+        if (just & MASK_TRIANGLE) {
+            if (len > 0) {
+                if (cursor < len) {
+                    memmove(value + cursor, value + cursor + 1, (size_t)(len - cursor));
+                } else {
+                    value[len - 1] = '\0';
+                    cursor = len - 1;
+                }
+            }
+        }
+        if (just & MASK_CROSS) {
+            return true;
+        }
+        if (just & MASK_CIRCLE) {
+            strncpy(value, original, value_size - 1);
+            value[value_size - 1] = '\0';
+            return false;
+        }
+
+        usleep(50000);
+    }
+}
+
+static bool run_config_editor(SyncState *state, bool *has_net, char *status_line, size_t status_line_sz) {
+    ConfigDraft draft;
+    unsigned int prev_buttons = 0;
+    int selected = 0;
+    bool dirty = false;
+
+    config_draft_from_state(&draft, state);
+
+    while (1) {
+        unsigned int btns;
+        unsigned int just;
+
+        SDL_PumpEvents();
+        sysUtilCheckCallback();
+        if (g_exit_requested || ui_exit_requested()) {
+            return false;
+        }
+        if (ui_menu_open()) {
+            usleep(50000);
+            continue;
+        }
+
+        ui_draw_config_editor(
+            draft.server_url,
+            draft.api_key,
+            draft.selected_user,
+            draft.scan_ps3,
+            draft.scan_ps1,
+            selected,
+            dirty
+        );
+
+        btns = read_buttons();
+        just = btns & ~prev_buttons;
+        prev_buttons = btns;
+
+        if (just & MASK_UP) {
+            selected = (selected + 6) % 7;
+        }
+        if (just & MASK_DOWN) {
+            selected = (selected + 1) % 7;
+        }
+        if (just & MASK_LEFT) {
+            if (selected == 2 && draft.selected_user > 0) {
+                draft.selected_user--;
+                dirty = true;
+            } else if (selected == 3) {
+                draft.scan_ps3 = !draft.scan_ps3;
+                dirty = true;
+            } else if (selected == 4) {
+                draft.scan_ps1 = !draft.scan_ps1;
+                dirty = true;
+            }
+        }
+        if (just & MASK_RIGHT) {
+            if (selected == 2 && draft.selected_user < 16) {
+                draft.selected_user++;
+                dirty = true;
+            } else if (selected == 3) {
+                draft.scan_ps3 = !draft.scan_ps3;
+                dirty = true;
+            } else if (selected == 4) {
+                draft.scan_ps1 = !draft.scan_ps1;
+                dirty = true;
+            }
+        }
+        if (just & MASK_CIRCLE) {
+            return false;
+        }
+        if (just & MASK_CROSS) {
+            if (selected == 0) {
+                dirty |= run_text_editor("Server URL", draft.server_url, sizeof(draft.server_url));
+            } else if (selected == 1) {
+                dirty |= run_text_editor("API Key", draft.api_key, sizeof(draft.api_key));
+            } else if (selected == 2) {
+                draft.selected_user = (draft.selected_user + 1) % 17;
+                dirty = true;
+            } else if (selected == 3) {
+                draft.scan_ps3 = !draft.scan_ps3;
+                dirty = true;
+            } else if (selected == 4) {
+                draft.scan_ps1 = !draft.scan_ps1;
+                dirty = true;
+            } else if (selected == 5) {
+                ui_status("Applying config...");
+                config_draft_apply(state, &draft);
+                config_save(state);
+
+                state->network_connected = false;
+                *has_net = false;
+                saves_scan(state);
+                if (draft.selected_user == 0 && state->selected_user > 0) {
+                    snprintf(state->ps3_user, sizeof(state->ps3_user),
+                             "%08d", state->selected_user);
+                    config_save(state);
+                }
+                if (network_check_server(state)) {
+                    state->network_connected = true;
+                    *has_net = true;
+                    network_merge_server_titles(state);
+                    network_fetch_names(state);
+                    sync_refresh_statuses(state, sync_progress_cb);
+                }
+                snprintf(status_line, status_line_sz,
+                         "Config applied. %d save(s). %s",
+                         state->num_titles,
+                         *has_net ? "Server connected." : "Offline.");
+                return true;
+            } else if (selected == 6) {
+                return false;
+            }
+        }
+
+        usleep(50000);
+    }
 }
 
 static bool compute_local_file_hash(const TitleInfo *title, const char *name, uint32_t size, char hash_hex_out[65]) {
@@ -264,6 +579,42 @@ static void show_file_compare(SyncState *state, const TitleInfo *title) {
     }
 
     ui_status("Fetching server manifest: %s", title->game_code);
+    if (title->kind == SAVE_KIND_PS1 || title->kind == SAVE_KIND_PS1_VM1) {
+        char local_hash[65];
+        char server_hash[65] = "";
+        uint32_t server_size = 0;
+        int sr;
+
+        if (!title->hash_calculated && saves_compute_hash((TitleInfo *)title) < 0) {
+            ui_message("Failed to hash local PS1 card for %s.", title->game_code);
+            return;
+        }
+
+        hash_to_hex(title->hash, local_hash);
+        sr = network_get_save_info(state, title, server_hash, &server_size, NULL);
+        if (sr == 1) {
+            ui_message("Server compare: %s\n\nLocal card exists, but no server save was found.",
+                       title->game_code);
+            return;
+        }
+        if (sr < 0) {
+            ui_message("Failed to fetch server PS1 card info for %s.\n(code %d)",
+                       title->game_code, sr);
+            return;
+        }
+
+        ui_message(
+            "PS1 card compare: %s\n\nLocal hash:  %.64s\nServer hash: %.64s\n\nLocal size:  %u\nServer size: %u\n\n%s",
+            title->game_code,
+            local_hash,
+            server_hash,
+            title->total_size,
+            server_size,
+            strcmp(local_hash, server_hash) == 0 ? "Cards match." : "Cards differ."
+        );
+        return;
+    }
+
     mr = network_get_save_manifest(state, title->title_id, manifest, sizeof(manifest));
     if (mr < 0) {
         ui_message("Failed to fetch server manifest for %s.\n(code %d)", title->game_code, mr);
@@ -347,7 +698,7 @@ static void fetch_selected_server_meta(const SyncState *state, TitleInfo *title)
     }
 
     title->server_hash[0] = '\0';
-    r = network_get_save_info(state, title->title_id, title->server_hash, &server_size, last_sync);
+    r = network_get_save_info(state, title, title->server_hash, &server_size, last_sync);
     title->server_size = (r == 0) ? server_size : 0;
     title->server_meta_loaded = true;
     if (r != 0) {
@@ -661,6 +1012,18 @@ int main(void) {
             redraw = true;
         }
 
+        /* Start: open config editor */
+        if (just & MASK_START) {
+            if (run_config_editor(state, &has_net, status_line, sizeof(status_line))) {
+                rebuild_visible(state);
+                if (selected >= g_visible_count)
+                    selected = g_visible_count > 0 ? g_visible_count - 1 : 0;
+                update_scroll(selected, &scroll, g_visible_count);
+                last_selected_title = -1;
+            }
+            redraw = true;
+        }
+
         /* R1: compare local files against the server copy */
         if ((just & MASK_R1) && has_net && g_visible_count > 0) {
             show_file_compare(state, &state->titles[g_visible[selected]]);
@@ -717,12 +1080,6 @@ int main(void) {
         /* Cross (X): smart sync */
         if ((just & MASK_CROSS) && has_net && g_visible_count > 0) {
             TitleInfo *title = &state->titles[g_visible[selected]];
-            if (title->kind == SAVE_KIND_PS3 && title->server_only) {
-                ui_message("This PS3 save only exists on the server.\n\n"
-                           "Create a save in the game first, then sync again.");
-                redraw = true;
-                continue;
-            }
             ui_status("Analyzing %s...", title->game_code);
 
             SyncAction action = sync_decide(state, g_visible[selected]);
@@ -730,7 +1087,7 @@ int main(void) {
             char server_hash[65] = "";
             uint32_t server_size = 0;
             char server_last_sync[32] = "";
-            network_get_save_info(state, title->title_id,
+            network_get_save_info(state, title,
                                   server_hash, &server_size, server_last_sync);
 
             if (ui_confirm(title, action, server_hash, server_size, server_last_sync)) {
@@ -741,7 +1098,16 @@ int main(void) {
                 if (r == 0) {
                     title->server_meta_loaded = false;
                     title->server_hash[0] = '\0';
-                    ui_message("Done! (%s)", title->game_code);
+                    if (action == SYNC_DOWNLOAD &&
+                        title->kind == SAVE_KIND_PS3 && title->server_only) {
+                        show_fake_usb_stage_result(title);
+                    } else if (action == SYNC_DOWNLOAD &&
+                               (title->kind == SAVE_KIND_PS1 || title->kind == SAVE_KIND_PS1_VM1) &&
+                               title->server_only) {
+                        show_ps1_download_result(title);
+                    } else {
+                        ui_message("Done! (%s)", title->game_code);
+                    }
                 } else
                     ui_message("Failed! (code %d)\n\n"
                                "-2=read/hash error\n"
@@ -761,7 +1127,9 @@ int main(void) {
             if (title->server_only) {
                 if (title->kind == SAVE_KIND_PS3) {
                     ui_message("This PS3 save only exists on the server.\n\n"
-                               "Create a save in the game first, then sync again.");
+                               "Use Triangle to stage it to Fake USB first.");
+                } else if (title->kind == SAVE_KIND_PS1 || title->kind == SAVE_KIND_PS1_VM1) {
+                    ui_message("This save only exists on the server.\nDownload it first (Triangle).");
                 } else {
                     ui_message("This save only exists on the server.\nDownload it first (Triangle).");
                 }
@@ -769,7 +1137,7 @@ int main(void) {
                 char server_hash[65] = "";
                 uint32_t server_size = 0;
                 char server_last_sync[32] = "";
-                network_get_save_info(state, title->title_id,
+                network_get_save_info(state, title,
                                       server_hash, &server_size, server_last_sync);
                 if (ui_confirm(title, SYNC_UPLOAD, server_hash, server_size, server_last_sync)) {
                     ui_status("Uploading %s...", title->game_code);
@@ -788,16 +1156,10 @@ int main(void) {
         /* Triangle (△): force download */
         if ((just & MASK_TRIANGLE) && has_net && g_visible_count > 0) {
             TitleInfo *title = &state->titles[g_visible[selected]];
-            if (title->kind == SAVE_KIND_PS3 && title->server_only) {
-                ui_message("This PS3 save only exists on the server.\n\n"
-                           "Create a save in the game first, then sync again.");
-                redraw = true;
-                continue;
-            }
             char server_hash[65] = "";
             uint32_t server_size = 0;
             char server_last_sync[32] = "";
-            network_get_save_info(state, title->title_id,
+            network_get_save_info(state, title,
                                   server_hash, &server_size, server_last_sync);
             if (ui_confirm(title, SYNC_DOWNLOAD, server_hash, server_size, server_last_sync)) {
                 ui_status("Downloading %s...", title->game_code);
@@ -805,7 +1167,14 @@ int main(void) {
                 if (r == 0) {
                     title->server_meta_loaded = false;
                     title->server_hash[0] = '\0';
-                    ui_message("Download OK!");
+                    if (title->kind == SAVE_KIND_PS3 && title->server_only) {
+                        show_fake_usb_stage_result(title);
+                    } else if ((title->kind == SAVE_KIND_PS1 || title->kind == SAVE_KIND_PS1_VM1) &&
+                               title->server_only) {
+                        show_ps1_download_result(title);
+                    } else {
+                        ui_message("Download OK!");
+                    }
                 }
                 else        ui_message("Download failed! (code %d)", r);
             }

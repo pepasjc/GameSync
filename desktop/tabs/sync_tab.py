@@ -52,6 +52,7 @@ def _copy_save_payload(source: Path, dest: Path) -> None:
 
 class ScanWorker(QThread):
     result_ready = pyqtSignal(list)
+    partial_result_ready = pyqtSignal(list)  # fast first pass: saves only
     error = pyqtSignal(str)
     progress = pyqtSignal(str, int, int)
 
@@ -79,10 +80,47 @@ class ScanWorker(QThread):
         try:
             from sync_engine import scan_profile, compare_with_server
 
-            all_saves = []
             systems_filter: set[str] = set()
             for profile in self.profiles:
-                self._emit_progress(f"Scanning profile '{profile.get('name', '')}'…")
+                single = profile.get("system", "").strip().upper()
+                if single:
+                    systems_filter.add(single)
+                elif "systems" in profile:
+                    for s in profile["systems"]:
+                        if s.get("enabled", True):
+                            systems_filter.add(s["system"].upper())
+                else:
+                    pf = set(s.upper() for s in (profile.get("systems_filter") or []))
+                    systems_filter |= pf
+
+            # ── Phase 1: fast scan (saves only, no ROM walk) ──────────────────
+            # Scan just the save folders so users see results immediately.
+            partial_saves = []
+            for profile in self.profiles:
+                self._emit_progress(f"Quick scan '{profile.get('name', '')}'…")
+                partial_saves.extend(
+                    scan_profile(
+                        profile,
+                        progress_callback=self._emit_progress,
+                        enable_auto_normalize=self.enable_auto_normalize,
+                        saves_only=True,
+                    )
+                )
+            self._emit_progress("Comparing with server…", 0, max(len(partial_saves), 1))
+            partial_statuses = compare_with_server(
+                partial_saves,
+                self.base_url,
+                self.headers,
+                systems_filter=systems_filter or None,
+                progress_callback=self._emit_progress,
+            )
+            self.partial_result_ready.emit(partial_statuses)
+
+            # ── Phase 2: full scan (ROM library walk for ROM-only entries) ────
+            self._emit_progress("Scanning ROM library…", 0, 0)
+            all_saves = []
+            for profile in self.profiles:
+                self._emit_progress(f"Full scan '{profile.get('name', '')}'…")
                 all_saves.extend(
                     scan_profile(
                         profile,
@@ -90,20 +128,6 @@ class ScanWorker(QThread):
                         enable_auto_normalize=self.enable_auto_normalize,
                     )
                 )
-                # Single-system profiles (Generic / Everdrive / MEGA EverDrive)
-                # store their system as profile["system"] (a plain string).
-                single = profile.get("system", "").strip().upper()
-                if single:
-                    systems_filter.add(single)
-                elif "systems" in profile:
-                    # New multi-system format: list of {system, enabled, ...}
-                    for s in profile["systems"]:
-                        if s.get("enabled", True):
-                            systems_filter.add(s["system"].upper())
-                else:
-                    # Old format: systems_filter is a plain list of system codes
-                    pf = set(s.upper() for s in (profile.get("systems_filter") or []))
-                    systems_filter |= pf
             self._emit_progress("Comparing with server…", 0, max(len(all_saves), 1))
             statuses = compare_with_server(
                 all_saves,
@@ -127,6 +151,7 @@ class SyncTab(QWidget):
         self.profiles_tab = profiles_tab
         self._statuses: list = []
         self._saved_profile_name = ""
+        self._last_download_folder: Path | None = None
         self._init_ui()
 
     def _init_ui(self):
@@ -238,6 +263,10 @@ class SyncTab(QWidget):
     def _refresh_profile_list(self):
         """Reload profiles from ProfilesTab into the dropdown."""
         profiles = self.profiles_tab.get_profiles()
+        if not self._saved_profile_name:
+            from config import load_config
+
+            self._saved_profile_name = load_config().get("last_sync_profile", "")
         current = self.profile_combo.currentText().strip() or self._saved_profile_name
         self.profile_combo.blockSignals(True)
         self.profile_combo.clear()
@@ -258,6 +287,12 @@ class SyncTab(QWidget):
 
     def _on_profile_changed(self, name: str):
         self._saved_profile_name = name.strip()
+        if name.strip():
+            from config import load_config, save_config
+
+            cfg = load_config()
+            cfg["last_sync_profile"] = name.strip()
+            save_config(cfg)
 
     def _scan(self):
         self._refresh_profile_list()
@@ -293,6 +328,7 @@ class SyncTab(QWidget):
             get_api_headers(),
             enable_auto_normalize=self.auto_normalize_check.isChecked(),
         )
+        self._worker.partial_result_ready.connect(self._on_partial_scan_done)
         self._worker.result_ready.connect(self._on_scan_done)
         self._worker.error.connect(self._on_scan_error)
         self._worker.progress.connect(self._on_scan_progress)
@@ -324,6 +360,22 @@ class SyncTab(QWidget):
         self.status_label.setText(
             "Sync mappings and scan cache cleared. Re-scan the profile."
         )
+
+    def _on_partial_scan_done(self, statuses: list):
+        """Show saves-only results immediately while ROM walk continues."""
+        self._apply_display_names(statuses)
+        self._statuses = statuses
+        self._populate_table(statuses)
+        self.scan_btn.setEnabled(True)
+        self.sync_all_btn.setEnabled(True)
+        self.sync_sel_btn.setEnabled(True)
+        count = len(statuses)
+        self.status_label.setText(
+            f"Found {count} saves — scanning ROM library in background…"
+        )
+        if hasattr(self, "_scan_progress"):
+            self._scan_progress.setLabelText("Scanning ROM library…")
+            self._scan_progress.setMaximum(0)  # keep indeterminate
 
     def _on_scan_done(self, statuses: list):
         self._apply_display_names(statuses)
@@ -511,34 +563,31 @@ class SyncTab(QWidget):
             self.table.setItem(row, 4, status_item)
 
             # Action buttons
-            # Upload: only when local save actually exists
             can_upload = save_exists and save.path is not None
-            # Download: server_only, conflict (keep server), server_newer without a local
-            # save, or local_newer (force-download overwriting the newer local copy)
+            needs_upload_btn = (
+                st.status
+                in (
+                    "local_newer",
+                    "not_on_server",
+                    "conflict",
+                    "local_duplicate_conflict",
+                )
+                and can_upload
+            )
             needs_download_btn = st.status in (
                 "conflict",
                 "server_only",
-                "local_newer",
                 "local_duplicate_conflict",
             ) or (st.status == "server_newer" and not save_exists)
-            action_needed = (
-                st.status
-                in (
-                    "conflict",
-                    "server_only",
-                    "not_on_server",
-                    "local_newer",
-                    "local_duplicate_conflict",
-                )
-                or needs_download_btn
-            )
+            action_needed = needs_upload_btn or needs_download_btn
+
             if action_needed:
                 action_widget = QWidget()
                 action_layout = QHBoxLayout(action_widget)
                 action_layout.setContentsMargins(2, 2, 2, 2)
                 action_layout.setSpacing(4)
 
-                if st.status in ("conflict", "not_on_server") and can_upload:
+                if needs_upload_btn:
                     lbl = "Keep Local" if st.status == "conflict" else "Upload"
                     upload_btn = QPushButton(lbl)
                     upload_btn.setFixedHeight(22)
@@ -1241,15 +1290,20 @@ class SyncTab(QWidget):
             if dest_path is None:
                 # Fall back to file dialog if resolution failed
                 suggested = f"{st.save.title_id}.sav"
+                if self._last_download_folder:
+                    suggested_path = self._last_download_folder / suggested
+                else:
+                    suggested_path = suggested
                 dest_str, _ = QFileDialog.getSaveFileName(
                     self,
                     f"Download {st.save.title_id}",
-                    suggested,
+                    str(suggested_path),
                     "Save Files (*.sav *.srm *.bin);;All Files (*)",
                 )
                 if not dest_str:
                     return
                 dest_path = Path(dest_str)
+                self._last_download_folder = dest_path.parent
             else:
                 # Show the resolved path and let user confirm
                 reply = QMessageBox.question(
@@ -1349,9 +1403,14 @@ class SyncTab(QWidget):
         return {
             "auto_normalize_sync": self.auto_normalize_check.isChecked(),
             "selected_profile": self.profile_combo.currentText(),
+            "last_download_folder": str(self._last_download_folder)
+            if self._last_download_folder
+            else "",
         }
 
     def load_ui_state(self, state: dict):
         if "auto_normalize_sync" in state:
             self.auto_normalize_check.setChecked(bool(state["auto_normalize_sync"]))
         self._saved_profile_name = state.get("selected_profile", "")
+        last_folder = state.get("last_download_folder", "")
+        self._last_download_folder = Path(last_folder) if last_folder else None

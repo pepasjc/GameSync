@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -160,6 +162,11 @@ class ProfileDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Edit Sync Profile" if profile else "Add Sync Profile")
         self._loading = False
+        self._last_override_folder: Path | None = None
+        self._last_game_folder: Path | None = None
+        self._last_single_save_folder: Path | None = None
+        self._last_multi_save_folder: Path | None = None
+        self._last_dat_folder: Path | None = None
         self._init_ui()
         if profile:
             self._load(profile)
@@ -512,8 +519,13 @@ class ProfileDialog(QDialog):
         row = self._selected_row()
         if row < 0:
             return
-        folder = QFileDialog.getExistingDirectory(self, "Select Save Folder Override")
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Save Folder Override",
+            str(self._last_override_folder or ""),
+        )
         if folder:
+            self._last_override_folder = Path(folder)
             item = self.systems_table.item(row, 3)
             if item:
                 item.setText(folder)
@@ -531,25 +543,44 @@ class ProfileDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _browse_game_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select Game / ROM Folder")
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Game / ROM Folder",
+            str(self._last_game_folder or ""),
+        )
         if folder:
+            self._last_game_folder = Path(folder)
             self.game_folder_edit.setText(folder)
 
     def _browse_single_save_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select Save Folder")
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Save Folder",
+            str(self._last_single_save_folder or ""),
+        )
         if folder:
+            self._last_single_save_folder = Path(folder)
             self.single_save_folder_edit.setText(folder)
 
     def _browse_multi_save_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select Save Root Folder")
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Save Root Folder",
+            str(self._last_multi_save_folder or ""),
+        )
         if folder:
+            self._last_multi_save_folder = Path(folder)
             self.multi_save_folder_edit.setText(folder)
 
     def _browse_dat_file(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select Redump DAT File", "", "DAT Files (*.dat);;All Files (*)"
+            self,
+            "Select Redump DAT File",
+            str(self._last_dat_folder or ""),
+            "DAT Files (*.dat);;All Files (*)",
         )
         if path:
+            self._last_dat_folder = Path(path).parent
             self.dat_file_edit.setText(path)
 
     # ------------------------------------------------------------------

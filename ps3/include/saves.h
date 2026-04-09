@@ -25,6 +25,7 @@ bool saves_get_hash_cache_key(
     uint32_t *total_size_out,
     uint32_t *stamp_out
 );
+bool saves_is_shared_ps1_entry(const TitleInfo *title);
 
 /* Returns true for PS3/PS1 game codes (4 UPPER + 5 digits, not Vita PC*) */
 bool saves_is_relevant_game_code(const char *id);

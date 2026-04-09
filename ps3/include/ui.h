@@ -34,5 +34,15 @@ void ui_draw_list(const SyncState *state,
                   int selected, int scroll_offset,
                   const char *status_line, bool config_created,
                   bool show_server_only);
+void ui_draw_config_editor(
+    const char *server_url,
+    const char *api_key,
+    int selected_user,
+    bool scan_ps3,
+    bool scan_ps1,
+    int selected_field,
+    bool dirty
+);
+void ui_draw_text_editor(const char *label, const char *value, int cursor_pos);
 
 #endif /* PS3SYNC_UI_H */

@@ -4,6 +4,7 @@
 #include "decrypt.h"
 #include "export_zip.h"
 #include "hash.h"
+#include "ps1card_scan.h"
 #include "state.h"
 #include "ui.h"
 
@@ -20,6 +21,14 @@
 
 static bool is_dot_name(const char *name) {
     return strcmp(name, ".") == 0 || strcmp(name, "..") == 0;
+}
+
+static bool is_ps1_card_kind(SaveKind kind) {
+    return kind == SAVE_KIND_PS1_VM1 || kind == SAVE_KIND_PS1;
+}
+
+bool saves_is_shared_ps1_entry(const TitleInfo *title) {
+    return title && is_ps1_card_kind(title->kind) && title->ps1_shared_card;
 }
 
 static void path_join(const char *base, const char *name, char *out, size_t out_size) {
@@ -528,13 +537,19 @@ static void add_ps3_title(
 static void add_ps1_title(
     SyncState *state,
     const char *title_id,
-    const char *file_name,
+    const char *display_name,
     const char *file_path,
-    uint32_t total_size
+    uint32_t total_size,
+    bool shared_card,
+    int slot_index
 ) {
     TitleInfo *title;
 
     if (state->num_titles >= MAX_TITLES || title_exists(state, title_id)) {
+        debug_log("scan ps1: skip add title_id=%s name=%s reason=%s",
+                  title_id ? title_id : "(null)",
+                  display_name ? display_name : "(null)",
+                  state->num_titles >= MAX_TITLES ? "max_titles" : "duplicate_title_id");
         return;
     }
 
@@ -542,14 +557,23 @@ static void add_ps1_title(
     memset(title, 0, sizeof(*title));
     strncpy(title->title_id, title_id, sizeof(title->title_id) - 1);
     strncpy(title->game_code, title_id, sizeof(title->game_code) - 1);
-    strncpy(title->name, file_name, sizeof(title->name) - 1);
+    strncpy(title->name, display_name, sizeof(title->name) - 1);
     strncpy(title->local_path, file_path, sizeof(title->local_path) - 1);
     strncpy(title->upload_path, file_path, sizeof(title->upload_path) - 1);
     title->kind = SAVE_KIND_PS1_VM1;
+    title->ps1_shared_card = shared_card;
+    title->ps1_slot_index = slot_index;
     title->total_size = total_size;
     title->file_count = 1;
     title->hash_total_size = total_size;
     title->hash_file_count = 1;
+    debug_log("scan ps1: added title_id=%s name=%s path=%s size=%u shared=%d slot=%d",
+              title->title_id,
+              display_name,
+              file_path,
+              (unsigned)total_size,
+              (int)shared_card,
+              slot_index);
 }
 
 static void attach_export_zip(
@@ -801,37 +825,93 @@ static void scan_ps3_savedata_root(SyncState *state, const char *root_path) {
 static void scan_ps1_vmc_root(SyncState *state, const char *root_path) {
     DIR *dir;
     struct dirent *entry;
+    int found_files = 0;
+    int added = 0;
 
+    debug_log("scan ps1: root=%s begin", root_path ? root_path : "(null)");
     if (!path_is_dir(root_path)) {
+        debug_log("scan ps1: root=%s missing_or_not_dir", root_path ? root_path : "(null)");
         return;
     }
 
     dir = opendir(root_path);
     if (!dir) {
+        debug_log("scan ps1: root=%s opendir_failed", root_path);
         return;
     }
 
     while ((entry = readdir(dir)) != NULL && state->num_titles < MAX_TITLES) {
-        char title_id[GAME_ID_LEN];
+        char legacy_title_id[GAME_ID_LEN];
         char vm1_path[PATH_LEN];
+        Ps1CardEntry parsed[15];
         uint32_t total_size = 0;
+        int before_count = state->num_titles;
+        int parsed_count = 0;
 
-        if (is_dot_name(entry->d_name) || !apollo_is_ps1_vm1_file(entry->d_name)) {
+        debug_log("scan ps1: entry root=%s name=%s", root_path, entry->d_name);
+
+        if (is_dot_name(entry->d_name)) {
+            debug_log("scan ps1: skip name=%s reason=dot", entry->d_name);
             continue;
         }
-        if (!apollo_extract_ps1_title_id(entry->d_name, title_id, sizeof(title_id))) {
+        if (!apollo_is_ps1_card_file(entry->d_name)) {
+            debug_log("scan ps1: skip name=%s reason=not_ps1_card_ext", entry->d_name);
             continue;
         }
+        found_files++;
 
         path_join(root_path, entry->d_name, vm1_path, sizeof(vm1_path));
         if (!path_is_regular(vm1_path, &total_size)) {
+            debug_log("scan ps1: skip name=%s path=%s reason=not_regular_file",
+                      entry->d_name, vm1_path);
             continue;
         }
 
-        add_ps1_title(state, title_id, entry->d_name, vm1_path, total_size);
+        memset(parsed, 0, sizeof(parsed));
+        parsed_count = ps1card_scan_file(vm1_path, parsed, 15);
+        if (parsed_count < 0) {
+            debug_log("scan ps1: parse_failed name=%s path=%s", entry->d_name, vm1_path);
+            continue;
+        }
+
+        if (parsed_count > 0) {
+            bool has_legacy_id =
+                apollo_extract_ps1_title_id(entry->d_name, legacy_title_id, sizeof(legacy_title_id));
+            debug_log("scan ps1: parsed name=%s entries=%d", entry->d_name, parsed_count);
+
+            for (int i = 0; i < parsed_count && state->num_titles < MAX_TITLES; i++) {
+                bool dedicated_entry =
+                    parsed_count == 1 &&
+                    has_legacy_id &&
+                    strcmp(legacy_title_id, parsed[i].title_id) == 0;
+
+                add_ps1_title(
+                    state,
+                    parsed[i].title_id,
+                    parsed[i].save_name[0] ? parsed[i].save_name : entry->d_name,
+                    vm1_path,
+                    total_size,
+                    !dedicated_entry,
+                    parsed[i].slot_index
+                );
+            }
+        } else if (apollo_extract_ps1_title_id(entry->d_name, legacy_title_id, sizeof(legacy_title_id))) {
+            debug_log("scan ps1: fallback filename title_id=%s name=%s",
+                      legacy_title_id, entry->d_name);
+            add_ps1_title(state, legacy_title_id, entry->d_name, vm1_path, total_size, false, -1);
+        } else {
+            debug_log("scan ps1: skip name=%s reason=no_title_id_match", entry->d_name);
+            continue;
+        }
+
+        if (state->num_titles > before_count) {
+            added += state->num_titles - before_count;
+        }
     }
 
     closedir(dir);
+    debug_log("scan ps1: root=%s done matching_files=%d added=%d total_titles=%d",
+              root_path, found_files, added, state->num_titles);
 }
 
 void saves_scan(SyncState *state) {
@@ -839,6 +919,8 @@ void saves_scan(SyncState *state) {
     int usb_index;
 
     state->num_titles = 0;
+    debug_log("scan: begin scan_ps3=%d scan_ps1=%d selected_user=%d",
+              (int)state->scan_ps3, (int)state->scan_ps1, state->selected_user);
 
     if (state->scan_ps3) {
         if (state->selected_user > 0) {
@@ -886,16 +968,21 @@ void saves_scan(SyncState *state) {
     }
 
     if (!state->scan_ps1) {
+        debug_log("scan: ps1 disabled");
         return;
     }
 
     apollo_get_ps1_vmc_root(root_path, sizeof(root_path));
+    debug_log("scan: ps1 hdd root=%s", root_path);
     scan_ps1_vmc_root(state, root_path);
 
     for (usb_index = 0; usb_index < 8 && state->num_titles < MAX_TITLES; usb_index++) {
         apollo_get_ps1_usb_vmc_root(usb_index, root_path, sizeof(root_path));
+        debug_log("scan: ps1 usb root[%d]=%s", usb_index, root_path);
         scan_ps1_vmc_root(state, root_path);
     }
+
+    debug_log("scan: complete total_titles=%d", state->num_titles);
 }
 
 bool saves_calculate_hash(TitleInfo *title) {
@@ -912,12 +999,14 @@ bool saves_calculate_hash(TitleInfo *title) {
         return false;
     }
 
-    saves_get_hash_cache_key(title, &cache_file_count, &cache_total_size, &cache_stamp);
-    if (state_get_cached_hash(title->title_id, cache_file_count, cache_total_size, cache_stamp, cached_hex)
-            && hash_from_hex(cached_hex, title->hash)) {
-        ui_status("Using cached hash: %s", title->game_code);
-        title->hash_calculated = true;
-        return true;
+    if (!is_ps1_card_kind(title->kind)) {
+        saves_get_hash_cache_key(title, &cache_file_count, &cache_total_size, &cache_stamp);
+        if (state_get_cached_hash(title->title_id, cache_file_count, cache_total_size, cache_stamp, cached_hex)
+                && hash_from_hex(cached_hex, title->hash)) {
+            ui_status("Using cached hash: %s", title->game_code);
+            title->hash_calculated = true;
+            return true;
+        }
     }
 
     if (title->kind == SAVE_KIND_PS3) {
@@ -961,8 +1050,8 @@ bool saves_calculate_hash(TitleInfo *title) {
         if (did_decrypt) {
             decrypt_cleanup(decrypt_temp);
         }
-    } else if (title->kind == SAVE_KIND_PS1_VM1) {
-        if (!hash_file_sha256(title->local_path, title->hash, &title->total_size)) {
+    } else if (is_ps1_card_kind(title->kind)) {
+        if (!hash_ps1_card_sha256(title->local_path, title->hash, &title->total_size)) {
             return false;
         }
         title->file_count = 1;
@@ -972,17 +1061,19 @@ bool saves_calculate_hash(TitleInfo *title) {
         return false;
     }
 
-    ui_status("Writing hash cache: %s", title->game_code);
-    hash_to_hex(title->hash, computed_hex);
-    saves_get_hash_cache_key(title, &cache_file_count, &cache_total_size, &cache_stamp);
-    state_set_cached_hash(
-        title->title_id,
-        cache_file_count,
-        cache_total_size,
-        cache_stamp,
-        computed_hex
-    );
-    ui_status("Finished hash cache: %s", title->game_code);
+    if (!is_ps1_card_kind(title->kind)) {
+        ui_status("Writing hash cache: %s", title->game_code);
+        hash_to_hex(title->hash, computed_hex);
+        saves_get_hash_cache_key(title, &cache_file_count, &cache_total_size, &cache_stamp);
+        state_set_cached_hash(
+            title->title_id,
+            cache_file_count,
+            cache_total_size,
+            cache_stamp,
+            computed_hex
+        );
+        ui_status("Finished hash cache: %s", title->game_code);
+    }
     title->hash_calculated = true;
     return true;
 }
@@ -998,7 +1089,7 @@ int saves_list_files(const TitleInfo *title,
                      char names[][MAX_FILE_LEN], uint32_t *sizes, int max) {
     if (!title || max <= 0) return 0;
 
-    if (title->kind == SAVE_KIND_PS1_VM1) {
+    if (is_ps1_card_kind(title->kind)) {
         /* Single file — use filename portion of local_path */
         const char *slash = strrchr(title->local_path, '/');
         const char *fname = slash ? slash + 1 : title->local_path;
@@ -1030,7 +1121,7 @@ int saves_read_file(const TitleInfo *title, const char *name,
                     uint8_t *buf, uint32_t buf_size) {
     char path[PATH_LEN];
     uint32_t total = 0;
-    if (title->kind == SAVE_KIND_PS1_VM1) {
+    if (is_ps1_card_kind(title->kind)) {
         strncpy(path, title->local_path, sizeof(path) - 1);
         path[sizeof(path) - 1] = '\0';
     } else if (title->upload_is_zip) {
@@ -1068,7 +1159,7 @@ int saves_read_file(const TitleInfo *title, const char *name,
 int saves_write_file(const TitleInfo *title, const char *name,
                      const uint8_t *buf, uint32_t size) {
     char path[PATH_LEN];
-    if (title->kind == SAVE_KIND_PS1_VM1) {
+    if (is_ps1_card_kind(title->kind)) {
         /* Ensure parent directory exists */
         char dir_path[PATH_LEN];
         strncpy(dir_path, title->local_path, sizeof(dir_path) - 1);
@@ -1153,13 +1244,19 @@ bool saves_get_hash_cache_key(
         return false;
     }
 
-    if (title->kind == SAVE_KIND_PS1_VM1 && title->local_path[0]) {
-        return collect_file_hash_cache_key(
+    if (is_ps1_card_kind(title->kind) && title->local_path[0]) {
+        bool ok = collect_file_hash_cache_key(
             title->local_path,
             total_size_out,
             file_count_out,
             stamp_out
         );
+        if (ok && stamp_out) {
+            /* PS1 now hashes canonical raw card payloads instead of container
+               bytes, so salt the cache key to avoid reusing older stale hashes. */
+            *stamp_out ^= 0x50533131U; /* "PS11" */
+        }
+        return ok;
     }
 
     if (file_count_out) {

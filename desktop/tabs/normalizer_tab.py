@@ -401,6 +401,9 @@ class RomNormalizerTab(QWidget):
         self._worker = None
         self._loaded_dat_path: Path | None = None
         self._device_type: str = ""
+        self._last_rom_folder: Path | None = None
+        self._last_save_folder: Path | None = None
+        self._last_dat_folder: Path | None = None
         self._init_ui()
 
     def _init_ui(self):
@@ -549,8 +552,11 @@ class RomNormalizerTab(QWidget):
         layout.addWidget(self.status_label)
 
     def _browse_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select ROM Folder")
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select ROM Folder", str(self._last_rom_folder or "")
+        )
         if folder:
+            self._last_rom_folder = Path(folder)
             self.folder_edit.setText(folder)
 
     def _load_from_profile(self):
@@ -631,15 +637,22 @@ class RomNormalizerTab(QWidget):
         self._device_type = device
 
     def _browse_save_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select Save Folder")
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Save Folder", str(self._last_save_folder or "")
+        )
         if folder:
+            self._last_save_folder = Path(folder)
             self.save_folder_edit.setText(folder)
 
     def _browse_dat(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select No-Intro DAT", "", "DAT Files (*.dat *.xml)"
+            self,
+            "Select No-Intro DAT",
+            str(self._last_dat_folder or ""),
+            "DAT Files (*.dat *.xml)",
         )
         if path:
+            self._last_dat_folder = Path(path).parent
             self._load_dat(Path(path))
 
     def _on_system_changed(self, system: str):
@@ -1086,6 +1099,15 @@ class RomNormalizerTab(QWidget):
             "nointro_only": self.nointro_only_check.isChecked(),
             "normalize_fallback": self.normalize_fallback_check.isChecked(),
             "has_save_only": self.has_save_check.isChecked(),
+            "last_rom_folder": str(self._last_rom_folder)
+            if self._last_rom_folder
+            else "",
+            "last_save_folder": str(self._last_save_folder)
+            if self._last_save_folder
+            else "",
+            "last_dat_folder": str(self._last_dat_folder)
+            if self._last_dat_folder
+            else "",
         }
 
     def load_ui_state(self, state: dict):
@@ -1112,3 +1134,9 @@ class RomNormalizerTab(QWidget):
             dat_path = Path(dat_path_str)
             if dat_path.exists():
                 self._load_dat(dat_path)
+        last_rom = state.get("last_rom_folder", "")
+        self._last_rom_folder = Path(last_rom) if last_rom else None
+        last_save = state.get("last_save_folder", "")
+        self._last_save_folder = Path(last_save) if last_save else None
+        last_dat = state.get("last_dat_folder", "")
+        self._last_dat_folder = Path(last_dat) if last_dat else None

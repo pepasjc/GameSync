@@ -17,6 +17,10 @@ typedef struct {
     char rel_path[PATH_LEN];
 } HashFileEntry;
 
+#define PS1CARD_RAW_SIZE    0x20000U
+#define PS1CARD_VMP_SIZE    (PS1CARD_RAW_SIZE + 0x80U)
+#define PS1CARD_VMP_OFFSET  0x80U
+
 static bool is_dot_name(const char *name) {
     return strcmp(name, ".") == 0 || strcmp(name, "..") == 0;
 }
@@ -187,6 +191,74 @@ bool hash_file_sha256(const char *path, uint8_t hash_out[32], uint32_t *size_out
 
     sha256_final(&ctx, hash_out);
     return true;
+}
+
+bool hash_ps1_card_sha256(const char *path, uint8_t hash_out[32], uint32_t *size_out) {
+    FILE *fp = fopen(path, "rb");
+    uint8_t *data = NULL;
+    SHA256_CTX ctx;
+    long file_size;
+    const uint8_t *hash_data;
+    uint32_t hash_size;
+    bool ok = false;
+
+    if (!fp) {
+        return false;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return false;
+    }
+    file_size = ftell(fp);
+    if (file_size < 0 || fseek(fp, 0, SEEK_SET) != 0) {
+        fclose(fp);
+        return false;
+    }
+
+    data = (uint8_t *)malloc((size_t)file_size);
+    if (!data) {
+        fclose(fp);
+        return false;
+    }
+
+    if (file_size > 0 && fread(data, 1, (size_t)file_size, fp) != (size_t)file_size) {
+        free(data);
+        fclose(fp);
+        return false;
+    }
+    fclose(fp);
+
+    hash_data = data;
+    hash_size = (uint32_t)file_size;
+
+    /* Match the server's PS1 comparable-hash rule:
+       - raw cards hash as-is
+       - VMP cards hash only their 128 KiB raw payload */
+    if ((uint32_t)file_size == PS1CARD_RAW_SIZE &&
+        memcmp(data, "MC\0\0", 4) == 0) {
+        hash_data = data;
+        hash_size = PS1CARD_RAW_SIZE;
+    } else if ((uint32_t)file_size >= PS1CARD_VMP_SIZE &&
+               memcmp(data, "\0PMV", 4) == 0 &&
+               memcmp(data + PS1CARD_VMP_OFFSET, "MC\0\0", 4) == 0) {
+        hash_data = data + PS1CARD_VMP_OFFSET;
+        hash_size = PS1CARD_RAW_SIZE;
+    }
+
+    ui_status("Hashing PS1 card: %s", path);
+    sha256_init(&ctx);
+    sha256_update(&ctx, hash_data, hash_size);
+    pump_callbacks();
+    sha256_final(&ctx, hash_out);
+
+    if (size_out) {
+        *size_out = hash_size;
+    }
+    ok = true;
+
+    free(data);
+    return ok;
 }
 
 bool hash_dir_files_sha256(

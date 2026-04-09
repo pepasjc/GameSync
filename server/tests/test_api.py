@@ -229,6 +229,53 @@ class TestTitlesEndpoint:
         assert [t["title_id"] for t in titles] == ["SLUS01279"]
         assert titles[0]["console_type"] == "PS1"
 
+    def test_titles_can_filter_by_multiple_console_types(self, client, auth_headers, monkeypatch):
+        bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
+        client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle_ps1,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        bundle_ps3 = _make_string_bundle_bytes(
+            title_id="NPUB30096-SAVEGAME",
+            files=[("SAVEDATA", b"rr7")],
+        )
+        client.post(
+            "/api/v1/saves/NPUB30096-SAVEGAME",
+            content=bundle_ps3,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        bundle_psp = _make_ps1_bundle_bytes(title_id="ULUS10272")
+        client.post(
+            "/api/v1/saves/ULUS10272",
+            content=bundle_psp,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        async def fake_lookup_batch(codes):
+            result = {}
+            if "SLUS01279" in codes:
+                result["SLUS01279"] = ("Dino Crisis 2", "PS1")
+            if "NPUB30096" in codes or "NPUB30096-SAVEGAME" in codes:
+                result["NPUB30096"] = ("Ridge Racer 7", "PS3")
+                result["NPUB30096-SAVEGAME"] = ("Ridge Racer 7", "PS3")
+            if "ULUS10272" in codes:
+                result["ULUS10272"] = ("God of War", "PSP")
+            return result
+
+        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
+
+        r = client.get(
+            "/api/v1/titles?console_type=PS1&console_type=PS3",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        titles = r.json()["titles"]
+        assert {t["title_id"] for t in titles} == {"SLUS01279", "NPUB30096-SAVEGAME"}
+        assert {t["console_type"] for t in titles} == {"PS1", "PS3"}
+
 
 class TestUploadEndpoint:
     def test_upload_success(self, client, auth_headers):

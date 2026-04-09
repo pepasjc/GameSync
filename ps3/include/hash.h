@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 bool hash_file_sha256(const char *path, uint8_t hash_out[32], uint32_t *size_out);
+bool hash_ps1_card_sha256(const char *path, uint8_t hash_out[32], uint32_t *size_out);
 bool hash_dir_files_sha256(
     const char *path,
     uint8_t hash_out[32],

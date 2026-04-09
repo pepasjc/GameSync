@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import struct
 import sys
 import xml.etree.ElementTree as ET
 import zlib
@@ -136,6 +137,8 @@ ROM_EXTENSIONS = {
     ".pbp",
     ".pkg",  # PSP / PS3
     ".mdf",  # Saturn / Alcohol 120%
+    ".fds",  # Famicom Disk System
+    ".qd",  # Famicom Disk System Quick Disk
 }
 
 
@@ -228,8 +231,103 @@ def _collapsed_slug(slug: str) -> str:
     return slug.replace("_", "")
 
 
+# ---------------------------------------------------------------------------
+# N64 byte-order detection and conversion
+# ---------------------------------------------------------------------------
+# N64 ROMs come in three byte orders, identified by the first 4 bytes:
+#   .z64 (big-endian / native):  80 37 12 40
+#   .v64 (byte-swapped):         37 80 40 12  — every pair of bytes swapped
+#   .n64 (word-swapped / little-endian):  40 12 37 80  — every 4-byte word reversed
+# No-Intro DATs store CRCs for the .z64 (big-endian) byte order.  The DAT
+# also has separate entries with CRCs for the .v64 byte order, but NOT for
+# .n64.  To get CRC matches for .n64 (and .v64 if the DAT only has .z64
+# entries), we convert to big-endian before computing the CRC.
+
+_N64_MAGIC_Z64 = b"\x80\x37\x12\x40"  # big-endian (native)
+_N64_MAGIC_V64 = b"\x37\x80\x40\x12"  # byte-swapped
+_N64_MAGIC_N64 = b"\x40\x12\x37\x80"  # word-swapped (little-endian)
+
+_N64_EXTENSIONS = frozenset((".n64", ".v64", ".z64"))
+
+
+def detect_n64_byte_order(header4: bytes) -> str | None:
+    """Return ``'z64'``, ``'v64'``, or ``'n64'`` based on the first 4 bytes.
+
+    Returns ``None`` if the header doesn't match any known N64 magic.
+    """
+    if header4[:4] == _N64_MAGIC_Z64:
+        return "z64"
+    if header4[:4] == _N64_MAGIC_V64:
+        return "v64"
+    if header4[:4] == _N64_MAGIC_N64:
+        return "n64"
+    return None
+
+
+def _byteswap_v64(data: bytes) -> bytes:
+    """Convert v64 (byte-swapped) data to z64 (big-endian).
+
+    Swaps every pair of adjacent bytes: AB CD -> BA DC.
+    """
+    arr = bytearray(data)
+    # Ensure even length by truncating last odd byte (shouldn't happen in practice)
+    end = len(arr) & ~1
+    for i in range(0, end, 2):
+        arr[i], arr[i + 1] = arr[i + 1], arr[i]
+    return bytes(arr)
+
+
+def _wordswap_n64(data: bytes) -> bytes:
+    """Convert n64 (word-swapped / little-endian) data to z64 (big-endian).
+
+    Reverses every group of 4 bytes: DCBA -> ABCD.
+    """
+    arr = bytearray(data)
+    end = len(arr) & ~3  # align to 4-byte boundary
+    for i in range(0, end, 4):
+        arr[i], arr[i + 1], arr[i + 2], arr[i + 3] = (
+            arr[i + 3],
+            arr[i + 2],
+            arr[i + 1],
+            arr[i],
+        )
+    return bytes(arr)
+
+
+def n64_to_z64(data: bytes, byte_order: str) -> bytes:
+    """Convert N64 ROM *data* to big-endian (z64) byte order.
+
+    *byte_order* should be one of ``'z64'``, ``'v64'``, ``'n64'``.
+    If already ``'z64'``, returns *data* unchanged.
+    """
+    if byte_order == "z64":
+        return data
+    if byte_order == "v64":
+        return _byteswap_v64(data)
+    if byte_order == "n64":
+        return _wordswap_n64(data)
+    return data
+
+
 def _crc32_file(path: Path) -> str:
-    """Compute CRC32 of file contents, returned as 8-char uppercase hex."""
+    """Compute CRC32 of file contents, returned as 8-char uppercase hex.
+
+    For N64 ROMs in non-native byte order (``.v64``, ``.n64``), the data is
+    converted to big-endian (``.z64``) before computing the CRC so that the
+    result matches the No-Intro DAT entries.
+    """
+    ext = path.suffix.lower()
+    is_n64 = ext in _N64_EXTENSIONS
+
+    if is_n64:
+        # Read the whole file to detect byte order and convert
+        raw = path.read_bytes()
+        order = detect_n64_byte_order(raw[:4])
+        if order and order != "z64":
+            raw = n64_to_z64(raw, order)
+        crc = zlib.crc32(raw) & 0xFFFFFFFF
+        return f"{crc:08X}"
+
     crc = 0
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
@@ -285,6 +383,7 @@ _CLRMAME_ROM_RE = re.compile(
     r"\brom\s*\(.*?\bcrc\s+([0-9A-Fa-f]{1,8})\b", re.IGNORECASE
 )
 _CLRMAME_NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
+_CLRMAME_CLONEOF_RE = re.compile(r'^\s*cloneof\s+"(.+?)"')
 
 
 def _load_clrmamepro_dat(dat_path: Path) -> dict[str, str]:
@@ -310,6 +409,74 @@ def _load_clrmamepro_dat(dat_path: Path) -> dict[str, str]:
     return crc_to_name
 
 
+def load_cloneof_map(dat_path: Path) -> dict[str, str]:
+    """Parse ``cloneof`` fields from a DAT file.
+
+    Returns a dict mapping canonical name → clone-group leader name.
+    Only entries that have a ``cloneof`` field are included; leaders
+    (entries without ``cloneof``) are omitted.
+
+    Works with both clrmamepro text-format and No-Intro XML DATs.
+    """
+    try:
+        with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
+            for first_line in fh:
+                stripped = first_line.strip()
+                if stripped:
+                    break
+            else:
+                stripped = ""
+    except Exception:
+        return {}
+
+    if stripped.startswith("<"):
+        return _load_cloneof_xml(dat_path)
+    return _load_cloneof_clrmamepro(dat_path)
+
+
+def _load_cloneof_xml(dat_path: Path) -> dict[str, str]:
+    """Extract clone-of relationships from a No-Intro XML DAT."""
+    try:
+        tree = ET.parse(dat_path)
+    except Exception:
+        return {}
+    clone_map: dict[str, str] = {}
+    id_to_name: dict[str, str] = {}
+    root = tree.getroot()
+    for game in root.findall(".//game"):
+        gid = game.get("id", "")
+        name = game.get("name", "")
+        if gid and name:
+            id_to_name[gid] = name
+    for game in root.findall(".//game"):
+        name = game.get("name", "")
+        cloneofid = game.get("cloneofid")
+        if name and cloneofid and cloneofid in id_to_name:
+            clone_map[name] = id_to_name[cloneofid]
+    return clone_map
+
+
+def _load_cloneof_clrmamepro(dat_path: Path) -> dict[str, str]:
+    """Extract ``cloneof`` fields from a clrmamepro text-format DAT."""
+    clone_map: dict[str, str] = {}
+    current_name: str | None = None
+    try:
+        with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                m = _CLRMAME_NAME_RE.match(line)
+                if m:
+                    current_name = m.group(1).strip()
+                    continue
+                cm = _CLRMAME_CLONEOF_RE.match(line)
+                if cm and current_name:
+                    clone_map[current_name] = cm.group(1).strip()
+                if line.strip() == ")":
+                    current_name = None
+    except Exception:
+        pass
+    return clone_map
+
+
 # Maps --system code to keywords to search for in DAT filenames
 _SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
     "SNES": ["Super Nintendo"],
@@ -322,6 +489,7 @@ _SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
     "GG": ["Game Gear"],
     "SMS": ["Master System"],
     "PCE": ["PC Engine", "TurboGrafx"],
+    "PCECD": ["PC Engine CD", "TurboGrafx CD", "PC Engine CD-ROM"],
     "NGP": ["Neo Geo Pocket"],
     "LYNX": ["Lynx"],
     "WSWAN": ["WonderSwan"],
@@ -334,11 +502,13 @@ _SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
     "DC": ["Sega - Dreamcast", "Dreamcast"],
     "GC": ["GameCube", "Gamecube"],
     "NDS": ["Nintendo DS"],
+    "FDS": ["Family Computer Disk System"],
+    "N64DD": ["Nintendo 64DD"],
     "A2600": ["Atari 2600"],
     "A7800": ["Atari 7800"],
 }
 
-DATS_DIR = Path(__file__).parent / "dats"
+DATS_DIR = Path(__file__).parent.parent / "server" / "data" / "dats"
 
 
 def load_redump_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, str]]:
@@ -900,8 +1070,13 @@ def read_rom_header_title(path: Path, system: str) -> str | None:
             title_bytes = data[0x0120:0x0150]
 
     elif system == "N64":
-        # Game name: 0x0020, 20 bytes, ASCII
+        # Game name: 0x0020, 20 bytes, ASCII (in big-endian / z64 byte order).
+        # If the ROM is in .v64 or .n64 byte order, convert to z64 first.
         if len(data) >= 0x0034:
+            order = detect_n64_byte_order(data[:4])
+            if order and order != "z64":
+                # Only need to convert enough for the header (first 0x40 bytes)
+                data = n64_to_z64(data[: max(0x40, 0x0034)], order)
             title_bytes = data[0x0020:0x0034]
 
     elif system in ("GB", "GBC"):

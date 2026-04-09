@@ -181,7 +181,7 @@ void ui_draw_list(
     );
     draw_text(24, SCREEN_HEIGHT - 28, dim, status_line ? status_line : "Ready.");
     draw_textf(24, SCREEN_HEIGHT - 46, dim,
-        "Up/Dn: nav   X: sync   R3: sync all   Sq: upload   Tri: download   L3: hash   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   PS/Home: exit",
+        "Up/Dn: nav   X: sync   R3: sync all   Sq: upload   Tri: download   L3: hash   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   Start: config   PS/Home: exit",
         show_server_only ? "ON" : "OFF");
 
     if (visible_count == 0) {
@@ -285,6 +285,114 @@ void ui_draw_list(
     SDL_Flip(g_screen);
 }
 
+void ui_draw_config_editor(
+    const char *server_url,
+    const char *api_key,
+    int selected_user,
+    bool scan_ps3,
+    bool scan_ps1,
+    int selected_field,
+    bool dirty
+) {
+    UiColor dim = {160, 168, 184};
+    UiColor white = {240, 240, 240};
+    UiColor accent = {88, 208, 255};
+    UiColor hilite = {255, 222, 89};
+    UiColor border = {44, 58, 82};
+    const char *markers[] = {" ", " ", " ", " ", " ", " ", " "};
+    char user_buf[32];
+    char line[512];
+
+    if (!g_screen || g_xmb_open) {
+        return;
+    }
+
+    ui_clear();
+    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
+    rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48,
+                  border.r, border.g, border.b, 255);
+    draw_text(24, 18, accent, "GameSync PS3 -- Config");
+    draw_text(24, 44, dim, dirty ? "Unsaved changes" : "Saved values");
+
+    if (selected_user <= 0) {
+        snprintf(user_buf, sizeof(user_buf), "Auto");
+    } else {
+        snprintf(user_buf, sizeof(user_buf), "%08d", selected_user);
+    }
+
+    if (selected_field >= 0 && selected_field < 7) {
+        markers[selected_field] = ">";
+    }
+
+    snprintf(line, sizeof(line), "%s Server URL: %s", markers[0], server_url);
+    draw_text(28, 104, selected_field == 0 ? hilite : white, line);
+    snprintf(line, sizeof(line), "%s API Key:    %s", markers[1], api_key);
+    draw_text(28, 132, selected_field == 1 ? hilite : white, line);
+    snprintf(line, sizeof(line), "%s User:       %s", markers[2], user_buf);
+    draw_text(28, 160, selected_field == 2 ? hilite : white, line);
+    snprintf(line, sizeof(line), "%s Scan PS3:   %s", markers[3], scan_ps3 ? "ON" : "OFF");
+    draw_text(28, 188, selected_field == 3 ? hilite : white, line);
+    snprintf(line, sizeof(line), "%s Scan PS1:   %s", markers[4], scan_ps1 ? "ON" : "OFF");
+    draw_text(28, 216, selected_field == 4 ? hilite : white, line);
+    snprintf(line, sizeof(line), "%s Save and Apply", markers[5]);
+    draw_text(28, 272, selected_field == 5 ? hilite : accent, line);
+    snprintf(line, sizeof(line), "%s Cancel", markers[6]);
+    draw_text(28, 300, selected_field == 6 ? hilite : accent, line);
+
+    draw_text(28, 372, dim, "Up/Down: select field");
+    draw_text(28, 394, dim, "Cross: edit/toggle/confirm");
+    draw_text(28, 416, dim, "Left/Right: change user or toggle switch");
+    draw_text(28, 438, dim, "Circle: cancel editor");
+
+    draw_text(24, SCREEN_HEIGHT - 28, dim,
+              "Start: config   Cross: select   Circle: cancel   PS/Home: exit");
+
+    SDL_PumpEvents();
+    SDL_Flip(g_screen);
+}
+
+void ui_draw_text_editor(const char *label, const char *value, int cursor_pos) {
+    UiColor dim = {160, 168, 184};
+    UiColor white = {240, 240, 240};
+    UiColor accent = {88, 208, 255};
+    UiColor hilite = {255, 222, 89};
+    char caret[512];
+    int caret_x;
+    int value_len;
+
+    if (!g_screen || g_xmb_open) {
+        return;
+    }
+
+    ui_clear();
+    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
+    draw_text(24, 18, accent, "GameSync PS3 -- Text Editor");
+    draw_textf(24, 76, accent, "%s", label ? label : "Value");
+    draw_text(24, 120, white, value ? value : "");
+
+    memset(caret, ' ', sizeof(caret));
+    caret[sizeof(caret) - 1] = '\0';
+    value_len = value ? (int)strlen(value) : 0;
+    if (cursor_pos < 0) cursor_pos = 0;
+    if (cursor_pos > value_len) cursor_pos = value_len;
+    if (cursor_pos >= (int)sizeof(caret) - 2) cursor_pos = (int)sizeof(caret) - 3;
+    caret[cursor_pos] = '^';
+    caret[cursor_pos + 1] = '\0';
+    caret_x = 24;
+    draw_text(caret_x, 142, hilite, caret);
+
+    draw_text(24, 220, dim, "Left/Right: move cursor");
+    draw_text(24, 242, dim, "Up/Down: change current character");
+    draw_text(24, 264, dim, "Square: insert space   Triangle: delete");
+    draw_text(24, 286, dim, "Cross: accept   Circle: cancel");
+
+    draw_text(24, SCREEN_HEIGHT - 28, dim,
+              "Up/Dn: char   Left/Right: cursor   Sq/Tri: insert/delete   Cross: save   Circle: cancel");
+
+    SDL_PumpEvents();
+    SDL_Flip(g_screen);
+}
+
 /* ---- Helper: read pad until all buttons released ---- */
 
 static void drain_buttons(void) {
@@ -300,7 +408,7 @@ static void drain_buttons(void) {
             if (!padinfo.status[i]) continue;
             ioPadGetData(i, &paddata);
             if (paddata.BTN_CROSS || paddata.BTN_CIRCLE || paddata.BTN_SQUARE ||
-                paddata.BTN_TRIANGLE || paddata.BTN_L3 || paddata.BTN_R3 ||
+                paddata.BTN_TRIANGLE || paddata.BTN_START || paddata.BTN_L3 || paddata.BTN_R3 ||
                 paddata.BTN_UP || paddata.BTN_DOWN) {
                 done = 0;
             }

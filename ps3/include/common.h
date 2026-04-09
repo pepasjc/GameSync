@@ -47,6 +47,8 @@ typedef struct {
     char local_path[PATH_LEN];
     char upload_path[PATH_LEN];   /* auxiliary upload source (USB/export) when no HDD save is present */
     SaveKind kind;
+    int ps1_slot_index;           /* shared-card slot index for parsed PS1 entries; -1 otherwise */
+    bool ps1_shared_card;         /* true when entry comes from a multi-save/shared PS1 card */
     uint8_t hash[32];
     bool hash_calculated;
     bool upload_is_zip;
