@@ -15,24 +15,55 @@ async def lifespan(app: FastAPI):
     db.init_db(settings.save_dir)
 
     data_dir = Path(__file__).parent.parent / "data"
+    dats_dir = data_dir / "dats"
 
     # Load game names databases
     count_title_ids = game_names.load_database(data_dir / "3dstitledb.txt")
-    count_3ds = game_names.load_database(data_dir / "3dstdb.txt")
-    count_ds = game_names.load_database(data_dir / "dstdb.txt")
-    count_psp = game_names.load_database(data_dir / "pspdb.txt")
-    count_vita = game_names.load_database(data_dir / "vitadb.txt")
-    count_psx = game_names.load_database(data_dir / "psxdb.txt")
-    count_psx += game_names.load_database(data_dir / "unsorted_psx.txt")
+    count_wii = game_names.load_database(data_dir / "wiidb.txt")
+    count_wii += game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Nintendo - GameCube.dat"
+    )
+    count_wii += game_names.load_libretro_dat_to_dicts(dats_dir / "Nintendo - Wii.dat")
+
+    # Load libretro DATs (replace legacy .txt files for PS1/PSP/Vita/3DS/DS)
+    # Retail DATs are loaded first (psn=False); PSN DATs second (psn=True) so
+    # retail entries are never overwritten by their PSN equivalents.
+    count_psx = game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Sony - PlayStation.dat"
+    )
+    count_ps3 = game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Sony - PlayStation 3.dat"
+    )
+    count_psp = game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Sony - PlayStation Portable.dat"
+    )
+    count_psp += game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Sony - PlayStation Portable (PSN).dat", psn=True
+    )
+    count_vita = game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Sony - PlayStation Vita.dat"
+    )
+    count_3ds = game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Nintendo - Nintendo 3DS.dat"
+    )
+    count_3ds += game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Nintendo - Nintendo 3DS (Digital).dat"
+    )
+    count_ds = game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Nintendo - Nintendo DS.dat"
+    )
+    count_ds += game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Nintendo - Nintendo DSi.dat"
+    )
+
     count_psn_retail = game_names.build_psx_psn_to_retail()
     print(
         f"Loaded {count_title_ids} 3DS TitleIDs + {count_3ds} 3DS codes + {count_ds} DS + "
-        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX game names "
+        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX + {count_ps3} PS3 + {count_wii} GC/Wii game names "
         f"({count_psn_retail} PSN→retail mappings)"
     )
 
     # Load No-Intro / Redump DAT files for ROM normalization
-    dats_dir = data_dir / "dats"
     dats_dir.mkdir(exist_ok=True)
     dat_normalizer.init(dats_dir)
 

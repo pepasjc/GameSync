@@ -10,16 +10,66 @@ abstract class EmulatorBase {
     abstract fun discoverSaves(): List<SaveEntry>
 
     /**
-     * Converts a ROM name to a title ID slug.
-     * Lowercases, replaces non-alphanumeric characters with underscores,
-     * collapses multiple underscores, trims, and prepends systemPrefix_.
+     * Known geographic region names that are preserved in title ID slugs.
+     * Matches the desktop sync_engine.py `_REGION_NAMES` set.
      */
-    protected fun toTitleId(romName: String): String {
-        val slug = romName
+    private val regionNames = setOf(
+        "usa", "europe", "japan", "world", "germany", "france", "italy", "spain",
+        "australia", "brazil", "korea", "china", "netherlands", "sweden",
+        "denmark", "norway", "finland", "asia"
+    )
+
+    /** Regex matching any `(...)` or `[...]` tag (with optional leading whitespace). */
+    private val tagRegex = Regex("""\s*[\(\[][^\)\]]*[\)\]]""")
+
+    /** Regex matching the inner content of `(...)` groups for region extraction. */
+    private val parenContentRegex = Regex("""\(([^)]+)\)""")
+
+    /**
+     * Extracts geographic region tokens from parenthetical tags in a name.
+     * e.g. "Sonic (USA, Europe)" → ["usa", "europe"]
+     */
+    private fun extractRegions(name: String): List<String> {
+        val regions = mutableListOf<String>()
+        val seen = mutableSetOf<String>()
+        for (match in parenContentRegex.findAll(name)) {
+            for (part in match.groupValues[1].split(",")) {
+                val token = part.trim().lowercase()
+                if (token in regionNames && token !in seen) {
+                    seen.add(token)
+                    regions.add(token)
+                }
+            }
+        }
+        return regions
+    }
+
+    /**
+     * Converts a ROM name to a title ID slug.
+     *
+     * Strips all parenthetical/bracket tags, then re-appends geographic region
+     * names so that regional saves stay in separate server slots.  Matches the
+     * desktop sync_engine.py `_make_title_id_with_region` logic.
+     *
+     * "Shining Force CD (USA) (3R)" → "SEGACD_shining_force_cd_usa"
+     * "Sonic (USA, Europe)"         → "MD_sonic_usa_europe"
+     * "Super Mario World"           → "SNES_super_mario_world"
+     */
+    protected fun toTitleId(romName: String): String = toTitleId(romName, systemPrefix)
+
+    /**
+     * Overload accepting an explicit system prefix (for callers like RetroArch
+     * that resolve the system dynamically per-ROM rather than using [systemPrefix]).
+     */
+    protected fun toTitleId(romName: String, system: String): String {
+        val regions = extractRegions(romName)
+        val stripped = romName.replace(tagRegex, "").trim()
+        val slug = stripped
             .lowercase()
             .replace(Regex("[^a-z0-9]+"), "_")
             .trim('_')
-        return "${systemPrefix}_$slug"
+        val base = "${system}_$slug"
+        return if (regions.isNotEmpty()) "${base}_${regions.joinToString("_")}" else base
     }
 
     /**
@@ -81,68 +131,130 @@ abstract class EmulatorBase {
      */
     protected fun readPs1Serial(romFile: File): String? {
         return try {
-            // Resolve .cue → the referenced .bin file
-            val file = if (romFile.extension.lowercase() == "cue") {
-                val line = romFile.readLines().firstOrNull {
-                    it.trimStart().uppercase().startsWith("FILE")
-                } ?: return null
-                val binName = line.substringAfter('"').substringBeforeLast('"')
-                File(romFile.parent, binName).takeIf { it.exists() } ?: return null
-            } else romFile
+            val resolved = resolvePsDiscImage(romFile) ?: return null
+            val offsets = buildDiscOffsets(resolved)
 
-            val isBin = file.extension.lowercase() in setOf("bin", "img", "mdf")
-            val sectorSize = if (isBin) 2352 else 2048
-            val dataOffset = if (isBin) 24L else 0L
+            for ((sectorSize, dataOffset) in offsets) {
+                val serial = readPsSerialFromIso(resolved, sectorSize, dataOffset)
+                if (serial != null) return serial
+            }
+            null
+        } catch (_: Exception) { null }
+    }
 
+    /**
+     * Reads the PS2 disc serial from an ISO/BIN/CUE image.
+     *
+     * PS2 discs use the same SYSTEM.CNF/BOOT parsing strategy as PS1, including
+     * BOOT2 entries like `BOOT2 = cdrom:\SLUS_20002.00;1`, so we can reuse the
+     * same low-level parser and return the compact product code (e.g. SLUS20002).
+     */
+    protected fun readPs2Serial(romFile: File): String? = readPs1Serial(romFile)
+
+    private fun resolvePsDiscImage(romFile: File): File? {
+        if (romFile.extension.lowercase() != "cue") return romFile
+
+        val fileLine = romFile.readLines().firstOrNull {
+            it.trimStart().uppercase().startsWith("FILE")
+        } ?: return null
+        val referencedName = Regex("FILE\\s+\"(.+?)\"", RegexOption.IGNORE_CASE)
+            .find(fileLine)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?: return null
+        return File(romFile.parent, referencedName).takeIf { it.exists() }
+    }
+
+    /**
+     * Raw BIN-like images are not consistent: MODE1/2352 usually stores user data at
+     * byte 16, while MODE2/2352 commonly uses byte 24. We try both so cue/bin dumps from
+     * different tools still resolve.
+     */
+    private fun buildDiscOffsets(file: File): List<Pair<Int, Long>> {
+        return when (file.extension.lowercase()) {
+            "bin", "img", "mdf" -> listOf(2352 to 24L, 2352 to 16L, 2048 to 0L)
+            else -> listOf(2048 to 0L, 2352 to 24L, 2352 to 16L)
+        }
+    }
+
+    private fun readPsSerialFromIso(file: File, sectorSize: Int, dataOffset: Long): String? {
+        java.io.RandomAccessFile(file, "r").use { raf ->
             fun le32(buf: ByteArray, off: Int): Int =
                 (buf[off].toInt() and 0xFF) or
                 ((buf[off + 1].toInt() and 0xFF) shl 8) or
                 ((buf[off + 2].toInt() and 0xFF) shl 16) or
                 ((buf[off + 3].toInt() and 0xFF) shl 24)
 
-            fun sector(lba: Int): ByteArray {
+            fun sector(lba: Int): ByteArray? {
+                val pos = lba.toLong() * sectorSize + dataOffset
+                if (pos < 0 || pos + 2048 > raf.length()) return null
                 val buf = ByteArray(2048)
-                java.io.RandomAccessFile(file, "r").use { raf ->
-                    raf.seek(lba.toLong() * sectorSize + dataOffset)
-                    raf.readFully(buf)
-                }
+                raf.seek(pos)
+                raf.readFully(buf)
                 return buf
             }
 
-            // Primary Volume Descriptor is at sector 16; validate "CD001" signature
-            val pvd = sector(16)
+            val pvd = sector(16) ?: return null
             if (String(pvd, 1, 5, Charsets.US_ASCII) != "CD001") return null
 
-            // Root directory record is embedded in PVD at offset 156; LBA at record offset 2
-            val rootLba = le32(pvd, 156 + 2)
-            val rootDir = sector(rootLba)
+            val rootRecordOffset = 156
+            val rootLba = le32(pvd, rootRecordOffset + 2)
+            val rootSize = le32(pvd, rootRecordOffset + 10)
+            if (rootLba <= 0 || rootSize <= 0) return null
 
-            // Walk root directory entries to find SYSTEM.CNF
+            val rootDirBytes = ByteArray(rootSize)
+            var copied = 0
+            var lba = rootLba
+            while (copied < rootSize) {
+                val sec = sector(lba++) ?: break
+                val remaining = rootSize - copied
+                val count = minOf(sec.size, remaining)
+                System.arraycopy(sec, 0, rootDirBytes, copied, count)
+                copied += count
+            }
+            if (copied <= 0) return null
+
             var pos = 0
-            while (pos < rootDir.size) {
-                val recLen  = rootDir[pos].toInt() and 0xFF
-                if (recLen == 0) break
-                val flags   = rootDir[pos + 25].toInt() and 0xFF
-                val nameLen = rootDir[pos + 32].toInt() and 0xFF
-                if (nameLen > 0 && flags and 0x02 == 0) {   // skip directories
-                    val name = String(rootDir, pos + 33, nameLen, Charsets.US_ASCII)
-                        .substringBefore(';').uppercase()
+            while (pos < copied) {
+                val recLen = rootDirBytes[pos].toInt() and 0xFF
+                if (recLen == 0) {
+                    pos = ((pos / 2048) + 1) * 2048
+                    continue
+                }
+                if (pos + recLen > copied) break
+
+                val flags = rootDirBytes[pos + 25].toInt() and 0xFF
+                val nameLen = rootDirBytes[pos + 32].toInt() and 0xFF
+                if (nameLen > 0 && flags and 0x02 == 0) {
+                    val rawName = String(rootDirBytes, pos + 33, nameLen, Charsets.US_ASCII)
+                    val name = rawName.substringBefore(';').uppercase()
                     if (name == "SYSTEM.CNF") {
-                        val fileLba  = le32(rootDir, pos + 2)
-                        val fileSize = le32(rootDir, pos + 10)
-                        val cnf = String(sector(fileLba), 0, minOf(fileSize, 512), Charsets.US_ASCII)
-                        // e.g. "BOOT = cdrom:\SLUS_01234.00;1" or "BOOT2 = cdrom:\SCES_01234.00;1"
-                        val m = Regex(
-                            """BOOT\d?\s*=\s*cdrom[:\\]+([A-Z]{4})[_-](\d{5})""",
+                        val fileLba = le32(rootDirBytes, pos + 2)
+                        val fileSize = le32(rootDirBytes, pos + 10)
+                        if (fileLba <= 0 || fileSize <= 0) return null
+
+                        val cnfBytes = ByteArray(minOf(fileSize, 4096))
+                        var fileCopied = 0
+                        var fileSector = fileLba
+                        while (fileCopied < cnfBytes.size) {
+                            val sec = sector(fileSector++) ?: break
+                            val remaining = cnfBytes.size - fileCopied
+                            val count = minOf(sec.size, remaining)
+                            System.arraycopy(sec, 0, cnfBytes, fileCopied, count)
+                            fileCopied += count
+                        }
+                        val cnf = String(cnfBytes, 0, fileCopied, Charsets.US_ASCII)
+                        val match = Regex(
+                            """BOOT\d?\s*=\s*cdrom\d*[:\\]+([A-Z]{4})[_-](\d{5})""",
                             RegexOption.IGNORE_CASE
                         ).find(cnf) ?: return null
-                        return m.groupValues[1].uppercase() + m.groupValues[2]
+                        return match.groupValues[1].uppercase() + match.groupValues[2]
                     }
                 }
                 pos += recLen
             }
-            null
-        } catch (_: Exception) { null }
+        }
+        return null
     }
 
     /**

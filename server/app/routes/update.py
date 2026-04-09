@@ -9,7 +9,7 @@ router = APIRouter()
 # GitHub repository info
 # The server proxies GitHub releases API because 3DS/NDS can't do HTTPS
 GITHUB_OWNER = "pepasjc"
-GITHUB_REPO = "3ds_sync"
+GITHUB_REPO = "GameSync"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
 
 # Map platform to expected asset file extension

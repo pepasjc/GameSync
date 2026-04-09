@@ -1,0 +1,11 @@
+[project]
+name = "3dssync-steamdeck"
+version = "0.5.1"
+description = "Steam Deck client for 3DS save file sync"
+requires-python = ">=3.11"
+dependencies = [
+    "PyQt6>=6.4.0",
+    "requests>=2.28.0",
+    "pygame>=2.3.0",
+]
+

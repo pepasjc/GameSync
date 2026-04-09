@@ -27,6 +27,12 @@ interface SaveSyncApi {
         @Query("slot") slot: Int = 0
     ): SaveMeta
 
+    @GET("api/v1/saves/{title_id}/ps2-card/meta")
+    suspend fun getPs2CardMeta(
+        @Path("title_id") titleId: String,
+        @Query("format") format: String = "mc2"
+    ): SaveMeta
+
     @Streaming
     @GET("api/v1/saves/{title_id}/raw")
     suspend fun downloadSaveRaw(
@@ -40,10 +46,45 @@ interface SaveSyncApi {
         @Query("slot") slot: Int = 0
     ): Response<ResponseBody>
 
+    @Streaming
+    @GET("api/v1/saves/{title_id}/ps2-card")
+    suspend fun downloadPs2Card(
+        @Path("title_id") titleId: String,
+        @Query("format") format: String = "mc2"
+    ): Response<ResponseBody>
+
     @POST("api/v1/saves/{title_id}/ps1-card")
     suspend fun uploadPs1Card(
         @Path("title_id") titleId: String,
         @Query("slot") slot: Int = 0,
+        @Query("console_id") consoleId: String,
+        @Body body: RequestBody
+    ): UploadResponse
+
+    @POST("api/v1/saves/{title_id}/ps2-card")
+    suspend fun uploadPs2Card(
+        @Path("title_id") titleId: String,
+        @Query("format") format: String = "mc2",
+        @Query("console_id") consoleId: String,
+        @Body body: RequestBody
+    ): UploadResponse
+
+    @GET("api/v1/saves/{title_id}/gc-card/meta")
+    suspend fun getGcCardMeta(
+        @Path("title_id") titleId: String
+    ): SaveMeta
+
+    @Streaming
+    @GET("api/v1/saves/{title_id}/gc-card")
+    suspend fun downloadGcCard(
+        @Path("title_id") titleId: String,
+        @Query("format") format: String = "gci"
+    ): Response<ResponseBody>
+
+    @POST("api/v1/saves/{title_id}/gc-card")
+    suspend fun uploadGcCard(
+        @Path("title_id") titleId: String,
+        @Query("format") format: String = "gci",
         @Query("console_id") consoleId: String,
         @Body body: RequestBody
     ): UploadResponse
@@ -80,7 +121,9 @@ interface SaveSyncApi {
     ): SyncResponse
 
     @GET("api/v1/titles")
-    suspend fun getTitles(): TitlesResponse
+    suspend fun getTitles(
+        @Query("console_type") consoleType: String? = null
+    ): TitlesResponse
 
     /**
      * Normalize ROM filenames to canonical No-Intro names.

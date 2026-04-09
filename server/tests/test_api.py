@@ -4,6 +4,8 @@ from app.models.save import BundleFile, SaveBundle
 from app.services.bundle import create_bundle
 from app.services import game_names
 from app.services.ps1_cards import create_vmp, extract_raw_card
+from app.services.ps2_cards import add_ecc, strip_ecc
+from app.services import serialstation
 
 
 def _make_bundle_bytes(
@@ -43,6 +45,51 @@ def _make_ps1_bundle_bytes(
         for path, data in files
     ]
     bundle = SaveBundle(title_id=0, timestamp=timestamp, files=bundle_files, title_id_str=title_id)
+    return create_bundle(bundle)
+
+
+def _make_ps2_bundle_bytes(
+    title_id: str = "SLUS20002",
+    timestamp: int = 1700000000,
+    files: list[tuple[str, bytes]] | None = None,
+) -> bytes:
+    if files is None:
+        files = [("card.mc2", bytes([0xAB]) * (512 * 16384))]
+    bundle_files = [
+        BundleFile(
+            path=path,
+            size=len(data),
+            sha256=hashlib.sha256(data).digest(),
+            data=data,
+        )
+        for path, data in files
+    ]
+    bundle = SaveBundle(title_id=0, timestamp=timestamp, files=bundle_files, title_id_str=title_id)
+    return create_bundle(bundle)
+
+
+def _make_string_bundle_bytes(
+    title_id: str,
+    timestamp: int = 1700000000,
+    files: list[tuple[str, bytes]] | None = None,
+) -> bytes:
+    if files is None:
+        files = [("main", b"save data here")]
+    bundle_files = [
+        BundleFile(
+            path=path,
+            size=len(data),
+            sha256=hashlib.sha256(data).digest(),
+            data=data,
+        )
+        for path, data in files
+    ]
+    bundle = SaveBundle(
+        title_id=0,
+        timestamp=timestamp,
+        files=bundle_files,
+        title_id_str=title_id,
+    )
     return create_bundle(bundle)
 
 
@@ -90,6 +137,145 @@ class TestTitlesEndpoint:
         assert len(titles) == 1
         assert titles[0]["title_id"] == "0004000000055D00"
 
+    def test_titles_refresh_ps3_hash_from_current_files(self, client, auth_headers, tmp_save_dir):
+        title_id = "NPUB30096-SAVEGAME"
+        bundle = _make_string_bundle_bytes(
+            title_id=title_id,
+            files=[("PARAM.SFO", b"param"), ("SAVEDATA", b"v1")],
+        )
+        client.post(
+            f"/api/v1/saves/{title_id}",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        current = tmp_save_dir / title_id / "current"
+        (current / "SAVEDATA").write_bytes(b"v2")
+
+        r = client.get("/api/v1/titles", headers=auth_headers)
+        assert r.status_code == 200
+        titles = r.json()["titles"]
+        assert len(titles) == 1
+        assert titles[0]["title_id"] == title_id
+        assert titles[0]["save_hash"] == hashlib.sha256(b"v2").hexdigest()
+
+    def test_titles_names_uses_serialstation_for_ps2_codes(self, client, auth_headers, monkeypatch):
+        async def fake_lookup_batch(codes):
+            assert codes == ["SLPM65590"]
+            return {"SLPM65590": ("Densha de Go! FINAL", "PS2")}
+
+        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
+
+        r = client.post(
+            "/api/v1/titles/names",
+            json={"codes": ["SLPM65590"]},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["names"]["SLPM65590"] == "Densha de Go! FINAL"
+        assert body["types"]["SLPM65590"] == "PS2"
+
+    def test_titles_names_prefers_ps3_db_for_psn_style_ps3_codes(
+        self, client, auth_headers, monkeypatch
+    ):
+        monkeypatch.setitem(game_names._ps3_names, "NPUB30096", "Hard Corps Uprising")
+
+        r = client.post(
+            "/api/v1/titles/names",
+            json={"codes": ["NPUB30096-SAVEGAME"]},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["names"]["NPUB30096-SAVEGAME"] == "Hard Corps Uprising"
+        assert body["types"]["NPUB30096-SAVEGAME"] == "PS3"
+
+    def test_detect_platform_uses_playstation_serial_heuristics(self):
+        assert game_names.detect_platform("NPUB30096-SAVEGAME") == "PS3"
+        assert game_names.detect_platform("NPUH10001") == "PSP"
+        assert game_names.detect_platform("PCSE00082") == "VITA"
+        assert game_names.detect_platform("SLUS01279") == "PS1"
+        assert game_names.detect_platform("SLUS20002") == "PS2"
+
+    def test_titles_can_filter_by_console_type(self, client, auth_headers, monkeypatch):
+        bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
+        client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle_ps1,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        bundle_psp = _make_ps1_bundle_bytes(title_id="ULUS10272")
+        client.post(
+            "/api/v1/saves/ULUS10272",
+            content=bundle_psp,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        async def fake_lookup_batch(codes):
+            result = {}
+            if "SLUS01279" in codes:
+                result["SLUS01279"] = ("Dino Crisis 2", "PS1")
+            if "ULUS10272" in codes:
+                result["ULUS10272"] = ("God of War", "PSP")
+            return result
+
+        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
+
+        r = client.get("/api/v1/titles?console_type=PS1", headers=auth_headers)
+        assert r.status_code == 200
+        titles = r.json()["titles"]
+        assert [t["title_id"] for t in titles] == ["SLUS01279"]
+        assert titles[0]["console_type"] == "PS1"
+
+    def test_titles_can_filter_by_multiple_console_types(self, client, auth_headers, monkeypatch):
+        bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
+        client.post(
+            "/api/v1/saves/SLUS01279",
+            content=bundle_ps1,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        bundle_ps3 = _make_string_bundle_bytes(
+            title_id="NPUB30096-SAVEGAME",
+            files=[("SAVEDATA", b"rr7")],
+        )
+        client.post(
+            "/api/v1/saves/NPUB30096-SAVEGAME",
+            content=bundle_ps3,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        bundle_psp = _make_ps1_bundle_bytes(title_id="ULUS10272")
+        client.post(
+            "/api/v1/saves/ULUS10272",
+            content=bundle_psp,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        async def fake_lookup_batch(codes):
+            result = {}
+            if "SLUS01279" in codes:
+                result["SLUS01279"] = ("Dino Crisis 2", "PS1")
+            if "NPUB30096" in codes or "NPUB30096-SAVEGAME" in codes:
+                result["NPUB30096"] = ("Ridge Racer 7", "PS3")
+                result["NPUB30096-SAVEGAME"] = ("Ridge Racer 7", "PS3")
+            if "ULUS10272" in codes:
+                result["ULUS10272"] = ("God of War", "PSP")
+            return result
+
+        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
+
+        r = client.get(
+            "/api/v1/titles?console_type=PS1&console_type=PS3",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        titles = r.json()["titles"]
+        assert {t["title_id"] for t in titles} == {"SLUS01279", "NPUB30096-SAVEGAME"}
+        assert {t["console_type"] for t in titles} == {"PS1", "PS3"}
+
 
 class TestUploadEndpoint:
     def test_upload_success(self, client, auth_headers):
@@ -103,6 +289,29 @@ class TestUploadEndpoint:
         data = r.json()
         assert data["status"] == "ok"
         assert "sha256" in data
+
+    def test_upload_ps3_hash_ignores_metadata_and_pngs(self, client, auth_headers):
+        bundle = _make_string_bundle_bytes(
+            title_id="BLJS10001GAME",
+            files=[
+                ("GAME", b"game"),
+                ("PARAM.SFO", b"param"),
+                ("PARAM.PFD", b"pfd"),
+                ("ICON0.PNG", b"icon"),
+                ("PIC1.PNG", b"pic"),
+            ],
+        )
+        r = client.post(
+            "/api/v1/saves/BLJS10001GAME",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        assert r.json()["sha256"] == hashlib.sha256(b"game").hexdigest()
+
+        meta = client.get("/api/v1/saves/BLJS10001GAME/meta", headers=auth_headers)
+        assert meta.status_code == 200
+        assert meta.json()["save_hash"] == hashlib.sha256(b"game").hexdigest()
 
     def test_upload_empty_body(self, client, auth_headers):
         r = client.post(
@@ -203,6 +412,33 @@ class TestDownloadEndpoint:
         assert len(downloaded.files) == 1
         assert downloaded.files[0].data == save_data
 
+    def test_ps3_manifest_filters_metadata_and_pngs(self, client, auth_headers):
+        bundle = _make_string_bundle_bytes(
+            title_id="BLJS10001GAME",
+            files=[
+                ("GAME", b"game"),
+                ("PARAM.SFO", b"param"),
+                ("PARAM.PFD", b"pfd"),
+                ("ICON0.PNG", b"icon"),
+                ("PIC1.PNG", b"pic"),
+                ("USR-DATA/SAVE2.DAT", b"save2"),
+            ],
+        )
+        client.post(
+            "/api/v1/saves/BLJS10001GAME",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/BLJS10001GAME/manifest", headers=auth_headers)
+        assert r.status_code == 200
+        lines = [line for line in r.text.splitlines() if line]
+        assert lines == [
+            f"GAME\t4\t{hashlib.sha256(b'game').hexdigest()}",
+            f"USR-DATA/SAVE2.DAT\t5\t{hashlib.sha256(b'save2').hexdigest()}",
+        ]
+        assert r.headers["X-Save-File-Count"] == "2"
+
     def test_raw_download_rejects_multi_file_bundle(self, client, auth_headers):
         bundle = _make_bundle_bytes(files=[("ICON0.PNG", b"icon"), ("DATA.BIN", b"save")])
         client.post(
@@ -269,6 +505,63 @@ class TestDownloadEndpoint:
         vmp = (tmp_save_dir / "SLUS01279" / "current" / "SCEVMC0.VMP").read_bytes()
         assert extract_raw_card(vmp) == new_raw
 
+    def test_ps2_card_download_defaults_to_mc2(self, client, auth_headers):
+        mc2 = bytes((i % 251 for i in range(512 * 16384)))
+        bundle = _make_ps2_bundle_bytes(files=[("card.mc2", mc2)])
+        client.post(
+            "/api/v1/saves/SLUS20002",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS20002/ps2-card", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.content == mc2
+        assert r.headers["X-Save-Path"] == "card.mc2"
+
+    def test_ps2_card_download_can_render_ps2_format(self, client, auth_headers):
+        mc2 = bytes((i % 239 for i in range(512 * 16384)))
+        bundle = _make_ps2_bundle_bytes(files=[("card.mc2", mc2)])
+        client.post(
+            "/api/v1/saves/SLUS20002",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS20002/ps2-card?format=ps2", headers=auth_headers)
+        assert r.status_code == 200
+        assert len(r.content) == 528 * 16384
+        assert strip_ecc(r.content) == mc2
+
+    def test_ps2_card_upload_accepts_ps2_and_stores_mc2(self, client, auth_headers, tmp_save_dir):
+        mc2 = bytes((i % 197 for i in range(512 * 16384)))
+        ps2 = add_ecc(mc2)
+
+        r = client.post(
+            "/api/v1/saves/SLUS20002/ps2-card?format=ps2",
+            content=ps2,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        assert (tmp_save_dir / "SLUS20002" / "current" / "card.mc2").read_bytes() == mc2
+
+    def test_ps2_card_meta_uses_requested_format_hash(self, client, auth_headers):
+        mc2 = bytes((i % 211 for i in range(512 * 16384)))
+        bundle = _make_ps2_bundle_bytes(files=[("card.mc2", mc2)])
+        client.post(
+            "/api/v1/saves/SLUS20002",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/saves/SLUS20002/ps2-card/meta?format=ps2", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        expected = add_ecc(mc2)
+        assert data["format"] == "ps2"
+        assert data["save_hash"] == hashlib.sha256(expected).hexdigest()
+        assert data["save_size"] == len(expected)
+
     def test_ps1_bundle_download_hides_raw_slot_files(self, client, auth_headers):
         raw = b"MC\x00\x00" + b"\x66" * (0x20000 - 4)
         bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", create_vmp(raw)), ("PARAM.SFO", b"param")])
@@ -285,6 +578,32 @@ class TestDownloadEndpoint:
         paths = sorted(f.path for f in downloaded.files)
         assert "SCEVMC0.VMP" in paths
         assert "slot0.mcd" not in paths
+
+    def test_ps3_save_dir_round_trips_as_string_bundle(self, client, auth_headers):
+        title_id = "BLUS30464-AUTOSAVE-SLOT-0000000000000000000000000001"
+        bundle = _make_string_bundle_bytes(
+            title_id=title_id,
+            files=[("PARAM.SFO", b"param"), ("USR-DATA/SAVE.DAT", b"save-data")],
+        )
+        r = client.post(
+            f"/api/v1/saves/{title_id}",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+
+        meta = client.get(f"/api/v1/saves/{title_id}/meta", headers=auth_headers).json()
+        assert meta["title_id"] == title_id
+        assert meta["platform"] == "PS3"
+        assert meta["system"] == "PS3"
+
+        r = client.get(f"/api/v1/saves/{title_id}", headers=auth_headers)
+        assert r.status_code == 200
+        from app.services.bundle import parse_bundle
+
+        downloaded = parse_bundle(r.content)
+        assert downloaded.effective_title_id == title_id
+        assert sorted(f.path for f in downloaded.files) == ["PARAM.SFO", "USR-DATA/SAVE.DAT"]
 
     def test_upload_preserves_history(self, client, auth_headers, tmp_save_dir):
         # Upload v1

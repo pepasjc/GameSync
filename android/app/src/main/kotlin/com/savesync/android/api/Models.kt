@@ -50,6 +50,8 @@ data class TitleInfo(
     val game_name: String?,
     val platform: String?,
     val system: String?,
+    @SerializedName("console_type")
+    val consoleType: String? = null,
     val save_hash: String?,
     val save_size: Long?
 )

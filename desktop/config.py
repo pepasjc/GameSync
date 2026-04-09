@@ -9,53 +9,132 @@ from PyQt6.QtGui import QColor
 
 CONFIG_FILE = Path(__file__).parent / "config.json"
 
-ALL_CONSOLE_TYPES = [
-    "All", "3DS", "NDS", "PSP", "PS1", "PS3", "VITA",
-    "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC",
-    "GG", "SMS", "PCE", "PS2", "NGP", "DC", "GC",
-    "ATARI2600", "ATARI7800", "LYNX", "NEOGEO", "32X", "SEGACD",
-    "WSWAN", "WSWANC", "ARCADE", "MAME",
+ALL_CONSOLE_TYPES = sorted(
+    [
+        "3DS",
+        "NDS",
+        "PSP",
+        "PS1",
+        "PS3",
+        "VITA",
+        "GBA",
+        "SNES",
+        "NES",
+        "MD",
+        "N64",
+        "GB",
+        "GBC",
+        "GG",
+        "SMS",
+        "PCE",
+        "PCECD",
+        "PS2",
+        "NGP",
+        "DC",
+        "GC",
+        "SAT",
+        "A2600",
+        "A7800",
+        "LYNX",
+        "NEOGEO",
+        "32X",
+        "SEGACD",
+        "WSWAN",
+        "WSWANC",
+        "ARCADE",
+        "MAME",
+        "FDS",
+        "N64DD",
+    ],
+    key=lambda x: x.lower(),
+)
+
+ALL_CONSOLE_TYPES.insert(0, "All")
+
+DEVICE_TYPES = [
+    "Generic",
+    "RetroArch",
+    "MiSTer",
+    "Analogue Pocket",
+    "Pocket (openFPGA)",
+    "Everdrive",
+    "MEGA EverDrive",
+    "SAROO",
+    "EmuDeck",
+    "MemCard Pro",
+    "CD Folder",
 ]
 
-DEVICE_TYPES = ["Generic", "RetroArch", "MiSTer", "Analogue Pocket", "Pocket (openFPGA)", "Everdrive", "MEGA EverDrive", "EmuDeck", "MemCard Pro"]
-
-SYSTEM_CHOICES = [
-    "GBA", "SNES", "NES", "MD", "N64", "GB", "GBC", "GG", "NGP",
-    "PCE", "PS1", "PS2", "PSP", "PS3", "SMS", "ATARI2600", "ATARI7800", "LYNX", "NEOGEO",
-    "32X", "SAT", "SEGACD", "TG16", "WSWAN", "WSWANC", "DC", "NDS", "GC",
-    "ARCADE", "MAME",
-]
+SYSTEM_CHOICES = sorted(
+    [
+        "GBA",
+        "SNES",
+        "NES",
+        "MD",
+        "N64",
+        "GB",
+        "GBC",
+        "GG",
+        "NGP",
+        "PCE",
+        "PCECD",
+        "PS1",
+        "PS2",
+        "PSP",
+        "PS3",
+        "SMS",
+        "A2600",
+        "A7800",
+        "LYNX",
+        "NEOGEO",
+        "32X",
+        "SAT",
+        "SEGACD",
+        "TG16",
+        "WSWAN",
+        "WSWANC",
+        "DC",
+        "NDS",
+        "GC",
+        "ARCADE",
+        "MAME",
+        "FDS",
+        "N64DD",
+    ],
+    key=lambda x: x.lower(),
+)
 
 STATUS_COLORS = {
-    "up_to_date":    QColor(0, 200, 0),
-    "local_newer":   QColor(0, 160, 255),
-    "server_newer":  QColor(255, 200, 0),
+    "up_to_date": QColor(0, 200, 0),
+    "local_newer": QColor(0, 160, 255),
+    "server_newer": QColor(255, 200, 0),
     "not_on_server": QColor(180, 180, 180),
-    "server_only":   QColor(180, 100, 255),
-    "conflict":      QColor(220, 60, 60),
+    "server_only": QColor(180, 100, 255),
+    "conflict": QColor(220, 60, 60),
     "mapping_conflict": QColor(255, 120, 40),
     "local_duplicate_conflict": QColor(255, 140, 80),
-    "error":         QColor(200, 0, 200),
-    "unknown":       QColor(180, 180, 180),
+    "error": QColor(200, 0, 200),
+    "unknown": QColor(180, 180, 180),
 }
 
 STATUS_LABELS = {
-    "up_to_date":    "Up to date",
-    "local_newer":   "Local newer",
-    "server_newer":  "Server newer",
+    "up_to_date": "Up to date",
+    "local_newer": "Local newer",
+    "server_newer": "Server newer",
     "not_on_server": "Not on server",
-    "server_only":   "Server only",
-    "conflict":      "Conflict",
+    "server_only": "Server only",
+    "conflict": "Conflict",
     "mapping_conflict": "Mapping conflict",
     "local_duplicate_conflict": "Local duplicates differ",
-    "error":         "Error",
-    "unknown":       "Unknown",
+    "error": "Error",
+    "unknown": "Unknown",
 }
 
 
 # ---------------------------------------------------------------------------
 # Config helpers
 # ---------------------------------------------------------------------------
+
 
 def load_config() -> dict:
     if CONFIG_FILE.exists():
@@ -95,21 +174,47 @@ _HEX_TITLE_RE = re.compile(r"^[0-9A-Fa-f]{16}$")
 _PS_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")
 _EMULATOR_RE = re.compile(r"^([A-Z0-9]{2,8})_[a-z0-9]")
 
-_PS3_PREFIXES = {"BCAS", "BCES", "BCJS", "BCKS", "BCUS",
-                 "BLAS", "BLES", "BLJM", "BLJS", "BLKS", "BLUS",
-                 "NPHA", "NPEA", "NPJA", "NPUA", "NPEB", "NPJB", "NPUB"}
+_PS3_PREFIXES = {
+    "BCAS",
+    "BCES",
+    "BCJS",
+    "BCKS",
+    "BCUS",
+    "BLAS",
+    "BLES",
+    "BLJM",
+    "BLJS",
+    "BLKS",
+    "BLUS",
+    "NPHA",
+    "NPEA",
+    "NPJA",
+    "NPUA",
+    "NPEB",
+    "NPJB",
+    "NPUB",
+}
 
 # PS1 retail disc prefixes — uniquely identify PS1 physical/PSN discs vs PSP games.
 # Used to classify product codes from PPSSPP PSone Classics, MemCard Pro, etc.
 _PSX_RETAIL_PREFIXES = {
     # North America
-    "SLUS", "SCUS", "PAPX",
+    "SLUS",
+    "SCUS",
+    "PAPX",
     # Europe
-    "SLES", "SCES", "SCED",
+    "SLES",
+    "SCES",
+    "SCED",
     # Japan
-    "SLPS", "SLPM", "SCPS", "SCPM",
+    "SLPS",
+    "SLPM",
+    "SCPS",
+    "SCPM",
     # Other regions
-    "SLAJ", "SLEJ", "SCAJ",
+    "SLAJ",
+    "SLEJ",
+    "SCAJ",
 }
 
 
@@ -133,9 +238,33 @@ def detect_console_type(title_id: str) -> str:
     return "NDS"
 
 
+def format_display_game_name(name: str, console_type: str = "") -> str:
+    """Return a UI-friendly game name without changing any underlying identifiers.
+
+    For PlayStation disc-based titles, the server or local matcher can legitimately
+    return names like ``Parasite Eve (USA) (Disc 1)``. DuckStation and similar tools
+    usually present the shared game title without the disc marker, so the desktop UI
+    mirrors that behavior while keeping the raw title ID / file path untouched.
+    """
+    text = (name or "").strip()
+    if not text:
+        return text
+
+    if (console_type or "").upper() == "PS1":
+        text = re.sub(
+            r"\s*[\(\[]\s*(disc|cd)\s*\d+(?:\s*of\s*\d+)?\s*[\)\]]",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 # ---------------------------------------------------------------------------
 # API helpers
 # ---------------------------------------------------------------------------
+
 
 def fetch_all_saves() -> list[dict]:
     resp = requests.get(
@@ -204,6 +333,19 @@ def download_raw_save(title_id: str, dest_path: Path) -> None:
     dest_path.write_bytes(resp.content)
 
 
+def download_ps3_save(title_id: str, dest_path: Path) -> None:
+    """Download a PS3 save bundle and extract it into dest_path."""
+    from sync_engine import _extract_bundle_to_dir
+
+    resp = requests.get(
+        f"{get_base_url()}/api/v1/saves/{title_id}",
+        headers=get_api_headers(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    _extract_bundle_to_dir(resp.content, dest_path)
+
+
 def download_ps1_cards(title_id: str, dest_path: Path) -> list[Path]:
     """Download PS1 memory card slot 0 and, if present, slot 1.
 
@@ -238,3 +380,19 @@ def download_ps1_cards(title_id: str, dest_path: Path) -> list[Path]:
     slot1_path.write_bytes(resp1.content)
     written.append(slot1_path)
     return written
+
+
+def download_ps2_card(title_id: str, dest_path: Path, card_format: str = "mc2") -> None:
+    """Download a PS2 memory card in either MemCard Pro (`mc2`) or PCSX2 (`ps2`) format."""
+    if card_format not in {"mc2", "ps2"}:
+        raise ValueError(f"Unsupported PS2 card format: {card_format}")
+
+    resp = requests.get(
+        f"{get_base_url()}/api/v1/saves/{title_id}/ps2-card",
+        headers=get_api_headers(),
+        params={"format": card_format},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    dest_path.write_bytes(resp.content)

@@ -1,6 +1,8 @@
 import re
+import shutil
 from pathlib import Path
 
+import requests
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -12,6 +14,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QProgressDialog,
     QHeaderView,
+    QMenu,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -20,15 +23,46 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
 
-from config import STATUS_COLORS, STATUS_LABELS, get_base_url, get_api_headers
+from config import (
+    STATUS_COLORS,
+    STATUS_LABELS,
+    format_display_game_name,
+    get_api_headers,
+    get_base_url,
+)
+
+
+_PS_TITLE_ID_RE = re.compile(r"^[A-Z]{4}\d{5}$")
+
+
+def _copy_save_payload(source: Path, dest: Path) -> None:
+    """Copy a downloaded save artifact, preserving directory-based saves like PS3."""
+    if source.is_dir():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists() and dest.is_file():
+            dest.unlink()
+        elif dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(source, dest)
+        return
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, dest)
 
 
 class ScanWorker(QThread):
     result_ready = pyqtSignal(list)
+    partial_result_ready = pyqtSignal(list)  # fast first pass: saves only
     error = pyqtSignal(str)
     progress = pyqtSignal(str, int, int)
 
-    def __init__(self, profiles: list[dict], base_url: str, headers: dict, enable_auto_normalize: bool = True):
+    def __init__(
+        self,
+        profiles: list[dict],
+        base_url: str,
+        headers: dict,
+        enable_auto_normalize: bool = True,
+    ):
         super().__init__()
         self.profiles = profiles
         self.base_url = base_url
@@ -45,32 +79,60 @@ class ScanWorker(QThread):
     def run(self):
         try:
             from sync_engine import scan_profile, compare_with_server
-            all_saves = []
+
             systems_filter: set[str] = set()
             for profile in self.profiles:
-                self._emit_progress(f"Scanning profile '{profile.get('name', '')}'…")
-                all_saves.extend(scan_profile(
-                    profile,
-                    progress_callback=self._emit_progress,
-                    enable_auto_normalize=self.enable_auto_normalize,
-                ))
-                # Single-system profiles (Generic / Everdrive / MEGA EverDrive)
-                # store their system as profile["system"] (a plain string).
                 single = profile.get("system", "").strip().upper()
                 if single:
                     systems_filter.add(single)
                 elif "systems" in profile:
-                    # New multi-system format: list of {system, enabled, ...}
                     for s in profile["systems"]:
                         if s.get("enabled", True):
                             systems_filter.add(s["system"].upper())
                 else:
-                    # Old format: systems_filter is a plain list of system codes
                     pf = set(s.upper() for s in (profile.get("systems_filter") or []))
                     systems_filter |= pf
+
+            # ── Phase 1: fast scan (saves only, no ROM walk) ──────────────────
+            # Scan just the save folders so users see results immediately.
+            partial_saves = []
+            for profile in self.profiles:
+                self._emit_progress(f"Quick scan '{profile.get('name', '')}'…")
+                partial_saves.extend(
+                    scan_profile(
+                        profile,
+                        progress_callback=self._emit_progress,
+                        enable_auto_normalize=self.enable_auto_normalize,
+                        saves_only=True,
+                    )
+                )
+            self._emit_progress("Comparing with server…", 0, max(len(partial_saves), 1))
+            partial_statuses = compare_with_server(
+                partial_saves,
+                self.base_url,
+                self.headers,
+                systems_filter=systems_filter or None,
+                progress_callback=self._emit_progress,
+            )
+            self.partial_result_ready.emit(partial_statuses)
+
+            # ── Phase 2: full scan (ROM library walk for ROM-only entries) ────
+            self._emit_progress("Scanning ROM library…", 0, 0)
+            all_saves = []
+            for profile in self.profiles:
+                self._emit_progress(f"Full scan '{profile.get('name', '')}'…")
+                all_saves.extend(
+                    scan_profile(
+                        profile,
+                        progress_callback=self._emit_progress,
+                        enable_auto_normalize=self.enable_auto_normalize,
+                    )
+                )
             self._emit_progress("Comparing with server…", 0, max(len(all_saves), 1))
             statuses = compare_with_server(
-                all_saves, self.base_url, self.headers,
+                all_saves,
+                self.base_url,
+                self.headers,
                 systems_filter=systems_filter or None,
                 progress_callback=self._emit_progress,
             )
@@ -79,6 +141,7 @@ class ScanWorker(QThread):
             self.error.emit("__SCAN_CANCELLED__")
         except Exception as e:
             import traceback
+
             self.error.emit(traceback.format_exc())
 
 
@@ -88,6 +151,7 @@ class SyncTab(QWidget):
         self.profiles_tab = profiles_tab
         self._statuses: list = []
         self._saved_profile_name = ""
+        self._last_download_folder: Path | None = None
         self._init_ui()
 
     def _init_ui(self):
@@ -148,10 +212,20 @@ class SyncTab(QWidget):
         filter_row.addWidget(self.system_filter_combo)
         filter_row.addWidget(QLabel("Status:"))
         self.status_filter_combo = QComboBox()
-        self.status_filter_combo.addItems(["All", "Local newer", "Server newer",
-                                           "Not on server", "Server only", "Conflict",
-                                           "Mapping conflict", "Local duplicates differ",
-                                           "Up to date", "Error"])
+        self.status_filter_combo.addItems(
+            [
+                "All",
+                "Local newer",
+                "Server newer",
+                "Not on server",
+                "Server only",
+                "Conflict",
+                "Mapping conflict",
+                "Local duplicates differ",
+                "Up to date",
+                "Error",
+            ]
+        )
         self.status_filter_combo.currentTextChanged.connect(self._apply_filter)
         filter_row.addWidget(self.status_filter_combo)
         filter_row.addWidget(QLabel("Search:"))
@@ -167,11 +241,17 @@ class SyncTab(QWidget):
         self.table.setHorizontalHeaderLabels(
             ["System", "Game", "Title ID", "Local File", "Server Status", "Action"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.Stretch
+        )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_context_menu)
         layout.addWidget(self.table)
 
         self.status_label = QLabel("Select a profile and click Scan to begin.")
@@ -183,6 +263,10 @@ class SyncTab(QWidget):
     def _refresh_profile_list(self):
         """Reload profiles from ProfilesTab into the dropdown."""
         profiles = self.profiles_tab.get_profiles()
+        if not self._saved_profile_name:
+            from config import load_config
+
+            self._saved_profile_name = load_config().get("last_sync_profile", "")
         current = self.profile_combo.currentText().strip() or self._saved_profile_name
         self.profile_combo.blockSignals(True)
         self.profile_combo.clear()
@@ -197,17 +281,26 @@ class SyncTab(QWidget):
             self._saved_profile_name = self.profile_combo.currentText()
         self.profile_combo.blockSignals(False)
         if not profiles:
-            self.status_label.setText("No profiles configured — add profiles in the Sync Profiles tab.")
+            self.status_label.setText(
+                "No profiles configured — add profiles in the Sync Profiles tab."
+            )
 
     def _on_profile_changed(self, name: str):
         self._saved_profile_name = name.strip()
+        if name.strip():
+            from config import load_config, save_config
+
+            cfg = load_config()
+            cfg["last_sync_profile"] = name.strip()
+            save_config(cfg)
 
     def _scan(self):
         self._refresh_profile_list()
         if self.profile_combo.count() == 0:
             QMessageBox.information(
-                self, "No Profiles",
-                "Add sync profiles in the 'Sync Profiles' tab first."
+                self,
+                "No Profiles",
+                "Add sync profiles in the 'Sync Profiles' tab first.",
             )
             return
 
@@ -235,6 +328,7 @@ class SyncTab(QWidget):
             get_api_headers(),
             enable_auto_normalize=self.auto_normalize_check.isChecked(),
         )
+        self._worker.partial_result_ready.connect(self._on_partial_scan_done)
         self._worker.result_ready.connect(self._on_scan_done)
         self._worker.error.connect(self._on_scan_error)
         self._worker.progress.connect(self._on_scan_progress)
@@ -263,9 +357,28 @@ class SyncTab(QWidget):
             return
         clear_slot_mappings()
         clear_scan_cache()
-        self.status_label.setText("Sync mappings and scan cache cleared. Re-scan the profile.")
+        self.status_label.setText(
+            "Sync mappings and scan cache cleared. Re-scan the profile."
+        )
+
+    def _on_partial_scan_done(self, statuses: list):
+        """Show saves-only results immediately while ROM walk continues."""
+        self._apply_display_names(statuses)
+        self._statuses = statuses
+        self._populate_table(statuses)
+        self.scan_btn.setEnabled(True)
+        self.sync_all_btn.setEnabled(True)
+        self.sync_sel_btn.setEnabled(True)
+        count = len(statuses)
+        self.status_label.setText(
+            f"Found {count} saves — scanning ROM library in background…"
+        )
+        if hasattr(self, "_scan_progress"):
+            self._scan_progress.setLabelText("Scanning ROM library…")
+            self._scan_progress.setMaximum(0)  # keep indeterminate
 
     def _on_scan_done(self, statuses: list):
+        self._apply_display_names(statuses)
         self._statuses = statuses
         self._populate_table(statuses)
         self.scan_btn.setEnabled(True)
@@ -287,6 +400,55 @@ class SyncTab(QWidget):
             if server_only_count:
                 parts.append(f"{server_only_count} server-only")
             self.status_label.setText("Found " + ", ".join(parts))
+
+    def _apply_display_names(self, statuses: list) -> None:
+        """Replace raw product-code labels with readable names when possible.
+
+        MemCard Pro and some emulator profiles discover local saves by product
+        code only (for example ``SCUS-94403``). The Sync tab should still show
+        the human-readable game name, so we batch-resolve those codes through
+        the server's existing `/titles/names` lookup endpoint after scan.
+        """
+        codes: list[str] = []
+        seen: set[str] = set()
+        for st in statuses:
+            save = st.save
+            is_ps_code = _PS_TITLE_ID_RE.match(save.title_id)
+            is_gc_code = save.system == "GC" and save.title_id.startswith("GC_")
+            if not is_ps_code and not is_gc_code:
+                continue
+            if is_ps_code and not self._looks_like_raw_code_label(
+                save.game_name, save.title_id
+            ):
+                continue
+            if save.title_id not in seen:
+                seen.add(save.title_id)
+                codes.append(save.title_id)
+
+        if not codes:
+            return
+
+        try:
+            resp = requests.post(
+                f"{get_base_url()}/api/v1/titles/names",
+                headers=get_api_headers(),
+                json={"codes": codes},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            names = resp.json().get("names", {})
+        except requests.RequestException:
+            return
+
+        for st in statuses:
+            resolved = names.get(st.save.title_id, "").strip()
+            if resolved:
+                st.save.game_name = format_display_game_name(resolved, st.save.system)
+
+    def _looks_like_raw_code_label(self, label: str, title_id: str) -> bool:
+        """Return True when the current display label is just the product code."""
+        compact = re.sub(r"[^A-Z0-9]", "", label.upper())
+        return compact == title_id.upper()
 
     def _on_scan_error(self, msg: str):
         self.scan_btn.setEnabled(True)
@@ -343,12 +505,22 @@ class SyncTab(QWidget):
             row = self.table.rowCount()
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(save.system))
-            self.table.setItem(row, 1, QTableWidgetItem(save.game_name))
+            self.table.setItem(
+                row,
+                1,
+                QTableWidgetItem(format_display_game_name(save.game_name, save.system)),
+            )
             title_item = QTableWidgetItem(save.title_id)
             details = []
-            if getattr(save, "legacy_title_id", "") and save.legacy_title_id != save.title_id:
+            if (
+                getattr(save, "legacy_title_id", "")
+                and save.legacy_title_id != save.title_id
+            ):
                 details.append(f"Legacy slot: {save.legacy_title_id}")
-            if getattr(save, "canonical_title_id", "") and save.canonical_title_id != save.title_id:
+            if (
+                getattr(save, "canonical_title_id", "")
+                and save.canonical_title_id != save.title_id
+            ):
                 details.append(f"Canonical slot: {save.canonical_title_id}")
             if getattr(st, "mapping_note", ""):
                 details.append(st.mapping_note)
@@ -363,7 +535,9 @@ class SyncTab(QWidget):
                 local_color = QColor(140, 140, 140)
             elif not save_exists:
                 local_name = "(no local save)"
-                local_tooltip = f"ROM present on device — save will be placed at:\n{save.path}"
+                local_tooltip = (
+                    f"ROM present on device — save will be placed at:\n{save.path}"
+                )
                 local_color = QColor(160, 120, 40)
             else:
                 local_name = save.path.name
@@ -389,35 +563,46 @@ class SyncTab(QWidget):
             self.table.setItem(row, 4, status_item)
 
             # Action buttons
-            # Upload: only when local save actually exists
             can_upload = save_exists and save.path is not None
-            # Download: server_only, conflict (keep server), server_newer without a local
-            # save, or local_newer (force-download overwriting the newer local copy)
-            needs_download_btn = st.status in ("conflict", "server_only", "local_newer", "local_duplicate_conflict") or (
-                st.status == "server_newer" and not save_exists
+            needs_upload_btn = (
+                st.status
+                in (
+                    "local_newer",
+                    "not_on_server",
+                    "conflict",
+                    "local_duplicate_conflict",
+                )
+                and can_upload
             )
-            action_needed = (
-                st.status in ("conflict", "server_only", "not_on_server", "local_newer", "local_duplicate_conflict")
-                or needs_download_btn
-            )
+            needs_download_btn = st.status in (
+                "conflict",
+                "server_only",
+                "local_duplicate_conflict",
+            ) or (st.status == "server_newer" and not save_exists)
+            action_needed = needs_upload_btn or needs_download_btn
+
             if action_needed:
                 action_widget = QWidget()
                 action_layout = QHBoxLayout(action_widget)
                 action_layout.setContentsMargins(2, 2, 2, 2)
                 action_layout.setSpacing(4)
 
-                if st.status in ("conflict", "not_on_server") and can_upload:
+                if needs_upload_btn:
                     lbl = "Keep Local" if st.status == "conflict" else "Upload"
                     upload_btn = QPushButton(lbl)
                     upload_btn.setFixedHeight(22)
                     upload_btn.clicked.connect(lambda _, idx=i: self._keep_local(idx))
                     action_layout.addWidget(upload_btn)
 
-                if needs_download_btn and (st.server_hash or st.status == "server_only"):
+                if needs_download_btn and (
+                    st.server_hash or st.status == "server_only"
+                ):
                     lbl = "Keep Server" if st.status == "conflict" else "Download"
                     download_btn = QPushButton(lbl)
                     download_btn.setFixedHeight(22)
-                    download_btn.clicked.connect(lambda _, idx=i: self._keep_server(idx))
+                    download_btn.clicked.connect(
+                        lambda _, idx=i: self._keep_server(idx)
+                    )
                     action_layout.addWidget(download_btn)
 
                 self.table.setCellWidget(row, 5, action_widget)
@@ -432,17 +617,19 @@ class SyncTab(QWidget):
         search = self.search_edit.text().strip().lower()
         for row in range(self.table.rowCount()):
             system_item = self.table.item(row, 0)
-            game_item   = self.table.item(row, 1)
-            tid_item    = self.table.item(row, 2)
+            game_item = self.table.item(row, 1)
+            tid_item = self.table.item(row, 2)
             status_item = self.table.item(row, 4)
             system = system_item.text() if system_item else ""
-            game   = game_item.text()   if game_item   else ""
-            tid    = tid_item.text()    if tid_item    else ""
+            game = game_item.text() if game_item else ""
+            tid = tid_item.text() if tid_item else ""
             status = status_item.text() if status_item else ""
             match_system = system_filter == "All" or system == system_filter
             match_status = status_filter == "All" or status == status_filter
             match_search = not search or search in game.lower() or search in tid.lower()
-            self.table.setRowHidden(row, not (match_system and match_status and match_search))
+            self.table.setRowHidden(
+                row, not (match_system and match_status and match_search)
+            )
 
     def _selected_status_indices(self) -> list[int]:
         rows = sorted(set(idx.row() for idx in self.table.selectedIndexes()))
@@ -452,6 +639,40 @@ class SyncTab(QWidget):
             if item:
                 result.append(item.data(Qt.ItemDataRole.UserRole))
         return result
+
+    def _show_context_menu(self, pos):
+        item = self.table.itemAt(pos)
+        if item is None:
+            return
+
+        row = item.row()
+        row_item = self.table.item(row, 0)
+        if row_item is None:
+            return
+
+        status_idx = row_item.data(Qt.ItemDataRole.UserRole)
+        if status_idx is None:
+            return
+
+        # Right-clicking a row should operate on that row even if it was not
+        # already part of the current selection.
+        self.table.selectRow(row)
+        st = self._statuses[status_idx]
+        save_exists = getattr(st.save, "save_exists", True)
+        has_local = st.save.path is not None and save_exists
+        has_server = bool(st.server_hash) or st.status == "server_only"
+
+        menu = QMenu(self)
+        force_upload = menu.addAction("Force Upload")
+        force_upload.setEnabled(has_local)
+        force_download = menu.addAction("Force Download")
+        force_download.setEnabled(has_server)
+
+        chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
+        if chosen == force_upload and has_local:
+            self._force_upload(status_idx)
+        elif chosen == force_download and has_server:
+            self._force_download(status_idx)
 
     def _sync_all(self):
         # Only sync rows currently visible (respects system/status/search filters)
@@ -468,6 +689,7 @@ class SyncTab(QWidget):
 
     def _do_sync(self, indices):
         from sync_engine import upload_save, download_save
+
         base_url = get_base_url()
         headers = get_api_headers()
         errors = []
@@ -486,18 +708,35 @@ class SyncTab(QWidget):
             st = self._statuses[idx]
             try:
                 save_exists = getattr(st.save, "save_exists", True)
-                if st.status in ("local_newer", "not_on_server") and st.save.path and save_exists:
-                    upload_save(st.save.title_id, st.save.path, base_url, headers)
+                if (
+                    st.status in ("local_newer", "not_on_server")
+                    and st.save.path
+                    and save_exists
+                ):
+                    upload_save(
+                        st.save.title_id,
+                        st.save.path,
+                        base_url,
+                        headers,
+                        system=st.save.system,
+                    )
                     self._update_row_status(idx, "up_to_date")
                     synced += 1
                 elif st.status == "server_newer" and st.save.path:
-                    self._download_to_paths(st.save.title_id, [st.save.path, *getattr(st.save, "alternate_paths", [])], base_url, headers)
+                    self._download_to_paths(
+                        st.save.title_id,
+                        [st.save.path, *getattr(st.save, "alternate_paths", [])],
+                        base_url,
+                        headers,
+                    )
                     self._update_row_status(idx, "up_to_date", new_path=st.save.path)
                     synced += 1
                 elif st.status == "server_only":
                     dest_path = self._resolve_download_path(st)
                     if dest_path:
-                        self._download_to_paths(st.save.title_id, [dest_path], base_url, headers)
+                        self._download_to_paths(
+                            st.save.title_id, [dest_path], base_url, headers
+                        )
                         self._update_row_status(idx, "up_to_date", new_path=dest_path)
                         synced += 1
                     else:
@@ -518,7 +757,9 @@ class SyncTab(QWidget):
             msg += f"\n\nErrors:\n" + "\n".join(errors)
         QMessageBox.information(self, "Sync Complete", msg)
 
-    def _update_row_status(self, status_idx: int, new_status: str, new_path: Path | None = None):
+    def _update_row_status(
+        self, status_idx: int, new_status: str, new_path: Path | None = None
+    ):
         """Update a single table row in-place after an upload or download.
 
         Mutates self._statuses[status_idx] and refreshes the corresponding
@@ -568,7 +809,14 @@ class SyncTab(QWidget):
         # Clear action buttons — row is now up_to_date (no actions needed)
         self.table.setCellWidget(target_row, 5, None)
 
-    def _download_to_paths(self, title_id: str, paths: list[Path], base_url: str, headers: dict):
+    def _download_to_paths(
+        self,
+        title_id: str,
+        paths: list[Path],
+        base_url: str,
+        headers: dict,
+        system: str | None = None,
+    ):
         from sync_engine import download_save
 
         unique_paths: list[Path] = []
@@ -581,25 +829,145 @@ class SyncTab(QWidget):
         server_hash = None
         for i, path in enumerate(unique_paths):
             if i == 0:
-                server_hash = download_save(title_id, path, base_url, headers)
+                server_hash = download_save(
+                    title_id, path, base_url, headers, system=system
+                )
             else:
-                # Avoid re-downloading from the server for duplicate ROM locations.
-                data = unique_paths[0].read_bytes()
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(data)
+                # Avoid re-downloading from the server for duplicate local locations.
+                _copy_save_payload(unique_paths[0], path)
         return server_hash
 
     def _keep_local(self, status_idx: int):
-        from sync_engine import upload_save
+        from sync_engine import _SAROO_META, upload_save
+
         st = self._statuses[status_idx]
         if not st.save.path:
-            QMessageBox.warning(self, "No Local File", "No local file found for this save.")
+            QMessageBox.warning(
+                self, "No Local File", "No local file found for this save."
+            )
             return
         try:
-            upload_save(st.save.title_id, st.save.path, get_base_url(), get_api_headers(), force=True)
+            profile = self.profile_combo.currentData() or {}
+            if profile.get("device_type") == "SAROO":
+                # Upload the pre-converted mednafen bytes, not the raw SS_SAVE.BIN
+                meta = _SAROO_META.get(st.save.title_id)
+                if not meta or not meta.get("native_bytes"):
+                    raise ValueError(
+                        "Saroo metadata not found — re-scan the profile first."
+                    )
+                native_bytes = meta["native_bytes"]
+                params = {"force": "true"}
+                resp = requests.post(
+                    f"{get_base_url()}/api/v1/saves/{st.save.title_id}/raw",
+                    headers={
+                        **get_api_headers(),
+                        "Content-Type": "application/octet-stream",
+                    },
+                    params=params,
+                    data=native_bytes,
+                    timeout=30,
+                )
+                resp.raise_for_status()
+            else:
+                upload_save(
+                    st.save.title_id,
+                    st.save.path,
+                    get_base_url(),
+                    get_api_headers(),
+                    system=st.save.system,
+                    force=True,
+                )
             self._update_row_status(status_idx, "up_to_date")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    def _force_upload(self, status_idx: int):
+        """Upload the local save regardless of the current sync status."""
+        st = self._statuses[status_idx]
+        save_exists = getattr(st.save, "save_exists", True)
+        if not st.save.path or not save_exists:
+            QMessageBox.warning(
+                self, "No Local File", "No local save exists for this row."
+            )
+            return
+        reply = QMessageBox.question(
+            self,
+            "Force Upload",
+            f"Force upload local save for '{st.save.game_name}' and overwrite the server copy if needed?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._keep_local(status_idx)
+
+    def _ps1_memcard_serial_dirname(self, title_id: str) -> str:
+        """Convert a compact PS1 title ID like ``SLUS00594`` to ``SLUS-00594``."""
+        compact = re.sub(r"[^A-Z0-9]", "", (title_id or "").upper())
+        if _PS_TITLE_ID_RE.match(compact):
+            return f"{compact[:4]}-{compact[4:]}"
+        return compact or "UNKNOWN"
+
+    def _finalize_memcard_pro_download(self, path: Path, game_name: str):
+        """Write MemCard Pro companion metadata after a server download."""
+        serial_dir = path.parent.name
+        if not serial_dir:
+            return
+        if path.suffix.lower() == ".mc2":
+            txt_path = path.parent / "name.txt"
+        else:
+            txt_name = (
+                re.sub(r'[<>:"/\\|?*]', "_", (game_name or "").strip()) or serial_dir
+            )
+            txt_path = path.parent / f"{txt_name}.txt"
+        txt_path.parent.mkdir(parents=True, exist_ok=True)
+        txt_path.write_text((game_name or serial_dir).strip() + "\n", encoding="utf-8")
+
+    def _finalize_saroo_download(
+        self, title_id: str, bkr_path: Path, profile: dict
+    ) -> None:
+        """Inject the downloaded mednafen .bkr bytes back into SS_SAVE.BIN.
+
+        After `_download_to_paths` writes the server's mednafen-format bytes to
+        `bkr_path`, this method converts them to a Saroo slot and patches the
+        correct slot inside SS_SAVE.BIN on the SD card.
+
+        If SS_SAVE.BIN does not exist (e.g. the user only has a mednafen folder
+        configured), this step is silently skipped.
+        """
+        from saroo_format import mednafen_to_saroo_slot
+
+        saroo_root_str = profile.get("path", "")
+        if not saroo_root_str:
+            return
+        ss_save = Path(saroo_root_str) / "SS_SAVE.BIN"
+        if not ss_save.exists():
+            return
+
+        from sync_engine import _SAROO_META
+
+        meta = _SAROO_META.get(title_id)
+        if not meta:
+            # Slot position unknown — can't inject safely; leave .bkr only
+            return
+
+        game_id: str = meta["game_id"]
+        slot_offset: int = meta["slot_index"]  # byte offset of the slot in SS_SAVE.BIN
+
+        if not bkr_path or not bkr_path.exists():
+            return
+        mednafen_bytes = bkr_path.read_bytes()
+
+        # Convert mednafen 32KB → Saroo 64KB slot
+        saroo_slot = mednafen_to_saroo_slot(mednafen_bytes, game_id)
+
+        # Patch SS_SAVE.BIN in-place at the known slot offset
+        ss_data = bytearray(ss_save.read_bytes())
+        end = slot_offset + len(saroo_slot)
+        if end > len(ss_data):
+            # File too short — extend it
+            ss_data.extend(b"\x00" * (end - len(ss_data)))
+        ss_data[slot_offset:end] = saroo_slot
+        ss_save.write_bytes(bytes(ss_data))
 
     def _find_rom_file(self, rom_folder: Path, game_name: str) -> Path | None:
         """Search rom_folder recursively for a ROM whose normalized stem matches game_name.
@@ -608,6 +976,7 @@ class SyncTab(QWidget):
         Used by Pocket profiles to get the exact ROM stem so the save filename matches.
         """
         import rom_normalizer as rn
+
         target = rn.normalize_name(game_name)
         if not target:
             return None
@@ -625,8 +994,11 @@ class SyncTab(QWidget):
         Falls back to None if no profile is selected or path can't be resolved.
         """
         from sync_engine import (
-            MISTER_FOLDER_MAP, POCKET_FOLDER_MAP,
-            POCKET_OPENFPGA_FOLDER_MAP, RETROARCH_CORE_MAP,
+            MISTER_FOLDER_MAP,
+            POCKET_FOLDER_MAP,
+            POCKET_OPENFPGA_FOLDER_MAP,
+            RETROARCH_CORE_MAP,
+            _make_title_id_with_region,
         )
 
         profile = self.profile_combo.currentData()
@@ -656,28 +1028,160 @@ class SyncTab(QWidget):
         if not filename_stem:
             # Fall back to slug portion of title_id
             if "_" in st.save.title_id and not st.save.title_id[0].isdigit():
-                filename_stem = st.save.title_id[len(system) + 1:]
+                filename_stem = st.save.title_id[len(system) + 1 :]
             else:
                 filename_stem = st.save.title_id
         # Use per-system save_ext if available (new format), else default .sav
         save_ext = ".sav"
+        has_system_override = False
         if "systems" in profile:
             sys_info = next(
                 (s for s in profile["systems"] if s.get("system") == system), {}
             )
+            has_system_override = bool(sys_info.get("save_folder", ""))
             save_ext = sys_info.get("save_ext", ".sav") or ".sav"
         filename = filename_stem + save_ext
+
+        if system == "PS3":
+            if device_type == "EmuDeck" and not has_system_override:
+                return save_root / "rpcs3" / "saves" / st.save.title_id
+            return save_root / st.save.title_id
+
+        if device_type == "MemCard Pro":
+            if system == "PS1":
+                card_root = (
+                    save_root / "MemoryCards"
+                    if (save_root / "MemoryCards").is_dir()
+                    else save_root
+                )
+                serial_dir = self._ps1_memcard_serial_dirname(st.save.title_id)
+                return card_root / serial_dir / f"{serial_dir}-1.mcd"
+            if system == "PS2":
+                card_root = (
+                    save_root / "PS2" if (save_root / "PS2").is_dir() else save_root
+                )
+                serial_dir = self._ps1_memcard_serial_dirname(st.save.title_id)
+                return card_root / serial_dir / f"{serial_dir}-1.mc2"
+            if system == "GC":
+                # Title ID is GC_xxxx; reconstruct the DL-DOL-XXXX-USA folder.
+                # We can't know the exact region suffix from the title_id alone,
+                # so we look for an existing matching folder, or default to -USA.
+                gc_code = st.save.title_id[3:].upper()  # e.g. "GBZE"
+                existing = (
+                    next(
+                        (
+                            d
+                            for d in save_root.iterdir()
+                            if d.is_dir()
+                            and d.name.upper().startswith(f"DL-DOL-{gc_code}-")
+                        ),
+                        None,
+                    )
+                    if save_root.exists()
+                    else None
+                )
+                if existing:
+                    folder_name = existing.name
+                else:
+                    folder_name = f"DL-DOL-{gc_code}-USA"
+                return save_root / folder_name / f"{folder_name}-1.raw"
+            return None
+
+        if device_type == "SAROO":
+            # For server-only downloads, prefer the mednafen save folder so the
+            # .bkr lands next to other emulator saves.  The slot injection into
+            # SS_SAVE.BIN is handled in _keep_server() after the download.
+            safe_id = re.sub(
+                r"[^A-Za-z0-9_\-]", "_", st.save.title_id[4:]
+            )  # strip "SAT_"
+            bkr_filename = f"{safe_id}.bkr"
+            mednafen_folder_str = profile.get("save_folder", "")
+            if mednafen_folder_str:
+                return Path(mednafen_folder_str) / bkr_filename
+            # No mednafen folder — place next to SS_SAVE.BIN
+            saroo_root_str = profile.get("path", "")
+            if saroo_root_str:
+                return Path(saroo_root_str) / bkr_filename
+            return None
 
         if device_type in ("Generic", "Everdrive"):
             return save_root / filename
 
         elif device_type == "MEGA EverDrive":
-            # gamedata/<Game Name>/bram.srm — subfolder named after the game
-            game_folder = re.sub(r'[<>:"/\\|?*]', "_", raw_name).strip() or filename_stem
-            return save_root / game_folder / "bram.srm"
+            # Sega CD: gamedata/<Game Name (Region).cue>/cd-bram.brm
+            # Cartridge: gamedata/<Game Name (Region).ext>/bram.srm
+            _CD_SYSTEMS = {"SEGACD"}
+            is_cd = system in _CD_SYSTEMS
+            save_name = "cd-bram.brm" if is_cd else "bram.srm"
+
+            # Try to recover the exact .cue / ROM filename so the gamedata
+            # subfolder is named correctly.
+            #
+            # Strategy:
+            #  1. For CD games, scan the Game Folder (profile["path"]) for .cue
+            #     files whose slug matches the server title_id.  The gamedata
+            #     subfolder must be "<cue_filename>.cue" (the full filename
+            #     including extension).
+            #  2. Fall back to scanning existing gamedata subfolders in save_root
+            #     (covers the case where the .cue was deleted but the save
+            #     folder already exists).
+            game_folder = None
+            title_id = st.save.title_id
+
+            # --- 1. Scan Game Folder for .cue files (CD systems only) ---
+            # The Game Folder (profile["path"]) contains subfolders per game,
+            # and each subfolder holds the .cue + .bin files.  E.g.:
+            #   J:/CD/Sonic CD (USA)/Sonic CD (USA).cue
+            if is_cd:
+                game_path_str = profile.get("path", "")
+                if game_path_str:
+                    game_path = Path(game_path_str)
+                    if game_path.exists():
+                        for subdir in game_path.iterdir():
+                            if not subdir.is_dir():
+                                continue
+                            for f in subdir.iterdir():
+                                if not f.is_file():
+                                    continue
+                                if not f.name.lower().endswith(".cue"):
+                                    continue
+                                # Strip .cue for slug comparison
+                                stem = f.name[:-4]
+                                if _make_title_id_with_region(system, stem) == title_id:
+                                    # Gamedata folder = full .cue filename
+                                    game_folder = f.name
+                                    break
+                            if game_folder:
+                                break
+
+            # --- 2. Fall back: scan existing gamedata subfolders ---
+            if not game_folder and save_root.exists():
+                for d in save_root.iterdir():
+                    if not d.is_dir():
+                        continue
+                    dname = d.name
+                    # For CD games, strip .cue from the folder name before matching
+                    if is_cd and dname.lower().endswith(".cue"):
+                        match_name = dname[:-4]
+                    else:
+                        match_name = dname
+                    if _make_title_id_with_region(system, match_name) == title_id:
+                        game_folder = dname
+                        break
+
+            if not game_folder:
+                # No existing folder found — build one from the server name
+                base_name = (
+                    re.sub(r'[<>:"/\\|?*]', "_", raw_name).strip() or filename_stem
+                )
+                game_folder = (base_name + ".cue") if is_cd else base_name
+
+            return save_root / game_folder / save_name
 
         elif device_type == "MiSTer":
-            folder = next((k for k, v in MISTER_FOLDER_MAP.items() if v == system), system)
+            folder = next(
+                (k for k, v in MISTER_FOLDER_MAP.items() if v == system), system
+            )
             return save_root / folder / filename
 
         elif device_type in ("Pocket", "Pocket (openFPGA)", "Analogue Pocket"):
@@ -685,9 +1189,14 @@ class SyncTab(QWidget):
             # E.g. ROM at  Assets/snes/common/all/A-F/game.sfc
             #      Save at Saves/snes/common/all/A-F/game.sav
             if device_type in ("Pocket", "Analogue Pocket"):
-                sys_folder = next((k for k, v in POCKET_FOLDER_MAP.items() if v == system), system)
+                sys_folder = next(
+                    (k for k, v in POCKET_FOLDER_MAP.items() if v == system), system
+                )
             else:
-                sys_folder = next((k for k, v in POCKET_OPENFPGA_FOLDER_MAP.items() if v == system), system.lower())
+                sys_folder = next(
+                    (k for k, v in POCKET_OPENFPGA_FOLDER_MAP.items() if v == system),
+                    system.lower(),
+                )
 
             # Try to locate the matching ROM in the Assets folder.
             # When found, use the ROM's actual stem — not the server's game_name — so the
@@ -713,7 +1222,12 @@ class SyncTab(QWidget):
                             rel_subdir = Path()
                         if direct_root:
                             return save_root / rel_subdir / (rom_file.stem + save_ext)
-                        return save_root / sys_folder / rel_subdir / (rom_file.stem + save_ext)
+                        return (
+                            save_root
+                            / sys_folder
+                            / rel_subdir
+                            / (rom_file.stem + save_ext)
+                        )
 
             # ROM not found on card — place save flat under system folder with sanitised name
             if direct_root:
@@ -721,7 +1235,9 @@ class SyncTab(QWidget):
             return save_root / sys_folder / filename
 
         elif device_type == "RetroArch":
-            core = next((k for k, v in RETROARCH_CORE_MAP.items() if v == system), system)
+            core = next(
+                (k for k, v in RETROARCH_CORE_MAP.items() if v == system), system
+            )
             return save_root / core / filename
 
         else:
@@ -729,8 +1245,44 @@ class SyncTab(QWidget):
 
     def _keep_server(self, status_idx: int):
         from sync_engine import download_save
+
         st = self._statuses[status_idx]
         dest_path = st.save.path
+
+        # SAROO: the scanned path is SS_SAVE.BIN, but we need to download the
+        # mednafen .bkr bytes to a proper location, then inject into the slot.
+        profile = self.profile_combo.currentData() or {}
+        if profile.get("device_type") == "SAROO":
+            dest_path = self._resolve_download_path(st)
+            if dest_path is None:
+                QMessageBox.warning(
+                    self,
+                    "SAROO Download Error",
+                    "Could not resolve download path — check profile configuration.",
+                )
+                return
+            reply = QMessageBox.question(
+                self,
+                "Download Save",
+                f"Download save for {st.save.game_name} to:\n{dest_path}"
+                f"\n\n(SS_SAVE.BIN will also be updated)\n\nProceed?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            try:
+                self._download_to_paths(
+                    st.save.title_id,
+                    [dest_path],
+                    get_base_url(),
+                    get_api_headers(),
+                    system=st.save.system,
+                )
+                self._finalize_saroo_download(st.save.title_id, dest_path, profile)
+                self._update_row_status(status_idx, "up_to_date", new_path=dest_path)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e))
+            return
 
         if dest_path is None:
             # Truly server-only (no local ROM/path) — resolve destination from profile structure
@@ -738,17 +1290,25 @@ class SyncTab(QWidget):
             if dest_path is None:
                 # Fall back to file dialog if resolution failed
                 suggested = f"{st.save.title_id}.sav"
+                if self._last_download_folder:
+                    suggested_path = self._last_download_folder / suggested
+                else:
+                    suggested_path = suggested
                 dest_str, _ = QFileDialog.getSaveFileName(
-                    self, f"Download {st.save.title_id}", suggested,
-                    "Save Files (*.sav *.srm *.bin);;All Files (*)"
+                    self,
+                    f"Download {st.save.title_id}",
+                    str(suggested_path),
+                    "Save Files (*.sav *.srm *.bin);;All Files (*)",
                 )
                 if not dest_str:
                     return
                 dest_path = Path(dest_str)
+                self._last_download_folder = dest_path.parent
             else:
                 # Show the resolved path and let user confirm
                 reply = QMessageBox.question(
-                    self, "Download Save",
+                    self,
+                    "Download Save",
                     f"Download to:\n{dest_path}\n\nProceed?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 )
@@ -760,7 +1320,8 @@ class SyncTab(QWidget):
             dest_paths = [dest_path, *getattr(st.save, "alternate_paths", [])]
             if st.status == "local_newer":
                 reply = QMessageBox.question(
-                    self, "Overwrite Newer Local Save",
+                    self,
+                    "Overwrite Newer Local Save",
                     f"Your local save for {st.save.game_name} is newer than the server.\n"
                     f"Download from server anyway? This will overwrite your local save.",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -774,7 +1335,8 @@ class SyncTab(QWidget):
                         unique_paths.append(p)
                 path_msg = "\n".join(str(p) for p in unique_paths)
                 reply = QMessageBox.question(
-                    self, "Overwrite Diverged Local Saves",
+                    self,
+                    "Overwrite Diverged Local Saves",
                     f"Local save copies for {st.save.game_name} do not match.\n\n"
                     f"Download from server and overwrite all copies at:\n{path_msg}\n\nProceed?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -789,7 +1351,8 @@ class SyncTab(QWidget):
                         unique_paths.append(p)
                 path_msg = "\n".join(str(p) for p in unique_paths)
                 reply = QMessageBox.question(
-                    self, "Download Save",
+                    self,
+                    "Download Save",
                     f"Download save for {st.save.game_name} to:\n{path_msg}\n\nProceed?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 )
@@ -798,18 +1361,56 @@ class SyncTab(QWidget):
 
         try:
             target_paths = [dest_path, *getattr(st.save, "alternate_paths", [])]
-            self._download_to_paths(st.save.title_id, target_paths, get_base_url(), get_api_headers())
+            self._download_to_paths(
+                st.save.title_id,
+                target_paths,
+                get_base_url(),
+                get_api_headers(),
+                system=st.save.system,
+            )
+            profile = self.profile_combo.currentData() or {}
+            if profile.get("device_type") == "MemCard Pro" and (
+                st.save.system or ""
+            ).upper() in {"PS1", "PS2"}:
+                for path in target_paths:
+                    if path is not None:
+                        self._finalize_memcard_pro_download(path, st.save.game_name)
+            if profile.get("device_type") == "SAROO":
+                self._finalize_saroo_download(st.save.title_id, dest_path, profile)
             self._update_row_status(status_idx, "up_to_date", new_path=dest_path)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    def _force_download(self, status_idx: int):
+        """Download the server copy regardless of the current sync status."""
+        st = self._statuses[status_idx]
+        if not (st.server_hash or st.status == "server_only"):
+            QMessageBox.warning(
+                self, "No Server Save", "No server save is available for this row."
+            )
+            return
+        reply = QMessageBox.question(
+            self,
+            "Force Download",
+            f"Force download the server save for '{st.save.game_name}' and overwrite the local copy if it exists?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._keep_server(status_idx)
 
     def save_ui_state(self) -> dict:
         return {
             "auto_normalize_sync": self.auto_normalize_check.isChecked(),
             "selected_profile": self.profile_combo.currentText(),
+            "last_download_folder": str(self._last_download_folder)
+            if self._last_download_folder
+            else "",
         }
 
     def load_ui_state(self, state: dict):
         if "auto_normalize_sync" in state:
             self.auto_normalize_check.setChecked(bool(state["auto_normalize_sync"]))
         self._saved_profile_name = state.get("selected_profile", "")
+        last_folder = state.get("last_download_folder", "")
+        self._last_download_folder = Path(last_folder) if last_folder else None

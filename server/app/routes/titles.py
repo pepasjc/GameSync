@@ -1,6 +1,6 @@
 import re
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from app.services import storage, game_names, serialstation
@@ -18,9 +18,32 @@ class NameHintRequest(BaseModel):
     codes: dict[str, str]  # title_id -> game_code (e.g. "0004000000161E00" -> "CTR-P-A22J")
 
 
+def _resolve_console_type(title: dict, typed: dict[str, tuple[str, str]]) -> str:
+    """Return the normalized console type for a title row."""
+    tid = title.get("title_id", "")
+    if title.get("platform") and title.get("name") != tid:
+        platform = title["platform"]
+        if platform in ("PSP", "PSX"):
+            return game_names.detect_platform(tid)
+        return platform
+    if tid in typed:
+        return typed[tid][1]
+    return game_names.detect_platform(tid)
+
+
 @router.get("/titles")
-async def list_titles():
+async def list_titles(console_type: list[str] | None = Query(default=None)):
     titles = storage.list_titles()
+
+    # Keep PS3 listing hashes aligned with /meta and /sync by refreshing rows
+    # from the current on-disk files before we hand them to clients.
+    for idx, title in enumerate(titles):
+        tid = title.get("title_id", "")
+        if not tid:
+            continue
+        meta = storage.get_metadata_for_sync(tid)
+        if meta is not None:
+            titles[idx] = meta.to_dict()
 
     if titles:
         # For titles missing name/platform in metadata (old saves), do a batch lookup
@@ -49,23 +72,31 @@ async def list_titles():
 
         for title in titles:
             tid = title.get("title_id", "")
+            retail_serial = game_names.get_psx_retail_serial(tid)
+            if retail_serial:
+                title["retail_serial"] = retail_serial
 
             # Use stored platform/name if already stamped on the metadata.
             # Re-detect platform for saves stored as "PSP" or "PSX" in case
             # they are actually PSone Classics that were uploaded before the
             # PS1 classification was added.
+            console = _resolve_console_type(title, typed)
             if title.get("platform") and title.get("name") != tid:
                 title["game_name"] = title["name"]
-                platform = title["platform"]
-                if platform in ("PSP", "PSX"):
-                    platform = game_names.detect_platform(tid)
-                title["console_type"] = platform
+                title["console_type"] = console
             elif tid in typed:
                 title["game_name"] = typed[tid][0]
-                title["console_type"] = typed[tid][1]
+                title["console_type"] = console
             else:
                 title["game_name"] = tid
-                title["console_type"] = game_names.detect_platform(tid)
+                title["console_type"] = console
+
+    if console_type:
+        wanted = {value.upper() for value in console_type if value}
+        titles = [
+            title for title in titles
+            if (title.get("console_type") or "").upper() in wanted
+        ]
 
     return {"titles": titles}
 

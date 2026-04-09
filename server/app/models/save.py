@@ -11,10 +11,12 @@ BUNDLE_VERSION = 1
 BUNDLE_VERSION_COMPRESSED = 2
 BUNDLE_VERSION_V3 = 3  # String title_id for PSP/Vita (16 bytes ASCII, null-padded)
 BUNDLE_VERSION_V4 = 4  # String title_id for PSP/Vita (32 bytes ASCII, null-padded)
+BUNDLE_VERSION_V5 = 5  # String title_id for PSP/Vita/PS3 (64 bytes ASCII, null-padded)
 
 # Accepts 16-char hex IDs (3DS/DS) OR 4-31 alphanumeric product codes (PSP/Vita)
 _HEX_TITLE_ID_RE = re.compile(r"^[0-9A-F]{16}$")
 _PRODUCT_CODE_RE = re.compile(r"^[A-Z0-9]{4,31}$")
+_SAVE_DIR_TITLE_ID_RE = re.compile(r"^[A-Z]{4}\d{5}[A-Z0-9._-]{0,54}$")
 # Emulator format: SYSTEM_slug  e.g. GBA_zelda_the_minish_cap
 _EMULATOR_TITLE_ID_RE = re.compile(r"^[A-Z0-9]{2,8}_[a-z0-9][a-z0-9_]{0,99}$")
 
@@ -25,10 +27,15 @@ def is_hex_title_id(title_id: str) -> bool:
 
 def validate_any_title_id(v: str) -> str:
     """Accept 16-char hex (3DS/DS), 4-31 alphanumeric product codes (PSP/Vita/PSX),
+    PS save-directory IDs rooted in a 9-char product code (PSP/Vita/PS3),
     or emulator SYSTEM_slug format (e.g. GBA_zelda_the_minish_cap)."""
     v = v.strip()
     v_upper = v.upper()
-    if _HEX_TITLE_ID_RE.match(v_upper) or _PRODUCT_CODE_RE.match(v_upper):
+    if (
+        _HEX_TITLE_ID_RE.match(v_upper)
+        or _PRODUCT_CODE_RE.match(v_upper)
+        or _SAVE_DIR_TITLE_ID_RE.match(v_upper)
+    ):
         return v_upper
     # Emulator format preserves case (system uppercase, slug lowercase)
     if _EMULATOR_TITLE_ID_RE.match(v):
@@ -36,6 +43,7 @@ def validate_any_title_id(v: str) -> str:
     raise ValueError(
         "title_id must be a 16-char hex string (3DS/DS), "
         "a 4-31 char alphanumeric product code (PSP/Vita/PSX), "
+        "a PS save-directory ID starting with a 9-char product code, "
         "or an emulator SYSTEM_slug (e.g. GBA_zelda_the_minish_cap)"
     )
 
@@ -53,7 +61,7 @@ class SaveBundle:
     title_id: int           # 64-bit int for v1/v2 (3DS/DS); 0 for v3
     timestamp: int          # unix epoch
     files: list[BundleFile] = field(default_factory=list)
-    title_id_str: str = ""  # non-empty for v3 bundles (PSP/Vita product codes)
+    title_id_str: str = ""  # non-empty for v3/v4/v5 bundles (string title IDs)
 
     @property
     def title_id_hex(self) -> str:
@@ -120,6 +128,7 @@ class SyncRequest(BaseModel):
     """Batch metadata from client for sync planning."""
     titles: list[TitleSyncInfo]
     console_id: str | None = None
+    platforms: list[str] | None = None
 
 
 class ConflictInfo(BaseModel):

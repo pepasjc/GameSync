@@ -23,7 +23,10 @@ data class Settings(
     val autoSyncIntervalMinutes: Int = 15,
     val consoleId: String = "",
     /** Directory whose subfolders are scanned for ROMs by system name (e.g. /sdcard/Isos) */
-    val romScanDir: String = ""
+    val romScanDir: String = "",
+    /** Path to the Dolphin GC memory card root (e.g. /sdcard/dolphin-mmjr/GC).
+     *  Leave empty to use the default dolphin-mmjr path on internal storage. */
+    val dolphinMemCardDir: String = ""
 )
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "save_sync_settings")
@@ -37,8 +40,12 @@ class SettingsStore(private val context: Context) {
         val AUTO_SYNC_INTERVAL = intPreferencesKey("auto_sync_interval_minutes")
         val CONSOLE_ID = stringPreferencesKey("console_id")
         val ROM_SCAN_DIR = stringPreferencesKey("rom_scan_dir")
+        val DOLPHIN_MEM_CARD_DIR = stringPreferencesKey("dolphin_mem_card_dir")
         /** Tracks whether we've already attempted to restore from external backup */
         val BACKUP_RESTORED = booleanPreferencesKey("backup_restored")
+        /** Remembered UI filter state */
+        val LAST_SYSTEM_FILTER = stringPreferencesKey("last_system_filter")
+        val LAST_STATUS_FILTER = stringPreferencesKey("last_status_filter")
     }
 
     /**
@@ -58,7 +65,8 @@ class SettingsStore(private val context: Context) {
             autoSyncEnabled = prefs[Keys.AUTO_SYNC_ENABLED] ?: false,
             autoSyncIntervalMinutes = prefs[Keys.AUTO_SYNC_INTERVAL] ?: 15,
             consoleId = consoleId,
-            romScanDir = prefs[Keys.ROM_SCAN_DIR] ?: ""
+            romScanDir = prefs[Keys.ROM_SCAN_DIR] ?: "",
+            dolphinMemCardDir = prefs[Keys.DOLPHIN_MEM_CARD_DIR] ?: ""
         )
     }
 
@@ -86,6 +94,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.AUTO_SYNC_INTERVAL] = backup.autoSyncIntervalMinutes
             backup.consoleId.takeIf { it.isNotBlank() }?.let { p[Keys.CONSOLE_ID] = it }
             backup.romScanDir.takeIf { it.isNotBlank() }?.let { p[Keys.ROM_SCAN_DIR] = it }
+            backup.dolphinMemCardDir.takeIf { it.isNotBlank() }?.let { p[Keys.DOLPHIN_MEM_CARD_DIR] = it }
         }
     }
 
@@ -94,7 +103,8 @@ class SettingsStore(private val context: Context) {
         apiKey: String? = null,
         autoSyncEnabled: Boolean? = null,
         autoSyncIntervalMinutes: Int? = null,
-        romScanDir: String? = null
+        romScanDir: String? = null,
+        dolphinMemCardDir: String? = null
     ) {
         context.dataStore.edit { prefs ->
             serverUrl?.let { prefs[Keys.SERVER_URL] = it }
@@ -102,6 +112,7 @@ class SettingsStore(private val context: Context) {
             autoSyncEnabled?.let { prefs[Keys.AUTO_SYNC_ENABLED] = it }
             autoSyncIntervalMinutes?.let { prefs[Keys.AUTO_SYNC_INTERVAL] = it }
             romScanDir?.let { prefs[Keys.ROM_SCAN_DIR] = it }
+            dolphinMemCardDir?.let { prefs[Keys.DOLPHIN_MEM_CARD_DIR] = it }
         }
         // Mirror to the external backup file every time settings are saved
         writeBackupFile()
@@ -121,6 +132,31 @@ class SettingsStore(private val context: Context) {
         return id
     }
 
+    // ── UI filter preferences ───────────────────────────────────────────────
+
+    /** Returns the last saved system filter (e.g. "GBA") or "All" if none saved. */
+    suspend fun getLastSystemFilter(): String {
+        val prefs = context.dataStore.data.first()
+        return prefs[Keys.LAST_SYSTEM_FILTER] ?: "All"
+    }
+
+    /** Returns the last saved status filter name (e.g. "SYNCED") or null if none. */
+    suspend fun getLastStatusFilter(): String? {
+        val prefs = context.dataStore.data.first()
+        return prefs[Keys.LAST_STATUS_FILTER]
+    }
+
+    suspend fun saveFilterPreferences(systemFilter: String, statusFilter: String?) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.LAST_SYSTEM_FILTER] = systemFilter
+            if (statusFilter != null) {
+                prefs[Keys.LAST_STATUS_FILTER] = statusFilter
+            } else {
+                prefs.remove(Keys.LAST_STATUS_FILTER)
+            }
+        }
+    }
+
     // ── Backup helpers ────────────────────────────────────────────────────────
 
     private suspend fun writeBackupFile() {
@@ -133,6 +169,7 @@ class SettingsStore(private val context: Context) {
                 put("auto_sync_interval_minutes", current.autoSyncIntervalMinutes)
                 put("console_id", current.consoleId)
                 put("rom_scan_dir", current.romScanDir)
+                put("dolphin_mem_card_dir", current.dolphinMemCardDir)
             }
             val file = backupFile
             file.parentFile?.mkdirs()
@@ -153,7 +190,8 @@ class SettingsStore(private val context: Context) {
                 autoSyncEnabled = json.optBoolean("auto_sync_enabled", false),
                 autoSyncIntervalMinutes = json.optInt("auto_sync_interval_minutes", 15),
                 consoleId = json.optString("console_id", ""),
-                romScanDir = json.optString("rom_scan_dir", "")
+                romScanDir = json.optString("rom_scan_dir", ""),
+                dolphinMemCardDir = json.optString("dolphin_mem_card_dir", "")
             )
         } catch (_: Exception) {
             null

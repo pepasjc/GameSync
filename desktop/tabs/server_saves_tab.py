@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
+    QInputDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -24,12 +25,15 @@ from PyQt6.QtCore import Qt
 from config import (
     ALL_CONSOLE_TYPES,
     detect_console_type,
+    delete_save,
+    download_ps1_cards,
+    download_ps2_card,
+    download_ps3_save,
+    download_raw_save,
     fetch_all_saves,
     fetch_history,
-    delete_save,
+    format_display_game_name,
     restore_history,
-    download_raw_save,
-    download_ps1_cards,
 )
 from dialogs.history_dialog import HistoryDialog
 
@@ -38,6 +42,7 @@ class ServerSavesTab(QWidget):
     def __init__(self):
         super().__init__()
         self.saves = []
+        self._last_download_folder: Path | None = None
         self._init_ui()
         self.load_saves()
 
@@ -68,7 +73,9 @@ class ServerSavesTab(QWidget):
         self.table.setHorizontalHeaderLabels(
             ["Console", "Game ID", "Name", "Last Saved", "Size", "Files"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.Stretch
+        )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -95,7 +102,10 @@ class ServerSavesTab(QWidget):
         for save in self.saves:
             title_id = save.get("title_id", "")
             console_type = save.get("console_type", detect_console_type(title_id))
-            name = save.get("game_name", title_id)
+            name = format_display_game_name(
+                save.get("game_name", title_id),
+                console_type,
+            )
             last_sync = save.get("last_sync", "")
             try:
                 dt = datetime.fromisoformat(last_sync.replace("Z", "+00:00"))
@@ -116,7 +126,12 @@ class ServerSavesTab(QWidget):
             self.table.setItem(row, 5, QTableWidgetItem(str(files)))
             self.table.item(row, 0).setData(
                 Qt.ItemDataRole.UserRole,
-                {"title_id": title_id, "console_id": save.get("console_id", "")},
+                {
+                    "title_id": title_id,
+                    "console_id": save.get("console_id", ""),
+                    "console_type": console_type,
+                    "game_name": name,
+                },
             )
 
     def _apply_filter(self):
@@ -176,7 +191,9 @@ class ServerSavesTab(QWidget):
         try:
             history = fetch_history(title_id, console_id)
             if not history:
-                QMessageBox.information(self, "No History", "No history versions available")
+                QMessageBox.information(
+                    self, "No History", "No history versions available"
+                )
                 return
 
             dialog = QDialog(self)
@@ -188,10 +205,13 @@ class ServerSavesTab(QWidget):
                     f"{v.get('display', 'Unknown')} - {v.get('size', 0):,} bytes, "
                     f"{v.get('file_count', 0)} files"
                 )
-                list_widget.item(list_widget.count() - 1).setData(Qt.ItemDataRole.UserRole, v)
+                list_widget.item(list_widget.count() - 1).setData(
+                    Qt.ItemDataRole.UserRole, v
+                )
             dlayout.addWidget(list_widget)
             btns = QDialogButtonBox(
-                QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+                QDialogButtonBox.StandardButton.Ok
+                | QDialogButtonBox.StandardButton.Cancel
             )
             btns.accepted.connect(dialog.accept)
             btns.rejected.connect(dialog.reject)
@@ -203,13 +223,16 @@ class ServerSavesTab(QWidget):
                     selected = list_widget.item(idx).data(Qt.ItemDataRole.UserRole)
                     timestamp = selected.get("timestamp")
                     reply = QMessageBox.question(
-                        self, "Confirm Restore",
+                        self,
+                        "Confirm Restore",
                         f"Restore version from {selected.get('display')}?",
                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     )
                     if reply == QMessageBox.StandardButton.Yes:
                         restore_history(title_id, timestamp, console_id)
-                        QMessageBox.information(self, "Restored", "Save restored from history")
+                        QMessageBox.information(
+                            self, "Restored", "Save restored from history"
+                        )
                         self.load_saves()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to restore: {e}")
@@ -220,16 +243,61 @@ class ServerSavesTab(QWidget):
             return
         data = self._row_data(rows[0])
         title_id = data.get("title_id", "")
-        console_type = detect_console_type(title_id)
-        default_name = f"{title_id}.mcd" if console_type == "PS1" else f"{title_id}.sav"
-        file_filter = "PS1 Memory Cards (*.mcd *.mcr);;All Files (*)" if console_type == "PS1" else "Save Files (*.sav *.srm);;All Files (*)"
-        dest = QFileDialog.getSaveFileName(
-            self, "Save File As", default_name, file_filter
-        )[0]
-        if not dest:
-            return
-        try:
+        console_type = data.get("console_type", detect_console_type(title_id))
+        game_name = data.get("game_name", title_id)
+
+        if console_type == "PS1":
+            default_name = f"{title_id}.mcd"
+            file_filter = "PS1 Memory Cards (*.mcd *.mcr);;All Files (*)"
+        elif console_type == "PS2":
+            selected_format, ok = QInputDialog.getItem(
+                self,
+                "PS2 Download Format",
+                "Download card as:",
+                ["mc2 (MemCard Pro)", "ps2 (PCSX2 / AetherSX2)"],
+                0,
+                False,
+            )
+            if not ok:
+                return
+            card_format = "ps2" if selected_format.startswith("ps2") else "mc2"
+            suffix = ".ps2" if card_format == "ps2" else ".mc2"
+            default_name = f"{game_name}{suffix}"
+            file_filter = (
+                "PS2 Cards (*.ps2 *.mc2);;All Files (*)"
+                if card_format == "ps2"
+                else "PS2 Cards (*.mc2 *.ps2);;All Files (*)"
+            )
+        elif console_type == "PS3":
+            dest = QFileDialog.getExistingDirectory(
+                self,
+                "Select Destination Folder",
+                str(self._last_download_folder or ""),
+            )
+            if not dest:
+                return
+            self._last_download_folder = Path(dest)
+            dest_path = self._last_download_folder
+            if dest_path.name.upper() != title_id.upper():
+                dest_path = dest_path / title_id
+        else:
+            default_name = f"{title_id}.sav"
+            file_filter = "Save Files (*.sav *.srm);;All Files (*)"
+            dest = QFileDialog.getSaveFileName(
+                self,
+                "Save File As",
+                str(
+                    (self._last_download_folder / default_name)
+                    if self._last_download_folder
+                    else default_name
+                ),
+                file_filter,
+            )[0]
+            if not dest:
+                return
             dest_path = Path(dest)
+            self._last_download_folder = dest_path.parent
+        try:
             if console_type == "PS1":
                 written = download_ps1_cards(title_id, dest_path)
                 QMessageBox.information(
@@ -237,9 +305,25 @@ class ServerSavesTab(QWidget):
                     "Downloaded",
                     "PS1 card(s) written to:\n" + "\n".join(str(p) for p in written),
                 )
+            elif console_type == "PS2":
+                download_ps2_card(title_id, dest_path, card_format=card_format)
+                QMessageBox.information(
+                    self, "Downloaded", f"PS2 card written to:\n{dest}"
+                )
+            elif console_type == "PS3":
+                download_ps3_save(title_id, dest_path)
+                QMessageBox.information(
+                    self,
+                    "Downloaded",
+                    f"PS3 save folder written to:\n{dest_path}",
+                )
             else:
                 download_raw_save(title_id, dest_path)
-                QMessageBox.information(self, "Downloaded", f"Save written to:\n{dest}")
+                QMessageBox.information(
+                    self,
+                    "Downloaded",
+                    f"Save written to:\n{dest_path}",
+                )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Download failed: {e}")
 
@@ -249,7 +333,8 @@ class ServerSavesTab(QWidget):
             return
         count = len(rows)
         reply = QMessageBox.question(
-            self, "Confirm Delete",
+            self,
+            "Confirm Delete",
             f"Delete {count} save{'s' if count > 1 else ''}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -275,7 +360,8 @@ class ServerSavesTab(QWidget):
         files = self.table.item(row, 5).text()
         last_saved = self.table.item(row, 3).text()
         QMessageBox.information(
-            self, "Save Details",
+            self,
+            "Save Details",
             f"Game ID: {title_id}\nName: {name}\nConsole: {console}\n"
             f"Size: {size} bytes\nFiles: {files}\nLast Saved: {last_saved}",
         )
@@ -284,6 +370,9 @@ class ServerSavesTab(QWidget):
         return {
             "console_filter": self.console_filter.currentText(),
             "search": self.filter_edit.text(),
+            "last_download_folder": str(self._last_download_folder)
+            if self._last_download_folder
+            else "",
         }
 
     def load_ui_state(self, state: dict):
@@ -293,3 +382,5 @@ class ServerSavesTab(QWidget):
                 self.console_filter.setCurrentIndex(idx)
         if "search" in state:
             self.filter_edit.setText(state["search"])
+        last_folder = state.get("last_download_folder", "")
+        self._last_download_folder = Path(last_folder) if last_folder else None

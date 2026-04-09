@@ -1,4 +1,4 @@
-"""Game name lookup service using 3dstdb.txt, dstdb.txt, psptdb.txt, vitatdb.txt."""
+"""Game name lookup service using libretro DAT files and legacy .txt databases."""
 
 import re
 from pathlib import Path
@@ -6,12 +6,30 @@ from pathlib import Path
 from app.services.rom_id import SYSTEM_CODES, parse_title_id as _parse_emulator_id
 
 # Global cache for game names (loaded once at startup)
-_3ds_title_ids: dict[str, str] = {}  # full 16-char hex TitleID -> name (from 3dstitledb.txt)
-_3ds_names: dict[str, str] = {}      # 4-char game code -> name (legacy, from 3dstdb.txt)
-_ds_names: dict[str, str] = {}       # 4-char game code -> name
-_psp_names: dict[str, str] = {}      # keyed by full product code e.g. "ULUS10272"
-_psx_names: dict[str, str] = {}      # keyed by full product code e.g. "SCUS94163"
-_vita_names: dict[str, str] = {}     # keyed by full product code e.g. "PCSE00082"
+_3ds_title_ids: dict[
+    str, str
+] = {}  # full 16-char hex TitleID -> name (from 3dstitledb.txt)
+_3ds_names: dict[str, str] = {}  # 4-char game code -> name
+_ds_names: dict[str, str] = {}  # 4-char game code -> name
+_psp_names: dict[str, str] = {}  # keyed by full product code e.g. "ULUS10272"
+_psx_names: dict[str, str] = {}  # keyed by full product code e.g. "SCUS94163"
+_vita_names: dict[str, str] = {}  # keyed by full product code e.g. "PCSE00082"
+_wii_names: dict[
+    str, str
+] = {}  # 4-char GC/Wii game code -> name e.g. "GALE" -> "Super Smash Bros. Melee"
+_ps3_names: dict[str, str] = {}  # keyed by 9-char product code e.g. "BLJM61131"
+
+# Per-dict priority trackers: key → (source_tier, region_rank)
+# source_tier: 0 = retail disc, 1 = PSN/digital
+# Persists across multiple load_libretro_dat_to_dicts() calls so that retail
+# entries loaded first are never overwritten by PSN entries loaded later.
+_psp_priority: dict[str, tuple[int, int]] = {}
+_psx_priority: dict[str, tuple[int, int]] = {}
+_vita_priority: dict[str, tuple[int, int]] = {}
+_3ds_priority: dict[str, tuple[int, int]] = {}
+_ds_priority: dict[str, tuple[int, int]] = {}
+_wii_priority: dict[str, tuple[int, int]] = {}
+_ps3_priority: dict[str, tuple[int, int]] = {}
 
 # Reverse index: normalized game name slug → PS1 retail serial (preferred over PSN codes)
 # Rebuilt by build_psx_psn_to_retail() after all databases are loaded.
@@ -22,12 +40,14 @@ _psx_serials_by_slug: dict[str, list[str]] = {}
 # e.g. "NPUJ00662" (Parasite Eve Japan PSN) → "SLPM86034" (Parasite Eve Japan retail)
 _psx_psn_to_retail: dict[str, str] = {}
 
-_PSN_RE    = re.compile(r"^NP")
+_PSN_RE = re.compile(r"^NP")
 _RETAIL_RE = re.compile(r"^(SL|SC|PA)")
 
 # Strips parenthesized (USA) / bracketed [Disc1of3] tags from psxdb names before slugifying
 _BRACKET_RE = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
-_REGION_RE = re.compile(r"\((USA|Europe|Japan|World|France|Germany|Italy|Spain|Australia)\)", re.IGNORECASE)
+_REGION_RE = re.compile(
+    r"\((USA|Europe|Japan|World|France|Germany|Italy|Spain|Australia)\)", re.IGNORECASE
+)
 
 
 def _psx_name_slug(name: str) -> str:
@@ -61,9 +81,9 @@ def _psx_serial_region_rank(code: str, region_hint: str | None) -> tuple[int, in
         "AUSTRALIA": {"SLES", "SCES", "SCED"},
     }
     fallback_order = [
-        {"SCUS", "SLUS", "PAPX"},   # USA
-        {"SCES", "SCED", "SLES"},   # Europe
-        {"SCPS", "SLPS", "SLPM"},   # Japan
+        {"SCUS", "SLUS", "PAPX"},  # USA
+        {"SCES", "SCED", "SLES"},  # Europe
+        {"SCPS", "SLPS", "SLPM"},  # Japan
     ]
 
     if region_hint:
@@ -76,20 +96,99 @@ def _psx_serial_region_rank(code: str, region_hint: str | None) -> tuple[int, in
             return (idx, 0 if prefix.startswith("SC") else 1, code)
     return (len(fallback_order) + 1, 1, code)
 
+
 # Patterns for platform detection
-_PSP_CODE_RE   = re.compile(r"^[A-Z]{4}\d{5}$")   # ULUS10000, ELES01234, NPUH10001
-_PSP_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")    # same but allows slot suffix
-_VITA_CODE_RE  = re.compile(r"^PCS[A-Z]\d{5}$")   # PCSE00000, PCSB12345, PCSG00001
+_PSP_CODE_RE = re.compile(r"^[A-Z]{4}\d{5}$")  # ULUS10000, ELES01234, NPUH10001
+_PSP_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")  # same but allows slot suffix
+_VITA_CODE_RE = re.compile(r"^PCS[A-Z]\d{5}$")  # PCSE00000, PCSB12345, PCSG00001
+_PS3_CODE_RE = re.compile(r"^BL[A-Z]{2}\d{5}$")  # BLUS30289, BLES01017, BLJM61131
+_PS3_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")  # BLUS30289-SAVE00, NPUB12345, etc.
 
 # 3DS title ID high-word prefixes (first 5 hex chars of the 16-char ID)
-_3DS_HIGH_PREFIXES = {"00040", "00041", "00042", "00043", "00044", "00045", "00046", "00047"}
+_3DS_HIGH_PREFIXES = {
+    "00040",
+    "00041",
+    "00042",
+    "00043",
+    "00044",
+    "00045",
+    "00046",
+    "00047",
+}
 _NDS_HIGH_PREFIXES = {"00048"}
+
+
+def _detect_playstation_platform_heuristic(title_id: str) -> str | None:
+    """Best-effort PlayStation platform detection from a serial/save-dir ID.
+
+    Mirrors the PS-family save-kind heuristic used by the native clients:
+
+    - `U***#####`                       -> PSP
+    - `PC**#####`                      -> VITA
+    - `PB**#####`                      -> PS2
+    - `B***#####`                      -> PS3
+    - `NP?B#####`                      -> PS3
+    - `NP?H#####`, `NP?G#####`         -> PSP
+    - `NP?D#####`                      -> PS2
+    - `SL**/SC**` ranges               -> PS1 or PS2 depending on serial range
+
+    Returns None when the input does not look like a PlayStation serial.
+    """
+    tid = title_id.upper().strip()
+    if len(tid) < 9 or not _PSP_PREFIX_RE.match(tid):
+        return None
+
+    base = tid[:9]
+
+    if base[0] == "U":
+        return "PSP"
+
+    if base.startswith("PC"):
+        return "VITA"
+
+    if base.startswith("PB"):
+        return "PS2"
+
+    if base[0] == "B":
+        return "PS3"
+
+    if base.startswith("NP"):
+        platform_char = base[3]
+        if platform_char == "B":
+            return "PS3"
+        if platform_char in {"H", "G"}:
+            return "PSP"
+        if platform_char == "D":
+            return "PS2"
+        return "PS3"
+
+    if base[0] == "S":
+        try:
+            serial_num = int(base[4:9])
+        except ValueError:
+            return "PS1"
+
+        if base.startswith("SLUS") and serial_num >= 20000:
+            return "PS2"
+        if base.startswith("SCUS") and serial_num >= 97000:
+            return "PS2"
+        if base.startswith("SLES") and serial_num >= 50000:
+            return "PS2"
+        if base.startswith("SCES") and serial_num >= 50000:
+            return "PS2"
+        if base.startswith("SLPS") and serial_num >= 20000:
+            return "PS2"
+        if base.startswith("SCPS") and serial_num >= 20000:
+            return "PS2"
+        return "PS1"
+
+    return "PS3"
 
 
 def detect_platform(title_id: str) -> str:
     """Return the platform string for a title ID.
 
-    Returns one of: "3DS", "NDS", "PSP", "PSX", "VITA", or an emulator
+    Returns one of: "3DS", "NDS", "PSP", "PS1", "PS2", "PS3", "VITA", or an emulator
     system code like "GBA", "SNES", "MD", etc.
 
     Rules:
@@ -97,9 +196,7 @@ def detect_platform(title_id: str) -> str:
       - 16-char hex, starts with 00040... → "3DS"
       - 16-char hex, starts with 00048... → "NDS"  (DSiWare shown on 3DS)
       - 16-char hex, anything else         → "3DS"  (conservative fallback)
-      - Starts with PCS (PCSA/PCSB/etc.)  → "VITA"
-      - 4-letter + 5-digit code, found in psx_names → "PS1"
-      - 4-letter + 5-digit code otherwise  → "PSP"
+      - Known PlayStation-family serials    → PS1 / PS2 / PS3 / PSP / VITA heuristic
       - Anything else                      → "NDS"  (DS raw endpoint, no product code)
     """
     # Emulator format: SYSTEM_slug (e.g. GBA_zelda_the_minish_cap)
@@ -119,12 +216,16 @@ def detect_platform(title_id: str) -> str:
     if _VITA_CODE_RE.match(tid) or (len(tid) >= 4 and tid[:3] == "PCS"):
         return "VITA"
 
-    # PSP / PSX: 4 letters + 5 digits (optionally with slot suffix)
-    if _PSP_PREFIX_RE.match(tid):
-        base = tid[:9]
-        if base in _psx_names:
-            return "PS1"
-        return "PSP"
+    base = tid[:9]
+
+    # Prefer the PS3 DB when the 9-char base is known there, since PS3 PSN IDs
+    # overlap with PSP serial families.
+    if base in _ps3_names:
+        return "PS3"
+
+    heuristic = _detect_playstation_platform_heuristic(tid)
+    if heuristic:
+        return heuristic
 
     # Fallback: treat as NDS (DS raw endpoint sends no product code context)
     return "NDS"
@@ -143,10 +244,19 @@ def load_database(db_path: Path | None = None) -> int:
       - pspdb.txt       → _psp_names
       - vitadb.txt      → _vita_names
       - psxdb.txt       → _psx_names
+      - wiidb.txt       → _wii_names  (keyed by first 4 chars of 6-char GC/Wii code)
 
     Returns the number of entries loaded.
     """
-    global _3ds_title_ids, _3ds_names, _ds_names, _psp_names, _vita_names, _psx_by_slug, _psx_serials_by_slug
+    global \
+        _3ds_title_ids, \
+        _3ds_names, \
+        _ds_names, \
+        _psp_names, \
+        _vita_names, \
+        _psx_by_slug, \
+        _psx_serials_by_slug, \
+        _wii_names
 
     if db_path is None:
         db_path = Path(__file__).parent.parent.parent / "data" / "3dstdb.txt"
@@ -155,18 +265,22 @@ def load_database(db_path: Path | None = None) -> int:
         return 0
 
     fname = db_path.name.lower()
-    if "3dstitledb" in fname:
-        target_dict = _3ds_title_ids
-    elif "vita" in fname:
-        target_dict = _vita_names
-    elif "psx" in fname:
-        target_dict = _psx_names
-    elif "psp" in fname:
-        target_dict = _psp_names
-    elif "ds" in fname and "3ds" not in fname:
-        target_dict = _ds_names
-    else:
-        target_dict = _3ds_names
+    is_wii = "wii" in fname
+
+    target_dict: dict[str, str] = _3ds_names  # default; overwritten below if not wii
+    if not is_wii:
+        if "3dstitledb" in fname:
+            target_dict = _3ds_title_ids
+        elif "vita" in fname:
+            target_dict = _vita_names
+        elif "psx" in fname:
+            target_dict = _psx_names
+        elif "psp" in fname:
+            target_dict = _psp_names
+        elif "ds" in fname and "3ds" not in fname:
+            target_dict = _ds_names
+        else:
+            target_dict = _3ds_names
 
     added = 0
     with open(db_path, "r", encoding="utf-8") as f:
@@ -178,9 +292,194 @@ def load_database(db_path: Path | None = None) -> int:
             if len(parts) == 2:
                 code = parts[0].strip().upper()
                 game_name = parts[1].strip()
-                if code and game_name:
+                if not code or not game_name:
+                    continue
+                if is_wii:
+                    # wiidb codes are 6 chars (e.g. "GALE01"); index by first 4 (game+region).
+                    # Skip header and non-game entries.
+                    if len(code) >= 4 and code[:4].isalnum():
+                        key = code[:4]
+                        if key not in _wii_names:
+                            _wii_names[key] = game_name
+                            added += 1
+                else:
                     target_dict[code] = game_name
                     added += 1
+
+    return added
+
+
+def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
+    """Parse a libretro clrmamepro DAT file and load serials into the appropriate dict.
+
+    Serial normalization per system (detected from filename):
+      - Sony - PlayStation*.dat           → strip hyphens → _psx_names  (SLPS01204)
+      - Sony - PlayStation Portable*.dat  → strip hyphens → _psp_names  (ULJM06272)
+      - Sony - PlayStation Vita*.dat      → strip hyphens → _vita_names (PCSE00844)
+      - Nintendo - Nintendo 3DS*.dat      → extract 4-char code from CTR-P-XXXX → _3ds_names
+      - Nintendo - Nintendo DS*.dat       → serial is already 4-char → _ds_names
+      - Nintendo - Nintendo DSi*.dat      → serial is already 4-char → _ds_names
+      - Nintendo - GameCube*.dat          → extract 4-char code from DL-DOL-XXXX-RGN → _wii_names
+      - Nintendo - Wii*.dat               → extract 4-char code from RVL-XXXX-RGN → _wii_names
+
+    psn=True marks this DAT as a lower-priority PSN source so that retail entries
+    (loaded with psn=False) are never overwritten by their PSN equivalents.
+
+    Returns the number of entries loaded (new + updated).
+    """
+    global \
+        _psx_names, \
+        _psp_names, \
+        _vita_names, \
+        _3ds_names, \
+        _ds_names, \
+        _wii_names, \
+        _ps3_names
+    global \
+        _psx_priority, \
+        _psp_priority, \
+        _vita_priority, \
+        _3ds_priority, \
+        _ds_priority, \
+        _wii_priority, \
+        _ps3_priority
+
+    if not dat_path.exists():
+        return 0
+
+    fname = dat_path.name.lower()
+
+    # Determine target dict, its priority tracker, and serial extraction strategy
+    if "playstation vita" in fname:
+        target = _vita_names
+        priority = _vita_priority
+        mode = "strip_hyphens"
+    elif "playstation portable" in fname:
+        target = _psp_names
+        priority = _psp_priority
+        mode = "strip_hyphens"
+    elif "playstation 3" in fname:
+        target = _ps3_names
+        priority = _ps3_priority
+        mode = "strip_hyphens"
+    elif "playstation" in fname:
+        target = _psx_names
+        priority = _psx_priority
+        mode = "strip_hyphens"
+    elif "nintendo 3ds" in fname:
+        target = _3ds_names
+        priority = _3ds_priority
+        mode = "3ds_code"  # extract 4-char code from CTR-P-XXXX
+    elif "nintendo ds" in fname or "nintendo dsi" in fname:
+        target = _ds_names
+        priority = _ds_priority
+        mode = "ds_code"  # serial is already 4-char (e.g. BKAJ)
+    elif "gamecube" in fname:
+        target = _wii_names
+        priority = _wii_priority
+        mode = "gc_code"  # extract 4-char code from DL-DOL-XXXX-RGN (index 2)
+    elif "nintendo - wii" in fname:
+        target = _wii_names
+        priority = _wii_priority
+        mode = "wii_code"  # extract 4-char code from RVL-XXXX-RGN (index 1)
+    else:
+        return 0
+
+    # Parse clrmamepro text format
+    # Each game block looks like:
+    #   game (
+    #       name "Title (Region).ext"
+    #       serial "XXXX-YYYYY"
+    #       rom ( ... )
+    #   )
+    # A game block can have multiple serial lines; we use the first.
+    # We collect (serial, name) pairs and use region-priority to avoid
+    # overwriting a preferred region entry with a less-preferred one.
+
+    # Region priority: lower index = preferred
+    _REGION_PRIORITY = ["(USA)", "(Europe)", "(World)", "(Japan)"]
+
+    def _region_rank(name_str: str) -> int:
+        for i, tag in enumerate(_REGION_PRIORITY):
+            if tag.lower() in name_str.lower():
+                return i
+        return len(_REGION_PRIORITY)
+
+    # Source tier: retail (0) always beats PSN (1)
+    _source_tier = 1 if psn else 0
+
+    added = 0
+    current_name: str | None = None
+    current_serial: str | None = None
+
+    _NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
+    _SERIAL_RE = re.compile(r'^\s*serial\s+"(.+?)"')
+
+    def _extract_key(serial: str) -> str | None:
+        if mode == "strip_hyphens":
+            key = serial.replace("-", "").upper()
+            return (
+                key
+                if len(key) == 9 and key[:4].isalpha() and key[4:].isdigit()
+                else None
+            )
+        if mode == "3ds_code":
+            # CTR-P-XXXX or CTR-N-XXXX → XXXX (4-char)
+            parts = serial.upper().split("-")
+            if len(parts) == 3 and parts[0] == "CTR" and len(parts[2]) == 4:
+                return parts[2]
+            return None
+        if mode == "ds_code":
+            # Serial is already 4-char alphanumeric
+            s = serial.upper()
+            if len(s) == 4 and s.isalnum():
+                return s
+            # Also handle NTR-XXXX-RGN style
+            parts = s.split("-")
+            if len(parts) == 3 and len(parts[1]) == 4:
+                return parts[1]
+            return None
+        if mode == "gc_code":
+            # DL-DOL-GW7E-USA → GW7E (segment index 2, 4 chars)
+            parts = serial.upper().split("-")
+            if len(parts) >= 3 and len(parts[2]) == 4 and parts[2].isalnum():
+                return parts[2]
+            return None
+        if mode == "wii_code":
+            # RVL-SP3E-USA or RVL-SP3E-USA-B0 → SP3E (segment index 1, 4 chars)
+            parts = serial.upper().split("-")
+            if len(parts) >= 2 and len(parts[1]) == 4 and parts[1].isalnum():
+                return parts[1]
+            return None
+        return None
+
+    with open(dat_path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            m = _NAME_RE.match(line)
+            if m:
+                current_name = m.group(1)
+                current_serial = None
+                continue
+
+            m = _SERIAL_RE.match(line)
+            if m and current_serial is None:
+                current_serial = m.group(1)
+                continue
+
+            # End of block — ")" alone on a line at top level
+            if line.strip() == ")" and current_name and current_serial:
+                key = _extract_key(current_serial)
+                if key:
+                    rank = (_source_tier, _region_rank(current_name))
+                    existing_rank = priority.get(
+                        key, (len(_REGION_PRIORITY) + 1, len(_REGION_PRIORITY) + 1)
+                    )
+                    if rank < existing_rank or key not in target:
+                        target[key] = current_name
+                        priority[key] = rank
+                        added += 1
+                current_name = None
+                current_serial = None
 
     return added
 
@@ -198,7 +497,7 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
     """Look up game names and platform types for a list of product codes.
 
     Returns a dict mapping input codes to (name, type) tuples.
-    Type is one of: "VITA", "PS1", "PSP", "3DS", "NDS".
+    Type is one of: "VITA", "PS1", "PS2", "PS3", "PSP", "3DS", "NDS".
     Unknown codes are omitted from the result.
     """
     result = {}
@@ -213,14 +512,32 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
                 result[code] = (name, "VITA")
             continue
 
-        # PSX/PSP product code — may have a slot suffix (e.g. ULUS10272DATA00).
-        # Always look up by the 9-char base; return result keyed by original code.
-        if _PSP_PREFIX_RE.match(code_upper):
-            base = code_upper[:9]
+        base = code_upper[:9]
+
+        # Prefer PS3 DB hits first because PS3 PSN serials overlap with PSP.
+        if base in _ps3_names:
+            name = _ps3_names.get(base)
+            if name:
+                result[code] = (name, "PS3")
+            continue
+
+        platform = _detect_playstation_platform_heuristic(code_upper)
+        if platform == "VITA":
+            name = _vita_names.get(base)
+            if name:
+                result[code] = (name, "VITA")
+            continue
+        if platform == "PS3":
+            name = _ps3_names.get(base)
+            if name:
+                result[code] = (name, "PS3")
+            continue
+        if platform == "PS1":
             name = _psx_names.get(base)
             if name:
                 result[code] = (name, "PS1")
-                continue
+            continue
+        if platform == "PSP":
             name = _psp_names.get(base)
             if name:
                 result[code] = (name, "PSP")
@@ -242,7 +559,9 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             low_hex = code_upper[8:16]
             try:
                 decoded = bytes.fromhex(low_hex).decode("ascii")
-                game_code = decoded[:4] if decoded.isalnum() and decoded.isupper() else None
+                game_code = (
+                    decoded[:4] if decoded.isalnum() and decoded.isupper() else None
+                )
             except (ValueError, UnicodeDecodeError):
                 game_code = None
 
@@ -251,6 +570,14 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
                 if name:
                     platform = "NDS" if _ds_names.get(game_code) else "3DS"
                     result[code] = (name, platform)
+            continue
+
+        # GC/Wii emulator format: GC_xxxx (e.g. GC_gbze → game code GBZE)
+        if code_upper.startswith("GC_") and len(code_upper) >= 6:
+            game_code = code_upper[3:7]
+            name = _wii_names.get(game_code)
+            if name:
+                result[code] = (name, "GC")
             continue
 
         if len(code_upper) >= 10 and "-" in code_upper:
@@ -290,7 +617,7 @@ def build_psx_psn_to_retail() -> int:
 
     # Group by name slug: slug → {retail: [...], psn: [...]}
     slug_retail: dict[str, list[str]] = {}
-    slug_psn:    dict[str, list[str]] = {}
+    slug_psn: dict[str, list[str]] = {}
 
     for code, name in _psx_names.items():
         if not _PSP_CODE_RE.match(code):
@@ -310,7 +637,7 @@ def build_psx_psn_to_retail() -> int:
         retail_codes = slug_retail.get(slug)
         if not retail_codes:
             continue
-        best = sorted(retail_codes)[0]   # simple stable choice; good enough
+        best = sorted(retail_codes)[0]  # simple stable choice; good enough
         for psn_code in psn_codes:
             _psx_psn_to_retail[psn_code] = best
 

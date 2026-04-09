@@ -1,6 +1,7 @@
 package com.savesync.android.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.savesync.android.emulators.SaveEntry
@@ -63,6 +69,7 @@ import com.savesync.android.storage.SyncStateEntity
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.NormalizePickerState
 import com.savesync.android.ui.SaveDetailState
+import com.savesync.android.ui.SaveSyncStatus
 import com.savesync.android.ui.ServerMetaState
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -174,6 +181,19 @@ fun SaveDetailScreen(
     }
 
     Scaffold(
+        modifier = Modifier
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    // Gamepad B / Escape → navigate back
+                    Key.ButtonB, Key.Escape, Key.Back -> {
+                        onNavigateBack()
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .focusable(),
         topBar = {
             TopAppBar(
                 title = { Text(entry?.displayName ?: titleId, maxLines = 1) },
@@ -235,9 +255,11 @@ fun SaveDetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // System badge + picker for RETRO
+            // System badge + sync status badge + picker for RETRO
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SystemChip(entry.systemName)
+                val detailSyncStatus = viewModel.computeSyncStatus(entry, syncState, cheapOnly = true)
+                SyncStatusBadge(detailSyncStatus)
                 if (entry.systemName == "RETRO") {
                     Text("Unknown — set below:", style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -342,8 +364,8 @@ fun SaveDetailScreen(
 private val knownSystems = listOf(
     "GBA", "SNES", "NES", "GB", "GBC", "N64",
     "PS1", "PS2", "PSP", "SAT", "DC",
-    "GEN", "SCD", "GC", "WII",
-    "PCE", "NGP", "WS", "ARCADE", "NEOCD",
+    "MD", "SEGACD", "GC", "WII",
+    "PCE", "NGP", "WSWAN", "WSWANC", "ARCADE", "NEOCD",
     "NDS", "A2600", "LYNX", "MAME"
 )
 
