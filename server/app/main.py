@@ -5,8 +5,13 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.middleware.auth import APIKeyMiddleware
-from app.routes import normalize, saves, status, sync, titles, update
-from app.services import dat_normalizer, db, game_names
+from app.routes import normalize, roms, saves, status, sync, titles, update
+from app.services import dat_normalizer, db, game_names, rom_scanner
+
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -18,9 +23,9 @@ async def lifespan(app: FastAPI):
     dats_dir = data_dir / "dats"
 
     # Load game names databases
+    # 3dstitledb.txt: full 16-char TitleID→name for 3DS hardware client (not in DATs)
     count_title_ids = game_names.load_database(data_dir / "3dstitledb.txt")
-    count_wii = game_names.load_database(data_dir / "wiidb.txt")
-    count_wii += game_names.load_libretro_dat_to_dicts(
+    count_wii = game_names.load_libretro_dat_to_dicts(
         dats_dir / "Nintendo - GameCube.dat"
     )
     count_wii += game_names.load_libretro_dat_to_dicts(dats_dir / "Nintendo - Wii.dat")
@@ -67,7 +72,50 @@ async def lifespan(app: FastAPI):
     dats_dir.mkdir(exist_ok=True)
     dat_normalizer.init(dats_dir)
 
+    # Load ROM catalog from cache (or scan if no cache)
+    rom_scan_task = None
+    if settings.rom_dir:
+        rom_db_path = settings.save_dir / "roms.db"
+        from app.services import rom_db
+
+        rom_db.init_db(settings.save_dir)
+
+        rom_catalog = rom_scanner.init(settings.rom_dir)
+        if rom_catalog:
+            print(
+                f"ROM catalog: {len(rom_catalog.entries)} ROMs across {len(rom_catalog.systems())} systems"
+            )
+        else:
+            print("ROM catalog: no ROMs found or directory not accessible")
+
+        if settings.rom_scan_interval > 0:
+            rom_scan_task = asyncio.create_task(_periodic_rom_scan())
+
     yield
+
+    if rom_scan_task:
+        rom_scan_task.cancel()
+        try:
+            await rom_scan_task
+        except asyncio.CancelledError:
+            pass
+
+
+async def _periodic_rom_scan():
+    interval = settings.rom_scan_interval
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                catalog = rom_scanner.rescan()
+                if catalog:
+                    logger.info(
+                        "[rom_scanner] Periodic scan: %d ROMs", len(catalog.entries)
+                    )
+            except Exception:
+                logger.exception("[rom_scanner] Periodic scan failed")
+    except asyncio.CancelledError:
+        pass
 
 
 def create_app() -> FastAPI:
@@ -81,6 +129,7 @@ def create_app() -> FastAPI:
     app.include_router(sync.router, prefix="/api/v1")
     app.include_router(update.router, prefix="/api/v1")
     app.include_router(normalize.router, prefix="/api/v1")
+    app.include_router(roms.router, prefix="/api/v1")
 
     return app
 

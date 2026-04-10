@@ -58,8 +58,8 @@ class BundleFile:
 
 @dataclass
 class SaveBundle:
-    title_id: int           # 64-bit int for v1/v2 (3DS/DS); 0 for v3
-    timestamp: int          # unix epoch
+    title_id: int  # 64-bit int for v1/v2 (3DS/DS); 0 for v3
+    timestamp: int  # unix epoch
     files: list[BundleFile] = field(default_factory=list)
     title_id_str: str = ""  # non-empty for v3/v4/v5 bundles (string title IDs)
 
@@ -88,9 +88,9 @@ class SaveMetadata:
     file_count: int
     client_timestamp: int  # timestamp reported by the device
     server_timestamp: str  # server wall-clock time at upload
-    console_id: str = ""   # ID of the console that uploaded this save
-    platform: str = ""     # "3DS", "NDS", "PSP", "PSX", "VITA", "GBA", "SNES", ...
-    system: str = ""       # Detailed system code: "GBA", "SNES", "3DS", "NDS", etc.
+    console_id: str = ""  # ID of the console that uploaded this save
+    platform: str = ""  # "3DS", "NDS", "PSP", "PSX", "VITA", "GBA", "SNES", ...
+    system: str = ""  # Detailed system code: "GBA", "SNES", "3DS", "NDS", etc.
 
     def to_dict(self) -> dict:
         return {
@@ -111,6 +111,7 @@ class SaveMetadata:
 
 class TitleSyncInfo(BaseModel):
     """Metadata for a single title sent during sync."""
+
     title_id: str
     save_hash: str
     timestamp: int
@@ -126,6 +127,7 @@ class TitleSyncInfo(BaseModel):
 
 class SyncRequest(BaseModel):
     """Batch metadata from client for sync planning."""
+
     titles: list[TitleSyncInfo]
     console_id: str | None = None
     platforms: list[str] | None = None
@@ -133,6 +135,7 @@ class SyncRequest(BaseModel):
 
 class ConflictInfo(BaseModel):
     """Details about a conflicting save to help user decide."""
+
     title_id: str
     server_hash: str
     server_size: int
@@ -145,9 +148,11 @@ class ConflictInfo(BaseModel):
 
 class SyncPlan(BaseModel):
     """Server's response telling the client what to do."""
-    upload: list[str]       # title IDs where client is newer -> should upload
-    download: list[str]     # title IDs where server is newer -> should download
-    conflict: list[str]     # title IDs where both changed -> needs user decision
-    up_to_date: list[str]   # title IDs with matching hashes
+
+    upload: list[str]  # title IDs where client is newer -> should upload
+    download: list[str]  # title IDs where server is newer -> should download
+    conflict: list[str]  # title IDs where both changed -> needs user decision
+    up_to_date: list[str]  # title IDs with matching hashes
     server_only: list[str]  # title IDs only on server -> client may want to download
     conflict_info: list[ConflictInfo] = []  # Details for each conflict
+    rom_available: list[str] = []  # title IDs that have a ROM available for download
