@@ -47,7 +47,7 @@ class TestRomCatalog:
         assert body["total"] == 2
         titles = [r["title_id"] for r in body["roms"]]
         assert "GBA_test_rom" in titles
-        assert "SNES_super_mario_world" in titles
+        assert "SNES_super_mario_world_usa" in titles
 
     def test_filter_by_system(self, rom_client, auth_headers):
         resp = rom_client.get("/api/v1/roms?system=GBA", headers=auth_headers)

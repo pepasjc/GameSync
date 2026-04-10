@@ -57,6 +57,23 @@ SYSTEM_CODES = frozenset(
         "A7800",  # Atari 7800 (A7800 canonical; ATARI7800 is legacy)
         "ATARI7800",
         "LYNX",
+        "JAGUAR",  # Atari Jaguar
+        "JAGCD",  # Atari Jaguar CD
+        # Nintendo misc
+        "VB",  # Virtual Boy
+        "BS",  # Satellaview (BS-X)
+        "POKEMINI",  # Pokémon Mini
+        # Sega misc
+        "NAOMI",  # Sega NAOMI arcade
+        "NAOMI2",  # Sega NAOMI 2 arcade
+        # NEC misc
+        "PC98",  # NEC PC-98
+        "PCFX",  # NEC PC-FX
+        # Sharp
+        "X1",  # Sharp X1
+        "X68K",  # Sharp X68000
+        # 3DO
+        "3DO",
         # Arcade
         "ARCADE",
         "MAME",
@@ -90,14 +107,19 @@ _MULTI_UNDERSCORE_RE = re.compile(r"_+")
 
 
 def normalize_rom_name(filename: str) -> str:
-    """Strip extension, region/revision tags, normalize to lowercase slug.
+    """Strip extension and revision/disc tags; append region to the slug.
+
+    Region tags are moved to the end so that different regional releases of the
+    same game get distinct title_ids while still grouping cleanly by game name.
 
     Examples:
-        "Legend of Zelda, The - The Minish Cap (USA).gba" -> "legend_of_zelda_the_the_minish_cap"
-        "Super Mario World (USA).sfc" -> "super_mario_world"
-        "Sonic the Hedgehog (USA, Europe).md" -> "sonic_the_hedgehog"
+        "Castlevania - Dracula X (USA).sfc"           -> "castlevania_dracula_x_usa"
+        "Super Mario World (USA).sfc"                 -> "super_mario_world_usa"
+        "Sonic the Hedgehog (USA, Europe).md"         -> "sonic_the_hedgehog_usa_europe"
+        "Final Fantasy VII (Rev 1) (USA).bin"         -> "final_fantasy_vii_usa"
+        "Legend of Zelda, The - Minish Cap (USA).gba" -> "legend_of_zelda_the_minish_cap_usa"
+        "Homebrew Game.sfc"                           -> "homebrew_game"
     """
-    # Strip extension(s)
     name = filename
     for _ in range(3):
         dot_idx = name.rfind(".")
@@ -109,8 +131,14 @@ def normalize_rom_name(filename: str) -> str:
         else:
             break
 
-    # Strip region, revision, disc, and any remaining parenthetical tags
-    name = _REGION_RE.sub("", name)
+    # Extract region before stripping all parenthetical tags
+    region_match = _REGION_RE.search(name)
+    region_parts = ""
+    if region_match:
+        region_text = region_match.group(0).strip(" ()")
+        region_parts = "_".join(region_text.lower().replace(",", " ").split())
+
+    # Strip revision, disc, and all remaining parentheticals (including region)
     name = _REV_RE.sub("", name)
     name = _DISC_RE.sub("", name)
     name = _EXTRA_RE.sub("", name)
@@ -118,11 +146,15 @@ def normalize_rom_name(filename: str) -> str:
     name = name.lower()
     name = _NON_ALNUM_RE.sub("_", name)
     name = _MULTI_UNDERSCORE_RE.sub("_", name).strip("_")
+
+    if region_parts:
+        name = f"{name}_{region_parts}"
+
     return name or "unknown"
 
 
 def make_title_id(system: str, rom_filename: str) -> str:
-    """Return canonical title_id e.g. GBA_zelda_the_minish_cap."""
+    """Return canonical title_id e.g. GBA_legend_of_zelda_the_minish_cap_usa."""
     system = system.upper().strip()
     if system not in SYSTEM_CODES:
         raise ValueError(

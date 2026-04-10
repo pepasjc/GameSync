@@ -22,7 +22,10 @@ from pathlib import Path
 from typing import Optional
 
 from app.services import dat_normalizer, game_names, rom_db
-from app.services.rom_id import SYSTEM_CODES, normalize_rom_name
+from app.services.rom_id import (
+    SYSTEM_CODES,
+    normalize_rom_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -266,9 +269,9 @@ def _identify_rom_slug(
     if norm is not None:
         info = norm.normalize(system, filename)
         canonical = info["canonical_name"]
-        slug = info["slug"]
         source = info["source"]
 
+        slug = normalize_rom_name(canonical)
         if system in ("PS1", "PSX"):
             serial = game_names.lookup_psx_serial(canonical)
             if serial:
@@ -292,9 +295,9 @@ def _identify_rom_crc32(
     if norm is not None:
         info = norm.normalize(system, filename, crc32)
         canonical = info["canonical_name"]
-        slug = info["slug"]
         source = info["source"]
 
+        slug = normalize_rom_name(canonical)
         if system in ("PS1", "PSX"):
             serial = game_names.lookup_psx_serial(canonical)
             if serial:

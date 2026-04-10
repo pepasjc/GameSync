@@ -93,6 +93,30 @@ _DAT_SYSTEM_MAP: list[tuple[str, str]] = [
     ("atari 7800", "A7800"),
     ("atari lynx", "LYNX"),
     ("lynx", "LYNX"),
+    ("jaguar cd", "JAGCD"),   # before plain jaguar
+    ("atari - jaguar cd", "JAGCD"),
+    ("atari - jaguar", "JAGUAR"),
+    ("jaguar", "JAGUAR"),
+    # Nintendo misc
+    ("family computer disk system", "FDS"),
+    ("famicom disk system", "FDS"),
+    ("satellaview", "BS"),
+    ("virtual boy", "VB"),
+    ("pokemon mini", "POKEMINI"),
+    # Sega misc
+    ("32x", "32X"),
+    ("naomi 2", "NAOMI2"),    # before plain naomi
+    ("naomi", "NAOMI"),
+    # NEC misc
+    ("pc-98", "PC98"),
+    ("pc98", "PC98"),
+    ("pc-fx", "PCFX"),
+    ("pcfx", "PCFX"),
+    # Sharp
+    ("sharp - x1", "X1"),
+    ("x68000", "X68K"),
+    # 3DO
+    ("3do", "3DO"),
     # Arcade
     ("mame", "MAME"),
     ("arcade", "ARCADE"),

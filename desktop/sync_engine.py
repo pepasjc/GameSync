@@ -118,7 +118,16 @@ def _extract_regions(stem: str) -> list[str]:
 
 
 def normalize_rom_name(filename: str) -> str:
-    """Strip extension, region/revision tags, normalize to lowercase slug."""
+    """Strip extension and revision/disc tags; append region to the slug.
+
+    Mirrors server/app/services/rom_id.py — must stay in sync.
+
+    Examples:
+        "Super Mario World (USA).sfc"            -> "super_mario_world_usa"
+        "Sonic the Hedgehog (USA, Europe).md"    -> "sonic_the_hedgehog_usa_europe"
+        "Final Fantasy VII (Rev 1) (USA).bin"    -> "final_fantasy_vii_usa"
+        "Homebrew Game.sfc"                      -> "homebrew_game"
+    """
     name = filename
     for _ in range(3):
         dot_idx = name.rfind(".")
@@ -129,13 +138,24 @@ def normalize_rom_name(filename: str) -> str:
             name = name[:dot_idx]
         else:
             break
-    name = _REGION_RE.sub("", name)
+
+    # Extract region before stripping all parenthetical tags
+    region_match = _REGION_RE.search(name)
+    region_parts = ""
+    if region_match:
+        region_text = region_match.group(0).strip(" ()")
+        region_parts = "_".join(region_text.lower().replace(",", " ").split())
+
     name = _REV_RE.sub("", name)
     name = _DISC_RE.sub("", name)
     name = _EXTRA_RE.sub("", name)
     name = name.lower()
     name = _NON_ALNUM_RE.sub("_", name)
     name = _MULTI_UNDERSCORE_RE.sub("_", name).strip("_")
+
+    if region_parts:
+        name = f"{name}_{region_parts}"
+
     return name or "unknown"
 
 
