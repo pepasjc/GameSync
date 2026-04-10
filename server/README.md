@@ -25,6 +25,8 @@ All settings are via environment variables with the `SYNC_` prefix:
 |---|---|---|
 | `SYNC_API_KEY` | `anything` | Key required in the `X-API-Key` header by all clients |
 | `SYNC_SAVE_DIR` | `./saves` | Directory where save files and history are stored |
+| `SYNC_ROM_DIR` | unset | ROM root directory for ROM browsing/scanning |
+| `SYNC_ROM_SCAN_INTERVAL` | `300` | Background ROM rescan interval in seconds (`0` disables it) |
 | `SYNC_HOST` | `0.0.0.0` | Bind address |
 | `SYNC_PORT` | `8000` | Port |
 | `SYNC_MAX_HISTORY_VERSIONS` | `10` | Number of previous save versions to keep per title |
@@ -38,22 +40,47 @@ set SYNC_API_KEY=your-secret-key
 uv run python run.py
 ```
 
+The server also loads a local `.env` file from the `server/` directory, which is
+often the simplest place to keep persistent settings on a Pi.
+
 ## Running as a Service (Linux / Raspberry Pi)
 
-A systemd unit file is included at `server/3dssync.service`. Copy and enable it:
+ A systemd unit template is included at `server/3dssync@.service`. Copy and enable it:
 
 ```bash
-sudo cp 3dssync.service /etc/systemd/system/gamesync.service
-# Edit the file to set the correct user and working directory
+sudo cp 3dssync@.service /etc/systemd/system/3dssync@.service
+sudo nano /etc/default/3dssync
 sudo systemctl daemon-reload
-sudo systemctl enable gamesync
-sudo systemctl start gamesync
+sudo systemctl enable --now 3dssync@pi
+```
+
+Example `/etc/default/3dssync`:
+
+```bash
+APP_DIR=/home/pi/Documents/3ds_sync/server
+UV_BIN=/home/pi/.local/bin/uv
+```
+
+The unit uses `uvicorn app.main:app` directly instead of `python run.py` because
+`run.py` enables auto-reload for development.
+
+Put your actual server settings either in `/etc/default/3dssync` or in
+`server/.env`. Example `server/.env`:
+
+```bash
+SYNC_API_KEY=your-secret-key
+SYNC_SAVE_DIR=/home/pi/Documents/3ds_sync/server/saves
+SYNC_ROM_DIR=/mnt/emudeck/roms
+SYNC_ROM_SCAN_INTERVAL=300
+SYNC_HOST=0.0.0.0
+SYNC_PORT=8000
+SYNC_MAX_HISTORY_VERSIONS=10
 ```
 
 Check logs:
 
 ```bash
-sudo journalctl -u gamesync -f
+sudo journalctl -u 3dssync@pi -f
 ```
 
 ## API Endpoints

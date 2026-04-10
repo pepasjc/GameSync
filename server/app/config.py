@@ -11,7 +11,11 @@ class Settings(BaseSettings):
     max_history_versions: int = 10
     rom_scan_interval: int = 300
 
-    model_config = {"env_prefix": "SYNC_"}
+    model_config = {
+        "env_prefix": "SYNC_",
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+    }
 
 
 settings = Settings()
