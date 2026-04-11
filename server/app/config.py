@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     rom_dir: Path | None = None
     api_key: str = "anything"
     host: str = "0.0.0.0"
-    port: int = 80
+    port: int = 8000
     max_history_versions: int = 10
     rom_scan_interval: int = 300
 
