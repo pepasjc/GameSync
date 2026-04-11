@@ -20,7 +20,8 @@ _lock = threading.Lock()
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS roms (
-    title_id    TEXT PRIMARY KEY,
+    rom_id      TEXT PRIMARY KEY,
+    title_id    TEXT NOT NULL,
     system      TEXT NOT NULL DEFAULT '',
     name        TEXT NOT NULL DEFAULT '',
     filename    TEXT NOT NULL DEFAULT '',
@@ -35,6 +36,28 @@ _CREATE_INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_roms_system ON roms(system)
 """
 
+_CREATE_TITLE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_roms_title_id ON roms(title_id)
+"""
+
+
+def _needs_rebuild(conn: sqlite3.Connection) -> bool:
+    rows = conn.execute("PRAGMA table_info(roms)").fetchall()
+    if not rows:
+        return False
+    columns = [row[1] for row in rows]
+    return columns != [
+        "rom_id",
+        "title_id",
+        "system",
+        "name",
+        "filename",
+        "path",
+        "size",
+        "crc32",
+        "source",
+    ]
+
 
 def init_db(save_dir: Path) -> None:
     global _conn, _current_db_path
@@ -46,8 +69,11 @@ def init_db(save_dir: Path) -> None:
     _conn = sqlite3.connect(str(db_path), check_same_thread=False)
     _conn.row_factory = sqlite3.Row
     _conn.execute("PRAGMA journal_mode=WAL")
+    if _needs_rebuild(_conn):
+        _conn.execute("DROP TABLE IF EXISTS roms")
     _conn.execute(_CREATE_TABLE_SQL)
     _conn.execute(_CREATE_INDEX_SQL)
+    _conn.execute(_CREATE_TITLE_INDEX_SQL)
     _conn.commit()
     _current_db_path = db_path
 
@@ -76,8 +102,8 @@ def upsert(entries: list[dict]) -> int:
         conn.execute("DELETE FROM roms")
         conn.executemany(
             """
-            INSERT INTO roms (title_id, system, name, filename, path, size, crc32, source)
-            VALUES (:title_id, :system, :name, :filename, :path, :size, :crc32, :source)
+            INSERT INTO roms (rom_id, title_id, system, name, filename, path, size, crc32, source)
+            VALUES (:rom_id, :title_id, :system, :name, :filename, :path, :size, :crc32, :source)
             """,
             entries,
         )
@@ -85,22 +111,22 @@ def upsert(entries: list[dict]) -> int:
     return len(entries)
 
 
-def get(title_id: str) -> Optional[dict]:
+def get(rom_id: str) -> Optional[dict]:
     conn = _get()
-    row = conn.execute("SELECT * FROM roms WHERE title_id = ?", (title_id,)).fetchone()
+    row = conn.execute("SELECT * FROM roms WHERE rom_id = ?", (rom_id,)).fetchone()
     return dict(row) if row is not None else None
 
 
 def list_all() -> list[dict]:
     conn = _get()
-    rows = conn.execute("SELECT * FROM roms ORDER BY title_id").fetchall()
+    rows = conn.execute("SELECT * FROM roms ORDER BY title_id, rom_id").fetchall()
     return [dict(r) for r in rows]
 
 
 def list_by_system(system: str) -> list[dict]:
     conn = _get()
     rows = conn.execute(
-        "SELECT * FROM roms WHERE system = ? ORDER BY title_id", (system,)
+        "SELECT * FROM roms WHERE system = ? ORDER BY title_id, rom_id", (system,)
     ).fetchall()
     return [dict(r) for r in rows]
 
@@ -127,8 +153,8 @@ def count() -> int:
     return row["cnt"] if row else 0
 
 
-def delete(title_id: str) -> None:
+def delete(rom_id: str) -> None:
     conn = _get()
     with _lock:
-        conn.execute("DELETE FROM roms WHERE title_id = ?", (title_id,))
+        conn.execute("DELETE FROM roms WHERE rom_id = ?", (rom_id,))
         conn.commit()

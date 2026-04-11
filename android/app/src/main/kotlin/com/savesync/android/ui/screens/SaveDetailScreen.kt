@@ -349,21 +349,60 @@ fun SaveDetailScreen(
 
             // ROM download button — shown when server has a ROM for this title
             val romAvailable by viewModel.romAvailable.collectAsState()
+            val romsByTitle by viewModel.romsByTitle.collectAsState()
             val romDownloadState by viewModel.romDownloadState.collectAsState()
             if (entry.titleId in romAvailable) {
                 val romBusy = romDownloadState is MainViewModel.RomDownloadState.Downloading
-                ActionButton(
-                    label = when (romDownloadState) {
-                        is MainViewModel.RomDownloadState.Downloading -> "Downloading ROM…"
-                        is MainViewModel.RomDownloadState.Success -> "✓ ROM Downloaded"
-                        else -> "Download ROM"
-                    },
-                    icon = Icons.Default.CloudDownload,
-                    enabled = !isBusy && !romBusy,
-                    containerColor = Color(0xFF6A1B9A),
-                    isBusy = romBusy,
-                    onClick = { viewModel.downloadRom(entry.titleId) }
-                )
+                val roms = romsByTitle[entry.titleId].orEmpty()
+                if (roms.size <= 1) {
+                    val rom = roms.firstOrNull()
+                    ActionButton(
+                        label = when (romDownloadState) {
+                            is MainViewModel.RomDownloadState.Downloading -> "Downloading ROM…"
+                            is MainViewModel.RomDownloadState.Success -> "✓ ROM Downloaded"
+                            else -> "Download ROM"
+                        },
+                        icon = Icons.Default.CloudDownload,
+                        enabled = !isBusy && !romBusy && rom != null,
+                        containerColor = Color(0xFF6A1B9A),
+                        isBusy = romBusy,
+                        onClick = {
+                            if (rom != null) {
+                                viewModel.downloadRom(
+                                    rom.rom_id ?: rom.title_id,
+                                    rom.system,
+                                    rom.filename
+                                )
+                            }
+                        }
+                    )
+                } else {
+                    Text(
+                        "Available ROMs",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    roms.forEach { rom ->
+                        ActionButton(
+                            label = when (romDownloadState) {
+                                is MainViewModel.RomDownloadState.Downloading -> "Downloading ${rom.filename}…"
+                                is MainViewModel.RomDownloadState.Success -> "✓ ${rom.filename} downloaded"
+                                else -> "Download ${rom.filename}"
+                            },
+                            icon = Icons.Default.CloudDownload,
+                            enabled = !isBusy && !romBusy,
+                            containerColor = Color(0xFF6A1B9A),
+                            isBusy = romBusy,
+                            onClick = {
+                                viewModel.downloadRom(
+                                    rom.rom_id ?: rom.title_id,
+                                    rom.system,
+                                    rom.filename
+                                )
+                            }
+                        )
+                    }
+                }
             }
             when (val s = romDownloadState) {
                 is MainViewModel.RomDownloadState.Success ->

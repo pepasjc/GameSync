@@ -1,7 +1,7 @@
 """ROM catalog endpoints.
 
 GET  /api/v1/roms              — List all ROMs in catalog (with optional filters)
-GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
+GET  /api/v1/roms/{rom_id}     — Download a ROM file (with HTTP Range support)
 POST /api/v1/roms/scan         — Trigger rescan of ROM directory
 GET  /api/v1/roms/systems      — List systems with ROMs and counts
 """
@@ -84,20 +84,20 @@ async def trigger_scan(
     return {"status": "ok", "count": len(catalog.entries)}
 
 
-@router.get("/roms/{title_id:path}")
+@router.get("/roms/{rom_id:path}")
 async def download_rom(
-    title_id: str,
+    rom_id: str,
     request: Request,
     range_header: Optional[str] = Header(None, alias="Range"),
 ):
-    """Download a ROM file by title_id. Supports HTTP Range requests."""
+    """Download a ROM file by rom_id. Supports HTTP Range requests."""
     catalog = rom_scanner.get()
     if not catalog:
         return Response(status_code=404, content="No ROM catalog available")
 
-    entry = catalog.get(title_id)
+    entry = catalog.get(rom_id)
     if not entry:
-        return Response(status_code=404, content=f"ROM not found: {title_id}")
+        return Response(status_code=404, content=f"ROM not found: {rom_id}")
 
     rom_dir = settings.rom_dir
     if not rom_dir:

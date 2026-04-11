@@ -92,6 +92,7 @@ data class GameNameResponse(
 // ── ROM catalog ────────────────────────────────────────────────────────────
 
 data class RomEntry(
+    val rom_id: String? = null,
     val title_id: String,
     val system: String,
     val name: String,

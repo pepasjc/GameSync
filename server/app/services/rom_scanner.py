@@ -18,6 +18,8 @@ the DAT slug index. CRC32 is skipped by default (ROMs are pre-normalized).
 
 import binascii
 import logging
+import re
+from collections import Counter
 from pathlib import Path
 from typing import Optional
 
@@ -185,6 +187,7 @@ SKIP_NAMES = frozenset({"metadata.txt", "systeminfo.txt"})
 
 class RomEntry:
     __slots__ = (
+        "rom_id",
         "title_id",
         "system",
         "name",
@@ -197,6 +200,7 @@ class RomEntry:
 
     def __init__(
         self,
+        rom_id: str,
         title_id: str,
         system: str,
         name: str,
@@ -206,6 +210,7 @@ class RomEntry:
         crc32: str = "",
         source: str = "filename",
     ):
+        self.rom_id = rom_id
         self.title_id = title_id
         self.system = system
         self.name = name
@@ -217,6 +222,7 @@ class RomEntry:
 
     def to_dict(self) -> dict:
         return {
+            "rom_id": self.rom_id,
             "title_id": self.title_id,
             "system": self.system,
             "name": self.name,
@@ -230,6 +236,7 @@ class RomEntry:
     @classmethod
     def from_row(cls, row: dict) -> "RomEntry":
         return cls(
+            rom_id=row.get("rom_id", row["title_id"]),
             title_id=row["title_id"],
             system=row["system"],
             name=row["name"],
@@ -314,6 +321,45 @@ def _identify_rom_crc32(
     return f"{system}_{slug}", Path(filename).stem, "filename", crc32
 
 
+_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
+_MULTI_UNDERSCORE_RE = re.compile(r"_+")
+
+
+def _normalize_identifier_part(value: str) -> str:
+    lowered = value.lower()
+    lowered = _NON_ALNUM_RE.sub("_", lowered)
+    return _MULTI_UNDERSCORE_RE.sub("_", lowered).strip("_") or "unknown"
+
+
+def _make_rom_id(
+    entry: dict, title_counts: Counter[str], used_rom_ids: set[str]
+) -> str:
+    title_id = entry["title_id"]
+    if title_counts[title_id] == 1 and title_id not in used_rom_ids:
+        return title_id
+
+    system_prefix, _, title_slug = title_id.partition("_")
+    stem_suffix = _normalize_identifier_part(Path(entry["filename"]).stem)
+    if title_slug and stem_suffix.startswith(f"{title_slug}_"):
+        rom_id = f"{system_prefix}_{stem_suffix}"
+    else:
+        rom_id = f"{title_id}__{stem_suffix}"
+    if rom_id not in used_rom_ids:
+        return rom_id
+
+    path_suffix = _normalize_identifier_part(entry["path"])
+    rom_id = f"{title_id}__{path_suffix}"
+    if rom_id not in used_rom_ids:
+        return rom_id
+
+    index = 2
+    while True:
+        candidate = f"{rom_id}_{index}"
+        if candidate not in used_rom_ids:
+            return candidate
+        index += 1
+
+
 class RomCatalog:
     def __init__(self):
         self._entries: dict[str, RomEntry] = {}
@@ -323,8 +369,8 @@ class RomCatalog:
     def entries(self) -> dict[str, RomEntry]:
         return self._entries
 
-    def get(self, title_id: str) -> RomEntry | None:
-        return self._entries.get(title_id)
+    def get(self, rom_id: str) -> RomEntry | None:
+        return self._entries.get(rom_id)
 
     def list_all(self) -> list[RomEntry]:
         return list(self._entries.values())
@@ -338,9 +384,12 @@ class RomCatalog:
     def stats(self) -> dict[str, int]:
         return {sys: len(ents) for sys, ents in sorted(self._by_system.items())}
 
-    def _add(self, entry: RomEntry) -> None:
-        self._entries[entry.title_id] = entry
+    def _add(self, entry: RomEntry) -> bool:
+        if entry.rom_id in self._entries:
+            return False
+        self._entries[entry.rom_id] = entry
         self._by_system.setdefault(entry.system, []).append(entry)
+        return True
 
     def _rebuild_index(self) -> None:
         self._by_system.clear()
@@ -363,7 +412,7 @@ class RomCatalog:
             return 0
 
         norm = dat_normalizer.get()
-        batch: list[dict] = []
+        scanned: list[dict] = []
 
         for folder in sorted(rom_dir.iterdir()):
             if not folder.is_dir():
@@ -372,7 +421,29 @@ class RomCatalog:
             if not system:
                 continue
 
-            self._scan_folder(folder, system, norm, rom_dir, use_crc32, batch)
+            self._scan_folder(folder, system, norm, rom_dir, use_crc32, scanned)
+
+        title_counts: Counter[str] = Counter(entry["title_id"] for entry in scanned)
+        used_rom_ids: set[str] = set()
+        batch: list[dict] = []
+
+        for raw_entry in scanned:
+            rom_id = _make_rom_id(raw_entry, title_counts, used_rom_ids)
+            used_rom_ids.add(rom_id)
+
+            entry = RomEntry(
+                rom_id=rom_id,
+                title_id=raw_entry["title_id"],
+                system=raw_entry["system"],
+                name=raw_entry["name"],
+                filename=raw_entry["filename"],
+                path=raw_entry["path"],
+                size=raw_entry["size"],
+                crc32=raw_entry["crc32"],
+                source=raw_entry["source"],
+            )
+            self._add(entry)
+            batch.append(entry.to_dict())
 
         rom_db.upsert(batch)
 
@@ -391,7 +462,7 @@ class RomCatalog:
         norm: Optional[object],
         rom_dir: Path,
         use_crc32: bool,
-        batch: list[dict],
+        scanned: list[dict],
     ) -> None:
         for file_path in sorted(folder.rglob("*")):
             if not file_path.is_file():
@@ -413,19 +484,18 @@ class RomCatalog:
 
             rel_path = str(file_path.relative_to(rom_dir).as_posix())
             size = file_path.stat().st_size
-
-            entry = RomEntry(
-                title_id=title_id,
-                system=system,
-                name=canonical_name,
-                filename=file_path.name,
-                path=rel_path,
-                size=size,
-                crc32=crc32,
-                source=source,
+            scanned.append(
+                {
+                    "title_id": title_id,
+                    "system": system,
+                    "name": canonical_name,
+                    "filename": file_path.name,
+                    "path": rel_path,
+                    "size": size,
+                    "crc32": crc32,
+                    "source": source,
+                }
             )
-            self._add(entry)
-            batch.append(entry.to_dict())
 
 
 _catalog: Optional[RomCatalog] = None

@@ -288,14 +288,15 @@ class SyncEngine(
      * Returns the downloaded File on success, null on failure.
      */
     suspend fun downloadRom(
-        titleId: String,
+        romId: String,
+        system: String,
         romScanDir: String,
         expectedFilename: String? = null
     ): File? {
         return try {
-            val response = api.downloadRom(titleId)
+            val response = api.downloadRom(romId)
             if (!response.isSuccessful) {
-                Log.e(TAG, "ROM download HTTP error for $titleId: ${response.code()}")
+                Log.e(TAG, "ROM download HTTP error for $romId: ${response.code()}")
                 return null
             }
             val body = response.body() ?: return null
@@ -306,16 +307,16 @@ class SyncEngine(
                         val match = Regex("filename=\"?([^\"]+)\"?").find(cd)
                         match?.groupValues?.get(1)
                     }
-                ?: "$titleId.rom"
+                ?: "$romId.rom"
 
-            val system = titleId.substringBefore('_').let { code ->
+            val systemFolder = system.let { code ->
                 mapOf(
                     "SEGACD" to "segacd", "WSWAN" to "wonderswan",
                     "NEOCD" to "neogeocd", "PCECD" to "pcenginecd"
                 ).getOrDefault(code, code.lowercase())
             }
 
-            val outDir = File(romScanDir, system)
+            val outDir = File(romScanDir, systemFolder)
             outDir.mkdirs()
             val outFile = File(outDir, filename)
 
@@ -332,7 +333,7 @@ class SyncEngine(
             Log.i(TAG, "ROM downloaded: ${outFile.absolutePath} (${outFile.length()} bytes)")
             outFile
         } catch (e: Exception) {
-            Log.e(TAG, "downloadRom failed for $titleId", e)
+            Log.e(TAG, "downloadRom failed for $romId", e)
             null
         }
     }

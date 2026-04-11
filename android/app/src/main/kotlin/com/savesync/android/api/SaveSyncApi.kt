@@ -156,8 +156,8 @@ interface SaveSyncApi {
     suspend fun getRomsSystems(): RomsSystemsResponse
 
     @Streaming
-    @GET("api/v1/roms/{title_id}")
+    @GET("api/v1/roms/{rom_id}")
     suspend fun downloadRom(
-        @Path("title_id") titleId: String
+        @Path("rom_id") romId: String
     ): Response<ResponseBody>
 }

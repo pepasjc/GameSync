@@ -46,8 +46,10 @@ class TestRomCatalog:
         body = resp.json()
         assert body["total"] == 2
         titles = [r["title_id"] for r in body["roms"]]
+        rom_ids = [r["rom_id"] for r in body["roms"]]
         assert "GBA_test_rom" in titles
         assert "SNES_super_mario_world_usa" in titles
+        assert "GBA_test_rom" in rom_ids
 
     def test_filter_by_system(self, rom_client, auth_headers):
         resp = rom_client.get("/api/v1/roms?system=GBA", headers=auth_headers)
@@ -80,9 +82,9 @@ class TestRomCatalog:
 class TestRomDownload:
     def test_download_rom(self, rom_client, auth_headers):
         roms = rom_client.get("/api/v1/roms?system=GBA", headers=auth_headers).json()
-        title_id = roms["roms"][0]["title_id"]
+        rom_id = roms["roms"][0]["rom_id"]
 
-        resp = rom_client.get(f"/api/v1/roms/{title_id}", headers=auth_headers)
+        resp = rom_client.get(f"/api/v1/roms/{rom_id}", headers=auth_headers)
         assert resp.status_code == 200
         assert len(resp.content) == 100
         assert resp.headers["accept-ranges"] == "bytes"
@@ -93,10 +95,10 @@ class TestRomDownload:
 
     def test_range_request(self, rom_client, auth_headers):
         roms = rom_client.get("/api/v1/roms?system=GBA", headers=auth_headers).json()
-        title_id = roms["roms"][0]["title_id"]
+        rom_id = roms["roms"][0]["rom_id"]
 
         resp = rom_client.get(
-            f"/api/v1/roms/{title_id}",
+            f"/api/v1/roms/{rom_id}",
             headers={**auth_headers, "Range": "bytes=0-9"},
         )
         assert resp.status_code == 206
@@ -105,10 +107,10 @@ class TestRomDownload:
 
     def test_range_request_suffix(self, rom_client, auth_headers):
         roms = rom_client.get("/api/v1/roms?system=GBA", headers=auth_headers).json()
-        title_id = roms["roms"][0]["title_id"]
+        rom_id = roms["roms"][0]["rom_id"]
 
         resp = rom_client.get(
-            f"/api/v1/roms/{title_id}",
+            f"/api/v1/roms/{rom_id}",
             headers={**auth_headers, "Range": "bytes=-10"},
         )
         assert resp.status_code == 206
@@ -116,10 +118,10 @@ class TestRomDownload:
 
     def test_range_request_open_end(self, rom_client, auth_headers):
         roms = rom_client.get("/api/v1/roms?system=GBA", headers=auth_headers).json()
-        title_id = roms["roms"][0]["title_id"]
+        rom_id = roms["roms"][0]["rom_id"]
 
         resp = rom_client.get(
-            f"/api/v1/roms/{title_id}",
+            f"/api/v1/roms/{rom_id}",
             headers={**auth_headers, "Range": "bytes=50-"},
         )
         assert resp.status_code == 206
@@ -127,10 +129,10 @@ class TestRomDownload:
 
     def test_range_request_invalid(self, rom_client, auth_headers):
         roms = rom_client.get("/api/v1/roms?system=GBA", headers=auth_headers).json()
-        title_id = roms["roms"][0]["title_id"]
+        rom_id = roms["roms"][0]["rom_id"]
 
         resp = rom_client.get(
-            f"/api/v1/roms/{title_id}",
+            f"/api/v1/roms/{rom_id}",
             headers={**auth_headers, "Range": "bytes=200-300"},
         )
         assert resp.status_code == 416
@@ -146,9 +148,14 @@ class TestRomRescan:
         assert resp.json()["count"] == 3
 
     def test_rescan_no_dir(self, client, auth_headers):
-        resp = client.get("/api/v1/roms/scan", headers=auth_headers)
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "no_rom_dir"
+        original = settings.rom_dir
+        settings.rom_dir = None
+        try:
+            resp = client.get("/api/v1/roms/scan", headers=auth_headers)
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "no_rom_dir"
+        finally:
+            settings.rom_dir = original
 
 
 class TestRomDbCache:
@@ -211,6 +218,35 @@ class TestRomDbCache:
 
         settings.rom_dir = None
         rom_scanner._catalog = None
+
+    def test_scan_assigns_unique_rom_ids_for_multi_disc_titles(self, rom_dir, tmp_path):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path / "saves")
+
+        (rom_dir / "ps1").mkdir()
+        (rom_dir / "ps1" / "Final Fantasy VII (USA) (Disc 1).chd").write_bytes(
+            b"\x00" * 64
+        )
+        (rom_dir / "ps1" / "Final Fantasy VII (USA) (Disc 2).chd").write_bytes(
+            b"\x01" * 64
+        )
+
+        catalog = rom_scanner.RomCatalog()
+        count = catalog.scan(rom_dir, use_crc32=False)
+
+        assert count == 2
+        assert rom_db.count() == 2
+
+        rows = rom_db.list_all()
+        assert [row["title_id"] for row in rows] == [
+            "PS1_final_fantasy_vii_usa",
+            "PS1_final_fantasy_vii_usa",
+        ]
+        assert [row["rom_id"] for row in rows] == [
+            "PS1_final_fantasy_vii_usa_disc_1",
+            "PS1_final_fantasy_vii_usa_disc_2",
+        ]
 
 
 class TestSyncRomAvailable:

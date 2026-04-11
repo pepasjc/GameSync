@@ -14,6 +14,7 @@ import com.savesync.android.api.ApiClient
 import com.savesync.android.api.GameNameRequest
 import com.savesync.android.api.NormalizeRequest
 import com.savesync.android.api.NormalizeRomEntry
+import com.savesync.android.api.RomEntry
 import com.savesync.android.api.SaveSyncApi
 import com.savesync.android.emulators.EmulatorRegistry
 import com.savesync.android.emulators.SaveEntry
@@ -240,6 +241,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _romAvailable = MutableStateFlow<Set<String>>(emptySet())
     val romAvailable: StateFlow<Set<String>> = _romAvailable
+
+    private val _romsByTitle = MutableStateFlow<Map<String, List<RomEntry>>>(emptyMap())
+    val romsByTitle: StateFlow<Map<String, List<RomEntry>>> = _romsByTitle
 
     sealed class RomDownloadState {
         object Idle : RomDownloadState()
@@ -1371,16 +1375,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val titles = _allSaves.value.map { it.titleId }.toSet()
                 if (titles.isEmpty()) return@launch
                 val response = api.getRoms()
-                val available = response.roms
+                val matchingRoms = response.roms
                     .filter { it.title_id in titles }
-                    .map { it.title_id }
-                    .toSet()
-                _romAvailable.value = available
+                _romsByTitle.value = matchingRoms.groupBy { it.title_id }
+                _romAvailable.value = matchingRoms.map { it.title_id }.toSet()
             } catch (_: Exception) {}
         }
     }
 
-    fun downloadRom(titleId: String, filename: String? = null) {
+    fun downloadRom(romId: String, system: String, filename: String? = null) {
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
             if (currentSettings.serverUrl.isBlank()) {
@@ -1391,11 +1394,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _romDownloadState.value = RomDownloadState.Error("ROM directory not configured. Set it in Settings.")
                 return@launch
             }
-            _romDownloadState.value = RomDownloadState.Downloading(filename ?: titleId)
+            _romDownloadState.value = RomDownloadState.Downloading(filename ?: romId)
             try {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
                 val engine = SyncEngine(api, db, settingsStore.ensureConsoleId())
-                val file = engine.downloadRom(titleId, currentSettings.romScanDir, filename)
+                val file = engine.downloadRom(romId, system, currentSettings.romScanDir, filename)
                 if (file != null) {
                     _romDownloadState.value = RomDownloadState.Success(file)
                 } else {

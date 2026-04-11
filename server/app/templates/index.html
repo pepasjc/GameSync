@@ -506,7 +506,7 @@ function renderRoms() {
         </div>
         <div class="rom-foot">
           <span class="badge" style="background:${c}; font-size:9px">${esc(sys)}</span>
-          <button class="dl-btn" data-url="/api/v1/roms/${encodeURIComponent(rom.title_id)}" data-fn="${fn}">↓</button>
+          <button class="dl-btn" data-url="/api/v1/roms/${encodeURIComponent(rom.rom_id || rom.title_id)}" data-fn="${fn}">↓</button>
         </div>
       </div>`;
     }
