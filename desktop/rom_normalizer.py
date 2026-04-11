@@ -116,14 +116,17 @@ ROM_EXTENSIONS = {
     ".nes",
     ".md",
     ".gen",
+    ".32x",
     ".n64",
     ".z64",
     ".v64",
+    ".ndd",
     ".gg",
     ".sms",
     ".pce",
     ".ngp",
     ".ngc",
+    ".vb",
     ".ws",
     ".wsc",
     ".lnx",
@@ -133,6 +136,7 @@ ROM_EXTENSIONS = {
     ".rom",
     ".bin",
     ".iso",
+    ".chd",
     ".cso",
     ".pbp",
     ".pkg",  # PSP / PS3
@@ -488,11 +492,15 @@ _SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
     "MD": ["Mega Drive", "Genesis"],
     "GG": ["Game Gear"],
     "SMS": ["Master System"],
-    "PCE": ["PC Engine", "TurboGrafx"],
+    "PCE": ["NEC - PC Engine - TurboGrafx 16", "PC Engine - TurboGrafx 16"],
+    "PCSG": ["NEC - PC Engine SuperGrafx", "PC Engine SuperGrafx", "SuperGrafx"],
     "PCECD": ["PC Engine CD", "TurboGrafx CD", "PC Engine CD-ROM"],
-    "NGP": ["Neo Geo Pocket"],
+    "NGPC": ["SNK - Neo Geo Pocket Color", "Neo Geo Pocket Color"],
+    "NGP": ["SNK - Neo Geo Pocket", "Neo Geo Pocket"],
     "LYNX": ["Lynx"],
+    "WSWANC": ["Bandai - WonderSwan Color", "WonderSwan Color"],
     "WSWAN": ["WonderSwan"],
+    "VB": ["Nintendo - Virtual Boy", "Virtual Boy"],
     "SAT": ["Sega - Saturn", "Saturn"],
     "SEGACD": ["Sega - Mega-CD", "Mega-CD", "Sega CD"],
     "PS1": ["Sony - PlayStation"],
@@ -577,10 +585,31 @@ def find_dat_for_system(system: str) -> Path | None:
     if not DATS_DIR.exists():
         return None
     keywords = _SYSTEM_DAT_KEYWORDS.get(system.upper(), [system])
-    for dat_file in sorted(DATS_DIR.glob("*.dat")):
+    dat_files = sorted(DATS_DIR.glob("*.dat"))
+
+    def _score(dat_file: Path) -> tuple[int, int, int, str] | None:
+        name = dat_file.stem.lower()
+        normalized = re.sub(r"[^a-z0-9]+", " ", name).strip()
+        best: tuple[int, int, int, str] | None = None
         for kw in keywords:
-            if kw.lower() in dat_file.name.lower():
-                return dat_file
+            kw_lower = kw.lower()
+            kw_normalized = re.sub(r"[^a-z0-9]+", " ", kw_lower).strip()
+            if kw_lower == name or kw_normalized == normalized:
+                score = (0, len(normalized), len(name), dat_file.name.lower())
+            elif re.search(rf"\b{re.escape(kw_normalized)}\b", normalized):
+                score = (1, len(normalized), len(name), dat_file.name.lower())
+            elif kw_lower in name:
+                score = (2, len(normalized), len(name), dat_file.name.lower())
+            else:
+                continue
+            if best is None or score < best:
+                best = score
+        return best
+
+    ranked = [(score, dat_file) for dat_file in dat_files if (score := _score(dat_file))]
+    if ranked:
+        ranked.sort(key=lambda item: item[0])
+        return ranked[0][1]
     return None
 
 
@@ -1142,9 +1171,49 @@ def read_rom_header_title(path: Path, system: str) -> str | None:
 
 
 _REGION_TAG_RE = re.compile(
-    r"\((USA|Europe|Japan|World|Australia|Brazil|Korea|China|"
-    r"En|Ja|Fr|De|Es|It|Nl|Pt|Sv|No|Da|Fi|Ko|Zh)\)",
+    r"\((USA|Europe|Japan|World|Australia|Brazil|Korea|China)\)",
     re.IGNORECASE,
+)
+_PAREN_GROUP_RE = re.compile(r"\(([^)]+)\)")
+_FULL_REGION_MAP: dict[str, str] = {
+    "usa": "USA",
+    "europe": "Europe",
+    "japan": "Japan",
+    "world": "World",
+    "australia": "Australia",
+    "brazil": "Brazil",
+    "korea": "Korea",
+    "china": "China",
+    "france": "France",
+    "germany": "Germany",
+    "spain": "Spain",
+    "italy": "Italy",
+    "netherlands": "Netherlands",
+    "sweden": "Sweden",
+    "denmark": "Denmark",
+    "norway": "Norway",
+    "finland": "Finland",
+    "asia": "Asia",
+}
+_REGION_PREFERENCE: tuple[str, ...] = (
+    "USA",
+    "World",
+    "Japan",
+    "Europe",
+    "Australia",
+    "Brazil",
+    "Korea",
+    "China",
+    "France",
+    "Germany",
+    "Spain",
+    "Italy",
+    "Netherlands",
+    "Sweden",
+    "Denmark",
+    "Norway",
+    "Finland",
+    "Asia",
 )
 
 # Old-style single/double letter region codes used before No-Intro standardisation.
@@ -1172,19 +1241,51 @@ def extract_region_hint(filename: str) -> str | None:
     Understands both No-Intro style  ``(USA)`` / ``(Europe)``
     and old GoodTools/TOSEC style    ``(U)`` / ``(E)`` / ``(J)`` / ``(UE)``.
     """
-    # Try full No-Intro style first
-    m = _REGION_TAG_RE.search(filename)
-    if m:
-        return m.group(1)
+    hints = extract_region_hints(filename)
+    if not hints:
+        return None
 
-    # Fall back to short-code style: scan left-to-right for first recognised letter
-    for m in _SHORT_REGION_RE.finditer(filename):
-        for ch in m.group(1).upper():
+    for preferred in _REGION_PREFERENCE:
+        if preferred in hints:
+            return preferred
+    return hints[0]
+
+
+def extract_region_hints(filename: str) -> list[str]:
+    """Return all normalised region names found in a filename.
+
+    Supports both No-Intro multi-region groups like ``(Japan, USA)`` and
+    short GoodTools/TOSEC codes like ``(UE)``.
+    """
+    hints: list[str] = []
+    seen: set[str] = set()
+
+    for match in _PAREN_GROUP_RE.finditer(filename):
+        group = match.group(1).strip()
+        parts = [part.strip() for part in group.split(",")]
+
+        matched_full = False
+        for part in parts:
+            region = _FULL_REGION_MAP.get(part.lower())
+            if region and region not in seen:
+                seen.add(region)
+                hints.append(region)
+                matched_full = True
+
+        if matched_full:
+            continue
+
+        short_match = _SHORT_REGION_RE.fullmatch(f"({group})")
+        if not short_match:
+            continue
+
+        for ch in short_match.group(1).upper():
             region = _SHORT_REGION_MAP.get(ch)
-            if region:
-                return region
+            if region and region not in seen:
+                seen.add(region)
+                hints.append(region)
 
-    return None
+    return hints
 
 
 def find_region_preferred(
@@ -1198,15 +1299,30 @@ def find_region_preferred(
     Used to correct cases where the name index returns e.g. 'Final Fight 2 (Europe)'
     when the source ROM filename clearly indicates '(USA)'.
     """
-    if f"({region_hint})" in canonical:
+    canonical_regions = extract_region_hints(canonical)
+    if region_hint in canonical_regions:
         return canonical  # already the right region
     base = normalize_name(canonical)
 
-    # Try the hinted region first, then fall through priority list
-    for tag in [f"({region_hint})", "(USA)", "(Japan)", "(Europe)"]:
-        for c in no_intro.values():
-            if tag in c and normalize_name(c) == base:
-                return c
+    same_base = [c for c in no_intro.values() if normalize_name(c) == base]
+    if not same_base:
+        return canonical
+
+    fallback_order = [region_hint, "USA", "Japan", "Europe", "World"]
+
+    def _score(candidate: str) -> tuple[int, int, int, int, str]:
+        regions = extract_region_hints(candidate)
+        best_rank = len(fallback_order)
+        for i, preferred in enumerate(fallback_order):
+            if preferred in regions:
+                best_rank = i
+                break
+        exact_match = 0 if regions == [region_hint] else 1
+        return (best_rank, exact_match, len(regions), _tag_count(candidate), candidate)
+
+    best = min(same_base, key=_score)
+    if _score(best)[0] < len(fallback_order):
+        return best
 
     return canonical
 

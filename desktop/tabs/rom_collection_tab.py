@@ -25,6 +25,50 @@ from PyQt6.QtWidgets import (
 from config import SYSTEM_CHOICES, load_config
 
 
+def format_build_confirmation_message(
+    output_folder: Path,
+    matched_count: int,
+    unmatched_found_count: int,
+    include_unmatched: bool,
+    split_into_ranges: bool,
+    bucket_count: int,
+    unzip_archives: bool,
+) -> str:
+    unmatched_copied_count = unmatched_found_count if include_unmatched else 0
+    total_written = matched_count + unmatched_copied_count
+    if split_into_ranges:
+        matched_line = (
+            f"Matched games: {matched_count} file(s), split into {bucket_count} "
+            "letter-range folders."
+        )
+    else:
+        matched_line = (
+            f"Matched games: {matched_count} file(s), copied flat into the output folder."
+        )
+
+    unmatched_line = (
+        f"Unmatched files: {unmatched_found_count} found, "
+        f"{unmatched_copied_count} will be copied into the 'unmatched files' subfolder."
+        if include_unmatched
+        else f"Unmatched files: {unmatched_found_count} found, 0 will be copied."
+    )
+
+    zip_line = (
+        "Zipped ROMs will be extracted."
+        if unzip_archives
+        else "Zipped ROMs will be copied as .zip files."
+    )
+
+    return (
+        f"Build collection in:\n{output_folder}\n\n"
+        f"Total files to write: {total_written}\n"
+        f"{matched_line}\n"
+        f"{unmatched_line}\n"
+        f"{zip_line}\n"
+        "Proceed?"
+    )
+
+
 class CollectionScanWorker(QThread):
     finished = pyqtSignal(list, list, list)
     progress = pyqtSignal(str)
@@ -443,13 +487,15 @@ class RomCollectionTab(QWidget):
         reply = QMessageBox.question(
             self,
             "Build ROM Collection",
-            f"Copy {len(self._entries)} unique game(s) into:\n{output_folder}\n\n"
-            f"{len(self._unmatched) if include_unmatched else 0} unmatched file(s) will "
-            f"{'also be copied into' if include_unmatched else 'be skipped from'} "
-            f"the 'unmatched files' subfolder.\n"
-            f"Matched games will {'be split into ' + str(self.bucket_count_spin.value()) + ' letter-range folders' if self.bucket_folders_check.isChecked() else 'be copied flat into the output folder'}.\n"
-            f"Zipped ROMs will be {'extracted' if self.unzip_check.isChecked() else 'copied as .zip files'}.\n"
-            f"Proceed?",
+            format_build_confirmation_message(
+                output_folder=output_folder,
+                matched_count=len(self._entries),
+                unmatched_found_count=len(self._unmatched),
+                include_unmatched=include_unmatched,
+                split_into_ranges=self.bucket_folders_check.isChecked(),
+                bucket_count=self.bucket_count_spin.value(),
+                unzip_archives=self.unzip_check.isChecked(),
+            ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:

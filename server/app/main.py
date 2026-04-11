@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.middleware.auth import APIKeyMiddleware
-from app.routes import normalize, roms, saves, status, sync, titles, update
+from app.routes import normalize, roms, saves, status, sync, titles, update, web
 from app.services import dat_normalizer, db, game_names, rom_scanner
 
 import asyncio
@@ -123,6 +123,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(APIKeyMiddleware)
 
+    app.include_router(web.router)  # serves GET / — no auth, key injected server-side
     app.include_router(status.router, prefix="/api/v1")
     app.include_router(titles.router, prefix="/api/v1")
     app.include_router(saves.router, prefix="/api/v1")

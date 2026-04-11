@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaveSync — Library</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0d1117;
+      --bg-card:      #161b22;
+      --bg-card-h:    #1c2128;
+      --bg-input:     #0d1117;
+      --bg-hdr:       rgba(13,17,23,.97);
+      --border:       #30363d;
+      --border-muted: #21262d;
+      --text:         #e6edf3;
+      --text-2:       #8b949e;
+      --text-muted:   #6e7681;
+      --accent:       #2f81f7;
+      --accent-h:     #58a6ff;
+      --green:        #3fb950;
+      --red:          #f85149;
+      --yellow:       #d29922;
+      --radius:       8px;
+      --shadow:       0 8px 28px rgba(0,0,0,.55);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ────────────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--bg-hdr);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      height: 56px;
+      display: flex; align-items: center; gap: 16px;
+      padding: 0 24px;
+    }
+    .logo {
+      font-weight: 700; font-size: 16px; white-space: nowrap;
+      display: flex; align-items: center; gap: 8px;
+      text-decoration: none; color: var(--text);
+      flex-shrink: 0;
+    }
+    .logo-icon { font-size: 22px; }
+
+    .search-wrap { flex: 1; max-width: 440px; position: relative; }
+    .search-wrap input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text);
+      padding: 6px 16px 6px 36px;
+      font-size: 14px; outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(47,129,247,.15);
+    }
+    .search-wrap input::placeholder { color: var(--text-muted); }
+    .search-icon {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--text-muted); font-size: 14px; pointer-events: none;
+    }
+
+    .tab-group { display: flex; gap: 2px; margin-left: auto; }
+    .tab-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-2); padding: 6px 14px;
+      border-radius: var(--radius); font-size: 14px; font-weight: 500;
+      transition: background .15s, color .15s;
+      display: flex; align-items: center; gap: 6px;
+      white-space: nowrap;
+    }
+    .tab-btn:hover  { background: var(--bg-card); color: var(--text); }
+    .tab-btn.active { background: var(--bg-card); color: var(--text); }
+    .tab-count {
+      background: var(--border); color: var(--text-muted);
+      border-radius: 10px; padding: 0 6px; font-size: 11px; font-weight: 600;
+    }
+    .tab-btn.active .tab-count { background: var(--accent); color: #fff; }
+
+    .icon-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-2); padding: 7px;
+      border-radius: var(--radius); font-size: 18px; line-height: 1;
+      transition: color .15s; flex-shrink: 0;
+    }
+    .icon-btn:hover { color: var(--text); }
+
+    /* ── LAYOUT ─────────────────────────────────────────── */
+    #app {
+      display: flex; max-width: 1440px; margin: 0 auto;
+      padding: 28px 24px; gap: 28px; align-items: flex-start;
+    }
+
+    /* ── SIDEBAR ─────────────────────────────────────────── */
+    #sidebar { width: 168px; flex-shrink: 0; position: sticky; top: 76px; }
+    .sidebar-label {
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .08em;
+      margin-bottom: 6px; padding-left: 10px;
+    }
+    .sys-link {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 10px; border-radius: 6px;
+      color: var(--text-2); font-size: 13px;
+      cursor: pointer;
+      transition: background .1s, color .1s;
+      white-space: nowrap; overflow: hidden;
+    }
+    .sys-link:hover { background: var(--bg-card); color: var(--text); }
+    .sys-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .sys-link-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .sys-link-cnt  { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+
+    /* ── CONTENT ─────────────────────────────────────────── */
+    #content { flex: 1; min-width: 0; }
+
+    /* ── STATS BAR ───────────────────────────────────────── */
+    .stats-bar {
+      display: flex;
+      background: var(--bg-card); border: 1px solid var(--border-muted);
+      border-radius: var(--radius); margin-bottom: 28px; overflow: hidden;
+    }
+    .stat { padding: 14px 28px; text-align: center; flex: 1; border-right: 1px solid var(--border-muted); }
+    .stat:last-child { border-right: none; }
+    .stat-val { font-size: 22px; font-weight: 700; color: var(--accent); }
+    .stat-lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── SYSTEM SECTION ──────────────────────────────────── */
+    .sys-section { margin-bottom: 44px; scroll-margin-top: 72px; }
+    .sys-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px; padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-muted);
+    }
+    .sys-header h2 { font-size: 16px; font-weight: 600; }
+    .sys-count {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1px 9px; font-size: 11px; color: var(--text-2);
+    }
+
+    /* ── ROM CARD GRID ───────────────────────────────────── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(192px, 1fr));
+      gap: 12px;
+    }
+    .rom-card {
+      background: var(--bg-card); border: 1px solid var(--border-muted);
+      border-radius: var(--radius); overflow: hidden;
+      display: flex; flex-direction: column;
+      transition: border-color .15s, transform .12s, box-shadow .15s;
+    }
+    .rom-card:hover {
+      border-color: var(--border);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+    .rom-stripe { height: 3px; }
+    .rom-body { padding: 12px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+    .rom-title {
+      font-size: 13px; font-weight: 500; line-height: 1.4; flex: 1;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .rom-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+    .rom-size { font-size: 11px; color: var(--text-muted); }
+    .save-dot {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 10px; color: var(--green); margin-left: auto;
+    }
+    .save-dot::before {
+      content:''; display: block; width: 6px; height: 6px;
+      border-radius: 50%; background: var(--green);
+    }
+    .rom-foot {
+      padding: 8px 12px; border-top: 1px solid var(--border-muted);
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── BADGE ───────────────────────────────────────────── */
+    .badge {
+      display: inline-block; color: #fff;
+      font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 4px;
+      text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0;
+    }
+
+    /* ── DOWNLOAD BUTTON ─────────────────────────────────── */
+    .dl-btn {
+      background: var(--accent); color: #fff; border: none;
+      border-radius: 6px; padding: 5px 12px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: background .15s, opacity .15s;
+      margin-left: auto; white-space: nowrap;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .dl-btn:hover    { background: var(--accent-h); }
+    .dl-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .dl-btn.busy     { background: var(--yellow); color: #000; }
+
+    /* ── SAVES TABLE ─────────────────────────────────────── */
+    .tbl-wrap { overflow-x: auto; border-radius: var(--radius); }
+    table.tbl {
+      width: 100%; border-collapse: collapse;
+      background: var(--bg-card);
+      border: 1px solid var(--border-muted); border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .tbl thead { background: rgba(0,0,0,.25); }
+    .tbl th {
+      text-align: left; padding: 10px 16px;
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .06em;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .tbl td {
+      padding: 10px 16px; border-bottom: 1px solid var(--border-muted);
+      vertical-align: middle;
+    }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--bg-card-h); }
+    .save-game { font-weight: 500; font-size: 13px; }
+    .save-id   { font-size: 11px; color: var(--text-muted); font-family: ui-monospace, monospace; margin-top: 2px; }
+    .save-date { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+    .save-size { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+    /* ── SETTINGS MODAL ──────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.72);
+      z-index: 200; display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px; width: 360px; max-width: 92vw;
+      box-shadow: var(--shadow);
+    }
+    .modal h2 { font-size: 17px; margin-bottom: 6px; }
+    .modal p  { color: var(--text-2); font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+    .modal-divider { border: none; border-top: 1px solid var(--border-muted); margin: 18px 0; }
+    .modal-sec-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+    .btn-ghost {
+      background: none; color: var(--text-2); border: 1px solid var(--border);
+      border-radius: 7px; padding: 8px 18px; font-size: 14px; cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-ghost:hover { background: var(--bg-card-h); color: var(--text); }
+    .btn-ghost:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── SKELETON ────────────────────────────────────────── */
+    .skeleton { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: .6; } 50% { opacity: .2; } }
+    .skel-head { height: 20px; width: 220px; background: var(--border-muted); border-radius: 4px; margin-bottom: 16px; }
+    .skel-card { background: var(--bg-card); border: 1px solid var(--border-muted); border-radius: var(--radius); height: 132px; }
+
+    /* ── EMPTY STATE ─────────────────────────────────────── */
+    .empty { text-align: center; padding: 72px 20px; color: var(--text-muted); }
+    .empty-icon  { font-size: 48px; margin-bottom: 14px; line-height: 1; }
+    .empty-title { font-size: 16px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+    .empty-sub   { font-size: 13px; max-width: 380px; margin: 0 auto; line-height: 1.6; }
+
+    /* ── TOAST ───────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 9px; padding: 10px 22px; font-size: 13px;
+      box-shadow: var(--shadow); z-index: 400;
+      transition: opacity .25s, transform .25s;
+      opacity: 0; pointer-events: none; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.err  { border-color: var(--red);   color: var(--red);   }
+    #toast.ok   { border-color: var(--green); color: var(--green); }
+
+    /* ── RESPONSIVE ──────────────────────────────────────── */
+    @media (max-width: 800px) {
+      #sidebar { display: none; }
+      #app { padding: 16px 12px; }
+      .card-grid { grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 8px; }
+      header { padding: 0 12px; gap: 10px; }
+      .tab-btn { padding: 5px 10px; font-size: 13px; }
+    }
+    @media (max-width: 480px) {
+      .logo span:last-child { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ SETTINGS MODAL ══ -->
+<div class="modal-overlay hidden" id="cfg-modal">
+  <div class="modal">
+    <h2>⚙️ Settings</h2>
+    <p>Manage the ROM library.</p>
+    <div class="modal-sec-title">ROM Library</div>
+    <button class="btn-ghost" id="scan-btn" onclick="scanRoms(this)" style="width:100%">
+      🔄 Rescan ROM directory
+    </button>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeCfg()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div id="toast"></div>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <a class="logo" href="#">
+    <span class="logo-icon">🎮</span>
+    <span>SaveSync</span>
+  </a>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="search" id="search" placeholder="Search games…" autocomplete="off">
+  </div>
+  <div class="tab-group">
+    <button class="tab-btn active" id="tab-roms" onclick="switchTab('roms')">
+      ROMs <span class="tab-count" id="cnt-roms">—</span>
+    </button>
+    <button class="tab-btn" id="tab-saves" onclick="switchTab('saves')">
+      Saves <span class="tab-count" id="cnt-saves">—</span>
+    </button>
+  </div>
+  <button class="icon-btn" onclick="openCfg()" title="Settings">⚙</button>
+</header>
+
+<!-- ══ APP ══ -->
+<div id="app">
+  <nav id="sidebar">
+    <div class="sidebar-label" id="sbl">Systems</div>
+    <div id="sys-nav"></div>
+  </nav>
+  <main id="content">
+    <div id="roms-pane"></div>
+    <div id="saves-pane" style="display:none"></div>
+  </main>
+</div>
+
+<script>
+// API key injected server-side — no user input needed
+const API_KEY = '__API_KEY__';
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+const S = { roms: [], saves: [], tab: 'roms', q: '' };
+
+// ═══════════════════════════════════════════════════════
+//  SYSTEM METADATA
+// ═══════════════════════════════════════════════════════
+const SYS_CLR = {
+  GBA:'#7c3aed', GBC:'#15803d', GB:'#3f6212',
+  SNES:'#1d4ed8', NES:'#b91c1c', FDS:'#9a1818',
+  N64:'#92400e', GC:'#6d28d9', WII:'#4338ca', WIIU:'#3730a3',
+  NDS:'#9d174d', '3DS':'#0e7490', DSI:'#0891b2',
+  PSP:'#1e3a8a', VITA:'#881337',
+  PS1:'#374151', PSX:'#374151', PS2:'#1e3a8a', PS3:'#0c4a6e',
+  MD:'#134e4a', SMS:'#064e3b', GG:'#14532d',
+  '32X':'#6d28d9', SCD:'#1e3a8a',
+  PCE:'#78350f', TG16:'#78350f', PCECD:'#92400e',
+  NGPC:'#991b1b', NGP:'#991b1b', NGC:'#7f1d1d',
+  ATARI2600:'#44403c', ATARI7800:'#44403c', LYNX:'#44403c',
+  MSDOS:'#1f2937', DOS:'#1f2937',
+};
+const SYS_LBL = {
+  GBA:'Game Boy Advance', GBC:'Game Boy Color', GB:'Game Boy',
+  SNES:'Super Nintendo', NES:'NES / Famicom', FDS:'Famicom Disk System',
+  N64:'Nintendo 64', GC:'GameCube', WII:'Wii', WIIU:'Wii U',
+  NDS:'Nintendo DS', '3DS':'Nintendo 3DS', DSI:'Nintendo DSi',
+  PSP:'PlayStation Portable', VITA:'PS Vita',
+  PS1:'PlayStation', PSX:'PlayStation', PS2:'PlayStation 2', PS3:'PlayStation 3',
+  MD:'Mega Drive / Genesis', SMS:'Sega Master System', GG:'Game Gear',
+  '32X':'Sega 32X', SCD:'Sega CD',
+  PCE:'PC Engine', TG16:'TurboGrafx-16', PCECD:'PC Engine CD',
+  NGPC:'Neo Geo Pocket Color', NGP:'Neo Geo Pocket', NGC:'Neo Geo Color',
+  ATARI2600:'Atari 2600', ATARI7800:'Atari 7800', LYNX:'Atari Lynx',
+  MSDOS:'MS-DOS', DOS:'MS-DOS',
+};
+
+const clr = s => SYS_CLR[(s||'').toUpperCase()] || '#374151';
+const lbl = s => SYS_LBL[(s||'').toUpperCase()] || s || 'Unknown';
+
+// ═══════════════════════════════════════════════════════
+//  HTTP
+// ═══════════════════════════════════════════════════════
+async function api(path) {
+  const r = await fetch(path, { headers: { 'X-API-Key': API_KEY } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function dlFile(url, filename, btn) {
+  if (btn) { btn.disabled = true; btn.classList.add('busy'); btn.textContent = '…'; }
+  try {
+    const r = await fetch(url, { headers: { 'X-API-Key': API_KEY } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(await r.blob()),
+      download: filename,
+    });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    toast(`⬇ ${filename}`, 'ok');
+  } catch(e) { toast('Download failed: ' + e.message, 'err'); }
+  finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('busy'); btn.textContent = '↓'; }
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOAD
+// ═══════════════════════════════════════════════════════
+async function loadAll() {
+  showSkeleton();
+  try {
+    const [rd, sd] = await Promise.all([api('/api/v1/roms'), api('/api/v1/titles')]);
+    const saveIds = new Set((sd.titles || []).map(t => t.title_id));
+    S.roms  = (rd.roms || []).map(r => ({ ...r, hasSave: saveIds.has(r.title_id) }));
+    S.saves = sd.titles || [];
+    qs('#cnt-roms').textContent  = S.roms.length;
+    qs('#cnt-saves').textContent = S.saves.length;
+    renderRoms();
+    renderSaves();
+  } catch(e) {
+    qs('#roms-pane').innerHTML = emptyState('⚠️', 'Failed to load data', e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER — ROMs
+// ═══════════════════════════════════════════════════════
+function renderRoms() {
+  const q = S.q;
+  const groups = {};
+  for (const r of S.roms) {
+    if (q && !r.name?.toLowerCase().includes(q) && !r.filename?.toLowerCase().includes(q)) continue;
+    const s = r.system || 'UNKNOWN';
+    (groups[s] = groups[s] || []).push(r);
+  }
+  const systems = Object.keys(groups).sort();
+
+  // Sidebar
+  qs('#sys-nav').innerHTML = systems.map(s =>
+    `<div class="sys-link" onclick="jump('rs-${s}')">
+       <span class="sys-dot" style="background:${clr(s)}"></span>
+       <span class="sys-link-name">${esc(s)}</span>
+       <span class="sys-link-cnt">${groups[s].length}</span>
+     </div>`
+  ).join('');
+
+  if (!systems.length) {
+    qs('#roms-pane').innerHTML = emptyState('📭',
+      q ? `No ROMs match "${esc(q)}"` : 'No ROMs available',
+      q ? 'Try a different search term.'
+        : 'Set the SYNC_ROM_DIR environment variable to point to your ROM library.');
+    return;
+  }
+
+  const total = systems.reduce((n, s) => n + groups[s].length, 0);
+  let h = statsBar(total, 'ROMs', systems.length, 'Systems');
+
+  for (const sys of systems) {
+    const c = clr(sys);
+    h += `<div class="sys-section" id="rs-${sys}">
+      <div class="sys-header">
+        <span class="badge" style="background:${c}">${esc(sys)}</span>
+        <h2>${esc(lbl(sys))}</h2>
+        <span class="sys-count">${groups[sys].length}</span>
+      </div>
+      <div class="card-grid">`;
+
+    for (const rom of groups[sys]) {
+      const tid = esc(rom.title_id);
+      const fn  = esc(rom.filename || rom.title_id);
+      h += `<div class="rom-card">
+        <div class="rom-stripe" style="background:${c}"></div>
+        <div class="rom-body">
+          <div class="rom-title" title="${esc(rom.name)}">${esc(rom.name)}</div>
+          <div class="rom-meta">
+            <span class="rom-size">${fmtB(rom.size)}</span>
+            ${rom.hasSave ? `<span class="save-dot">save</span>` : ''}
+          </div>
+        </div>
+        <div class="rom-foot">
+          <span class="badge" style="background:${c}; font-size:9px">${esc(sys)}</span>
+          <button class="dl-btn" data-url="/api/v1/roms/${encodeURIComponent(rom.title_id)}" data-fn="${fn}">↓</button>
+        </div>
+      </div>`;
+    }
+    h += `</div></div>`;
+  }
+  qs('#roms-pane').innerHTML = h;
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER — Saves
+// ═══════════════════════════════════════════════════════
+function renderSaves() {
+  const q = S.q;
+  const groups = {};
+  for (const sv of S.saves) {
+    const nm = sv.game_name || sv.name || sv.title_id;
+    if (q && !nm.toLowerCase().includes(q) && !sv.title_id?.toLowerCase().includes(q)) continue;
+    const p = sv.console_type || sv.platform || 'UNKNOWN';
+    (groups[p] = groups[p] || []).push(sv);
+  }
+  const plats = Object.keys(groups).sort();
+
+  if (!plats.length) {
+    qs('#saves-pane').innerHTML = emptyState('💾',
+      q ? `No saves match "${esc(q)}"` : 'No saves on server yet',
+      q ? 'Try a different search term.' : 'Upload a save from your device to see it here.');
+    return;
+  }
+
+  const total = plats.reduce((n, p) => n + groups[p].length, 0);
+  let h = statsBar(total, 'Saves', plats.length, 'Platforms');
+
+  for (const plat of plats) {
+    const c = clr(plat);
+    h += `<div class="sys-section" id="sp-${plat}">
+      <div class="sys-header">
+        <span class="badge" style="background:${c}">${esc(plat)}</span>
+        <h2>${esc(lbl(plat))}</h2>
+        <span class="sys-count">${groups[plat].length}</span>
+      </div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr>
+          <th>Game</th><th>Last Sync</th><th>Size</th><th>Files</th><th></th>
+        </tr></thead><tbody>`;
+
+    for (const sv of groups[plat]) {
+      const nm  = sv.game_name || sv.name || sv.title_id;
+      const fn  = esc(sv.title_id + '.bin');
+      const url = `/api/v1/saves/${encodeURIComponent(sv.title_id)}`;
+      h += `<tr>
+        <td>
+          <div class="save-game">${esc(nm)}</div>
+          <div class="save-id">${esc(sv.title_id)}</div>
+        </td>
+        <td><div class="save-date">${fmtD(sv.last_sync || sv.server_timestamp)}</div></td>
+        <td><div class="save-size">${fmtB(sv.save_size)}</div></td>
+        <td><div class="save-size">${sv.file_count ?? '—'}</div></td>
+        <td><button class="dl-btn" data-url="${esc(url)}" data-fn="${fn}">↓</button></td>
+      </tr>`;
+    }
+    h += `</tbody></table></div></div>`;
+  }
+  qs('#saves-pane').innerHTML = h;
+}
+
+// ═══════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════
+function switchTab(tab) {
+  S.tab = tab;
+  qs('#roms-pane').style.display  = tab === 'roms'  ? '' : 'none';
+  qs('#saves-pane').style.display = tab === 'saves' ? '' : 'none';
+  qs('#tab-roms').className  = 'tab-btn' + (tab === 'roms'  ? ' active' : '');
+  qs('#tab-saves').className = 'tab-btn' + (tab === 'saves' ? ' active' : '');
+  qs('#sbl').textContent = tab === 'roms' ? 'Systems' : 'Platforms';
+
+  if (tab === 'saves') {
+    // Rebuild sidebar for saves platforms
+    const groups = {};
+    for (const sv of S.saves) {
+      const nm = sv.game_name || sv.name || sv.title_id;
+      if (S.q && !nm.toLowerCase().includes(S.q) && !sv.title_id?.toLowerCase().includes(S.q)) continue;
+      const p = sv.console_type || sv.platform || 'UNKNOWN';
+      (groups[p] = groups[p] || []).push(sv);
+    }
+    qs('#sys-nav').innerHTML = Object.keys(groups).sort().map(p =>
+      `<div class="sys-link" onclick="jump('sp-${p}')">
+         <span class="sys-dot" style="background:${clr(p)}"></span>
+         <span class="sys-link-name">${esc(p)}</span>
+         <span class="sys-link-cnt">${groups[p].length}</span>
+       </div>`
+    ).join('');
+  } else {
+    renderRoms(); // also rebuilds sidebar
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════════
+function openCfg()  { qs('#cfg-modal').classList.remove('hidden'); }
+function closeCfg() { qs('#cfg-modal').classList.add('hidden'); }
+
+async function scanRoms(btn) {
+  btn.disabled = true; btn.textContent = '⏳ Scanning…';
+  try {
+    const d = await api('/api/v1/roms/scan');
+    toast(`Scan complete — ${d.count} ROMs found`, 'ok');
+    closeCfg();
+    loadAll();
+  } catch(e) { toast('Scan failed: ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = '🔄 Rescan ROM directory'; }
+}
+
+// ═══════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════
+const qs = sel => document.querySelector(sel);
+
+function statsBar(v1, l1, v2, l2) {
+  return `<div class="stats-bar">
+    <div class="stat"><div class="stat-val">${v1}</div><div class="stat-lbl">${l1}</div></div>
+    <div class="stat"><div class="stat-val">${v2}</div><div class="stat-lbl">${l2}</div></div>
+  </div>`;
+}
+function emptyState(icon, title, sub) {
+  return `<div class="empty">
+    <div class="empty-icon">${icon}</div>
+    <div class="empty-title">${title}</div>
+    <div class="empty-sub">${sub}</div>
+  </div>`;
+}
+function fmtB(b) {
+  if (!b) return '';
+  if (b < 1024)    return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(0) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+function fmtD(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'}); }
+  catch { return iso; }
+}
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function jump(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ── TOAST ──────────────────────────────────────────────
+let _tt;
+function toast(msg, type='') {
+  const el = qs('#toast');
+  el.textContent = msg;
+  el.className = 'show' + (type ? ' '+type : '');
+  clearTimeout(_tt);
+  _tt = setTimeout(() => { el.className = ''; }, 3400);
+}
+
+// ── SKELETON ────────────────────────────────────────────
+function showSkeleton() {
+  const c = Array.from({length:16}, () => `<div class="skel-card skeleton"></div>`).join('');
+  qs('#roms-pane').innerHTML =
+    `<div class="skel-head skeleton" style="margin-bottom:24px"></div>
+     <div class="card-grid">${c}</div>`;
+}
+
+// ── EVENT DELEGATION (download buttons) ─────────────────
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.dl-btn[data-url]');
+  if (btn) dlFile(btn.dataset.url, btn.dataset.fn, btn);
+});
+
+// ── SEARCH ──────────────────────────────────────────────
+let _st;
+document.addEventListener('DOMContentLoaded', () => {
+  qs('#search').addEventListener('input', e => {
+    clearTimeout(_st);
+    _st = setTimeout(() => {
+      S.q = e.target.value.toLowerCase();
+      if (S.tab === 'roms') renderRoms();
+      else                  renderSaves();
+    }, 180);
+  });
+  qs('#cfg-modal').addEventListener('click', e => {
+    if (e.target.id === 'cfg-modal') closeCfg();
+  });
+  loadAll();
+});
+</script>
+</body>
+</html>

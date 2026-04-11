@@ -242,6 +242,173 @@ def test_scan_collection_prefers_fastrom_over_regular(tmp_path):
     assert "[FastROM" in entries[0].source_path.name
 
 
+def test_scan_collection_excludes_bios_zip(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "[BIOS] ST010 (Japan, USA).zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("[BIOS] ST010 (Japan, USA).bin", b"bios")
+
+    no_intro = {
+        "A": "ST010 (Japan, USA) (Enhancement Chip)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(roms, "SNES", no_intro)
+
+    assert entries == []
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_excludes_enhancement_chip_raw_file(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "ST010 (Japan, USA) (Enhancement Chip).bin").write_bytes(b"bios")
+
+    no_intro = {
+        "A": "ST010 (Japan, USA) (Enhancement Chip)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(roms, "SNES", no_intro)
+
+    assert entries == []
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_accepts_chd_files(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Final Fantasy VII (USA).chd").write_bytes(b"fake-chd")
+
+    no_intro = {
+        "A": "Final Fantasy VII (USA)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "PS1", no_intro, skip_crc=True
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "Final Fantasy VII (USA)"
+    assert entries[0].extension == ".chd"
+    assert entries[0].source_path.name == "Final Fantasy VII (USA).chd"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_accepts_ndd_files(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "F-Zero X - Expansion Kit (Japan).ndd").write_bytes(b"fake-ndd")
+
+    no_intro = {
+        "A": "F-Zero X - Expansion Kit (Japan)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "N64DD", no_intro, skip_crc=True
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "F-Zero X - Expansion Kit (Japan)"
+    assert entries[0].extension == ".ndd"
+    assert entries[0].source_path.name == "F-Zero X - Expansion Kit (Japan).ndd"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_accepts_32x_files(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "After Burner Complete (Japan, USA) (En).32x").write_bytes(b"fake-32x")
+
+    no_intro = {
+        "A": "After Burner Complete (Japan, USA) (En)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "32X", no_intro, skip_crc=True
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "After Burner Complete (Japan, USA) (En)"
+    assert entries[0].extension == ".32x"
+    assert entries[0].source_path.name == "After Burner Complete (Japan, USA) (En).32x"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_accepts_vb_files(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Mario Clash (Japan, USA) (En).vb").write_bytes(b"fake-vb")
+
+    no_intro = {
+        "A": "Mario Clash (Japan, USA) (En)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "VB", no_intro, skip_crc=True
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "Mario Clash (Japan, USA) (En)"
+    assert entries[0].extension == ".vb"
+    assert entries[0].source_path.name == "Mario Clash (Japan, USA) (En).vb"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_extract_region_hint_prefers_usa_from_multi_region_tag():
+    assert rn.extract_region_hint("Super Metroid (Japan, USA) (En,Ja).sfc") == "USA"
+    assert rn.extract_region_hints("Super Metroid (Japan, USA) (En,Ja).sfc") == [
+        "Japan",
+        "USA",
+    ]
+
+
+def test_find_region_preferred_upgrades_europe_to_multi_region_usa_variant():
+    no_intro = {
+        "A": "Super Metroid (Europe) (En,Fr,De)",
+        "B": "Super Metroid (Japan, USA) (En,Ja)",
+    }
+
+    canonical = rn.find_region_preferred(
+        "Super Metroid (Europe) (En,Fr,De)",
+        no_intro,
+        "USA",
+    )
+
+    assert canonical == "Super Metroid (Japan, USA) (En,Ja)"
+
+
+def test_scan_collection_prefers_multi_region_usa_variant_over_europe(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Super Metroid (Europe).sfc").write_bytes(b"eu")
+    (roms / "Super Metroid (USA).sfc").write_bytes(b"us")
+
+    no_intro = {
+        "A": "Super Metroid (Europe) (En,Fr,De)",
+        "B": "Super Metroid (Japan, USA) (En,Ja)",
+    }
+    clone_map = {
+        "Super Metroid (Europe) (En,Fr,De)": "Super Metroid (Japan, USA) (En,Ja)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "SNES", no_intro, clone_map=clone_map
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "Super Metroid (Japan, USA) (En,Ja)"
+    assert entries[0].source_path.name == "Super Metroid (USA).sfc"
+    assert len(duplicates) == 1
+    assert duplicates[0].canonical_name == "Super Metroid (Europe) (En,Fr,De)"
+    assert not unmatched
+
+
 def test_build_collection_unzips_zip_entries(tmp_path):
     roms = tmp_path / "roms"
     roms.mkdir()
@@ -317,6 +484,36 @@ def test_build_collection_copies_unmatched_files_to_subfolder(tmp_path):
     assert unmatched_copy in written
     with zipfile.ZipFile(unmatched_copy) as zf:
         assert zf.read("Unknown Game.gba") == b"unknown"
+
+
+def test_build_collection_removes_stale_unmatched_folder_when_not_including_unmatched(
+    tmp_path,
+):
+    matched_source = tmp_path / "Advance Wars (USA).gba"
+    matched_source.write_bytes(b"matched")
+
+    entry = rc.CollectionCandidate(
+        source_path=matched_source,
+        canonical_name="Advance Wars (USA)",
+        source_kind="file",
+        extension=".gba",
+        match_source="fuzzy",
+    )
+
+    output = tmp_path / "output"
+    stale_unmatched = output / "unmatched files"
+    stale_unmatched.mkdir(parents=True)
+    (stale_unmatched / "Unknown Game.zip").write_bytes(b"stale")
+
+    written = rc.build_collection(
+        [entry],
+        output,
+        unzip_archives=False,
+        unmatched_files=[],
+    )
+
+    assert written == [output / "Advance Wars (USA).gba"]
+    assert not stale_unmatched.exists()
 
 
 def test_build_letter_buckets_for_four_folders():

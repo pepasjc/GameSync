@@ -269,6 +269,87 @@ def test_sync_resolution_prefers_filename_fuzzy_before_header(monkeypatch, tmp_p
     assert confidence == "low"
 
 
+def test_find_dat_for_system_distinguishes_gb_from_gba(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    gb = dats / "Nintendo - Game Boy.dat"
+    gbc = dats / "Nintendo - Game Boy Color.dat"
+    gba = dats / "Nintendo - Game Boy Advance.dat"
+    for path in (gb, gbc, gba):
+        path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("GB") == gb
+    assert rn.find_dat_for_system("GBC") == gbc
+    assert rn.find_dat_for_system("GBA") == gba
+
+
+def test_find_dat_for_system_distinguishes_pce_from_pcsg(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    pce = dats / "NEC - PC Engine - TurboGrafx 16.dat"
+    pcsg = dats / "NEC - PC Engine SuperGrafx.dat"
+    pcecd = dats / "NEC - PC Engine CD - TurboGrafx-CD.dat"
+    for path in (pce, pcsg, pcecd):
+        path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("PCE") == pce
+    assert rn.find_dat_for_system("PCSG") == pcsg
+    assert rn.find_dat_for_system("PCECD") == pcecd
+
+
+def test_find_dat_for_system_distinguishes_wswan_from_wswanc(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    wswan = dats / "Bandai - WonderSwan.dat"
+    wswanc = dats / "Bandai - WonderSwan Color.dat"
+    for path in (wswan, wswanc):
+        path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("WSWAN") == wswan
+    assert rn.find_dat_for_system("WSWANC") == wswanc
+
+
+def test_find_dat_for_system_distinguishes_ngp_from_ngpc(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    ngp = dats / "SNK - Neo Geo Pocket.dat"
+    ngpc = dats / "SNK - Neo Geo Pocket Color.dat"
+    for path in (ngp, ngpc):
+        path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("NGP") == ngp
+    assert rn.find_dat_for_system("NGPC") == ngpc
+
+
+def test_find_dat_for_system_finds_virtual_boy(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    vb = dats / "Nintendo - Virtual Boy.dat"
+    vb.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("VB") == vb
+
+
 def test_scan_profile_handles_single_system_analogue_pocket_subroot(tmp_path):
     rom_root = tmp_path / "Assets" / "gba" / "common"
     save_root = tmp_path / "Saves" / "gba" / "common"

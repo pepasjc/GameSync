@@ -95,6 +95,8 @@ fun SaveDetailScreen(
     // Auto-fetch server metadata when screen opens
     LaunchedEffect(titleId, entry?.systemName) {
         viewModel.fetchServerMeta(titleId, entry?.systemName)
+        viewModel.fetchRomAvailable()
+        viewModel.resetRomDownloadState()
     }
 
     // Show result messages
@@ -344,6 +346,40 @@ fun SaveDetailScreen(
                 isBusy = isBusy && detailState.isDownload,
                 onClick = { viewModel.downloadSave(entry) }
             )
+
+            // ROM download button — shown when server has a ROM for this title
+            val romAvailable by viewModel.romAvailable.collectAsState()
+            val romDownloadState by viewModel.romDownloadState.collectAsState()
+            if (entry.titleId in romAvailable) {
+                val romBusy = romDownloadState is MainViewModel.RomDownloadState.Downloading
+                ActionButton(
+                    label = when (romDownloadState) {
+                        is MainViewModel.RomDownloadState.Downloading -> "Downloading ROM…"
+                        is MainViewModel.RomDownloadState.Success -> "✓ ROM Downloaded"
+                        else -> "Download ROM"
+                    },
+                    icon = Icons.Default.CloudDownload,
+                    enabled = !isBusy && !romBusy,
+                    containerColor = Color(0xFF6A1B9A),
+                    isBusy = romBusy,
+                    onClick = { viewModel.downloadRom(entry.titleId) }
+                )
+            }
+            when (val s = romDownloadState) {
+                is MainViewModel.RomDownloadState.Success ->
+                    Text(
+                        "  ✓ Saved to ${s.file.absolutePath}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF4CAF50)
+                    )
+                is MainViewModel.RomDownloadState.Error ->
+                    Text(
+                        "  ✗ ${s.message}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                else -> {}
+            }
             if (!entry.isServerOnly && entry.systemName != "PPSSPP") {
                 HorizontalDivider()
                 ActionButton(

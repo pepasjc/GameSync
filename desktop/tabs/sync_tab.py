@@ -35,6 +35,26 @@ from config import (
 _PS_TITLE_ID_RE = re.compile(r"^[A-Z]{4}\d{5}$")
 
 
+def sync_row_matches_filters(
+    *,
+    system: str,
+    game: str,
+    title_id: str,
+    status: str,
+    system_filter: str,
+    status_filter: str,
+    search: str,
+    skip_server_only: bool,
+) -> bool:
+    if skip_server_only and status == STATUS_LABELS.get("server_only", "Server only"):
+        return False
+    match_system = system_filter == "All" or system == system_filter
+    match_status = status_filter == "All" or status == status_filter
+    search = search.strip().lower()
+    match_search = not search or search in game.lower() or search in title_id.lower()
+    return match_system and match_status and match_search
+
+
 def _copy_save_payload(source: Path, dest: Path) -> None:
     """Copy a downloaded save artifact, preserving directory-based saves like PS3."""
     if source.is_dir():
@@ -228,6 +248,12 @@ class SyncTab(QWidget):
         )
         self.status_filter_combo.currentTextChanged.connect(self._apply_filter)
         filter_row.addWidget(self.status_filter_combo)
+        self.skip_server_only_check = QCheckBox("Skip Server Only")
+        self.skip_server_only_check.setToolTip(
+            "Hide saves that exist on the server but have no matching ROM/profile entry locally."
+        )
+        self.skip_server_only_check.stateChanged.connect(self._apply_filter)
+        filter_row.addWidget(self.skip_server_only_check)
         filter_row.addWidget(QLabel("Search:"))
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("Filter by game name or title ID…")
@@ -615,6 +641,7 @@ class SyncTab(QWidget):
         system_filter = self.system_filter_combo.currentText()
         status_filter = self.status_filter_combo.currentText()
         search = self.search_edit.text().strip().lower()
+        skip_server_only = self.skip_server_only_check.isChecked()
         for row in range(self.table.rowCount()):
             system_item = self.table.item(row, 0)
             game_item = self.table.item(row, 1)
@@ -624,11 +651,18 @@ class SyncTab(QWidget):
             game = game_item.text() if game_item else ""
             tid = tid_item.text() if tid_item else ""
             status = status_item.text() if status_item else ""
-            match_system = system_filter == "All" or system == system_filter
-            match_status = status_filter == "All" or status == status_filter
-            match_search = not search or search in game.lower() or search in tid.lower()
             self.table.setRowHidden(
-                row, not (match_system and match_status and match_search)
+                row,
+                not sync_row_matches_filters(
+                    system=system,
+                    game=game,
+                    title_id=tid,
+                    status=status,
+                    system_filter=system_filter,
+                    status_filter=status_filter,
+                    search=search,
+                    skip_server_only=skip_server_only,
+                ),
             )
 
     def _selected_status_indices(self) -> list[int]:
@@ -1402,6 +1436,7 @@ class SyncTab(QWidget):
     def save_ui_state(self) -> dict:
         return {
             "auto_normalize_sync": self.auto_normalize_check.isChecked(),
+            "skip_server_only_sync": self.skip_server_only_check.isChecked(),
             "selected_profile": self.profile_combo.currentText(),
             "last_download_folder": str(self._last_download_folder)
             if self._last_download_folder
@@ -1411,6 +1446,8 @@ class SyncTab(QWidget):
     def load_ui_state(self, state: dict):
         if "auto_normalize_sync" in state:
             self.auto_normalize_check.setChecked(bool(state["auto_normalize_sync"]))
+        if "skip_server_only_sync" in state:
+            self.skip_server_only_check.setChecked(bool(state["skip_server_only_sync"]))
         self._saved_profile_name = state.get("selected_profile", "")
         last_folder = state.get("last_download_folder", "")
         self._last_download_folder = Path(last_folder) if last_folder else None

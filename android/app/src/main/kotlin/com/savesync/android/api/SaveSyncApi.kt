@@ -142,4 +142,22 @@ interface SaveSyncApi {
     suspend fun lookupGameNames(
         @Body request: GameNameRequest
     ): GameNameResponse
+
+    // ── ROM catalog ──────────────────────────────────────────────────────
+
+    @GET("api/v1/roms")
+    suspend fun getRoms(
+        @Query("system") system: String? = null,
+        @Query("search") search: String? = null,
+        @Query("has_save") hasSave: Boolean? = null
+    ): RomsResponse
+
+    @GET("api/v1/roms/systems")
+    suspend fun getRomsSystems(): RomsSystemsResponse
+
+    @Streaming
+    @GET("api/v1/roms/{title_id}")
+    suspend fun downloadRom(
+        @Path("title_id") titleId: String
+    ): Response<ResponseBody>
 }

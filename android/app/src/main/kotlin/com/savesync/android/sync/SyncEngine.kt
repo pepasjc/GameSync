@@ -276,12 +276,64 @@ class SyncEngine(
         } else if (entry.systemName == "PS2" && entry.saveFile != null) {
             downloadPs2Card(entry, titleId)
         } else if (entry.systemName == "GC") {
-            // Always route GC through the /gc-card endpoint (format=gci).
-            // If saveFile is null (server-only, Dolphin not configured) this
-            // returns false rather than falling through to /raw and writing 8 MB.
             downloadGcCard(entry, titleId)
         } else {
             downloadSaveRaw(entry, titleId)
+        }
+    }
+
+    /**
+     * Download a ROM from the server's ROM catalog.
+     * Saves to the ROM scan directory under the appropriate system subfolder.
+     * Returns the downloaded File on success, null on failure.
+     */
+    suspend fun downloadRom(
+        titleId: String,
+        romScanDir: String,
+        expectedFilename: String? = null
+    ): File? {
+        return try {
+            val response = api.downloadRom(titleId)
+            if (!response.isSuccessful) {
+                Log.e(TAG, "ROM download HTTP error for $titleId: ${response.code()}")
+                return null
+            }
+            val body = response.body() ?: return null
+
+            val filename = expectedFilename
+                ?: response.headers()["Content-Disposition"]
+                    ?.let { cd ->
+                        val match = Regex("filename=\"?([^\"]+)\"?").find(cd)
+                        match?.groupValues?.get(1)
+                    }
+                ?: "$titleId.rom"
+
+            val system = titleId.substringBefore('_').let { code ->
+                mapOf(
+                    "SEGACD" to "segacd", "WSWAN" to "wonderswan",
+                    "NEOCD" to "neogeocd", "PCECD" to "pcenginecd"
+                ).getOrDefault(code, code.lowercase())
+            }
+
+            val outDir = File(romScanDir, system)
+            outDir.mkdirs()
+            val outFile = File(outDir, filename)
+
+            body.byteStream().use { input ->
+                outFile.outputStream().use { output ->
+                    val buffer = ByteArray(ROM_BUFFER_SIZE)
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                    }
+                }
+            }
+
+            Log.i(TAG, "ROM downloaded: ${outFile.absolutePath} (${outFile.length()} bytes)")
+            outFile
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadRom failed for $titleId", e)
+            null
         }
     }
 
@@ -611,3 +663,5 @@ private enum class RawCardSyncOutcome {
     UP_TO_DATE,
     SKIPPED,
 }
+
+private const val ROM_BUFFER_SIZE = 8192

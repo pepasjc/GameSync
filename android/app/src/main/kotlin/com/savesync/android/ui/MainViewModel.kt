@@ -238,6 +238,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _romScanResults = MutableStateFlow<Map<String, Int>>(emptyMap())
     val romScanResults: StateFlow<Map<String, Int>> = _romScanResults
 
+    private val _romAvailable = MutableStateFlow<Set<String>>(emptySet())
+    val romAvailable: StateFlow<Set<String>> = _romAvailable
+
+    sealed class RomDownloadState {
+        object Idle : RomDownloadState()
+        data class Downloading(val name: String) : RomDownloadState()
+        data class Success(val file: java.io.File) : RomDownloadState()
+        data class Error(val message: String) : RomDownloadState()
+    }
+
+    private val _romDownloadState = MutableStateFlow<RomDownloadState>(RomDownloadState.Idle)
+    val romDownloadState: StateFlow<RomDownloadState> = _romDownloadState
+
     // Server metadata for the currently open detail screen
     private val _serverMeta = MutableStateFlow<ServerMetaState>(ServerMetaState.Idle)
     val serverMeta: StateFlow<ServerMetaState> = _serverMeta
@@ -1331,7 +1344,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (ok) {
                     engine.recordSyncedStateFromFile(entry)
                     fetchServerMeta(entry.titleId, entry.systemName)
-                    // Re-scan so the entry moves from "server only" to "local save"
                     scanSaves()
                 }
                 _saveDetailState.value = if (ok)
@@ -1348,6 +1360,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _saveDetailState.value = SaveDetailState.Error(e.message ?: "Download failed")
             }
         }
+    }
+
+    fun fetchRomAvailable() {
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            if (currentSettings.serverUrl.isBlank()) return@launch
+            try {
+                val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
+                val titles = _allSaves.value.map { it.titleId }.toSet()
+                if (titles.isEmpty()) return@launch
+                val response = api.getRoms()
+                val available = response.roms
+                    .filter { it.title_id in titles }
+                    .map { it.title_id }
+                    .toSet()
+                _romAvailable.value = available
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun downloadRom(titleId: String, filename: String? = null) {
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            if (currentSettings.serverUrl.isBlank()) {
+                _romDownloadState.value = RomDownloadState.Error("Server URL not configured")
+                return@launch
+            }
+            if (currentSettings.romScanDir.isBlank()) {
+                _romDownloadState.value = RomDownloadState.Error("ROM directory not configured. Set it in Settings.")
+                return@launch
+            }
+            _romDownloadState.value = RomDownloadState.Downloading(filename ?: titleId)
+            try {
+                val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
+                val engine = SyncEngine(api, db, settingsStore.ensureConsoleId())
+                val file = engine.downloadRom(titleId, currentSettings.romScanDir, filename)
+                if (file != null) {
+                    _romDownloadState.value = RomDownloadState.Success(file)
+                } else {
+                    _romDownloadState.value = RomDownloadState.Error("ROM not found on server")
+                }
+            } catch (e: Exception) {
+                _romDownloadState.value = RomDownloadState.Error(e.message ?: "Download failed")
+            }
+        }
+    }
+
+    fun resetRomDownloadState() {
+        _romDownloadState.value = RomDownloadState.Idle
     }
 
     fun normalizeRomAndSave(entry: SaveEntry) {

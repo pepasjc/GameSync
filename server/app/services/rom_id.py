@@ -41,10 +41,12 @@ SYSTEM_CODES = frozenset(
         "DC",  # Dreamcast
         # SNK
         "NGP",
+        "NGPC",
         "NEOGEO",
         "NEOCD",
         # NEC
         "PCE",
+        "PCSG",
         "PCECD",
         "TG16",
         # Bandai

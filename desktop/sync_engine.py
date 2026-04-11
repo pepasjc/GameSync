@@ -36,7 +36,9 @@ SYSTEM_CODES = frozenset(
         "GBC",
         "GG",
         "NGP",
+        "NGPC",
         "PCE",
+        "PCSG",
         "PS1",
         "PS2",
         "SMS",
@@ -50,6 +52,7 @@ SYSTEM_CODES = frozenset(
         "TG16",
         "WSWAN",
         "WSWANC",
+        "VB",
         "DC",
         "NDS",
         "GC",
@@ -240,7 +243,7 @@ POCKET_FOLDER_MAP: dict[str, str] = {
     "SNES": "SNES",
     "Genesis": "MD",
     "NGP": "NGP",
-    "NGPC": "NGP",
+    "NGPC": "NGPC",
     "TurboGrafx-16": "PCE",
     "Lynx": "LYNX",
     "WonderSwan": "WSWAN",
@@ -263,7 +266,7 @@ POCKET_OPENFPGA_FOLDER_MAP: dict[str, str] = {
     "megadrive": "MD",
     "md": "MD",
     "ngp": "NGP",
-    "ngpc": "NGP",
+    "ngpc": "NGPC",
     "pce": "PCE",
     "tg16": "PCE",
     "turbografx": "PCE",
@@ -318,11 +321,14 @@ ROM_EXTENSIONS = {
     ".md",
     ".smd",
     ".gen",  # Genesis/MD
+    ".32x",  # 32X
     ".n64",
     ".z64",
     ".v64",  # N64
+    ".ndd",  # N64DD
     ".gg",  # Game Gear
     ".sms",  # SMS
+    ".vb",  # Virtual Boy
     ".pce",  # PC Engine
     ".lnx",  # Lynx
     ".ws",
@@ -332,6 +338,7 @@ ROM_EXTENSIONS = {
     ".nds",  # NDS
     ".fds",  # Famicom Disk System
     ".qd",   # Famicom Disk System Quick Disk
+    ".chd",  # CD-compressed images when scanned as standalone ROM files
 }
 ZIP_ROM_EXTENSIONS = {".zip"}
 
@@ -1110,8 +1117,12 @@ def _make_title_id_with_region(system: str, filename: str) -> str:
       "Yu Yu Hakusho (USA, Europe).sav" -> GBA_yu_yu_hakusho_usa_europe
       "Super Mario World.srm"          -> SNES_super_mario_world
     """
-    regions = _extract_regions(Path(filename).stem)
-    base = make_title_id(system, filename)  # region already stripped inside
+    stem = Path(filename).stem
+    regions = _extract_regions(stem)
+    base_name = _REV_RE.sub("", stem)
+    base_name = _DISC_RE.sub("", base_name)
+    base_name = _EXTRA_RE.sub("", base_name).strip()
+    base = make_title_id(system, base_name)
     return f"{base}_{'_'.join(regions)}" if regions else base
 
 

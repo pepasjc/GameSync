@@ -75,16 +75,18 @@ _DAT_SYSTEM_MAP: list[tuple[str, str]] = [
     ("saturn", "SAT"),
     ("dreamcast", "DC"),
     # SNK
-    ("neo geo pocket color", "NGP"),  # before plain neo geo pocket
+    ("neo geo pocket color", "NGPC"),  # before plain neo geo pocket
     ("neo geo pocket", "NGP"),
     ("neogeo pocket", "NGP"),
     ("neo geo cd", "NEOCD"),
     ("neogeo cd", "NEOCD"),
     # NEC
+    ("pc engine supergrafx", "PCSG"),
+    ("supergrafx", "PCSG"),
     ("pc engine", "PCE"),
     ("turbografx", "PCE"),
     # Bandai
-    ("wonderswan color", "WSWAN"),  # before plain wonderswan
+    ("wonderswan color", "WSWANC"),  # before plain wonderswan
     ("wonderswan", "WSWAN"),
     # Atari
     ("atari - 2600", "A2600"),

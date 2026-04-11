@@ -19,6 +19,7 @@ MATCH_PRIORITY = {
 }
 REGION_PRIORITY = {
     "USA": 0,
+    "World": 1,
     "Europe": 2,
     "Japan": 3,
 }
@@ -43,6 +44,11 @@ _STATUS_PENALTIES = (
     "(Pirate",
     "(Virtual Console",
     "(Unl)",
+)
+_BIOS_NAME_PATTERNS = (
+    "[bios]",
+    "(enhancement chip)",
+    " firmware",
 )
 
 
@@ -71,8 +77,9 @@ class CollectionCandidate:
     def region_rank(self) -> int:
         if self.is_english_translation:
             return 1
+        canonical_regions = rn.extract_region_hints(self.canonical_name)
         for region, rank in REGION_PRIORITY.items():
-            if f"({region})" in self.canonical_name:
+            if region in canonical_regions:
                 return rank
         return len(REGION_PRIORITY)
 
@@ -114,11 +121,11 @@ class CollectionCandidate:
         Prevents a France-sourced ROM that was upgraded to a ``(USA)`` canonical
         name from beating an actual USA-sourced ROM for the same game.
         """
-        source_region = rn.extract_region_hint(self.source_label)
-        canonical_region = rn.extract_region_hint(self.canonical_name)
-        if source_region and canonical_region and source_region == canonical_region:
+        source_regions = set(rn.extract_region_hints(self.source_label))
+        canonical_regions = set(rn.extract_region_hints(self.canonical_name))
+        if source_regions and canonical_regions and source_regions & canonical_regions:
             return 0
-        if not source_region and not canonical_region:
+        if not source_regions and not canonical_regions:
             return 0
         return 1
 
@@ -127,8 +134,9 @@ class CollectionCandidate:
         """Return a human-readable region label for this entry."""
         if self.is_english_translation:
             return "Translated"
+        canonical_regions = set(rn.extract_region_hints(self.canonical_name))
         for token in ("USA", "Europe", "Japan"):
-            if f"({token})" in self.canonical_name:
+            if token in canonical_regions:
                 return token
         return "Other"
 
@@ -147,11 +155,36 @@ def _iter_source_files(folder: Path) -> list[Path]:
         path
         for path in folder.rglob("*")
         if path.is_file()
+        and not _is_bios_name(path.name)
         and (
             path.suffix.lower() in rn.ROM_EXTENSIONS
             or path.suffix.lower() in ZIP_EXTENSIONS
         )
     )
+
+
+def _is_bios_name(name: str) -> bool:
+    label = name.lower()
+    return any(marker in label for marker in _BIOS_NAME_PATTERNS)
+
+
+def _is_bios_candidate(canonical_name: str, source_label: str) -> bool:
+    return _is_bios_name(canonical_name) or _is_bios_name(source_label)
+
+
+def _is_bios_zip(path: Path) -> bool:
+    try:
+        with zipfile.ZipFile(path) as zf:
+            rom_members = [
+                info
+                for info in zf.infolist()
+                if not info.is_dir()
+                and Path(info.filename).suffix.lower() in rn.ROM_EXTENSIONS
+            ]
+    except zipfile.BadZipFile:
+        return False
+
+    return bool(rom_members) and all(_is_bios_name(info.filename) for info in rom_members)
 
 
 def _read_member_header_title(
@@ -274,6 +307,7 @@ def _resolve_canonical_name_for_zip(
                     for info in zf.infolist()
                     if not info.is_dir()
                     and Path(info.filename).suffix.lower() in rn.ROM_EXTENSIONS
+                    and not _is_bios_name(info.filename)
                 ),
                 key=lambda info: info.filename.lower(),
             )
@@ -347,7 +381,7 @@ def _resolve_canonical_name_for_zip(
                                     )
                                 match_source = "folder"
 
-                if canonical:
+                if canonical and not _is_bios_candidate(canonical, info.filename):
                     candidates.append(
                         CollectionCandidate(
                             source_path=path,
@@ -387,6 +421,8 @@ def scan_collection(
                 path, system, no_intro, name_index, skip_crc=skip_crc
             )
             if not candidates:
+                if _is_bios_zip(path):
+                    continue
                 unmatched.append(path)
                 continue
         else:
@@ -395,6 +431,8 @@ def scan_collection(
             )
             if canonical_name is None:
                 unmatched.append(path)
+                continue
+            if _is_bios_candidate(canonical_name, path.name):
                 continue
             candidates = [
                 CollectionCandidate(
@@ -524,6 +562,10 @@ def build_collection(
     output_folder.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     unmatched_files = unmatched_files or []
+    unmatched_folder = output_folder / "unmatched files"
+    # Keep the managed unmatched-files output deterministic across repeated builds.
+    if unmatched_folder.is_dir():
+        shutil.rmtree(unmatched_folder)
     total = len(entries) + len(unmatched_files)
     for idx, entry in enumerate(entries, start=1):
         if progress_callback:
@@ -552,7 +594,6 @@ def build_collection(
         written.append(target)
 
     if unmatched_files:
-        unmatched_folder = output_folder / "unmatched files"
         unmatched_folder.mkdir(parents=True, exist_ok=True)
         for offset, source_path in enumerate(unmatched_files, start=len(entries) + 1):
             if progress_callback:
