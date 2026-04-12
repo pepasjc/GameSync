@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     port: int = 8000
     max_history_versions: int = 10
     rom_scan_interval: int = 300
+    site_title: str = "GameSync"
 
     model_config = {
         "env_prefix": "SYNC_",

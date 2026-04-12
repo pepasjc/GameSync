@@ -54,13 +54,18 @@ SYSTEM_CODES = frozenset(
         "WSWAN",  # WonderSwan (WSWAN canonical; WS is legacy)
         "WSWANC",
         # Atari
-        "A2600",  # Atari 2600 (A2600 canonical; ATARI2600 is legacy)
-        "ATARI2600",
-        "A7800",  # Atari 7800 (A7800 canonical; ATARI7800 is legacy)
-        "ATARI7800",
-        "LYNX",
-        "JAGUAR",  # Atari Jaguar
-        "JAGCD",  # Atari Jaguar CD
+        "A2600",    # Atari 2600 (canonical)
+        "ATARI2600",  # legacy
+        "A5200",    # Atari 5200 (canonical)
+        "ATARI5200",  # legacy
+        "A7800",    # Atari 7800 (canonical)
+        "ATARI7800",  # legacy
+        "A800",     # Atari 800 / 400 / XL / XE 8-bit computers
+        "ATARIXED",   # Atari XE Game System
+        "LYNX",     # Atari Lynx
+        "JAGUAR",   # Atari Jaguar
+        "JAGCD",    # Atari Jaguar CD
+        "ATARIST",  # Atari ST / STE / TT / Falcon
         # Nintendo misc
         "VB",  # Virtual Boy
         "BS",  # Satellaview (BS-X)

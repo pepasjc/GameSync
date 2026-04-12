@@ -21,7 +21,6 @@ _TEMPLATE = Path(__file__).parent.parent / "templates" / "index.html"
 async def web_ui():
     """Serve the SaveSync web library UI with the API key pre-injected."""
     html = _TEMPLATE.read_text(encoding="utf-8")
-    # Replace the placeholder with the real key so JS can call the API
-    # transparently without the user ever seeing or typing it.
     html = html.replace("__API_KEY__", settings.api_key, 1)
+    html = html.replace("__SITE_TITLE__", settings.site_title)
     return HTMLResponse(html)

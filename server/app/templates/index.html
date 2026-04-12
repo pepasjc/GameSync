@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GameSync — Library</title>
+  <title>__SITE_TITLE__ — Library</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -303,7 +303,16 @@
       #sys-chips {
         display: flex; gap: 7px;
         overflow-x: auto; overflow-y: visible;
-        padding: 2px 0 12px; margin-bottom: 16px;
+        /* Sticky just below the header — JS sets --hdr-h */
+        position: sticky;
+        top: var(--hdr-h, 56px);
+        z-index: 90;
+        background: var(--bg);
+        padding: 10px 0 10px;
+        margin: -8px 0 16px;
+        /* fade edges to hint at scrollability */
+        -webkit-mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
+        mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
         scrollbar-width: none; -ms-overflow-style: none;
       }
       #sys-chips::-webkit-scrollbar { display: none; }
@@ -316,10 +325,10 @@
       header { padding: 8px 12px; gap: 8px; }
 
       /* Row 1: logo (left) + settings (right) */
-      .logo   { order: 1; flex: 1; }
+      .logo     { order: 1; flex: 1; }
       .icon-btn { order: 2; }
 
-      /* Row 2: search (left) + tabs (right) — full width row */
+      /* Row 2: search (left) + tabs (right) */
       .search-wrap { order: 3; flex: 1; min-width: 0; max-width: none; }
       .tab-group   { order: 4; flex-shrink: 0; }
 
@@ -334,20 +343,16 @@
       /* 2-column card grid on phone */
       .card-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       .rom-title { font-size: 12px; -webkit-line-clamp: 3; }
-      .rom-body { padding: 10px; }
-      .rom-foot { padding: 7px 10px; }
-      .dl-btn { padding: 5px 8px; font-size: 11px; }
+      .rom-body  { padding: 10px; }
+      .rom-foot  { padding: 7px 10px; }
+      .dl-btn    { padding: 5px 8px; font-size: 11px; min-height: 34px; }
 
       /* Saves table — hide less important columns */
-      .tbl th:nth-child(4), .tbl td:nth-child(4) { display: none; } /* Files */
       .tbl th:nth-child(3), .tbl td:nth-child(3) { display: none; } /* Size */
+      .tbl th:nth-child(4), .tbl td:nth-child(4) { display: none; } /* Files */
       .save-date { font-size: 11px; }
 
-      /* Touch-friendly buttons */
-      .dl-btn { min-height: 34px; }
-      .sys-chip { padding: 7px 14px; font-size: 13px; }
-
-      /* Modals full-width on phone */
+      /* Modals full-width */
       .modal { width: 94vw; padding: 20px; }
     }
 
@@ -381,7 +386,7 @@
     <div class="conv-game" id="conv-game-name"></div>
     <div class="conv-fmt">
       CHD &rarr; <span class="conv-fmt-badge" id="conv-fmt-badge"></span>
-      &nbsp;· packaging as ZIP
+      <span id="conv-fmt-suffix"></span>
     </div>
     <div class="prog-track">
       <div class="prog-bar indeterminate" id="conv-bar"></div>
@@ -401,7 +406,7 @@
 <header>
   <a class="logo" href="#">
     <span class="logo-icon">🎮</span>
-    <span>GameSync</span>
+    <span>__SITE_TITLE__</span>
   </a>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -457,7 +462,13 @@ const SYS_CLR = {
   PCE:'#78350f', TG16:'#78350f', PCECD:'#92400e', TG16CD:'#92400e',
   '3DO':'#4c1d95', PCFX:'#1e3a5f', NGCD:'#7f1d1d',
   NGPC:'#991b1b', NGP:'#991b1b', NGC:'#7f1d1d',
-  ATARI2600:'#44403c', ATARI7800:'#44403c', LYNX:'#44403c',
+  A2600:'#b45309', ATARI2600:'#b45309',
+  A5200:'#92400e', ATARI5200:'#92400e',
+  A7800:'#78350f', ATARI7800:'#78350f',
+  A800:'#713f12', ATARIXED:'#713f12',
+  JAGUAR:'#7c2d12', JAGCD:'#9a3412',
+  ATARIST:'#44403c',
+  LYNX:'#854d0e',
   MSDOS:'#1f2937', DOS:'#1f2937',
 };
 const SYS_LBL = {
@@ -472,7 +483,13 @@ const SYS_LBL = {
   PCE:'PC Engine', TG16:'TurboGrafx-16', PCECD:'PC Engine CD-ROM²', TG16CD:'TurboGrafx-CD',
   '3DO':'3DO', PCFX:'PC-FX', NGCD:'Neo Geo CD',
   NGPC:'Neo Geo Pocket Color', NGP:'Neo Geo Pocket', NGC:'Neo Geo Color',
-  ATARI2600:'Atari 2600', ATARI7800:'Atari 7800', LYNX:'Atari Lynx',
+  A2600:'Atari 2600', ATARI2600:'Atari 2600',
+  A5200:'Atari 5200', ATARI5200:'Atari 5200',
+  A7800:'Atari 7800', ATARI7800:'Atari 7800',
+  A800:'Atari 8-bit', ATARIXED:'Atari XE',
+  JAGUAR:'Atari Jaguar', JAGCD:'Atari Jaguar CD',
+  ATARIST:'Atari ST',
+  LYNX:'Atari Lynx',
   MSDOS:'MS-DOS', DOS:'MS-DOS',
 };
 
@@ -516,42 +533,74 @@ function triggerDownload(blob, filename) {
 // ═══════════════════════════════════════════════════════
 //  CHD → CUE/BIN / GDI CONVERSION WITH PROGRESS DIALOG
 // ═══════════════════════════════════════════════════════
-const STAGES = [
-  { pct: 5,  msg: 'Starting conversion…' },
-  { pct: 15, msg: 'Reading CHD header…' },
-  { pct: 30, msg: 'Extracting tracks…' },
-  { pct: 55, msg: 'Decoding audio and data…' },
-  { pct: 75, msg: 'Writing output files…' },
-  { pct: 90, msg: 'Packaging ZIP archive…' },
-];
+// Stage messages per format
+const STAGES = {
+  cue: [
+    'Starting conversion…',
+    'Reading CHD header…',
+    'Extracting tracks…',
+    'Decoding audio and data…',
+    'Writing output files…',
+    'Packaging ZIP archive…',
+  ],
+  gdi: [
+    'Starting conversion…',
+    'Reading CHD header…',
+    'Extracting GD-ROM tracks…',
+    'Decoding data…',
+    'Writing GDI + BIN files…',
+    'Packaging ZIP archive…',
+  ],
+  iso: [
+    'Starting extraction…',
+    'Reading CHD header…',
+    'Extracting UMD disc image…',
+    'Writing ISO file…',
+  ],
+  cso: [
+    'Starting conversion…',
+    'Reading CHD header…',
+    'Extracting UMD disc image…',
+    'Writing ISO…',
+    'Compressing to CSO…',
+  ],
+};
+
+// Labels and filename suffixes per format
+const FMT_META = {
+  cue: { badge:'CUE/BIN', suffix:' · packaging as ZIP', ext:'.zip',  errHint:'Check that chdman is installed on the server.' },
+  gdi: { badge:'GDI',     suffix:' · packaging as ZIP', ext:'.zip',  errHint:'Check that chdman is installed on the server.' },
+  iso: { badge:'ISO',     suffix:'',                    ext:'.iso',  errHint:'Check that chdman is installed on the server.' },
+  cso: { badge:'CSO',     suffix:' · compressing',      ext:'.cso',  errHint:'Check that chdman and ciso/maxcso are installed on the server.' },
+};
 
 async function extractRom(titleId, gameName, fmt) {
+  const meta   = FMT_META[fmt] || FMT_META.cue;
+  const stages = STAGES[fmt]   || STAGES.cue;
+
   // Show progress modal
-  qs('#conv-game-name').textContent = gameName;
-  qs('#conv-fmt-badge').textContent = fmt === 'gdi' ? 'GDI' : 'CUE/BIN';
-  qs('#conv-status').textContent    = 'Starting conversion…';
-  qs('#conv-sub').textContent       = 'This may take a minute for large games';
-  qs('#conv-cancel-btn').disabled   = false;
+  qs('#conv-game-name').textContent  = gameName;
+  qs('#conv-fmt-badge').textContent  = meta.badge;
+  qs('#conv-fmt-suffix').textContent = meta.suffix;
+  qs('#conv-status').textContent     = stages[0];
+  qs('#conv-sub').textContent        = 'This may take a minute for large games';
+  qs('#conv-cancel-btn').disabled    = false;
   qs('#conv-cancel-btn').textContent = 'Cancel';
   const bar = qs('#conv-bar');
   bar.classList.add('indeterminate');
   bar.style.width = '';
   show('conv-modal');
 
-  // Fake stage progress (chdman doesn't emit JSON progress)
-  let stageIdx = 0;
+  let stageIdx = 1;
   const stageInterval = setInterval(() => {
-    if (stageIdx < STAGES.length) {
-      const s = STAGES[stageIdx++];
-      qs('#conv-status').textContent = s.msg;
-      // Don't update numeric width — keep indeterminate animation
-    }
+    if (stageIdx < stages.length)
+      qs('#conv-status').textContent = stages[stageIdx++];
   }, 3200);
 
   _convAbort = new AbortController();
 
   try {
-    const url = `/api/v1/roms/${encodeURIComponent(titleId)}?extract=true`;
+    const url = `/api/v1/roms/${encodeURIComponent(titleId)}?extract=${encodeURIComponent(fmt)}`;
     const r = await fetch(url, {
       headers: { 'X-API-Key': API_KEY },
       signal: _convAbort.signal,
@@ -564,19 +613,19 @@ async function extractRom(titleId, gameName, fmt) {
       throw new Error(txt || `HTTP ${r.status}`);
     }
 
-    // Switch bar to "done"
     bar.classList.remove('indeterminate');
     bar.style.width = '100%';
-    qs('#conv-status').textContent = 'Done! Starting download…';
-    qs('#conv-sub').textContent    = '';
+    qs('#conv-status').textContent  = 'Done! Starting download…';
+    qs('#conv-sub').textContent     = '';
     qs('#conv-cancel-btn').disabled = true;
 
-    const stem = gameName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || titleId;
-    const filename = `${stem}_${fmt}.zip`;
+    const stem     = gameName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || titleId;
+    const filename = fmt === 'cue' ? `${stem}_cue.zip`
+                   : fmt === 'gdi' ? `${stem}_gdi.zip`
+                   : `${stem}${meta.ext}`;
     triggerDownload(await r.blob(), filename);
     toast(`⬇ ${filename}`, 'ok');
 
-    // Close dialog after a moment
     await sleep(900);
     hide('conv-modal');
 
@@ -589,7 +638,7 @@ async function extractRom(titleId, gameName, fmt) {
       bar.classList.remove('indeterminate');
       bar.style.width = '0%';
       qs('#conv-status').textContent = '❌ ' + e.message;
-      qs('#conv-sub').textContent    = 'Check that chdman is installed on the server.';
+      qs('#conv-sub').textContent    = meta.errHint;
       qs('#conv-cancel-btn').textContent = 'Close';
       qs('#conv-cancel-btn').disabled = false;
       toast('Conversion failed', 'err');
@@ -680,29 +729,40 @@ function renderRoms() {
     for (const rom of groups[sys]) {
       const tid  = esc(rom.title_id);
       const fn   = esc(rom.filename || rom.title_id);
-      const fmt  = rom.extract_format; // 'cue', 'gdi', or undefined
+      const fmt  = rom.extract_format; // 'cue', 'gdi', 'psp', or undefined
+      const rawUrl = `/api/v1/roms/${encodeURIComponent(rom.title_id)}`;
 
-      // Button group: always show CHD download; show extract button if format known
-      const btnHtml = fmt
-        ? `<div class="rom-btns">
-             <button class="dl-btn extract"
-               data-action="extract"
-               data-tid="${tid}"
-               data-name="${esc(rom.name)}"
-               data-fmt="${esc(fmt)}"
-               title="Convert to ${fmt === 'gdi' ? 'GDI (Dreamcast)' : 'CUE/BIN'} and download as ZIP">
-               ${fmt === 'gdi' ? 'GDI' : 'CUE/BIN'}
-             </button>
-             <button class="dl-btn"
-               data-action="dl"
-               data-url="/api/v1/roms/${encodeURIComponent(rom.title_id)}"
-               data-fn="${fn}"
-               title="Download original CHD">CHD</button>
-           </div>`
-        : `<button class="dl-btn"
-             data-action="dl"
-             data-url="/api/v1/roms/${encodeURIComponent(rom.title_id)}"
-             data-fn="${fn}">↓</button>`;
+      // Button group — varies by extract_format
+      let btnHtml;
+      if (fmt === 'psp') {
+        // PSP: three options — ISO, CSO, CHD
+        btnHtml = `<div class="rom-btns">
+          <button class="dl-btn extract" data-action="extract"
+            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
+            title="Extract to ISO">ISO</button>
+          <button class="dl-btn extract" data-action="extract"
+            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cso"
+            title="Extract and compress to CSO">CSO</button>
+          <button class="dl-btn" data-action="dl"
+            data-url="${rawUrl}" data-fn="${fn}"
+            title="Download original CHD">CHD</button>
+        </div>`;
+      } else if (fmt === 'gdi' || fmt === 'cue') {
+        // CD-ROM: two options — CUE/BIN zip or GDI zip, plus CHD
+        const label = fmt === 'gdi' ? 'GDI' : 'CUE/BIN';
+        const tip   = fmt === 'gdi' ? 'GDI (Dreamcast) ZIP' : 'CUE/BIN ZIP';
+        btnHtml = `<div class="rom-btns">
+          <button class="dl-btn extract" data-action="extract"
+            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="${fmt}"
+            title="Convert to ${tip}">${label}</button>
+          <button class="dl-btn" data-action="dl"
+            data-url="${rawUrl}" data-fn="${fn}"
+            title="Download original CHD">CHD</button>
+        </div>`;
+      } else {
+        btnHtml = `<button class="dl-btn" data-action="dl"
+          data-url="${rawUrl}" data-fn="${fn}">↓</button>`;
+      }
 
       h += `<div class="rom-card">
         <div class="rom-stripe" style="background:${c}"></div>
@@ -906,9 +966,18 @@ document.addEventListener('click', e => {
   if (e.target.id === 'conv-modal') cancelConvert();
 });
 
+// ── HEADER HEIGHT → CSS VAR (keeps chips sticky below header) ──
+function syncHdrHeight() {
+  const h = document.querySelector('header').getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--hdr-h', h + 'px');
+}
+
 // ── SEARCH ───────────────────────────────────────────────
 let _st;
 document.addEventListener('DOMContentLoaded', () => {
+  syncHdrHeight();
+  window.addEventListener('resize', syncHdrHeight);
+
   qs('#search').addEventListener('input', e => {
     clearTimeout(_st);
     _st = setTimeout(() => {

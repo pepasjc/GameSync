@@ -40,14 +40,14 @@ FOLDER_TO_SYSTEM: dict[str, str] = {
     "amigacd32": "ARCADE",
     "amstradcpc": "ARCADE",
     "atari2600": "A2600",
-    "atari5200": "ARCADE",
+    "atari5200": "A5200",
     "atari7800": "A7800",
-    "atari800": "ARCADE",
-    "atarijaguar": "ARCADE",
-    "atarijaguarcd": "ARCADE",
+    "atari800": "A800",
+    "atarijaguar": "JAGUAR",
+    "atarijaguarcd": "JAGCD",
     "atarilynx": "LYNX",
-    "atarist": "ARCADE",
-    "atarixe": "ARCADE",
+    "atarist": "ATARIST",
+    "atarixe": "ATARIXED",
     "atomiswave": "ARCADE",
     "arcade": "ARCADE",
     "fba": "FBA",
@@ -174,7 +174,15 @@ ROM_EXTENSIONS = frozenset(
         ".pc2",
         ".lnx",
         ".a26",
+        ".a52",   # Atari 5200
         ".a78",
+        ".rom",   # Atari Jaguar / generic
+        ".j64",   # Atari Jaguar (byteswapped)
+        ".jag",   # Atari Jaguar (alternate)
+        ".st",    # Atari ST floppy image
+        ".stx",   # Atari ST extended floppy
+        ".msa",   # Atari ST Magic Shadow Archiver
+        ".dim",   # Atari ST disk image
         ".vec",
         ".sat",
         ".col",
