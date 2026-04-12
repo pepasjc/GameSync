@@ -420,7 +420,7 @@
       Saves <span class="tab-count" id="cnt-saves">—</span>
     </button>
   </div>
-  <button class="icon-btn" onclick="openCfg()" title="Settings">⚙</button>
+  <button class="icon-btn" id="settings-btn" onclick="openCfg()" title="Settings">⚙</button>
 </header>
 
 <!-- ══ APP ══ -->
@@ -438,8 +438,9 @@
 </div>
 
 <script>
-// API key injected server-side — no user input needed
-const API_KEY = '__API_KEY__';
+// Injected server-side
+const API_KEY  = '__API_KEY__';
+const IS_ADMIN = __IS_ADMIN__;
 
 // ═══════════════════════════════════════════════════════
 //  STATE
@@ -885,7 +886,7 @@ function switchTab(tab) {
 // ═══════════════════════════════════════════════════════
 //  SETTINGS
 // ═══════════════════════════════════════════════════════
-function openCfg()  { qs('#cfg-modal').classList.remove('hidden'); }
+function openCfg()  { if (IS_ADMIN) qs('#cfg-modal').classList.remove('hidden'); }
 function closeCfg() { qs('#cfg-modal').classList.add('hidden'); }
 
 async function scanRoms(btn) {
@@ -977,6 +978,9 @@ let _st;
 document.addEventListener('DOMContentLoaded', () => {
   syncHdrHeight();
   window.addEventListener('resize', syncHdrHeight);
+
+  // Hide settings button for non-admin users
+  if (!IS_ADMIN) qs('#settings-btn').style.display = 'none';
 
   qs('#search').addEventListener('input', e => {
     clearTimeout(_st);

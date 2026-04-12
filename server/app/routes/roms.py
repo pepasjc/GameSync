@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Header, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from app.config import settings
 from app.services import rom_scanner
@@ -110,7 +110,14 @@ async def list_systems():
 
 
 @router.get("/roms/scan")
-async def trigger_scan(use_crc32: bool = Query(False)):
+async def trigger_scan(request: Request, use_crc32: bool = Query(False)):
+    # Only admin users may trigger a rescan
+    from app.config import settings as _settings
+    remote_user = request.headers.get("X-Remote-User", "")
+    is_admin = (not remote_user) or (remote_user in _settings.admin_users_set)
+    if not is_admin:
+        return JSONResponse(status_code=403, content={"detail": "Admin access required"})
+
     catalog = rom_scanner.rescan(use_crc32=use_crc32)
     if not catalog:
         return {"status": "no_rom_dir", "count": 0}

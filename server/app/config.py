@@ -11,6 +11,14 @@ class Settings(BaseSettings):
     max_history_versions: int = 10
     rom_scan_interval: int = 300
     site_title: str = "GameSync"
+    # Comma-separated list of nginx Basic Auth usernames that get admin access.
+    # Everyone else can download but cannot trigger rescans or change settings.
+    # Example: SYNC_ADMIN_USERS=admin,pepas
+    admin_users: str = "admin"
+
+    @property
+    def admin_users_set(self) -> frozenset[str]:
+        return frozenset(u.strip() for u in self.admin_users.split(",") if u.strip())
 
     model_config = {
         "env_prefix": "SYNC_",
