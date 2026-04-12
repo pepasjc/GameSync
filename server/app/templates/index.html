@@ -78,6 +78,15 @@
       transition: color .15s; flex-shrink: 0;
     }
     .icon-btn:hover { color: var(--text); }
+    .queue-btn { position: relative; }
+    .queue-badge {
+      position: absolute; top: 1px; right: 0;
+      min-width: 16px; height: 16px; padding: 0 4px;
+      border-radius: 999px; background: var(--accent); color: #fff;
+      font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+    }
+    .queue-badge.hidden { display: none; }
+    .queue-btn.active { color: var(--text); background: var(--bg-card); }
 
     /* ── LAYOUT ── */
     #app {
@@ -217,16 +226,71 @@
     .btn-ghost:hover { background: var(--bg-card-h); color: var(--text); }
     .btn-ghost:disabled { opacity: .45; cursor: not-allowed; }
 
-    /* ── CONVERT PROGRESS MODAL ── */
-    #conv-modal .modal { width: 420px; }
-    .conv-game {
-      font-size: 15px; font-weight: 600; margin-bottom: 4px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    /* ── DOWNLOAD QUEUE PANEL ── */
+    .queue-panel {
+      position: fixed; top: calc(var(--hdr-h, 56px) + 10px); right: 24px;
+      width: 380px; max-width: calc(100vw - 24px); max-height: calc(100vh - var(--hdr-h, 56px) - 28px);
+      overflow: auto; z-index: 180;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 14px; box-shadow: var(--shadow); padding: 16px;
     }
-    .conv-fmt {
-      font-size: 11px; color: var(--text-muted); margin-bottom: 22px;
-      display: flex; align-items: center; gap: 6px;
+    .queue-panel.hidden { display: none; }
+    .queue-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-bottom: 14px;
     }
+    .queue-title { font-size: 15px; font-weight: 700; }
+    .queue-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .queue-head-actions { display: flex; align-items: center; gap: 8px; }
+    .queue-section { margin-top: 14px; }
+    .queue-section:first-child { margin-top: 0; }
+    .queue-label {
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px;
+    }
+    .queue-list { display: flex; flex-direction: column; gap: 8px; }
+    .queue-item {
+      border: 1px solid var(--border-muted); border-radius: 10px;
+      padding: 10px 12px; background: rgba(255,255,255,.01);
+    }
+    .queue-item-head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+    }
+    .queue-item-title {
+      font-size: 13px; font-weight: 600; line-height: 1.35;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .queue-item-meta {
+      font-size: 11px; color: var(--text-muted); margin-top: 5px;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .queue-item-status { font-size: 12px; color: var(--text-2); margin-top: 8px; }
+    .queue-item-sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+    .queue-item-actions { display: flex; align-items: center; gap: 6px; }
+    .queue-mini-btn {
+      background: none; color: var(--text-2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 5px 8px; font-size: 11px; cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .queue-mini-btn:hover { background: var(--bg-card-h); color: var(--text); border-color: var(--border); }
+    .queue-mini-btn.danger:hover { color: var(--red); border-color: var(--red); }
+    .queue-empty {
+      font-size: 12px; color: var(--text-muted); text-align: center;
+      padding: 18px 12px; border: 1px dashed var(--border); border-radius: 10px;
+    }
+    .queue-state {
+      border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
+      border: 1px solid transparent;
+    }
+    .queue-state.running { background: rgba(210,153,34,.16); color: var(--yellow); border-color: rgba(210,153,34,.4); }
+    .queue-state.queued { background: rgba(47,129,247,.12); color: var(--accent-h); border-color: rgba(47,129,247,.35); }
+    .queue-state.done { background: rgba(63,185,80,.12); color: var(--green); border-color: rgba(63,185,80,.35); }
+    .queue-state.error { background: rgba(248,81,73,.12); color: var(--red); border-color: rgba(248,81,73,.35); }
+    .queue-state.cancelled { background: rgba(139,148,158,.14); color: var(--text-2); border-color: rgba(139,148,158,.3); }
+    .queue-progress { margin-top: 10px; }
+    .queue-progress .prog-track { margin-bottom: 0; }
+
     .conv-fmt-badge {
       background: #1a3a2a; color: var(--green); border: 1px solid #2d6a4a;
       border-radius: 4px; padding: 1px 7px; font-size: 10px; font-weight: 700;
@@ -250,9 +314,6 @@
       0%   { transform: translateX(-200%); }
       100% { transform: translateX(350%); }
     }
-
-    .conv-status { font-size: 13px; color: var(--text-2); min-height: 18px; }
-    .conv-sub    { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
     /* ── SKELETON ── */
     .skeleton { animation: pulse 1.6s ease-in-out infinite; }
@@ -354,6 +415,10 @@
 
       /* Modals full-width */
       .modal { width: 94vw; padding: 20px; }
+      .queue-panel {
+        right: 10px; left: 10px; width: auto;
+        max-width: none; top: calc(var(--hdr-h, 56px) + 8px);
+      }
     }
 
     @media (max-width: 380px) {
@@ -379,26 +444,6 @@
   </div>
 </div>
 
-<!-- ══ CONVERSION PROGRESS MODAL ══ -->
-<div class="modal-overlay hidden" id="conv-modal">
-  <div class="modal">
-    <h2>🔄 Converting ROM</h2>
-    <div class="conv-game" id="conv-game-name"></div>
-    <div class="conv-fmt">
-      CHD &rarr; <span class="conv-fmt-badge" id="conv-fmt-badge"></span>
-      <span id="conv-fmt-suffix"></span>
-    </div>
-    <div class="prog-track">
-      <div class="prog-bar indeterminate" id="conv-bar"></div>
-    </div>
-    <div class="conv-status" id="conv-status">Starting conversion…</div>
-    <div class="conv-sub" id="conv-sub">This may take a minute for large games</div>
-    <div class="modal-actions" style="margin-top:24px">
-      <button class="btn-ghost" id="conv-cancel-btn" onclick="cancelConvert()">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ TOAST ══ -->
 <div id="toast"></div>
 
@@ -420,8 +465,27 @@
       Saves <span class="tab-count" id="cnt-saves">—</span>
     </button>
   </div>
+  <button class="icon-btn queue-btn" id="queue-btn" onclick="toggleQueue(event)" title="Download queue">
+    ⬇
+    <span class="queue-badge hidden" id="queue-badge">0</span>
+  </button>
   <button class="icon-btn" id="settings-btn" onclick="openCfg()" title="Settings">⚙</button>
 </header>
+
+<!-- ══ DOWNLOAD QUEUE ══ -->
+<aside class="queue-panel hidden" id="queue-panel">
+  <div class="queue-head">
+    <div>
+      <div class="queue-title">Download Queue</div>
+      <div class="queue-subtitle" id="queue-summary">No active downloads</div>
+    </div>
+    <div class="queue-head-actions">
+      <button class="queue-mini-btn" data-qaction="clear-done">Clear done</button>
+      <button class="queue-mini-btn" onclick="closeQueue()">Close</button>
+    </div>
+  </div>
+  <div id="queue-body"></div>
+</aside>
 
 <!-- ══ APP ══ -->
 <div id="app">
@@ -446,7 +510,8 @@ const IS_ADMIN = __IS_ADMIN__;
 //  STATE
 // ═══════════════════════════════════════════════════════
 const S = { roms: [], saves: [], tab: 'roms', q: '' };
-let _convAbort = null;  // AbortController for active conversion
+const Q = { items: [], nextId: 1, activeId: null };
+let _convAbort = null;  // AbortController for active queued conversion
 
 // ═══════════════════════════════════════════════════════
 //  SYSTEM METADATA
@@ -532,7 +597,7 @@ function triggerDownload(blob, filename) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  CHD → CUE/BIN / GDI CONVERSION WITH PROGRESS DIALOG
+//  DOWNLOAD QUEUE
 // ═══════════════════════════════════════════════════════
 // Stage messages per format
 const STAGES = {
@@ -575,86 +640,304 @@ const FMT_META = {
   cso: { badge:'CSO',     suffix:' · compressing',      ext:'.cso',  errHint:'Check that chdman and ciso/maxcso are installed on the server.' },
 };
 
-async function extractRom(titleId, gameName, fmt) {
-  const meta   = FMT_META[fmt] || FMT_META.cue;
-  const stages = STAGES[fmt]   || STAGES.cue;
+function queueKey(titleId, fmt) {
+  return `${titleId}::${fmt}`;
+}
 
-  // Show progress modal
-  qs('#conv-game-name').textContent  = gameName;
-  qs('#conv-fmt-badge').textContent  = meta.badge;
-  qs('#conv-fmt-suffix').textContent = meta.suffix;
-  qs('#conv-status').textContent     = stages[0];
-  qs('#conv-sub').textContent        = 'This may take a minute for large games';
-  qs('#conv-cancel-btn').disabled    = false;
-  qs('#conv-cancel-btn').textContent = 'Cancel';
-  const bar = qs('#conv-bar');
-  bar.classList.add('indeterminate');
-  bar.style.width = '';
-  show('conv-modal');
+function activeQueueItem() {
+  return Q.items.find(item => item.id === Q.activeId) || null;
+}
 
-  let stageIdx = 1;
-  const stageInterval = setInterval(() => {
-    if (stageIdx < stages.length)
-      qs('#conv-status').textContent = stages[stageIdx++];
+function buildExtractFilename(titleId, gameName, fmt) {
+  const meta = FMT_META[fmt] || FMT_META.cue;
+  const stem = gameName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || titleId;
+  return fmt === 'cue' ? `${stem}_cue.zip`
+       : fmt === 'gdi' ? `${stem}_gdi.zip`
+       : `${stem}${meta.ext}`;
+}
+
+function toggleQueue(event) {
+  event?.stopPropagation();
+  const panel = qs('#queue-panel');
+  if (panel.classList.contains('hidden')) openQueue();
+  else closeQueue();
+}
+
+function openQueue() {
+  qs('#queue-panel').classList.remove('hidden');
+  qs('#queue-btn').classList.add('active');
+}
+
+function closeQueue() {
+  qs('#queue-panel').classList.add('hidden');
+  qs('#queue-btn').classList.remove('active');
+}
+
+function updateQueueBadge() {
+  const badge = qs('#queue-badge');
+  const count = Q.items.filter(item => item.status === 'queued' || item.status === 'running').length;
+  badge.textContent = String(count);
+  badge.classList.toggle('hidden', count === 0);
+}
+
+function trimQueueHistory() {
+  const active = activeQueueItem();
+  const queuedIds = new Set(Q.items.filter(item => item.status === 'queued').map(item => item.id));
+  const finished = Q.items.filter(item => ['done', 'error', 'cancelled'].includes(item.status));
+  const keepFinished = new Set(finished.slice(-8).map(item => item.id));
+  Q.items = Q.items.filter(item =>
+    item.id === active?.id || queuedIds.has(item.id) || keepFinished.has(item.id)
+  );
+}
+
+function queueSummaryText() {
+  const active = activeQueueItem();
+  const pending = Q.items.filter(item => item.status === 'queued').length;
+  if (active && pending) return `${active.gameName} is converting • ${pending} waiting`;
+  if (active) return `${active.gameName} is converting`;
+  if (pending) return `${pending} queued download${pending === 1 ? '' : 's'}`;
+  return 'No active downloads';
+}
+
+function renderQueue() {
+  updateQueueBadge();
+  qs('#queue-summary').textContent = queueSummaryText();
+
+  const active = activeQueueItem();
+  const pending = Q.items.filter(item => item.status === 'queued');
+  const recent = Q.items
+    .filter(item => ['done', 'error', 'cancelled'].includes(item.status))
+    .slice()
+    .reverse();
+
+  const sections = [];
+
+  if (active) {
+    const meta = FMT_META[active.fmt] || FMT_META.cue;
+    sections.push(`
+      <div class="queue-section">
+        <div class="queue-label">Now converting</div>
+        <div class="queue-item">
+          <div class="queue-item-head">
+            <div>
+              <div class="queue-item-title">${esc(active.gameName)}</div>
+              <div class="queue-item-meta">
+                <span class="conv-fmt-badge">${meta.badge}</span>
+                <span>CHD${meta.suffix}</span>
+              </div>
+            </div>
+            <div class="queue-item-actions">
+              <span class="queue-state running">Running</span>
+              <button class="queue-mini-btn danger" data-qaction="cancel" data-job-id="${active.id}">Cancel</button>
+            </div>
+          </div>
+          <div class="queue-progress">
+            <div class="prog-track">
+              <div class="prog-bar indeterminate"></div>
+            </div>
+          </div>
+          <div class="queue-item-status">${esc(active.stageText || 'Starting conversion…')}</div>
+          <div class="queue-item-sub">${esc(active.subText || 'This may take a minute for large games')}</div>
+        </div>
+      </div>
+    `);
+  }
+
+  if (pending.length) {
+    sections.push(`
+      <div class="queue-section">
+        <div class="queue-label">Queued</div>
+        <div class="queue-list">
+          ${pending.map((item, idx) => `
+            <div class="queue-item">
+              <div class="queue-item-head">
+                <div>
+                  <div class="queue-item-title">${esc(item.gameName)}</div>
+                  <div class="queue-item-meta">
+                    <span class="conv-fmt-badge">${(FMT_META[item.fmt] || FMT_META.cue).badge}</span>
+                    <span>#${idx + 1} in line</span>
+                  </div>
+                </div>
+                <div class="queue-item-actions">
+                  <span class="queue-state queued">Queued</span>
+                  <button class="queue-mini-btn danger" data-qaction="remove" data-job-id="${item.id}">Remove</button>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `);
+  }
+
+  if (recent.length) {
+    sections.push(`
+      <div class="queue-section">
+        <div class="queue-label">Recent</div>
+        <div class="queue-list">
+          ${recent.map(item => {
+            const state = item.status === 'done' ? 'Done'
+                        : item.status === 'error' ? 'Failed'
+                        : 'Cancelled';
+            const detail = item.status === 'done'
+              ? (item.filename || 'Download started')
+              : (item.error || item.subText || '');
+            return `
+              <div class="queue-item">
+                <div class="queue-item-head">
+                  <div>
+                    <div class="queue-item-title">${esc(item.gameName)}</div>
+                    <div class="queue-item-meta">
+                      <span class="conv-fmt-badge">${(FMT_META[item.fmt] || FMT_META.cue).badge}</span>
+                    </div>
+                  </div>
+                  <span class="queue-state ${item.status}">${state}</span>
+                </div>
+                <div class="queue-item-status">${esc(item.stageText || state)}</div>
+                ${detail ? `<div class="queue-item-sub">${esc(detail)}</div>` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `);
+  }
+
+  qs('#queue-body').innerHTML = sections.length
+    ? sections.join('')
+    : `<div class="queue-empty">CHD conversions run here in the background so you can keep browsing and queue more games.</div>`;
+}
+
+function enqueueExtract(titleId, gameName, fmt) {
+  const key = queueKey(titleId, fmt);
+  const duplicate = Q.items.find(item =>
+    item.key === key && (item.status === 'queued' || item.status === 'running')
+  );
+  if (duplicate) {
+    toast('That conversion is already queued', '');
+    openQueue();
+    return;
+  }
+
+  Q.items.push({
+    id: Q.nextId++,
+    key,
+    titleId,
+    gameName,
+    fmt,
+    status: 'queued',
+    stageText: 'Waiting in queue…',
+    subText: '',
+    stageTimer: null,
+    filename: '',
+    error: '',
+  });
+
+  renderQueue();
+  toast(`Queued ${gameName}`, 'ok');
+  void runNextQueuedExtract();
+}
+
+function startQueueStages(job) {
+  const stages = STAGES[job.fmt] || STAGES.cue;
+  let stageIdx = 0;
+  job.stageText = stages[stageIdx];
+  job.subText = 'This may take a minute for large games';
+  job.stageTimer = setInterval(() => {
+    if (stageIdx < stages.length - 1) {
+      stageIdx += 1;
+      job.stageText = stages[stageIdx];
+      renderQueue();
+    }
   }, 3200);
+}
+
+function stopQueueStages(job) {
+  if (job?.stageTimer) {
+    clearInterval(job.stageTimer);
+    job.stageTimer = null;
+  }
+}
+
+async function runNextQueuedExtract() {
+  if (Q.activeId) return;
+
+  const job = Q.items.find(item => item.status === 'queued');
+  if (!job) {
+    renderQueue();
+    return;
+  }
+
+  Q.activeId = job.id;
+  job.status = 'running';
+  startQueueStages(job);
+  renderQueue();
 
   _convAbort = new AbortController();
 
   try {
-    const url = `/api/v1/roms/${encodeURIComponent(titleId)}?extract=${encodeURIComponent(fmt)}`;
+    const url = `/api/v1/roms/${encodeURIComponent(job.titleId)}?extract=${encodeURIComponent(job.fmt)}`;
     const r = await fetch(url, {
       headers: { 'X-API-Key': API_KEY },
       signal: _convAbort.signal,
     });
-
-    clearInterval(stageInterval);
 
     if (!r.ok) {
       const txt = await r.text().catch(() => `HTTP ${r.status}`);
       throw new Error(txt || `HTTP ${r.status}`);
     }
 
-    bar.classList.remove('indeterminate');
-    bar.style.width = '100%';
-    qs('#conv-status').textContent  = 'Done! Starting download…';
-    qs('#conv-sub').textContent     = '';
-    qs('#conv-cancel-btn').disabled = true;
+    job.stageText = 'Done! Starting download…';
+    job.subText = '';
+    renderQueue();
 
-    const stem     = gameName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || titleId;
-    const filename = fmt === 'cue' ? `${stem}_cue.zip`
-                   : fmt === 'gdi' ? `${stem}_gdi.zip`
-                   : `${stem}${meta.ext}`;
+    const filename = buildExtractFilename(job.titleId, job.gameName, job.fmt);
     triggerDownload(await r.blob(), filename);
+    job.filename = filename;
+    job.status = 'done';
+    job.stageText = 'Download started';
+    job.subText = filename;
     toast(`⬇ ${filename}`, 'ok');
-
-    await sleep(900);
-    hide('conv-modal');
-
-  } catch(e) {
-    clearInterval(stageInterval);
+  } catch (e) {
     if (e.name === 'AbortError') {
-      hide('conv-modal');
+      job.status = 'cancelled';
+      job.stageText = 'Conversion cancelled';
+      job.subText = '';
       toast('Conversion cancelled', '');
     } else {
-      bar.classList.remove('indeterminate');
-      bar.style.width = '0%';
-      qs('#conv-status').textContent = '❌ ' + e.message;
-      qs('#conv-sub').textContent    = meta.errHint;
-      qs('#conv-cancel-btn').textContent = 'Close';
-      qs('#conv-cancel-btn').disabled = false;
+      const meta = FMT_META[job.fmt] || FMT_META.cue;
+      job.status = 'error';
+      job.error = e.message;
+      job.stageText = 'Conversion failed';
+      job.subText = meta.errHint;
       toast('Conversion failed', 'err');
     }
   } finally {
+    stopQueueStages(job);
+    Q.activeId = null;
     _convAbort = null;
+    trimQueueHistory();
+    renderQueue();
+    void runNextQueuedExtract();
   }
 }
 
-function cancelConvert() {
-  if (_convAbort) {
+function cancelConvert(jobId) {
+  const active = activeQueueItem();
+  if (active && String(active.id) === String(jobId) && _convAbort) {
     _convAbort.abort();
-  } else {
-    hide('conv-modal');
   }
+}
+
+function removeQueuedJob(jobId) {
+  Q.items = Q.items.filter(item => String(item.id) !== String(jobId) || item.status === 'running');
+  trimQueueHistory();
+  renderQueue();
+}
+
+function clearFinishedJobs() {
+  Q.items = Q.items.filter(item => item.status === 'queued' || item.status === 'running');
+  renderQueue();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -958,13 +1241,26 @@ document.addEventListener('click', e => {
   if (!btn) return;
   const { action, url, fn, tid, name, fmt } = btn.dataset;
   if (action === 'dl')      dlFile(url, fn, btn);
-  if (action === 'extract') extractRom(tid, name, fmt);
+  if (action === 'extract') enqueueExtract(tid, name, fmt);
 });
 
-// ── MODAL BACKDROP CLOSE ─────────────────────────────────
+// ── QUEUE ACTIONS / OUTSIDE CLOSE ────────────────────────
 document.addEventListener('click', e => {
-  if (e.target.id === 'cfg-modal')  closeCfg();
-  if (e.target.id === 'conv-modal') cancelConvert();
+  const actionBtn = e.target.closest('[data-qaction]');
+  if (actionBtn) {
+    const { qaction, jobId } = actionBtn.dataset;
+    if (qaction === 'cancel') cancelConvert(jobId);
+    if (qaction === 'remove') removeQueuedJob(jobId);
+    if (qaction === 'clear-done') clearFinishedJobs();
+  }
+
+  if (e.target.id === 'cfg-modal') closeCfg();
+
+  const panel = qs('#queue-panel');
+  const queueBtn = qs('#queue-btn');
+  if (!panel.classList.contains('hidden') && !panel.contains(e.target) && !queueBtn.contains(e.target)) {
+    closeQueue();
+  }
 });
 
 // ── HEADER HEIGHT → CSS VAR (keeps chips sticky below header) ──
@@ -990,6 +1286,7 @@ document.addEventListener('DOMContentLoaded', () => {
       else                  renderSaves();
     }, 180);
   });
+  renderQueue();
   loadAll();
 });
 </script>
