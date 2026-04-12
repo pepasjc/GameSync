@@ -58,6 +58,10 @@ class SyncEngine(
         // going through the sync negotiation (the server doesn't know our state for these).
         val (serverOnlyEntries, localEntries) = otherEntries.partition { it.isServerOnly }
         for (entry in serverOnlyEntries) {
+            if (!hasLocalSaveTarget(entry)) {
+                Log.i(TAG, "Skipping server-only entry without local target: ${entry.titleId}")
+                continue
+            }
             try {
                 val success = downloadSave(entry, entry.titleId)
                 if (success) {
@@ -280,6 +284,10 @@ class SyncEngine(
         } else {
             downloadSaveRaw(entry, titleId)
         }
+    }
+
+    private fun hasLocalSaveTarget(entry: SaveEntry): Boolean {
+        return entry.saveFile != null || entry.saveDir != null
     }
 
     /**

@@ -169,12 +169,12 @@ private fun PermissionRationale(onGrantClick: () -> Unit, onSkipClick: () -> Uni
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Save Sync needs \"All files access\" to read and write emulator save files (RetroArch, PPSSPP, DraStic, etc.).",
+            text = "GameSync needs \"All files access\" to read and write emulator save files (RetroArch, PPSSPP, DraStic, etc.).",
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "If the button doesn't open Settings, grant it manually:\n\nSettings → Apps → Special app access → All files access → Save Sync → Allow\n\n(Note: this does NOT appear under the regular Permissions screen)",
+            text = "If the button doesn't open Settings, grant it manually:\n\nSettings → Apps → Special app access → All files access → GameSync → Allow\n\n(Note: this does NOT appear under the regular Permissions screen)",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

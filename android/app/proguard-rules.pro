@@ -1,2 +1,2 @@
-# ProGuard rules for SaveSync Android app
+# ProGuard rules for GameSync Android app
 # Add project-specific ProGuard rules here if needed.

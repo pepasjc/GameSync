@@ -287,7 +287,7 @@ fun SettingsScreen(
 
             Text(
                 text = "Select the folder where your ROMs are organized by system subfolder " +
-                       "(e.g. GBA/, MegaDrive/, PS1/, SNES/, …). Save Sync uses this to detect " +
+                       "(e.g. GBA/, MegaDrive/, PS1/, SNES/, …). GameSync uses this to detect " +
                        "which games you have installed so it can show server saves for them.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -441,7 +441,7 @@ fun SettingsScreen(
             // --- App info ---
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Save Sync v${BuildConfig.VERSION_NAME}",
+                text = "GameSync v${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

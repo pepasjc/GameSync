@@ -224,6 +224,7 @@ fun SaveDetailScreen(
         }
 
         val isBusy = detailState is SaveDetailState.Working
+        val canDownloadSave = entry.saveFile != null || entry.saveDir != null
 
         // Compute local hash — recompute when the underlying file is modified (e.g. after download)
         val fileModTime = when {
@@ -325,7 +326,7 @@ fun SaveDetailScreen(
             ActionButton(
                 label = if (isBusy && detailState.isSync) "Syncing…" else "Smart Sync",
                 icon = Icons.Default.Sync,
-                enabled = !isBusy,
+                enabled = !isBusy && (!entry.isServerOnly || canDownloadSave),
                 containerColor = MaterialTheme.colorScheme.primary,
                 isBusy = isBusy && detailState.isSync,
                 onClick = { viewModel.syncSave(entry) }
@@ -341,7 +342,7 @@ fun SaveDetailScreen(
             ActionButton(
                 label = if (isBusy && detailState.isDownload) "Downloading…" else "Force Download ↓",
                 icon = Icons.Default.CloudDownload,
-                enabled = !isBusy,
+                enabled = !isBusy && canDownloadSave,
                 containerColor = Color(0xFF2E7D32),
                 isBusy = isBusy && detailState.isDownload,
                 onClick = { viewModel.downloadSave(entry) }
@@ -418,6 +419,13 @@ fun SaveDetailScreen(
                         color = MaterialTheme.colorScheme.error
                     )
                 else -> {}
+            }
+            if (entry.isServerOnly && !canDownloadSave) {
+                Text(
+                    text = "Download the ROM first, then rescan to create a local save target for this server-only save.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             if (!entry.isServerOnly && entry.systemName != "PPSSPP") {
                 HorizontalDivider()

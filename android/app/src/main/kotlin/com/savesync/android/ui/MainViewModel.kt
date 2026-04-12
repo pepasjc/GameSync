@@ -418,6 +418,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _allSaves.value = sortSaves(rawLocalSaves)
                         return@launch
                     }
+                    val romCatalogByTitle: Map<String, List<RomEntry>> = try {
+                        api.getRoms(hasSave = true).roms.groupBy { it.title_id }
+                    } catch (_: Exception) {
+                        emptyMap()
+                    }
 
                     val ps1ServerIds: Set<String> = try {
                         api.getTitles(consoleType = "PS1").titles.map { it.title_id }.toSet()
@@ -544,24 +549,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 )
                             }
 
+                        val stillUnanchoredTitles = normalizedUnmatchedTitles
+                            .filter { !fullyEffectiveRomEntries.containsKey(it.title_id) }
+
                         // Some PS1 titles still cannot be anchored to a scanned ROM entry
                         // (missing serial, odd image format, etc.). In that case we still
                         // surface them using a DuckStation-style predicted card filename so
                         // the user can download them and, in many cases, DuckStation will
                         // already pick them up.
-                        val ps1ServerOnly = normalizedUnmatchedTitles
-                            .filter { !fullyEffectiveRomEntries.containsKey(it.title_id) }
+                        val ps1ServerOnly = stillUnanchoredTitles
                             .mapNotNull { titleInfo -> buildPs1ServerOnlyEntry(titleInfo) }
 
                         // PS2 is a special case: AetherSX2 often uses shared default cards
                         // instead of per-game saves, so there may be no local ROM/save-derived
                         // entry to anchor a server-only title. We still surface those saves so
                         // the user can download a per-game card and configure it manually.
-                        val ps2ServerOnly = normalizedUnmatchedTitles
-                            .filter { !fullyEffectiveRomEntries.containsKey(it.title_id) }
+                        val ps2ServerOnly = stillUnanchoredTitles
                             .mapNotNull { titleInfo -> buildPs2ServerOnlyEntry(titleInfo) }
 
-                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly
+                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly)
+                            .mapTo(mutableSetOf()) { it.titleId }
+
+                        // If a save has no local ROM/save anchor yet, still surface it when the
+                        // server can provide the ROM. That lets the user discover the save,
+                        // download the ROM, and then rescan to get a concrete save target path.
+                        val romCatalogServerOnly = stillUnanchoredTitles
+                            .filter { it.title_id !in specialFallbackIds }
+                            .mapNotNull { titleInfo ->
+                                buildRomCatalogServerOnlyEntry(
+                                    titleInfo = titleInfo,
+                                    roms = romCatalogByTitle[titleInfo.title_id].orEmpty()
+                                )
+                            }
+
+                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + romCatalogServerOnly
                     } catch (e: Exception) {
                         emptyList()
                     }
@@ -784,6 +805,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isServerOnly = true,
             canonicalName = titleInfo.name?.takeIf { it != displayName }
                 ?: titleInfo.game_name?.takeIf { it != displayName }
+        )
+    }
+
+    private fun buildRomCatalogServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo,
+        roms: List<RomEntry>
+    ): SaveEntry? {
+        if (roms.isEmpty()) return null
+
+        val preferredRom = roms.minWithOrNull(
+            compareBy<RomEntry>(
+                { it.filename.length },
+                { it.filename.lowercase() }
+            )
+        ) ?: return null
+
+        val resolvedSystem = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: preferredRom.system
+        )
+
+        val displayName = titleInfo.game_name
+            ?: titleInfo.name
+            ?: preferredRom.name
+            ?: preferredRom.filename.substringBeforeLast('.')
+        val canonicalName = sequenceOf(
+            titleInfo.game_name,
+            titleInfo.name,
+            preferredRom.name
+        ).firstOrNull { !it.isNullOrBlank() && it != displayName }
+
+        return SaveEntry(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            systemName = resolvedSystem,
+            saveFile = null,
+            saveDir = null,
+            isServerOnly = true,
+            canonicalName = canonicalName
         )
     }
 
@@ -1279,6 +1341,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _saveDetailState.value = SaveDetailState.Error("Server URL not configured")
                 return@launch
             }
+            if (entry.isServerOnly && !hasLocalSaveTarget(entry)) {
+                _saveDetailState.value = SaveDetailState.Error(
+                    "No local save location is known for this title yet. Download the ROM first, then rescan and download the save."
+                )
+                return@launch
+            }
             _saveDetailState.value = SaveDetailState.Working("sync")
             try {
                 val consoleId = settingsStore.ensureConsoleId()
@@ -1337,6 +1405,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val currentSettings = settingsStore.settingsFlow.first()
             if (currentSettings.serverUrl.isBlank()) {
                 _saveDetailState.value = SaveDetailState.Error("Server URL not configured")
+                return@launch
+            }
+            if (!hasLocalSaveTarget(entry)) {
+                _saveDetailState.value = SaveDetailState.Error(
+                    "No local save location is known for this title yet. Download the ROM first, then rescan and download the save."
+                )
                 return@launch
             }
             _saveDetailState.value = SaveDetailState.Working("download")
@@ -1412,6 +1486,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetRomDownloadState() {
         _romDownloadState.value = RomDownloadState.Idle
+    }
+
+    private fun hasLocalSaveTarget(entry: SaveEntry): Boolean {
+        return entry.saveFile != null || entry.saveDir != null
     }
 
     fun normalizeRomAndSave(entry: SaveEntry) {

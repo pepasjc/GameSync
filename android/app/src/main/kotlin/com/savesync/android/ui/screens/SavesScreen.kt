@@ -1,5 +1,7 @@
 package com.savesync.android.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
@@ -64,6 +67,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +80,7 @@ import com.savesync.android.ui.SaveSyncStatus
 import com.savesync.android.ui.SyncState
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.net.URI
 import java.util.Date
 import java.util.Locale
 
@@ -87,7 +92,9 @@ fun SavesScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToDetail: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val saves by viewModel.saves.collectAsState()
+    val settings by viewModel.settings.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
     val selectedFilter by viewModel.selectedFilter.collectAsState()
     val availableFilters by viewModel.availableFilters.collectAsState()
@@ -111,10 +118,10 @@ fun SavesScreen(
     // ── Toolbar focus mode ───────────────────────────────────────────────
     // Y button cycles between game list and toolbar. In toolbar mode,
     // D-pad left/right selects toolbar items, A activates, Y/B returns.
-    // 0 = Search, 1 = Filter, 2 = Settings
     var toolbarMode by remember { mutableStateOf(false) }
     var toolbarSelectedIndex by remember { mutableIntStateOf(0) }
-    val toolbarItemCount = 4 // Sync, Search, Filter, Settings
+    val toolbarItemCount = 5 // Sync, Search, Filter, Web, Settings
+    val webLibraryUrl = remember(settings.serverUrl) { buildWebLibraryUrl(settings.serverUrl) }
 
     // Clamp selection when list size changes (e.g. filter applied)
     LaunchedEffect(saves.size) {
@@ -173,7 +180,7 @@ fun SavesScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Save Sync", style = MaterialTheme.typography.titleMedium)
+                        Text("GameSync", style = MaterialTheme.typography.titleMedium)
                         if (filterLabel.isNotEmpty()) {
                             Text(
                                 text = filterLabel,
@@ -321,8 +328,28 @@ fun SavesScreen(
                             }
                         }
                     }
-                    // Toolbar item 3: Settings
-                    val settingsHighlight = toolbarMode && toolbarSelectedIndex == 3
+                    // Toolbar item 3: Web ROM library
+                    val webHighlight = toolbarMode && toolbarSelectedIndex == 3
+                    Box(
+                        modifier = if (webHighlight) Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f))
+                        else Modifier
+                    ) {
+                        IconButton(
+                            onClick = {
+                                webLibraryUrl?.let { url ->
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                }
+                                toolbarMode = false
+                            },
+                            enabled = webLibraryUrl != null
+                        ) {
+                            Icon(Icons.Default.Language, contentDescription = "Web ROM Library")
+                        }
+                    }
+                    // Toolbar item 4: Settings
+                    val settingsHighlight = toolbarMode && toolbarSelectedIndex == 4
                     Box(
                         modifier = if (settingsHighlight) Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -376,7 +403,12 @@ fun SavesScreen(
                                         if (!searchVisible) viewModel.setSearchQuery("")
                                     }
                                     2 -> filterMenuExpanded = true  // Filter
-                                    3 -> onNavigateToSettings()     // Settings
+                                    3 -> {
+                                        webLibraryUrl?.let { url ->
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                        }
+                                    }
+                                    4 -> onNavigateToSettings()     // Settings
                                 }
                                 toolbarMode = false
                                 true
@@ -502,7 +534,7 @@ fun SavesScreen(
 
                 // Toolbar mode indicator at bottom of list area
                 if (toolbarMode) {
-                    val toolbarItems = listOf("Sync", "Search", "Filter", "Settings")
+                    val toolbarItems = listOf("Sync", "Search", "Filter", "Web", "Settings")
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -894,4 +926,21 @@ fun systemChipColor(systemName: String): Color {
 private fun formatTimestamp(millis: Long): String {
     val sdf = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
     return sdf.format(Date(millis))
+}
+
+private fun buildWebLibraryUrl(serverUrl: String): String? {
+    val trimmed = serverUrl.trim()
+    if (trimmed.isBlank()) return null
+
+    return runCatching {
+        val apiUri = URI(trimmed)
+        val scheme = apiUri.scheme ?: return null
+        val host = apiUri.host ?: return null
+        val port = when (apiUri.port) {
+            8000 -> 80
+            -1 -> -1
+            else -> apiUri.port
+        }
+        URI(scheme, null, host, port, "/", null, null).toString()
+    }.getOrNull()
 }

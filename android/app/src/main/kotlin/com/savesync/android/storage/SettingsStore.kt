@@ -50,9 +50,13 @@ class SettingsStore(private val context: Context) {
 
     /**
      * Backup file stored on external storage — survives full app uninstall/reinstall.
-     * Location: /sdcard/SaveSync/config.json
+     * New location: /sdcard/GameSync/config.json
+     * Legacy location: /sdcard/SaveSync/config.json
      */
     private val backupFile: File
+        get() = File(Environment.getExternalStorageDirectory(), "GameSync/config.json")
+
+    private val legacyBackupFile: File
         get() = File(Environment.getExternalStorageDirectory(), "SaveSync/config.json")
 
     val settingsFlow: Flow<Settings> = context.dataStore.data.map { prefs ->
@@ -181,7 +185,7 @@ class SettingsStore(private val context: Context) {
 
     private fun readBackupFile(): Settings? {
         return try {
-            val file = backupFile
+            val file = if (backupFile.exists()) backupFile else legacyBackupFile
             if (!file.exists()) return null
             val json = JSONObject(file.readText())
             Settings(

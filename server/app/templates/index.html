@@ -38,7 +38,8 @@
       position: sticky; top: 0; z-index: 100;
       background: var(--bg-hdr); border-bottom: 1px solid var(--border);
       backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-      height: 56px; display: flex; align-items: center; gap: 16px; padding: 0 24px;
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: 10px; padding: 10px 24px;
     }
     .logo {
       font-weight: 700; font-size: 16px; white-space: nowrap;
@@ -46,10 +47,10 @@
       text-decoration: none; color: var(--text); flex-shrink: 0;
     }
     .logo-icon { font-size: 22px; }
-    .search-wrap { flex: 1; max-width: 440px; position: relative; }
+    .search-wrap { flex: 1; min-width: 160px; max-width: 440px; position: relative; }
     .search-wrap input {
       width: 100%; background: var(--bg-input); border: 1px solid var(--border);
-      border-radius: 20px; color: var(--text); padding: 6px 16px 6px 36px;
+      border-radius: 20px; color: var(--text); padding: 7px 16px 7px 36px;
       font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s;
     }
     .search-wrap input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47,129,247,.15); }
@@ -58,10 +59,10 @@
       position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
       color: var(--text-muted); font-size: 14px; pointer-events: none;
     }
-    .tab-group { display: flex; gap: 2px; margin-left: auto; }
+    .tab-group { display: flex; gap: 2px; }
     .tab-btn {
       background: none; border: none; cursor: pointer; color: var(--text-2);
-      padding: 6px 14px; border-radius: var(--radius); font-size: 14px; font-weight: 500;
+      padding: 7px 14px; border-radius: var(--radius); font-size: 14px; font-weight: 500;
       transition: background .15s, color .15s; display: flex; align-items: center; gap: 6px; white-space: nowrap;
     }
     .tab-btn:hover  { background: var(--bg-card); color: var(--text); }
@@ -279,15 +280,81 @@
     #toast.err  { border-color: var(--red);   color: var(--red);   }
     #toast.ok   { border-color: var(--green); color: var(--green); }
 
-    /* ── RESPONSIVE ── */
-    @media (max-width: 800px) {
-      #sidebar { display: none; }
-      #app { padding: 16px 12px; }
-      .card-grid { grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 8px; }
-      header { padding: 0 12px; gap: 10px; }
-      .tab-btn { padding: 5px 10px; font-size: 13px; }
+    /* ── SYSTEM CHIPS (mobile horizontal scroll bar) ── */
+    #sys-chips { display: none; }
+    .sys-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 13px; border-radius: 20px;
+      border: 1px solid var(--border-muted);
+      background: var(--bg-card); color: var(--text-2);
+      font-size: 13px; font-weight: 600; white-space: nowrap;
+      cursor: pointer; flex-shrink: 0;
+      transition: background .12s, color .12s, border-color .12s;
+      -webkit-tap-highlight-color: transparent;
     }
-    @media (max-width: 480px) { .logo span:last-child { display: none; } }
+    .sys-chip:hover  { background: var(--bg-card-h); color: var(--text); border-color: var(--border); }
+    .sys-chip:active { transform: scale(.96); }
+    .sys-chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .sys-chip-cnt { font-size: 11px; color: var(--text-muted); margin-left: 1px; }
+
+    /* ── RESPONSIVE — tablet ── */
+    @media (max-width: 900px) {
+      #sidebar { display: none; }
+      #sys-chips {
+        display: flex; gap: 7px;
+        overflow-x: auto; overflow-y: visible;
+        padding: 2px 0 12px; margin-bottom: 16px;
+        scrollbar-width: none; -ms-overflow-style: none;
+      }
+      #sys-chips::-webkit-scrollbar { display: none; }
+      #app { padding: 20px 16px; gap: 0; }
+      .card-grid { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+    }
+
+    /* ── RESPONSIVE — phone ── */
+    @media (max-width: 600px) {
+      header { padding: 8px 12px; gap: 8px; }
+
+      /* Row 1: logo (left) + settings (right) */
+      .logo   { order: 1; flex: 1; }
+      .icon-btn { order: 2; }
+
+      /* Row 2: search (left) + tabs (right) — full width row */
+      .search-wrap { order: 3; flex: 1; min-width: 0; max-width: none; }
+      .tab-group   { order: 4; flex-shrink: 0; }
+
+      .tab-btn { padding: 6px 10px; font-size: 13px; }
+      .tab-count { display: none; } /* counts shown in chips instead */
+
+      #app { padding: 12px 10px; }
+      .stats-bar { margin-bottom: 16px; }
+      .stat { padding: 10px 16px; }
+      .stat-val { font-size: 18px; }
+
+      /* 2-column card grid on phone */
+      .card-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .rom-title { font-size: 12px; -webkit-line-clamp: 3; }
+      .rom-body { padding: 10px; }
+      .rom-foot { padding: 7px 10px; }
+      .dl-btn { padding: 5px 8px; font-size: 11px; }
+
+      /* Saves table — hide less important columns */
+      .tbl th:nth-child(4), .tbl td:nth-child(4) { display: none; } /* Files */
+      .tbl th:nth-child(3), .tbl td:nth-child(3) { display: none; } /* Size */
+      .save-date { font-size: 11px; }
+
+      /* Touch-friendly buttons */
+      .dl-btn { min-height: 34px; }
+      .sys-chip { padding: 7px 14px; font-size: 13px; }
+
+      /* Modals full-width on phone */
+      .modal { width: 94vw; padding: 20px; }
+    }
+
+    @media (max-width: 380px) {
+      .card-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+      .rom-title { font-size: 11px; }
+    }
   </style>
 </head>
 <body>
@@ -358,6 +425,8 @@
     <div id="sys-nav"></div>
   </nav>
   <main id="content">
+    <!-- horizontal system/platform chips — visible only on mobile -->
+    <div id="sys-chips"></div>
     <div id="roms-pane"></div>
     <div id="saves-pane" style="display:none"></div>
   </main>
@@ -570,11 +639,21 @@ function renderRoms() {
   }
   const systems = Object.keys(groups).sort();
 
-  qs('#sys-nav').innerHTML = systems.map(s =>
+  const romNavHtml = systems.map(s =>
     `<div class="sys-link" onclick="jump('rs-${s}')">
        <span class="sys-dot" style="background:${clr(s)}"></span>
        <span class="sys-link-name">${esc(s)}</span>
        <span class="sys-link-cnt">${groups[s].length}</span>
+     </div>`
+  ).join('');
+  qs('#sys-nav').innerHTML = romNavHtml;
+
+  // Mobile chips
+  qs('#sys-chips').innerHTML = systems.map(s =>
+    `<div class="sys-chip" onclick="jump('rs-${s}')">
+       <span class="sys-chip-dot" style="background:${clr(s)}"></span>
+       ${esc(s)}
+       <span class="sys-chip-cnt">${groups[s].length}</span>
      </div>`
   ).join('');
 
@@ -721,11 +800,21 @@ function switchTab(tab) {
       const p = sv.console_type || sv.platform || 'UNKNOWN';
       (groups[p] = groups[p] || []).push(sv);
     }
-    qs('#sys-nav').innerHTML = Object.keys(groups).sort().map(p =>
+    const saveNavHtml = Object.keys(groups).sort().map(p =>
       `<div class="sys-link" onclick="jump('sp-${p}')">
          <span class="sys-dot" style="background:${clr(p)}"></span>
          <span class="sys-link-name">${esc(p)}</span>
          <span class="sys-link-cnt">${groups[p].length}</span>
+       </div>`
+    ).join('');
+    qs('#sys-nav').innerHTML = saveNavHtml;
+
+    // Mobile chips
+    qs('#sys-chips').innerHTML = Object.keys(groups).sort().map(p =>
+      `<div class="sys-chip" onclick="jump('sp-${p}')">
+         <span class="sys-chip-dot" style="background:${clr(p)}"></span>
+         ${esc(p)}
+         <span class="sys-chip-cnt">${groups[p].length}</span>
        </div>`
     ).join('');
   } else {
