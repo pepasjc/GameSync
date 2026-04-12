@@ -191,13 +191,12 @@ async def _extract_psp(chd_path: Path, system: str, stem: str, fmt: str) -> Resp
     def _run() -> bytes:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
-            cue_path = tmp / (stem + '.cue')
             iso_path = tmp / (stem + '.iso')
 
-            # Step 1 — CHD → ISO (via extractcd; BIN track IS the ISO for PSP)
+            # PSP CHDs are hard-disk images (createhd), not CD-ROM images (createcd).
+            # Use extracthd which outputs a raw ISO directly.
             r = subprocess.run(
-                ['chdman', 'extractcd', '-i', str(chd_path),
-                 '-o', str(cue_path), '-ob', str(iso_path)],
+                ['chdman', 'extracthd', '-i', str(chd_path), '-o', str(iso_path)],
                 capture_output=True, text=True, timeout=600,
             )
             if r.returncode != 0:
