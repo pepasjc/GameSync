@@ -248,6 +248,23 @@ class TestRomDbCache:
             "PS1_final_fantasy_vii_usa_disc_2",
         ]
 
+    def test_scan_maps_3do_and_virtualboy_to_native_systems(self, rom_dir, tmp_path):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path / "saves")
+
+        (rom_dir / "3do").mkdir()
+        (rom_dir / "3do" / "Crash 'n Burn (USA).chd").write_bytes(b"\x00" * 64)
+        (rom_dir / "virtualboy").mkdir()
+        (rom_dir / "virtualboy" / "Mario Clash (USA).vb").write_bytes(b"\x01" * 64)
+
+        catalog = rom_scanner.RomCatalog()
+        count = catalog.scan(rom_dir, use_crc32=False)
+
+        assert count == 2
+        rows = rom_db.list_all()
+        assert [row["system"] for row in rows] == ["3DO", "VB"]
+
 
 class TestSyncRomAvailable:
     def test_sync_includes_rom_available(self, rom_client, auth_headers, tmp_path):

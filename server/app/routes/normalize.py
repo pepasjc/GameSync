@@ -24,6 +24,7 @@ router = APIRouter()
 # Request / response models
 # ---------------------------------------------------------------------------
 
+
 class RomEntry(BaseModel):
     system: str
     filename: str
@@ -40,7 +41,9 @@ class NormalizeResult(BaseModel):
     canonical_name: str
     title_id: str
     source: str  # "dat_crc32" | "dat_filename" | "filename"
-    alternatives: list[str] = Field(default_factory=list)  # other possible canonical names, sorted by region priority
+    alternatives: list[str] = Field(
+        default_factory=list
+    )  # other possible canonical names, sorted by region priority
 
 
 class NormalizeResponse(BaseModel):
@@ -55,6 +58,7 @@ class SystemsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.post("/normalize/batch", response_model=NormalizeResponse)
 async def normalize_batch(req: NormalizeRequest) -> NormalizeResponse:
@@ -83,7 +87,9 @@ async def normalize_batch(req: NormalizeRequest) -> NormalizeResponse:
                 alternatives: list[str] = []
             else:
                 all_candidates = norm.search_candidates(sys_upper, entry.filename)
-                alternatives = [c for c in all_candidates if c != info["canonical_name"]]
+                alternatives = [
+                    c for c in all_candidates if c != info["canonical_name"]
+                ]
         else:
             # No DATs loaded — fall back to simple normalization
             stem = Path(entry.filename).stem
@@ -91,22 +97,18 @@ async def normalize_batch(req: NormalizeRequest) -> NormalizeResponse:
             info = {"canonical_name": stem, "slug": slug, "source": "filename"}
             alternatives = []
 
-        # For PS1, try to resolve the serial from psxdb using the canonical name.
-        # This lets clients (DuckStation, RetroArch) that have title-based filenames
-        # get a product-code title ID (e.g. "SCUS94163") instead of a slug.
-        if sys_upper in ("PS1", "PSX"):
-            serial = game_names.lookup_psx_serial(info["canonical_name"])
-            title_id = serial if serial else f"{sys_upper}_{info['slug']}"
-        else:
-            title_id = f"{sys_upper}_{info['slug']}"
-        results.append(NormalizeResult(
-            system=sys_upper,
-            original_filename=entry.filename,
-            canonical_name=info["canonical_name"],
-            title_id=title_id,
-            source=info["source"],
-            alternatives=alternatives,
-        ))
+        serial = game_names.lookup_disc_serial(sys_upper, info["canonical_name"])
+        title_id = serial if serial else f"{sys_upper}_{info['slug']}"
+        results.append(
+            NormalizeResult(
+                system=sys_upper,
+                original_filename=entry.filename,
+                canonical_name=info["canonical_name"],
+                title_id=title_id,
+                source=info["source"],
+                alternatives=alternatives,
+            )
+        )
 
     return NormalizeResponse(results=results)
 

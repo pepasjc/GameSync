@@ -32,7 +32,7 @@ from app.services.rom_id import (
 logger = logging.getLogger(__name__)
 
 FOLDER_TO_SYSTEM: dict[str, str] = {
-    "3do": "ARCADE",
+    "3do": "3DO",
     "ags": "ARCADE",
     "amiga": "ARCADE",
     "amiga1200": "ARCADE",
@@ -113,7 +113,7 @@ FOLDER_TO_SYSTEM: dict[str, str] = {
     "sufami": "SNES",
     "tg16": "TG16",
     "tg-cd": "PCECD",
-    "virtualboy": "ARCADE",
+    "virtualboy": "VB",
     "wii": "WII",
     "wonderswan": "WSWAN",
     "wonderswancolor": "WSWANC",
@@ -281,17 +281,15 @@ def _identify_rom_slug(
         source = info["source"]
 
         slug = normalize_rom_name(canonical)
-        if system in ("PS1", "PSX"):
-            serial = game_names.lookup_psx_serial(canonical)
-            if serial:
-                return serial, canonical, source
+        serial = game_names.lookup_disc_serial(system, canonical)
+        if serial:
+            return serial, canonical, source
         return f"{system}_{slug}", canonical, source
 
     slug = normalize_rom_name(stem)
-    if system in ("PS1", "PSX"):
-        serial = game_names.lookup_psx_serial(stem)
-        if serial:
-            return serial, stem, "filename"
+    serial = game_names.lookup_disc_serial(system, stem)
+    if serial:
+        return serial, stem, "filename"
     return f"{system}_{slug}", stem, "filename"
 
 
@@ -307,17 +305,15 @@ def _identify_rom_crc32(
         source = info["source"]
 
         slug = normalize_rom_name(canonical)
-        if system in ("PS1", "PSX"):
-            serial = game_names.lookup_psx_serial(canonical)
-            if serial:
-                return serial, canonical, source, crc32
+        serial = game_names.lookup_disc_serial(system, canonical)
+        if serial:
+            return serial, canonical, source, crc32
         return f"{system}_{slug}", canonical, source, crc32
 
     slug = normalize_rom_name(Path(filename).stem)
-    if system in ("PS1", "PSX"):
-        serial = game_names.lookup_psx_serial(Path(filename).stem)
-        if serial:
-            return serial, Path(filename).stem, "filename", crc32
+    serial = game_names.lookup_disc_serial(system, Path(filename).stem)
+    if serial:
+        return serial, Path(filename).stem, "filename", crc32
     return f"{system}_{slug}", Path(filename).stem, "filename", crc32
 
 
