@@ -465,15 +465,45 @@ def test_scan_profile_saturn_uses_bkr_for_legacy_generic_profiles(tmp_path):
 
 def test_scan_profile_retroarch_detects_saturn_bkr_saves(tmp_path):
     save_root = tmp_path / "retroarch"
+    rom_root = tmp_path / "roms"
     core_dir = save_root / "Beetle Saturn"
     core_dir.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    (rom_root / "Panzer Dragoon Saga (USA).chd").write_bytes(b"")
     save_file = core_dir / "Panzer Dragoon Saga (USA).bkr"
     save_file.write_bytes(b"saturn-save")
 
     profile = {
         "name": "RetroArch",
         "device_type": "RetroArch",
-        "path": str(tmp_path / "roms"),
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {"system": "SAT", "enabled": True, "save_ext": ".bkr", "save_folder": ""},
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "SAT"
+    assert results[0].path == save_file
+    assert results[0].save_exists is True
+
+
+def test_scan_profile_retroarch_detects_saturn_yabause_root_saves(tmp_path):
+    save_root = tmp_path / "retroarch"
+    rom_root = tmp_path / "roms"
+    save_root.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    (rom_root / "Panzer Dragoon Saga (USA).chd").write_bytes(b"")
+    save_file = save_root / "Panzer Dragoon Saga (USA).srm"
+    save_file.write_bytes(b"saturn-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
         "save_folder": str(save_root),
         "systems": [
             {"system": "SAT", "enabled": True, "save_ext": ".srm", "save_folder": ""},

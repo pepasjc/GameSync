@@ -4,6 +4,8 @@ import android.util.Log
 import com.savesync.android.api.NormalizeRequest
 import com.savesync.android.api.NormalizeRomEntry
 import com.savesync.android.api.SaveSyncApi
+import com.savesync.android.api.SaturnArchiveLookupRequest
+import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SyncRequest
 import com.savesync.android.api.SyncTitle
 import com.savesync.android.emulators.SaveEntry
@@ -36,6 +38,48 @@ class SyncEngine(
 ) {
     private val dao = db.syncStateDao()
 
+    private suspend fun autoResolveSharedSaturnArchives(entry: SaveEntry): List<String> {
+        if (!isSharedYabaSanshiroContainer(entry)) return emptyList()
+
+        val stored = SaturnArchiveStateStore.get(entry.titleId)
+        if (stored.isNotEmpty()) return stored
+
+        val saveFile = entry.saveFile ?: return emptyList()
+        if (!saveFile.exists()) return emptyList()
+
+        val archiveNames = try {
+            SaturnSaveFormatConverter.archiveNames(saveFile.readBytes())
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not parse YabaSanshiro backup for ${entry.titleId}", e)
+            return emptyList()
+        }
+        if (archiveNames.isEmpty()) return emptyList()
+
+        val lookupResults = try {
+            api.lookupSaturnArchives(
+                SaturnArchiveLookupRequest(
+                    title_id = entry.titleId,
+                    archive_names = archiveNames
+                )
+            ).results
+        } catch (e: Exception) {
+            Log.w(TAG, "Saturn archive lookup failed for ${entry.titleId}", e)
+            return emptyList()
+        }
+
+        val selected = lookupResults
+            .filter { it.matches_current_title || it.status == "exact_current" || it.status == "includes_current" }
+            .flatMap { it.archive_names }
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+        if (selected.isNotEmpty()) {
+            SaturnArchiveStateStore.put(entry.titleId, selected)
+        }
+        return selected
+    }
+
     suspend fun sync(saves: List<SaveEntry>): SyncResult {
         val resolvedSaves = normalizePs1SlugEntries(saves)
         val errors = mutableListOf<String>()
@@ -60,6 +104,12 @@ class SyncEngine(
             } catch (e: Exception) {
                 Log.e(TAG, "Raw-card sync failed for ${entry.titleId}", e)
                 errors.add("Sync error: ${entry.displayName}: ${e.message}")
+            }
+        }
+
+        resolvedSaves.forEach { entry ->
+            if (isSharedYabaSanshiroContainer(entry)) {
+                autoResolveSharedSaturnArchives(entry)
             }
         }
 
@@ -240,7 +290,7 @@ class SyncEngine(
             val archiveNames = SaturnArchiveStateStore.get(entry.titleId)
             if (archiveNames.isEmpty()) {
                 throw UnsupportedOperationException(
-                    "This YabaSanshiro save needs Saturn archive metadata. Download it once from the server to seed upload support."
+                    "This YabaSanshiro save still needs Saturn archive selection metadata."
                 )
             }
             SaturnSaveFormatConverter.extractCanonical(saveFile.readBytes(), archiveNames)
@@ -327,6 +377,9 @@ class SyncEngine(
     }
 
     suspend fun uploadSave(entry: SaveEntry): Boolean {
+        if (isSharedYabaSanshiroContainer(entry)) {
+            autoResolveSharedSaturnArchives(entry)
+        }
         return if (entry.isPspSlot) {
             uploadPspBundle(entry)
         } else if (isPs1RawEntry(entry)) {

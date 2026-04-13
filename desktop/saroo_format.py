@@ -120,7 +120,7 @@ SAT_BLOCK_DATA = 0x00000000
 SATURN_DOWNLOAD_FORMATS: dict[str, tuple[str, str]] = {
     "mednafen": ("Beetle / Mednafen (.bkr)", ".bkr"),
     "yabause": ("Yabause / RetroArch (.srm)", ".srm"),
-    "yabasanshiro": ("YabaSanshiro (.srm)", ".srm"),
+    "yabasanshiro": ("YabaSanshiro (backup.bin)", ".bin"),
 }
 
 
@@ -430,7 +430,7 @@ class _NativeSave:
 
 
 def _parse_native_saturn(data: bytes) -> list[_NativeSave]:
-    """Parse a raw Saturn internal memory image (32KB, block size 0x40).
+    """Parse a raw Saturn backup-memory image (block size 0x40).
 
     Returns list of save entries found.
     """
@@ -438,7 +438,7 @@ def _parse_native_saturn(data: bytes) -> list[_NativeSave]:
         data = data.ljust(SAT_INTERNAL_SIZE, b"\x00")
 
     saves: list[_NativeSave] = []
-    total_blocks = SAT_INTERNAL_SIZE // SAT_BLOCK_SIZE
+    total_blocks = len(data) // SAT_BLOCK_SIZE
 
     for blk in range(2, total_blocks):  # blocks 0 and 1 are reserved
         offset = blk * SAT_BLOCK_SIZE
@@ -769,17 +769,16 @@ def _expand_byte_padded_saturn(data: bytes, padding: int = 0xFF) -> bytes:
 
 def normalize_saturn_save(data: bytes) -> bytes:
     """Return canonical 32 KB Saturn internal-memory bytes from a supported format."""
-    parsed = _parse_native_saturn(data)
-    if parsed is not None:
+    collapsed = _collapse_byte_expanded_saturn(data)
+    if collapsed is not None:
+        parsed = _parse_native_saturn(collapsed)
+        if parsed is None:
+            raise ValueError("Unsupported Saturn save format after byte-collapse")
         return _build_native_saturn_image(parsed, SAT_INTERNAL_SIZE)
 
-    collapsed = _collapse_byte_expanded_saturn(data)
-    if collapsed is None:
-        raise ValueError(f"Unsupported Saturn save format ({len(data)} bytes)")
-
-    parsed = _parse_native_saturn(collapsed)
+    parsed = _parse_native_saturn(data)
     if parsed is None:
-        raise ValueError("Unsupported Saturn save format after byte-collapse")
+        raise ValueError(f"Unsupported Saturn save format ({len(data)} bytes)")
     return _build_native_saturn_image(parsed, SAT_INTERNAL_SIZE)
 
 
@@ -800,6 +799,77 @@ def convert_saturn_save_format(data: bytes, target_format: str) -> bytes:
     if fmt == "yabasanshiro":
         return _expand_byte_padded_saturn(
             _build_native_saturn_image(saves, SAT_YABASANSHIRO_COLLAPSED_SIZE)
+        )
+    raise ValueError(f"Unsupported Saturn target format: {target_format}")
+
+
+def list_saturn_archive_names(data: bytes) -> list[str]:
+    """Return the archive names stored inside a supported Saturn save image."""
+    canonical = normalize_saturn_save(data)
+    saves = _parse_native_saturn(canonical)
+    if saves is None:
+        raise ValueError("Canonical Saturn save is not valid")
+    return [save.name for save in saves]
+
+
+def extract_saturn_save_set(data: bytes, archive_names: list[str]) -> bytes:
+    """Extract a subset of Saturn archives into canonical 32 KB bytes."""
+    requested = {name.strip().upper() for name in archive_names if name and name.strip()}
+    if not requested:
+        raise ValueError("No Saturn archive names were provided")
+
+    canonical = normalize_saturn_save(data)
+    saves = _parse_native_saturn(canonical)
+    if saves is None:
+        raise ValueError("Canonical Saturn save is not valid")
+
+    selected = [save for save in saves if save.name.upper() in requested]
+    if not selected:
+        raise ValueError("Requested Saturn archives were not found in the save data")
+    return _build_native_saturn_image(selected, SAT_INTERNAL_SIZE)
+
+
+def merge_saturn_save_set(
+    existing_data: bytes | None,
+    replacement_data: bytes,
+    target_format: str,
+) -> bytes:
+    """Merge canonical Saturn bytes into another save image format.
+
+    Existing archives with the same name as any archive in ``replacement_data``
+    are replaced, while unrelated archives are preserved.
+    """
+    replacement_canonical = normalize_saturn_save(replacement_data)
+    replacement_saves = _parse_native_saturn(replacement_canonical)
+    if replacement_saves is None:
+        raise ValueError("Replacement Saturn save is not valid")
+
+    existing_saves = []
+    if existing_data:
+        try:
+            existing_canonical = normalize_saturn_save(existing_data)
+            parsed_existing = _parse_native_saturn(existing_canonical)
+            if parsed_existing is not None:
+                existing_saves = parsed_existing
+        except ValueError:
+            existing_saves = []
+
+    replacement_names = {save.name.upper() for save in replacement_saves}
+    merged_saves = [
+        save for save in existing_saves if save.name.upper() not in replacement_names
+    ]
+    merged_saves.extend(replacement_saves)
+
+    fmt = (target_format or "mednafen").strip().lower()
+    if fmt == "mednafen":
+        return _build_native_saturn_image(merged_saves, SAT_INTERNAL_SIZE)
+    if fmt == "yabause":
+        return _expand_byte_padded_saturn(
+            _build_native_saturn_image(merged_saves, SAT_INTERNAL_SIZE)
+        )
+    if fmt == "yabasanshiro":
+        return _expand_byte_padded_saturn(
+            _build_native_saturn_image(merged_saves, SAT_YABASANSHIRO_COLLAPSED_SIZE)
         )
     raise ValueError(f"Unsupported Saturn target format: {target_format}")
 

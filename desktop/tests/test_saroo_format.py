@@ -16,6 +16,9 @@ from saroo_format import (
     _NativeSave,
     _build_native_saturn,
     convert_saturn_save_format,
+    extract_saturn_save_set,
+    list_saturn_archive_names,
+    merge_saturn_save_set,
 )
 
 
@@ -118,3 +121,79 @@ def test_convert_saturn_save_format_supports_yabause_and_yabasanshiro():
     assert len(yabasanshiro) == SAT_YABASANSHIRO_SIZE
     assert yabasanshiro[0::2] == b"\xFF" * (len(yabasanshiro) // 2)
     assert _parse_native_reference(yabasanshiro[1::2])[0][1] == raw
+
+
+def test_extract_saturn_save_set_preserves_requested_archives_only():
+    canonical = _build_native_saturn(
+        [
+            _NativeSave(
+                name="DRACULAX_01",
+                language_code=0,
+                comment="Save 1",
+                date_code=1,
+                raw_data=b"drac-1",
+            ),
+            _NativeSave(
+                name="DRACULAX_02",
+                language_code=0,
+                comment="Save 2",
+                date_code=2,
+                raw_data=b"drac-2",
+            ),
+            _NativeSave(
+                name="GRANDIA_001",
+                language_code=0,
+                comment="Grandia",
+                date_code=3,
+                raw_data=b"grandia",
+            ),
+        ]
+    )
+
+    extracted = extract_saturn_save_set(canonical, ["DRACULAX_01", "DRACULAX_02"])
+
+    assert list_saturn_archive_names(extracted) == ["DRACULAX_01", "DRACULAX_02"]
+
+
+def test_merge_saturn_save_set_preserves_unrelated_yabasanshiro_archives():
+    existing = convert_saturn_save_format(
+        _build_native_saturn(
+            [
+                _NativeSave(
+                    name="DRACULAX_01",
+                    language_code=0,
+                    comment="Save 1",
+                    date_code=1,
+                    raw_data=b"old-drac",
+                ),
+                _NativeSave(
+                    name="GRANDIA_001",
+                    language_code=0,
+                    comment="Grandia",
+                    date_code=2,
+                    raw_data=b"grandia",
+                ),
+            ]
+        ),
+        "yabasanshiro",
+    )
+    replacement = _build_native_saturn(
+        [
+            _NativeSave(
+                name="DRACULAX_01",
+                language_code=0,
+                comment="Save 1",
+                date_code=3,
+                raw_data=b"new-drac",
+            )
+        ]
+    )
+
+    merged = merge_saturn_save_set(existing, replacement, "yabasanshiro")
+
+    assert list_saturn_archive_names(merged) == ["GRANDIA_001", "DRACULAX_01"]
+    parsed = _parse_native_reference(merged[1::2])
+    assert {name: raw for name, raw, _ in parsed} == {
+        "GRANDIA_001": b"grandia",
+        "DRACULAX_01": b"new-drac",
+    }

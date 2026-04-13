@@ -89,3 +89,4 @@ ps3/tools/
 *.pkg
 *.self
 *.elf
+android/.gradle-user/caches/*

@@ -170,7 +170,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 entry.isServerOnly &&
                 entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
 
-        if (isSharedYabaSanshiroEntry && syncState?.lastSyncedHash != null) {
+        if (isSharedYabaSanshiroEntry && entry.saveFile?.exists() == true) {
+            if (syncState?.lastSyncedHash == null) {
+                return SaveSyncStatus.LOCAL_ONLY
+            }
             if (cheapOnly) return SaveSyncStatus.SYNCED
 
             val localHash = try {
@@ -1550,6 +1553,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return settings.saturnSyncFormat == SaturnSyncFormat.YABASANSHIRO &&
             entry.systemName == "SAT" &&
             entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+    }
+
+    fun canUploadFromDetail(entry: SaveEntry): Boolean {
+        if (entry.exists()) return true
+        return entry.systemName == "SAT" &&
+            entry.saveFile?.name.equals("backup.bin", ignoreCase = true) &&
+            entry.saveFile?.exists() == true
     }
 
     private fun buildSaturnArchiveOptions(

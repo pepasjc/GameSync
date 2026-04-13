@@ -70,6 +70,35 @@ def _copy_save_payload(source: Path, dest: Path) -> None:
     shutil.copy2(source, dest)
 
 
+def _resolve_retroarch_saturn_download_path(
+    profile: dict,
+    save_root: Path,
+    filename_stem: str,
+) -> Path:
+    from sync_engine import _retroarch_saturn_format
+
+    saturn_sys_info = {}
+    if "systems" in profile:
+        saturn_sys_info = next(
+            (s for s in profile["systems"] if s.get("system") == "SAT"),
+            {},
+        )
+
+    saturn_format = _retroarch_saturn_format(
+        saturn_sys_info.get("save_ext", ""),
+        saturn_sys_info.get("save_folder", ""),
+    )
+    if saturn_format == "yabause":
+        return save_root / f"{filename_stem}.srm"
+    if saturn_format == "yabasanshiro":
+        override = saturn_sys_info.get("save_folder", "")
+        target_root = Path(override) if override else save_root / "yabasanshiro"
+        if target_root.suffix.lower() == ".bin":
+            return target_root
+        return target_root / "backup.bin"
+    return save_root / "Beetle Saturn" / f"{filename_stem}.bkr"
+
+
 class ScanWorker(QThread):
     result_ready = pyqtSignal(list)
     partial_result_ready = pyqtSignal(list)  # fast first pass: saves only
@@ -1281,6 +1310,10 @@ class SyncTab(QWidget):
             return save_root / sys_folder / filename
 
         elif device_type == "RetroArch":
+            if system == "SAT":
+                return _resolve_retroarch_saturn_download_path(
+                    profile, save_root, filename_stem
+                )
             core = next(
                 (k for k, v in RETROARCH_CORE_MAP.items() if v == system), system
             )

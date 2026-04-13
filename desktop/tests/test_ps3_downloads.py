@@ -14,7 +14,7 @@ import tabs.server_saves_tab as server_saves_tab
 import sync_engine as se
 from saroo_format import _NativeSave, _build_native_saturn
 from tabs.server_saves_tab import _raw_download_defaults
-from tabs.sync_tab import SyncTab
+from tabs.sync_tab import SyncTab, _resolve_retroarch_saturn_download_path
 
 
 @pytest.fixture(scope="module")
@@ -94,7 +94,7 @@ def test_sync_tab_resolves_emudeck_ps3_downloads_to_rpcs3_save_dirs(qt_app, tmp_
     assert resolved == saves_root / "rpcs3" / "saves" / "BLUS30464-AUTOSAVE-01"
 
 
-def test_sync_tab_resolves_retroarch_saturn_downloads_to_bkr(qt_app, tmp_path):
+def test_sync_tab_resolves_retroarch_saturn_downloads_to_yabause_root(qt_app, tmp_path):
     saves_root = tmp_path / "retroarch" / "saves"
     saves_root.mkdir(parents=True)
     profile = {
@@ -111,19 +111,37 @@ def test_sync_tab_resolves_retroarch_saturn_downloads_to_bkr(qt_app, tmp_path):
             }
         ],
     }
-    tab = SyncTab(DummyProfilesTab([profile]))
-    tab.profile_combo.setCurrentIndex(0)
-    status = SimpleNamespace(
-        save=SimpleNamespace(
-            system="SAT",
-            game_name="Panzer Dragoon Saga (USA)",
-            title_id="SAT_T12705H",
-        )
+    resolved = _resolve_retroarch_saturn_download_path(
+        profile, saves_root, "Panzer Dragoon Saga (USA)"
     )
 
-    resolved = tab._resolve_download_path(status)
+    assert resolved == saves_root / "Panzer Dragoon Saga (USA).srm"
 
-    assert resolved == saves_root / "Beetle Saturn" / "Panzer Dragoon Saga (USA).bkr"
+
+def test_sync_tab_resolves_retroarch_saturn_downloads_to_yabasanshiro_backup(
+    qt_app, tmp_path
+):
+    saves_root = tmp_path / "retroarch" / "saves"
+    saves_root.mkdir(parents=True)
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(tmp_path / "retroarch" / "roms"),
+        "save_folder": str(saves_root),
+        "systems": [
+            {
+                "system": "SAT",
+                "enabled": True,
+                "save_ext": ".bin",
+                "save_folder": str(saves_root / "yabasanshiro"),
+            }
+        ],
+    }
+    resolved = _resolve_retroarch_saturn_download_path(
+        profile, saves_root, "Panzer Dragoon Saga (USA)"
+    )
+
+    assert resolved == saves_root / "yabasanshiro" / "backup.bin"
 
 
 def test_sync_tab_do_sync_finalizes_saroo_server_downloads(monkeypatch, qt_app, tmp_path):

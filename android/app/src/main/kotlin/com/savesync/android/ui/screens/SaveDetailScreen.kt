@@ -188,7 +188,7 @@ fun SaveDetailScreen(
     val saturnPickerState = saturnArchivePickerState
     if (saturnPickerState is SaturnArchivePickerState.Visible) {
         var selectedArchives by remember(saturnPickerState) {
-            mutableStateOf(
+            mutableStateOf<Set<String>>(
                 saturnPickerState.options
                     .filter { it.preselected }
                     .mapTo(linkedSetOf()) { it.archiveFamily }
@@ -308,6 +308,7 @@ fun SaveDetailScreen(
 
         val isBusy = detailState is SaveDetailState.Working
         val canDownloadSave = entry.saveFile != null || entry.saveDir != null
+        val canUploadSave = viewModel.canUploadFromDetail(entry)
 
         // Compute local hash — recompute when the underlying file is modified (e.g. after download)
         val fileModTime = when {
@@ -417,7 +418,7 @@ fun SaveDetailScreen(
             ActionButton(
                 label = if (isBusy && detailState.isUpload) "Uploading…" else "Force Upload ↑",
                 icon = Icons.Default.CloudUpload,
-                enabled = !isBusy && entry.exists(),
+                enabled = !isBusy && canUploadSave,
                 containerColor = Color(0xFF1565C0),
                 isBusy = isBusy && detailState.isUpload,
                 onClick = { viewModel.uploadSave(entry) }

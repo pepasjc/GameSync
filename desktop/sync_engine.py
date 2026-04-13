@@ -372,6 +372,124 @@ def resolve_save_ext(system: str, save_ext: str | None, fallback: str = ".sav") 
     return ext
 
 
+def _retroarch_saturn_format(
+    save_ext: str | None = None,
+    save_folder: str | None = None,
+) -> str:
+    """Infer the Saturn RetroArch target format from the profile settings."""
+    ext = (save_ext or "").strip().lower()
+    folder_name = ""
+    if save_folder:
+        try:
+            folder_name = Path(save_folder).name.strip().lower()
+        except Exception:
+            folder_name = ""
+
+    if ext == ".bin" or folder_name == "yabasanshiro":
+        return "yabasanshiro"
+    if ext == ".srm":
+        return "yabause"
+    return "mednafen"
+
+
+def _is_shared_saturn_backup(path: Path | None) -> bool:
+    if path is None:
+        return False
+    return path.name.strip().lower() == "backup.bin"
+
+
+def _saturn_format_for_path(path: Path | None) -> str:
+    if path is None:
+        return "mednafen"
+    if _is_shared_saturn_backup(path) or path.suffix.lower() == ".bin":
+        return "yabasanshiro"
+    if path.suffix.lower() == ".srm":
+        return "yabause"
+    return "mednafen"
+
+
+def _lookup_saturn_archive_candidates(
+    title_id: str,
+    archive_names: list[str],
+    base_url: str,
+    headers: dict,
+    timeout: int = 30,
+) -> list[dict]:
+    resp = requests.post(
+        f"{base_url}/api/v1/titles/saturn-archives",
+        headers={**headers, "Content-Type": "application/json"},
+        json={"title_id": title_id, "archive_names": archive_names},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    return body.get("results", []) if isinstance(body, dict) else []
+
+
+def _resolve_saturn_archive_selection(
+    title_id: str,
+    path: Path,
+    base_url: str,
+    headers: dict,
+    timeout: int = 30,
+) -> list[str]:
+    from saroo_format import list_saturn_archive_names
+
+    data = path.read_bytes()
+    archive_names = list_saturn_archive_names(data)
+    persisted = [
+        name
+        for name in _get_saturn_archive_names(title_id)
+        if name in {archive.upper() for archive in archive_names}
+    ]
+    if persisted:
+        return persisted
+
+    results = _lookup_saturn_archive_candidates(
+        title_id, archive_names, base_url, headers, timeout=timeout
+    )
+    selected: list[str] = []
+    for result in results:
+        if result.get("status") not in {"exact_current", "includes_current"}:
+            continue
+        for archive_name in result.get("archive_names", []):
+            normalized = str(archive_name).strip().upper()
+            if normalized and normalized not in selected:
+                selected.append(normalized)
+
+    if selected:
+        _set_saturn_archive_names(title_id, selected)
+    return selected
+
+
+def _canonical_saturn_payload(
+    title_id: str,
+    path: Path,
+    base_url: str | None = None,
+    headers: dict | None = None,
+    timeout: int = 30,
+) -> tuple[bytes, list[str] | None]:
+    from saroo_format import (
+        extract_saturn_save_set,
+        list_saturn_archive_names,
+        normalize_saturn_save,
+    )
+
+    data = path.read_bytes()
+    if _is_shared_saturn_backup(path):
+        archive_names = _get_saturn_archive_names(title_id)
+        if not archive_names and base_url and headers is not None:
+            archive_names = _resolve_saturn_archive_selection(
+                title_id, path, base_url, headers, timeout=timeout
+            )
+        if not archive_names:
+            return b"", None
+        return extract_saturn_save_set(data, archive_names), archive_names
+
+    canonical = normalize_saturn_save(data)
+    return canonical, [name.upper() for name in list_saturn_archive_names(canonical)]
+
+
 def _resolve_saroo_native_payload(
     title_id: str, path: Path | None = None
 ) -> tuple[bytes, float] | None:
@@ -454,10 +572,13 @@ class SyncStatus:
 STATE_FILE = Path(__file__).parent / ".sync_state.json"
 SCAN_CACHE_FILE = Path(__file__).parent / ".scan_cache.json"
 SLOT_MAPPING_FILE = Path(__file__).parent / ".slot_mappings.json"
+SATURN_ARCHIVE_STATE_FILE = Path(__file__).parent / ".saturn_archives.json"
 _SCAN_CACHE: dict[str, dict[str, object]] | None = None
 _SCAN_CACHE_DIRTY = False
 _SLOT_MAPPINGS: dict[str, dict[str, str]] | None = None
 _SLOT_MAPPINGS_DIRTY = False
+_SATURN_ARCHIVE_STATE: dict[str, list[str]] | None = None
+_SATURN_ARCHIVE_STATE_DIRTY = False
 
 # Per-title Saroo metadata populated by _scan_saroo().
 # Keys are title_id strings; values are dicts with:
@@ -485,6 +606,73 @@ def _update_state(title_id: str, hash_val: str) -> None:
     state = _load_state()
     state[title_id] = hash_val
     _save_state(state)
+
+
+def _load_saturn_archive_state() -> dict[str, list[str]]:
+    global _SATURN_ARCHIVE_STATE
+    if _SATURN_ARCHIVE_STATE is not None:
+        return _SATURN_ARCHIVE_STATE
+    if SATURN_ARCHIVE_STATE_FILE.exists():
+        try:
+            data = json.loads(SATURN_ARCHIVE_STATE_FILE.read_text(encoding="utf-8"))
+            entries = data.get("entries", {})
+            if isinstance(entries, dict):
+                normalized: dict[str, list[str]] = {}
+                for title_id, archive_names in entries.items():
+                    if not isinstance(archive_names, list):
+                        continue
+                    values = [
+                        str(name).strip().upper()
+                        for name in archive_names
+                        if str(name).strip()
+                    ]
+                    if values:
+                        normalized[str(title_id).strip().upper()] = sorted(set(values))
+                _SATURN_ARCHIVE_STATE = normalized
+                return _SATURN_ARCHIVE_STATE
+        except Exception:
+            pass
+    _SATURN_ARCHIVE_STATE = {}
+    return _SATURN_ARCHIVE_STATE
+
+
+def _mark_saturn_archive_state_dirty() -> None:
+    global _SATURN_ARCHIVE_STATE_DIRTY
+    _SATURN_ARCHIVE_STATE_DIRTY = True
+
+
+def _flush_saturn_archive_state() -> None:
+    global _SATURN_ARCHIVE_STATE_DIRTY
+    if not _SATURN_ARCHIVE_STATE_DIRTY:
+        return
+    state = _load_saturn_archive_state()
+    SATURN_ARCHIVE_STATE_FILE.write_text(
+        json.dumps({"entries": state}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    _SATURN_ARCHIVE_STATE_DIRTY = False
+
+
+def _get_saturn_archive_names(title_id: str) -> list[str]:
+    return list(_load_saturn_archive_state().get((title_id or "").upper(), []))
+
+
+def _set_saturn_archive_names(title_id: str, archive_names: list[str]) -> None:
+    normalized = sorted(
+        {
+            str(name).strip().upper()
+            for name in archive_names
+            if str(name).strip()
+        }
+    )
+    state = _load_saturn_archive_state()
+    key = (title_id or "").upper()
+    if normalized:
+        state[key] = normalized
+    else:
+        state.pop(key, None)
+    _mark_saturn_archive_state_dirty()
+    _flush_saturn_archive_state()
 
 
 def _load_scan_cache() -> dict[str, dict[str, object]]:
@@ -958,6 +1146,8 @@ def scan_profile(
         # RetroArch: saves are already organised per-core; ROMs scattered elsewhere.
         results = _scan_retroarch(
             folder,
+            rom_root=rom_folder if rom_folder and rom_folder.exists() else None,
+            saturn_config=systems_config.get("SAT", {}),
             progress_callback=progress_callback,
             enable_auto_normalize=enable_auto_normalize,
             profile_scope=profile_scope,
@@ -1177,7 +1367,7 @@ def scan_profile(
         len(results),
         len(results),
     )
-    return results
+    return _dedup_saves(results)
 
 
 def _make_title_id_with_region(system: str, filename: str) -> str:
@@ -1572,18 +1762,27 @@ def _scan_roms_match_saves(
 
 def _scan_retroarch(
     root: Path,
+    rom_root: Path | None = None,
+    saturn_config: dict | None = None,
     progress_callback=None,
     enable_auto_normalize: bool = True,
     profile_scope: str = "",
 ) -> list[SaveFile]:
     """Scan RetroArch saves/CoreName/game.srm structure."""
     results = []
+    saturn_format = _retroarch_saturn_format(
+        (saturn_config or {}).get("save_ext", ""),
+        (saturn_config or {}).get("save_folder", ""),
+    )
     for core_dir in sorted(root.iterdir()):
         if not core_dir.is_dir():
             continue
         system = RETROARCH_CORE_MAP.get(core_dir.name)
         if not system:
             continue
+        if system == "SAT":
+            if saturn_format != "mednafen":
+                continue
         results.extend(
             _scan_flat(
                 core_dir,
@@ -1593,6 +1792,66 @@ def _scan_retroarch(
                 profile_scope=profile_scope,
             )
         )
+
+    if saturn_format == "yabause":
+        if rom_root and rom_root.exists():
+            results.extend(
+                _scan_roms_match_saves(
+                    rom_root,
+                    root,
+                    "SAT",
+                    save_ext=".srm",
+                    recursive=True,
+                    progress_callback=progress_callback,
+                    enable_auto_normalize=enable_auto_normalize,
+                    profile_scope=profile_scope,
+                )
+            )
+        else:
+            results.extend(
+                _scan_flat(
+                    root,
+                    "SAT",
+                    progress_callback=progress_callback,
+                    enable_auto_normalize=enable_auto_normalize,
+                    profile_scope=profile_scope,
+                )
+            )
+    elif saturn_format == "yabasanshiro" and rom_root and rom_root.exists():
+        backup_root = Path((saturn_config or {}).get("save_folder", "") or (root / "yabasanshiro"))
+        backup_path = backup_root / "backup.bin"
+        candidates = _safe_walk(rom_root, recursive=True)
+        total = len(candidates)
+        for idx, rom_file in enumerate(candidates, start=1):
+            try:
+                if not rom_file.is_file():
+                    continue
+            except OSError:
+                continue
+            if (
+                rom_file.suffix.lower() not in ROM_EXTENSIONS
+                and rom_file.suffix.lower() not in ZIP_ROM_EXTENSIONS
+            ):
+                continue
+            sf = _build_save_file(
+                system="SAT",
+                game_name=rom_file.stem,
+                source_name=rom_file.name,
+                path=backup_path,
+                file_hash="",
+                mtime=backup_path.stat().st_mtime if backup_path.exists() else 0.0,
+                save_exists=backup_path.exists(),
+                enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
+            )
+            sf.path = backup_path
+            sf.hash = ""
+            sf.save_exists = backup_path.exists()
+            results.append(sf)
+            if idx == 1 or idx % 25 == 0 or idx == total:
+                _emit_progress(
+                    progress_callback, f"Scanning SAT ROMs… {idx}/{total}", idx, total
+                )
     return results
 
 
@@ -3111,6 +3370,26 @@ def compare_with_server(
             _resolve_effective_title_id(save, server_titles)
         )
         save.title_id = effective_title_id
+        if (
+            save.system == "SAT"
+            and save.path is not None
+            and save.path.exists()
+            and save.save_exists
+        ):
+            try:
+                canonical_saturn, archive_names = _canonical_saturn_payload(
+                    save.title_id,
+                    save.path,
+                    base_url=base_url,
+                    headers=headers,
+                    timeout=timeout,
+                )
+                if canonical_saturn:
+                    save.hash = hashlib.sha256(canonical_saturn).hexdigest()
+                if archive_names:
+                    _set_saturn_archive_names(save.title_id, archive_names)
+            except Exception:
+                pass
         seen_title_ids.add(save.title_id)
         if save.legacy_title_id:
             seen_title_ids.add(save.legacy_title_id)
@@ -3403,6 +3682,20 @@ def upload_save(
         )
         if saroo_payload is not None:
             data = saroo_payload[0]
+        elif (system or "").upper() == "SAT":
+            data, archive_names = _canonical_saturn_payload(
+                title_id,
+                path,
+                base_url=base_url,
+                headers=headers,
+                timeout=timeout,
+            )
+            if not data:
+                raise ValueError(
+                    f"Could not resolve Saturn save archives for {title_id} from {path}"
+                )
+            if archive_names:
+                _set_saturn_archive_names(title_id, archive_names)
         else:
             data = path.read_bytes()
         local_hash = hashlib.sha256(data).hexdigest()
@@ -3494,7 +3787,33 @@ def download_save(
         server_hash = resp.headers.get("X-Save-Hash", _hash_ps3_dir_files(dest_path))
     else:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        dest_path.write_bytes(resp.content)
+        if (system or "").upper() == "SAT":
+            from saroo_format import (
+                convert_saturn_save_format,
+                list_saturn_archive_names,
+                merge_saturn_save_set,
+            )
+
+            archive_names = [name.upper() for name in list_saturn_archive_names(resp.content)]
+            if archive_names:
+                _set_saturn_archive_names(title_id, archive_names)
+
+            saturn_format = _saturn_format_for_path(dest_path)
+            if saturn_format == "yabasanshiro":
+                existing_data = dest_path.read_bytes() if dest_path.exists() else None
+                dest_path.write_bytes(
+                    merge_saturn_save_set(
+                        existing_data,
+                        resp.content,
+                        "yabasanshiro",
+                    )
+                )
+            else:
+                dest_path.write_bytes(
+                    convert_saturn_save_format(resp.content, saturn_format)
+                )
+        else:
+            dest_path.write_bytes(resp.content)
         server_hash = resp.headers.get(
             "X-Save-Hash", hashlib.sha256(resp.content).hexdigest()
         )
