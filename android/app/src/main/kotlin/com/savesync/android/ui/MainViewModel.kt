@@ -266,6 +266,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = Settings()
         )
 
+    /**
+     * Auto-detected system → folder path, derived by scanning the romScanDir subfolders.
+     * Not persisted — refreshed on demand via [detectSystemFolders].
+     */
+    private val _detectedSystemFolders = MutableStateFlow<Map<String, String>>(emptyMap())
+    val detectedSystemFolders: StateFlow<Map<String, String>> = _detectedSystemFolders
+
     init {
         // Restore persisted filter preferences before scanning
         viewModelScope.launch {
@@ -309,10 +316,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     .associate { it.filePath to it.system }
                 val romScanDir = currentSettings.romScanDir
                 val dolphinMemCardDir = currentSettings.dolphinMemCardDir
-                val rawLocalSaves = EmulatorRegistry.discoverAllSaves(overrides, romScanDir, dolphinMemCardDir)
+                val romDirOverrides = currentSettings.romDirOverrides
+                val rawLocalSaves = EmulatorRegistry.discoverAllSaves(overrides, romScanDir, dolphinMemCardDir, romDirOverrides)
 
                 // Discover all ROMs the emulators know about (with expected save paths)
-                val allRomEntries = EmulatorRegistry.discoverAllRomEntries(romScanDir, dolphinMemCardDir)
+                val allRomEntries = EmulatorRegistry.discoverAllRomEntries(romScanDir, dolphinMemCardDir, romDirOverrides)
 
                 val serverOnlySaves: List<SaveEntry>
                 val localSaves: List<SaveEntry>
@@ -350,13 +358,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     } else rawLocalSaves
 
                     // Enrich product-code entries with proper game names from server.
-                    // PSP slots, PS1 saves resolved via SYSTEM.CNF, and PS2 saves resolved from
-                    // installed disc images all carry compact product-code title IDs
-                    // (e.g. SLUS01234 / SLUS20002), so they can all share the same lookup flow.
+                    // PSP, PS1, PS2, SAT, and GC saves resolved via disc headers all carry
+                    // compact product-code title IDs (e.g. SLUS01234, SAT_T-12705H).
                     // Slug-based PS1/PS2 IDs (PS1_slug / PS2_slug) are skipped here.
                     val productCodeEntries = resolvedRawSaves.filter { entry ->
-                        entry.systemName == "PPSSPP" ||
+                        entry.systemName == "PSP" ||
                         ((entry.systemName == "PS1" || entry.systemName == "PS2") && !entry.titleId.contains('_')) ||
+                        (entry.systemName == "SAT" && entry.titleId.startsWith("SAT_")) ||
                         (entry.systemName == "GC" && entry.titleId.startsWith("GC_"))
                     }
                     val gameNameTriple =
@@ -398,7 +406,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 displayName = gameName ?: entry.displayName,
                                 canonicalName = gameName?.takeIf { it != entry.displayName }
                             )
-                            entry.systemName == "PPSSPP" && lookedUpType == "PS1" -> entry.copy(
+                            entry.systemName == "PSP" && lookedUpType == "PS1" -> entry.copy(
                                 systemName = "PS1",
                                 displayName = gameName ?: entry.displayName,
                                 canonicalName = gameName?.takeIf { it != entry.displayName }
@@ -436,6 +444,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     val pspServerIds: Set<String> = try {
                         api.getTitles(consoleType = "PSP").titles.map { it.title_id }.toSet()
+                    } catch (_: Exception) {
+                        emptySet()
+                    }
+                    val satServerIds: Set<String> = try {
+                        api.getTitles(consoleType = "SAT").titles.map { it.title_id }.toSet()
                     } catch (_: Exception) {
                         emptySet()
                     }
@@ -477,6 +490,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 in ps1ServerIds -> "PS1"
                                 in ps2ServerIds -> "PS2"
                                 in pspServerIds -> "PSP"
+                                in satServerIds -> "SAT"
                                 else -> lookedUpType
                             }
                             titleInfo.copy(
@@ -506,7 +520,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             },
                             effectiveRomEntries + aliasMatches
                         )
-                        val fullyEffectiveRomEntries = effectiveRomEntries + aliasMatches + ps1Matches
+                        val pspMatches = buildPspServerOnlyMatches(
+                            normalizedUnmatchedTitles.filter {
+                                !effectiveRomEntries.containsKey(it.title_id) &&
+                                !aliasMatches.containsKey(it.title_id) &&
+                                !ps1Matches.containsKey(it.title_id)
+                            },
+                            effectiveRomEntries + aliasMatches + ps1Matches
+                        )
+                        val fullyEffectiveRomEntries = effectiveRomEntries + aliasMatches + ps1Matches + pspMatches
 
                         val matchedServerOnly = normalizedUnmatchedTitles
                             .filter { fullyEffectiveRomEntries.containsKey(it.title_id) }
@@ -753,6 +775,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // ATARI2600/ATARI7800 are legacy aliases (older desktop uploads used these)
         "ATARI2600" to "A2600",
         "ATARI7800" to "A7800",
+        // PPSSPP was the old Android system name for PSP; normalise to PSP
+        "PPSSPP"    to "PSP",
     )
 
     /**
@@ -955,6 +979,69 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return result
     }
 
+    /**
+     * Match PSP server-only saves against installed PPSSPP ROMs.
+     *
+     * ROM-derived PSP entries give us a save root (PSP/SAVEDATA) before any local save
+     * exists. When we find a matching server title, rewrite that anchor to the exact
+     * server slot directory name so bundle downloads land where PPSSPP expects them.
+     */
+    private fun buildPspServerOnlyMatches(
+        stillUnmatched: List<com.savesync.android.api.TitleInfo>,
+        romEntries: Map<String, SaveEntry>
+    ): Map<String, SaveEntry> {
+        if (stillUnmatched.isEmpty()) return emptyMap()
+
+        val pspRomEntries = romEntries.values
+            .filter { it.saveDir != null && it.systemName == "PSP" }
+            .distinctBy { it.saveDir?.absolutePath ?: it.titleId }
+        if (pspRomEntries.isEmpty()) return emptyMap()
+
+        val byCode = pspRomEntries
+            .mapNotNull { entry -> pspProductCodePrefix(entry.titleId)?.let { it to entry } }
+            .groupBy({ it.first }, { it.second })
+        val byAnchor = pspRomEntries.groupBy { normalizePspAnchor(it.displayName) }
+
+        val result = mutableMapOf<String, SaveEntry>()
+        for (titleInfo in stillUnmatched) {
+            val system = normalizeSystemCode(
+                titleInfo.platform
+                    ?: titleInfo.system
+                    ?: titleInfo.consoleType
+                    ?: ""
+            )
+            if (system != "PSP") continue
+
+            val serverId = titleInfo.title_id
+            val code = pspProductCodePrefix(serverId)
+            val serverName = titleInfo.name ?: titleInfo.game_name ?: serverId
+
+            val anchorEntry = when {
+                code != null && !byCode[code].isNullOrEmpty() -> {
+                    byCode[code]!!.minWithOrNull(
+                        compareBy<SaveEntry>(
+                            { if (it.titleId == code) 0 else 1 },
+                            { it.displayName.length },
+                            { it.displayName.lowercase() }
+                        )
+                    )
+                }
+                else -> byAnchor[normalizePspAnchor(serverName)]?.singleOrNull()
+            } ?: continue
+
+            val saveRoot = anchorEntry.saveDir?.parentFile ?: continue
+            result[serverId] = anchorEntry.copy(
+                titleId = serverId,
+                saveDir = File(saveRoot, serverId),
+                canonicalName = anchorEntry.canonicalName
+                    ?: titleInfo.name?.takeIf { it != anchorEntry.displayName }
+                    ?: titleInfo.game_name?.takeIf { it != anchorEntry.displayName }
+            )
+        }
+
+        return result
+    }
+
     private fun ps1ServerTitlePreference(
         titleInfo: com.savesync.android.api.TitleInfo,
         localLabel: String
@@ -1002,6 +1089,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .lowercase()
             .replace(Regex("[^a-z0-9]+"), " ")
             .trim()
+    }
+
+    private fun normalizePspAnchor(name: String): String {
+        return name
+            .replace(Regex("""\s*[\(\[][^\)\]]*[\)\]]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .lowercase()
+            .replace(Regex("[^a-z0-9]+"), " ")
+            .trim()
+    }
+
+    private fun pspProductCodePrefix(titleId: String): String? {
+        if (titleId.length < 9) return null
+        val prefix = titleId.take(9).uppercase()
+        return prefix.takeIf { compactPsCodeRegex.matches(it) }
     }
 
     private fun ps1AnchorsEquivalent(left: String, right: String): Boolean {
@@ -1179,8 +1281,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Only sync local saves (exclude server-only entries)
                 val romScanDir = currentSettings.romScanDir
                 val dolphinMemCardDir = currentSettings.dolphinMemCardDir
+                val romDirOverrides = currentSettings.romDirOverrides
                 val allLocalSaves = _allSaves.value.filter { !it.isServerOnly }.ifEmpty {
-                    EmulatorRegistry.discoverAllSaves(romScanDir = romScanDir, dolphinMemCardDir = dolphinMemCardDir).also { found ->
+                    EmulatorRegistry.discoverAllSaves(romScanDir = romScanDir, dolphinMemCardDir = dolphinMemCardDir, romDirOverrides = romDirOverrides).also { found ->
                         _allSaves.value = found
                     }
                 }
@@ -1197,6 +1300,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 _syncState.value = SyncState.Error(e.message ?: "Sync failed")
             }
+        }
+    }
+
+    /** Scans romScanDir subfolders and populates [detectedSystemFolders]. */
+    fun detectSystemFolders() {
+        viewModelScope.launch {
+            val romScanDir = settingsStore.settingsFlow.first().romScanDir
+            _detectedSystemFolders.value = EmulatorRegistry.detectSystemFolders(romScanDir)
+        }
+    }
+
+    /** Persists a per-system ROM folder override and triggers a rescan. */
+    fun setRomDirOverride(system: String, path: String) {
+        viewModelScope.launch {
+            settingsStore.setRomDirOverride(system, path)
+            scanSaves()
+        }
+    }
+
+    /** Removes a per-system override (reverts to auto-detected folder) and triggers a rescan. */
+    fun clearRomDirOverride(system: String) {
+        viewModelScope.launch {
+            settingsStore.clearRomDirOverride(system)
+            scanSaves()
         }
     }
 
@@ -1317,7 +1444,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _romScanResults.value = mapOf("(no ROM directory set)" to 0)
                 return@launch
             }
-            val allRoms = EmulatorRegistry.discoverAllRomEntries(romScanDir = effectiveDir)
+            val romDirOverrides = settingsStore.settingsFlow.first().romDirOverrides
+            val allRoms = EmulatorRegistry.discoverAllRomEntries(romScanDir = effectiveDir, romDirOverrides = romDirOverrides)
             // Group by system and count
             _romScanResults.value = if (allRoms.isEmpty()) {
                 mapOf("(no ROMs found)" to 0)
@@ -1472,9 +1600,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
                 val engine = SyncEngine(api, db, settingsStore.ensureConsoleId())
-                val file = engine.downloadRom(romId, system, currentSettings.romScanDir, filename)
+                val file = engine.downloadRom(romId, system, currentSettings.romScanDir, filename, currentSettings.romDirOverrides)
                 if (file != null) {
                     _romDownloadState.value = RomDownloadState.Success(file)
+                    // Rescan so the newly downloaded ROM is picked up: the SaveEntry for this
+                    // title will get a real saveFile/saveDir and isServerOnly becomes false,
+                    // which re-enables the Sync / Upload / Download buttons immediately.
+                    scanSaves()
                 } else {
                     _romDownloadState.value = RomDownloadState.Error("ROM not found on server")
                 }

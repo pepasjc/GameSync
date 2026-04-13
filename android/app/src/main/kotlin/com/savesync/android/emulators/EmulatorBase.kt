@@ -119,6 +119,70 @@ abstract class EmulatorBase {
     open fun discoverRomEntries(): Map<String, SaveEntry> = emptyMap()
 
     /**
+     * Reads the Sega Saturn product code from a disc image by parsing the IP.BIN header.
+     *
+     * The Saturn IP.BIN occupies the first sector of a disc. The hardware ID
+     * "SEGA SEGASATURN " is at byte 0x00, and the 10-byte product code (e.g. "T-12705H  ")
+     * is at byte 0x20, followed by a version string at 0x2A.
+     *
+     * Supported formats:
+     *  - `.iso`          — 2048 B/sector, sector 0 at file offset 0x000
+     *  - `.bin` / `.img` — 2352 B/sector, sector 0 data at offset 0x010 (after 12-byte sync + 4-byte header)
+     *  - `.cue`          — resolved to the referenced .bin file, then read as above
+     *
+     * Returns a "SAT_<PRODUCT_CODE>" title ID (e.g. "SAT_T-12705H"), or null if the
+     * image cannot be identified as a Saturn disc.
+     */
+    protected fun readSaturnProductCode(romFile: File): String? {
+        return try {
+            // Resolve .cue → first .bin track
+            val imageFile = if (romFile.extension.lowercase() == "cue") {
+                val fileLine = romFile.readLines().firstOrNull {
+                    it.trimStart().uppercase().startsWith("FILE")
+                } ?: return null
+                val referencedName = Regex("FILE\\s+\"(.+?)\"", RegexOption.IGNORE_CASE)
+                    .find(fileLine)?.groupValues?.getOrNull(1) ?: return null
+                File(romFile.parent, referencedName).takeIf { it.exists() } ?: return null
+            } else {
+                romFile
+            }
+
+            val ext = imageFile.extension.lowercase()
+            // ISO = 2048 B/sector (data at byte 0 of the sector)
+            // BIN/IMG = 2352 B/sector (data starts at byte 0x10, after 12-byte sync + 4-byte header)
+            val dataOffset = if (ext == "iso") 0 else 0x10
+
+            val buf = ByteArray(dataOffset + 0x30)
+            imageFile.inputStream().use { stream ->
+                val read = stream.read(buf)
+                if (read < buf.size) return null
+            }
+
+            val magic = "SEGA SEGASATURN "
+            val magicBytes = magic.toByteArray(Charsets.US_ASCII)
+            for (i in magicBytes.indices) {
+                if (buf[dataOffset + i] != magicBytes[i]) return null
+            }
+
+            // Product code at IP.BIN offset 0x20, 10 bytes
+            val codeBytes = buf.copyOfRange(dataOffset + 0x20, dataOffset + 0x2A)
+            val raw = String(codeBytes, Charsets.US_ASCII).trim()
+
+            // Strip version suffix (e.g. "T-10604G  V1.002" → "T-10604G")
+            val productCode = raw.split(Regex("\\s{2,}|(?<=[A-Za-z0-9])\\s*V\\d")).first().trim()
+            if (productCode.isBlank()) return null
+
+            // Match server's _saturn_safe_id: keep alphanumeric, underscores, hyphens; uppercase
+            val safeId = productCode.replace(" ", "_")
+                .filter { it.isLetterOrDigit() || it == '_' || it == '-' }
+                .uppercase()
+            if (safeId.isBlank()) return null
+
+            "SAT_$safeId"
+        } catch (_: Exception) { null }
+    }
+
+    /**
      * Reads the PS1 disc serial from an ISO/BIN/CUE disc image by parsing the ISO 9660
      * Primary Volume Descriptor and locating SYSTEM.CNF on the disc.
      *

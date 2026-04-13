@@ -1,4 +1,5 @@
 import hashlib
+import os
 from pathlib import Path
 
 import sync_engine as se
@@ -488,6 +489,92 @@ def test_upload_save_uses_raw_endpoint_for_ps2_titles(monkeypatch, tmp_path):
 
     assert calls == [
         ("http://example/api/v1/saves/SLUS20002/ps2-card", {}, b"ps2-card")
+    ]
+
+
+def test_upload_save_uses_saroo_per_game_payload_not_full_container(monkeypatch, tmp_path):
+    ss_save = tmp_path / "SS_SAVE.BIN"
+    ss_save.write_bytes(b"x" * (8 * 1024 * 1024))
+    calls = []
+
+    class PostResponse:
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, headers=None, params=None, data=None, timeout=None):
+        calls.append((url, params, data))
+        return PostResponse()
+
+    monkeypatch.setattr(se.requests, "post", fake_post)
+    monkeypatch.setattr(se, "_update_state", lambda title_id, hash_val: None)
+    monkeypatch.setattr(
+        se,
+        "_SAROO_META",
+        {
+            "SAT_T12705H": {
+                "game_id": "T-12705H",
+                "slot_index": 0x10000,
+                "native_bytes": b"per-game-save",
+                "bkr_path": "",
+            }
+        },
+    )
+
+    se.upload_save(
+        "SAT_T12705H",
+        ss_save,
+        "http://example",
+        {"X-API-Key": "x"},
+        system="SAT",
+    )
+
+    assert calls == [
+        ("http://example/api/v1/saves/SAT_T12705H/raw", {}, b"per-game-save")
+    ]
+
+
+def test_upload_save_prefers_newer_saroo_bkr_over_container(monkeypatch, tmp_path):
+    ss_save = tmp_path / "SS_SAVE.BIN"
+    ss_save.write_bytes(b"x" * (8 * 1024 * 1024))
+    bkr = tmp_path / "T12705H.bkr"
+    bkr.write_bytes(b"newer-bkr")
+    os.utime(ss_save, (1000, 1000))
+    os.utime(bkr, (2000, 2000))
+    calls = []
+
+    class PostResponse:
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, headers=None, params=None, data=None, timeout=None):
+        calls.append((url, params, data))
+        return PostResponse()
+
+    monkeypatch.setattr(se.requests, "post", fake_post)
+    monkeypatch.setattr(se, "_update_state", lambda title_id, hash_val: None)
+    monkeypatch.setattr(
+        se,
+        "_SAROO_META",
+        {
+            "SAT_T12705H": {
+                "game_id": "T-12705H",
+                "slot_index": 0x10000,
+                "native_bytes": b"older-slot",
+                "bkr_path": str(bkr),
+            }
+        },
+    )
+
+    se.upload_save(
+        "SAT_T12705H",
+        ss_save,
+        "http://example",
+        {"X-API-Key": "x"},
+        system="SAT",
+    )
+
+    assert calls == [
+        ("http://example/api/v1/saves/SAT_T12705H/raw", {}, b"newer-bkr")
     ]
 
 

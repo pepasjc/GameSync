@@ -26,7 +26,13 @@ data class Settings(
     val romScanDir: String = "",
     /** Path to the Dolphin GC memory card root (e.g. /sdcard/dolphin-mmjr/GC).
      *  Leave empty to use the default dolphin-mmjr path on internal storage. */
-    val dolphinMemCardDir: String = ""
+    val dolphinMemCardDir: String = "",
+    /**
+     * Per-system ROM folder overrides: system code → absolute directory path.
+     * Overrides the auto-detected subfolder of [romScanDir] for a given system.
+     * e.g. "SAT" → "/sdcard/ROMs/Saturn"
+     */
+    val romDirOverrides: Map<String, String> = emptyMap()
 )
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "save_sync_settings")
@@ -41,6 +47,7 @@ class SettingsStore(private val context: Context) {
         val CONSOLE_ID = stringPreferencesKey("console_id")
         val ROM_SCAN_DIR = stringPreferencesKey("rom_scan_dir")
         val DOLPHIN_MEM_CARD_DIR = stringPreferencesKey("dolphin_mem_card_dir")
+        val ROM_DIR_OVERRIDES = stringPreferencesKey("rom_dir_overrides")
         /** Tracks whether we've already attempted to restore from external backup */
         val BACKUP_RESTORED = booleanPreferencesKey("backup_restored")
         /** Remembered UI filter state */
@@ -70,7 +77,8 @@ class SettingsStore(private val context: Context) {
             autoSyncIntervalMinutes = prefs[Keys.AUTO_SYNC_INTERVAL] ?: 15,
             consoleId = consoleId,
             romScanDir = prefs[Keys.ROM_SCAN_DIR] ?: "",
-            dolphinMemCardDir = prefs[Keys.DOLPHIN_MEM_CARD_DIR] ?: ""
+            dolphinMemCardDir = prefs[Keys.DOLPHIN_MEM_CARD_DIR] ?: "",
+            romDirOverrides = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: "")
         )
     }
 
@@ -119,6 +127,24 @@ class SettingsStore(private val context: Context) {
             dolphinMemCardDir?.let { prefs[Keys.DOLPHIN_MEM_CARD_DIR] = it }
         }
         // Mirror to the external backup file every time settings are saved
+        writeBackupFile()
+    }
+
+    /** Sets or replaces the override directory for a single system. */
+    suspend fun setRomDirOverride(system: String, path: String) {
+        context.dataStore.edit { prefs ->
+            val current = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: "")
+            prefs[Keys.ROM_DIR_OVERRIDES] = encodeOverrides(current + (system to path))
+        }
+        writeBackupFile()
+    }
+
+    /** Removes the override for a single system (falls back to auto-detected folder). */
+    suspend fun clearRomDirOverride(system: String) {
+        context.dataStore.edit { prefs ->
+            val current = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: "")
+            prefs[Keys.ROM_DIR_OVERRIDES] = encodeOverrides(current - system)
+        }
         writeBackupFile()
     }
 
@@ -174,6 +200,7 @@ class SettingsStore(private val context: Context) {
                 put("console_id", current.consoleId)
                 put("rom_scan_dir", current.romScanDir)
                 put("dolphin_mem_card_dir", current.dolphinMemCardDir)
+                put("rom_dir_overrides", JSONObject(current.romDirOverrides as Map<*, *>))
             }
             val file = backupFile
             file.parentFile?.mkdirs()
@@ -182,6 +209,14 @@ class SettingsStore(private val context: Context) {
             // Backup is best-effort; never crash the app
         }
     }
+
+    private fun parseOverrides(json: String): Map<String, String> = try {
+        val obj = JSONObject(json.ifBlank { "{}" })
+        obj.keys().asSequence().associateWith { obj.getString(it) }
+    } catch (_: Exception) { emptyMap() }
+
+    private fun encodeOverrides(map: Map<String, String>): String =
+        JSONObject(map as Map<*, *>).toString()
 
     private fun readBackupFile(): Settings? {
         return try {
@@ -195,7 +230,8 @@ class SettingsStore(private val context: Context) {
                 autoSyncIntervalMinutes = json.optInt("auto_sync_interval_minutes", 15),
                 consoleId = json.optString("console_id", ""),
                 romScanDir = json.optString("rom_scan_dir", ""),
-                dolphinMemCardDir = json.optString("dolphin_mem_card_dir", "")
+                dolphinMemCardDir = json.optString("dolphin_mem_card_dir", ""),
+                romDirOverrides = parseOverrides(json.optString("rom_dir_overrides", ""))
             )
         } catch (_: Exception) {
             null

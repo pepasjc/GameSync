@@ -741,6 +741,8 @@ class SyncTab(QWidget):
                 break
             st = self._statuses[idx]
             try:
+                profile = self.profile_combo.currentData() or {}
+                is_saroo = profile.get("device_type") == "SAROO"
                 save_exists = getattr(st.save, "save_exists", True)
                 if (
                     st.status in ("local_newer", "not_on_server")
@@ -757,20 +759,50 @@ class SyncTab(QWidget):
                     self._update_row_status(idx, "up_to_date")
                     synced += 1
                 elif st.status == "server_newer" and st.save.path:
-                    self._download_to_paths(
-                        st.save.title_id,
-                        [st.save.path, *getattr(st.save, "alternate_paths", [])],
-                        base_url,
-                        headers,
-                    )
-                    self._update_row_status(idx, "up_to_date", new_path=st.save.path)
+                    if is_saroo:
+                        dest_path = self._resolve_download_path(st)
+                        if dest_path is None:
+                            skipped += 1
+                            continue
+                        self._download_to_paths(
+                            st.save.title_id,
+                            [dest_path],
+                            base_url,
+                            headers,
+                            system=st.save.system,
+                        )
+                        self._finalize_saroo_download(
+                            st.save.title_id, dest_path, profile
+                        )
+                        self._update_row_status(
+                            idx, "up_to_date", new_path=dest_path
+                        )
+                    else:
+                        self._download_to_paths(
+                            st.save.title_id,
+                            [st.save.path, *getattr(st.save, "alternate_paths", [])],
+                            base_url,
+                            headers,
+                            system=st.save.system,
+                        )
+                        self._update_row_status(
+                            idx, "up_to_date", new_path=st.save.path
+                        )
                     synced += 1
                 elif st.status == "server_only":
                     dest_path = self._resolve_download_path(st)
                     if dest_path:
                         self._download_to_paths(
-                            st.save.title_id, [dest_path], base_url, headers
+                            st.save.title_id,
+                            [dest_path],
+                            base_url,
+                            headers,
+                            system=st.save.system,
                         )
+                        if is_saroo:
+                            self._finalize_saroo_download(
+                                st.save.title_id, dest_path, profile
+                            )
                         self._update_row_status(idx, "up_to_date", new_path=dest_path)
                         synced += 1
                     else:
@@ -872,7 +904,7 @@ class SyncTab(QWidget):
         return server_hash
 
     def _keep_local(self, status_idx: int):
-        from sync_engine import _SAROO_META, upload_save
+        from sync_engine import upload_save
 
         st = self._statuses[status_idx]
         if not st.save.path:
@@ -881,36 +913,14 @@ class SyncTab(QWidget):
             )
             return
         try:
-            profile = self.profile_combo.currentData() or {}
-            if profile.get("device_type") == "SAROO":
-                # Upload the pre-converted mednafen bytes, not the raw SS_SAVE.BIN
-                meta = _SAROO_META.get(st.save.title_id)
-                if not meta or not meta.get("native_bytes"):
-                    raise ValueError(
-                        "Saroo metadata not found — re-scan the profile first."
-                    )
-                native_bytes = meta["native_bytes"]
-                params = {"force": "true"}
-                resp = requests.post(
-                    f"{get_base_url()}/api/v1/saves/{st.save.title_id}/raw",
-                    headers={
-                        **get_api_headers(),
-                        "Content-Type": "application/octet-stream",
-                    },
-                    params=params,
-                    data=native_bytes,
-                    timeout=30,
-                )
-                resp.raise_for_status()
-            else:
-                upload_save(
-                    st.save.title_id,
-                    st.save.path,
-                    get_base_url(),
-                    get_api_headers(),
-                    system=st.save.system,
-                    force=True,
-                )
+            upload_save(
+                st.save.title_id,
+                st.save.path,
+                get_base_url(),
+                get_api_headers(),
+                system=st.save.system,
+                force=True,
+            )
             self._update_row_status(status_idx, "up_to_date")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -1033,6 +1043,7 @@ class SyncTab(QWidget):
             POCKET_OPENFPGA_FOLDER_MAP,
             RETROARCH_CORE_MAP,
             _make_title_id_with_region,
+            resolve_save_ext,
         )
 
         profile = self.profile_combo.currentData()
@@ -1074,6 +1085,7 @@ class SyncTab(QWidget):
             )
             has_system_override = bool(sys_info.get("save_folder", ""))
             save_ext = sys_info.get("save_ext", ".sav") or ".sav"
+        save_ext = resolve_save_ext(system, save_ext)
         filename = filename_stem + save_ext
 
         if system == "PS3":
@@ -1323,7 +1335,10 @@ class SyncTab(QWidget):
             dest_path = self._resolve_download_path(st)
             if dest_path is None:
                 # Fall back to file dialog if resolution failed
-                suggested = f"{st.save.title_id}.sav"
+                suggested_ext = ".sav"
+                if (st.save.system or "").upper() == "SAT":
+                    suggested_ext = ".bkr"
+                suggested = f"{st.save.title_id}{suggested_ext}"
                 if self._last_download_folder:
                     suggested_path = self._last_download_folder / suggested
                 else:
@@ -1332,7 +1347,7 @@ class SyncTab(QWidget):
                     self,
                     f"Download {st.save.title_id}",
                     str(suggested_path),
-                    "Save Files (*.sav *.srm *.bin);;All Files (*)",
+                    "Save Files (*.sav *.srm *.bkr *.bin);;All Files (*)",
                 )
                 if not dest_str:
                     return

@@ -201,6 +201,10 @@ RETROARCH_CORE_MAP: dict[str, str] = {
     "Beetle GG": "GG",
     "Beetle PSX": "PS1",
     "PCSX-ReARMed": "PS1",
+    "Beetle Saturn": "SAT",
+    "Kronos": "SAT",
+    "YabaSanshiro": "SAT",
+    "YabaSanshiro 2": "SAT",
     "SMS Plus GX": "SMS",
     "Stella": "A2600",
     "ProSystem": "A7800",
@@ -288,6 +292,7 @@ POCKET_OPENFPGA_FOLDER_MAP: dict[str, str] = {
 SAVE_EXTENSIONS = {
     ".sav",
     ".srm",
+    ".bkr",
     ".mcr",
     ".frz",
     ".fs",
@@ -341,6 +346,68 @@ ROM_EXTENSIONS = {
     ".chd",  # CD-compressed images when scanned as standalone ROM files
 }
 ZIP_ROM_EXTENSIONS = {".zip"}
+
+SYSTEM_DEFAULT_SAVE_EXTENSIONS = {
+    "SAT": ".bkr",
+}
+
+_LEGACY_GENERIC_SAVE_EXTENSIONS = {"", ".sav", ".srm"}
+
+
+def resolve_save_ext(system: str, save_ext: str | None, fallback: str = ".sav") -> str:
+    """Normalize a configured save extension for a given system.
+
+    Saturn emulator saves are typically stored as ``.bkr``. Older multi-system
+    profiles often inherited generic defaults like ``.sav`` or ``.srm``, so we
+    coerce only those legacy generic values to the Saturn-native extension.
+    """
+    system_code = (system or "").upper().strip()
+    ext = (save_ext or fallback or ".sav").strip()
+    if not ext.startswith("."):
+        ext = "." + ext
+
+    default_ext = SYSTEM_DEFAULT_SAVE_EXTENSIONS.get(system_code)
+    if default_ext and ext.lower() in _LEGACY_GENERIC_SAVE_EXTENSIONS:
+        return default_ext
+    return ext
+
+
+def _resolve_saroo_native_payload(
+    title_id: str, path: Path | None = None
+) -> tuple[bytes, float] | None:
+    """Return the canonical per-game Saroo payload when available.
+
+    Saroo stores all games inside a shared ``SS_SAVE.BIN`` container, but the
+    server should receive the individual mednafen-compatible 32 KB save image
+    for the selected title. If a matching ``.bkr`` exists and is newer than the
+    container file, prefer that for true bidirectional emulator <-> Saroo sync.
+    """
+    meta = _SAROO_META.get(title_id) or {}
+    if not meta:
+        return None
+
+    container_mtime = 0.0
+    if path is not None:
+        try:
+            container_mtime = path.stat().st_mtime
+        except OSError:
+            container_mtime = 0.0
+
+    bkr_path_str = str(meta.get("bkr_path") or "").strip()
+    if bkr_path_str:
+        bkr_path = Path(bkr_path_str)
+        try:
+            if bkr_path.exists():
+                bkr_mtime = bkr_path.stat().st_mtime
+                if bkr_mtime > container_mtime:
+                    return bkr_path.read_bytes(), bkr_mtime
+        except OSError:
+            pass
+
+    native_bytes = meta.get("native_bytes")
+    if isinstance(native_bytes, (bytes, bytearray)) and native_bytes:
+        return bytes(native_bytes), container_mtime
+    return None
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -861,6 +928,7 @@ def scan_profile(
     save_ext = profile.get("save_ext", ".sav").strip()
     if not save_ext.startswith("."):
         save_ext = "." + save_ext
+    save_ext = resolve_save_ext(system_override, save_ext)
 
     # Per-system config map: {system_code: {save_ext, save_folder, …}}
     # Empty dict means "no filter / no overrides".
@@ -908,7 +976,7 @@ def scan_profile(
         # global Assets/ and Saves/ roots. Scan those as direct ROM/save trees.
         sys_code = enabled_systems[0]
         sys_info = systems_config.get(sys_code, {})
-        sys_ext = sys_info.get("save_ext", save_ext) or save_ext
+        sys_ext = resolve_save_ext(sys_code, sys_info.get("save_ext", save_ext) or save_ext)
         results = _scan_roms_match_saves(
             rom_folder,
             save_folder,
@@ -935,7 +1003,9 @@ def scan_profile(
                 if systems_config and sys_code not in systems_config:
                     continue
                 sys_info = systems_config.get(sys_code, {})
-                sys_ext = sys_info.get("save_ext", save_ext) or save_ext
+                sys_ext = resolve_save_ext(
+                    sys_code, sys_info.get("save_ext", save_ext) or save_ext
+                )
                 sys_sv_str = sys_info.get("save_folder", "")
                 sv_dir = Path(sys_sv_str) if sys_sv_str else save_folder / sys_dir.name
                 results.extend(
@@ -1064,7 +1134,10 @@ def scan_profile(
                 else None,
                 system=system_override if system_override in SYSTEM_CODES else "PS1",
                 redump_index=redump_index,
-                save_ext=save_ext,
+                save_ext=resolve_save_ext(
+                    system_override if system_override in SYSTEM_CODES else "PS1",
+                    save_ext,
+                ),
                 progress_callback=progress_callback,
                 profile_scope=profile_scope,
             )
@@ -1699,9 +1772,6 @@ def _scan_saroo(
         except Exception:
             native_bytes = b"\x00" * 0x8000
 
-        file_hash = hashlib.sha256(native_bytes).hexdigest()
-        mtime = ss_save.stat().st_mtime
-
         # Resolve display name: prefer libretro DAT lookup by product code,
         # fall back to the raw game_id string.
         display_name = _libretro_serial_index.get(product_code) or game_id.strip()
@@ -1714,11 +1784,25 @@ def _scan_saroo(
             if candidate.exists():
                 bkr_path = candidate
 
+        selected_bytes = native_bytes
+        selected_mtime = ss_save.stat().st_mtime
+        if bkr_path is not None:
+            try:
+                bkr_mtime = bkr_path.stat().st_mtime
+                if bkr_mtime > selected_mtime:
+                    selected_bytes = bkr_path.read_bytes()
+                    selected_mtime = bkr_mtime
+            except OSError:
+                pass
+
+        file_hash = hashlib.sha256(selected_bytes).hexdigest()
+        mtime = selected_mtime
+
         # Store Saroo-specific metadata for use during upload/download
         _SAROO_META[title_id] = {
             "game_id": game_id,
             "slot_index": slot_byte_offset,
-            "native_bytes": native_bytes,
+            "native_bytes": selected_bytes,
             "bkr_path": str(bkr_path) if bkr_path else "",
         }
 
@@ -3313,7 +3397,15 @@ def upload_save(
         )
         local_hash = _hash_ps3_dir_files(path)
     else:
-        data = path.read_bytes()
+        saroo_payload = (
+            _resolve_saroo_native_payload(title_id, path)
+            if (system or "").upper() == "SAT"
+            else None
+        )
+        if saroo_payload is not None:
+            data = saroo_payload[0]
+        else:
+            data = path.read_bytes()
         local_hash = hashlib.sha256(data).hexdigest()
         if _should_use_ps1_card_endpoint(title_id, system):
             resp = requests.post(

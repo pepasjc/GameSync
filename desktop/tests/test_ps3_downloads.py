@@ -91,6 +91,99 @@ def test_sync_tab_resolves_emudeck_ps3_downloads_to_rpcs3_save_dirs(qt_app, tmp_
     assert resolved == saves_root / "rpcs3" / "saves" / "BLUS30464-AUTOSAVE-01"
 
 
+def test_sync_tab_resolves_retroarch_saturn_downloads_to_bkr(qt_app, tmp_path):
+    saves_root = tmp_path / "retroarch" / "saves"
+    saves_root.mkdir(parents=True)
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(tmp_path / "retroarch" / "roms"),
+        "save_folder": str(saves_root),
+        "systems": [
+            {
+                "system": "SAT",
+                "enabled": True,
+                "save_ext": ".srm",
+                "save_folder": "",
+            }
+        ],
+    }
+    tab = SyncTab(DummyProfilesTab([profile]))
+    tab.profile_combo.setCurrentIndex(0)
+    status = SimpleNamespace(
+        save=SimpleNamespace(
+            system="SAT",
+            game_name="Panzer Dragoon Saga (USA)",
+            title_id="SAT_T12705H",
+        )
+    )
+
+    resolved = tab._resolve_download_path(status)
+
+    assert resolved == saves_root / "Beetle Saturn" / "Panzer Dragoon Saga (USA).bkr"
+
+
+def test_sync_tab_do_sync_finalizes_saroo_server_downloads(monkeypatch, qt_app, tmp_path):
+    saroo_root = tmp_path / "saroo"
+    mednafen_root = tmp_path / "mednafen"
+    saroo_root.mkdir()
+    mednafen_root.mkdir()
+    profile = {
+        "name": "SAROO",
+        "device_type": "SAROO",
+        "path": str(saroo_root),
+        "save_folder": str(mednafen_root),
+        "system": "SAT",
+        "save_ext": ".bkr",
+    }
+    tab = SyncTab(DummyProfilesTab([profile]))
+    tab.profile_combo.setCurrentIndex(0)
+
+    status = SimpleNamespace(
+        status="server_newer",
+        save=SimpleNamespace(
+            system="SAT",
+            game_name="Panzer Dragoon Saga (USA)",
+            title_id="SAT_T12705H",
+            path=saroo_root / "SS_SAVE.BIN",
+            alternate_paths=[],
+            save_exists=True,
+        ),
+    )
+    tab._statuses = [status]
+
+    downloads = []
+    finalized = []
+    updated = []
+
+    monkeypatch.setattr(
+        tab,
+        "_download_to_paths",
+        lambda title_id, paths, base_url, headers, system=None: downloads.append(
+            (title_id, paths, system)
+        )
+        or "server-hash",
+    )
+    monkeypatch.setattr(
+        tab,
+        "_finalize_saroo_download",
+        lambda title_id, dest_path, profile_arg: finalized.append((title_id, dest_path)),
+    )
+    monkeypatch.setattr(
+        tab,
+        "_update_row_status",
+        lambda idx, new_status, new_path=None: updated.append((idx, new_status, new_path)),
+    )
+    monkeypatch.setattr("tabs.sync_tab.QMessageBox.information", lambda *args, **kwargs: None)
+
+    tab._do_sync([0])
+
+    expected_bkr = mednafen_root / "T12705H.bkr"
+    assert downloads == [("SAT_T12705H", [expected_bkr], "SAT")]
+    assert finalized == [("SAT_T12705H", expected_bkr)]
+    assert updated == [(0, "up_to_date", expected_bkr)]
+
+
 def test_sync_tab_download_to_paths_copies_ps3_directories(monkeypatch, qt_app, tmp_path):
     tab = SyncTab(DummyProfilesTab([]))
     primary = tmp_path / "primary"

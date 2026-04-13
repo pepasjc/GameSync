@@ -125,6 +125,10 @@ SAVE_EXT_OPTIONS = [
     ".bkr",
 ]
 
+SYSTEM_DEFAULT_EXT: dict[str, str] = {
+    "SAT": ".bkr",
+}
+
 
 # ---------------------------------------------------------------------------
 # Delegate: drop-down combo for the Save Ext column
@@ -495,7 +499,9 @@ class ProfileDialog(QDialog):
             self.systems_table.setItem(row, 1, sys_item)
 
             # Col 2 — save extension (editable via delegate)
-            ext = info.get("save_ext", default_ext)
+            ext = info.get(
+                "save_ext", SYSTEM_DEFAULT_EXT.get(system, default_ext)
+            )
             ext_item = QTableWidgetItem(ext)
             ext_item.setFlags(ro_flags | Qt.ItemFlag.ItemIsEditable)
             self.systems_table.setItem(row, 2, ext_item)

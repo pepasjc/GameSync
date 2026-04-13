@@ -15,6 +15,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -47,9 +49,11 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.savesync.android.BuildConfig
 import com.savesync.android.api.ApiClient
@@ -81,6 +85,12 @@ fun SettingsScreen(
     var showDolphinFolderPicker by remember { mutableStateOf(false) }
     var settingsLoaded by remember { mutableStateOf(false) }
 
+    // System folder overrides
+    val detectedFolders by viewModel.detectedSystemFolders.collectAsState()
+    var folderPickerForSystem by remember { mutableStateOf<String?>(null) }
+    var addSystemExpanded by remember { mutableStateOf(false) }
+    var addSystemSelected by remember { mutableStateOf("") }
+
     LaunchedEffect(settings) {
         if (!settingsLoaded) {
             serverUrl = settings.serverUrl
@@ -90,6 +100,8 @@ fun SettingsScreen(
             romScanDir = settings.romScanDir
             dolphinMemCardDir = settings.dolphinMemCardDir
             settingsLoaded = true
+            // Auto-detect system folders once settings are loaded
+            if (settings.romScanDir.isNotBlank()) viewModel.detectSystemFolders()
         }
     }
     var connectionStatus by remember { mutableStateOf<String?>(null) }
@@ -359,6 +371,151 @@ fun SettingsScreen(
                 }
             }
 
+            // --- Per-system folder overrides ---
+            HorizontalDivider()
+            Text("System Folders", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "GameSync auto-detects which subfolder of your ROM directory belongs " +
+                       "to each system. Override any folder here — useful when a folder has " +
+                       "a non-standard name (e.g. \"Saturn\" instead of \"SAT\").",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val overrides = settings.romDirOverrides
+                val allSystems = (detectedFolders.keys + overrides.keys).toSortedSet()
+                Text(
+                    text = "${allSystems.size} system${if (allSystems.size != 1) "s" else ""} detected",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(onClick = { viewModel.detectSystemFolders() }) {
+                    Text("Detect", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+
+            val overrides = settings.romDirOverrides
+            val allSystems = (detectedFolders.keys + overrides.keys).toSortedSet()
+
+            if (allSystems.isEmpty() && romScanDir.isNotBlank()) {
+                Text(
+                    text = "No system folders detected yet — press Detect.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            allSystems.forEach { system ->
+                val effectivePath = overrides[system] ?: detectedFolders[system] ?: return@forEach
+                val isOverridden = system in overrides
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // System badge
+                    SystemChip(system)
+                    Spacer(Modifier.width(8.dp))
+                    // Folder path (shrinks to fill remaining space)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = effectivePath.substringAfterLast('/'),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = if (isOverridden) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (isOverridden) {
+                            Text(
+                                text = effectivePath,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    // Browse button
+                    IconButton(onClick = { folderPickerForSystem = system }) {
+                        Icon(
+                            Icons.Default.FolderOpen,
+                            contentDescription = "Change folder",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    // Clear override button (only shown when user has set an override)
+                    if (isOverridden) {
+                        IconButton(onClick = { viewModel.clearRomDirOverride(system) }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Reset to auto-detected",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Add a custom system folder not yet auto-detected
+            val knownAddSystems = listOf(
+                "SAT", "DC", "PS1", "PS2", "PSP", "GBA", "GBC", "GB", "SNES", "NES",
+                "N64", "NDS", "GC", "WII", "MD", "SMS", "GG", "SEGACD", "PCE", "NEOCD",
+                "NGP", "WSWAN", "WSWANC", "A2600", "A7800", "LYNX", "MAME", "ARCADE"
+            ).filter { it !in allSystems }
+
+            if (knownAddSystems.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ExposedDropdownMenuBox(
+                        expanded = addSystemExpanded,
+                        onExpandedChange = { addSystemExpanded = it },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        OutlinedTextField(
+                            value = addSystemSelected.ifBlank { "Add system…" },
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(addSystemExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                        ExposedDropdownMenu(
+                            expanded = addSystemExpanded,
+                            onDismissRequest = { addSystemExpanded = false }
+                        ) {
+                            knownAddSystems.forEach { sys ->
+                                DropdownMenuItem(
+                                    text = { Text(sys, style = MaterialTheme.typography.bodySmall) },
+                                    onClick = {
+                                        addSystemSelected = sys
+                                        addSystemExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = { folderPickerForSystem = addSystemSelected },
+                        enabled = addSystemSelected.isNotBlank()
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Browse")
+                    }
+                }
+            }
+
             // RetroArch path diagnostics
             val retroPaths by viewModel.retroArchPaths.collectAsState()
             if (retroPaths.isNotEmpty()) {
@@ -476,6 +633,22 @@ fun SettingsScreen(
                 dolphinMemCardDir = path
                 showDolphinFolderPicker = false
                 viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, romScanDir, path)
+            }
+        )
+    }
+
+    // Per-system folder picker
+    val pickerSystem = folderPickerForSystem
+    if (pickerSystem != null) {
+        val currentOverride = settings.romDirOverrides[pickerSystem]
+        val detectedPath = detectedFolders[pickerSystem]
+        FolderPickerDialog(
+            initialPath = currentOverride ?: detectedPath ?: romScanDir,
+            onDismiss = { folderPickerForSystem = null },
+            onFolderSelected = { path ->
+                viewModel.setRomDirOverride(pickerSystem, path)
+                folderPickerForSystem = null
+                addSystemSelected = ""
             }
         )
     }

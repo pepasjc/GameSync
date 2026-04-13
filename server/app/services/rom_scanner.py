@@ -51,7 +51,7 @@ FOLDER_TO_SYSTEM: dict[str, str] = {
     "atomiswave": "ARCADE",
     "arcade": "ARCADE",
     "fba": "FBA",
-    "fbneo": "FBA",
+    "fbneo": "FBNEO",
     "c64": "ARCADE",
     "cavestory": "ARCADE",
     "colecovision": "ARCADE",
@@ -174,15 +174,15 @@ ROM_EXTENSIONS = frozenset(
         ".pc2",
         ".lnx",
         ".a26",
-        ".a52",   # Atari 5200
+        ".a52",  # Atari 5200
         ".a78",
-        ".rom",   # Atari Jaguar / generic
-        ".j64",   # Atari Jaguar (byteswapped)
-        ".jag",   # Atari Jaguar (alternate)
-        ".st",    # Atari ST floppy image
-        ".stx",   # Atari ST extended floppy
-        ".msa",   # Atari ST Magic Shadow Archiver
-        ".dim",   # Atari ST disk image
+        ".rom",  # Atari Jaguar / generic
+        ".j64",  # Atari Jaguar (byteswapped)
+        ".jag",  # Atari Jaguar (alternate)
+        ".st",  # Atari ST floppy image
+        ".stx",  # Atari ST extended floppy
+        ".msa",  # Atari ST Magic Shadow Archiver
+        ".dim",  # Atari ST disk image
         ".vec",
         ".sat",
         ".col",

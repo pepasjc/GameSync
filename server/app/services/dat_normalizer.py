@@ -116,7 +116,7 @@ _DAT_SYSTEM_MAP: list[tuple[str, str]] = [
     ("pokemon mini", "POKEMINI"),
     # Sega misc
     ("32x", "32X"),
-    ("naomi 2", "NAOMI2"),    # before plain naomi
+    ("naomi 2", "NAOMI2"),  # before plain naomi
     ("naomi", "NAOMI"),
     # NEC misc
     ("pc-98", "PC98"),
@@ -129,6 +129,8 @@ _DAT_SYSTEM_MAP: list[tuple[str, str]] = [
     # 3DO
     ("3do", "3DO"),
     # Arcade
+    ("fbneo", "FBNEO"),
+    ("final burn neo", "FBNEO"),
     ("mame", "MAME"),
     ("arcade", "ARCADE"),
 ]

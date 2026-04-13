@@ -54,17 +54,17 @@ SYSTEM_CODES = frozenset(
         "WSWAN",  # WonderSwan (WSWAN canonical; WS is legacy)
         "WSWANC",
         # Atari
-        "A2600",    # Atari 2600 (canonical)
+        "A2600",  # Atari 2600 (canonical)
         "ATARI2600",  # legacy
-        "A5200",    # Atari 5200 (canonical)
+        "A5200",  # Atari 5200 (canonical)
         "ATARI5200",  # legacy
-        "A7800",    # Atari 7800 (canonical)
+        "A7800",  # Atari 7800 (canonical)
         "ATARI7800",  # legacy
-        "A800",     # Atari 800 / 400 / XL / XE 8-bit computers
-        "ATARIXED",   # Atari XE Game System
-        "LYNX",     # Atari Lynx
-        "JAGUAR",   # Atari Jaguar
-        "JAGCD",    # Atari Jaguar CD
+        "A800",  # Atari 800 / 400 / XL / XE 8-bit computers
+        "ATARIXED",  # Atari XE Game System
+        "LYNX",  # Atari Lynx
+        "JAGUAR",  # Atari Jaguar
+        "JAGCD",  # Atari Jaguar CD
         "ATARIST",  # Atari ST / STE / TT / Falcon
         # Nintendo misc
         "VB",  # Virtual Boy
@@ -85,6 +85,7 @@ SYSTEM_CODES = frozenset(
         "ARCADE",
         "MAME",
         "FBA",
+        "FBNEO",
         "CPS1",
         "CPS2",
         "CPS3",
@@ -94,7 +95,9 @@ SYSTEM_CODES = frozenset(
 # Regex for emulator title_id format: SYSTEM_slug
 # Slug may be lowercase (ROM-name style: GBA_zelda_the_minish_cap) or uppercase with
 # hyphens (product-code style: SAT_GS-9188, SAT_T-14410G for Saroo Saturn saves).
-_EMULATOR_TITLE_ID_RE = re.compile(r"^([A-Z0-9]{2,8})_([A-Za-z0-9][A-Za-z0-9_-]{0,99})$")
+_EMULATOR_TITLE_ID_RE = re.compile(
+    r"^([A-Z0-9]{2,8})_([A-Za-z0-9][A-Za-z0-9_-]{0,99})$"
+)
 
 # Tags to strip from ROM filenames
 _REGION_RE = re.compile(

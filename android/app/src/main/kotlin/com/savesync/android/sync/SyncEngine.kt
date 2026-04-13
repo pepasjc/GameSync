@@ -1,6 +1,8 @@
 package com.savesync.android.sync
 
 import android.util.Log
+import com.savesync.android.api.NormalizeRequest
+import com.savesync.android.api.NormalizeRomEntry
 import com.savesync.android.api.SaveSyncApi
 import com.savesync.android.api.SyncRequest
 import com.savesync.android.api.SyncTitle
@@ -29,15 +31,16 @@ class SyncEngine(
     private val dao = db.syncStateDao()
 
     suspend fun sync(saves: List<SaveEntry>): SyncResult {
+        val resolvedSaves = normalizePs1SlugEntries(saves)
         val errors = mutableListOf<String>()
         var uploaded = 0
         var downloaded = 0
         val conflicts = mutableListOf<String>()
 
         // Build a map for quick lookup
-        val saveMap = saves.associateBy { it.titleId }
+        val saveMap = resolvedSaves.associateBy { it.titleId }
 
-        val (rawCardEntries, otherEntries) = saves.partition {
+        val (rawCardEntries, otherEntries) = resolvedSaves.partition {
             isPs1RawEntry(it) || isPs2RawEntry(it) || isGcRawEntry(it)
         }
         for (entry in rawCardEntries) {
@@ -184,6 +187,33 @@ class SyncEngine(
         )
     }
 
+    private suspend fun normalizePs1SlugEntries(saves: List<SaveEntry>): List<SaveEntry> {
+        val ps1SlugSaves = saves.filter { it.systemName == "PS1" && it.titleId.contains('_') }
+        if (ps1SlugSaves.isEmpty()) return saves
+
+        return try {
+            val response = api.normalizeRoms(
+                NormalizeRequest(
+                    roms = ps1SlugSaves.map { NormalizeRomEntry(system = "PS1", filename = it.displayName) }
+                )
+            )
+            val serialMap = ps1SlugSaves.indices.associate { i ->
+                val oldId = ps1SlugSaves[i].titleId
+                val newId = response.results.getOrNull(i)?.title_id ?: oldId
+                oldId to newId
+            }.filter { (old, new) -> old != new && !new.contains('_') }
+
+            if (serialMap.isEmpty()) saves
+            else saves.map { entry ->
+                val resolved = serialMap[entry.titleId]
+                if (resolved != null) entry.copy(titleId = resolved) else entry
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "normalizePs1SlugEntries failed", e)
+            saves
+        }
+    }
+
     suspend fun uploadSave(entry: SaveEntry): Boolean {
         return if (entry.isPspSlot) {
             uploadPspBundle(entry)
@@ -251,7 +281,7 @@ class SyncEngine(
      * Uploads a PSP/PSX slot directory as a bundle v4.
      * Includes ALL files in the slot dir (DATA.BIN, ICON0.PNG, PARAM.SFO, etc.)
      * so the server hash matches the PSP homebrew client's algorithm.
-     * Used for both PPSSPP (PSP games) and PSX (PSone Classics under PPSSPP).
+     * Used for both PSP games and PS1 PSone Classics running under PPSSPP.
      */
     private suspend fun uploadPspBundle(entry: SaveEntry): Boolean {
         val slotDir = entry.saveDir ?: return false
@@ -299,7 +329,8 @@ class SyncEngine(
         romId: String,
         system: String,
         romScanDir: String,
-        expectedFilename: String? = null
+        expectedFilename: String? = null,
+        romDirOverrides: Map<String, String> = emptyMap()
     ): File? {
         return try {
             val response = api.downloadRom(romId)
@@ -317,14 +348,42 @@ class SyncEngine(
                     }
                 ?: "$romId.rom"
 
-            val systemFolder = system.let { code ->
-                mapOf(
-                    "SEGACD" to "segacd", "WSWAN" to "wonderswan",
-                    "NEOCD" to "neogeocd", "PCECD" to "pcenginecd"
-                ).getOrDefault(code, code.lowercase())
-            }
-
-            val outDir = File(romScanDir, systemFolder)
+            // If the user has set an override for this system, use it directly.
+            // Otherwise pick the best candidate subfolder under romScanDir.
+            val outDir = romDirOverrides[system.uppercase()]?.let { File(it) }
+                ?: run {
+                    // Candidate folder names for each system, in preference order.
+                    // The first existing folder wins; otherwise the first candidate is created.
+                    val candidates = when (system.uppercase()) {
+                        "SAT"     -> listOf("Saturn", "Sega Saturn", "Sega - Saturn", "SAT", "sat")
+                        "DC"      -> listOf("Dreamcast", "Sega Dreamcast", "DC", "dc")
+                        "SEGACD"  -> listOf("Sega CD", "Mega CD", "SegaCD", "MegaCD", "segacd")
+                        "MD"      -> listOf("Mega Drive", "Genesis", "MegaDrive", "MD", "md")
+                        "SMS"     -> listOf("Master System", "Sega Master System", "SMS", "sms")
+                        "GG"      -> listOf("Game Gear", "GameGear", "GG", "gg")
+                        "WSWAN"   -> listOf("WonderSwan", "wonderswan", "WSWAN")
+                        "WSWANC"  -> listOf("WonderSwan Color", "WonderSwanColor", "WSWANC")
+                        "NEOCD"   -> listOf("Neo Geo CD", "NeoGeoCD", "NEOCD", "neocd")
+                        "PCE"     -> listOf("PC Engine", "TurboGrafx", "PCEngine", "PCE", "pce")
+                        "NGP"     -> listOf("Neo Geo Pocket", "NeoGeoPocket", "NGP", "ngp")
+                        "PS1"     -> listOf("PS1", "PlayStation", "PSX", "PlayStation 1")
+                        "PS2"     -> listOf("PS2", "PlayStation 2", "PlayStation2")
+                        "PSP"     -> listOf("PSP", "PlayStation Portable")
+                        "GBA"     -> listOf("GBA", "Game Boy Advance", "GameBoyAdvance")
+                        "SNES"    -> listOf("SNES", "Super Nintendo", "SuperNintendo")
+                        "NES"     -> listOf("NES", "Nintendo", "Famicom")
+                        "GB"      -> listOf("GB", "Game Boy", "GameBoy")
+                        "GBC"     -> listOf("GBC", "Game Boy Color", "GameBoyColor")
+                        "N64"     -> listOf("N64", "Nintendo 64", "Nintendo64")
+                        "NDS"     -> listOf("NDS", "DS", "Nintendo DS")
+                        "GC"      -> listOf("GC", "GameCube", "Nintendo GameCube")
+                        else      -> listOf(system, system.lowercase())
+                    }
+                    val scanRoot = File(romScanDir)
+                    val folder = candidates.firstOrNull { File(scanRoot, it).isDirectory }
+                        ?: candidates.first()
+                    File(romScanDir, folder)
+                }
             outDir.mkdirs()
             val outFile = File(outDir, filename)
 

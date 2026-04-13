@@ -22,7 +22,7 @@ data class SaveEntry(
      * True when this entry is a PSP/PSX save slot directory (DATA.BIN + PARAM.SFO + etc.),
      * as opposed to a single save file or a generic multi-file directory.
      * This drives the PSP bundle upload/download path in SyncEngine, independently of
-     * whether the system is "PPSSPP" (PSP game) or "PSX" (PSone Classic under PPSSPP).
+     * whether the system is "PSP" (PSP game) or "PS1" (PSone Classic under PPSSPP).
      */
     val isPspSlot: Boolean get() = saveDir != null && !isMultiFile
 

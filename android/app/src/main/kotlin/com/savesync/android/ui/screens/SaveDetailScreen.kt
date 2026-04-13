@@ -427,7 +427,7 @@ fun SaveDetailScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (!entry.isServerOnly && entry.systemName != "PPSSPP") {
+            if (!entry.isServerOnly && entry.systemName != "PSP") {
                 HorizontalDivider()
                 ActionButton(
                     label = if (isBusy && detailState.isNormalize) "Normalizing…" else
