@@ -202,6 +202,8 @@ class DatNormalizer:
         self._slug_index: dict[str, dict[str, str]] = {}
         # system → {slug → [canonical_name, ...]}  (all candidates, for the picker)
         self._slug_candidates: dict[str, dict[str, list[str]]] = {}
+        # system → {lowercase_rom_stem → canonical_name}  (arcade set-name lookup)
+        self._romfile_index: dict[str, dict[str, str]] = {}
         self._load_all()
 
     def _load_all(self) -> None:
@@ -214,7 +216,7 @@ class DatNormalizer:
                     "[dat_normalizer] Skipped (unrecognized system): %s", dat_path.name
                 )
                 continue
-            crc_map, slug_cands = _parse_dat(dat_path)
+            crc_map, slug_cands, romfile_map = _parse_dat(dat_path)
             # Merge CRC index
             self._crc_index.setdefault(system, {}).update(crc_map)
             # Merge slug candidates
@@ -228,11 +230,15 @@ class DatNormalizer:
             sys_idx = self._slug_index.setdefault(system, {})
             for slug, names in sys_cands.items():
                 sys_idx[slug] = min(names, key=_region_score)
+            # Merge ROM filename index
+            if romfile_map:
+                self._romfile_index.setdefault(system, {}).update(romfile_map)
             logger.info(
-                "[dat_normalizer] %s: +%d CRC32 +%d names  [%s]",
+                "[dat_normalizer] %s: +%d CRC32 +%d names +%d romfiles  [%s]",
                 system,
                 len(crc_map),
                 sum(len(v) for v in slug_cands.values()),
+                len(romfile_map),
                 dat_path.name,
             )
 
@@ -263,7 +269,17 @@ class DatNormalizer:
                     "source": "dat_crc32",
                 }
 
-        # 2. Slug fuzzy lookup
+        # 2. ROM filename lookup (arcade set names like samsho5 → full name)
+        romfile_map = self._romfile_index.get(sys_key, {})
+        if stem.lower() in romfile_map:
+            canonical = romfile_map[stem.lower()]
+            return {
+                "canonical_name": canonical,
+                "slug": normalize_rom_name(canonical),
+                "source": "dat_filename",
+            }
+
+        # 3. Slug fuzzy lookup
         query_slug = normalize_rom_name(stem)
         if query_slug in self._slug_index.get(sys_key, {}):
             canonical = self._slug_index[sys_key][query_slug]
@@ -325,7 +341,9 @@ def get() -> Optional[DatNormalizer]:
 # ---------------------------------------------------------------------------
 
 
-def _parse_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]]:
+def _parse_dat(
+    dat_path: Path,
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str]]:
     """Parse a No-Intro/Redump DAT — XML or libretro clrmamepro text format.
 
     Auto-detects format by inspecting the first non-empty line:
@@ -335,6 +353,7 @@ def _parse_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]]:
     Returns:
       crc_map         — {CRC32_UPPER_8 → canonical_name}
       slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
+      romfile_map     — {lowercase_rom_stem → canonical_name}  (arcade set names)
     """
     try:
         with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
@@ -353,18 +372,22 @@ def _parse_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]]:
         logger.error(
             "[dat_normalizer] Failed to detect format of %s: %s", dat_path.name, exc
         )
-        return {}, {}
+        return {}, {}, {}
 
 
-def _parse_xml_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]]:
+def _parse_xml_dat(
+    dat_path: Path,
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str]]:
     """Parse a standard No-Intro/Redump XML DAT.
 
     Returns:
-      crc_map        — {CRC32_UPPER_8 → canonical_name}
+      crc_map         — {CRC32_UPPER_8 → canonical_name}
       slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
+      romfile_map     — {lowercase_rom_stem → canonical_name}
     """
     crc_map: dict[str, str] = {}
     slug_candidates: dict[str, list[str]] = {}
+    romfile_map: dict[str, str] = {}
     try:
         tree = ET.parse(dat_path)
         root = tree.getroot()
@@ -378,17 +401,21 @@ def _parse_xml_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, list[str]]
                 crc = rom.get("crc", "").upper().zfill(8)
                 if crc and crc != "00000000":
                     crc_map[crc] = canonical
+                rom_name = rom.get("name", "")
+                if rom_name:
+                    romfile_map[Path(rom_name).stem.lower()] = canonical
     except Exception as exc:
         logger.error("[dat_normalizer] Failed to parse XML %s: %s", dat_path.name, exc)
-    return crc_map, slug_candidates
+    return crc_map, slug_candidates, romfile_map
 
 
 _ROM_LINE_RE = re.compile(r"\brom\s*\(.*?\bcrc\s+([0-9A-Fa-f]{1,8})\b", re.IGNORECASE)
+_ROM_NAME_IN_LINE_RE = re.compile(r"\brom\s*\(.*?\bname\s+(\S+)", re.IGNORECASE)
 
 
 def _parse_clrmamepro_dat(
     dat_path: Path,
-) -> tuple[dict[str, str], dict[str, list[str]]]:
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str]]:
     """Parse a libretro clrmamepro text-format DAT.
 
     Format::
@@ -405,9 +432,11 @@ def _parse_clrmamepro_dat(
     Returns:
       crc_map         — {CRC32_UPPER_8 → canonical_name}
       slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
+      romfile_map     — {lowercase_rom_stem → canonical_name}
     """
     crc_map: dict[str, str] = {}
     slug_candidates: dict[str, list[str]] = {}
+    romfile_map: dict[str, str] = {}
 
     _NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
 
@@ -421,12 +450,19 @@ def _parse_clrmamepro_dat(
                     current_name = m.group(1).strip()
                     continue
 
-                # rom ( ... crc XXXXXXXX ... )
-                rm = _ROM_LINE_RE.search(line)
-                if rm and current_name:
-                    crc = rm.group(1).upper().zfill(8)
-                    if crc and crc != "00000000":
-                        crc_map[crc] = current_name
+                # rom ( ... name filename.zip ... crc XXXXXXXX ... )
+                if "rom (" in line and current_name:
+                    nm = _ROM_NAME_IN_LINE_RE.search(line)
+                    if nm:
+                        rom_stem = Path(nm.group(1).strip('"')).stem.lower()
+                        if rom_stem:
+                            romfile_map[rom_stem] = current_name
+
+                    rm = _ROM_LINE_RE.search(line)
+                    if rm:
+                        crc = rm.group(1).upper().zfill(8)
+                        if crc and crc != "00000000":
+                            crc_map[crc] = current_name
 
                 # end of block
                 if line.strip() == ")" and current_name:
@@ -440,4 +476,4 @@ def _parse_clrmamepro_dat(
         logger.error(
             "[dat_normalizer] Failed to parse clrmamepro %s: %s", dat_path.name, exc
         )
-    return crc_map, slug_candidates
+    return crc_map, slug_candidates, romfile_map
