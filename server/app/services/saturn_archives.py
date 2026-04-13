@@ -8,6 +8,7 @@ from app.services import game_names
 
 _archive_map: dict[str, list[str]] = {}
 _ARCHIVE_SUFFIX_RE = re.compile(r"^(.*?)(?:_(\d{2,3}))$")
+_BLACKLISTED_TITLE_IDS = {"SAT_SGC"}
 
 
 def _title_family_counts() -> dict[str, int]:
@@ -31,7 +32,15 @@ def load_seed(path: Path) -> int:
         name = archive_name.strip().upper()
         if not name:
             continue
-        titles = sorted({tid.strip().upper() for tid in title_ids if tid and tid.strip()})
+        titles = sorted(
+            {
+                tid.strip().upper()
+                for tid in title_ids
+                if tid
+                and tid.strip()
+                and tid.strip().upper() not in _BLACKLISTED_TITLE_IDS
+            }
+        )
         if titles:
             normalized[name] = titles
 
