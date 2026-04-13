@@ -48,6 +48,7 @@ Mednafen / Beetle Saturn internal saves are raw Saturn backup-memory images:
 
 This module provides:
     parse_ss_save_bin(data)         -> list of GameSlot
+    parse_ss_save_bin_slots(data)   -> list of (slot_num, GameSlot)
     build_ss_save_bin(slots)        -> bytes
     mednafen_to_saroo_slot(raw)     -> bytes   (32KB raw -> 64KB Saroo slot)
     saroo_slot_to_mednafen(slot_data, game_id) -> bytes  (64KB slot -> 32KB raw)
@@ -109,9 +110,18 @@ SAT_INTERNAL_SIZE = 0x8000  # 32 768 bytes
 SAT_BLOCK_SIZE = 0x40  # 64 bytes
 SAT_MAGIC = b"BackUpRam Format"  # 16 bytes
 SAT_TOTAL_BLOCKS = SAT_INTERNAL_SIZE // SAT_BLOCK_SIZE  # 512
+SAT_YABAUSE_SIZE = SAT_INTERNAL_SIZE * 2
+SAT_YABASANSHIRO_COLLAPSED_SIZE = 0x400000
+SAT_YABASANSHIRO_SIZE = SAT_YABASANSHIRO_COLLAPSED_SIZE * 2
 
 SAT_BLOCK_ARCHIVE = 0x80000000
 SAT_BLOCK_DATA = 0x00000000
+
+SATURN_DOWNLOAD_FORMATS: dict[str, tuple[str, str]] = {
+    "mednafen": ("Beetle / Mednafen (.bkr)", ".bkr"),
+    "yabause": ("Yabause / RetroArch (.srm)", ".srm"),
+    "yabasanshiro": ("YabaSanshiro (.srm)", ".srm"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -268,8 +278,8 @@ def _parse_game_slot(slot_data: bytes) -> Optional[GameSlot]:
     return GameSlot(game_id=game_id, saves=saves)
 
 
-def parse_ss_save_bin(data: bytes) -> list[GameSlot]:
-    """Parse SS_SAVE.BIN and return a list of GameSlot objects (one per game).
+def parse_ss_save_bin_slots(data: bytes) -> list[tuple[int, GameSlot]]:
+    """Parse SS_SAVE.BIN and return ``(slot_num, GameSlot)`` pairs.
 
     Slot 0 is the reserved slot (magic + index).  Slots 1+ each contain saves
     for one game.  The file may be any multiple of SLOT_SIZE; slots beyond the
@@ -282,7 +292,7 @@ def parse_ss_save_bin(data: bytes) -> list[GameSlot]:
         return []
 
     total_slots = len(data) // SLOT_SIZE
-    result: list[GameSlot] = []
+    result: list[tuple[int, GameSlot]] = []
 
     for slot_num in range(1, total_slots):
         # A slot is valid if the game-ID entry in the reserved slot is non-zero
@@ -295,9 +305,14 @@ def parse_ss_save_bin(data: bytes) -> list[GameSlot]:
         slot_data = data[slot_num * SLOT_SIZE : (slot_num + 1) * SLOT_SIZE]
         parsed = _parse_game_slot(slot_data)
         if parsed and parsed.game_id:
-            result.append(parsed)
+            result.append((slot_num, parsed))
 
     return result
+
+
+def parse_ss_save_bin(data: bytes) -> list[GameSlot]:
+    """Parse SS_SAVE.BIN and return only the valid GameSlot objects."""
+    return [slot for _, slot in parse_ss_save_bin_slots(data)]
 
 
 # ---------------------------------------------------------------------------
@@ -439,34 +454,54 @@ def _parse_native_saturn(data: bytes) -> list[_NativeSave]:
         size = struct.unpack_from(">I", data, offset + 0x1E)[0]
 
         # Block list at 0x22
-        bl_offset = offset + 0x22
         block_list: list[int] = []
         bl_read_idx = 0
-        cur_block_offset = bl_offset
-        cur_data = data
+        current_block_num = blk
+        block_list_entry_offset = 0x22
 
         while True:
-            if cur_block_offset + 2 > len(cur_data):
-                break
-            bnum = struct.unpack_from(">H", cur_data, cur_block_offset)[0]
+            absolute_offset = current_block_num * SAT_BLOCK_SIZE + block_list_entry_offset
+            if absolute_offset + 2 > len(data):
+                raise ValueError("Saturn block list overruns the file")
+
+            bnum = struct.unpack_from(">H", data, absolute_offset)[0]
             if bnum == 0x0000:
-                cur_block_offset += 2
                 break
+            if bnum >= total_blocks:
+                raise ValueError(f"Saturn block list references invalid block {bnum}")
+
             block_list.append(bnum)
-            cur_block_offset += 2
-            # If block list overflows into a data block:
-            if cur_block_offset >= (blk * SAT_BLOCK_SIZE) + SAT_BLOCK_SIZE:
+            block_list_entry_offset += 2
+
+            # If the block list overflows out of the current block, it continues
+            # in the first, second, etc blocks named in the block list.
+            if block_list_entry_offset >= SAT_BLOCK_SIZE:
                 next_bl_block = block_list[bl_read_idx]
                 bl_read_idx += 1
-                cur_block_offset = (
-                    next_bl_block * SAT_BLOCK_SIZE + 0x04
-                )  # skip block-type uint32
 
-        # Gather raw data
+                block_type = struct.unpack_from(
+                    ">I", data, next_bl_block * SAT_BLOCK_SIZE
+                )[0]
+                if block_type != SAT_BLOCK_DATA:
+                    raise ValueError(
+                        "Saturn block list continuation does not point to a data block"
+                    )
+
+                current_block_num = next_bl_block
+                block_list_entry_offset = 0x04
+
+        # Gather raw data. The first segment starts right after the end marker
+        # in whichever block currently contains the tail of the block list.
+        data_start = current_block_num * SAT_BLOCK_SIZE + block_list_entry_offset + 2
+        segments = [data[data_start : (current_block_num + 1) * SAT_BLOCK_SIZE]]
         data_blocks = block_list[bl_read_idx:]
-        segments = [cur_data[cur_block_offset:]]
         for db in data_blocks:
             db_off = db * SAT_BLOCK_SIZE + 0x04
+            block_type = struct.unpack_from(">I", data, db * SAT_BLOCK_SIZE)[0]
+            if block_type != SAT_BLOCK_DATA:
+                raise ValueError(
+                    f"Saturn data block {db} does not have the expected data marker"
+                )
             segments.append(data[db_off : db_off + SAT_BLOCK_SIZE - 0x04])
 
         raw = b"".join(segments)[:size]
@@ -499,58 +534,274 @@ def _build_native_saturn(saves: list[_NativeSave]) -> bytes:
 
     current_block = 2  # first usable block
 
+    def _make_empty_block() -> bytearray:
+        return bytearray(SAT_BLOCK_SIZE)
+
+    def _num_data_blocks_required(raw_size: int) -> int:
+        """Return how many data blocks are needed, including list overflow.
+
+        Saturn stores the block list and the save payload in the same sequence
+        of data blocks. Large saves therefore need an iterative calculation:
+        extra block-list entries consume payload space in early data blocks,
+        which in turn may require additional data blocks.
+        """
+
+        num_bytes_in_archive_block = SAT_BLOCK_SIZE - 0x22
+        num_bytes_in_data_block = SAT_BLOCK_SIZE - 4
+
+        approx_blocks = 0
+        while True:
+            block_list_size = (approx_blocks + 1) * 2  # include end marker
+            bytes_in_data_blocks = max(
+                raw_size + block_list_size - num_bytes_in_archive_block,
+                0,
+            )
+            new_approx = (bytes_in_data_blocks + num_bytes_in_data_block - 1) // (
+                num_bytes_in_data_block
+            )
+            if new_approx == approx_blocks:
+                return approx_blocks
+            approx_blocks = new_approx
+
     for sv in saves:
-        arch_block = current_block
-        current_block += 1
+        start_block = current_block
+        archive_block = _make_empty_block()
+        archive_view = memoryview(archive_block)
 
-        # Figure out data blocks needed
-        # Available space in archive block for data (after block list end marker):
-        # block list entry = 2 bytes each, end marker = 2 bytes
-        # position of block list: 0x22
-        arch_available = SAT_BLOCK_SIZE - 0x22 - 2  # -2 for end-marker
-        data_block_payload = SAT_BLOCK_SIZE - 4  # minus 4-byte block type header
+        archive_view[0x04:0x0F] = _write_cstr(sv.name, 11)
+        archive_block[0x0F] = sv.language_code & 0xFF
+        archive_view[0x10:0x1A] = _write_cstr(sv.comment, 10, "shift_jis")
+        struct.pack_into(">I", archive_block, 0x00, SAT_BLOCK_ARCHIVE)
+        struct.pack_into(">I", archive_block, 0x1A, sv.date_code)
+        struct.pack_into(">I", archive_block, 0x1E, len(sv.raw_data))
 
-        if len(sv.raw_data) <= arch_available:
-            data_blocks: list[int] = []
-        else:
-            extra = len(sv.raw_data) - arch_available
-            num_data = (extra + data_block_payload - 1) // data_block_payload
-            data_blocks = list(range(current_block, current_block + num_data))
-            current_block += num_data
+        num_data_blocks = _num_data_blocks_required(len(sv.raw_data))
+        save_blocks: list[bytes] = []
 
-        # Write archive entry block
-        arch_off = arch_block * SAT_BLOCK_SIZE
-        struct.pack_into(">I", buf, arch_off + 0x00, SAT_BLOCK_ARCHIVE)
-        buf[arch_off + 0x04 : arch_off + 0x0F] = _write_cstr(sv.name, 11)
-        buf[arch_off + 0x0F] = sv.language_code & 0xFF
-        buf[arch_off + 0x10 : arch_off + 0x1A] = _write_cstr(
-            sv.comment, 10, "shift_jis"
-        )
-        struct.pack_into(">I", buf, arch_off + 0x1A, sv.date_code)
-        struct.pack_into(">I", buf, arch_off + 0x1E, len(sv.raw_data))
+        current_data_block_index = 0
+        current_save_block = archive_block
+        current_offset = 0x22
 
-        # Block list
-        bl_off = arch_off + 0x22
-        for db in data_blocks:
-            struct.pack_into(">H", buf, bl_off, db)
-            bl_off += 2
-        struct.pack_into(">H", buf, bl_off, 0x0000)  # end marker
-        bl_off += 2
+        while current_data_block_index < num_data_blocks:
+            struct.pack_into(
+                ">H",
+                current_save_block,
+                current_offset,
+                start_block + current_data_block_index + 1,
+            )
+            current_offset += 2
+            if current_offset >= SAT_BLOCK_SIZE:
+                save_blocks.append(bytes(current_save_block))
+                current_save_block = _make_empty_block()
+                struct.pack_into(">I", current_save_block, 0x00, SAT_BLOCK_DATA)
+                current_offset = 0x04
+            current_data_block_index += 1
 
-        # Inline data (in the archive block, after end marker)
-        inline_data = sv.raw_data[:arch_available] if data_blocks else sv.raw_data
-        buf[bl_off : bl_off + len(inline_data)] = inline_data
+        struct.pack_into(">H", current_save_block, current_offset, 0x0000)
+        current_offset += 2
 
-        # Overflow data blocks
-        remaining = sv.raw_data[arch_available:] if data_blocks else b""
-        for db in data_blocks:
-            db_off = db * SAT_BLOCK_SIZE
-            struct.pack_into(">I", buf, db_off + 0x00, SAT_BLOCK_DATA)
-            chunk = remaining[:data_block_payload]
-            remaining = remaining[data_block_payload:]
-            buf[db_off + 0x04 : db_off + 0x04 + len(chunk)] = chunk
+        raw_offset = 0
+        while raw_offset < len(sv.raw_data):
+            if current_offset >= SAT_BLOCK_SIZE:
+                save_blocks.append(bytes(current_save_block))
+                current_save_block = _make_empty_block()
+                struct.pack_into(">I", current_save_block, 0x00, SAT_BLOCK_DATA)
+                current_offset = 0x04
+
+            chunk_size = min(len(sv.raw_data) - raw_offset, SAT_BLOCK_SIZE - current_offset)
+            current_save_block[current_offset : current_offset + chunk_size] = sv.raw_data[
+                raw_offset : raw_offset + chunk_size
+            ]
+            raw_offset += chunk_size
+            current_offset += chunk_size
+
+        save_blocks.append(bytes(current_save_block))
+
+        end_block = current_block + len(save_blocks)
+        if end_block > SAT_TOTAL_BLOCKS:
+            raise ValueError("Saturn save image does not have enough free blocks")
+
+        for block_num, block_bytes in enumerate(save_blocks, start=current_block):
+            block_off = block_num * SAT_BLOCK_SIZE
+            buf[block_off : block_off + SAT_BLOCK_SIZE] = block_bytes
+
+        current_block = end_block
 
     return bytes(buf)
+
+
+def _build_native_saturn_image(
+    saves: list[_NativeSave], file_size: int = SAT_INTERNAL_SIZE
+) -> bytes:
+    """Build a Saturn internal-memory image of the requested size."""
+    if file_size < SAT_INTERNAL_SIZE or file_size % SAT_BLOCK_SIZE != 0:
+        raise ValueError(f"Invalid Saturn image size: {file_size}")
+    if file_size == SAT_INTERNAL_SIZE:
+        return _build_native_saturn(saves)
+
+    buf = bytearray(file_size)
+
+    off = 0
+    while off < SAT_BLOCK_SIZE:
+        end = min(off + len(SAT_MAGIC), SAT_BLOCK_SIZE)
+        buf[off:end] = SAT_MAGIC[: end - off]
+        off += len(SAT_MAGIC)
+
+    current_block = 2
+    total_blocks = file_size // SAT_BLOCK_SIZE
+
+    def _make_empty_block() -> bytearray:
+        return bytearray(SAT_BLOCK_SIZE)
+
+    def _num_data_blocks_required(raw_size: int) -> int:
+        num_bytes_in_archive_block = SAT_BLOCK_SIZE - 0x22
+        num_bytes_in_data_block = SAT_BLOCK_SIZE - 4
+
+        approx_blocks = 0
+        while True:
+            block_list_size = (approx_blocks + 1) * 2
+            bytes_in_data_blocks = max(
+                raw_size + block_list_size - num_bytes_in_archive_block,
+                0,
+            )
+            new_approx = (bytes_in_data_blocks + num_bytes_in_data_block - 1) // (
+                num_bytes_in_data_block
+            )
+            if new_approx == approx_blocks:
+                return approx_blocks
+            approx_blocks = new_approx
+
+    for sv in saves:
+        start_block = current_block
+        archive_block = _make_empty_block()
+        archive_view = memoryview(archive_block)
+
+        archive_view[0x04:0x0F] = _write_cstr(sv.name, 11)
+        archive_block[0x0F] = sv.language_code & 0xFF
+        archive_view[0x10:0x1A] = _write_cstr(sv.comment, 10, "shift_jis")
+        struct.pack_into(">I", archive_block, 0x00, SAT_BLOCK_ARCHIVE)
+        struct.pack_into(">I", archive_block, 0x1A, sv.date_code)
+        struct.pack_into(">I", archive_block, 0x1E, len(sv.raw_data))
+
+        num_data_blocks = _num_data_blocks_required(len(sv.raw_data))
+        save_blocks: list[bytes] = []
+
+        current_data_block_index = 0
+        current_save_block = archive_block
+        current_offset = 0x22
+
+        while current_data_block_index < num_data_blocks:
+            struct.pack_into(
+                ">H",
+                current_save_block,
+                current_offset,
+                start_block + current_data_block_index + 1,
+            )
+            current_offset += 2
+            if current_offset >= SAT_BLOCK_SIZE:
+                save_blocks.append(bytes(current_save_block))
+                current_save_block = _make_empty_block()
+                struct.pack_into(">I", current_save_block, 0x00, SAT_BLOCK_DATA)
+                current_offset = 0x04
+            current_data_block_index += 1
+
+        struct.pack_into(">H", current_save_block, current_offset, 0x0000)
+        current_offset += 2
+
+        raw_offset = 0
+        while raw_offset < len(sv.raw_data):
+            if current_offset >= SAT_BLOCK_SIZE:
+                save_blocks.append(bytes(current_save_block))
+                current_save_block = _make_empty_block()
+                struct.pack_into(">I", current_save_block, 0x00, SAT_BLOCK_DATA)
+                current_offset = 0x04
+
+            chunk_size = min(
+                len(sv.raw_data) - raw_offset, SAT_BLOCK_SIZE - current_offset
+            )
+            current_save_block[current_offset : current_offset + chunk_size] = sv.raw_data[
+                raw_offset : raw_offset + chunk_size
+            ]
+            raw_offset += chunk_size
+            current_offset += chunk_size
+
+        save_blocks.append(bytes(current_save_block))
+
+        end_block = current_block + len(save_blocks)
+        if end_block > total_blocks:
+            raise ValueError("Saturn save image does not have enough free blocks")
+
+        for block_num, block_bytes in enumerate(save_blocks, start=current_block):
+            block_off = block_num * SAT_BLOCK_SIZE
+            buf[block_off : block_off + SAT_BLOCK_SIZE] = block_bytes
+
+        current_block = end_block
+
+    return bytes(buf)
+
+
+def _collapse_byte_expanded_saturn(data: bytes) -> bytes | None:
+    """Collapse byte-expanded Saturn data if every odd byte uses one padding value."""
+    if len(data) % 2 != 0:
+        return None
+    if len(data) not in {SAT_YABAUSE_SIZE, SAT_YABASANSHIRO_SIZE}:
+        return None
+
+    padding = None
+    for idx in range(0, len(data), 2):
+        value = data[idx]
+        if padding is None:
+            padding = value
+        elif value != padding:
+            return None
+
+    return bytes(data[1::2])
+
+
+def _expand_byte_padded_saturn(data: bytes, padding: int = 0xFF) -> bytes:
+    """Expand Saturn data so each source byte is followed by a constant padding byte."""
+    expanded = bytearray(len(data) * 2)
+    for idx, value in enumerate(data):
+        expanded[idx * 2] = padding
+        expanded[idx * 2 + 1] = value
+    return bytes(expanded)
+
+
+def normalize_saturn_save(data: bytes) -> bytes:
+    """Return canonical 32 KB Saturn internal-memory bytes from a supported format."""
+    parsed = _parse_native_saturn(data)
+    if parsed is not None:
+        return _build_native_saturn_image(parsed, SAT_INTERNAL_SIZE)
+
+    collapsed = _collapse_byte_expanded_saturn(data)
+    if collapsed is None:
+        raise ValueError(f"Unsupported Saturn save format ({len(data)} bytes)")
+
+    parsed = _parse_native_saturn(collapsed)
+    if parsed is None:
+        raise ValueError("Unsupported Saturn save format after byte-collapse")
+    return _build_native_saturn_image(parsed, SAT_INTERNAL_SIZE)
+
+
+def convert_saturn_save_format(data: bytes, target_format: str) -> bytes:
+    """Convert Saturn save bytes into the requested emulator-friendly format."""
+    canonical = normalize_saturn_save(data)
+    saves = _parse_native_saturn(canonical)
+    if saves is None:
+        raise ValueError("Canonical Saturn save is not valid")
+
+    fmt = (target_format or "mednafen").strip().lower()
+    if fmt == "mednafen":
+        return _build_native_saturn_image(saves, SAT_INTERNAL_SIZE)
+    if fmt == "yabause":
+        return _expand_byte_padded_saturn(
+            _build_native_saturn_image(saves, SAT_INTERNAL_SIZE)
+        )
+    if fmt == "yabasanshiro":
+        return _expand_byte_padded_saturn(
+            _build_native_saturn_image(saves, SAT_YABASANSHIRO_COLLAPSED_SIZE)
+        )
+    raise ValueError(f"Unsupported Saturn target format: {target_format}")
 
 
 def saroo_slot_to_mednafen(slot_data: bytes) -> bytes:

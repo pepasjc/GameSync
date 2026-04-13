@@ -2,6 +2,7 @@ package com.savesync.android.emulators.impl
 
 import com.savesync.android.emulators.EmulatorBase
 import com.savesync.android.emulators.SaveEntry
+import com.savesync.android.sync.SaturnSyncFormat
 import org.json.JSONObject
 import java.io.File
 
@@ -13,7 +14,8 @@ import java.io.File
  */
 class RetroArchEmulator(
     private val romScanDir: String = "",
-    private val romDirOverrides: Map<String, String> = emptyMap()
+    private val romDirOverrides: Map<String, String> = emptyMap(),
+    private val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
 ) : EmulatorBase() {
 
     override val name: String = "RetroArch"
@@ -24,14 +26,58 @@ class RetroArchEmulator(
     // PS1 disc image extensions that readPs1Serial() can handle
     private val ps1RomExtensions = setOf("iso", "bin", "cue", "img", "mdf")
 
-    // Saturn disc image extensions that readSaturnProductCode() can handle (no CHD — can't decompress)
-    private val satRomExtensions = setOf("iso", "bin", "cue", "img")
+    // Saturn disc image extensions recognised for ROM path mapping and product-code lookup
+    private val satRomExtensions = setOf("iso", "bin", "cue", "img", "chd")
 
-    private fun defaultSaveExtension(system: String): String {
+    internal fun defaultSaveExtension(system: String): String {
         return when (system.uppercase()) {
-            "SAT" -> "bkr"
+            "SAT" -> when (saturnSyncFormat) {
+                SaturnSyncFormat.MEDNAFEN -> "bkr"
+                SaturnSyncFormat.YABAUSE -> "srm"
+                SaturnSyncFormat.YABASANSHIRO -> "bin"
+            }
             else -> "srm"
         }
+    }
+
+    internal fun expectedRetroArchSaturnSaveFile(savesDir: File, romName: String): File {
+        val direct = when (saturnSyncFormat) {
+            SaturnSyncFormat.MEDNAFEN -> File(savesDir, "$romName.bkr")
+            SaturnSyncFormat.YABAUSE -> File(savesDir, "$romName.srm")
+            SaturnSyncFormat.YABASANSHIRO -> File(savesDir, "backup.bin")
+        }
+
+        val coreSpecific = when (saturnSyncFormat) {
+            SaturnSyncFormat.MEDNAFEN -> File(File(savesDir, "Beetle Saturn"), "$romName.bkr")
+            SaturnSyncFormat.YABAUSE -> File(File(savesDir, "yabause"), "$romName.srm")
+            SaturnSyncFormat.YABASANSHIRO -> File(File(savesDir, "yabasanshiro"), "backup.bin")
+        }
+
+        return when {
+            coreSpecific.exists() -> coreSpecific
+            direct.exists() -> direct
+            saturnSyncFormat == SaturnSyncFormat.MEDNAFEN -> coreSpecific
+            saturnSyncFormat == SaturnSyncFormat.YABAUSE -> direct
+            else -> coreSpecific
+        }
+    }
+
+    internal fun shouldTrackRetroArchSaveFile(file: File, system: String): Boolean {
+        val ext = file.extension.lowercase()
+        if (ext !in saveExtensions) return false
+        if (system != "SAT") return true
+
+        return when (saturnSyncFormat) {
+            SaturnSyncFormat.MEDNAFEN -> ext == "bkr"
+            SaturnSyncFormat.YABAUSE -> ext == "srm"
+            SaturnSyncFormat.YABASANSHIRO -> file.name.equals("backup.bin", ignoreCase = true)
+        }
+    }
+
+    private fun isSharedYabaSanshiroBackup(file: File, system: String): Boolean {
+        return system == "SAT" &&
+            saturnSyncFormat == SaturnSyncFormat.YABASANSHIRO &&
+            file.name.equals("backup.bin", ignoreCase = true)
     }
 
     // Playlist filename keyword → system prefix
@@ -84,7 +130,9 @@ class RetroArchEmulator(
         "PS1" to "PS1", "PSX" to "PS1", "PSP" to "PSP",
         "GEN" to "MD", "GENESIS" to "MD", "MEGADRIVE" to "MD", "MD" to "MD",
         "SMS" to "SMS", "GG" to "GG", "PCE" to "PCE",
-        "SATURN" to "SAT", "SAT" to "SAT", "DC" to "DC",
+        "SATURN" to "SAT", "SAT" to "SAT", "BEETLE SATURN" to "SAT",
+        "KRONOS" to "SAT", "YABAUSE" to "SAT", "YABASANSHIRO" to "SAT",
+        "YABASANSHIRO 2" to "SAT", "DC" to "DC",
         "ATARI" to "A2600", "LYNX" to "LYNX", "NGP" to "NGP",
         "WS" to "WSWAN", "WSWAN" to "WSWAN", "WSWANC" to "WSWANC",
         "WONDERSWAN" to "WSWAN", "WONDERSWANCOLOR" to "WSWANC",
@@ -262,14 +310,16 @@ class RetroArchEmulator(
 
         savesDir.listFiles()?.forEach { entry ->
             if (entry.isFile) {
-                if (entry.extension.lowercase() in saveExtensions) {
-                    val romName = entry.nameWithoutExtension
-                    val lc = romName.lowercase()
-                    // Resolution priority: playlist → ROM scan dir → RETRO
-                    val system = romSystemMap[lc]
-                        ?: romSystemMap[romName]
-                        ?: romScanSystemMap[lc]
-                        ?: systemPrefix
+                val romName = entry.nameWithoutExtension
+                val lc = romName.lowercase()
+                val system = romSystemMap[lc]
+                    ?: romSystemMap[romName]
+                    ?: romScanSystemMap[lc]
+                    ?: systemPrefix
+                if (shouldTrackRetroArchSaveFile(entry, system)) {
+                    if (isSharedYabaSanshiroBackup(entry, system)) {
+                        return@forEach
+                    }
                     // For NDS saves, derive the title ID from the ROM gamecode (offset 0x0C).
                     // For PS1/SAT saves, read the product code from the disc image header so
                     // title IDs match the server's format (SAT_T-12705H, SLUS01234, etc.).
@@ -278,7 +328,9 @@ class RetroArchEmulator(
                     val titleId = when (system) {
                         "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: toTitleId(romName, system)
                         "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
-                        "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) } ?: toTitleId(romName, system)
+                        "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) }
+                            ?: lookupSaturnSerial(romName)
+                            ?: toTitleId(romName, system)
                         else  -> toTitleId(romName, system)
                     }
                     result.add(
@@ -295,14 +347,19 @@ class RetroArchEmulator(
                 // System subfolder inside saves/ (e.g. saves/GBA/romname.srm)
                 val system = systemFolderMap[entry.name.uppercase()] ?: return@forEach
                 entry.listFiles()?.forEach { file ->
-                    if (file.isFile && file.extension.lowercase() in saveExtensions) {
+                    if (file.isFile && shouldTrackRetroArchSaveFile(file, system)) {
+                        if (isSharedYabaSanshiroBackup(file, system)) {
+                            return@forEach
+                        }
                         val romName = file.nameWithoutExtension
                         val lc = romName.lowercase()
                         // Apply gamecode/serial lookup for saves inside system subfolders too
                         val titleId = when (system) {
                             "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: toTitleId(romName, system)
                             "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
-                            "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) } ?: toTitleId(romName, system)
+                            "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) }
+                                ?: lookupSaturnSerial(romName)
+                                ?: toTitleId(romName, system)
                             else  -> toTitleId(romName, system)
                         }
                         result.add(
@@ -385,7 +442,7 @@ class RetroArchEmulator(
     /**
      * Scans all *.lpl playlist files in [playlistsDir] for Saturn ROM entries and returns
      * a map of lowercase-rom-name → ROM File path. Used for product-code title ID lookup.
-     * Only CUE/BIN/ISO are included — CHD cannot be read without decompression.
+     * CUE/BIN/ISO/CHD are all included for path mapping.
      */
     private fun buildSaturnRomPathMapFromPlaylists(playlistsDir: File): Map<String, File> {
         if (!playlistsDir.exists()) return emptyMap()
@@ -703,6 +760,7 @@ class RetroArchEmulator(
             val titleId = when (system) {
                 "SAT" -> satRomPathForEntries[romName.lowercase()]
                     ?.let { readSaturnProductCode(it) }
+                    ?: lookupSaturnSerial(romName)
                     ?: toTitleId(romName, system)
                 else -> toTitleId(romName, system)
             }
@@ -710,7 +768,10 @@ class RetroArchEmulator(
                 titleId = titleId,
                 displayName = romName,
                 systemName = system,
-                saveFile = File(savesDir, "$romName.${defaultSaveExtension(system)}"),
+                saveFile = when (system) {
+                    "SAT" -> expectedRetroArchSaturnSaveFile(savesDir, romName)
+                    else -> File(savesDir, "$romName.${defaultSaveExtension(system)}")
+                },
                 saveDir = null
             )
         }.toMap()

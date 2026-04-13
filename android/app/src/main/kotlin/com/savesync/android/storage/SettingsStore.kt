@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import com.savesync.android.sync.SaturnSyncFormat
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -32,7 +33,8 @@ data class Settings(
      * Overrides the auto-detected subfolder of [romScanDir] for a given system.
      * e.g. "SAT" → "/sdcard/ROMs/Saturn"
      */
-    val romDirOverrides: Map<String, String> = emptyMap()
+    val romDirOverrides: Map<String, String> = emptyMap(),
+    val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
 )
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "save_sync_settings")
@@ -48,6 +50,7 @@ class SettingsStore(private val context: Context) {
         val ROM_SCAN_DIR = stringPreferencesKey("rom_scan_dir")
         val DOLPHIN_MEM_CARD_DIR = stringPreferencesKey("dolphin_mem_card_dir")
         val ROM_DIR_OVERRIDES = stringPreferencesKey("rom_dir_overrides")
+        val SATURN_SYNC_FORMAT = stringPreferencesKey("saturn_sync_format")
         /** Tracks whether we've already attempted to restore from external backup */
         val BACKUP_RESTORED = booleanPreferencesKey("backup_restored")
         /** Remembered UI filter state */
@@ -78,7 +81,8 @@ class SettingsStore(private val context: Context) {
             consoleId = consoleId,
             romScanDir = prefs[Keys.ROM_SCAN_DIR] ?: "",
             dolphinMemCardDir = prefs[Keys.DOLPHIN_MEM_CARD_DIR] ?: "",
-            romDirOverrides = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: "")
+            romDirOverrides = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: ""),
+            saturnSyncFormat = SaturnSyncFormat.fromWireValue(prefs[Keys.SATURN_SYNC_FORMAT])
         )
     }
 
@@ -107,6 +111,7 @@ class SettingsStore(private val context: Context) {
             backup.consoleId.takeIf { it.isNotBlank() }?.let { p[Keys.CONSOLE_ID] = it }
             backup.romScanDir.takeIf { it.isNotBlank() }?.let { p[Keys.ROM_SCAN_DIR] = it }
             backup.dolphinMemCardDir.takeIf { it.isNotBlank() }?.let { p[Keys.DOLPHIN_MEM_CARD_DIR] = it }
+            p[Keys.SATURN_SYNC_FORMAT] = backup.saturnSyncFormat.wireValue
         }
     }
 
@@ -116,7 +121,8 @@ class SettingsStore(private val context: Context) {
         autoSyncEnabled: Boolean? = null,
         autoSyncIntervalMinutes: Int? = null,
         romScanDir: String? = null,
-        dolphinMemCardDir: String? = null
+        dolphinMemCardDir: String? = null,
+        saturnSyncFormat: SaturnSyncFormat? = null
     ) {
         context.dataStore.edit { prefs ->
             serverUrl?.let { prefs[Keys.SERVER_URL] = it }
@@ -125,6 +131,7 @@ class SettingsStore(private val context: Context) {
             autoSyncIntervalMinutes?.let { prefs[Keys.AUTO_SYNC_INTERVAL] = it }
             romScanDir?.let { prefs[Keys.ROM_SCAN_DIR] = it }
             dolphinMemCardDir?.let { prefs[Keys.DOLPHIN_MEM_CARD_DIR] = it }
+            saturnSyncFormat?.let { prefs[Keys.SATURN_SYNC_FORMAT] = it.wireValue }
         }
         // Mirror to the external backup file every time settings are saved
         writeBackupFile()
@@ -201,6 +208,7 @@ class SettingsStore(private val context: Context) {
                 put("rom_scan_dir", current.romScanDir)
                 put("dolphin_mem_card_dir", current.dolphinMemCardDir)
                 put("rom_dir_overrides", JSONObject(current.romDirOverrides as Map<*, *>))
+                put("saturn_sync_format", current.saturnSyncFormat.wireValue)
             }
             val file = backupFile
             file.parentFile?.mkdirs()
@@ -231,7 +239,10 @@ class SettingsStore(private val context: Context) {
                 consoleId = json.optString("console_id", ""),
                 romScanDir = json.optString("rom_scan_dir", ""),
                 dolphinMemCardDir = json.optString("dolphin_mem_card_dir", ""),
-                romDirOverrides = parseOverrides(json.optString("rom_dir_overrides", ""))
+                romDirOverrides = parseOverrides(json.optString("rom_dir_overrides", "")),
+                saturnSyncFormat = SaturnSyncFormat.fromWireValue(
+                    json.optString("saturn_sync_format", SaturnSyncFormat.MEDNAFEN.wireValue)
+                )
             )
         } catch (_: Exception) {
             null

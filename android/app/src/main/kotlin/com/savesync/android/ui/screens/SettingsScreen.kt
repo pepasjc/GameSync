@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.savesync.android.BuildConfig
 import com.savesync.android.api.ApiClient
+import com.savesync.android.sync.SaturnSyncFormat
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.components.FolderPickerDialog
 import kotlinx.coroutines.launch
@@ -81,6 +82,7 @@ fun SettingsScreen(
     var intervalMinutes by remember { mutableStateOf(15) }
     var romScanDir by remember { mutableStateOf("") }
     var dolphinMemCardDir by remember { mutableStateOf("") }
+    var saturnSyncFormat by remember { mutableStateOf(SaturnSyncFormat.MEDNAFEN) }
     var showFolderPicker by remember { mutableStateOf(false) }
     var showDolphinFolderPicker by remember { mutableStateOf(false) }
     var settingsLoaded by remember { mutableStateOf(false) }
@@ -99,6 +101,7 @@ fun SettingsScreen(
             intervalMinutes = settings.autoSyncIntervalMinutes
             romScanDir = settings.romScanDir
             dolphinMemCardDir = settings.dolphinMemCardDir
+            saturnSyncFormat = settings.saturnSyncFormat
             settingsLoaded = true
             // Auto-detect system folders once settings are loaded
             if (settings.romScanDir.isNotBlank()) viewModel.detectSystemFolders()
@@ -197,7 +200,15 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, romScanDir, dolphinMemCardDir)
+                        viewModel.saveSettings(
+                            serverUrl,
+                            apiKey,
+                            autoSync,
+                            intervalMinutes,
+                            romScanDir,
+                            dolphinMemCardDir,
+                            saturnSyncFormat
+                        )
                         savedConfirmation = true
                     },
                     modifier = Modifier.weight(1f),
@@ -290,6 +301,42 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Scan for Save Files")
+            }
+
+            var saturnFormatExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = saturnFormatExpanded,
+                onExpandedChange = { saturnFormatExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = saturnSyncFormat.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Saturn Download Format") },
+                    supportingText = {
+                        Text("Server stays on Beetle/Mednafen format; this controls how Saturn saves are written locally.")
+                    },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(saturnFormatExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = saturnFormatExpanded,
+                    onDismissRequest = { saturnFormatExpanded = false }
+                ) {
+                    SaturnSyncFormat.values().forEach { format ->
+                        DropdownMenuItem(
+                            text = { Text(format.label) },
+                            onClick = {
+                                saturnSyncFormat = format
+                                saturnFormatExpanded = false
+                            }
+                        )
+                    }
+                }
             }
 
             HorizontalDivider()
@@ -620,7 +667,15 @@ fun SettingsScreen(
                 showFolderPicker = false
                 // Auto-save immediately so the setting persists even without
                 // pressing "Save", and so the ROM scan diagnostic picks it up.
-                viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, path, dolphinMemCardDir)
+                viewModel.saveSettings(
+                    serverUrl,
+                    apiKey,
+                    autoSync,
+                    intervalMinutes,
+                    path,
+                    dolphinMemCardDir,
+                    saturnSyncFormat
+                )
             }
         )
     }
@@ -632,7 +687,15 @@ fun SettingsScreen(
             onFolderSelected = { path ->
                 dolphinMemCardDir = path
                 showDolphinFolderPicker = false
-                viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, romScanDir, path)
+                viewModel.saveSettings(
+                    serverUrl,
+                    apiKey,
+                    autoSync,
+                    intervalMinutes,
+                    romScanDir,
+                    path,
+                    saturnSyncFormat
+                )
             }
         )
     }

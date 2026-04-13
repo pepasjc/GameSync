@@ -462,7 +462,7 @@ _SLOT_MAPPINGS_DIRTY = False
 # Per-title Saroo metadata populated by _scan_saroo().
 # Keys are title_id strings; values are dicts with:
 #   game_id:      original Saroo game ID string (16 chars, may have trailing spaces)
-#   slot_index:   1-based slot index within SS_SAVE.BIN
+#   slot_index:   byte offset of the physical slot within SS_SAVE.BIN
 #   native_bytes: mednafen-compatible 32KB image (bytes) — the payload to upload
 #   bkr_path:     path to mednafen .bkr file, if found (str, may be empty)
 _SAROO_META: dict[str, dict] = {}
@@ -1686,7 +1686,7 @@ def _scan_saroo(
         not inserted.
     """
     from saroo_format import (
-        parse_ss_save_bin,
+        parse_ss_save_bin_slots,
         saroo_slot_to_mednafen,
         slot_content_hash,
     )
@@ -1709,7 +1709,7 @@ def _scan_saroo(
 
     try:
         data = ss_save.read_bytes()
-        slots = parse_ss_save_bin(data)
+        slots = parse_ss_save_bin_slots(data)
     except Exception as exc:
         _emit_progress(progress_callback, f"Error reading SS_SAVE.BIN: {exc}", 0, 0)
         return []
@@ -1740,7 +1740,7 @@ def _scan_saroo(
     except Exception:
         pass
 
-    for idx, slot in enumerate(slots, start=1):
+    for idx, (slot_num, slot) in enumerate(slots, start=1):
         game_id = slot.game_id.strip()
         if not game_id:
             continue
@@ -1760,12 +1760,11 @@ def _scan_saroo(
 
         # Convert the Saroo slot bytes to a mednafen 32KB image for hashing
         # and for use as the canonical payload on the server.
-        # idx starts at 1 (slot 0 is reserved); parse_ss_save_bin breaks at the
-        # first empty entry so slots are always contiguous, making idx the correct
-        # file slot number.
-        slot_byte_offset = (
-            idx * 0x10000
-        )  # byte offset in SS_SAVE.BIN (0x10000 per slot)
+        # ``parse_ss_save_bin_slots`` preserves the physical slot number from the
+        # reserved-slot index. We must use that real slot location because the
+        # reserved table can point at invalid/unparseable slots that are skipped
+        # from the parsed results.
+        slot_byte_offset = slot_num * 0x10000
         slot_bytes = data[slot_byte_offset : slot_byte_offset + 0x10000]
         try:
             native_bytes = saroo_slot_to_mednafen(slot_bytes)

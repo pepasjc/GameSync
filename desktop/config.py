@@ -327,16 +327,21 @@ def restore_history(title_id: str, timestamp: int, console_id: str = "") -> None
     upload_resp.raise_for_status()
 
 
-def download_raw_save(title_id: str, dest_path: Path) -> None:
-    """Download the raw save bytes to dest_path."""
+def download_raw_save_bytes(title_id: str) -> bytes:
+    """Download raw save bytes from the generic save endpoint."""
     resp = requests.get(
         f"{get_base_url()}/api/v1/saves/{title_id}/raw",
         headers=get_api_headers(),
         timeout=30,
     )
     resp.raise_for_status()
+    return resp.content
+
+
+def download_raw_save(title_id: str, dest_path: Path) -> None:
+    """Download the raw save bytes to dest_path."""
     dest_path.parent.mkdir(parents=True, exist_ok=True)
-    dest_path.write_bytes(resp.content)
+    dest_path.write_bytes(download_raw_save_bytes(title_id))
 
 
 def download_ps3_save(title_id: str, dest_path: Path) -> None:

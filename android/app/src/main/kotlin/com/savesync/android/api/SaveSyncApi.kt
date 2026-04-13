@@ -143,6 +143,11 @@ interface SaveSyncApi {
         @Body request: GameNameRequest
     ): GameNameResponse
 
+    @POST("api/v1/titles/saturn-archives")
+    suspend fun lookupSaturnArchives(
+        @Body request: SaturnArchiveLookupRequest
+    ): SaturnArchiveLookupResponse
+
     // ── ROM catalog ──────────────────────────────────────────────────────
 
     @GET("api/v1/roms")

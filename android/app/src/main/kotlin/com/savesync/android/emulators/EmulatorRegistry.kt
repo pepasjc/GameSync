@@ -8,6 +8,7 @@ import com.savesync.android.emulators.impl.MelonDsEmulator
 import com.savesync.android.emulators.impl.MgbaEmulator
 import com.savesync.android.emulators.impl.PpssppEmulator
 import com.savesync.android.emulators.impl.RetroArchEmulator
+import com.savesync.android.sync.SaturnSyncFormat
 import java.io.File
 
 object EmulatorRegistry {
@@ -22,9 +23,10 @@ object EmulatorRegistry {
     fun buildAll(
         romScanDir: String = "",
         dolphinMemCardDir: String = "",
-        romDirOverrides: Map<String, String> = emptyMap()
+        romDirOverrides: Map<String, String> = emptyMap(),
+        saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
     ): List<EmulatorBase> = listOf(
-        RetroArchEmulator(romScanDir, romDirOverrides),
+        RetroArchEmulator(romScanDir, romDirOverrides, saturnSyncFormat),
         PpssppEmulator(romScanDir, romDirOverrides),
         DuckStationEmulator(romScanDir),
         DraSticEmulator(romScanDir),
@@ -44,9 +46,10 @@ object EmulatorRegistry {
         overrides: Map<String, String> = emptyMap(),
         romScanDir: String = "",
         dolphinMemCardDir: String = "",
-        romDirOverrides: Map<String, String> = emptyMap()
+        romDirOverrides: Map<String, String> = emptyMap(),
+        saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
     ): List<SaveEntry> {
-        return buildAll(romScanDir, dolphinMemCardDir, romDirOverrides).flatMap { emulator ->
+        return buildAll(romScanDir, dolphinMemCardDir, romDirOverrides, saturnSyncFormat).flatMap { emulator ->
             try {
                 emulator.discoverSaves()
                     .filter { it.exists() }
@@ -67,10 +70,11 @@ object EmulatorRegistry {
     fun discoverAllRomEntries(
         romScanDir: String = "",
         dolphinMemCardDir: String = "",
-        romDirOverrides: Map<String, String> = emptyMap()
+        romDirOverrides: Map<String, String> = emptyMap(),
+        saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
     ): Map<String, SaveEntry> {
         val result = mutableMapOf<String, SaveEntry>()
-        buildAll(romScanDir, dolphinMemCardDir, romDirOverrides).forEach { emulator ->
+        buildAll(romScanDir, dolphinMemCardDir, romDirOverrides, saturnSyncFormat).forEach { emulator ->
             try { result.putAll(emulator.discoverRomEntries()) } catch (_: Exception) {}
         }
         return result

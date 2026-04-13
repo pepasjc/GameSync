@@ -89,6 +89,29 @@ data class GameNameResponse(
     val retail_serials: Map<String, String>? = null
 )
 
+data class SaturnArchiveLookupRequest(
+    val title_id: String,
+    val archive_names: List<String>
+)
+
+data class SaturnArchiveCandidate(
+    val title_id: String,
+    val game_name: String
+)
+
+data class SaturnArchiveLookupResult(
+    val archive_family: String,
+    val archive_names: List<String>,
+    val status: String,
+    val matches_current_title: Boolean,
+    val candidates: List<SaturnArchiveCandidate>
+)
+
+data class SaturnArchiveLookupResponse(
+    val title_id: String,
+    val results: List<SaturnArchiveLookupResult>
+)
+
 // ── ROM catalog ────────────────────────────────────────────────────────────
 
 data class RomEntry(

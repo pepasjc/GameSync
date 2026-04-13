@@ -3,7 +3,7 @@ import re
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
-from app.services import storage, game_names, serialstation
+from app.services import storage, game_names, saturn_archives, serialstation
 
 _PS_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")
 
@@ -16,6 +16,11 @@ class NameLookupRequest(BaseModel):
 
 class NameHintRequest(BaseModel):
     codes: dict[str, str]  # title_id -> game_code (e.g. "0004000000161E00" -> "CTR-P-A22J")
+
+
+class SaturnArchiveLookupRequest(BaseModel):
+    title_id: str
+    archive_names: list[str]
 
 
 def _resolve_console_type(title: dict, typed: dict[str, tuple[str, str]]) -> str:
@@ -159,3 +164,14 @@ async def lookup_game_names(request: NameLookupRequest):
         if (r := game_names.get_psx_retail_serial(c)) is not None
     }
     return {"names": names, "types": types, "retail_serials": retail_serials}
+
+
+@router.post("/titles/saturn-archives")
+async def lookup_saturn_archive_candidates(request: SaturnArchiveLookupRequest):
+    results = saturn_archives.lookup_archive_candidates(
+        request.title_id, request.archive_names
+    )
+    return {
+        "title_id": request.title_id,
+        "results": results,
+    }

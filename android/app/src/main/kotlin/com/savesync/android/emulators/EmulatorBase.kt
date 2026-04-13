@@ -119,6 +119,25 @@ abstract class EmulatorBase {
     open fun discoverRomEntries(): Map<String, SaveEntry> = emptyMap()
 
     /**
+     * Looks up the Saturn product serial for [romName] using the bundled Redump libretro DAT.
+     *
+     * Strips translation/hack bracket tags then retries with progressively fewer trailing
+     * parenthetical suffixes until a match is found.  Returns a `"SAT_<serial>"` title ID
+     * (e.g. `"SAT_T-4507G"`), or null if the DAT has no entry for this game.
+     *
+     * Used as a fallback after [readSaturnProductCode] returns null — most notably for
+     * CHD disc images, which are compressed and cannot be parsed inline.
+     */
+    protected fun lookupSaturnSerial(romName: String): String? {
+        val serial = SaturnSerialDatabase.lookupSerial(romName) ?: return null
+        val safeId = serial
+            .replace(" ", "_")
+            .filter { it.isLetterOrDigit() || it == '_' || it == '-' }
+            .uppercase()
+        return if (safeId.isBlank()) null else "SAT_$safeId"
+    }
+
+    /**
      * Reads the Sega Saturn product code from a disc image by parsing the IP.BIN header.
      *
      * The Saturn IP.BIN occupies the first sector of a disc. The hardware ID

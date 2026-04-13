@@ -15,6 +15,8 @@ import com.savesync.android.api.GameNameRequest
 import com.savesync.android.api.NormalizeRequest
 import com.savesync.android.api.NormalizeRomEntry
 import com.savesync.android.api.RomEntry
+import com.savesync.android.api.SaturnArchiveLookupRequest
+import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SaveSyncApi
 import com.savesync.android.emulators.EmulatorRegistry
 import com.savesync.android.emulators.SaveEntry
@@ -23,6 +25,10 @@ import com.savesync.android.emulators.impl.DuckStationEmulator
 import com.savesync.android.storage.Settings
 import com.savesync.android.storage.SettingsStore
 import com.savesync.android.storage.SyncStateEntity
+import com.savesync.android.sync.HashUtils
+import com.savesync.android.sync.SaturnArchiveStateStore
+import com.savesync.android.sync.SaturnSyncFormat
+import com.savesync.android.sync.SaturnSaveFormatConverter
 import com.savesync.android.sync.SyncEngine
 import com.savesync.android.sync.SyncResult
 import com.savesync.android.workers.SyncWorker
@@ -84,6 +90,28 @@ sealed class NormalizePickerState {
     ) : NormalizePickerState()
 }
 
+enum class SaturnArchiveAction {
+    SYNC,
+    UPLOAD,
+}
+
+data class SaturnArchivePickerOption(
+    val archiveFamily: String,
+    val archiveNames: List<String>,
+    val detail: String,
+    val preselected: Boolean,
+)
+
+sealed class SaturnArchivePickerState {
+    object Hidden : SaturnArchivePickerState()
+    data class Visible(
+        val entry: SaveEntry,
+        val action: SaturnArchiveAction,
+        val hiddenSelectedArchives: List<String>,
+        val options: List<SaturnArchivePickerOption>,
+    ) : SaturnArchivePickerState()
+}
+
 sealed class ServerMetaState {
     object Idle : ServerMetaState()
     object Loading : ServerMetaState()
@@ -137,6 +165,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         syncState: SyncStateEntity?,
         cheapOnly: Boolean = false
     ): SaveSyncStatus {
+        val isSharedYabaSanshiroEntry =
+            entry.systemName == "SAT" &&
+                entry.isServerOnly &&
+                entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+
+        if (isSharedYabaSanshiroEntry && syncState?.lastSyncedHash != null) {
+            if (cheapOnly) return SaveSyncStatus.SYNCED
+
+            val localHash = try {
+                val archiveNames = SaturnArchiveStateStore.get(entry.titleId)
+                if (archiveNames.isEmpty() || entry.saveFile?.exists() != true) {
+                    ""
+                } else {
+                    val canonical = SaturnSaveFormatConverter.extractCanonical(
+                        entry.saveFile.readBytes(),
+                        archiveNames
+                    )
+                    HashUtils.sha256Bytes(canonical)
+                }
+            } catch (_: Exception) {
+                ""
+            }
+
+            return if (localHash.isNotEmpty() && localHash != syncState.lastSyncedHash) {
+                SaveSyncStatus.LOCAL_NEWER
+            } else {
+                SaveSyncStatus.SYNCED
+            }
+        }
         if (entry.isServerOnly) return SaveSyncStatus.SERVER_ONLY
 
         val lastSyncedHash = syncState?.lastSyncedHash
@@ -232,6 +289,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _normalizePicker = MutableStateFlow<NormalizePickerState>(NormalizePickerState.Hidden)
     val normalizePicker: StateFlow<NormalizePickerState> = _normalizePicker
 
+    private val _saturnArchivePicker =
+        MutableStateFlow<SaturnArchivePickerState>(SaturnArchivePickerState.Hidden)
+    val saturnArchivePicker: StateFlow<SaturnArchivePickerState> = _saturnArchivePicker
+
     private val _retroArchPaths = MutableStateFlow<List<Pair<String, Boolean>>>(emptyList())
     val retroArchPaths: StateFlow<List<Pair<String, Boolean>>> = _retroArchPaths
 
@@ -317,10 +378,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val romScanDir = currentSettings.romScanDir
                 val dolphinMemCardDir = currentSettings.dolphinMemCardDir
                 val romDirOverrides = currentSettings.romDirOverrides
-                val rawLocalSaves = EmulatorRegistry.discoverAllSaves(overrides, romScanDir, dolphinMemCardDir, romDirOverrides)
+                val rawLocalSaves = EmulatorRegistry.discoverAllSaves(
+                    overrides,
+                    romScanDir,
+                    dolphinMemCardDir,
+                    romDirOverrides,
+                    currentSettings.saturnSyncFormat
+                )
 
                 // Discover all ROMs the emulators know about (with expected save paths)
-                val allRomEntries = EmulatorRegistry.discoverAllRomEntries(romScanDir, dolphinMemCardDir, romDirOverrides)
+                val allRomEntries = EmulatorRegistry.discoverAllRomEntries(
+                    romScanDir,
+                    dolphinMemCardDir,
+                    romDirOverrides,
+                    currentSettings.saturnSyncFormat
+                )
 
                 val serverOnlySaves: List<SaveEntry>
                 val localSaves: List<SaveEntry>
@@ -1277,13 +1349,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val consoleId = settingsStore.ensureConsoleId()
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(api, db, consoleId)
+                val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 // Only sync local saves (exclude server-only entries)
                 val romScanDir = currentSettings.romScanDir
                 val dolphinMemCardDir = currentSettings.dolphinMemCardDir
                 val romDirOverrides = currentSettings.romDirOverrides
                 val allLocalSaves = _allSaves.value.filter { !it.isServerOnly }.ifEmpty {
-                    EmulatorRegistry.discoverAllSaves(romScanDir = romScanDir, dolphinMemCardDir = dolphinMemCardDir, romDirOverrides = romDirOverrides).also { found ->
+                    EmulatorRegistry.discoverAllSaves(
+                        romScanDir = romScanDir,
+                        dolphinMemCardDir = dolphinMemCardDir,
+                        romDirOverrides = romDirOverrides,
+                        saturnSyncFormat = currentSettings.saturnSyncFormat
+                    ).also { found ->
                         _allSaves.value = found
                     }
                 }
@@ -1333,7 +1410,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         autoSync: Boolean,
         intervalMinutes: Int,
         romScanDir: String = "",
-        dolphinMemCardDir: String = ""
+        dolphinMemCardDir: String = "",
+        saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
     ) {
         viewModelScope.launch {
             settingsStore.updateSettings(
@@ -1342,10 +1420,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 autoSyncEnabled = autoSync,
                 autoSyncIntervalMinutes = intervalMinutes,
                 romScanDir = romScanDir,
-                dolphinMemCardDir = dolphinMemCardDir
+                dolphinMemCardDir = dolphinMemCardDir,
+                saturnSyncFormat = saturnSyncFormat
             )
             ApiClient.invalidate()
             scheduleOrCancelAutoSync(autoSync, intervalMinutes)
+            scanSaves()
         }
     }
 
@@ -1439,13 +1519,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun runRomScanDiagnostic(dir: String = "") {
         viewModelScope.launch {
-            val effectiveDir = dir.ifBlank { settingsStore.settingsFlow.first().romScanDir }
+            val currentSettings = settingsStore.settingsFlow.first()
+            val effectiveDir = dir.ifBlank { currentSettings.romScanDir }
             if (effectiveDir.isBlank()) {
                 _romScanResults.value = mapOf("(no ROM directory set)" to 0)
                 return@launch
             }
-            val romDirOverrides = settingsStore.settingsFlow.first().romDirOverrides
-            val allRoms = EmulatorRegistry.discoverAllRomEntries(romScanDir = effectiveDir, romDirOverrides = romDirOverrides)
+            val allRoms = EmulatorRegistry.discoverAllRomEntries(
+                romScanDir = effectiveDir,
+                romDirOverrides = currentSettings.romDirOverrides,
+                saturnSyncFormat = currentSettings.saturnSyncFormat
+            )
             // Group by system and count
             _romScanResults.value = if (allRoms.isEmpty()) {
                 mapOf("(no ROMs found)" to 0)
@@ -1460,6 +1544,145 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetDetailState() {
         _saveDetailState.value = SaveDetailState.Idle
+    }
+
+    private fun isSharedYabaSanshiroEntry(entry: SaveEntry, settings: Settings): Boolean {
+        return settings.saturnSyncFormat == SaturnSyncFormat.YABASANSHIRO &&
+            entry.systemName == "SAT" &&
+            entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+    }
+
+    private fun buildSaturnArchiveOptions(
+        lookupResults: List<SaturnArchiveLookupResult>,
+    ): Pair<List<String>, List<SaturnArchivePickerOption>> {
+        val hiddenSelected = mutableListOf<String>()
+        val visibleOptions = mutableListOf<SaturnArchivePickerOption>()
+
+        for (result in lookupResults) {
+            when (result.status) {
+                "exact_current" -> hiddenSelected += result.archive_names
+                "includes_current" -> {
+                    val detail = result.candidates.joinToString(", ") { it.game_name }
+                    visibleOptions += SaturnArchivePickerOption(
+                        archiveFamily = result.archive_family,
+                        archiveNames = result.archive_names,
+                        detail = if (detail.isBlank()) "Likely matches this title" else detail,
+                        preselected = true
+                    )
+                }
+                "unknown" -> visibleOptions += SaturnArchivePickerOption(
+                    archiveFamily = result.archive_family,
+                    archiveNames = result.archive_names,
+                    detail = "Unknown archive",
+                    preselected = false
+                )
+                else -> Unit
+            }
+        }
+
+        return hiddenSelected to visibleOptions
+    }
+
+    private suspend fun ensureSaturnArchiveSelection(
+        entry: SaveEntry,
+        settings: Settings,
+        api: SaveSyncApi,
+        action: SaturnArchiveAction
+    ): Boolean {
+        if (!isSharedYabaSanshiroEntry(entry, settings)) return true
+        if (SaturnArchiveStateStore.get(entry.titleId).isNotEmpty()) return true
+
+        val saveFile = entry.saveFile
+        if (saveFile?.exists() != true) return true
+
+        val archiveNames = try {
+            SaturnSaveFormatConverter.archiveNames(saveFile.readBytes())
+        } catch (e: Exception) {
+            _saveDetailState.value = SaveDetailState.Error(
+                e.message ?: "Could not parse Saturn backup.bin"
+            )
+            return false
+        }
+
+        if (archiveNames.isEmpty()) {
+            _saveDetailState.value = SaveDetailState.Error("No Saturn save archives found in backup.bin")
+            return false
+        }
+
+        val lookupResults = try {
+            api.lookupSaturnArchives(
+                SaturnArchiveLookupRequest(
+                    title_id = entry.titleId,
+                    archive_names = archiveNames
+                )
+            ).results
+        } catch (_: Exception) {
+            archiveNames.map { archiveName ->
+                SaturnArchiveLookupResult(
+                    archive_family = archiveName,
+                    archive_names = listOf(archiveName),
+                    status = "unknown",
+                    matches_current_title = false,
+                    candidates = emptyList()
+                )
+            }
+        }
+
+        val (hiddenSelected, visibleOptions) = buildSaturnArchiveOptions(lookupResults)
+        if (visibleOptions.isEmpty()) {
+            if (hiddenSelected.isEmpty()) {
+                _saveDetailState.value = SaveDetailState.Error(
+                    "Could not identify which YabaSanshiro archives belong to this game."
+                )
+                return false
+            }
+            SaturnArchiveStateStore.put(entry.titleId, hiddenSelected)
+            return true
+        }
+
+        _saturnArchivePicker.value = SaturnArchivePickerState.Visible(
+            entry = entry,
+            action = action,
+            hiddenSelectedArchives = hiddenSelected,
+            options = visibleOptions
+        )
+        return false
+    }
+
+    fun dismissSaturnArchivePicker() {
+        _saturnArchivePicker.value = SaturnArchivePickerState.Hidden
+    }
+
+    fun applySaturnArchiveSelection(selectedArchives: Set<String>) {
+        val pickerState = _saturnArchivePicker.value
+        if (pickerState !is SaturnArchivePickerState.Visible) return
+
+        _saturnArchivePicker.value = SaturnArchivePickerState.Hidden
+        val selectedFamilies = selectedArchives
+        val finalSelection = (
+            pickerState.hiddenSelectedArchives +
+                pickerState.options
+                    .filter { it.archiveFamily in selectedFamilies }
+                    .flatMap { it.archiveNames }
+        )
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+        viewModelScope.launch {
+            if (finalSelection.isEmpty()) {
+                _saveDetailState.value = SaveDetailState.Error(
+                    "Choose at least one Saturn archive for this game."
+                )
+                return@launch
+            }
+
+            SaturnArchiveStateStore.put(pickerState.entry.titleId, finalSelection)
+            when (pickerState.action) {
+                SaturnArchiveAction.SYNC -> syncSave(pickerState.entry)
+                SaturnArchiveAction.UPLOAD -> uploadSave(pickerState.entry)
+            }
+        }
     }
 
     fun syncSave(entry: SaveEntry) {
@@ -1479,7 +1702,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val consoleId = settingsStore.ensureConsoleId()
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(api, db, consoleId)
+                if (!ensureSaturnArchiveSelection(entry, currentSettings, api, SaturnArchiveAction.SYNC)) {
+                    if (_saturnArchivePicker.value is SaturnArchivePickerState.Visible) {
+                        _saveDetailState.value = SaveDetailState.Idle
+                    }
+                    return@launch
+                }
+                val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 val result = engine.sync(listOf(entry))
                 val msg = buildString {
                     if (result.uploaded > 0) append("↑ Uploaded to server. ")
@@ -1511,7 +1740,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val consoleId = settingsStore.ensureConsoleId()
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(api, db, consoleId)
+                if (!ensureSaturnArchiveSelection(entry, currentSettings, api, SaturnArchiveAction.UPLOAD)) {
+                    if (_saturnArchivePicker.value is SaturnArchivePickerState.Visible) {
+                        _saveDetailState.value = SaveDetailState.Idle
+                    }
+                    return@launch
+                }
+                val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 val ok = engine.uploadSave(entry)
                 if (ok) {
                     engine.recordSyncedState(entry)
@@ -1545,7 +1780,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val consoleId = settingsStore.ensureConsoleId()
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(api, db, consoleId)
+                val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 val ok = engine.downloadSave(entry, entry.titleId)
                 if (ok) {
                     engine.recordSyncedStateFromFile(entry)
@@ -1599,7 +1834,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _romDownloadState.value = RomDownloadState.Downloading(filename ?: romId)
             try {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(api, db, settingsStore.ensureConsoleId())
+                val engine = SyncEngine(
+                    api,
+                    db,
+                    settingsStore.ensureConsoleId(),
+                    currentSettings.saturnSyncFormat
+                )
                 val file = engine.downloadRom(romId, system, currentSettings.romScanDir, filename, currentSettings.romDirOverrides)
                 if (file != null) {
                     _romDownloadState.value = RomDownloadState.Success(file)

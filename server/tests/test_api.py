@@ -216,6 +216,37 @@ class TestTitlesEndpoint:
         assert game_names.detect_platform("SLUS01279") == "PS1"
         assert game_names.detect_platform("SLUS20002") == "PS2"
 
+    def test_saturn_archive_lookup_classifies_results(self, client, auth_headers):
+        r = client.post(
+            "/api/v1/titles/saturn-archives",
+            json={
+                "title_id": "SAT_T-4507G",
+                "archive_names": ["GRANDIA_001", "DRACULAX_01", "UNKNOWN_SLOT"],
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["title_id"] == "SAT_T-4507G"
+
+        result_map = {item["archive_family"]: item for item in body["results"]}
+        assert result_map["GRANDIA"]["status"] == "includes_current"
+        assert result_map["GRANDIA"]["matches_current_title"] is True
+        assert result_map["GRANDIA"]["archive_names"] == ["GRANDIA_001"]
+        assert "SAT_T-4507G" in [c["title_id"] for c in result_map["GRANDIA"]["candidates"]]
+
+        assert result_map["DRACULAX"]["status"] == "other_title"
+        assert result_map["DRACULAX"]["matches_current_title"] is False
+        assert result_map["DRACULAX"]["archive_names"] == ["DRACULAX_01"]
+        assert [c["title_id"] for c in result_map["DRACULAX"]["candidates"]] == [
+            "SAT_SGC",
+            "SAT_T-9527G",
+        ]
+
+        assert result_map["UNKNOWN_SLOT"]["status"] == "unknown"
+        assert result_map["UNKNOWN_SLOT"]["archive_names"] == ["UNKNOWN_SLOT"]
+        assert result_map["UNKNOWN_SLOT"]["candidates"] == []
+
     def test_titles_can_filter_by_console_type(self, client, auth_headers, monkeypatch):
         bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
         client.post(

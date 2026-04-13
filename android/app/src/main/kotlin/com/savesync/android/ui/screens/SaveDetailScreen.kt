@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +69,7 @@ import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.storage.SyncStateEntity
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.NormalizePickerState
+import com.savesync.android.ui.SaturnArchivePickerState
 import com.savesync.android.ui.SaveDetailState
 import com.savesync.android.ui.SaveSyncStatus
 import com.savesync.android.ui.ServerMetaState
@@ -88,6 +90,7 @@ fun SaveDetailScreen(
     val serverMeta by viewModel.serverMeta.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val normalizePickerState by viewModel.normalizePicker.collectAsState()
+    val saturnArchivePickerState by viewModel.saturnArchivePicker.collectAsState()
 
     val entry = saves.find { it.titleId == titleId }
     val syncState = syncStateEntities.find { it.titleId == titleId }
@@ -178,6 +181,86 @@ fun SaveDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissNormalizePicker() }) { Text("Cancel") }
+            }
+        )
+    }
+
+    val saturnPickerState = saturnArchivePickerState
+    if (saturnPickerState is SaturnArchivePickerState.Visible) {
+        var selectedArchives by remember(saturnPickerState) {
+            mutableStateOf(
+                saturnPickerState.options
+                    .filter { it.preselected }
+                    .mapTo(linkedSetOf()) { it.archiveFamily }
+            )
+        }
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissSaturnArchivePicker() },
+            title = { Text("Choose Saturn save archives") },
+            text = {
+                Column {
+                    Text(
+                        text = "Pick the archive names in YabaSanshiro's backup memory that belong to this game.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    if (saturnPickerState.hiddenSelectedArchives.isNotEmpty()) {
+                        Text(
+                            text = "Auto-selected: ${saturnPickerState.hiddenSelectedArchives.joinToString(", ")}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                    LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                        itemsIndexed(saturnPickerState.options) { _, option ->
+                            val checked = option.archiveFamily in selectedArchives
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedArchives = selectedArchives.toMutableSet().apply {
+                                            if (checked) remove(option.archiveFamily) else add(option.archiveFamily)
+                                        }
+                                    }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = { isChecked ->
+                                        selectedArchives = selectedArchives.toMutableSet().apply {
+                                            if (isChecked) add(option.archiveFamily) else remove(option.archiveFamily)
+                                        }
+                                    }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(option.archiveFamily, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        option.archiveNames.joinToString(", "),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        option.detail,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.applySaturnArchiveSelection(selectedArchives)
+                }) { Text("Use Selection") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissSaturnArchivePicker() }) { Text("Cancel") }
             }
         )
     }

@@ -10,7 +10,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication
 
 import config
+import tabs.server_saves_tab as server_saves_tab
 import sync_engine as se
+from saroo_format import _NativeSave, _build_native_saturn
+from tabs.server_saves_tab import _raw_download_defaults
 from tabs.sync_tab import SyncTab
 
 
@@ -182,6 +185,46 @@ def test_sync_tab_do_sync_finalizes_saroo_server_downloads(monkeypatch, qt_app, 
     assert downloads == [("SAT_T12705H", [expected_bkr], "SAT")]
     assert finalized == [("SAT_T12705H", expected_bkr)]
     assert updated == [(0, "up_to_date", expected_bkr)]
+
+
+def test_server_saves_tab_download_defaults_saturn_to_bkr(monkeypatch, qt_app):
+    default_name, file_filter = _raw_download_defaults("SAT_T-4507G", "SAT")
+
+    assert default_name == "SAT_T-4507G.bkr"
+    assert file_filter == "Saturn Saves (*.bkr *.sav *.srm);;All Files (*)"
+
+
+def test_server_saves_tab_download_defaults_saturn_to_game_name_when_available():
+    default_name, file_filter = _raw_download_defaults(
+        "SAT_T-4507G",
+        "SAT",
+        saturn_format="yabause",
+        game_name="Grandia (Japan) (Disc 1)",
+    )
+
+    assert default_name == "Grandia (Japan) (Disc 1).srm"
+    assert file_filter == "Saturn Saves (*.srm *.bkr *.sav *.bin);;All Files (*)"
+
+
+def test_server_saves_tab_downloads_saturn_as_yabause(monkeypatch, tmp_path):
+    canonical = _build_native_saturn(
+        [
+            _NativeSave(
+                name="GRANDIA_001",
+                language_code=0,
+                comment="Feena's Ho",
+                date_code=23797305,
+                raw_data=b"grandia-save",
+            )
+        ]
+    )
+
+    target = tmp_path / "SAT_T-4507G.srm"
+    monkeypatch.setattr(server_saves_tab, "download_raw_save_bytes", lambda title_id: canonical)
+    server_saves_tab._download_saturn_save("SAT_T-4507G", target, "yabause")
+
+    assert target.read_bytes()[0::2] == b"\xFF" * len(canonical)
+    assert target.read_bytes()[1::2] == canonical
 
 
 def test_sync_tab_download_to_paths_copies_ps3_directories(monkeypatch, qt_app, tmp_path):

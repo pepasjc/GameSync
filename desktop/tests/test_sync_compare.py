@@ -3,6 +3,13 @@ import os
 from pathlib import Path
 
 import sync_engine as se
+from saroo_format import (
+    ArchiveEntry,
+    GameSlot,
+    SLOT_SIZE,
+    build_ss_save_bin,
+    saroo_slot_to_mednafen,
+)
 
 
 class DummyResponse:
@@ -576,6 +583,58 @@ def test_upload_save_prefers_newer_saroo_bkr_over_container(monkeypatch, tmp_pat
     assert calls == [
         ("http://example/api/v1/saves/SAT_T12705H/raw", {}, b"newer-bkr")
     ]
+
+
+def test_scan_saroo_preserves_physical_slot_offsets_when_invalid_slots_are_skipped(
+    monkeypatch, tmp_path
+):
+    saroo_root = tmp_path / "saroo"
+    saroo_root.mkdir()
+
+    def make_slot(game_id, save_name, payload, comment="SAVE"):
+        return GameSlot(
+            game_id=game_id,
+            saves=[
+                ArchiveEntry(
+                    name=save_name,
+                    comment=comment,
+                    language_code=0,
+                    date_code=1,
+                    raw_data=payload,
+                )
+            ],
+        )
+
+    first_slot = make_slot("T-0001G   V1.000", "FIRSTSAVE_1", b"A" * 256)
+    invalid_reserved_slot = make_slot("T-0002G   V1.000", "BROKEN___01", b"B" * 256)
+    dracula_slot = make_slot("T-9527G   V1.400", "DRACULAX_01", b"D" * 4388)
+    grandia_slot = make_slot("T-4507G   V1.002", "GRANDIA_001", b"G" * 3040)
+
+    ss_data = bytearray(
+        build_ss_save_bin(
+            [first_slot, invalid_reserved_slot, dracula_slot, grandia_slot]
+        )
+    )
+    ss_data[2 * SLOT_SIZE : 3 * SLOT_SIZE] = b"\x00" * SLOT_SIZE
+    ss_save = saroo_root / "SS_SAVE.BIN"
+    ss_save.write_bytes(ss_data)
+
+    monkeypatch.setattr(se, "_SAROO_META", {})
+
+    results = se._scan_saroo(saroo_root, None)
+
+    grandia_result = next(result for result in results if result.title_id == "SAT_T-4507G")
+    grandia_meta = se._SAROO_META["SAT_T-4507G"]
+
+    expected_grandia = saroo_slot_to_mednafen(
+        bytes(ss_data[4 * SLOT_SIZE : 5 * SLOT_SIZE])
+    )
+    wrong_dracula = saroo_slot_to_mednafen(bytes(ss_data[3 * SLOT_SIZE : 4 * SLOT_SIZE]))
+
+    assert grandia_result.hash == hashlib.sha256(expected_grandia).hexdigest()
+    assert grandia_meta["slot_index"] == 4 * SLOT_SIZE
+    assert grandia_meta["native_bytes"] == expected_grandia
+    assert grandia_meta["native_bytes"] != wrong_dracula
 
 
 def test_download_save_uses_raw_endpoint_for_ps2_titles(monkeypatch, tmp_path):
