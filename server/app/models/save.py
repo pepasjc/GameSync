@@ -18,7 +18,8 @@ _HEX_TITLE_ID_RE = re.compile(r"^[0-9A-F]{16}$")
 _PRODUCT_CODE_RE = re.compile(r"^[A-Z0-9]{4,31}$")
 _SAVE_DIR_TITLE_ID_RE = re.compile(r"^[A-Z]{4}\d{5}[A-Z0-9._-]{0,54}$")
 # Emulator format: SYSTEM_slug  e.g. GBA_zelda_the_minish_cap
-_EMULATOR_TITLE_ID_RE = re.compile(r"^[A-Z0-9]{2,8}_[a-z0-9][a-z0-9_]{0,99}$")
+# Also accepts uppercase slugs with hyphens for product-code IDs e.g. SAT_GS-9188, SAT_T-14410G
+_EMULATOR_TITLE_ID_RE = re.compile(r"^[A-Z0-9]{2,8}_[A-Za-z0-9][A-Za-z0-9_-]{0,99}$")
 
 
 def is_hex_title_id(title_id: str) -> bool:

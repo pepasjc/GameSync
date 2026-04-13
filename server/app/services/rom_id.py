@@ -92,7 +92,9 @@ SYSTEM_CODES = frozenset(
 )
 
 # Regex for emulator title_id format: SYSTEM_slug
-_EMULATOR_TITLE_ID_RE = re.compile(r"^([A-Z0-9]{2,8})_([a-z0-9][a-z0-9_]{0,99})$")
+# Slug may be lowercase (ROM-name style: GBA_zelda_the_minish_cap) or uppercase with
+# hyphens (product-code style: SAT_GS-9188, SAT_T-14410G for Saroo Saturn saves).
+_EMULATOR_TITLE_ID_RE = re.compile(r"^([A-Z0-9]{2,8})_([A-Za-z0-9][A-Za-z0-9_-]{0,99})$")
 
 # Tags to strip from ROM filenames
 _REGION_RE = re.compile(
