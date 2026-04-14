@@ -45,6 +45,10 @@ CORE_SYSTEM_MAP = {
     "genesis plus gx": "MD",
     "picodrive": "MD",
     "blastem": "MD",
+    "beetle saturn": "SAT",
+    "kronos": "SAT",
+    "yabause": "SAT",
+    "yabasanshiro": "SAT",
     "sega - master system": "SMS",
     "sega - game gear": "GG",
     "sega - 32x": "32X",
@@ -95,6 +99,7 @@ ROM_FOLDER_MAP = {
     "gamegear": ("GG", ["Genesis Plus GX"], [".srm"]),
     "32x": ("32X", ["PicoDrive"], [".srm"]),
     "segacd": ("SEGACD", ["Genesis Plus GX", "PicoDrive"], [".srm", ".bak"]),
+    "saturn": ("SAT", ["Beetle Saturn", "Kronos"], [".bkr"]),
     "pce": ("PCE", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
     "pcecd": ("PCECD", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
     "tg16": ("TG16", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
@@ -216,6 +221,30 @@ def _find_save_for_rom(
     saves_dir: Path,
 ) -> Optional[Path]:
     """Find a RetroArch save file matching the ROM stem."""
+    if system == "SAT":
+        candidates = [
+            saves_dir / f"{rom_stem}.srm",
+            saves_dir / "Beetle Saturn" / f"{rom_stem}.bkr",
+            saves_dir / "Kronos" / f"{rom_stem}.bkr",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+
+        shared_candidates = [
+            saves_dir / "yabasanshiro" / "backup.bin",
+            saves_dir / "backup.bin",
+        ]
+        for candidate in shared_candidates:
+            if candidate.exists():
+                return candidate
+
+        if (saves_dir / "yabasanshiro").exists():
+            return saves_dir / "yabasanshiro" / "backup.bin"
+        if (saves_dir / "Beetle Saturn").exists() or (saves_dir / "Kronos").exists():
+            return saves_dir / "Beetle Saturn" / f"{rom_stem}.bkr"
+        return saves_dir / f"{rom_stem}.srm"
+
     folder_info = None
     for folder_key, info in ROM_FOLDER_MAP.items():
         if info[0] == system:
@@ -288,13 +317,15 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
             emulator="RetroArch",
             save_path=save_path,
             rom_path=rom_path,
+            rom_filename=rom_path.name,
         )
         if save_path and save_path.exists():
             try:
-                entry.save_hash = sha256_file(save_path)
                 stat = save_path.stat()
                 entry.save_mtime = stat.st_mtime
                 entry.save_size = stat.st_size
+                if not (system == "SAT" and save_path.name.lower() == "backup.bin"):
+                    entry.save_hash = sha256_file(save_path)
             except Exception:
                 pass
         yield entry
@@ -327,13 +358,15 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
                 emulator="RetroArch",
                 save_path=save_path,
                 rom_path=rom_file,
+                rom_filename=rom_file.name,
             )
             if save_path and save_path.exists():
                 try:
-                    entry.save_hash = sha256_file(save_path)
                     stat = save_path.stat()
                     entry.save_mtime = stat.st_mtime
                     entry.save_size = stat.st_size
+                    if not (system == "SAT" and save_path.name.lower() == "backup.bin"):
+                        entry.save_hash = sha256_file(save_path)
                 except Exception:
                     pass
             yield entry

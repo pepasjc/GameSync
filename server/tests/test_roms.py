@@ -40,6 +40,47 @@ def rom_client(rom_dir, client, auth_headers):
 
 
 class TestRomCatalog:
+    def test_dat_normalizer_uses_aliases_for_translated_titles(self, tmp_path):
+        from app.services.dat_normalizer import DatNormalizer
+
+        dats_dir = tmp_path / "dats"
+        dats_dir.mkdir()
+        (dats_dir / "EN-Dats").mkdir()
+
+        (dats_dir / "Nintendo - Nintendo Entertainment System.dat").write_text(
+            """<?xml version="1.0" encoding="UTF-8"?>
+<datafile>
+  <game name="Ganbare Goemon! - Karakuri Douchuu (Japan)">
+    <rom name="Ganbare Goemon! - Karakuri Douchuu (Japan).nes" crc="12345678" />
+  </game>
+</datafile>
+""",
+            encoding="utf-8",
+        )
+        (dats_dir / "EN-Dats" / "aliases.json").write_text(
+            """{
+  "NES": {
+    "Mystical Ninja (Japan)": "Ganbare Goemon! - Karakuri Douchuu (Japan)",
+    "Broken Legacy Alias (Japan)": "Missing Canonical Target (Japan)"
+  }
+}
+""",
+            encoding="utf-8",
+        )
+
+        norm = DatNormalizer(dats_dir)
+
+        translated = norm.normalize("NES", "Mystical Ninja (Japan) [T-En v1.0].nes")
+        assert translated["canonical_name"] == "Ganbare Goemon! - Karakuri Douchuu (Japan)"
+        assert translated["source"] == "dat_alias"
+        assert norm.search_candidates(
+            "NES", "Mystical Ninja (Japan) [T-En v1.0].nes"
+        ) == ["Ganbare Goemon! - Karakuri Douchuu (Japan)"]
+
+        broken = norm.normalize("NES", "Broken Legacy Alias (Japan).nes")
+        assert broken["canonical_name"] == "Broken Legacy Alias (Japan)"
+        assert broken["source"] == "filename"
+
     def test_list_roms(self, rom_client, auth_headers):
         resp = rom_client.get("/api/v1/roms", headers=auth_headers)
         assert resp.status_code == 200

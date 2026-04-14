@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Panasonic - 3DO Interactive Multiplayer [T-En] Collection</name>
+		<description>Panasonic - 3DO Interactive Multiplayer [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>02-04-2023</version>
+		<date>02-04-2023</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Panasonic - 3DO Interactive Multiplayer [T-En] Docs">
+		<description>_Panasonic - 3DO Interactive Multiplayer [T-En] Docs</description>
+		<rom name="Doctor Hauzer (Japan) [T-En by ArcaneAria v1.2.1] [Custom Music Edition].txt" size="2749" crc="87d0f9a7" md5="bfc6344bc571d710d202f170d2a02f20" sha1="9425f4891c7daa0b960cfb70e3b90bf8d1b959a0"/>
+		<rom name="Doctor Hauzer (Japan) [T-En by ArcaneAria v1.2.1].txt" size="2275" crc="43e28858" md5="ced787420dffaeb7aee760504f0ce0ec" sha1="3d43fccdfa711f4e4e747330bbd4a90d88315abc"/>
+		<rom name="Oyaji Hunter Mahjong (Japan) [T-En by Blametherobots &amp; SnowyAria &amp; Yuvi v1.0] [Staff Room].pdf" size="1209842" crc="5d9904fc" md5="62accf41e80494f8794339b924f2c7ef" sha1="4af52cb8be6600bb2a26e59b2dc69a3bb30171f1"/>
+		<rom name="Oyaji Hunter Mahjong (Japan) [T-En by Blametherobots &amp; SnowyAria &amp; Yuvi v1.0].txt" size="4300" crc="5a4fc460" md5="f81d9602d851b2342d1b35e98d54b974" sha1="de012dafaaf793e0b31faff9587bfe9c35692747"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Battle Blues (Korea) [T-En by Jeremy De Cola-David v1.0.1]" sha1="e6eaeacabf31186b0ecc8b83b3d3237a614a5134"/>
+		<disk name="Doctor Hauzer (Japan) [T-En by ArcaneAria v1.2.1] [Custom Music Edition]" sha1="167b64a6f087d266b719a0afebf17f912fc1cad0"/>
+		<disk name="Doctor Hauzer (Japan) [T-En by ArcaneAria v1.2.1]" sha1="6a09cabd5ba17af4dab2b7e02d94748949709f0d"/>
+		<disk name="Oyaji Hunter Mahjong (Japan) [T-En by Blametherobots &amp; SnowyAria &amp; Yuvi v1.0]" sha1="4186018b937674581d8f0ff4409dcc3ea42d3ede"/>
+	</machine>
+</datafile>

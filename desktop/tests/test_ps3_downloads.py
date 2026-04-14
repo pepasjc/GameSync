@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -14,7 +15,11 @@ import tabs.server_saves_tab as server_saves_tab
 import sync_engine as se
 from saroo_format import _NativeSave, _build_native_saturn
 from tabs.server_saves_tab import _raw_download_defaults
-from tabs.sync_tab import SyncTab, _resolve_retroarch_saturn_download_path
+from tabs.sync_tab import (
+    SyncTab,
+    _resolve_retroarch_download_path,
+    _resolve_retroarch_saturn_download_path,
+)
 
 
 @pytest.fixture(scope="module")
@@ -116,6 +121,32 @@ def test_sync_tab_resolves_retroarch_saturn_downloads_to_yabause_root(qt_app, tm
     )
 
     assert resolved == saves_root / "Panzer Dragoon Saga (USA).srm"
+
+
+def test_sync_tab_resolves_retroarch_saturn_downloads_to_mednafen_root_when_no_core_dir(
+    qt_app, tmp_path
+):
+    saves_root = tmp_path / "retroarch" / "saves"
+    saves_root.mkdir(parents=True)
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(tmp_path / "retroarch" / "roms"),
+        "save_folder": str(saves_root),
+        "systems": [
+            {
+                "system": "SAT",
+                "enabled": True,
+                "save_ext": ".bkr",
+                "save_folder": "",
+            }
+        ],
+    }
+    resolved = _resolve_retroarch_saturn_download_path(
+        profile, saves_root, "Panzer Dragoon Saga (USA)"
+    )
+
+    assert resolved == saves_root / "Panzer Dragoon Saga (USA).bkr"
 
 
 def test_sync_tab_resolves_retroarch_saturn_downloads_to_yabasanshiro_backup(
@@ -243,6 +274,109 @@ def test_server_saves_tab_downloads_saturn_as_yabause(monkeypatch, tmp_path):
 
     assert target.read_bytes()[0::2] == b"\xFF" * len(canonical)
     assert target.read_bytes()[1::2] == canonical
+
+
+def test_sync_tab_resolve_download_path_uses_retroarch_system_save_and_rom_overrides(
+    qt_app, tmp_path
+):
+    global_rom_root = tmp_path / "roms"
+    gba_rom_root = tmp_path / "gba_roms"
+    save_root = tmp_path / "saves"
+    gba_save_root = tmp_path / "gba_saves"
+    global_rom_root.mkdir()
+    gba_rom_root.mkdir()
+    save_root.mkdir()
+    gba_save_root.mkdir()
+    (gba_rom_root / "Advance Wars (USA).gba").write_bytes(b"")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(global_rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {
+                "system": "GBA",
+                "enabled": True,
+                "save_ext": ".srm",
+                "save_folder": str(gba_save_root),
+                "rom_folder": str(gba_rom_root),
+            },
+        ],
+    }
+
+    resolved = _resolve_retroarch_download_path(
+        profile=profile,
+        save_root=gba_save_root,
+        system="GBA",
+        filename_stem="Advance Wars (USA)",
+        filename="Advance Wars (USA).srm",
+        has_system_override=True,
+    )
+
+    assert resolved == gba_save_root / "Advance Wars (USA).srm"
+
+
+def test_sync_tab_resolve_download_path_uses_selected_retroarch_core_folder():
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": r"E:\roms",
+        "save_folder": r"E:\saves",
+        "systems": [
+            {
+                "system": "GBA",
+                "enabled": True,
+                "save_ext": ".srm",
+                "save_folder": "",
+                "rom_folder": "",
+                "core": "VBA-M",
+            },
+        ],
+    }
+
+    resolved = _resolve_retroarch_download_path(
+        profile=profile,
+        save_root=Path(r"E:\saves"),
+        system="GBA",
+        filename_stem="Advance Wars (USA)",
+        filename="Advance Wars (USA).srm",
+        has_system_override=False,
+        core_name="VBA-M",
+    )
+
+    assert resolved == Path(r"E:\saves") / "Advance Wars (USA).srm"
+
+
+def test_sync_tab_resolve_download_path_uses_selected_shared_retroarch_core_folder():
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": r"E:\roms",
+        "save_folder": r"E:\saves",
+        "systems": [
+            {
+                "system": "SEGACD",
+                "enabled": True,
+                "save_ext": ".srm",
+                "save_folder": "",
+                "rom_folder": "",
+                "core": "Genesis Plus GX",
+            },
+        ],
+    }
+
+    resolved = _resolve_retroarch_download_path(
+        profile=profile,
+        save_root=Path(r"E:\saves"),
+        system="SEGACD",
+        filename_stem="Sonic CD (USA)",
+        filename="Sonic CD (USA).srm",
+        has_system_override=False,
+        core_name="Genesis Plus GX",
+    )
+
+    assert resolved == Path(r"E:\saves") / "Sonic CD (USA).srm"
 
 
 def test_sync_tab_download_to_paths_copies_ps3_directories(monkeypatch, qt_app, tmp_path):

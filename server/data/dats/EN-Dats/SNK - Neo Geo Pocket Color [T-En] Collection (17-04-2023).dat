@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>SNK - Neo Geo Pocket Color [T-En] Collection</name>
+		<description>SNK - Neo Geo Pocket Color [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>17-04-2023</version>
+		<date>17-04-2023</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_SNK Neo Geo Pocket Color [T-En] Docs">
+		<description>_SNK Neo Geo Pocket Color [T-En] Docs</description>
+		<rom name="Nige-ron-pa (Japan) [T-En by Loïc v0.9].nfo" size="575" crc="8d0d6241" md5="849a4f8023816f5867edfa15132ee70e" sha1="563ea45d810c8c067640ae4e4313f4b411de17e3"/>
+		<rom name="Rockman - Battle &amp; Fighters (Japan) [T-En by marc_max v0.9] [i].txt" size="1155" crc="81c32c56" md5="8df3b4b14536ecf030265895b4fddb13" sha1="e6413b978b57c5eda9126cf8b4968396fd7310bc"/>
+		<rom name="SNK vs. Capcom - Card Fighters 2 - Expand Edition (Japan) [T-En by CFC2 Translation Team v20170125].txt" size="4383" crc="94fa4411" md5="c1bd982d2e37c668fb0790cde341cfc1" sha1="b1ee8f48fb131ee18182d66c9779ac0a1152628b"/>
+	</machine>
+	<machine name="Cool Cool Jam (Japan) [T-En by WyndCrosser v0.01] [i]">
+		<description>Cool Cool Jam (Japan) [T-En by WyndCrosser v0.01] [i]</description>
+		<rom name="Cool Cool Jam (Japan) [T-En by WyndCrosser v0.01] [i].ngc" size="2097152" crc="c9c631ca" md5="3c5ee6e830d60f5bc8f3a5a5a53558bb" sha1="1b82899da5084b31d0df19c740fc5e08bd193176"/>
+	</machine>
+	<machine name="Kikou Seiki Unitron - Sono Tsuide. Hikari Umareru Chi Yori. (Japan) [T-En by WyndCrosser v0.38] [i]">
+		<description>Kikou Seiki Unitron - Sono Tsuide. Hikari Umareru Chi Yori. (Japan) [T-En by WyndCrosser v0.38] [i]</description>
+		<rom name="Kikou Seiki Unitron - Sono Tsuide. Hikari Umareru Chi Yori. (Japan) [T-En by WyndCrosser v0.38] [i].ngc" size="2097152" crc="364de6b4" md5="90b7543441197553f6a4402cd6b87c3f" sha1="9fc12489baef0e4b4e68267b139276001f252336"/>
+	</machine>
+	<machine name="Mizuki Shigeru no Youkai Shashinkan (Japan) [T-En by WyndCrosser v0.01] [i]">
+		<description>Mizuki Shigeru no Youkai Shashinkan (Japan) [T-En by WyndCrosser v0.01] [i]</description>
+		<rom name="Mizuki Shigeru no Youkai Shashinkan (Japan) [T-En by WyndCrosser v0.01] [i].ngc" size="2097152" crc="7fe6d50e" md5="a4e86de6caa29f30f82a8e7045c46fff" sha1="21e07e17866f65ed826041c667149068c1fc8d60"/>
+	</machine>
+	<machine name="Nige-ron-pa (Japan) [T-En by Loïc v0.9]">
+		<description>Nige-ron-pa (Japan) [T-En by Loïc v0.9]</description>
+		<rom name="Nige-ron-pa (Japan) [T-En by Loïc v0.9].ngc" size="2097152" crc="6672d6e6" md5="866e717e2c684e073e6d034f5a56f7b7" sha1="85bf5be2cce3b5559fbb68799ac6c15539b87621"/>
+	</machine>
+	<machine name="Ogre Battle Gaiden - The Prince of Zenobia (Japan) [T-En by FFaddic v1.0] [i] [n]">
+		<description>Ogre Battle Gaiden - The Prince of Zenobia (Japan) [T-En by FFaddic v1.0] [i] [n]</description>
+		<rom name="Ogre Battle Gaiden - The Prince of Zenobia (Japan) [T-En by FFaddic v1.0] [i] [n].ngc" size="2097152" crc="d3c0ad6d" md5="b43b8b637c067be0fc4e9fd3b246a78d" sha1="f0f1a421e4c16529d3d6eb41170087c550c44005"/>
+	</machine>
+	<machine name="Rockman - Battle &amp; Fighters (Japan) [T-En by marc_max v0.9] [i]">
+		<description>Rockman - Battle &amp; Fighters (Japan) [T-En by marc_max v0.9] [i]</description>
+		<rom name="Rockman - Battle &amp; Fighters (Japan) [T-En by marc_max v0.9] [i].ngc" size="2097152" crc="65985356" md5="62ba425e8a32bb953dcf0dc36cdabbf2" sha1="2c93c45b5aeda0eba1ba66b0a56cba86e8f675b8"/>
+	</machine>
+	<machine name="Rockman - Battle &amp; Fighters (Japan) [T-En by Marc_max v1.0] [i]">
+		<description>Rockman - Battle &amp; Fighters (Japan) [T-En by Marc_max v1.0] [i]</description>
+		<rom name="Rockman - Battle &amp; Fighters (Japan) [T-En by Marc_max v1.0] [i].ngc" size="2097152" crc="9322629e" md5="0a85a643ae051e0f55d27be60df01e9c" sha1="1a3a3add1a408af8d6da3bf6a66571320f3b8dc9"/>
+	</machine>
+	<machine name="SNK vs. Capcom - Card Fighters 2 - Expand Edition (Japan) [T-En by CFC2 Translation Team v20170125]">
+		<description>SNK vs. Capcom - Card Fighters 2 - Expand Edition (Japan) [T-En by CFC2 Translation Team v20170125]</description>
+		<rom name="SNK vs. Capcom - Card Fighters 2 - Expand Edition (Japan) [T-En by CFC2 Translation Team v20170125].ngc" size="2097152" crc="0cc88d96" md5="3c6c6e42d10b76bbccacf125f5d2b769" sha1="5d5c95bad71e32cd80a9993ed46f621f2df74874"/>
+	</machine>
+</datafile>

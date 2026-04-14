@@ -75,7 +75,10 @@ def _resolve_retroarch_saturn_download_path(
     save_root: Path,
     filename_stem: str,
 ) -> Path:
-    from sync_engine import _retroarch_saturn_format
+    from sync_engine import (
+        _retroarch_saturn_format,
+        _retroarch_saturn_mednafen_save_root,
+    )
 
     saturn_sys_info = {}
     if "systems" in profile:
@@ -96,7 +99,32 @@ def _resolve_retroarch_saturn_download_path(
         if target_root.suffix.lower() == ".bin":
             return target_root
         return target_root / "backup.bin"
-    return save_root / "Beetle Saturn" / f"{filename_stem}.bkr"
+    return _retroarch_saturn_mednafen_save_root(save_root) / f"{filename_stem}.bkr"
+
+
+def _resolve_retroarch_download_path(
+    profile: dict,
+    save_root: Path,
+    system: str,
+    filename_stem: str,
+    filename: str,
+    has_system_override: bool,
+    core_name: str = "",
+) -> Path:
+    if system == "SAT":
+        return _resolve_retroarch_saturn_download_path(
+            profile, save_root, filename_stem
+        )
+    return save_root / filename
+
+
+def _system_profile_info(profile: dict, system: str) -> dict:
+    if "systems" not in profile:
+        return {}
+    return next(
+        (s for s in profile["systems"] if s.get("system") == system),
+        {},
+    )
 
 
 class ScanWorker(QThread):
@@ -127,7 +155,18 @@ class ScanWorker(QThread):
 
     def run(self):
         try:
-            from sync_engine import scan_profile, compare_with_server
+            from sync_engine import (
+                _debug_scan,
+                _reset_debug_scan_log,
+                _scan_debug_enabled,
+                _scan_debug_log_path,
+                compare_with_server,
+                scan_profile,
+            )
+
+            if _scan_debug_enabled():
+                _reset_debug_scan_log()
+                _debug_scan(f"Desktop scan started. Log file: {_scan_debug_log_path()}")
 
             systems_filter: set[str] = set()
             for profile in self.profiles:
@@ -1088,10 +1127,8 @@ class SyncTab(QWidget):
         system = (st.save.system or "").upper()
 
         # Check per-system save folder override (new multi-system format)
+        sys_info = _system_profile_info(profile, system)
         if "systems" in profile:
-            sys_info = next(
-                (s for s in profile["systems"] if s.get("system") == system), {}
-            )
             override = sys_info.get("save_folder", "")
             if override:
                 save_root = Path(override)
@@ -1109,13 +1146,20 @@ class SyncTab(QWidget):
         save_ext = ".sav"
         has_system_override = False
         if "systems" in profile:
-            sys_info = next(
-                (s for s in profile["systems"] if s.get("system") == system), {}
-            )
             has_system_override = bool(sys_info.get("save_folder", ""))
             save_ext = sys_info.get("save_ext", ".sav") or ".sav"
         save_ext = resolve_save_ext(system, save_ext)
         filename = filename_stem + save_ext
+        rom_root = Path(profile.get("path", "")) if profile.get("path", "") else None
+        rom_override = sys_info.get("rom_folder", "")
+        if rom_override:
+            rom_root = Path(rom_override)
+        matched_rom = None
+        if device_type == "RetroArch" and rom_root and rom_root.exists():
+            matched_rom = self._find_rom_file(rom_root, raw_name)
+            if matched_rom is not None:
+                filename_stem = matched_rom.stem
+                filename = filename_stem + save_ext
 
         if system == "PS3":
             if device_type == "EmuDeck" and not has_system_override:
@@ -1310,14 +1354,15 @@ class SyncTab(QWidget):
             return save_root / sys_folder / filename
 
         elif device_type == "RetroArch":
-            if system == "SAT":
-                return _resolve_retroarch_saturn_download_path(
-                    profile, save_root, filename_stem
-                )
-            core = next(
-                (k for k, v in RETROARCH_CORE_MAP.items() if v == system), system
+            return _resolve_retroarch_download_path(
+                profile,
+                save_root,
+                system,
+                filename_stem,
+                filename,
+                has_system_override,
+                core_name=str(sys_info.get("core", "") or ""),
             )
-            return save_root / core / filename
 
         else:
             return save_root / filename

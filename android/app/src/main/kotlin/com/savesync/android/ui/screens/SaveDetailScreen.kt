@@ -91,6 +91,7 @@ fun SaveDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val normalizePickerState by viewModel.normalizePicker.collectAsState()
     val saturnArchivePickerState by viewModel.saturnArchivePicker.collectAsState()
+    val saturnArchiveSelectionVersion by viewModel.saturnArchiveSelectionVersion.collectAsState()
 
     val entry = saves.find { it.titleId == titleId }
     val syncState = syncStateEntities.find { it.titleId == titleId }
@@ -100,6 +101,7 @@ fun SaveDetailScreen(
         viewModel.fetchServerMeta(titleId, entry?.systemName)
         viewModel.fetchRomAvailable()
         viewModel.resetRomDownloadState()
+        viewModel.prepareSaveDetail(entry)
     }
 
     // Show result messages
@@ -316,22 +318,11 @@ fun SaveDetailScreen(
                 (listOf(entry.saveFile) + entry.extraFiles).filter { it.exists() }.maxOfOrNull { it.lastModified() } ?: 0L
             else -> entry.saveFile?.lastModified() ?: entry.saveDir?.lastModified() ?: 0L
         }
-        val localHash = remember(entry.titleId, fileModTime) {
-            try { entry.computeHash() } catch (_: Exception) { null }
+        val localHash = remember(entry.titleId, fileModTime, saturnArchiveSelectionVersion) {
+            viewModel.detailLocalHash(entry)
         }
-        val localSize = remember(entry.titleId, fileModTime) {
-            when {
-                entry.saveFile != null && entry.extraFiles.isNotEmpty() ->
-                    (listOf(entry.saveFile) + entry.extraFiles).filter { it.exists() }.sumOf { it.length() }
-                entry.isMultiFile && entry.saveDir != null ->
-                    entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                entry.saveFile != null ->
-                    entry.saveFile.length()
-                // PSP: saveFile=null, saveDir=slot dir (all files)
-                entry.saveDir != null ->
-                    entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                else -> 0L
-            }
+        val localSize = remember(entry.titleId, fileModTime, saturnArchiveSelectionVersion) {
+            viewModel.detailLocalSize(entry)
         }
 
         Column(

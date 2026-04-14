@@ -146,6 +146,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _statusFilter = MutableStateFlow<SaveSyncStatus?>(null)
     val statusFilter: StateFlow<SaveSyncStatus?> = _statusFilter
 
+    private val _saturnArchiveSelectionVersion = MutableStateFlow(0)
+    val saturnArchiveSelectionVersion: StateFlow<Int> = _saturnArchiveSelectionVersion
+
     /** Room-backed sync state for all titles. Eagerly collected so it's populated
      *  before the first compose frame, eliminating the "?" flash on startup. */
     val syncStateEntities: StateFlow<List<SyncStateEntity>> =
@@ -230,7 +233,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedFilter,
         _searchQuery,
         _statusFilter,
-        syncStateEntities
+        syncStateEntities,
+        _saturnArchiveSelectionVersion
     ) { args: Array<*> ->
         @Suppress("UNCHECKED_CAST")
         val all = args[0] as List<SaveEntry>
@@ -239,6 +243,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val statusFilter = args[3] as SaveSyncStatus?
         @Suppress("UNCHECKED_CAST")
         val syncEntities = args[4] as List<SyncStateEntity>
+        args[5] as Int
 
         var result = all
 
@@ -275,8 +280,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Status filter options that have at least one matching entry
     val availableStatusFilters: StateFlow<List<SaveSyncStatus>> = combine(
-        _allSaves, syncStateEntities
-    ) { allSaves, syncEntities ->
+        _allSaves, syncStateEntities, _saturnArchiveSelectionVersion
+    ) { allSaves, syncEntities, _ ->
         val syncMap = syncEntities.associateBy { it.titleId }
         allSaves.map { computeSyncStatus(it, syncMap[it.titleId]) }
             .distinct()
@@ -1555,11 +1560,134 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
     }
 
+    private fun rememberSaturnArchiveSelection(titleId: String, archiveNames: List<String>) {
+        val normalized = archiveNames
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+        if (normalized.isEmpty()) return
+        SaturnArchiveStateStore.put(titleId, normalized)
+        _saturnArchiveSelectionVersion.value += 1
+    }
+
+    fun prepareSaveDetail(entry: SaveEntry?) {
+        if (entry == null) return
+
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            if (!isSharedYabaSanshiroEntry(entry, currentSettings)) return@launch
+
+            if (SaturnArchiveStateStore.get(entry.titleId).isNotEmpty()) {
+                _saturnArchiveSelectionVersion.value += 1
+                return@launch
+            }
+
+            val saveFile = entry.saveFile
+            if (saveFile?.exists() != true || currentSettings.serverUrl.isBlank()) return@launch
+
+            val archiveNames = try {
+                SaturnSaveFormatConverter.archiveNames(saveFile.readBytes())
+            } catch (_: Exception) {
+                return@launch
+            }
+            if (archiveNames.isEmpty()) return@launch
+
+            val lookupResults = try {
+                val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
+                api.lookupSaturnArchives(
+                    SaturnArchiveLookupRequest(
+                        title_id = entry.titleId,
+                        archive_names = archiveNames
+                    )
+                ).results
+            } catch (_: Exception) {
+                return@launch
+            }
+
+            val (hiddenSelected, visibleOptions) = buildSaturnArchiveOptions(lookupResults)
+            when {
+                hiddenSelected.isNotEmpty() && visibleOptions.none { it.preselected } ->
+                    rememberSaturnArchiveSelection(entry.titleId, hiddenSelected)
+                visibleOptions.isEmpty() && hiddenSelected.isNotEmpty() ->
+                    rememberSaturnArchiveSelection(entry.titleId, hiddenSelected)
+                visibleOptions.all { it.preselected } -> {
+                    rememberSaturnArchiveSelection(
+                        entry.titleId,
+                        hiddenSelected + visibleOptions.flatMap { it.archiveNames }
+                    )
+                }
+            }
+        }
+    }
+
     fun canUploadFromDetail(entry: SaveEntry): Boolean {
         if (entry.exists()) return true
         return entry.systemName == "SAT" &&
             entry.saveFile?.name.equals("backup.bin", ignoreCase = true) &&
             entry.saveFile?.exists() == true
+    }
+
+    fun detailLocalHash(entry: SaveEntry): String? {
+        val isSharedYabaSanshiroEntry =
+            entry.systemName == "SAT" &&
+                entry.isServerOnly &&
+                entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+
+        if (!isSharedYabaSanshiroEntry) {
+            return try { entry.computeHash().ifBlank { null } } catch (_: Exception) { null }
+        }
+
+        if (entry.saveFile?.exists() != true) return null
+        return try {
+            val archiveNames = SaturnArchiveStateStore.get(entry.titleId)
+            if (archiveNames.isEmpty()) {
+                null
+            } else {
+                val canonical = SaturnSaveFormatConverter.extractCanonical(
+                    entry.saveFile.readBytes(),
+                    archiveNames
+                )
+                HashUtils.sha256Bytes(canonical)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun detailLocalSize(entry: SaveEntry): Long {
+        val isSharedYabaSanshiroEntry =
+            entry.systemName == "SAT" &&
+                entry.isServerOnly &&
+                entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+
+        if (!isSharedYabaSanshiroEntry) {
+            return when {
+                entry.saveFile != null && entry.extraFiles.isNotEmpty() ->
+                    (listOf(entry.saveFile) + entry.extraFiles).filter { it.exists() }.sumOf { it.length() }
+                entry.isMultiFile && entry.saveDir != null ->
+                    entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                entry.saveFile != null ->
+                    entry.saveFile.length()
+                entry.saveDir != null ->
+                    entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                else -> 0L
+            }
+        }
+
+        if (entry.saveFile?.exists() != true) return 0L
+        return try {
+            val archiveNames = SaturnArchiveStateStore.get(entry.titleId)
+            if (archiveNames.isEmpty()) {
+                entry.saveFile.length()
+            } else {
+                SaturnSaveFormatConverter.extractCanonical(
+                    entry.saveFile.readBytes(),
+                    archiveNames
+                ).size.toLong()
+            }
+        } catch (_: Exception) {
+            entry.saveFile.length()
+        }
     }
 
     private fun buildSaturnArchiveOptions(
@@ -1646,8 +1774,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 return false
             }
-            SaturnArchiveStateStore.put(entry.titleId, hiddenSelected)
+            rememberSaturnArchiveSelection(entry.titleId, hiddenSelected)
             return true
+        }
+
+        if (hiddenSelected.isNotEmpty() && visibleOptions.none { it.preselected }) {
+            rememberSaturnArchiveSelection(entry.titleId, hiddenSelected)
+            return true
+        }
+
+        if (visibleOptions.all { it.preselected }) {
+            val finalSelection = (
+                hiddenSelected + visibleOptions.flatMap { it.archiveNames }
+            )
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+            if (finalSelection.isNotEmpty()) {
+                rememberSaturnArchiveSelection(entry.titleId, finalSelection)
+                return true
+            }
         }
 
         _saturnArchivePicker.value = SaturnArchivePickerState.Visible(
@@ -1687,7 +1833,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            SaturnArchiveStateStore.put(pickerState.entry.titleId, finalSelection)
+            rememberSaturnArchiveSelection(pickerState.entry.titleId, finalSelection)
             when (pickerState.action) {
                 SaturnArchiveAction.SYNC -> syncSave(pickerState.entry)
                 SaturnArchiveAction.UPLOAD -> uploadSave(pickerState.entry)

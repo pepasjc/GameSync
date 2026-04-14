@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>NEC - PC-8001 [T-En] Collection</name>
+		<description>NEC - PC-8001 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>10-05-2022</version>
+		<date>10-05-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_NEC PC-8001 [T-En] Docs">
+		<description>_NEC PC-8001 [T-En] Docs</description>
+		<rom name="Underground Monster (Japan) [T-En by Umbrella Terms v1.0].txt" size="1625" crc="71aad68b" md5="250e89d11a798014ac0c1192a5cb94d7" sha1="67991939e470c1e7aab9daac85f78a47e1db396f"/>
+	</machine>
+	<machine name="Underground Monster (Japan) [T-En by Umbrella Terms v1.0]">
+		<description>Underground Monster (Japan) [T-En by Umbrella Terms v1.0]</description>
+		<rom name="Underground Monster (Japan) [T-En by Umbrella Terms v1.0].d88" size="166064" crc="d0c5f201" md5="9e01b26e07dc14bdad6ff96d1bb640fa" sha1="c52d1f7cfeddb2ad255e05092b032b26c686fdb7"/>
+	</machine>
+</datafile>

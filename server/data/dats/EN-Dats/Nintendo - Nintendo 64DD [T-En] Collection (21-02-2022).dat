@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Nintendo - Nintendo 64DD [T-En] Collection</name>
+		<description>Nintendo - Nintendo 64DD [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>21-02-2022</version>
+		<date>21-02-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Nintendo 64DD [T-En] Docs">
+		<description>_Nintendo 64DD [T-En] Docs</description>
+		<rom name="F-Zero X - Expansion Kit (Japan) [T-En by LuigiBlood v2] [Req F-Zero X (USA) rom].txt" size="1450" crc="de0efcf7" md5="ae2fdde1636282a312dc54da2f702091" sha1="1da5aa88147918022070be5c3c4c50afc6e6bd4a"/>
+		<rom name="Mario Artist - Paint Studio (Japan) [T-En by LuigiBlood &amp; Cauterize v2.1].txt" size="487" crc="6c86bb9a" md5="fd227e3f5bd51b0d73929ebe074f2276" sha1="4c8917379e7866a021e110ff6e853b6ba9559eec"/>
+		<rom name="Mario Artist - Polygon Studio (Japan) [T-En by LuigiBlood v3.0].txt" size="697" crc="411f52bd" md5="c03808c1edad9727bdefa5420f671e49" sha1="198063e2155ce90f587ace1ea53a25ffa3226a35"/>
+		<rom name="Mario Artist - Talent Studio (Japan) [T-En by LuigiBlood v2.1].txt" size="790" crc="4cf7d120" md5="81db10071a8961c16804648b5d6c1214" sha1="54b532800190579870051f399996146a0092e1c9"/>
+	</machine>
+	<machine name="F-Zero X - Expansion Kit (Japan) [T-En by LuigiBlood v2] [Req F-Zero X (USA) rom]">
+		<description>F-Zero X - Expansion Kit (Japan) [T-En by LuigiBlood v2] [Req F-Zero X (USA) rom]</description>
+		<rom name="F-Zero X - Expansion Kit (Japan) [T-En by LuigiBlood v2] [Req F-Zero X (USA) rom].ndd" size="64931840" crc="ebdfbd2b" md5="f775dfc557f48720edba1920f3ea9f5b" sha1="fde9fa6f29a52be0144bda74caf8583c036c20ce"/>
+	</machine>
+	<machine name="Mario Artist - Paint Studio (Japan) (Beta) (1999-02-11) [T-En by LuigiBlood] [i]">
+		<description>Mario Artist - Paint Studio (Japan) (Beta) (1999-02-11) [T-En by LuigiBlood] [i]</description>
+		<rom name="Mario Artist - Paint Studio (Japan) (Beta) (1999-02-11) [T-En by LuigiBlood] [i].ndd" size="64931840" crc="fb233cee" md5="2fcc6b26e6dd84c9b48932104053a8a3" sha1="fc94edb371903e40d2f25a59f1e587328e0773af"/>
+	</machine>
+	<machine name="Mario Artist - Paint Studio (Japan) [T-En by LuigiBlood &amp; Cauterize v2.1]">
+		<description>Mario Artist - Paint Studio (Japan) [T-En by LuigiBlood &amp; Cauterize v2.1]</description>
+		<rom name="Mario Artist - Paint Studio (Japan) [T-En by LuigiBlood &amp; Cauterize v2.1].ndd" size="64931840" crc="ec7a7cb2" md5="b17771664daf95d7e61d8549a8ceacc6" sha1="880aa7eff47931d44a3d2121ae65ad72876f23e9"/>
+	</machine>
+	<machine name="Mario Artist - Polygon Studio (Japan) [T-En by LuigiBlood v3.0]">
+		<description>Mario Artist - Polygon Studio (Japan) [T-En by LuigiBlood v3.0]</description>
+		<rom name="Mario Artist - Polygon Studio (Japan) [T-En by LuigiBlood v3.0].ndd" size="64931840" crc="19321a66" md5="7b94cb9af6fe351ca7b47f59594af96c" sha1="06ace839cf311e0be9f84761853969d88068c328"/>
+	</machine>
+	<machine name="Mario Artist - Polygon Studio (Japan) [T-En by LuigiBlood v3.0] [D64]">
+		<description>Mario Artist - Polygon Studio (Japan) [T-En by LuigiBlood v3.0] [D64]</description>
+		<rom name="Mario Artist - Polygon Studio (Japan) [T-En by LuigiBlood v3.0].d64" size="25484192" crc="7be87e9b" md5="a066c1834eda11882f8df5e1a92c8142" sha1="3b6a0f308802369706711649e0a8cca9799ea324"/>
+	</machine>
+	<machine name="Mario Artist - Talent Studio (Japan) [T-En by LuigiBlood v2.1]">
+		<description>Mario Artist - Talent Studio (Japan) [T-En by LuigiBlood v2.1]</description>
+		<rom name="Mario Artist - Talent Studio (Japan) [T-En by LuigiBlood v2.1].ndd" size="64931840" crc="62f3d687" md5="f3767735b1610c2bca3220b590d43232" sha1="0694d524ed6c158aefd7f6d73d82e4192e8d9c73"/>
+	</machine>
+	<machine name="SimCity 64 (Japan) [T-En by Ozidual v0.6.38]">
+		<description>SimCity 64 (Japan) [T-En by Ozidual v0.6.38]</description>
+		<rom name="SimCity 64 (Japan) [T-En by Ozidual v0.6.38].ndd" size="64931840" crc="e3ac7770" md5="4372f74477fe54cd363fe4f14984625a" sha1="33b4f0f3dddd447b27d2920c618028fab217e845"/>
+	</machine>
+</datafile>

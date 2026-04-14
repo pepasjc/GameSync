@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Sega - Dreamcast [T-En] Collection</name>
+		<description>Sega - Dreamcast [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>24-05-2024</version>
+		<date>24-05-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Sega - Dreamcast [T-En] Docs">
+		<description>_Sega - Dreamcast [T-En] Docs</description>
+		<rom name="Advanced Daisenryaku 2001 (Japan) [T-En by Nebelwurfer HQ v0.95] [i].txt" size="5581" crc="cfd02d9a" md5="23743ab3a35d15d8310051d31b750a5c" sha1="72559f3bfc9f9c1eb47e32fe220b48d00dca92fd"/>
+		<rom name="Berserk - Millennium Falcon Arc - Flowers of Oblivion Chapter (Japan) [T-En by Catasplurge &amp; Vimiani &amp; Gem v1.1] [n].txt" size="7476" crc="24886428" md5="8b47ac731ce47c903aa318d8da1c3aad" sha1="a56d6d162a3e1ae5432cd80c98114d1468970795"/>
+		<rom name="Blue Submarine No. 6 - Time and Tide (Japan) [T-En by Rolly &amp; RafaGam &amp; Esperknight B6] [n].pdf" size="457626" crc="0a8e28e1" md5="dcfdb7611895faa71cf663c3c7efe97f" sha1="08cdc81f0ccf297647d787f9debab5387d9a4a1b"/>
+		<rom name="Blue Submarine No. 6 - Time and Tide (Japan) [T-En by Rolly &amp; RafaGam &amp; Esperknight B6] [n].txt" size="4949" crc="fa8e0fc2" md5="8c8785ec0d2cc255b8693130a494ff12" sha1="30c917a943ba27be2ff6de7dfafd071200768912"/>
+		<rom name="Chaos Field (Japan) [T-En by Derek Pascarella v1.0].txt" size="3301" crc="d71651a6" md5="26908da77a3876eb119cc9a78fcbbad2" sha1="68963907a4dcd81a5762db0995213f2ce19ba049"/>
+		<rom name="Dance Dance Revolution - Club Version - Dreamcast Edition (Japan) [T-En by Topping Translations v1.0] [i].txt" size="1221" crc="cd7fa2c3" md5="65c23c7f35975b60f671d3b0bb1b6e06" sha1="7306250b8b5f73401d55a5d923a88b9bd4c57dc0"/>
+		<rom name="Fire Pro Wrestling D (Japan) [T-En by Irvgotti452].txt" size="3700" crc="080c8963" md5="8bc2b0a011c7fd1ebd88d640471203fc" sha1="a59110c6ae0df17bbc9bca01049239dc14f19464"/>
+		<rom name="Fish Life in Amazon (Japan) [T-En by Rolly v20190713].txt" size="1615" crc="9e43910e" md5="3b848071ed21ba31d8c85a99dc968186" sha1="aa314c2b24a06a80e92c93b503d222913f265c4b"/>
+		<rom name="Frame Gride (Japan) [T-En by DCHQ Final] [GDI credits].txt" size="3094" crc="fe03c788" md5="769e7ed9046f4ec889c6d6b94dd84607" sha1="b3934c6f5693efb4ca0ad2ae710b4b82c5c870ff"/>
+		<rom name="Frame Gride (Japan) [T-En by DCHQ Final].nfo" size="3774" crc="775893af" md5="93b8b7f57102068b1b5ce1273d87c4a1" sha1="ed24894f059b5860ec7b16f6391ba61552a17860"/>
+		<rom name="Fushigi no Dungeon - Fuurai no Shiren Gaiden - Onna Kenshi Asuka Kenzan! (Japan) [T-En by SharkSnack v0.16] [i].txt" size="1319" crc="bbd36add" md5="ab2721d61f1782d928d17392011f4528" sha1="0281a17a610695da95b8b279b827af14602e7634"/>
+		<rom name="Karous (Japan) [T-En by Rolly &amp; RafaGam v1.0] [GDI credits].txt" size="3304" crc="871ebdac" md5="4a0035474121c3e36bc37a65f8648f48" sha1="3d1ba5c9440a4df3eb12227f7f4a43c7083fd635"/>
+		<rom name="Karous (Japan) [T-En by Rolly &amp; RafaGam v1.0].txt" size="3392" crc="4ef2c621" md5="95fe75484e3ae3ae5ce58753bbcbf7ce" sha1="1bb371b8b0c7423eda5af40be1e15e3f8df0b3f2"/>
+		<rom name="L.O.L. - Lack of Love (Japan) [T-En by Rolly &amp; RafaGam v1.1] [GDI credits].txt" size="3562" crc="d40c8f82" md5="3598b7819af860ea5977352a70b30372" sha1="bbf4f0903b2b7cdfaa06bcfa1a3f9b438764af0a"/>
+		<rom name="L.O.L. - Lack of Love (Japan) [T-En by Rolly &amp; RafaGam v1.1].txt" size="4421" crc="d1148baa" md5="cbe571a7c015fb3a208231a0aa0fe4e4" sha1="c5cd6ff657fefb89db772a2c15dbe8ae3f19e33f"/>
+		<rom name="Lost Golem, The (Japan) [T-En by Rolly &amp; RafaGam &amp; Cargodin v1.0] [n].txt" size="4600" crc="0d3af192" md5="623131e2a57cb937697f8f5ffdbb34d3" sha1="0f3e483ddfe2e8d1acbcafbefa0ba5b90fde890d"/>
+		<rom name="Napple Tale - Arsia in Daydream (Japan) [T-En by Cargodin v1.0] [GDI credits].txt" size="2411" crc="a6e5a88f" md5="d52a4919c4f4ed7a453b417729156e15" sha1="ca1a94f211a9a0ad7032dd60ad6c40fba7e73e56"/>
+		<rom name="Napple Tale - Arsia in Daydream (Japan) [T-En by Cargodin v1.0].txt" size="10460" crc="071eda13" md5="7a02cfd5c92184a11e88104b66922d40" sha1="0c404e324487d50097c455a9ca26a845be1da25d"/>
+		<rom name="Neon Genesis Evangelion - Typing Project Advanced (Japan) [T-En by Derek Pascarella v1.0] [n].txt" size="4407" crc="9fcd05a8" md5="ec6913bff808bd82eaa17784c1adfb14" sha1="acd227db6b02f9a31f0f0d267ff7c64732a56e60"/>
+		<rom name="Neon Genesis Evangelion - Typing Project E (Japan) [T-En by Derek Pascarella v2.0] [n].txt" size="14422" crc="30a933e2" md5="ddb147c723f5ac3c0c2d9c3830fb1785" sha1="fd872dedec1d14105493ee8e99ee0eb749576862"/>
+		<rom name="Puyo Puyo 4 (Japan) [T-En by Precise Museum v1.0] [n].txt" size="2511" crc="41d9972f" md5="26b04fc164678e9099ce2a1feb1ebbf5" sha1="b028fc0091ac6da5a39278999357b9315bdb7499"/>
+		<rom name="Radirgy (Japan) [T-En by Wiredcrackpot v1.0].txt" size="4745" crc="d9762abd" md5="0ca68317b04b6b1399147e0cd6561bff" sha1="faa8358d736d44460575b243cef5aff82192c569"/>
+		<rom name="Rent a Hero No.1 (Japan) [T-En by Rent-A-Modders Team v1.0].txt" size="7352" crc="079df58f" md5="ebf29be4a42b639cb42aed566d3ee71c" sha1="6bd82761a098cfc87f36f32d7d5ae1b0e879363b"/>
+		<rom name="Run=Dim as Black Soul (Japan) [T-En by EsperKnight &amp; RafaMGam &amp; Rolly v1.0].txt" size="4489" crc="bbeb549c" md5="845cf12b783e4029967f9c31053d168b" sha1="cd99b061b0f842f35de54d5253ac69833e8ffca8"/>
+		<rom name="Sakura Wars - Columns 2 (Japan) [T-En by Derek Pascarella v1.2] [n].txt" size="26930" crc="4a2fc30e" md5="2ce363d87f551d082e36333b35374887" sha1="048a1f7ddc74de8aded328786f6d342fa4b458f2"/>
+		<rom name="Seven Mansions - Ghastly Smile (Japan) [T-En by ArcaneAria &amp; MrNobody v1.3] [n] [GDI credits].txt" size="3490" crc="a7b4ddb2" md5="8834be1a54ccccdbe11bd85224586eb2" sha1="6ef28180590b15aac7e576c3d701c63d04e3267f"/>
+		<rom name="Seven Mansions - Ghastly Smile (Japan) [T-En by ArcaneAria &amp; MrNobody v1.3] [n].txt" size="2408" crc="33630fa3" md5="75403dc8b40c24c4b7d4f658ba00a9d9" sha1="b7c94ec14f346c5da7837959780957a95b72cf5b"/>
+		<rom name="Seven Mansions - Ghastly Smile (Japan) [T-En by ArcaneAria &amp; MrNobody v1.4] [Forced VGA] [n].txt" size="2898" crc="688dbcb0" md5="745f1e6eb89998877952024f2bd2ad7a" sha1="9ed52526ba9a8649d2b4cdf01e5ce863a5e12faf"/>
+		<rom name="Space Channel 5 Part 2 (Japan) [T-En by BrAzE v20110418] [GDI credits].txt" size="2241" crc="90eca6ab" md5="a0df97791e122c9e74aadc02465e74f5" sha1="37c727b5b9d3e2af8eca173259dcef01c3c62bff"/>
+		<rom name="Space Channel 5 Part 2 (Japan) [T-En by BrAzE v20110418].txt" size="1384" crc="ba2716ad" md5="96f19d45a98ffd5a3f124336893592c6" sha1="cb032f8214fe3ef173b7e0f95fcfa79b58cd2040"/>
+		<rom name="Taxi 2 - The Game (France) [T-En by Derek Pascarella v1.0] [n].txt" size="3979" crc="91c46893" md5="389637be3fc858d4864a45d24a47bd50" sha1="982925bc4c404f9b60272103c442f10009427d04"/>
+		<rom name="What's Shenmue (Japan) [T-En by Shenmue Dojo v1.0.4].txt" size="7341" crc="86be978c" md5="796bdbeed1cca2f4a9818a9391ce78b7" sha1="7bb42f06f967a801cf460f18e7a50338672edefc"/>
+		<rom name="Yukawa Moto Senmu no Otakara Sagashi (Japan) [T-En by EsperKnight &amp; Mr. Nobody &amp; SnowyAria v1.0] [i].txt" size="3165" crc="8fbe8c63" md5="fad236b4961ce5369fdc210f9be2b5b9" sha1="1646bb43926e8a87b86515edbbda75f466851f88"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Advanced Daisenryaku 2001 (Japan) [T-En by Nebelwurfer HQ v0.95] [i]" sha1="a13d72e9b4af4088123e3fd5c65bb7fb6bc770a4"/>
+		<disk name="Berserk - Millennium Falcon Arc - Flowers of Oblivion Chapter (Japan) [T-En by Catasplurge &amp; Vimiani &amp; Gem v1.1] [n]" sha1="6ec36f49164cf1c361cc8a4a5b82f3947b7f49f9"/>
+		<disk name="Blue Submarine No. 6 - Time and Tide (Japan) [T-En by Rolly &amp; RafaGam &amp; Esperknight B6] [n]" sha1="01dca0c8edd0d38f65ee19ee6a33255e73e95d4b"/>
+		<disk name="Boko Dream Master (Japan) [T-En by AnimatedAF v1] [i] [n]" sha1="69f250f1fd9e7563a4aede240569135fe4f32bc7"/>
+		<disk name="Chaos Field (Japan) [T-En by Derek Pascarella v1.0]" sha1="f3f7e72bbb61445bb88a0cde0590022804336bf7"/>
+		<disk name="Cool Cool Toon (Japan) [T-En by Derek Pascarella v1.1]" sha1="2b9b262d125be11d9501dc4b6035f189f76e3d11"/>
+		<disk name="Dance Dance Revolution - Club Version - Dreamcast Edition (Japan) [T-En by Topping Translations v1.0] [i]" sha1="6be27df88a46963c6d2263df6cb48f8ee14d9950"/>
+		<disk name="Death Crimson 2 - Altar of Melanito (Japan) [T-En by Derek Pascarella v1.0] [n]" sha1="ad7334208fbb8a5e3ea933df1f9829f292f753d3"/>
+		<disk name="Fire Pro Wrestling D (Japan) [T-En by Irvgotti452]" sha1="e28c0a32dd064a8e5dbe98c3b5eadc921aee08f6"/>
+		<disk name="Fish Life in Amazon (Japan) [T-En by Rolly v20190713]" sha1="37f9ebcc87424931521091747d7a6c83897968c0"/>
+		<disk name="Frame Gride (Japan) [T-En by DCHQ Final]" sha1="0388fe5d19b6fb57f1c3ecda3703c0542c6ee9ce"/>
+		<disk name="Fushigi no Dungeon - Fuurai no Shiren Gaiden - Onna Kenshi Asuka Kenzan! (Japan) [T-En by SharkSnack v0.16] [i]" sha1="88c7f7c137e2a154edac321a58ad06b01a3b18bb"/>
+		<disk name="Karous (Japan) [T-En by Rolly &amp; RafaGam v1.0]" sha1="7930939a0ebf546302f5428eb039869e5f96480c"/>
+		<disk name="L.O.L. - Lack of Love (Japan) [T-En by Rolly &amp; RafaGam v1.1]" sha1="cd9aca3073a36b8584195986940ff6c5496304ef"/>
+		<disk name="Lost Golem, The (Japan) [T-En by Rolly &amp; RafaGam &amp; Cargodin v1.0] [n]" sha1="0db0f82b7c61a4adf7d1cd17ad07eb4afaed1efe"/>
+		<disk name="Nakoruru - The Gift She Gave Me (Japan) [T-En by Derek Pascarella v1.0] [Bonus Disc] [n]" sha1="bdbac080c89b3e55b39876d82a18b6138bab7778"/>
+		<disk name="Nakoruru - The Gift She Gave Me (Japan) [T-En by Derek Pascarella v1.2] [n]" sha1="4f778fd904d1e1eb6cad38169e21c98e0f259432"/>
+		<disk name="Napple Tale - Arsia in Daydream (Japan) [T-En by Cargodin v1.0]" sha1="bacc8ced35bb84485686e8e07505ed0b8b70b624"/>
+		<disk name="Neon Genesis Evangelion - Typing Project Advanced (Japan) [T-En by Derek Pascarella v1.0] [n]" sha1="9ea3248ba22d8c660971cf7f871b71e01dd7a818"/>
+		<disk name="Neon Genesis Evangelion - Typing Project E (Japan) [T-En by Derek Pascarella v2.0] [n]" sha1="412e9a733381d96de3e6547fc958f945581e584d"/>
+		<disk name="Panzer Front (Japan) [T-En by DerPlayer &amp; PhilYeahz v1.0]" sha1="ea794c037126bf6b98b85ecb58b571d93f26c933"/>
+		<disk name="Puyo Pop Fever (Japan) [T-En by Derek Pascarella v1.0] [n]" sha1="7c894a44d7c8929c948e0fd99b4fdd407fdbca2c"/>
+		<disk name="Puyo Puyo 4 (Japan) [T-En by Precise Museum v1.0] [n]" sha1="9a0151152361a7416fd4524500fd3f537a5ff250"/>
+		<disk name="Radirgy (Japan) [T-En by Wiredcrackpot v1.0]" sha1="a090d2c433535bd25edac81e9d2b98ae2c57c6b8"/>
+		<disk name="Rainbow Cotton (Japan) [T-En by Derek Pascarella v1.0]" sha1="264a7e6c717fe2e3f58f0eb204abb1e656e68ff6"/>
+		<disk name="Rent a Hero No.1 (Japan) [T-En by Rent-A-Modders Team v1.0]" sha1="1170ffdfed295b5dca43da34cb4202a4e7693e16"/>
+		<disk name="Resident Evil - Code Veronica X (Japan) (Disc 1) [T-En by Truemaster1] [n] [Clone GDEMU bug fix by YZB]" sha1="99fcab555f58e55be12674660718c26da3493bf4"/>
+		<disk name="Resident Evil - Code Veronica X (Japan) (Disc 1) [T-En by Truemaster1] [n]" sha1="45915ab3ee2b26d196daddba795a16e9bf98291c"/>
+		<disk name="Resident Evil - Code Veronica X (Japan) (Disc 2) [T-En by Truemaster1] [n] [Clone GDEMU bug fix by YZB]" sha1="73d7e9e7c0cd39951e738f969709838b6900c2b2"/>
+		<disk name="Resident Evil - Code Veronica X (Japan) (Disc 2) [T-En by Truemaster1] [n]" sha1="db117ea54cd4c866d153fe47e6b09f5d2157efc2"/>
+		<disk name="Run=Dim as Black Soul (Japan) [T-En by EsperKnight &amp; RafaMGam &amp; Rolly v1.0]" sha1="dec00c41b20a18b74a9963b9d916b5411312003c"/>
+		<disk name="Sakura Wars - Columns 2 (Japan) [T-En by Derek Pascarella v1.2] [n]" sha1="150e809dd237bf0fd905193fb068227aaec5e3b7"/>
+		<disk name="Samba de Amigo Ver. 2000 (Japan) [T-En by Dukeblooders v0.9.1]" sha1="62a5780c4482cacb36c68c27ce44677eddb68027"/>
+		<disk name="Seven Mansions - Ghastly Smile (Japan) [T-En by ArcaneAria &amp; MrNobody v1.3] [n]" sha1="e12448504f0128b9176a90c3ee7b5ea5b2662e31"/>
+		<disk name="Seven Mansions - Ghastly Smile (Japan) [T-En by ArcaneAria &amp; MrNobody v1.4] [Forced VGA] [n]" sha1="9bc61c1320495ed0f9143ba2345e77e64d86a055"/>
+		<disk name="Shenmue (Europe) (Disc 1) [Undub Definitive Edition by Shenmue Master &amp; Phantom River Stone]" sha1="486478d264f986a4be641f97451373672f8f6950"/>
+		<disk name="Shenmue (Europe) (Disc 2) [Undub Definitive Edition by Shenmue Master &amp; Phantom River Stone]" sha1="ddd0cd816a0f42e48058632d20c097313a428c9b"/>
+		<disk name="Shenmue (Europe) (Disc 3) [Undub Definitive Edition by Shenmue Master &amp; Phantom River Stone]" sha1="bea3bcc3d1402131a5486804b41a4590ae462bb1"/>
+		<disk name="Shenmue II (Europe) (Disc 1) [Xbox dub by Fafadou]" sha1="461c7969ef1672f2ed16fc6060bb94b544397203"/>
+		<disk name="Shenmue II (Europe) (Disc 2) [Xbox dub by Fafadou]" sha1="c4fb7ad799e43a80e858b85c72a923df0b0bae3e"/>
+		<disk name="Shenmue II (Europe) (Disc 3) [Xbox dub by Fafadou]" sha1="d90283f1c979f5725c5dc64d176eeef7d4ac445a"/>
+		<disk name="Shenmue II (Europe) (Disc 4) [Xbox dub by Fafadou]" sha1="54b3f621c465bce63ae37f2dbaaa2bb863c8473f"/>
+		<disk name="Shutokou Battle 2 (Japan) [T-En by SGGG v20221128] [i]" sha1="831a4602c0fe2f5ca3e266f6f3928435197aab91"/>
+		<disk name="Space Channel 5 Part 2 (Japan) [T-En by BrAzE v20110418]" sha1="2fb12b0ad3004e5142722536758c1b7136d46f46"/>
+		<disk name="Super Puzzle Fighter II X for Matching Service (Japan) [T-En by ComradeSnarky] [Add by Derek Pascarella v1.1]" sha1="7be1565c7cd3b0544daf24e3fcc2593b1ce8add8"/>
+		<disk name="Super Puzzle Fighter II X for Matching Service (Japan) [T-En by ComradeSnarky] [i]" sha1="73706571052724e7c685ffc8d23698ac2fc203e1"/>
+		<disk name="Super Street Fighter II X for Matching Service (Japan) [T-En by ComradeSnarky] [Remixed]" sha1="7ed0f3d87c9b7bec7e224f123eaebcbf254b7886"/>
+		<disk name="Super Street Fighter II X for Matching Service (Japan) [T-En by ComradeSnarky]" sha1="ca76b10805db5e7bc58371ef0ee117aebaa11b91"/>
+		<disk name="Taxi 2 - The Game (France) [T-En by Derek Pascarella v1.0] [n]" sha1="bf0c806a4cf540c1dbd0cc115c09e0ae3d2b2b86"/>
+		<disk name="Trizeal (Japan) [T-En by Derek Pascarella v1.0]" sha1="a5bcf8896ce08764a440d57306055f1c6cd0ed13"/>
+		<disk name="Under Defeat (Japan) [T-En by TapamN v1.0]" sha1="dc3b9b202404af3939b500599c06ec9afcca4554"/>
+		<disk name="Virtua Cop 2 (Japan) [T-En by Derek Pascarella v1.0]" sha1="d6596126a470dbf18b62aa6bff9e2a954f13eb07"/>
+		<disk name="What's Shenmue (Japan) [T-En by Shenmue Dojo v1.0.4]" sha1="748aea6514820b5ee9b3fb76315cc6bf46bc2ea6"/>
+		<disk name="Yukawa Moto Senmu no Otakara Sagashi (Japan) [T-En by EsperKnight &amp; Mr. Nobody &amp; SnowyAria v1.0] [i] [Max VMU Score]" sha1="e75d24314bf9136d808153106adfd6dc76bedeae"/>
+		<disk name="Yukawa Moto Senmu no Otakara Sagashi (Japan) [T-En by EsperKnight &amp; Mr. Nobody &amp; SnowyAria v1.0] [i]" sha1="f641fcd66f851cca7963fe9540d2f09e96d82c71"/>
+	</machine>
+</datafile>

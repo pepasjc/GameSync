@@ -100,24 +100,27 @@ class ServerWorker(QObject):
 
     def _enrich_title_ids(self):
         """
-        For PS1 (and PS2) entries that have slug-based title_ids (e.g.
-        "PS1_breath_of_fire_iv_usa") and a known ROM filename, ask the server
-        to resolve the ROM filename to a product serial (e.g. "SCUS94463").
+        For slug-based entries with a known ROM filename, ask the server to
+        resolve translated ROM names to the canonical server title ID.
 
-        This handles CHD files and other formats where local ISO parsing failed.
+        This keeps translated ROM dumps aligned with the same save slot as the
+        original DAT title without forcing users to rename files on disk.
         """
-        # Collect entries that need server lookup:
-        # - title_id starts with "PS1_" or "PS2_" (slug-based, no serial extracted)
-        # - rom_filename is available (so we can send it to the server)
+        skip_systems = {"GC", "SAT", "PS3", "PSP", "3DS", "WII", "NSW", "?"}
         needs_lookup: list[GameEntry] = []
         rom_entries: list[dict[str, str]] = []
         for entry in self._entries:
-            if entry.rom_filename and (
-                entry.title_id.startswith("PS1_") or entry.title_id.startswith("PS2_")
+            system = entry.system.upper().strip()
+            lookup_filename = entry.rom_filename or (
+                entry.rom_path.name if entry.rom_path else None
+            )
+            if (
+                lookup_filename
+                and system not in skip_systems
+                and entry.title_id.startswith(f"{system}_")
             ):
                 needs_lookup.append(entry)
-                system = "PS1" if entry.title_id.startswith("PS1_") else "PS2"
-                rom_entries.append({"system": system, "filename": entry.rom_filename})
+                rom_entries.append({"system": system, "filename": lookup_filename})
 
         if not rom_entries:
             return
@@ -129,12 +132,17 @@ class ServerWorker(QObject):
 
         # Apply resolved serial title_ids
         for entry in needs_lookup:
-            new_tid = resolved.get(entry.rom_filename)
+            system = entry.system.upper().strip()
+            lookup_filename = entry.rom_filename or (
+                entry.rom_path.name if entry.rom_path else None
+            )
+            if not lookup_filename:
+                continue
+            new_tid = resolved.get((system, lookup_filename))
             if new_tid and new_tid != entry.title_id:
-                # Server returned a different (better) title_id — likely a real serial
                 old_tid = entry.title_id
                 entry.title_id = new_tid
-                print(f"[Enrich] {old_tid} -> {new_tid} (from {entry.rom_filename})")
+                print(f"[Enrich] {old_tid} -> {new_tid} (from {lookup_filename})")
 
     def _enrich_display_names(self):
         """

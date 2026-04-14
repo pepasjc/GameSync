@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Mobile - J2ME [T-En] Collection</name>
+		<description>Mobile - J2ME [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>02-12-2021</version>
+		<date>02-12-2021</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Mobile J2ME [T-En] Docs">
+		<description>_Mobile J2ME [T-En] Docs</description>
+		<rom name="Digital Devil Story - Megami Tensei (Japan) [T-En by Gymzatan v20202707].txt" size="1764" crc="da6b8b62" md5="44f7f48d895a260492258ab5901bd7c2" sha1="711797e7e26185071d0fb4aa42adc8720233c7ae"/>
+		<rom name="Phantasy Star - Deluxe Edition (China) [T-En by Thoul v3.0].txt" size="10105" crc="6da9b6a1" md5="9d8de38bdcca701efbfc2a2671a26183" sha1="17b90a795f2d2d4e87ed811a43c62554fefcbbee"/>
+	</machine>
+	<machine name="Digital Devil Story - Megami Tensei (Japan) [T-En by Gymzatan v20202707]">
+		<description>Digital Devil Story - Megami Tensei (Japan) [T-En by Gymzatan v20202707]</description>
+		<rom name="Digital Devil Story - Megami Tensei (Japan) [T-En by Gymzatan v20202707].jar" size="183416" crc="90051662" md5="9951a076ce82e2b47ed7648a58acf7f3" sha1="b0c5ebabc72196da87b4cddaba7ffa77b4c80a46"/>
+	</machine>
+	<machine name="Phantasy Star - Deluxe Edition (China) [T-En by Thoul v3.0]">
+		<description>Phantasy Star - Deluxe Edition (China) [T-En by Thoul v3.0]</description>
+		<rom name="Phantasy Star - Deluxe Edition (China) [T-En by Thoul v3.0].jar" size="574716" crc="d41771c4" md5="318dafdb1bcf4a131f77fce16cf414a7" sha1="57c35a0ec6f59784646c9dfeb6834418e5cd3ce3"/>
+	</machine>
+</datafile>

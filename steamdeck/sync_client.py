@@ -54,7 +54,19 @@ def _find_server_save(server_saves: dict, title_id: str) -> "dict | None":
 import requests
 
 from scanner.models import GameEntry, SyncStatus
-from config import load_sync_state, save_sync_state
+from config import (
+    load_saturn_archive_state,
+    load_sync_state,
+    save_saturn_archive_state,
+    save_sync_state,
+)
+from saturn_format import (
+    convert_saturn_save_format,
+    extract_saturn_save_set,
+    list_saturn_archive_names,
+    merge_saturn_save_set,
+    normalize_saturn_save,
+)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -65,6 +77,149 @@ _BUNDLE_MAGIC = b"3DSS"
 _BUNDLE_V4 = 4
 _BUNDLE_V5 = 5
 _PS3_BUNDLE_SKIP = {"PARAM.PFD"}
+
+
+def _is_shared_saturn_backup(path: Path | None) -> bool:
+    return path is not None and path.name.strip().lower() == "backup.bin"
+
+
+def _saturn_format_for_path(path: Path | None) -> str:
+    if path is None:
+        return "mednafen"
+    if _is_shared_saturn_backup(path) or path.suffix.lower() == ".bin":
+        return "yabasanshiro"
+    if path.suffix.lower() == ".srm":
+        return "yabause"
+    return "mednafen"
+
+
+def _get_saturn_archive_names(title_id: str) -> list[str]:
+    state = load_saturn_archive_state()
+    values = state.get((title_id or "").upper(), [])
+    return [str(value).strip().upper() for value in values if str(value).strip()]
+
+
+def _set_saturn_archive_names(title_id: str, archive_names: list[str]) -> None:
+    state = load_saturn_archive_state()
+    key = (title_id or "").upper()
+    values = sorted(
+        {
+            str(name).strip().upper()
+            for name in archive_names
+            if str(name).strip()
+        }
+    )
+    if values:
+        state[key] = values
+    else:
+        state.pop(key, None)
+    save_saturn_archive_state(state)
+
+
+def _lookup_saturn_archive_candidates(
+    base_url: str,
+    headers: dict[str, str],
+    title_id: str,
+    archive_names: list[str],
+    timeout: int = 30,
+) -> list[dict]:
+    r = requests.post(
+        f"{base_url}/titles/saturn-archives",
+        json={"title_id": title_id, "archive_names": archive_names},
+        headers={**headers, "Content-Type": "application/json"},
+        timeout=timeout,
+    )
+    r.raise_for_status()
+    body = r.json()
+    return body.get("results", []) if isinstance(body, dict) else []
+
+
+def _resolve_saturn_archive_selection(
+    base_url: str,
+    headers: dict[str, str],
+    title_id: str,
+    path: Path,
+    timeout: int = 30,
+) -> list[str]:
+    archive_names = list_saturn_archive_names(path.read_bytes())
+    persisted = [
+        name
+        for name in _get_saturn_archive_names(title_id)
+        if name in {archive.upper() for archive in archive_names}
+    ]
+    if persisted:
+        return persisted
+
+    results = _lookup_saturn_archive_candidates(
+        base_url, headers, title_id, archive_names, timeout=timeout
+    )
+    exact_selected: list[str] = []
+    includes_selected: list[str] = []
+    has_unknown = False
+    for result in results:
+        status = str(result.get("status") or "").strip().lower()
+        if status == "unknown":
+            has_unknown = True
+        for archive_name in result.get("archive_names", []):
+            normalized = str(archive_name).strip().upper()
+            if not normalized:
+                continue
+            if status == "exact_current" and normalized not in exact_selected:
+                exact_selected.append(normalized)
+            elif status == "includes_current" and normalized not in includes_selected:
+                includes_selected.append(normalized)
+
+    selected: list[str] = []
+    if exact_selected and not includes_selected:
+        selected = exact_selected
+    elif exact_selected and has_unknown:
+        # Mirror Android's safer behavior: keep exact matches even if the shared
+        # container has unrelated unknown families, but don't silently absorb
+        # broader "includes_current" matches in that case.
+        selected = exact_selected
+    elif not has_unknown and includes_selected:
+        selected = exact_selected + [
+            name for name in includes_selected if name not in exact_selected
+        ]
+
+    if selected:
+        _set_saturn_archive_names(title_id, selected)
+    return selected
+
+
+def _canonical_saturn_payload(
+    title_id: str,
+    path: Path,
+    base_url: str,
+    headers: dict[str, str],
+    timeout: int = 30,
+) -> tuple[bytes, list[str] | None]:
+    data = path.read_bytes()
+    if _is_shared_saturn_backup(path):
+        archive_names = _get_saturn_archive_names(title_id)
+        if not archive_names:
+            archive_names = _resolve_saturn_archive_selection(
+                base_url, headers, title_id, path, timeout=timeout
+            )
+        if not archive_names:
+            return b"", None
+        return extract_saturn_save_set(data, archive_names), archive_names
+    canonical = normalize_saturn_save(data)
+    return canonical, [name.upper() for name in list_saturn_archive_names(canonical)]
+
+
+def _refresh_saturn_entry_metadata(
+    entry: GameEntry,
+    canonical_data: bytes,
+    archive_names: list[str] | None = None,
+) -> None:
+    if not canonical_data:
+        return
+    entry.save_hash = hashlib.sha256(canonical_data).hexdigest()
+    entry.save_size = len(canonical_data)
+    entry.save_mtime = time.time()
+    if archive_names:
+        _set_saturn_archive_names(entry.title_id, archive_names)
 
 
 def _create_dir_bundle(
@@ -241,7 +396,7 @@ class SyncClient:
     # ROM normalization / serial lookup
     # ------------------------------------------------------------------
 
-    def normalize_batch(self, roms: list[dict[str, str]]) -> dict[str, str]:
+    def normalize_batch(self, roms: list[dict[str, str]]) -> dict[tuple[str, str], str]:
         """
         Call POST /api/v1/normalize/batch to resolve ROM filenames to title_ids.
 
@@ -249,7 +404,7 @@ class SyncClient:
             roms: list of {"system": "PS1", "filename": "Game Name (USA).chd"}
 
         Returns:
-            dict mapping original_filename -> title_id (serial or slug)
+            dict mapping (system, original_filename) -> title_id
         """
         if not roms:
             return {}
@@ -262,9 +417,10 @@ class SyncClient:
             )
             if r.status_code == 200:
                 data = r.json()
-                result: dict[str, str] = {}
+                result: dict[tuple[str, str], str] = {}
                 for item in data.get("results", []):
-                    result[item["original_filename"]] = item["title_id"]
+                    key = (str(item["system"]).upper(), item["original_filename"])
+                    result[key] = item["title_id"]
                 return result
         except Exception as exc:
             print(f"[Normalize] batch lookup failed: {exc}")
@@ -383,8 +539,20 @@ class SyncClient:
                 )
             else:
                 # Single file: route by system
-                with open(save_path, "rb") as f:
-                    data = f.read()
+                if system == "SAT":
+                    data, archive_names = _canonical_saturn_payload(
+                        title_id,
+                        save_path,
+                        self.base_url,
+                        self.headers,
+                        timeout=30,
+                    )
+                    if not data:
+                        return False
+                    _refresh_saturn_entry_metadata(entry, data, archive_names)
+                else:
+                    with open(save_path, "rb") as f:
+                        data = f.read()
 
                 if system == "PS1":
                     url = f"{self.base_url}/saves/{remote_title_id}/ps1-card"
@@ -409,7 +577,16 @@ class SyncClient:
                 )
 
             if r.status_code in (200, 201):
-                _update_state(title_id, entry.save_hash or "")
+                local_hash = (
+                    hashlib.sha256(data).hexdigest()
+                    if not entry.is_multi_file and not entry.is_psp_slot
+                    else entry.save_hash or ""
+                )
+                if system == "SAT":
+                    entry.save_hash = local_hash
+                    entry.save_size = len(data)
+                    entry.save_mtime = time.time()
+                _update_state(title_id, local_hash)
                 return True
         except Exception as exc:
             print(f"[Upload] {title_id}: {exc}")
@@ -481,8 +658,29 @@ class SyncClient:
                     return False
 
                 save_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(save_path, "wb") as f:
-                    f.write(r.content)
+                if system == "SAT":
+                    archive_names = [
+                        name.upper() for name in list_saturn_archive_names(r.content)
+                    ]
+                    saturn_format = _saturn_format_for_path(save_path)
+                    if saturn_format == "yabasanshiro":
+                        existing_data = save_path.read_bytes() if save_path.exists() else None
+                        data = merge_saturn_save_set(
+                            existing_data,
+                            r.content,
+                            "yabasanshiro",
+                        )
+                    else:
+                        data = convert_saturn_save_format(r.content, saturn_format)
+                    with open(save_path, "wb") as f:
+                        f.write(data)
+                    _refresh_saturn_entry_metadata(entry, r.content, archive_names)
+                else:
+                    with open(save_path, "wb") as f:
+                        f.write(r.content)
+                    entry.save_hash = hashlib.sha256(r.content).hexdigest()
+                    entry.save_size = len(r.content)
+                    entry.save_mtime = time.time()
 
             # Get server hash from header
             server_hash = r.headers.get("X-Save-Hash", "")
@@ -508,6 +706,24 @@ class SyncClient:
         server_hash = server_info.get("save_hash") if server_info else None
 
         local_hash = entry.save_hash
+        if (
+            entry.system == "SAT"
+            and entry.save_path is not None
+            and entry.save_path.exists()
+        ):
+            try:
+                canonical_saturn, archive_names = _canonical_saturn_payload(
+                    entry.title_id,
+                    entry.save_path,
+                    self.base_url,
+                    self.headers,
+                    timeout=30,
+                )
+                if canonical_saturn:
+                    _refresh_saturn_entry_metadata(entry, canonical_saturn, archive_names)
+                    local_hash = entry.save_hash
+            except Exception:
+                pass
 
         # No local save
         if local_hash is None:

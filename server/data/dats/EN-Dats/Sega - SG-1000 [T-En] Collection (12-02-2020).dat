@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Sega - SG-1000 [T-En] Collection</name>
+		<description>Sega - SG-1000 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>12-02-2020</version>
+		<date>12-02-2020</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Sega SG-1000 [T-En] Docs">
+		<description>_Sega SG-1000 [T-En] Docs</description>
+		<rom name="Black Onyx, The (Japan) [T-En by SSTranslations v1.0].txt" size="1436" crc="0851bfb3" md5="efe556fe3f4aa02daf9c9a8bf43886fc" sha1="5294e4a904ba83f828dc53a484d547872b4b8cd3"/>
+		<rom name="Chack'n Pop (Japan) [T-En by Goldenband v1.02].txt" size="4226" crc="e4dd4e59" md5="b049c2ab4b9c4b65c660da61628a8f0f" sha1="4fd9c59b4efc0d787bff1442d737c785e67ec8ca"/>
+		<rom name="Ninja Princess (Japan) [T-En by Goldenband v1.0].txt" size="3344" crc="09c09699" md5="38ab55ba3a0a1af16b183a99d13f9359" sha1="17f8fa2383c88afa0b95e0f87eb9cd4425f8454e"/>
+		<rom name="Soukoban (Japan) [T-En by Maurice Kaltofen v1.0].txt" size="2938" crc="ffd569d1" md5="a8325a2ba916c6a0b7bb25707c01545f" sha1="fc2e7528ee6f25d358810bfd8fbcb0938672aef5"/>
+	</machine>
+	<machine name="Black Onyx, The (Japan) [T-En by SSTranslations v1.0]">
+		<description>Black Onyx, The (Japan) [T-En by SSTranslations v1.0]</description>
+		<rom name="Black Onyx, The (Japan) [T-En by SSTranslations v1.0].sg" size="65535" crc="626e30cc" md5="1da64bab6808f8b6df159c912d3b4072" sha1="2e2baee16a34839770587d5fab890080bbcd9550"/>
+	</machine>
+	<machine name="Black Onyx, The (Japan) [T-En by SSTranslations v1.0] [Enhanced]">
+		<description>Black Onyx, The (Japan) [T-En by SSTranslations v1.0] [Enhanced]</description>
+		<rom name="Black Onyx, The (Japan) [T-En by SSTranslations v1.0] [Enhanced].sg" size="65535" crc="3003d9bd" md5="e2fca5d8609135caf5f4e2a88e38eabb" sha1="5c46089a417add0f00a3cebf01dc59f53465d47b"/>
+	</machine>
+	<machine name="Chack'n Pop (Japan) [T-En by Goldenband v1.02]">
+		<description>Chack'n Pop (Japan) [T-En by Goldenband v1.02]</description>
+		<rom name="Chack'n Pop (Japan) [T-En by Goldenband v1.02].sg" size="32768" crc="c106c923" md5="fb5c6e4d23b192cf36d87192289444e2" sha1="c81b116de04468cd605078c78dbd17124556c8a5"/>
+	</machine>
+	<machine name="Ninja Princess (Japan) [T-En by Goldenband v1.0]">
+		<description>Ninja Princess (Japan) [T-En by Goldenband v1.0]</description>
+		<rom name="Ninja Princess (Japan) [T-En by Goldenband v1.0].sg" size="32768" crc="bdb6cf0e" md5="88f09e8525267c7c5cb18a6011fe1598" sha1="0473f6ca89948f08f504c634e00cf2cf72f94fc6"/>
+	</machine>
+	<machine name="Soukoban (Japan) [T-En by Maurice Kaltofen v1.0]">
+		<description>Soukoban (Japan) [T-En by Maurice Kaltofen v1.0]</description>
+		<rom name="Soukoban (Japan) [T-En by Maurice Kaltofen v1.0].sg" size="32768" crc="467acb8f" md5="a696a150be04dde593779373fd5638df" sha1="a9dfd3d4deb4aac3775cd6bfae35f5f993b7c08a"/>
+	</machine>
+</datafile>

@@ -1,0 +1,530 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>NEC - PC-9801 [T-En] Collection</name>
+		<description>NEC - PC-9801 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>02-08-2024</version>
+		<date>02-08-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_NEC PC-9801 [T-En] Docs">
+		<description>_NEC PC-9801 [T-En] Docs</description>
+		<rom name="AcroJet (Japan) [T-En by MrRichard999 &amp; TheMajinZenki v1.0].txt" size="538" crc="692d2049" md5="6a3cad9c53faeb9d93c4bb0d93e7f006" sha1="ef9a8af3b0e2abd6cc7e17bf2aa810cf048a44c4"/>
+		<rom name="Alice's Cottage (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n].txt" size="2268" crc="92e0a6de" md5="0aea627f4ec37d11e5a428f81d138a9a" sha1="4e64280d84bfe20cbd7b5cd2fdf6f307d1e3ec00"/>
+		<rom name="Amy's Fantasies (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B &amp; Tamamoball v1.0] [n].txt" size="2014" crc="830a0e95" md5="a71c649ffd3569d07b25e4ca8dae2422" sha1="5117ad55e82acb90eb060d61ea2ae2beecd04717"/>
+		<rom name="Black Onyx, The (Japan) [T-En by LordKarnov42 v1.0 RC1].txt" size="4664" crc="d34ea3f6" md5="362f7384cf4cf7d8137a08bc68a011e3" sha1="bd2b15c7aabec15ff8b5cbd433aff5f5e1f63ef0"/>
+		<rom name="Chitty Chitty Train (Japan) [T-En by SnowyAria v1.0].txt" size="2417" crc="9f78ffa4" md5="35bc1afe5583f64eb0e90f6573628d12" sha1="ccbcd1aea911fed7d7b61a91ca0755f6c0dce998"/>
+		<rom name="CRW - Metal Jacket (Japan) [T-En by 46 OkuMen v1.0.3] [Cover].png" size="13775126" crc="640c1428" md5="19d6cb9005a3e2a5d0f51b0c07fb34af" sha1="e38951fe0c2b1570ae45a432e340d44b65181472"/>
+		<rom name="CRW - Metal Jacket (Japan) [T-En by 46 OkuMen v1.0.3] [Manual].pdf" size="2034145" crc="3f55fab6" md5="4985ba0771d4abb516b4f13df91976b0" sha1="02c436ab81f48c91b0495d04750578a179433b3b"/>
+		<rom name="CRW - Metal Jacket (Japan) [T-En by 46 OkuMen v1.0.3].txt" size="16159" crc="4d1dcf68" md5="fafcafbe8b0ef1b979f90aac85ba1058" sha1="e790f71730bd5824e865f3b35639e6a11312f0f7"/>
+		<rom name="D.P.S (Dream Program System) (Japan) [T-En by BabaJeanmel v1.1].txt" size="4006" crc="b028f90a" md5="f5b54a680f8bb81d49820dca6117ce36" sha1="18c7b362dda083e85bbae30c52ed617866eaf918"/>
+		<rom name="Dead of the Brain (Japan) [T-En by Retronomicon Games v1.00].txt" size="1861" crc="9e85b3d0" md5="2ba080e861ed892d9a510ee5810b23e5" sha1="27177a8194b424fb00be03bc85db2313d76b6df9"/>
+		<rom name="Dead of the Brain (Japan) [T-En by Retronomicon v1.0] [Add by BabaJeanmel].txt" size="4054" crc="d0410d3f" md5="8edd4c4a0b91f0bad94ac5ed111561e1" sha1="c3cc63d9a203cda58d9cf0bfc7effd63e8475eb4"/>
+		<rom name="Dead of the Brain (Japan) [T-En by WINE v1.0].txt" size="4699" crc="fa4a9805" md5="2f6267673b40bdbbf2d791d5ee5f4946" sha1="e9570277d924d0a894dc37954fdc67e5d4bc550f"/>
+		<rom name="Dragon Knight (Japan) [T-En by Retronomicon v1.0] [Add by BabaJeanmel].txt" size="3407" crc="f10357e7" md5="f225654101e827b7118d65cff0d4aa69" sha1="d51319068feb8068b70512beeba259aaf602eb6f"/>
+		<rom name="Dragon Knight II (Japan) [T-En by Elf89 v1.1].txt" size="3171" crc="ce04d9fa" md5="60d8bd23a45f4ee10f09f6f42968386a" sha1="86237e913fe1fb2aef76b5ca6a87e8f50cdef161"/>
+		<rom name="Dragon Slayer - The Legend of Heroes (Japan) [T-En by NLeusul v0.9b].md" size="18226" crc="7ee306d5" md5="9a06b72449b9f388142200e9bab47c51" sha1="93a2b3cc1b5092729b2edaa3d49f78875187cbd2"/>
+		<rom name="E.V.O. - The Theory of Evolution (Japan) [T-En by 46 OkuMen v1.1.2] [n] [Box].jpg" size="1265040" crc="0b49bddf" md5="470b17a1a7a9d21864f928fab0e98df4" sha1="2e9e82ffba6c65ce56090de6d0cc4b851baeb729"/>
+		<rom name="E.V.O. - The Theory of Evolution (Japan) [T-En by 46 OkuMen v1.1.2] [n] [Manual].pdf" size="20227614" crc="aa6c5152" md5="832254e123abd43ffce065da902598e0" sha1="f08312be8cf299d9b7eb6b93925c8a74c3101e5d"/>
+		<rom name="E.V.O. - The Theory of Evolution (Japan) [T-En by 46 OkuMen v1.1.2] [n].txt" size="15110" crc="702d50bf" md5="b7544e40573992bad855836e68eabad1" sha1="33d51c2e67c90be44cdcbe7ee7c10dfbac4dd093"/>
+		<rom name="Etsuraku no Gakuen (Japan) [T-En by WINE v1.4] [Walkthough].txt" size="24803" crc="016f8603" md5="5951fd89706fbb9a46c42d81d5d354e1" sha1="837612e0c1b0e37ca137deb470da4ce05991219f"/>
+		<rom name="Etsuraku no Gakuen (Japan) [T-En by WINE v1.4].txt" size="2190" crc="c3b7387b" md5="3cf367ae06286ff700aabb07e5a9270d" sha1="6791be26da6d3093623bb228c99c9229cb948e0c"/>
+		<rom name="Exciting Milk (Japan) [T-En by BabaJeanmel v1.0] [n].txt" size="2994" crc="34200c00" md5="23a423e381df3ae9ffd67a9392920968" sha1="43a40394d3c52564c16b7b1a6370813747939bf8"/>
+		<rom name="Farland Story (Japan) [T-En by BTAxis v1.0].txt" size="3139" crc="06fb108b" md5="9d78e01bb67b29a74380b34fb2adea2d" sha1="0ce7172c7ffae0cdceb690287ed28633fb83630a"/>
+		<rom name="Farland Story 2 (Japan) [T-En by BTAxis v1.0].txt" size="2362" crc="6a8eea29" md5="f77a2fe8d67bdfec3c7d08865d989bbb" sha1="8e2fcd7c1cb893842f510abd4ef57c4c6f2540e6"/>
+		<rom name="Farland Story 3 (Japan) [T-En by BTAxis v1.0].txt" size="2670" crc="bc07e9ee" md5="de58437cb924a6f4bc992a7da7d1b4ac" sha1="610f6348af843a4be991cd94d0d10af9f3621141"/>
+		<rom name="Farland Story 4 (Japan) [T-En by BTAxis v1.0].txt" size="4048" crc="7a0927a5" md5="65cc380879cdf14ceb1fc56a336f5a71" sha1="14bfee395cbbd8a907b0c68efb2ee95eb86aae5c"/>
+		<rom name="Farland Story 5 (Japan) [T-En by BTAxis v1.0].txt" size="4284" crc="97653f47" md5="aef3864792b069d88359ce10b620db99" sha1="7269f0818f948e6240fbe9a4c66dd772727347af"/>
+		<rom name="Farland Story 6 (Japan) [T-En by BTAxis v1.0].txt" size="7481" crc="4c1a82f1" md5="b9451bf0b55f8e0ad1d507fe8cceb78c" sha1="20f2880ab12d462039d4cb0c313fd727719e6492"/>
+		<rom name="Foxy (Japan) [T-En by BabaJeanmel v1.0].txt" size="3496" crc="67d60c1f" md5="5463abcefd44c3bf431187c8cb843c96" sha1="23442398805f455a2986746a08c6260e55d62789"/>
+		<rom name="Gage (Japan) [T-En by AgentOrange &amp; hollowaytape &amp; MrRichard999 v1.0].txt" size="1133" crc="15a2c48f" md5="73ec1e932a321bfec28054926b6eaaaf" sha1="3e09d4714b3933ed678e6a345f864cfff1418bca"/>
+		<rom name="Giten Megami Tensei - Tokyo Mokushiroku (Japan) [T-En by sneikkimies v0.21] [i].docx" size="7085" crc="9c616384" md5="645facc28fdeeac8622d99abb700041f" sha1="5e887bdb72e3b972f5a48ac0abf0fbf15d567488"/>
+		<rom name="Grand Prix Circus (Japan) [T-En by Celcion &amp; MrRichard999 &amp; TheMajinZenki v1.0].txt" size="886" crc="eca8176b" md5="7b92f53ef1f016ec9c25cdb9bbf13f74" sha1="371a9098af980f267a6f2b7a3b0bb8752a832a7d"/>
+		<rom name="Guynarock II (Japan) [T-En by Alpharobo v1.01].txt" size="1639" crc="3c3e7b01" md5="8440f1b7d46ab857ded07f5181bcc4f6" sha1="d417536551eecaeb775fb3dee9b667b2bc379377"/>
+		<rom name="Hatchake Ayayo-san (Japan) [T-En by Glazed Ham v1.0].txt" size="2379" crc="6436dd13" md5="cbcebf26fb394ade9c8aca48e80f09ff" sha1="00383384380148ab51bd7ff00f4f3cef9e74074c"/>
+		<rom name="Holy Girl Force Lakers (Japan) [T-En by BabaJeanmel v1.1 [n].txt" size="4341" crc="87b36071" md5="6926530dd635992cb0689c37170c4294" sha1="deae9f267230ab371ccf6044edc0bd0f12597158"/>
+		<rom name="Holy Girl Force Lakers II (Japan) [T-En by BabaJeanmel v1.1] [n].txt" size="4603" crc="fc724176" md5="53f4b9ee58c3f7fc620362b6cef9e927" sha1="c38098498002793e85424ef2a86cc979f327974b"/>
+		<rom name="Holy Girl Force Lakers III (Japan) [T-En by BabaJeanmel v0.1] [i] [n] [Walkthrough].txt" size="2722" crc="ed4cb70f" md5="d62b71a1cf9ee281e117d19d164813b9" sha1="1d017d2b9edace861ed98ceaa6b8f61cf98c05e7"/>
+		<rom name="Holy Girl Force Lakers III (Japan) [T-En by BabaJeanmel v0.1] [i] [n].txt" size="3867" crc="3697fd49" md5="21637af586ad40238c366af8f40cfcf9" sha1="fcb06b578387bfe6bafcf35f560c528b501087a1"/>
+		<rom name="Jewel BEM Hunter Lime (Japan) [T-En by BabaJeanmel v1.0] [n].txt" size="2416" crc="8ec3f314" md5="d2d2de37e219d6d0c1169b49787ad3e6" sha1="0a6e554827dbd5145d3c851df69c2c26b2e65a1a"/>
+		<rom name="Kindan no Ketsuzoku (Japan) [T-En by WINE v1.1] [Walkthrough].txt" size="10689" crc="7bfb9f57" md5="8c373022e4cb149b66c73d2a6074bce4" sha1="c6761c6a3ecb3f04cc38e3f2056ad53b0bf96d97"/>
+		<rom name="Kindan no Ketsuzoku (Japan) [T-En by WINE v1.1].txt" size="1084" crc="facf2095" md5="83bfad0485ddd8a87734790396977bee" sha1="8ed0c9a76ccdac0b75d8df776bc02c716233a4b5"/>
+		<rom name="Little Vampire (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1].txt" size="1681" crc="492b92a8" md5="4a86d2e381b8a41c0dd2bdbabc419af1" sha1="4f239c1d5593f03c4867dc1072c26f94c14293d2"/>
+		<rom name="Madou Monogatari 2 (Japan) [T-En by Yuvi &amp; SnowAria v1.0] [Spells and Items].pdf" size="140300" crc="c6905918" md5="1178897835c90aeef85a328aa49c60f2" sha1="ff3e16037acac1bf93359fb8b2318e7530897c3d"/>
+		<rom name="Madou Monogatari 2 (Japan) [T-En by Yuvi &amp; SnowAria v1.0].txt" size="3568" crc="d423449d" md5="a44615d0f96c75d1134aad633e92a369" sha1="47d2c1dae9870d4a8407fa93946a9d81a687a41b"/>
+		<rom name="Madou Monogatari 3 (Japan) [T-En by Yuvi &amp; SnowAria v1.0] [Spells and Items].pdf" size="140300" crc="c6905918" md5="1178897835c90aeef85a328aa49c60f2" sha1="ff3e16037acac1bf93359fb8b2318e7530897c3d"/>
+		<rom name="Madou Monogatari 3 (Japan) [T-En by Yuvi &amp; SnowAria v1.0].txt" size="3514" crc="94efe431" md5="a6e187438112c314b07662f8b455261b" sha1="51c46a88f441b78bc65aba923fa9faa6e392cc42"/>
+		<rom name="Madou Monogatari I (Japan) [T-En by SnowyAria &amp; Yuvi v1.0].txt" size="4102" crc="9286d2ac" md5="18810250f5d747624dc0ed1acac508a8" sha1="e33ab4202d5671f50633ed1851bed77eb03e78fa"/>
+		<rom name="Marble Cooking (Japan) [T-En by Ryo-Cokey v1.0].txt" size="427" crc="1257cbaf" md5="4b4bb0b7fa01f75c589a86592d505d8d" sha1="7b345fa49320e4fcf5c283c8d9e8bca11afce9a6"/>
+		<rom name="Master of Monsters (Japan) [T-En by MrRichard999 &amp; TheMajinZenki &amp; Jink640 v1.0].txt" size="1247" crc="00baae61" md5="869ab30e9175737e37df916dc9c60262" sha1="d16203c6bac6c0430ef19d2124e67a7fa0d667b2"/>
+		<rom name="Melpool Land (Japan) [T-En by Nana v1.00] [n].txt" size="6233" crc="08cee4d5" md5="a57a4c58c1cc9d3abf949b2b03190a7a" sha1="8bdca390d1a9c325ecd799d925b793721cdb1c3c"/>
+		<rom name="Night Slave (Japan) [T-En by Valley Bell &amp; Kirinn B &amp; BabaJeanmel v1.0].txt" size="4777" crc="91ee989a" md5="09f2460ca3b93ae3535f5e8640438a40" sha1="cf84b33d2abbe63d9aab789b7cc3eb960b6238d9"/>
+		<rom name="Peret em Heru - For the Prisoners (Japan) [T-En by Memories of Fear v1.0e].txt" size="50854" crc="648743c9" md5="21fb6cd11cf68623656575fa6a7446cf" sha1="1b8f7de19eca1a7f7c35eca70593d41989489312"/>
+		<rom name="Policewoman VX (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n].txt" size="1846" crc="c1a95439" md5="c4ff7d6ee209ff4de7dd2f68d1ed708a" sha1="e8f04fbdd41fe3749a1f668e6cbd81c1158c77aa"/>
+		<rom name="Rance (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1].txt" size="3163" crc="fdac5e60" md5="64d74cf7f24953e2e3cd83fac2d691f2" sha1="96f1e81faf5dde989a473f944c0194f4cd2fad0d"/>
+		<rom name="Rance 2 - The Rebellious Maidens (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1] [n].txt" size="3322" crc="5043c508" md5="eddd142d4ad6b0fe581ba86df16cc537" sha1="9e29bb586ed6d93b283e1661dc58d97588ad9cf1"/>
+		<rom name="Rance III - The Fall of Leazas (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n].txt" size="3817" crc="8a6a45d8" md5="c12f345ba842f10f891df1498e248c09" sha1="a72f4b4bd927f602fda8293e4be29b9d929d0ca7"/>
+		<rom name="Run Run Concerto (Japan) [T-En by BabaJeanmel v1.5] [n].txt" size="3554" crc="2093ba45" md5="a37a844281f2f68266acb6a7a235de16" sha1="ab52631767a4f71c75432b87446f6f1012600c07"/>
+		<rom name="Runaway City (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n].txt" size="2090" crc="4a9e0dd5" md5="bf92d6567ab9cf1c95b392a4dd85ce3c" sha1="b20194cb1f83826c4bccae83b19341bf5bdd938f"/>
+		<rom name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0].txt" size="1352" crc="1785d0e9" md5="f83de5aa595c13e8173d2c475481adcd" sha1="b6ac13c9652da6bc0d593a5aaf7e40830ff22ee2"/>
+		<rom name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [Manual].pdf" size="8407039" crc="ee897d38" md5="6c7cb0b2de50f5b56f2c10f3843e4da5" sha1="bec59a27255383fe7e7c998453621c14591be338"/>
+		<rom name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3].txt" size="19947" crc="7f981e27" md5="5deac841bb2f8073cea0e6e1ca89e337" sha1="53b15bfd23fe1a2bc38766a7063c8fda00d8baab"/>
+		<rom name="Screamer, The (Japan) [T-En by Helly &amp; MrRichard999 v1.0].txt" size="1284" crc="8df2d108" md5="299e60d87003bc009d573e2cf654dffc" sha1="9b3cfc34b296ccbac958dc3b8e17188994e1aa6a"/>
+		<rom name="Season of the Sakura (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n].txt" size="2090" crc="4a9e0dd5" md5="bf92d6567ab9cf1c95b392a4dd85ce3c" sha1="b20194cb1f83826c4bccae83b19341bf5bdd938f"/>
+		<rom name="Shangrlia 2 (Japan) [T-En by BabaJeanmel v1.1].txt" size="2484" crc="8d5128eb" md5="9304fb7f936631df874789617260b339" sha1="e978bf32b287d026ee7a85eeb6124d2e0fb8a42c"/>
+		<rom name="Star Cruiser II - The Odysseus Project (Japan) [T-En by Nebulous Translations v1.0].txt" size="13624" crc="3c342459" md5="d31ee292a961b5a85b796ccc4a9c5de8" sha1="2d653fdf29b1217fca69a6c02dfabdd85f983e82"/>
+		<rom name="Starfire (Japan) [T-En by Team Ishtri v1.0].txt" size="4490" crc="ebacc4c8" md5="ff357e284a9183a849c8f840d0e4c759" sha1="b978d7c71b5f74ade82d59052e4e9cd462633e65"/>
+		<rom name="Steam-Heart's (Japan) [T-En by Psyklax v0.99].txt" size="3160" crc="06a1aa41" md5="922712a7ff6b00328ec86a3e0ac1cf7f" sha1="267fc245e2783a54695bc1f849ad8f374d12a3a8"/>
+		<rom name="Super Dimension Fortress Macross, The - Skull Leader Complete Pack (Japan) [T-En by Nebulous Translations v1.0].txt" size="6803" crc="6f65d0d1" md5="b5c7ccb729d8225496673f3d587125c3" sha1="34674b10c99633de4bf131caeecf3b9530db3380"/>
+		<rom name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel v1.0] [i] [Walkthrough].txt" size="22227" crc="53fbecc6" md5="d8d6e1d77399055e65c75c9273dd7860" sha1="92d95be34bd3a0c603a47dc168fc6b4fc3a92aab"/>
+		<rom name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel v1.0] [i].txt" size="2828" crc="3f2929c7" md5="b2c2f4ec58b5756abfc7a7b366b92ed8" sha1="882e505c1c7ca37d4fb7ceaaeceecb342e4f7aa0"/>
+		<rom name="Three Sisters Story (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n].txt" size="2090" crc="4a9e0dd5" md5="bf92d6567ab9cf1c95b392a4dd85ce3c" sha1="b20194cb1f83826c4bccae83b19341bf5bdd938f"/>
+		<rom name="Touhou Reiiden - The Highly Responsive to Prayers (Japan) [T-En by Radical R v20051026].txt" size="1971" crc="7c26e5d1" md5="13287688c816c706598b737a2c83acf2" sha1="34000f033ddf1f6ebe47d2985adf4eb990b86494"/>
+		<rom name="Toushin Toshi (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0].txt" size="2972" crc="304b672e" md5="ab205437d8ab5264d46342973b8e5000" sha1="7af6676771665ae49e54c4527fdd16f22c45d47a"/>
+		<rom name="Tuned Heart (Japan) [T-En by Nebulous Translations v1.0].txt" size="4547" crc="39b1a17d" md5="b859add070dd07dc119b5e9353e2b2a8" sha1="63bd628c1eea998f572a4fbab8e9563eb9f15a97"/>
+		<rom name="Yu-No - A Girl who Chants Love at the Edge of the World (Japan) [T-En by BabaJeanmel v1.04] [n].txt" size="3297" crc="16396d79" md5="d5455cf03525906bc1503a14d269ef0b" sha1="0efff7d46b8252a004654c30bb84aca3f33b6109"/>
+		<rom name="Yugekitai - Saikyoushin Fukkatsu no Maki (Japan) [T-En by Ramkhamhaeng v1.0].txt" size="462" crc="523a376a" md5="ee4504db7c786feb2bf2ae8ec3af1b3d" sha1="5858ac4f518308d29d5ff62f680dd5af9cedabe7"/>
+		<rom name="Yugekitai Kakuto Hen - Saikyou Kami Fukkatsu Yuki Kan (Japan) [T-En by Ramkhamhaeng v1.0].txt" size="5830" crc="be638905" md5="5bef7f2746fd1470abc955fa31bb12c2" sha1="7407d67d24c47643a8dd636054fb31003e5e6c98"/>
+	</machine>
+	<machine name="AcroJet (Japan) [T-En by MrRichard999 &amp; TheMajinZenki v1.0] (Floppy)">
+		<description>AcroJet (Japan) [T-En by MrRichard999 &amp; TheMajinZenki v1.0] (Floppy)</description>
+		<rom name="AcroJet (Japan) [T-En by MrRichard999 &amp; TheMajinZenki v1.0].d88" size="1273648" crc="7e95e7e7" md5="de309174b7451244b0cd11ecfbdae121" sha1="856d3ac9826cd14fc358fc8128c101b356b5064d"/>
+	</machine>
+	<machine name="Aegean no Shizuku (Japan) [T-En by Svipur v1.2] (Harddisk)">
+		<description>Aegean no Shizuku (Japan) [T-En by Svipur v1.2] (Harddisk)</description>
+		<rom name="Aegean no Shizuku (Japan) [T-En by Svipur v1.2].hdi" size="20955136" crc="9761b2fd" md5="a23ca2ea27fde7bc595ff03fbc8c06e1" sha1="1d98a8e31ea7c026526d795db241a6a088a07624"/>
+	</machine>
+	<machine name="Alice's Cottage (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Alice's Cottage (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Alice's Cottage (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n].hdi" size="5174272" crc="026dbe5b" md5="9bc4df895471a4292cca5097e1acb896" sha1="c9680b0ee00a0f06a9a729269fe83a424d6745ba"/>
+	</machine>
+	<machine name="Amy's Fantasies (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B &amp; Tamamoball v1.0] [n] (Harddisk)">
+		<description>Amy's Fantasies (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B &amp; Tamamoball v1.0] [n] (Harddisk)</description>
+		<rom name="Amy's Fantasies (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B &amp; Tamamoball v1.0] [n].hdi" size="10479616" crc="a7c2de2e" md5="6362609b81ec026e89f8289e83825dd8" sha1="2657bea5774c9159e0d8389008daf36c474b710a"/>
+	</machine>
+	<machine name="Black Onyx, The (Japan) [T-En by LordKarnov42 v1.0 RC1] (Floppy)">
+		<description>Black Onyx, The (Japan) [T-En by LordKarnov42 v1.0 RC1] (Floppy)</description>
+		<rom name="Black Onyx, The (Japan) (Character Disk) [T-En by LordKarnov42 v1.0 RC1].d88" size="688304" crc="2586d7ac" md5="30d7e87ea2c4edd452013ba8735b8773" sha1="80c8701244abc5510e64ed71b63316ef2738b161"/>
+		<rom name="Black Onyx, The (Japan) (Game Disk) [T-En by LordKarnov42 v1.0 RC1].d88" size="688304" crc="fbac8ef9" md5="f79c880bc08df8408a4a5397d4725f24" sha1="2553d842225ea49fc61b99b9b16abd875bccbaa4"/>
+	</machine>
+	<machine name="Bomber Quest (Japan) [T-En by ThePirateGamerBoy12 v1.1] [i] (Harddisk)">
+		<description>Bomber Quest (Japan) [T-En by ThePirateGamerBoy12 v1.1] [i] (Harddisk)</description>
+		<rom name="Bomber Quest (Japan) [T-En by ThePirateGamerBoy12 v1.1] [i].hdi" size="16228352" crc="c92f1e34" md5="11dd136caa8ae5b3395da08cb528f329" sha1="f03bd495942e8546bba9c86c5bbdd8db8a81e5e6"/>
+	</machine>
+	<machine name="Brandish 2 - The Planet Buster (Japan) [T-En by Gu4n v1.0] (Harddisk)">
+		<description>Brandish 2 - The Planet Buster (Japan) [T-En by Gu4n v1.0] (Harddisk)</description>
+		<rom name="Brandish 2 - The Planet Buster (Japan) [T-En by Gu4n v1.0].hdi" size="10479616" crc="bf07e0e9" md5="b6e9dc0d3058ecd379f2dcba983ec145" sha1="51d1ce003dd0cb79bd8fbf2f7fe4c2aa61e2b933"/>
+	</machine>
+	<machine name="Chitty Chitty Train (Japan) [T-En by SnowyAria v1.0] (Floppy)">
+		<description>Chitty Chitty Train (Japan) [T-En by SnowyAria v1.0] (Floppy)</description>
+		<rom name="Chitty Chitty Train (Japan) [T-En by SnowyAria v1.0].d88" size="1281968" crc="3d2cf042" md5="34fa3a323081ff388ff1ef7c1f61dd99" sha1="9adc3139fe073a9d6b6e6a0cd5a1184ff630a49f"/>
+	</machine>
+	<machine name="CRW - Metal Jacket (Japan) [T-En by 46 OkuMen v1.0.3] (Floppy)">
+		<description>CRW - Metal Jacket (Japan) [T-En by 46 OkuMen v1.0.3] (Floppy)</description>
+		<rom name="CRW - Metal Jacket (Japan) (Data Disk 1) [T-En by 46 OkuMen v1.0.3].d88" size="1281968" crc="3d95fcac" md5="8066fb0fae9dab27e48c1f10dd94dcd7" sha1="71fe157a0f45a21932f356128b78134b51fedf51"/>
+		<rom name="CRW - Metal Jacket (Japan) (Data Disk 2) [T-En by 46 OkuMen v1.0.3].d88" size="1281968" crc="dd35bc70" md5="734f33e624ae0b74180c1f388d745f30" sha1="fbe45264fdb12c492261c5125404f6b6ecf2e094"/>
+		<rom name="CRW - Metal Jacket (Japan) (Demo Disk) [T-En by 46 OkuMen v1.0.3].d88" size="1281968" crc="cfa7e860" md5="2cb56df7afb427eef149c08719d5b05d" sha1="541e5db80447f1f2ab312a3d7fe5c6575a5cc75e"/>
+		<rom name="CRW - Metal Jacket (Japan) (System Disk) [T-En by 46 OkuMen v1.0.3].d88" size="1281968" crc="e86f6e8c" md5="a3434a06cf3322f0d7af3cccec4db438" sha1="459ab31658c3a626e26a500e06fed8acf57ad360"/>
+	</machine>
+	<machine name="D.P.S (Dream Program System) (Japan) [T-En by BabaJeanmel v1.1] (Harddisk)">
+		<description>D.P.S (Dream Program System) (Japan) [T-En by BabaJeanmel v1.1] (Harddisk)</description>
+		<rom name="D.P.S (Dream Program System) (Japan) [T-En by BabaJeanmel v1.1].hdi" size="5174272" crc="f32ea2c1" md5="c66e37382c15a9ba2254035dcd38f2c9" sha1="df4e83af9383a9d7d02729041f0135eb52b40f56"/>
+	</machine>
+	<machine name="Dead of the Brain (Japan) [T-En by Retronomicon Games v1.00] (Floppy)">
+		<description>Dead of the Brain (Japan) [T-En by Retronomicon Games v1.00] (Floppy)</description>
+		<rom name="Dead of the Brain (Japan) (Disk A) [T-En by Retronomicon Games v1.00].d88" size="1281968" crc="1411c255" md5="1c83cca3b4934ba6d6686ee1e611a69f" sha1="b6c4d5005ef7f90bedf99e2ebb7fdb0d287ac0f8"/>
+		<rom name="Dead of the Brain (Japan) (Disk B) [T-En by Retronomicon Games v1.00].d88" size="1281968" crc="8dc98534" md5="87164812e8d7c061b2959604839a7ab0" sha1="e092409516b225bb13090d5d35be1edac9e05dcb"/>
+		<rom name="Dead of the Brain (Japan) (Disk C) [T-En by Retronomicon Games v1.00].d88" size="1281968" crc="8918e245" md5="e05fa2509653d17df193887ca522a9ff" sha1="4e7bcbd53a29d87d0df7ebc8539e37a785366c3b"/>
+		<rom name="Dead of the Brain (Japan) (Disk D) [T-En by Retronomicon Games v1.00].d88" size="1281968" crc="a67ef074" md5="d8b8b7fd5f820d1d485e8bfe3cab9409" sha1="e17ecbc12d1f3bd5b8fe58ad51a0756078b0e143"/>
+	</machine>
+	<machine name="Dead of the Brain (Japan) [T-En by Retronomicon v1.0] [Add by BabaJeanmel] (Harddisk)">
+		<description>Dead of the Brain (Japan) [T-En by Retronomicon v1.0] [Add by BabaJeanmel] (Harddisk)</description>
+		<rom name="Dead of the Brain (Japan) [T-En by Retronomicon v1.0] [Add by BabaJeanmel].hdi" size="5174272" crc="dc26e9c6" md5="cfd090b2dae68c79dae66ffa7d845eeb" sha1="c1a07be8ec8bbbd90467d8c5be541929153dceb7"/>
+	</machine>
+	<machine name="Dead of the Brain (Japan) [T-En by WINE v1.0] (Harddisk)">
+		<description>Dead of the Brain (Japan) [T-En by WINE v1.0] (Harddisk)</description>
+		<rom name="Dead of the Brain (Japan) [T-En by WINE v1.0].hdi" size="5174272" crc="261b9572" md5="330d77a0ec3f10b55f2be101b2a5f4a4" sha1="a8ca1c476e01d8088a0cafdcceb5367c574df454"/>
+	</machine>
+	<machine name="Desire - Haitoku no Rasen (Japan) [T-En by DouggiePanini &amp; MrSilentVid &amp; Tamamoball v1.0] (Harddisk)">
+		<description>Desire - Haitoku no Rasen (Japan) [T-En by DouggiePanini &amp; MrSilentVid &amp; Tamamoball v1.0] (Harddisk)</description>
+		<rom name="Desire - Haitoku no Rasen (Japan) [T-En by DouggiePanini &amp; MrSilentVid &amp; Tamamoball v1.0].hdi" size="10479616" crc="f019672b" md5="e2ff6752948e2d2fe8f894446d22e30c" sha1="cb189c5fba3b4536031bcebf69008a219056e159"/>
+	</machine>
+	<machine name="Dragon Knight (Japan) [T-En by Retronomicon v1.0] [Add by BabaJeanmel] (Harddisk)">
+		<description>Dragon Knight (Japan) [T-En by Retronomicon v1.0] [Add by BabaJeanmel] (Harddisk)</description>
+		<rom name="Dragon Knight (Japan) [T-En by Retronomicon v1.0] [Add by BabaJeanmel].hdi" size="5174272" crc="0cd6b1d8" md5="0940a62a7bb5610ddcf7665bcb333ccb" sha1="6d9a526ec43db08aa4297059d7c44831718f1ec3"/>
+	</machine>
+	<machine name="Dragon Knight II (Japan) [T-En by Elf89 v1.1] (Harddisk)">
+		<description>Dragon Knight II (Japan) [T-En by Elf89 v1.1] (Harddisk)</description>
+		<rom name="Dragon Knight II (Japan) [T-En by Elf89 v1.1].hdi" size="8220672" crc="01879924" md5="a9eb7a53d3d2f03c5df4009c53b71e10" sha1="d3166dc8fe60e7c936cf7f63044cc6e78952676b"/>
+	</machine>
+	<machine name="Dragon Slayer - The Legend of Heroes (Japan) [T-En by NLeusul v0.9b] (Floppy)">
+		<description>Dragon Slayer - The Legend of Heroes (Japan) [T-En by NLeusul v0.9b] (Floppy)</description>
+		<rom name="Dragon Slayer - The Legend of Heroes (Japan) (Event Disk) [T-En by NLeusul v0.9b].d88" size="1281968" crc="1dde790f" md5="b981f47ecc7a54ae60ba84286f4b0052" sha1="b3dca2e11051161a317e2c03355ddc5c4833a29e"/>
+		<rom name="Dragon Slayer - The Legend of Heroes (Japan) (Program Disk) [T-En by NLeusul v0.9b].d88" size="1281968" crc="fa88b6ec" md5="cdcc0bde6ba88f563bfaeb45e0c9ebb0" sha1="fb2c98a6656a7fdb1813a4ca11b56de456dc6d17"/>
+		<rom name="Dragon Slayer - The Legend of Heroes (Japan) (Scenario Disk) [T-En by NLeusul v0.9b] [copy protection removed].d88" size="1281968" crc="1167d046" md5="65bfb290f46a4e148b4b659cca3ddcd3" sha1="ff73a12639793cebe43b47325648753130e66b40"/>
+		<rom name="Dragon Slayer - The Legend of Heroes (Japan) (Scenario disk) [T-En by NLeusul v0.9b].d88" size="1281968" crc="01e5a1bb" md5="0dbb53ca7ad1344c7803edd443561cc0" sha1="d65954ef1ad3b9dbf057243f939678a3ff129822"/>
+	</machine>
+	<machine name="E.V.O. - The Theory of Evolution (Japan) [T-En by 46 OkuMen v1.1.2] [n] (Floppy)">
+		<description>E.V.O. - The Theory of Evolution (Japan) [T-En by 46 OkuMen v1.1.2] [n] (Floppy)</description>
+		<rom name="E.V.O. - The Theory of Evolution (Japan) (Disk 1) [T-En by 46 OkuMen v1.1.2] [n].d88" size="1281968" crc="ed340ec6" md5="607d194c49b5342bf623e98308f007e8" sha1="7c17998cbce20509a4d7b883e905670acaf3962c"/>
+		<rom name="E.V.O. - The Theory of Evolution (Japan) (Disk 2) [T-En by 46 OkuMen v1.1.2] [n].d88" size="1281968" crc="a8900146" md5="07b007c1ed8d687538365fb276f27960" sha1="0878b207a82fc39ae0cea55f1493322258f90348"/>
+		<rom name="E.V.O. - The Theory of Evolution (Japan) (Disk 3) [T-En by 46 OkuMen v1.1.2] [n].d88" size="1281968" crc="af849940" md5="6d2a2d4f9062731c2d927ed239097581" sha1="47a4f3fc12ff5061567e7026b0f78b3b8c7aae28"/>
+		<rom name="E.V.O. - The Theory of Evolution (Japan) (Disk 4) [T-En by 46 OkuMen v1.1.2] [n].d88" size="1281968" crc="b61c95bd" md5="82ef906355fc0f5bbb49b5932b3a34e7" sha1="ff5482f6324f4329bc7a86fb926a0b0db5bcb3de"/>
+	</machine>
+	<machine name="Etsuraku no Gakuen (Japan) [T-En by WINE v1.4] (Harddisk)">
+		<description>Etsuraku no Gakuen (Japan) [T-En by WINE v1.4] (Harddisk)</description>
+		<rom name="Etsuraku no Gakuen (Japan) [T-En by WINE v1.4].hdi" size="10479616" crc="3eef46fe" md5="1e5ac83ebd770395ebc4cd8534ccd0f0" sha1="0c5ee2a1cb3bfcea115b5c77e2d09f165b2c0290"/>
+	</machine>
+	<machine name="Exciting Milk - Episode 1 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Exciting Milk - Episode 1 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Exciting Milk - Episode 1 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="4c56b05c" md5="b3a5bb56d76de6d12d8b98927e19e8e2" sha1="c6b2d0cb304dee8918673b8954cec02e1cff3231"/>
+	</machine>
+	<machine name="Exciting Milk - Episode 1-2 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Exciting Milk - Episode 1-2 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Exciting Milk - Episode 1-2 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="10479616" crc="c60431e2" md5="11f4f4caa40d3d261eaf9dddf3a10fbc" sha1="2565b141d63aa454a70d4af70448af57701953fb"/>
+	</machine>
+	<machine name="Exciting Milk - Episode 2 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Exciting Milk - Episode 2 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Exciting Milk - Episode 2 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="dc45e589" md5="6a59b4ccbdf38bc75df09f6472801769" sha1="23c7a8319a14ca025e6f406d212428cc699026c3"/>
+	</machine>
+	<machine name="Farland Story (Japan) [T-En by BTAxis v1.0] (Floppy)">
+		<description>Farland Story (Japan) [T-En by BTAxis v1.0] (Floppy)</description>
+		<rom name="Farland Story (Japan) (Disk A) [T-En by BTAxis v1.0].d88" size="1281968" crc="af84d4e7" md5="fb6939cb14eb252225026af09e74f7bd" sha1="de1ddf76463941bc715de1e58c83f62d1250ebc9"/>
+		<rom name="Farland Story (Japan) (Disk B) [T-En by BTAxis v1.0].d88" size="1281968" crc="5217b8d3" md5="29f057f0117b6e6c55aa64d362599ff1" sha1="682e7f2e0ef3718efbf5a3a22ea9bb04a3298839"/>
+		<rom name="Farland Story (Japan) (Disk C) [T-En by BTAxis v1.0].d88" size="1281968" crc="67f6d8a1" md5="67450eded666d3747f4ce4cef62df88a" sha1="71e34fd625b3f06b793d136c99d5fd4fbb53588f"/>
+	</machine>
+	<machine name="Farland Story 2 (Japan) [T-En by BTAxis v1.0] (Harddisk)">
+		<description>Farland Story 2 (Japan) [T-En by BTAxis v1.0] (Harddisk)</description>
+		<rom name="Farland Story 2 (Japan) [T-En by BTAxis v1.0].hdi" size="5174272" crc="d0ba5d50" md5="e0cd50fcb3678b3e6dd49a35005812b5" sha1="1b1aca9699e6dd34b11a2972aac29896cbcd5eac"/>
+	</machine>
+	<machine name="Farland Story 3 (Japan) [T-En by BTAxis v1.0] (Harddisk)">
+		<description>Farland Story 3 (Japan) [T-En by BTAxis v1.0] (Harddisk)</description>
+		<rom name="Farland Story 3 (Japan) [T-En by BTAxis v1.0].hdi" size="10817536" crc="ca680c4a" md5="2984bd9387defce1bb0a8dcd30c55c34" sha1="1977a75edbbe1b652dd72b2da3b75aa05d0e3937"/>
+	</machine>
+	<machine name="Farland Story 4 (Japan) [T-En by BTAxis v1.0] (Harddisk)">
+		<description>Farland Story 4 (Japan) [T-En by BTAxis v1.0] (Harddisk)</description>
+		<rom name="Farland Story 4 (Japan) [T-En by BTAxis v1.0].hdi" size="10817536" crc="5200a8b5" md5="6221fa542f44454dac7544f7d9edc21e" sha1="6872564c85f7ab06c82b4625d3ae360ec482754f"/>
+	</machine>
+	<machine name="Farland Story 5 (Japan) [T-En by BTAxis v1.0] (Harddisk)">
+		<description>Farland Story 5 (Japan) [T-En by BTAxis v1.0] (Harddisk)</description>
+		<rom name="Farland Story 5 (Japan) [T-En by BTAxis v1.0].hdi" size="21415936" crc="6bfa97e0" md5="a4df40e495034aa01aa4d661bf24c088" sha1="cfd226e11f94fadb30f15d334a96c3207b5c8fa7"/>
+	</machine>
+	<machine name="Farland Story 6 (Japan) [T-En by BTAxis v1.0] (Harddisk)">
+		<description>Farland Story 6 (Japan) [T-En by BTAxis v1.0] (Harddisk)</description>
+		<rom name="Farland Story 6 (Japan) [T-En by BTAxis v1.0].hdi" size="10817536" crc="cbb498a9" md5="5c026e9efe940aa0dda8b61568f356ce" sha1="518a73b0bba005b22af321f868a89b546986889a"/>
+	</machine>
+	<machine name="FlixMix (Japan) [T-En by ThePirateGamerBoy12 v1.2] [GDC 5MHz] (Harddisk)">
+		<description>FlixMix (Japan) [T-En by ThePirateGamerBoy12 v1.2] [GDC 5MHz] (Harddisk)</description>
+		<rom name="FlixMix (Japan) [T-En by ThePirateGamerBoy12 v1.2] [GDC 5MHz].hdi" size="10479616" crc="9da3bf19" md5="9e603fcd721955497ce4906288ffcdf2" sha1="d947d564f5c3934f417a7a3848acf6cc0b325ccb"/>
+	</machine>
+	<machine name="Foxy (Japan) [T-En by BabaJeanmel v1.0] (Harddisk)">
+		<description>Foxy (Japan) [T-En by BabaJeanmel v1.0] (Harddisk)</description>
+		<rom name="Foxy (Japan) [T-En by BabaJeanmel v1.0].hdi" size="5174272" crc="05638c42" md5="28eb1406ea26b7dcaeba46b137816590" sha1="94a6a6b86cb05a54cf6b730285b201134745cba6"/>
+	</machine>
+	<machine name="Gage (Japan) [T-En by AgentOrange &amp; hollowaytape &amp; MrRichard999 v1.0] (Floppy)">
+		<description>Gage (Japan) [T-En by AgentOrange &amp; hollowaytape &amp; MrRichard999 v1.0] (Floppy)</description>
+		<rom name="Gage (Japan) (Demo Disk A) [T-En by AgentOrange &amp; hollowaytape &amp; MrRichard999 v1.0].d88" size="1281968" crc="7e3da359" md5="5bc7c885da6f85c72d32e4dd72011f87" sha1="c38e03466ef4911b693a3b76a7e6918f68e7b5c9"/>
+		<rom name="Gage (Japan) (Demo Disk B) [T-En by AgentOrange &amp; hollowaytape &amp; MrRichard999 v1.0].d88" size="1281968" crc="3e1109bd" md5="9b21c3ae22f755efb8e2a464785af814" sha1="ad0887da2f15995976277144eb79a181b0b5e428"/>
+		<rom name="Gage (Japan) (Game Disk) [T-En by AgentOrange &amp; hollowaytape &amp; MrRichard999 v1.0].d88" size="1281968" crc="731864dc" md5="0c305ce28d3e3e9545631339be57d4b1" sha1="785d5aa3b67301e31be04e5e53f8486f12c7af84"/>
+		<rom name="Gage (Japan) (User Disk Maker disk) [T-En by AgentOrange &amp; hollowaytape &amp; MrRichard999 v1.0].d88" size="1281968" crc="1a30f576" md5="6aa3bdd0efd9dc57df3bccbea8b6ccc3" sha1="e885b5bab99fa5ebeb29ff41965233e6e6968b82"/>
+		<rom name="Gage (Japan) (User disk).d88" size="1281968" crc="9824e389" md5="29ce519beffe179e054aacb7c4e69f45" sha1="93eb84173e50d3a87af78ecad8c77ade2e0711b8"/>
+	</machine>
+	<machine name="Giten Megami Tensei - Tokyo Mokushiroku (Japan) [T-En by sneikkimies v0.21] [i] (Harddisk)">
+		<description>Giten Megami Tensei - Tokyo Mokushiroku (Japan) [T-En by sneikkimies v0.21] [i] (Harddisk)</description>
+		<rom name="Giten Megami Tensei - Tokyo Mokushiroku (Japan) (Boot Disk) [T-En by sneikkimies v0.21] [i].fdi" size="1478656" crc="06601723" md5="062bb22402672521160b20c849d0c001" sha1="c411279d05c8f235e8f4241bbf7c17f373b9016b"/>
+		<rom name="Giten Megami Tensei - Tokyo Mokushiroku (Japan) [T-En by sneikkimies v0.21] [i].hdi" size="31177216" crc="68968b59" md5="d8072629b536947faafe8512a479e02a" sha1="0f1cd1f53824791e154b063fbbf7e38597044777"/>
+	</machine>
+	<machine name="Grand Prix Circus (Japan) [T-En by Celcion &amp; MrRichard999 &amp; TheMajinZenki v1.0] (Harddisk)">
+		<description>Grand Prix Circus (Japan) [T-En by Celcion &amp; MrRichard999 &amp; TheMajinZenki v1.0] (Harddisk)</description>
+		<rom name="Grand Prix Circus (Japan) [T-En by Celcion &amp; MrRichard999 &amp; TheMajinZenki v1.0].hdi" size="10479616" crc="287b4ea5" md5="bc6afb1ce31f1310ea527302fe22383c" sha1="23f9063a237ee861c004c34fb772cfbd76263d8d"/>
+	</machine>
+	<machine name="Guynarock II (Japan) [T-En by Alpharobo v1.01] (Floppy)">
+		<description>Guynarock II (Japan) [T-En by Alpharobo v1.01] (Floppy)</description>
+		<rom name="Guynarock II (Japan) (Disk 1).d88" size="1281968" crc="a4806391" md5="988a7320ce4e36629a2768828c8ac5ae" sha1="d2844ef8bad1be13cd4bf733169c06459124c206"/>
+		<rom name="Guynarock II (Japan) (Disk 2) [T-En by Alpharobo v1.01].d88" size="1281968" crc="2d390ba4" md5="67c685a93e74ee82bbe7e04a7018249e" sha1="d6973fd7c290a206b72358df72ea10ea991282e6"/>
+		<rom name="Guynarock II (Japan) (System disk) [T-En by Alpharobo v1.01+].d88" size="1281968" crc="eb8cb950" md5="09c2c820ef45ea94cfc05e36601b4744" sha1="50cfacb4e564dfa5f1095ef3bb8ee16d5c9e9129"/>
+		<rom name="Guynarock II (Japan) (System disk) [T-En by Alpharobo v1.01].d88" size="1281968" crc="643e019c" md5="2e83761b9097897c7845e80422a9c5de" sha1="b220b6c62045f07f06cdee03a698ea071ef77aab"/>
+	</machine>
+	<machine name="Hatchake Ayayo-san (Japan) [T-En by Glazed Ham v1.0] (Floppy)">
+		<description>Hatchake Ayayo-san (Japan) [T-En by Glazed Ham v1.0] (Floppy)</description>
+		<rom name="Hatchake Ayayo-san (Japan) [T-En by Glazed Ham v1.0].d88" size="1086448" crc="b0e420bf" md5="c17c9be6cc00d3a67c6653f0dfda9474" sha1="12179ffc1eded854337458c2a8e97bc68ff4af38"/>
+	</machine>
+	<machine name="Holy Girl Force Lakers (Japan) [T-En by BabaJeanmel v1.1 [n] (Harddisk)">
+		<description>Holy Girl Force Lakers (Japan) [T-En by BabaJeanmel v1.1 [n] (Harddisk)</description>
+		<rom name="Holy Girl Force Lakers (Japan) [T-En by BabaJeanmel v1.1 [n].hdi" size="10479616" crc="7c9ca9bc" md5="63390f5903e3d9d37860ea96010e70bd" sha1="a1abb42261f22068728a197ce75ec59be7c11020"/>
+	</machine>
+	<machine name="Holy Girl Force Lakers II (Japan) [T-En by BabaJeanmel v1.1] [n] (Harddisk)">
+		<description>Holy Girl Force Lakers II (Japan) [T-En by BabaJeanmel v1.1] [n] (Harddisk)</description>
+		<rom name="Holy Girl Force Lakers II (Japan) [T-En by BabaJeanmel v1.1] [n].hdi" size="20955136" crc="d3c6b21a" md5="3c26af1642bf3ed1198eca46293bfeba" sha1="488623a2d39f8dd0669aecee652611c6a59890fd"/>
+	</machine>
+	<machine name="Holy Girl Force Lakers III (Japan) [T-En by BabaJeanmel v0.1] [i] [n] (Harddisk)">
+		<description>Holy Girl Force Lakers III (Japan) [T-En by BabaJeanmel v0.1] [i] [n] (Harddisk)</description>
+		<rom name="Holy Girl Force Lakers III (Japan) [T-En by BabaJeanmel v0.1] [i] [n].hdi" size="21415936" crc="5c432eac" md5="9052bd93fcdf4b3c94f363a9fb1731bf" sha1="ede2fb0df40b8ea7beb39c4c0a3243019e9c0b59"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 01 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 01 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 01 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="a0ed0983" md5="911179de351a22ceac27d74f5d7e0a93" sha1="b132a18660d5b2a76728b17a931be476a9362ebf"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 01-12 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 01-12 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 01-12 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="41568256" crc="dc4e08e9" md5="b649526d53c8ab7e005ff3b55dc70328" sha1="bf9a1f89062bc46e51b7e24e7331f5535e40dc34"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 02 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 02 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 02 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="a3229cb2" md5="0f6fca402fd4712d266a3baee3dd3928" sha1="e19f0bab8e8fdec4ac1d501d085b0ed731ad6d3c"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 03 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 03 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 03 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="3d72c8f2" md5="5fdadf579af2cbb8d2aaf57f36f227f9" sha1="ebcadf920d27a44757b2d71366c569484335f830"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 04 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 04 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 04 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="b0327a93" md5="ea22975843c995e65a4377e5e4d8d88c" sha1="7d348040c9eb80a26c9c9e78d20d8921a62513e4"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 05 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 05 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 05 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="7bad7e63" md5="2104ccfc1995ea4c4bf66543cf1645e5" sha1="4ae1b8a61380cf1b58b22d4d45de2fe22e442653"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 06 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 06 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 06 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="cec5a244" md5="a43548a7d47d183690ccdd78f8bf3cee" sha1="dbe4652ff7dac4cfaf0f19c8f707593b16a73750"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 07 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 07 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 07 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="0553fe71" md5="d4e9e40399922306658ea12149cb411e" sha1="598855a839b3b94d587cf61a1cdce28acb511fc7"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 08 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 08 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 08 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="95613136" md5="43029c05574288ea390fa228eec0e8ec" sha1="3877b66f09b4542b6e7e5f1000e5351702b5abd9"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 09 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 09 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 09 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="04996cab" md5="cd0ecd1535a8ccd18d53697a44394c39" sha1="68e02affb1cb6fe4fa1a70a3b2b9389fcee323ee"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 10 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 10 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 10 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="d5e8ee88" md5="51490d592bfdb75401432eb0b23ab785" sha1="9a5312a851d2daf1f2b33b8e6efcab2c7752248c"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 11 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 11 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 11 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="5174272" crc="1b6f13ce" md5="b8f1d871e7d12c56dc02407e827422ce" sha1="c08d840bc7371cdd3b7b587c07f1f933ddbaaacb"/>
+	</machine>
+	<machine name="Jewel BEM Hunter Lime - Episode 12 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Jewel BEM Hunter Lime - Episode 12 (Japan) [T-En by BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Jewel BEM Hunter Lime - Episode 12 (Japan) [T-En by BabaJeanmel v1.0] [n].hdi" size="10479616" crc="65f42a4e" md5="149ca52241b62faabfc3b76dc818c402" sha1="becdd48fa35f24d883bb54e459bb1a88133d0a15"/>
+	</machine>
+	<machine name="Kindan no Ketsuzoku (Japan) [T-En by WINE v1.1] (Harddisk)">
+		<description>Kindan no Ketsuzoku (Japan) [T-En by WINE v1.1] (Harddisk)</description>
+		<rom name="Kindan no Ketsuzoku (Japan) [T-En by WINE v1.1].hdi" size="4530176" crc="6ff92f56" md5="23b521da06d133957405ac7ab1a3176a" sha1="3d22b5bc1187848d50450c2438e7f4b2df67180a"/>
+	</machine>
+	<machine name="Little Vampire (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1] (Harddisk)">
+		<description>Little Vampire (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1] (Harddisk)</description>
+		<rom name="Little Vampire (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1].hdi" size="5174272" crc="9caeb28c" md5="d9f84f97237552668b277d23d8d47cbc" sha1="6f7a16184155c5da09adf49ae936c3d18fa6e1e1"/>
+	</machine>
+	<machine name="Madou Monogatari 2 (Japan) [T-En by Yuvi &amp; SnowAria v1.0] (Floppy)">
+		<description>Madou Monogatari 2 (Japan) [T-En by Yuvi &amp; SnowAria v1.0] (Floppy)</description>
+		<rom name="Madou Monogatari 2 (Japan) (Disk 1) (System Disk) [T-En by Yuvi &amp; SnowAria v1.0].d88" size="1281968" crc="9ddfd7c2" md5="09d0278006907cf5c93fc6077b1b44c6" sha1="c30b702727bc448e5d5872b1664952c997c3c209"/>
+		<rom name="Madou Monogatari 2 (Japan) (Disk 2) (Sampling Disk).d88" size="1281968" crc="a92e754b" md5="4f9945d0eb80948bd72d2bdcf5f97038" sha1="8a05166a3f343be027f60ad6716eee582b667dc4"/>
+	</machine>
+	<machine name="Madou Monogatari 3 (Japan) [T-En by Yuvi &amp; SnowAria v1.0] (Floppy)">
+		<description>Madou Monogatari 3 (Japan) [T-En by Yuvi &amp; SnowAria v1.0] (Floppy)</description>
+		<rom name="Madou Monogatari 3 (Japan) (Disk 1) (System Disk) [T-En by Yuvi &amp; SnowAria v1.0].d88" size="1281968" crc="4b41cfda" md5="7aca17dc918e7f76f16c350f21dd899c" sha1="c44913a54efdb548da5b8ffda8ca012548b357b1"/>
+		<rom name="Madou Monogatari 3 (Japan) (Disk 2) (Sampling Disk).d88" size="1281968" crc="656fe0bd" md5="80768c1f833b9d1c0d6c2de0a534d893" sha1="c73e29c498bc134ed564e12f35398fe4a18a2a52"/>
+	</machine>
+	<machine name="Madou Monogatari I (Japan) [T-En by SnowyAria &amp; Yuvi v1.0] (Floppy)">
+		<description>Madou Monogatari I (Japan) [T-En by SnowyAria &amp; Yuvi v1.0] (Floppy)</description>
+		<rom name="Madou Monogatari I (Japan) (Data disk).d88" size="1281968" crc="fea41afd" md5="1b7549e369571501cf6668466098c5b5" sha1="cd04fcdfe838b7311a6586bb42fed0f8bcec06ea"/>
+		<rom name="Madou Monogatari I (Japan) (Sampling disk).d88" size="1281968" crc="3dc15bf8" md5="ad6908d82cb27062e91e53304774bdfe" sha1="397c63e294b42d9e9873157758471e7779f57006"/>
+		<rom name="Madou Monogatari I (Japan) (System disk) [T-En by SnowyAria &amp; Yuvi v1.0].d88" size="1281968" crc="6056d006" md5="afc0fc64948b4914a94e97860ef6cc08" sha1="a6bd98bdab063629004d8e1274b50f3eccf9addd"/>
+	</machine>
+	<machine name="Marble Cooking (Japan) [T-En by Ryo-Cokey v1.0] (Harddisk)">
+		<description>Marble Cooking (Japan) [T-En by Ryo-Cokey v1.0] (Harddisk)</description>
+		<rom name="Marble Cooking (Japan) [T-En by Ryo-Cokey v1.0].hdi" size="5174272" crc="a44bd366" md5="653608d73fc606e70e3e7ca67ace2422" sha1="0d1c51b5920918b59b3ed808ed88e609b31f6f8c"/>
+	</machine>
+	<machine name="Master of Monsters (Japan) [T-En by MrRichard999 &amp; TheMajinZenki &amp; Jink640 v1.0] (Floppy)">
+		<description>Master of Monsters (Japan) [T-En by MrRichard999 &amp; TheMajinZenki &amp; Jink640 v1.0] (Floppy)</description>
+		<rom name="Master of Monsters (Japan) (Game Disk 1) [T-En by MrRichard999 &amp; TheMajinZenki &amp; Jink640 v1.0].d88" size="1281968" crc="b8bbbc8b" md5="a325650e53c430ebf32a779703ece856" sha1="7a21385c253c468050b3e079b345a7b24fd3538c"/>
+		<rom name="Master of Monsters (Japan) (Game Disk 2) [T-En by MrRichard999 &amp; TheMajinZenki &amp; Jink640 v1.0].d88" size="1281968" crc="9c6136c8" md5="2b6ccecfc0c9b76c4f1ca96e26fc1486" sha1="6cc9a5f51fd3c906b73a0514894e8baebd3176b8"/>
+		<rom name="Master of Monsters (Japan) (Map Disk) [T-En by MrRichard999 &amp; TheMajinZenki &amp; Jink640 v1.0].d88" size="1281968" crc="e2bd914f" md5="965e2f8567f2fa171dac173c04b3af3f" sha1="18ff3294e5f777a17fc0eda284b351ea45c4f55c"/>
+	</machine>
+	<machine name="Melpool Land (Japan) [T-En by Nana v1.00] [n] (Floppy)">
+		<description>Melpool Land (Japan) [T-En by Nana v1.00] [n] (Floppy)</description>
+		<rom name="Melpool Land (Japan) [T-En by Nana v1.00] [n].d88" size="1281968" crc="658450e9" md5="2d64374c9ae6d6fccfae75bf4008fe4b" sha1="3f03e419d22d4f179409bf11edc3556b7930c6db"/>
+	</machine>
+	<machine name="Night Slave (Japan) [T-En by Valley Bell &amp; Kirinn B &amp; BabaJeanmel v1.0] (Harddisk)">
+		<description>Night Slave (Japan) [T-En by Valley Bell &amp; Kirinn B &amp; BabaJeanmel v1.0] (Harddisk)</description>
+		<rom name="Night Slave (Japan) [T-En by Valley Bell &amp; Kirinn B &amp; BabaJeanmel v1.0].hdi" size="20955136" crc="ac209838" md5="70569ccf4e5db267e08d8a6fb311ee95" sha1="6a8dc851baf1b4bfa71260f431046f5cf0a2f2bc"/>
+	</machine>
+	<machine name="Peret em Heru - For the Prisoners (Japan) [T-En by Memories of Fear v1.0e] (Harddisk)">
+		<description>Peret em Heru - For the Prisoners (Japan) [T-En by Memories of Fear v1.0e] (Harddisk)</description>
+		<rom name="Peret em Heru - For the Prisoners (Japan) [T-En by Memories of Fear v1.0e].hdi" size="31338496" crc="10533104" md5="d9192d2dacffa87a861ae4cae1e49030" sha1="a1dce9110d881c877c9e219168d8b182353ac53a"/>
+	</machine>
+	<machine name="Policewoman VX (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n] (Floppy)">
+		<description>Policewoman VX (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n] (Floppy)</description>
+		<rom name="Policewoman VX (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n].d88" size="1281968" crc="00998e2b" md5="e1f8c50d06dd0f80305158bb47714973" sha1="68fd59e4e3afb0ea3adcf54a8b2b3f56f4820c74"/>
+	</machine>
+	<machine name="Rance (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1] (Harddisk)">
+		<description>Rance (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1] (Harddisk)</description>
+		<rom name="Rance (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1].hdi" size="5174272" crc="ec841cb2" md5="652124f73db122e6f9c4606291b083eb" sha1="51ba16e05c5e7e697b0adfd3e6669f3abb75b9a7"/>
+	</machine>
+	<machine name="Rance 2 - The Rebellious Maidens (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1] [n] (Harddisk)">
+		<description>Rance 2 - The Rebellious Maidens (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1] [n] (Harddisk)</description>
+		<rom name="Rance 2 - The Rebellious Maidens (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.1] [n].hdi" size="7663616" crc="79a10714" md5="7b7f87037002d75e68eccf97a2da2d2d" sha1="6f2d5105805d14b390c32680f79292d38a0c34ac"/>
+	</machine>
+	<machine name="Rance III - The Fall of Leazas (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n] (Harddisk)">
+		<description>Rance III - The Fall of Leazas (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n] (Harddisk)</description>
+		<rom name="Rance III - The Fall of Leazas (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] [n].hdi" size="11145216" crc="5d64c5c9" md5="231c557f17b6e3030ac58d2e85919df2" sha1="cff22370ecc9bc0ceb7dc66c6b671d791d609def"/>
+	</machine>
+	<machine name="Run Run Concerto (Japan) [T-En by BabaJeanmel v1.5] [n] (Harddisk)">
+		<description>Run Run Concerto (Japan) [T-En by BabaJeanmel v1.5] [n] (Harddisk)</description>
+		<rom name="Run Run Concerto (Japan) [T-En by BabaJeanmel v1.5] [n].hdi" size="5174272" crc="2998b313" md5="12f181c69ac000d4fe7b0945b5b00f8c" sha1="0ef7cd4d44d2e462c856e94ced0057637184324c"/>
+	</machine>
+	<machine name="Runaway City (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n] (Harddisk)">
+		<description>Runaway City (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n] (Harddisk)</description>
+		<rom name="Runaway City (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n].hdi" size="10479616" crc="130e1142" md5="5ec7f4887bb762e726666621e24e54ba" sha1="8aee416f5aff247abb2ecf1f07bcd8b928d3e8d4"/>
+	</machine>
+	<machine name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] (Floppy)">
+		<description>Rusty (Japan) [T-En by 46 OkuMen v1.0.3] (Floppy)</description>
+		<rom name="Rusty (Japan) (Game Disk A) [T-En by 46 OkuMen v1.0.3].d88" size="1281968" crc="33aa9b67" md5="8fdeb354c805551b6288a4645cf410c6" sha1="396a5d87ea392da2c24a8f7bc42894dc9d0dfb95"/>
+		<rom name="Rusty (Japan) (Game Disk B) [T-En by 46 OkuMen v1.0.3].d88" size="1281968" crc="d518f52d" md5="8a59a468022fae9fd293e1c46c0c56f9" sha1="f23f5eb8ff8ea44fd1e2a519882ec56f5368d075"/>
+		<rom name="Rusty (Japan) (Game Disk C) [T-En by 46 OkuMen v1.0.3].d88" size="1281968" crc="ce8ab9d4" md5="e3ed3d168a4385684a3a3cde0aa08717" sha1="86c1cafa6d6ae60a211d7024fa03e06b6fdad478"/>
+		<rom name="Rusty (Japan) (Opening Disk) [T-En by 46 OkuMen v1.0.3].d88" size="1281968" crc="58d9c8e0" md5="3da17615390178d9ca6eaedcb96a5b21" sha1="53ccd4b7fba9c5baeea5d29e742eae2c208559ab"/>
+		<rom name="Rusty (Japan) (System Disk) [T-En by 46 OkuMen v1.0.3].d88" size="1281968" crc="35c73dcb" md5="8744c65f212b52b19841e16346bb0737" sha1="3018cfabfd48e28d8549d655acb717104165fb6d"/>
+	</machine>
+	<machine name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] (Harddisk)">
+		<description>Rusty (Japan) [T-En by 46 OkuMen v1.0.3] (Harddisk)</description>
+		<rom name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3].hdi" size="10479616" crc="339e625f" md5="5469d781761dc64690483fb7594f8a8c" sha1="8331da521ff6198e3d1a5810787aed7ddc2d01eb"/>
+	</machine>
+	<machine name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0] (Floppy)">
+		<description>Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0] (Floppy)</description>
+		<rom name="Rusty (Japan) (Game Disk A) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0].d88" size="1281968" crc="b318c7fa" md5="bcc41a0f8636699e094d90d04ed59e20" sha1="87d3091b6d6a1a9a31786038bfb50d6371c0b87b"/>
+		<rom name="Rusty (Japan) (Game Disk B) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0].d88" size="1281968" crc="537bebd6" md5="bb507e53a020b143692a94234b24f722" sha1="55f9d66e5f7a19685c7a23de51c3c273d43f5d08"/>
+		<rom name="Rusty (Japan) (Game Disk C) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0].d88" size="1281968" crc="56395889" md5="b6a225380eb093bc00cbbea9c0a5a646" sha1="863e46d22557ace6d3432373a7136bd8d9e197c1"/>
+		<rom name="Rusty (Japan) (Opening Disk) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0].d88" size="1281968" crc="bfa4b2d1" md5="1c86c496decebf58dd871d7ef95db73b" sha1="5d2dad1bb85ce36645f7558c4afdf1174d4e5092"/>
+		<rom name="Rusty (Japan) (System Disk) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0].d88" size="1281968" crc="59f9f643" md5="8e594b2ff689b7a8bf0357522dd8bfa6" sha1="cacce03fa44799bcfaeef3c67e0f955ed116eec8"/>
+	</machine>
+	<machine name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0] (Harddisk)">
+		<description>Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0] (Harddisk)</description>
+		<rom name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [Add by Flurror v1.0].hdi" size="10479616" crc="7a98d381" md5="448ac3c9c096f26818e942a538a691cb" sha1="b5cd6b650d63e22008d3be14c9fda47f313c1300"/>
+	</machine>
+	<machine name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] (Floppy)">
+		<description>Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] (Floppy)</description>
+		<rom name="Rusty (Japan) (Game Disk A) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text].d88" size="1281968" crc="aabb47d6" md5="f666150f802889f154d4f66dc4233a3b" sha1="f5cbfb9811d0548245cbd62eb3f4eedface5ee04"/>
+		<rom name="Rusty (Japan) (Game Disk B) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text].d88" size="1281968" crc="2a63537c" md5="a8c90fc3f4e2b2793b13702393877c18" sha1="4e3fab88a08d74d646b874c958d209fa6296a2d3"/>
+		<rom name="Rusty (Japan) (Game Disk C) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text].d88" size="1281968" crc="ce8ab9d4" md5="e3ed3d168a4385684a3a3cde0aa08717" sha1="86c1cafa6d6ae60a211d7024fa03e06b6fdad478"/>
+		<rom name="Rusty (Japan) (Opening Disk) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text].d88" size="1281968" crc="33158003" md5="641e7e992a87669d472b341713a595fc" sha1="c361379a15c69f76a3b656764a54e45e28bfccb7"/>
+		<rom name="Rusty (Japan) (System Disk) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text].d88" size="1281968" crc="305252b4" md5="285079f0ae684c34bada70993ed42d23" sha1="1dbcb6b9f8591b1b7a5f8231784c35f46d871fcc"/>
+	</machine>
+	<machine name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] (Harddisk)">
+		<description>Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] (Harddisk)</description>
+		<rom name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text].hdi" size="10479616" crc="581637e0" md5="c5850ce5df94ff27996ffada35274b07" sha1="dca8beb275949a4424188a9fe69770ec8b166466"/>
+	</machine>
+	<machine name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0] (Floppy)">
+		<description>Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0] (Floppy)</description>
+		<rom name="Rusty (Japan) (Game Disk A) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0].d88" size="1281968" crc="56e158dd" md5="6b97e9336e0163045889535982f0b314" sha1="4386c29c95fe7d30c4173daee56fe9e3a2b1d13d"/>
+		<rom name="Rusty (Japan) (Game Disk B) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0].d88" size="1281968" crc="62161639" md5="0339be84ec4fe0bf65f994d3f57d1788" sha1="1525744f991cf70de94ce909cad09fd72f293d92"/>
+		<rom name="Rusty (Japan) (Game Disk C) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0].d88" size="1281968" crc="56395889" md5="b6a225380eb093bc00cbbea9c0a5a646" sha1="863e46d22557ace6d3432373a7136bd8d9e197c1"/>
+		<rom name="Rusty (Japan) (Opening Disk) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0].d88" size="1281968" crc="66d8a2de" md5="d64ae67bdfd346b13196c12e1d63cd9a" sha1="627a8e88d1b64a09d5262d269369655af414ebc6"/>
+		<rom name="Rusty (Japan) (System Disk) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0].d88" size="1281968" crc="3d33e7fb" md5="74ef16beabacba651297dc4bd9490ef8" sha1="a6b55dd9384044aaf79ca6999e6a630e6a4822bb"/>
+	</machine>
+	<machine name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0] (Harddisk)">
+		<description>Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0] (Harddisk)</description>
+		<rom name="Rusty (Japan) [T-En by 46 OkuMen v1.0.3] [NP2 Fast Cut Scene Text] [Add by Flurror v1.0].hdi" size="10479616" crc="1110863e" md5="6c12a8634184f8a442f3ae611ef5c4a9" sha1="b5db9c9ec7fc28c2507d5f883c517a9eae8ea4be"/>
+	</machine>
+	<machine name="Screamer, The (Japan) [T-En by Helly &amp; MrRichard999 v1.0] (Floppy)">
+		<description>Screamer, The (Japan) [T-En by Helly &amp; MrRichard999 v1.0] (Floppy)</description>
+		<rom name="Screamer, The (Japan) [T-En by Helly &amp; MrRichard999 v1.0].d88" size="1281968" crc="23a01fc3" md5="c21771b3820f1a5454d20a11ed716dfa" sha1="27ea42aa2af0b386b607449b27e714976c31ddbc"/>
+	</machine>
+	<machine name="Season of the Sakura (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n] (Harddisk)">
+		<description>Season of the Sakura (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n] (Harddisk)</description>
+		<rom name="Season of the Sakura (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n].hdi" size="10479616" crc="e1108f39" md5="7e313194428f87bfe47ceb30c521691f" sha1="17f931eb70ba054081c1ef27629495baf62b2714"/>
+	</machine>
+	<machine name="Shangrlia 2 (Japan) [T-En by BabaJeanmel v1.1] (Harddisk)">
+		<description>Shangrlia 2 (Japan) [T-En by BabaJeanmel v1.1] (Harddisk)</description>
+		<rom name="Shangrlia 2 (Japan) [T-En by BabaJeanmel v1.1].hdi" size="20955136" crc="27738354" md5="8764486641f0b42c8e8f6c3f61220fd4" sha1="266774b6cd973e9e663563f2194043d623818838"/>
+	</machine>
+	<machine name="Star Cruiser II - The Odysseus Project (Japan) [T-En by Nebulous Translations v1.0] (Harddisk)">
+		<description>Star Cruiser II - The Odysseus Project (Japan) [T-En by Nebulous Translations v1.0] (Harddisk)</description>
+		<rom name="Star Cruiser II - The Odysseus Project (Japan) [T-En by Nebulous Translations v1.0].hdi" size="5174272" crc="23b39394" md5="df1eb70d8d9f4d36d8c2574100c2a0b1" sha1="bdbb8b8a0f54e23748ba94db277d683b0a3c2ca3"/>
+	</machine>
+	<machine name="Starfire (Japan) [T-En by Team Ishtri v1.0] [16 color] (Harddisk)">
+		<description>Starfire (Japan) [T-En by Team Ishtri v1.0] [16 color] (Harddisk)</description>
+		<rom name="Starfire (Japan) [T-En by Team Ishtri v1.0] [16 color].hdi" size="10479616" crc="7202907c" md5="5de340dc19ce195c10e524878a616b6f" sha1="310d666ce15e4f86bf371c167e1a8f43bdbef099"/>
+	</machine>
+	<machine name="Starfire (Japan) [T-En by Team Ishtri v1.0] [256 color] (Harddisk)">
+		<description>Starfire (Japan) [T-En by Team Ishtri v1.0] [256 color] (Harddisk)</description>
+		<rom name="Starfire (Japan) [T-En by Team Ishtri v1.0] [256 color].hdi" size="10479616" crc="acebee08" md5="d30e80530748c336b46e97ef52b56ef2" sha1="4d6dea8579278d9444b8cff0db64e94e8e2b6249"/>
+	</machine>
+	<machine name="Steam-Heart's (Japan) [T-En by Psyklax v0.99] (Harddisk)">
+		<description>Steam-Heart's (Japan) [T-En by Psyklax v0.99] (Harddisk)</description>
+		<rom name="Steam-Heart's (Japan) [T-En by Psyklax v0.99].hdi" size="10479616" crc="be73a03a" md5="92fb26868e59c7d84bffa6331e944616" sha1="69478f045546fe9935a243ba8db865d663ce7bee"/>
+	</machine>
+	<machine name="Super Dimension Fortress Macross, The - Skull Leader Complete Pack (Japan) [T-En by Nebulous Translations v1.0] (Harddisk)">
+		<description>Super Dimension Fortress Macross, The - Skull Leader Complete Pack (Japan) [T-En by Nebulous Translations v1.0] (Harddisk)</description>
+		<rom name="Super Dimension Fortress Macross, The - Skull Leader Complete Pack (Japan) [T-En by Nebulous Translations v1.0].hdi" size="10479616" crc="f99ecdd8" md5="60e171a793e0ca939ecaa62e3242046b" sha1="b81f65ffccd4a61dd06a2ee1fe879fbbea283cef"/>
+	</machine>
+	<machine name="Sword of Kumdor, The (Japan) [T-En by Lynn v1.0] (Floppy)">
+		<description>Sword of Kumdor, The (Japan) [T-En by Lynn v1.0] (Floppy)</description>
+		<rom name="Sword of Kumdor, The (Japan) [T-En by Lynn v1.0].d88" size="1281968" crc="54544161" md5="3e4ad9a9a1c70f438bbddebb53c082f7" sha1="1bc2fc39c00e330975cc62ebae100db272fa5612"/>
+	</machine>
+	<machine name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel v1.0] [i] (Harddisk)">
+		<description>Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel v1.0] [i] (Harddisk)</description>
+		<rom name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel v1.0] [i].hdi" size="10479616" crc="a47ff05a" md5="549d5defb83c056cdc825098c25bdeeb" sha1="fa71809015831a7ccb11de4d27ef8659b685fa86"/>
+	</machine>
+	<machine name="Three Sisters Story (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n] (Harddisk)">
+		<description>Three Sisters Story (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n] (Harddisk)</description>
+		<rom name="Three Sisters Story (Japan) [T-En by Alpharobo &amp; BabaJeanmel &amp; Kirinn B v1.0] [n].hdi" size="10479616" crc="c22ecf12" md5="631dc3e8bbd71ab71ff06221a7264f76" sha1="b3f4ead6ad37a554767b13558bf134a9e2d12969"/>
+	</machine>
+	<machine name="Touhou Fuumaroku (Japan) [T-En by xJeePx v1.00] (Harddisk)">
+		<description>Touhou Fuumaroku (Japan) [T-En by xJeePx v1.00] (Harddisk)</description>
+		<rom name="Touhou Fuumaroku (Japan) [T-En by xJeePx v1.00].hdi" size="5330944" crc="8198a97f" md5="0dc07e768c494771d329fc59786b0383" sha1="afd9cc93aa3ba0fb34506cf8bbfdc52aff92fb78"/>
+	</machine>
+	<machine name="Touhou Gensoukyou - Lotus Land Story (Japan) [T-En by xJeePx v1.00] (Harddisk)">
+		<description>Touhou Gensoukyou - Lotus Land Story (Japan) [T-En by xJeePx v1.00] (Harddisk)</description>
+		<rom name="Touhou Gensoukyou - Lotus Land Story (Japan) [T-En by xJeePx v1.00].hdi" size="11145216" crc="f89b3277" md5="18c54e0027ebfa7878a7d94a0f19f971" sha1="bc4989804286af8950a1ccadf681da01188124c1"/>
+	</machine>
+	<machine name="Touhou Kaikidan - Mystic Square (Japan) [T-En by xJeePx v1.00] (Harddisk)">
+		<description>Touhou Kaikidan - Mystic Square (Japan) [T-En by xJeePx v1.00] (Harddisk)</description>
+		<rom name="Touhou Kaikidan - Mystic Square (Japan) [T-En by xJeePx v1.00].hdi" size="11145216" crc="d0e46489" md5="fdb4f46bd98d89197424ee9fb2b11dd3" sha1="4e1fa5c67fb7778401994d8a29c9c8e818806af9"/>
+	</machine>
+	<machine name="Touhou Reiiden - The Highly Responsive to Prayers (Japan) [T-En by Radical R v20051026] (Harddisk)">
+		<description>Touhou Reiiden - The Highly Responsive to Prayers (Japan) [T-En by Radical R v20051026] (Harddisk)</description>
+		<rom name="Touhou Reiiden - The Highly Responsive to Prayers (Japan) [T-En by Radical R v20051026].hdi" size="5174272" crc="c5f9d2ef" md5="3bcfb61d46fed8287022db5b54a3acad" sha1="a9e05440cb91231723d09f97876c15f1060632ca"/>
+	</machine>
+	<machine name="Touhou Reiiden - The Highly Responsive to Prayers (Japan) [T-En by xJeePx v1.00] (Harddisk)">
+		<description>Touhou Reiiden - The Highly Responsive to Prayers (Japan) [T-En by xJeePx v1.00] (Harddisk)</description>
+		<rom name="Touhou Reiiden - The Highly Responsive to Prayers (Japan) [T-En by xJeePx v1.00].hdi" size="5330944" crc="bf5a21a6" md5="9ed17c0027bd2667926f6d76cde12de1" sha1="890fd6f74389de41d0a5f808196f144d119882ab"/>
+	</machine>
+	<machine name="Touhou Yumejikuu - The Phantasmagoria of Dim. Dream (Japan) [T-En by xJeePx v1.00] (Harddisk)">
+		<description>Touhou Yumejikuu - The Phantasmagoria of Dim. Dream (Japan) [T-En by xJeePx v1.00] (Harddisk)</description>
+		<rom name="Touhou Yumejikuu - The Phantasmagoria of Dim. Dream (Japan) [T-En by xJeePx v1.00].hdi" size="11145216" crc="65af0816" md5="58f3b514cbed2b6309c6522546a6d70a" sha1="cec6e5962eaef20b9335efb1b0020c2db341aa39"/>
+	</machine>
+	<machine name="Toushin Toshi (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] (Harddisk)">
+		<description>Toushin Toshi (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0] (Harddisk)</description>
+		<rom name="Toushin Toshi (Japan) [T-En by Alpharobo &amp; BabaJeanmel v1.0].hdi" size="9125888" crc="bb330e93" md5="a81c66e955c34a947dc24bb14f37fcfd" sha1="dd20c842f2637551408dcaef539d7ad09b2c2fd0"/>
+	</machine>
+	<machine name="Tuned Heart (Japan) [T-En by Nebulous Translations v1.0] (Harddisk)">
+		<description>Tuned Heart (Japan) [T-En by Nebulous Translations v1.0] (Harddisk)</description>
+		<rom name="Tuned Heart (Japan) [T-En by Nebulous Translations v1.0].hdi" size="31177216" crc="1e85196f" md5="c7968a8036dd85378b3929b4ea84c67b" sha1="f0ccf7fdc0736c9e664a2ff098c38e559564fbf2"/>
+	</machine>
+	<machine name="Yu-No - A Girl who Chants Love at the Edge of the World (Japan) [T-En by BabaJeanmel v1.04] [n] (Harddisk)">
+		<description>Yu-No - A Girl who Chants Love at the Edge of the World (Japan) [T-En by BabaJeanmel v1.04] [n] (Harddisk)</description>
+		<rom name="Yu-No - A Girl who Chants Love at the Edge of the World (Japan) [T-En by BabaJeanmel v1.04] [n].hdi" size="41568256" crc="98dad71a" md5="039842b2d08a48a8e1114ba6d6617103" sha1="e962063fbfb8afc7d01e8dd541f59549aefa0dd4"/>
+	</machine>
+	<machine name="Yugekitai - Saikyoushin Fukkatsu no Maki (Japan) [T-En by Ramkhamhaeng v1.0] (Harddisk)">
+		<description>Yugekitai - Saikyoushin Fukkatsu no Maki (Japan) [T-En by Ramkhamhaeng v1.0] (Harddisk)</description>
+		<rom name="Yugekitai - Saikyoushin Fukkatsu no Maki (Japan) [T-En by Ramkhamhaeng v1.0].hdi" size="5330944" crc="60386674" md5="c4b3182e8a4d1e42dde4703851076e34" sha1="565f087640e003271a7472ad034a70c684dca259"/>
+	</machine>
+	<machine name="Yugekitai Kakuto Hen - Saikyou Kami Fukkatsu Yuki Kan (Japan) [T-En by Ramkhamhaeng v1.0] (Harddisk)">
+		<description>Yugekitai Kakuto Hen - Saikyou Kami Fukkatsu Yuki Kan (Japan) [T-En by Ramkhamhaeng v1.0] (Harddisk)</description>
+		<rom name="Yugekitai Kakuto Hen - Saikyou Kami Fukkatsu Yuki Kan (Japan) [T-En by Ramkhamhaeng v1.0].hdi" size="5330944" crc="74f2330f" md5="07e7c7c1afb5db1691df01ad15c8bfda" sha1="5150be6ef2850b99849335d9aa421ac251da8713"/>
+	</machine>
+</datafile>

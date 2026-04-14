@@ -230,7 +230,7 @@ class TestTitlesEndpoint:
         assert body["title_id"] == "SAT_T-4507G"
 
         result_map = {item["archive_family"]: item for item in body["results"]}
-        assert result_map["GRANDIA"]["status"] == "includes_current"
+        assert result_map["GRANDIA"]["status"] == "exact_current"
         assert result_map["GRANDIA"]["matches_current_title"] is True
         assert result_map["GRANDIA"]["archive_names"] == ["GRANDIA_001"]
         assert "SAT_T-4507G" in [c["title_id"] for c in result_map["GRANDIA"]["candidates"]]
@@ -238,14 +238,29 @@ class TestTitlesEndpoint:
         assert result_map["DRACULAX"]["status"] == "other_title"
         assert result_map["DRACULAX"]["matches_current_title"] is False
         assert result_map["DRACULAX"]["archive_names"] == ["DRACULAX_01"]
-        assert [c["title_id"] for c in result_map["DRACULAX"]["candidates"]] == [
-            "SAT_SGC",
-            "SAT_T-9527G",
-        ]
-
+        assert [c["title_id"] for c in result_map["DRACULAX"]["candidates"]] == ["SAT_T-9527G"]
         assert result_map["UNKNOWN_SLOT"]["status"] == "unknown"
         assert result_map["UNKNOWN_SLOT"]["archive_names"] == ["UNKNOWN_SLOT"]
         assert result_map["UNKNOWN_SLOT"]["candidates"] == []
+
+    def test_saturn_archive_lookup_prefers_specific_title_over_collection_overlap(
+        self, client, auth_headers
+    ):
+        r = client.post(
+            "/api/v1/titles/saturn-archives",
+            json={
+                "title_id": "SAT_T-9527G",
+                "archive_names": ["DRACULAX_01", "DRACULAX_02"],
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        result = body["results"][0]
+        assert result["archive_family"] == "DRACULAX"
+        assert result["status"] == "exact_current"
+        assert result["matches_current_title"] is True
+        assert [c["title_id"] for c in result["candidates"]] == ["SAT_T-9527G"]
 
     def test_titles_can_filter_by_console_type(self, client, auth_headers, monkeypatch):
         bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")

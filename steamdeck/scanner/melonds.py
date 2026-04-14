@@ -48,6 +48,7 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
                 system="NDS",
                 emulator="melonDS",
                 save_path=save_file,
+                rom_filename=save_file.name,
             )
             try:
                 entry.save_hash = sha256_file(save_file)

@@ -495,6 +495,7 @@ _SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
     "PCE": ["NEC - PC Engine - TurboGrafx 16", "PC Engine - TurboGrafx 16"],
     "PCSG": ["NEC - PC Engine SuperGrafx", "PC Engine SuperGrafx", "SuperGrafx"],
     "PCECD": ["PC Engine CD", "TurboGrafx CD", "PC Engine CD-ROM"],
+    "NEOCD": ["SNK - Neo Geo CD", "Neo Geo CD"],
     "NGPC": ["SNK - Neo Geo Pocket Color", "Neo Geo Pocket Color"],
     "NGP": ["SNK - Neo Geo Pocket", "Neo Geo Pocket"],
     "LYNX": ["Lynx"],

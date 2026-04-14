@@ -714,6 +714,63 @@ def test_compare_with_server_uses_ps1_card_meta_for_ps1_titles(monkeypatch, tmp_
     assert ("http://example/api/v1/saves/SLUS00594/ps1-card/meta", {"slot": 0}) in calls
 
 
+def test_compare_with_server_remaps_saturn_slug_title_id_by_unique_hash_match(
+    monkeypatch, tmp_path
+):
+    save_path = tmp_path / "Grandia (Japan).bkr"
+    save_path.write_bytes(b"grandia")
+    local_hash = se._hash_file(save_path)
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        if url.endswith("/api/v1/titles"):
+            return DummyResponse(
+                {
+                    "titles": [
+                        {
+                            "title_id": "SAT_T-4507G",
+                            "name": "Grandia (Japan) (Disc 1) (4M)",
+                            "system": "SAT",
+                            "save_hash": local_hash,
+                            "server_timestamp": "2026-04-13T00:00:00Z",
+                        }
+                    ]
+                }
+            )
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(se.requests, "get", fake_get)
+    monkeypatch.setattr(se, "_load_state", lambda: {})
+    monkeypatch.setattr(se, "SLOT_MAPPING_FILE", tmp_path / ".slot_mappings.json")
+    monkeypatch.setattr(se, "_SLOT_MAPPINGS", None)
+    monkeypatch.setattr(se, "_SLOT_MAPPINGS_DIRTY", False)
+    monkeypatch.setattr(
+        se,
+        "_canonical_saturn_payload",
+        lambda *args, **kwargs: (save_path.read_bytes(), []),
+    )
+
+    statuses = se.compare_with_server(
+        [
+            se.SaveFile(
+                title_id="SAT_grandia_japan",
+                path=save_path,
+                hash=local_hash,
+                mtime=save_path.stat().st_mtime,
+                system="SAT",
+                game_name="Grandia (Japan)",
+                save_exists=True,
+            )
+        ],
+        "http://example",
+        {"X-API-Key": "x"},
+    )
+
+    assert len(statuses) == 1
+    assert statuses[0].save.title_id == "SAT_T-4507G"
+    assert statuses[0].status == "up_to_date"
+    assert statuses[0].server_hash == local_hash
+
+
 def test_scan_emudeck_rpcs3_uses_full_folder_name_as_title_id(tmp_path):
     root = tmp_path / "Emulation"
     save_dir = root / "rpcs3" / "saves" / "BLUS30464-AUTOSAVE-01"

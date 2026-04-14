@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Sega - Master System [T-En] Collection</name>
+		<description>Sega - Master System [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>22-01-2024</version>
+		<date>22-01-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Sega - Master System [T-En] Docs">
+		<description>_Sega - Master System [T-En] Docs</description>
+		<rom name="Final Bubble Bobble (Japan) [T-En by Brad Smith v1.0].txt" size="871" crc="edc6ecdd" md5="836c59f9b315486c52df9a93abb3b4be" sha1="96ce17161887a24fdc035e2b7f001192e2589d7c"/>
+		<rom name="Genius Bakabon, The (Japan) [T-En by Cccmar &amp; FCandChill &amp; TheMajinZenki v1.2] [n] [Manual].pdf" size="4930908" crc="87dedc79" md5="c8283f28407af5e9753a7ec40706bf5a" sha1="470106faaeb9bfa77a1449f1a5f1bc6c24e9f1b5"/>
+		<rom name="Genius Bakabon, The (Japan) [T-En by Cccmar &amp; FCandChill &amp; TheMajinZenki v1.2] [n].md" size="6527" crc="a7b91c18" md5="98befdd59f91944200c2b629ad5d2515" sha1="0a63eaa72f38b4a2f9ac07368accbd9b8299d0e6"/>
+		<rom name="Highschool! Kimengumi (Japan) [T-En by SMS Power! v1.00] [n].txt" size="271" crc="bbafd523" md5="d0944ba4c81183f658cfbc1932f78cd2" sha1="095a52a72edfa2bd171e9fd9bbf9e113228d0210"/>
+		<rom name="Let's Check with a Game! - Traffic Safety (Japan) (Proto) [T-En by SMS Power! v1.00] [n].txt" size="1507" crc="c294fdf6" md5="a37d8ce65a228133708dc2ba12be1bf7" sha1="fd167a7e630259cb2005b7ecfcf6b028ba544e51"/>
+		<rom name="Phantasy Star (Japan) [T-En by SMS Power! v2.3.1] [Add by FlamePurge] [Classic Names].txt" size="4977" crc="83329fc3" md5="e7b26ba29b67288d5fc2a233f1898f33" sha1="28460120caf6cc6616c2a935ea65edf1244b8f0f"/>
+		<rom name="Phantasy Star (Japan) [T-En by SMS Power! v2.4] [Technical].md" size="7750" crc="0d8a234b" md5="50ea7825aee387ae29c922a7680eb255" sha1="1225e095dd9381ad95cc00733055b4335dc0d427"/>
+		<rom name="Phantasy Star (Japan) [T-En by SMS Power! v2.4] [Translating].md" size="13774" crc="368998aa" md5="964988b04327e0806ddd0c10b3d9b7ba" sha1="b05f8d1b17af4be29da29d81e8befecdabb3f970"/>
+		<rom name="Phantasy Star (Japan) [T-En by SMS Power! v2.4] [Translation-notes].md" size="19382" crc="bd6b25b7" md5="cd1fca2bab7cd441eb44a4f8f40066a0" sha1="fb24613302691250c604fbc917200438479fbbc8"/>
+		<rom name="Phantasy Star (Japan) [T-En by SMS Power! v2.4].md" size="22365" crc="669a3746" md5="81a9d71f55ae3bc25d4c66bb40366d38" sha1="ecdff805b31225cad71819eaadc11bd7bcb4bbaf"/>
+		<rom name="Rygar - Legendary Warrior (Japan) [T-En by Psyklax v1.0] [n].txt" size="2253" crc="4c087c55" md5="1ae7190cd686a0c2e98d9b76506b297e" sha1="bae84efa08247aa31e15e5b9b398f97fbdb27570"/>
+		<rom name="Solomon's Key - Tears of Princess Lihita (Japan) [T-En by FlashPV v1.0] [n].txt" size="456" crc="3b29aa93" md5="2161034574a8b3575c117cb043ca2826" sha1="efb5d6db8794459db7122430e1de40779cd7f490"/>
+		<rom name="Story of Mio (Japan) [T-En by Filler &amp; SSTranslations v1.0] [n].txt" size="9914" crc="f4545193" md5="d7c3df6f513a288d8e5bc3fdde8a38f4" sha1="3ab09a65443c350603120084cc58bf8941e8b5bf"/>
+		<rom name="Sukeban Deka II (Japan) [T-En by Enigmaopoeia &amp; SSTranslations v1.0] [n].txt" size="4647" crc="d3e4b6fd" md5="be86e5368b991a36230ea781d34693ff" sha1="5e20d64dcd9cb25eb5b6444fe93495273791677b"/>
+	</machine>
+	<machine name="Final Bubble Bobble (Japan) [T-En by Brad Smith v1.0]">
+		<description>Final Bubble Bobble (Japan) [T-En by Brad Smith v1.0]</description>
+		<rom name="Final Bubble Bobble (Japan) [T-En by Brad Smith v1.0].sms" size="262144" crc="98c66fe5" md5="4a6b79b499ffd536b3e5dc193c730156" sha1="5269d3d4cd29420c55cda85a5a99994187bd30ae"/>
+	</machine>
+	<machine name="Fist of the North Star (Japan) [T-En by PhalanX v1.0] [Add by Jackic 0.99] [Title A] [n]">
+		<description>Fist of the North Star (Japan) [T-En by PhalanX v1.0] [Add by Jackic 0.99] [Title A] [n]</description>
+		<rom name="Fist of the North Star (Japan) [T-En by PhalanX v1.0] [Add by Jackic 0.99] [Title A] [n].sms" size="131072" crc="fb4ca708" md5="e518a4a7f774db74cb0ad5a2a1795dfe" sha1="d51bdd4dfd2a0edaeb7a37af50f0dd5728d9d98c"/>
+	</machine>
+	<machine name="Fist of the North Star (Japan) [T-En by PhalanX v1.0] [Add by Jackic 0.99] [Title B] [n]">
+		<description>Fist of the North Star (Japan) [T-En by PhalanX v1.0] [Add by Jackic 0.99] [Title B] [n]</description>
+		<rom name="Fist of the North Star (Japan) [T-En by PhalanX v1.0] [Add by Jackic 0.99] [Title B] [n].sms" size="131072" crc="77171dae" md5="1cba719f4ec907ac70bc6b568f647e42" sha1="01789ca1d56243608af0ecf75077e1f225fe5047"/>
+	</machine>
+	<machine name="Fist of the North Star - Hokuto no Ken (Japan) [T-En by PhalanX v1.0] [Add by FlashPV v1.0] [n]">
+		<description>Fist of the North Star - Hokuto no Ken (Japan) [T-En by PhalanX v1.0] [Add by FlashPV v1.0] [n]</description>
+		<rom name="Fist of the North Star - Hokuto no Ken (Japan) [T-En by PhalanX v1.0] [Add by FlashPV v1.0] [n].sms" size="131072" crc="705b9f34" md5="640ca9d581ee60c7d34a32e986641699" sha1="264a039525d272cf8d767bac5e6ce3d13869907d"/>
+	</machine>
+	<machine name="Fist of the North Star - Hokuto no Ken (Japan) [T-En by PhalanX v1.0] [n]">
+		<description>Fist of the North Star - Hokuto no Ken (Japan) [T-En by PhalanX v1.0] [n]</description>
+		<rom name="Fist of the North Star - Hokuto no Ken (Japan) [T-En by PhalanX v1.0] [n].sms" size="131072" crc="b2e19aa4" md5="b8d1a1689bc0bd9e24372ac8b4c76643" sha1="7bf304a79490eab9258a22d24fdb948b266d3326"/>
+	</machine>
+	<machine name="Genius Bakabon, The (Japan) [T-En by Cccmar &amp; FCandChill &amp; TheMajinZenki v1.2] [n]">
+		<description>Genius Bakabon, The (Japan) [T-En by Cccmar &amp; FCandChill &amp; TheMajinZenki v1.2] [n]</description>
+		<rom name="Genius Bakabon, The (Japan) [T-En by Cccmar &amp; FCandChill &amp; TheMajinZenki v1.2] [n].sms" size="262144" crc="7d0d2d4d" md5="e822b83dcb1f5c7b7a40f3d97fac4b5b" sha1="4faeb7d33c6339659cc48a098e29a80172fff8be"/>
+	</machine>
+	<machine name="Highschool! Kimengumi (Japan) [T-En by SMS Power! v1.00] [n]">
+		<description>Highschool! Kimengumi (Japan) [T-En by SMS Power! v1.00] [n]</description>
+		<rom name="Highschool! Kimengumi (Japan) [T-En by SMS Power! v1.00] [n].sms" size="131072" crc="8a296a3e" md5="471e80fed601261667b1fc6242396239" sha1="f4350a41ec6cd685e21b09ce471c3456646d6904"/>
+	</machine>
+	<machine name="Let's Check with a Game! - Traffic Safety (Japan) (Proto) [T-En by SMS Power! v1.00] [n]">
+		<description>Let's Check with a Game! - Traffic Safety (Japan) (Proto) [T-En by SMS Power! v1.00] [n]</description>
+		<rom name="Let's Check with a Game! - Traffic Safety (Japan) (Proto) [T-En by SMS Power! v1.00] [n].sms" size="1048576" crc="9e9deb18" md5="b0f9bc2dcfc839d687c4f1fabd225bb0" sha1="740b71b43d33b6ee5b4d3ecba556c42e997799d9"/>
+	</machine>
+	<machine name="Phantasy Star (Japan) [T-En by SMS Power! v2.3.1] [Add by FlamePurge] [Classic Names]">
+		<description>Phantasy Star (Japan) [T-En by SMS Power! v2.3.1] [Add by FlamePurge] [Classic Names]</description>
+		<rom name="Phantasy Star (Japan) [T-En by SMS Power! v2.3.1] [Add by FlamePurge] [Classic Names].sms" size="524288" crc="df3a71b5" md5="a17a02ce01432bf3b72949f5a0953d99" sha1="a8b5b134c6faadd6ca6f4b8947b8edc445d165cc"/>
+	</machine>
+	<machine name="Phantasy Star (Japan) [T-En by SMS Power! v2.4]">
+		<description>Phantasy Star (Japan) [T-En by SMS Power! v2.4]</description>
+		<rom name="Phantasy Star (Japan) [T-En by SMS Power! v2.4].sms" size="524288" crc="21bbb498" md5="60df04136486f4ff6d0896b6f2769b05" sha1="0524657a814771d478cf274c00275269175ec642"/>
+	</machine>
+	<machine name="Phantasy Star (Japan) [T-En by SMS Power! v2.4] [Literal]">
+		<description>Phantasy Star (Japan) [T-En by SMS Power! v2.4] [Literal]</description>
+		<rom name="Phantasy Star (Japan) [T-En by SMS Power! v2.4] [Literal].sms" size="524288" crc="bb39f472" md5="29e358202aeb97c95ab7fd1f610c5436" sha1="5c952f0a56ad5d2d019c9d3e330ec3eddc9d85b3"/>
+	</machine>
+	<machine name="Rygar - Legendary Warrior (Japan) [T-En by Psyklax v1.0] [n]">
+		<description>Rygar - Legendary Warrior (Japan) [T-En by Psyklax v1.0] [n]</description>
+		<rom name="Rygar - Legendary Warrior (Japan) [T-En by Psyklax v1.0] [n].sms" size="147456" crc="bfa371fd" md5="8a61750ef3cd4b708165a81857d9c45b" sha1="c44257545f388bcd8bc6803fafe8b35a27f7f83e"/>
+	</machine>
+	<machine name="Solomon's Key - Tears of Princess Lihita (Japan) [T-En by FlashPV v1.0] [n]">
+		<description>Solomon's Key - Tears of Princess Lihita (Japan) [T-En by FlashPV v1.0] [n]</description>
+		<rom name="Solomon's Key - Tears of Princess Lihita (Japan) [T-En by FlashPV v1.0] [n].sms" size="131072" crc="aa59a39e" md5="28ae421daab2c279a796cf76a8a31d10" sha1="5ad65e6325ddd5d7e4b2e0d40ffef4ba9d2c8121"/>
+	</machine>
+	<machine name="Solomon's Key - Tears of Princess Lihita (Japan) [T-En Ichigobankai v1.0] [n]">
+		<description>Solomon's Key - Tears of Princess Lihita (Japan) [T-En Ichigobankai v1.0] [n]</description>
+		<rom name="Solomon's Key - Tears of Princess Lihita (Japan) [T-En Ichigobankai v1.0] [n].sms" size="131072" crc="0ee5ec23" md5="7fe99d144e6962dcc32f0a7012c01f50" sha1="ff2689b2d34f607fb18254c0085e82ff65de580c"/>
+	</machine>
+	<machine name="Story of Mio (Japan) [T-En by Filler &amp; SSTranslations v1.0] [n]">
+		<description>Story of Mio (Japan) [T-En by Filler &amp; SSTranslations v1.0] [n]</description>
+		<rom name="Story of Mio (Japan) [T-En by Filler &amp; SSTranslations v1.0] [n].sms" size="262144" crc="938ce4eb" md5="c0610b72ae404ebeabfacb8845e8d547" sha1="a161ae0685ba1cf2200bd0f033957ca18f5d9ef6"/>
+	</machine>
+	<machine name="Sukeban Deka II (Japan) [T-En by Enigmaopoeia &amp; SSTranslations v1.0] [n]">
+		<description>Sukeban Deka II (Japan) [T-En by Enigmaopoeia &amp; SSTranslations v1.0] [n]</description>
+		<rom name="Sukeban Deka II (Japan) [T-En by Enigmaopoeia &amp; SSTranslations v1.0] [n].sms" size="262144" crc="3b6fe6d1" md5="c5c6724fa8981dc47f9fc6165c021a33" sha1="07a5afcf82052938a5e4f79016e06b65cd8799cc"/>
+	</machine>
+</datafile>

@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Nintendo - Wii [T-En] Collection</name>
+		<description>Nintendo - Wii [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>28-04-2024</version>
+		<date>28-04-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Nintendo Wii [T-En] Docs">
+		<description>_Nintendo Wii [T-En] Docs</description>
+		<rom name="Blades of Reginleiv (Japan) [T-En by Gummi &amp; Brand Newman v1.01] [n].pdf" size="1627549" crc="7dd77bdb" md5="87d8fa4a2114b23a77ddfaf7e4602585" sha1="7a2ffb8e9f43736675fcade8e939647bf32a9a00"/>
+		<rom name="Bleach - Versus Crusade (Japan) [T-En by Sixfortyfive v1.0] [i].txt" size="7974" crc="46e9fc7b" md5="1717d74a20dd8efa73cb275aad5c8222" sha1="ea6d8b470d505ff5b4fa483555992d99a00a53bf"/>
+		<rom name="Captain Rainbow (Japan) [T-En by MarkAss &amp; Kirameki Translations v1] [i].txt" size="727" crc="083d55e3" md5="8e89d874c4060efbbbce602eb6c1ece0" sha1="d55bce65b00840e6288bb1183d7b1061ad3c193c"/>
+		<rom name="Chibi Robo! (Japan) [T-En by Brand Newman v1.00] [n].pdf" size="1518364" crc="ee81964f" md5="6bd6fbca0b078eaf23a120af1824be85" sha1="afd2c5be1ddea84d61debbf88c409230b14790b4"/>
+		<rom name="Earth Seeker (Japan) [T-En by Brand Newman v2.03].pdf" size="1966389" crc="e78fb6ff" md5="d3da8124594767e20a51e75234fcfa43" sha1="298d85cdd2629844b542b67a680d42f02bcf846f"/>
+		<rom name="Earth Seeker (Japan) [T-En by Brand Newman v2.04] [Odekake Edition].pdf" size="1487275" crc="ba857da4" md5="bfaaab25609cf7debe5308d82a3ddcac" sha1="c6d89787c47420665e566d0d0abb3fc08e6b07da"/>
+		<rom name="Golden Bonds (Japan) [T-En by Brand Newman v1.00] [n].pdf" size="1762463" crc="a1517b24" md5="bd6c54406c185bf03a1cc94243d0a37b" sha1="238bdb22368eea4bcf0cc84a0e6cfe4e82aa66fb"/>
+		<rom name="Line Attack Heroes (Japan) (WiiWare) [T-En by Brand Newman v1.0].pdf" size="1389833" crc="4c230327" md5="5d189e63ac1fce6d055780b7cca16346" sha1="096c4c0e148b5191a74840139c444f5513ef4e18"/>
+		<rom name="Night of the Sacrifice (Japan) [T-En by Brand Newman v1.03] [n].pdf" size="1248151" crc="be343acf" md5="84ec1aa9a2fefafbf3989e437709d73d" sha1="4ca3a7226f90f8dcbf9a638f847619e0b9186964"/>
+		<rom name="Opoona (USA) [T-En by Opoonaproject v1.1] [Relocalized].txt" size="5585" crc="07be0a47" md5="acfb0870aeff160c7c2c21d04ad84237" sha1="8abca693fbf80fe1cbfc0332566706f7edde5eec"/>
+		<rom name="Pokemon Mystery Dungeon - Go for it! Radiant Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n] [Buddy passwords].txt" size="794" crc="ec6a295a" md5="ffae60de1b767df66dc9be8258cc08fc" sha1="00e7d30f49a92c5991a41ba2d66894c5865a4d12"/>
+		<rom name="Pokemon Mystery Dungeon - Go for it! Radiant Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n].txt" size="10058" crc="caca2c23" md5="1469f09b370979f606cb6502aa2f73f2" sha1="301bf4b10f835ae2873e54891142c756c84f8b79"/>
+		<rom name="Pokemon Mystery Dungeon - Keep Going! Wildfire Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe &amp; Wowjinxy v1.03] [n] [Buddy passwords].txt" size="794" crc="ec6a295a" md5="ffae60de1b767df66dc9be8258cc08fc" sha1="00e7d30f49a92c5991a41ba2d66894c5865a4d12"/>
+		<rom name="Pokemon Mystery Dungeon - Keep Going! Wildfire Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe &amp; Wowjinxy v1.03] [n].txt" size="10058" crc="caca2c23" md5="1469f09b370979f606cb6502aa2f73f2" sha1="301bf4b10f835ae2873e54891142c756c84f8b79"/>
+		<rom name="Pokemon Mystery Dungeon - Let's Go! Tempest Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n] [Buddy passwords].txt" size="794" crc="ec6a295a" md5="ffae60de1b767df66dc9be8258cc08fc" sha1="00e7d30f49a92c5991a41ba2d66894c5865a4d12"/>
+		<rom name="Pokemon Mystery Dungeon - Let's Go! Tempest Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n].txt" size="10058" crc="caca2c23" md5="1469f09b370979f606cb6502aa2f73f2" sha1="301bf4b10f835ae2873e54891142c756c84f8b79"/>
+		<rom name="Puyo Puyo 7 (Japan) [T-En by Puyo Nexus &amp; Nenilein &amp; Saetta06 v1.1].txt" size="509" crc="122a6ce2" md5="2705ab8528834ce7b70941e48f900da4" sha1="7f8af061fc462e803d66ab4db5d6bc316524b64f"/>
+		<rom name="Soul Eater - Monotone Princess (Japan) [T-En by Anime Game Translations Team v1.0].txt" size="8612" crc="8460276c" md5="98679e01c4be402e32677b274a127661" sha1="7cca1c2ad12613e871a34ecb8bf5fb1360c3cd33"/>
+		<rom name="Takt of Magic (Japan) [T-En by Brand Newman v1.02].pdf" size="4384054" crc="71547731" md5="fc68fb67962490fbacc0ad2c63d70a91" sha1="e5e34676cb821a1c13a9f63170f10bd2ff2779c4"/>
+	</machine>
+	<machine name="Arc Rise Fantasia (USA) [Undub by Somebody Special v1.1]">
+		<description>Arc Rise Fantasia (USA) [Undub by Somebody Special v1.1]</description>
+		<rom name="Arc Rise Fantasia (USA) [Undub by Somebody Special v1.1].rvz" size="3608072800" crc="3ae2d6ad" md5="a99cb5ec9a68fcfa8cf2df2883f5cf77" sha1="3f98b5ff9bab6112a2a3f439df53c17da2c6c741"/>
+	</machine>
+	<machine name="Blades of Reginleiv (Japan) [T-En by Gummi &amp; Brand Newman v1.01] [n]">
+		<description>Blades of Reginleiv (Japan) [T-En by Gummi &amp; Brand Newman v1.01] [n]</description>
+		<rom name="Blades of Reginleiv (Japan) [T-En by Gummi &amp; Brand Newman v1.01] [n].rvz" size="3726136908" crc="19c69f5a" md5="06e992e91a20eca03df7f12223efca44" sha1="2504e4cdf3be93b4f28d22fe8e677093f659c74b"/>
+	</machine>
+	<machine name="Bleach - Versus Crusade (Japan) [T-En by Sixfortyfive v1.0] [i]">
+		<description>Bleach - Versus Crusade (Japan) [T-En by Sixfortyfive v1.0] [i]</description>
+		<rom name="Bleach - Versus Crusade (Japan) [T-En by Sixfortyfive v1.0] [i].rvz" size="909902564" crc="0a394d7a" md5="85f8b746328daec019c8b7d3cbaaf068" sha1="995b87640ad4b4ffdfd9fef23245229f11cef5a8"/>
+	</machine>
+	<machine name="Captain Rainbow (Japan) [T-En by MarkAss &amp; Kirameki Translations v1] [i]">
+		<description>Captain Rainbow (Japan) [T-En by MarkAss &amp; Kirameki Translations v1] [i]</description>
+		<rom name="Captain Rainbow (Japan) [T-En by MarkAss &amp; Kirameki Translations v1] [i].rvz" size="717730412" crc="6f6e1204" md5="ceda638afbf56b97035bba1777262ca7" sha1="bbd978f583e2fdf4a15a08313591573c2609e092"/>
+	</machine>
+	<machine name="Chibi Robo! (Japan) [T-En by Brand Newman v1.00] [n]">
+		<description>Chibi Robo! (Japan) [T-En by Brand Newman v1.00] [n]</description>
+		<rom name="Chibi Robo! (Japan) [T-En by Brand Newman v1.00] [n].rvz" size="479870536" crc="aee9adcd" md5="b9819f7cc1b96ab0615cd9754aed7535" sha1="d40f43f038efd5b5ab1a31ed0ecc303a8565e474"/>
+	</machine>
+	<machine name="Earth Seeker (Japan) [T-En by Brand Newman v2.03]">
+		<description>Earth Seeker (Japan) [T-En by Brand Newman v2.03]</description>
+		<rom name="Earth Seeker (Japan) [T-En by Brand Newman v2.03].rvz" size="2456945440" crc="35dad34b" md5="7f893677f7fca122e0417a8535676dd0" sha1="5b60821b6d6470789e858fa8e3a6785fb882f7a3"/>
+	</machine>
+	<machine name="Earth Seeker (Japan) [T-En by Brand Newman v2.04] [Odekake Edition]">
+		<description>Earth Seeker (Japan) [T-En by Brand Newman v2.04] [Odekake Edition]</description>
+		<rom name="Earth Seeker (Japan) [T-En by Brand Newman v2.04] [Odekake Edition].rvz" size="2371896588" crc="83309d67" md5="394eae9c002092df255e5c498d38b8dc" sha1="b03d7ffcfce28748c5f0e95111993156d2939621"/>
+	</machine>
+	<machine name="Fatal Frame 4 - Mask of the Lunar Eclipse (Japan) [T-En by Tempus v1.0+update] [n]">
+		<description>Fatal Frame 4 - Mask of the Lunar Eclipse (Japan) [T-En by Tempus v1.0+update] [n]</description>
+		<rom name="Fatal Frame 4 - Mask of the Lunar Eclipse (Japan) [T-En by Tempus v1.0+update] [n].rvz" size="3090637964" crc="0607d0ef" md5="c3c1dc3cdf9501dfb5c16ea22603dd2f" sha1="8fd23e99b4e80039ea80421ee84b1a943b1a04cc"/>
+	</machine>
+	<machine name="Golden Bonds (Japan) [T-En by Brand Newman v1.00] [n]">
+		<description>Golden Bonds (Japan) [T-En by Brand Newman v1.00] [n]</description>
+		<rom name="Golden Bonds (Japan) [T-En by Brand Newman v1.00] [n].rvz" size="3304147420" crc="30e72475" md5="d98ee69c99bdfd218055cdedc4751b75" sha1="9d06ec49784a0ea236b894e8be4964b047961e90"/>
+	</machine>
+	<machine name="Line Attack Heroes (Japan) (WiiWare) [T-En by Brand Newman v1.0]">
+		<description>Line Attack Heroes (Japan) (WiiWare) [T-En by Brand Newman v1.0]</description>
+		<rom name="Line Attack Heroes (Japan) (WiiWare) [T-En by Brand Newman v1.0].wad" size="46636480" crc="cf912d71" md5="5d729e25d5f42790a12436b5ce830244" sha1="aee211ae2c5995fd6edb6463d129927267edd1ab"/>
+	</machine>
+	<machine name="Mobile Suit Gundam 0079 (Japan) [T-En by PTwr v0.6.1] [i] [n]">
+		<description>Mobile Suit Gundam 0079 (Japan) [T-En by PTwr v0.6.1] [i] [n]</description>
+		<rom name="Mobile Suit Gundam 0079 (Japan) [T-En by PTwr v0.6.1] [i] [n].rvz" size="955495712" crc="487d204b" md5="80b4cc7d7062b63d52203df8d528e517" sha1="81dfcbebf958251053949f025847d875f3f54035"/>
+	</machine>
+	<machine name="Night of the Sacrifice (Japan) [T-En by Brand Newman v1.03] [n]">
+		<description>Night of the Sacrifice (Japan) [T-En by Brand Newman v1.03] [n]</description>
+		<rom name="Mandatory save for non Japanese consoles\0001000053454b4a\banner.bin" size="43168" crc="86c8aba3" md5="9ed50ef977689cf7ded9fcbc29848c60" sha1="eb9cd8057af2e333a03ecf3d855ba69ec22b8b20"/>
+		<rom name="Mandatory save for non Japanese consoles\0001000053454b4a\savefile.dat" size="320" crc="adc7574d" md5="04dbc66d8e4559769bb38a92cd6f7d9d" sha1="1aa0cb9b7917d445fa9b429eb28da8ff0c7a67d7"/>
+		<rom name="Night of the Sacrifice (Japan) [T-En by Brand Newman v1.03] [n].rvz" size="1351329780" crc="4d013a55" md5="e1b4be3351ed65a44a75d6751cb59f37" sha1="3a82d13c23bf2e11aab775c09b27ce68095bec04"/>
+	</machine>
+	<machine name="Opoona (USA) [T-En by Opoonaproject v1.1] [Relocalized]">
+		<description>Opoona (USA) [T-En by Opoonaproject v1.1] [Relocalized]</description>
+		<rom name="Opoona (USA) [T-En by Opoonaproject v1.1] [Relocalized].rvz" size="2167291544" crc="1b85720c" md5="311c57e6acfc7a40271e79c0ea91c26d" sha1="490294b51db4a24f3368d94d53748c8dc8eade15"/>
+	</machine>
+	<machine name="Pokemon Mystery Dungeon - Go for it! Radiant Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n]">
+		<description>Pokemon Mystery Dungeon - Go for it! Radiant Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n]</description>
+		<rom name="Pokemon Mystery Dungeon - Go for it! Radiant Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n].wad" size="30447744" crc="6e74cc2f" md5="7ca9391ea92fd5b63c740615e0d7fead" sha1="73c3c4a578a945ee00b4bb07b9864d382428f761"/>
+	</machine>
+	<machine name="Pokemon Mystery Dungeon - Keep Going! Wildfire Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe &amp; Wowjinxy v1.03] [n]">
+		<description>Pokemon Mystery Dungeon - Keep Going! Wildfire Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe &amp; Wowjinxy v1.03] [n]</description>
+		<rom name="Pokemon Mystery Dungeon - Keep Going! Wildfire Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe &amp; Wowjinxy v1.03] [n].wad" size="30311936" crc="70a75b80" md5="029bd8a78a08b9b110ec12dc4a97d234" sha1="8473f8296783fba1f60e58c66d527c6a58685217"/>
+	</machine>
+	<machine name="Pokemon Mystery Dungeon - Let's Go! Tempest Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n]">
+		<description>Pokemon Mystery Dungeon - Let's Go! Tempest Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n]</description>
+		<rom name="Pokemon Mystery Dungeon - Let's Go! Tempest Adventure Squad (Japan) (WiiWare) [T-En by Higsby &amp; MegaMinerd &amp; SpecialAgentApe v1.03] [n].wad" size="30371776" crc="2cdae572" md5="e82e171e6f4636a2f4c965cfb09176c1" sha1="6e7bcd1f1bfce93dbc9a26b9584e906bcaedf1f9"/>
+	</machine>
+	<machine name="Puyo Puyo 7 (Japan) [T-En by Puyo Nexus &amp; Nenilein &amp; Saetta06 v1.1]">
+		<description>Puyo Puyo 7 (Japan) [T-En by Puyo Nexus &amp; Nenilein &amp; Saetta06 v1.1]</description>
+		<rom name="Puyo Puyo 7 (Japan) [T-En by Puyo Nexus &amp; Nenilein &amp; Saetta06 v1.1].rvz" size="272724372" crc="01b85c28" md5="7e1d13da54ecdc3b3ec82140e8b8a743" sha1="f89e0936d2efe62b593be0259e761704c2a8dccc"/>
+	</machine>
+	<machine name="Soul Eater - Monotone Princess (Japan) [T-En by Anime Game Translations Team v1.0]">
+		<description>Soul Eater - Monotone Princess (Japan) [T-En by Anime Game Translations Team v1.0]</description>
+		<rom name="Soul Eater - Monotone Princess (Japan) [T-En by Anime Game Translations Team v1.0].rvz" size="2464615780" crc="b1cf3067" md5="cce2fd2015f2419c55a6da0c7909257e" sha1="e0faf719b748b35bc5c70013bc24e09f1c0ecc2a"/>
+	</machine>
+	<machine name="Takt of Magic (Japan) [T-En by Brand Newman v1.02]">
+		<description>Takt of Magic (Japan) [T-En by Brand Newman v1.02]</description>
+		<rom name="Takt of Magic (Japan) [T-En by Brand Newman v1.02].rvz" size="825107132" crc="f4d2ee0a" md5="35466386119383acdbccd7cbcda50541" sha1="fcdbc7f689dc596559c41d5b466413237e62b2a1"/>
+	</machine>
+</datafile>

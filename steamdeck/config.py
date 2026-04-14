@@ -5,6 +5,9 @@ from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".config" / "savesync" / "steamdeck.json"
 STATE_PATH = Path.home() / ".config" / "savesync" / "steamdeck_state.json"
+SATURN_ARCHIVE_STATE_PATH = (
+    Path.home() / ".config" / "savesync" / "steamdeck_saturn_archives.json"
+)
 
 DEFAULT_CONFIG = {
     "host": "192.168.1.100",
@@ -95,3 +98,19 @@ def save_sync_state(state: dict) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(STATE_PATH, "w") as f:
         json.dump(state, f, indent=2)
+
+
+def load_saturn_archive_state() -> dict:
+    if SATURN_ARCHIVE_STATE_PATH.exists():
+        try:
+            with open(SATURN_ARCHIVE_STATE_PATH) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def save_saturn_archive_state(state: dict) -> None:
+    SATURN_ARCHIVE_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(SATURN_ARCHIVE_STATE_PATH, "w") as f:
+        json.dump(state, f, indent=2, sort_keys=True)

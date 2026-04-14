@@ -60,7 +60,7 @@ DEVICE_SYSTEMS: dict[str, list[str]] = {
         "SEGACD",
         "PS1",
     ],
-    "RetroArch": list(SYSTEM_CHOICES),
+    "RetroArch": [system for system in SYSTEM_CHOICES if system != "PS3"],
     "Analogue Pocket": [
         "GB",
         "GBA",
@@ -129,6 +129,125 @@ SYSTEM_DEFAULT_EXT: dict[str, str] = {
     "SAT": ".bkr",
 }
 
+RETROARCH_AUTO_CORE_LABEL = "Auto"
+RETROARCH_SATURN_CORE_LABELS = [
+    "Beetle Saturn",
+    "Yabause",
+    "YabaSanshiro",
+]
+
+
+def _retroarch_core_options(system: str) -> list[str]:
+    from sync_engine import RETROARCH_SYSTEM_CORES
+
+    system_code = (system or "").upper()
+    if system_code == "SAT":
+        return RETROARCH_SATURN_CORE_LABELS[:]
+
+    options = RETROARCH_SYSTEM_CORES.get(system_code, [])
+    if not options:
+        return []
+    return [RETROARCH_AUTO_CORE_LABEL, *options]
+
+
+def _is_retroarch_core_row(device_type: str, system: str) -> bool:
+    return device_type == "RetroArch" and bool(_retroarch_core_options(system))
+
+
+def _is_retroarch_saturn_row(device_type: str, system: str) -> bool:
+    return _is_retroarch_core_row(device_type, system) and system.upper() == "SAT"
+
+
+def _retroarch_saturn_display_value(save_ext: str, save_folder: str = "") -> str:
+    ext = (save_ext or "").strip().lower()
+    folder_name = ""
+    if save_folder:
+        try:
+            folder_name = Path(save_folder).name.strip().lower()
+        except Exception:
+            folder_name = ""
+    if ext == ".bin" or folder_name == "yabasanshiro":
+        return "YabaSanshiro"
+    if ext == ".srm":
+        return "Yabause"
+    return "Beetle Saturn"
+
+
+def _retroarch_saturn_storage_values(
+    display_value: str,
+    save_folder: str = "",
+) -> tuple[str, str]:
+    label = (display_value or "").strip()
+    folder = (save_folder or "").strip()
+    folder_name = ""
+    if folder:
+        try:
+            folder_name = Path(folder).name.strip().lower()
+        except Exception:
+            folder_name = ""
+
+    if label == "YabaSanshiro":
+        return ".bin", folder
+    if label == "Yabause":
+        return ".srm", "" if folder_name == "yabasanshiro" else folder
+    return ".bkr", "" if folder_name == "yabasanshiro" else folder
+
+
+def _normalize_ext(value: str, fallback: str) -> str:
+    ext = (value or fallback).strip() or fallback
+    if not ext.startswith("."):
+        ext = "." + ext
+    return ext
+
+
+def _retroarch_display_value(
+    system: str,
+    save_ext: str,
+    save_folder: str = "",
+    core: str = "",
+) -> str:
+    system_code = (system or "").upper()
+    if system_code == "SAT":
+        return _retroarch_saturn_display_value(save_ext, save_folder)
+
+    options = _retroarch_core_options(system_code)
+    if not options:
+        return save_ext
+
+    core_label = (core or "").strip()
+    if core_label and core_label in options:
+        return core_label
+    return RETROARCH_AUTO_CORE_LABEL
+
+
+def _retroarch_storage_values(
+    system: str,
+    display_value: str,
+    save_folder: str = "",
+    current_ext: str = "",
+    current_core: str = "",
+) -> tuple[str, str, str]:
+    system_code = (system or "").upper()
+    if system_code == "SAT":
+        ext, folder = _retroarch_saturn_storage_values(display_value, save_folder)
+        return ext, folder, display_value.strip() or "Beetle Saturn"
+
+    options = _retroarch_core_options(system_code)
+    if not options:
+        return _normalize_ext(display_value, ".sav"), save_folder, ""
+
+    label = (display_value or "").strip() or RETROARCH_AUTO_CORE_LABEL
+    fallback_ext = DEVICE_DEFAULT_EXT.get("RetroArch", ".srm")
+    normalized_current_ext = _normalize_ext(current_ext or fallback_ext, fallback_ext)
+    if label == RETROARCH_AUTO_CORE_LABEL:
+        return normalized_current_ext, save_folder, ""
+    chosen_ext = (
+        fallback_ext
+        if normalized_current_ext.lower() in {"", ".sav"}
+        else normalized_current_ext
+    )
+    return _normalize_ext(chosen_ext, fallback_ext), save_folder, label
+
 
 # ---------------------------------------------------------------------------
 # Delegate: drop-down combo for the Save Ext column
@@ -136,17 +255,37 @@ SYSTEM_DEFAULT_EXT: dict[str, str] = {
 
 
 class SaveExtDelegate(QStyledItemDelegate):
+    def __init__(self, dialog, parent=None):
+        super().__init__(parent)
+        self._dialog = dialog
+
     def createEditor(self, parent, option, index):
         combo = QComboBox(parent)
-        combo.setEditable(True)
-        combo.addItems(SAVE_EXT_OPTIONS)
+        system_item = self._dialog.systems_table.item(index.row(), 1)
+        system = system_item.text() if system_item else ""
+        if _is_retroarch_core_row(self._dialog.device_combo.currentText(), system):
+            combo.setEditable(False)
+            combo.addItems(_retroarch_core_options(system))
+        else:
+            combo.setEditable(True)
+            combo.addItems(SAVE_EXT_OPTIONS)
         return combo
 
     def setEditorData(self, editor, index):
         editor.setCurrentText(index.data() or ".sav")
 
     def setModelData(self, editor, model, index):
+        system_item = self._dialog.systems_table.item(index.row(), 1)
+        system = system_item.text() if system_item else ""
         val = editor.currentText().strip()
+        if _is_retroarch_core_row(self._dialog.device_combo.currentText(), system):
+            fallback = (
+                "Beetle Saturn"
+                if system.upper() == "SAT"
+                else RETROARCH_AUTO_CORE_LABEL
+            )
+            model.setData(index, val or fallback)
+            return
         if val and not val.startswith("."):
             val = "." + val
         model.setData(index, val or ".sav")
@@ -171,7 +310,8 @@ class ProfileDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Edit Sync Profile" if profile else "Add Sync Profile")
         self._loading = False
-        self._last_override_folder: Path | None = None
+        self._last_save_override_folder: Path | None = None
+        self._last_rom_override_folder: Path | None = None
         self._last_game_folder: Path | None = None
         self._last_single_save_folder: Path | None = None
         self._last_multi_save_folder: Path | None = None
@@ -321,19 +461,20 @@ class ProfileDialog(QDialog):
         layout.addLayout(table_hdr_row)
 
         # Systems table
-        self.systems_table = QTableWidget(0, 4)
+        self.systems_table = QTableWidget(0, 5)
         self.systems_table.setHorizontalHeaderLabels(
-            ["", "System", "Save Ext", "Save Folder Override"]
+            ["", "System", "Save Format", "Save Folder Override", "ROM Folder Override"]
         )
         hdr = self.systems_table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self.systems_table.setColumnWidth(0, 28)
         self.systems_table.setColumnWidth(1, 90)
-        self.systems_table.setColumnWidth(2, 90)
-        self.systems_table.setItemDelegateForColumn(2, SaveExtDelegate(self))
+        self.systems_table.setColumnWidth(2, 170)
+        self.systems_table.setItemDelegateForColumn(2, SaveExtDelegate(self, self))
         self.systems_table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows
         )
@@ -349,15 +490,24 @@ class ProfileDialog(QDialog):
 
         # Browse override button
         override_row = QHBoxLayout()
-        self.browse_override_btn = QPushButton(
-            "Browse Override Folder for Selected System…"
+        self.browse_save_override_btn = QPushButton(
+            "Browse Save Override for Selected System…"
         )
-        self.browse_override_btn.setEnabled(False)
-        self.browse_override_btn.clicked.connect(self._browse_override_folder)
-        override_row.addWidget(self.browse_override_btn)
-        clear_override_btn = QPushButton("Clear Override")
-        clear_override_btn.clicked.connect(self._clear_override_folder)
-        override_row.addWidget(clear_override_btn)
+        self.browse_save_override_btn.setEnabled(False)
+        self.browse_save_override_btn.clicked.connect(self._browse_save_override_folder)
+        override_row.addWidget(self.browse_save_override_btn)
+        clear_save_override_btn = QPushButton("Clear Save Override")
+        clear_save_override_btn.clicked.connect(self._clear_save_override_folder)
+        override_row.addWidget(clear_save_override_btn)
+        self.browse_rom_override_btn = QPushButton(
+            "Browse ROM Override for Selected System…"
+        )
+        self.browse_rom_override_btn.setEnabled(False)
+        self.browse_rom_override_btn.clicked.connect(self._browse_rom_override_folder)
+        override_row.addWidget(self.browse_rom_override_btn)
+        clear_rom_override_btn = QPushButton("Clear ROM Override")
+        clear_rom_override_btn.clicked.connect(self._clear_rom_override_folder)
+        override_row.addWidget(clear_rom_override_btn)
         override_row.addStretch()
         layout.addLayout(override_row)
 
@@ -416,6 +566,15 @@ class ProfileDialog(QDialog):
             self.setMinimumSize(480, 0)
         else:
             self.setMinimumSize(580, 520)
+            self.systems_table.setHorizontalHeaderLabels(
+                [
+                    "",
+                    "System",
+                    "Core" if device_type == "RetroArch" else "Save Format",
+                    "Save Folder Override",
+                    "ROM Folder Override",
+                ]
+            )
             self._populate_systems_table(device_type)
         self.adjustSize()
 
@@ -455,7 +614,8 @@ class ProfileDialog(QDialog):
 
     def _on_system_selection_changed(self):
         has_selection = bool(self.systems_table.selectedItems())
-        self.browse_override_btn.setEnabled(has_selection)
+        self.browse_save_override_btn.setEnabled(has_selection)
+        self.browse_rom_override_btn.setEnabled(has_selection)
 
     def _on_separate_save_changed(self):
         pass  # kept for compat — single section always shows save folder row
@@ -469,7 +629,7 @@ class ProfileDialog(QDialog):
     ):
         """Fill the systems table for *device_type*.
 
-        existing: {system_code: {enabled, save_ext, save_folder}} for pre-loading saved values.
+        existing: {system_code: {enabled, save_ext, save_folder, rom_folder}} for pre-loading saved values.
         """
         systems = DEVICE_SYSTEMS.get(device_type, list(SYSTEM_CHOICES))
         default_ext = DEVICE_DEFAULT_EXT.get(device_type, ".sav")
@@ -499,11 +659,30 @@ class ProfileDialog(QDialog):
             self.systems_table.setItem(row, 1, sys_item)
 
             # Col 2 — save extension (editable via delegate)
-            ext = info.get(
-                "save_ext", SYSTEM_DEFAULT_EXT.get(system, default_ext)
+            ext = info.get("save_ext", SYSTEM_DEFAULT_EXT.get(system, default_ext))
+            display_ext = (
+                _retroarch_display_value(
+                    system,
+                    ext,
+                    info.get("save_folder", ""),
+                    info.get("core", ""),
+                )
+                if device_type == "RetroArch"
+                else ext
             )
-            ext_item = QTableWidgetItem(ext)
+            ext_item = QTableWidgetItem(display_ext)
             ext_item.setFlags(ro_flags | Qt.ItemFlag.ItemIsEditable)
+            ext_item.setData(
+                Qt.ItemDataRole.UserRole,
+                {
+                    "save_ext": ext,
+                    "core": info.get("core", ""),
+                },
+            )
+            if _is_retroarch_core_row(device_type, system):
+                ext_item.setToolTip(
+                    "Choose the RetroArch core/save target for this system."
+                )
             self.systems_table.setItem(row, 2, ext_item)
 
             # Col 3 — save folder override (editable text, empty = use global)
@@ -514,6 +693,14 @@ class ProfileDialog(QDialog):
                 "Leave empty to auto-compute from the save root above."
             )
             self.systems_table.setItem(row, 3, folder_item)
+
+            rom_folder_item = QTableWidgetItem(info.get("rom_folder", ""))
+            rom_folder_item.setFlags(ro_flags | Qt.ItemFlag.ItemIsEditable)
+            rom_folder_item.setToolTip(
+                "Optional ROM folder override for this specific system.\n"
+                "Leave empty to use the profile's global Game Folder."
+            )
+            self.systems_table.setItem(row, 4, rom_folder_item)
 
     def _set_all_enabled(self, checked: bool):
         state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
@@ -526,26 +713,49 @@ class ProfileDialog(QDialog):
         rows = self.systems_table.selectionModel().selectedRows()
         return rows[0].row() if rows else -1
 
-    def _browse_override_folder(self):
+    def _browse_save_override_folder(self):
         row = self._selected_row()
         if row < 0:
             return
         folder = QFileDialog.getExistingDirectory(
             self,
             "Select Save Folder Override",
-            str(self._last_override_folder or ""),
+            str(self._last_save_override_folder or ""),
         )
         if folder:
-            self._last_override_folder = Path(folder)
+            self._last_save_override_folder = Path(folder)
             item = self.systems_table.item(row, 3)
             if item:
                 item.setText(folder)
 
-    def _clear_override_folder(self):
+    def _clear_save_override_folder(self):
         row = self._selected_row()
         if row < 0:
             return
         item = self.systems_table.item(row, 3)
+        if item:
+            item.setText("")
+
+    def _browse_rom_override_folder(self):
+        row = self._selected_row()
+        if row < 0:
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select ROM Folder Override",
+            str(self._last_rom_override_folder or ""),
+        )
+        if folder:
+            self._last_rom_override_folder = Path(folder)
+            item = self.systems_table.item(row, 4)
+            if item:
+                item.setText(folder)
+
+    def _clear_rom_override_folder(self):
+        row = self._selected_row()
+        if row < 0:
+            return
+        item = self.systems_table.item(row, 4)
         if item:
             item.setText("")
 
@@ -690,11 +900,32 @@ class ProfileDialog(QDialog):
                 sys = self.systems_table.item(row, 1)
                 ext = self.systems_table.item(row, 2)
                 fld = self.systems_table.item(row, 3)
+                rom_fld = self.systems_table.item(row, 4)
                 if not sys:
                     continue
-                ext_val = (ext.text().strip() if ext else ".sav") or ".sav"
-                if not ext_val.startswith("."):
-                    ext_val = "." + ext_val
+                ext_text = (ext.text().strip() if ext else ".sav") or ".sav"
+                ext_meta = (
+                    ext.data(Qt.ItemDataRole.UserRole)
+                    if ext and ext.data(Qt.ItemDataRole.UserRole) is not None
+                    else {}
+                )
+                current_ext = str(ext_meta.get("save_ext", "")) if isinstance(ext_meta, dict) else ""
+                current_core = str(ext_meta.get("core", "")) if isinstance(ext_meta, dict) else ""
+                folder_val = fld.text().strip() if fld else ""
+                rom_folder_val = rom_fld.text().strip() if rom_fld else ""
+                core_val = ""
+                if device_type == "RetroArch":
+                    ext_val, folder_val, core_val = _retroarch_storage_values(
+                        sys.text(),
+                        ext_text,
+                        folder_val,
+                        current_ext=current_ext,
+                        current_core=current_core,
+                    )
+                else:
+                    ext_val = ext_text
+                    if not ext_val.startswith("."):
+                        ext_val = "." + ext_val
                 systems.append(
                     {
                         "system": sys.text(),
@@ -702,7 +933,9 @@ class ProfileDialog(QDialog):
                         if cb
                         else True,
                         "save_ext": ext_val,
-                        "save_folder": fld.text().strip() if fld else "",
+                        "save_folder": folder_val,
+                        "rom_folder": rom_folder_val,
+                        "core": core_val,
                     }
                 )
             return {

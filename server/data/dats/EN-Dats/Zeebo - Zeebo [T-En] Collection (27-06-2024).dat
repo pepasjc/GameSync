@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Zeebo - Zeebo [T-En] Collection</name>
+		<description>Zeebo - Zeebo [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>27-06-2024</version>
+		<date>27-06-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Zeebo [T-En] Docs">
+		<description>_Zeebo [T-En] Docs</description>
+		<rom name="Double Dragon (Brazil) (Es,Pt) [T-En by CF &amp; Ikearagao v0.9] [i].txt" size="968" crc="891d0390" md5="6d0a076295ec7141dab050bb077d25ff" sha1="e42d0991cd49b4a4db201ecac58c5e87d4d1dc0c"/>
+	</machine>
+	<machine name="Double Dragon (Brazil) (Es,Pt) [T-En by CF &amp; Ikearagao v0.9] [i]">
+		<description>Double Dragon (Brazil) (Es,Pt) [T-En by CF &amp; Ikearagao v0.9] [i]</description>
+		<rom name="mif\274754.mif" size="2790" crc="e85a4492" md5="b177968eadead6a8766042c7e72d0429" sha1="c589a2a97a4cdb15c968c7cadbe4f002c004a2b3"/>
+		<rom name="mod\274754\data.ggz" size="1125611" crc="e02788b7" md5="f22959a4c6d092022903a2e143df200f" sha1="ab440204443f9429e9233880a327aa6ce4378a3b"/>
+		<rom name="mod\274754\ddragonz.mod" size="462748" crc="1df6029a" md5="605b732451f87dacf402b6ec19143f48" sha1="359b0fc46cd39815fc16c9c3acef7e6a02b46823"/>
+		<rom name="mod\274754\ddragonz.sig" size="3788" crc="3c33bc06" md5="8a4b6afdb3f6d0425f50f6be28b41b5f" sha1="15bbc7be77c54bbb765563a00a3179445ab4facb"/>
+		<rom name="mod\274754\sound.ggz" size="1928097" crc="6134f6d5" md5="b18f8fb094e175eeeeba0d50184ad73c" sha1="ca3cf340ce11dd9801d38793b50550ee2e8e1208"/>
+	</machine>
+</datafile>

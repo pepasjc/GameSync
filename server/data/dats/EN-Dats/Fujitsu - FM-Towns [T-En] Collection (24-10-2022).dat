@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Fujitsu - FM-Towns [T-En] Collection</name>
+		<description>Fujitsu - FM-Towns [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>24-10-2022</version>
+		<date>24-10-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Fujitsu FM-Towns [T-En] Docs">
+		<description>_Fujitsu FM-Towns [T-En] Docs</description>
+		<rom name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel RC1] [i] [Walkthrough].txt" size="22227" crc="53fbecc6" md5="d8d6e1d77399055e65c75c9273dd7860" sha1="92d95be34bd3a0c603a47dc168fc6b4fc3a92aab"/>
+		<rom name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel RC1] [i].txt" size="2921" crc="2905f1fc" md5="ba42a307efc53f8e63584fd1b16fdf69" sha1="4002d72f7a6755f6300136c998febc986902a2d3"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Lemmings 2 - The Tribes (Japan) [T-En by Leokulcar v1.0]" sha1="5022f59c53f13dddbc2b5fb48062df674ea0514d"/>
+		<disk name="Mad Paradox (Japan) [T-En by Demoniac v20081023]" sha1="96f9d556224cd38ac92745ab02c4fbdf6c4cf812"/>
+		<disk name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel RC1] [i]" sha1="2d30db53910a6c00ce5b92290b54b8698ae316c7"/>
+	</machine>
+	<machine name="Lemmings 2 - The Tribes (Japan) (User Disk)">
+		<description>Lemmings 2 - The Tribes (Japan) (User Disk)</description>
+		<rom name="Lemmings 2 - The Tribes (Japan) (User Disk).bin" size="1261568" crc="9a158db9" md5="8b459a7a4aa35e9c83feacc08bb2d21c" sha1="490fee404826835726c20bec967214045a76fd46"/>
+	</machine>
+	<machine name="Mad Paradox (Japan) (User Disk)">
+		<description>Mad Paradox (Japan) (User Disk)</description>
+		<rom name="Mad Paradox (Japan) (User Disk).bin" size="1261568" crc="2cadee79" md5="cb2eec2a9c5562462ac1c18ac046bf61" sha1="10d84653ecc3dfd87b494a92fb37886294063bae"/>
+	</machine>
+	<machine name="Tamashii no Mon - Dante Shinkyoku yori (Japan) (Boot Disk) [T-En by BabaJeanmel RC1] [i]">
+		<description>Tamashii no Mon - Dante Shinkyoku yori (Japan) (Boot Disk) [T-En by BabaJeanmel RC1] [i]</description>
+		<rom name="Tamashii no Mon - Dante Shinkyoku yori (Japan) (Boot Disk) [T-En by BabaJeanmel RC1] [i].bin" size="1261568" crc="f589957d" md5="8b34b38a41f0226cb84fa9fc209eb9f8" sha1="7c29e16aadbd7a902adfd9aaee319c1f0873e180"/>
+	</machine>
+</datafile>

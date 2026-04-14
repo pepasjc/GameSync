@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Sharp - X68000 [T-En] Collection</name>
+		<description>Sharp - X68000 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>07-07-2020</version>
+		<date>07-07-2020</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Sharp - X68000 [T-En] Docs">
+		<description>_Sharp - X68000 [T-En] Docs</description>
+		<rom name="Bahnwelt, Die (Japan) [T-En by Non-Directional Translations v1.0].txt" size="2178" crc="d737073e" md5="5c056bf8485a3c02d9e861ae8932ce51" sha1="48b822c318294595f9861ac6050f11039c1b1ddf"/>
+		<rom name="Genjuuki - Undead Line (Japan) [T-En by M.I.J.E.T. v071031].txt" size="2693" crc="6eb33195" md5="976d9b4d4f6534cb580e8ee1aa4d1ac1" sha1="44e79e404ae8e77b3256cac22b1d7bce75a890b5"/>
+		<rom name="Lagoon (Japan) [T-En by NLeseul v0.9b] [Manual].txt" size="27951" crc="54a0ab0a" md5="4c0d9b779d9dce89a4cd7478ea361c50" sha1="6a798cafe3d9c8444523cb57d94971fcd8265c9f"/>
+		<rom name="Lagoon (Japan) [T-En by NLeseul v0.9b].txt" size="5905" crc="d104ce7b" md5="077b31be389579349290cff5c9d2fb02" sha1="5c7f8502f327f4af53a619061a933eedbaab01b9"/>
+		<rom name="Lunatic Fantasy (Japan) [T-En by Pennywise &amp; Eien Ni Hen v2.0].txt" size="4683" crc="71222062" md5="3b9a7bd0896a2c12e08ac16b0d594bbf" sha1="eb4dcdf054a87507a722b754fe574bc9d58476ea"/>
+		<rom name="Mugen Senshi Valis II (Japan) [T-En by M.I.J.E.T. v091011].txt" size="10383" crc="9481cb0a" md5="d1ae364ab6b8769077527aff012826f5" sha1="9775367d7fd65d9f479c6d1a49f3192afe26aafe"/>
+		<rom name="Music Intro Pro-68k (Japan) [T-En by M.I.J.E.T. v071108].txt" size="2923" crc="c3a3926d" md5="07ef11ea6a854e42bd56ca6b2019e37c" sha1="7b86031d41719ff8c6f4462f01c5c37d6344c401"/>
+		<rom name="Nekketsu Koukou Dodgeball Bu - Soccer Hen (Japan) [T-En by Ghost-Tank v0.8] [i].txt" size="18826" crc="9dc431b2" md5="376bb1571d903fb7111ef9d87312e553" sha1="86cced29c0a3e57a4cf0776e1755af06eaa57ef0"/>
+		<rom name="Red Riding Hood Cha Cha Cha (Japan) [T-En by M.I.J.E.T. v071108] [n].txt" size="4381" crc="9d582f32" md5="0e5739dc634d4f3b6414d42ce7c67564" sha1="4a0ddfbb954e1dc8b34407b4e3f253abd0db8114"/>
+		<rom name="Star Cruiser (Japan) [T-En by Nebulous Translations v0.99].txt" size="21562" crc="201f0e12" md5="a29316224016116f16ce7be6df5fe473" sha1="f7969327e892829c7117812acfb9ea327b2a2f2f"/>
+		<rom name="ZugyA (Japan) [T-En by M.I.J.E.T. v071112].txt" size="2818" crc="44da1e9a" md5="c1bbcd25c5030f20e9bac067a0723f91" sha1="f31e8c204326f0619e2b29300dfa9163fc56d94a"/>
+	</machine>
+	<machine name="Bahnwelt, Die (Japan) [T-En by Non-Directional Translations v1.0]">
+		<description>Bahnwelt, Die (Japan) [T-En by Non-Directional Translations v1.0]</description>
+		<rom name="Bahnwelt, Die (Japan) (Data Disk A) [T-En by Non-Directional Translations v1.0].xdf" size="1261568" crc="57285dc2" md5="08263452aee180f05668383fb2a382fe" sha1="252b5678cfaabe137f41d35f9dc0f1b33c9be645"/>
+		<rom name="Bahnwelt, Die (Japan) (Data Disk B) [T-En by Non-Directional Translations v1.0].xdf" size="1261568" crc="e5bba72b" md5="36b5bda5b6e75c3d2dc3f68b30e65b38" sha1="bbcd67629208ce8d3d8bf9f7d14b96d79c4bb3e0"/>
+		<rom name="Bahnwelt, Die (Japan) (Data Disk C) [T-En by Non-Directional Translations v1.0].xdf" size="1261568" crc="45c3dcae" md5="166c4c4a59ac2cf6815cb3fa02353e3d" sha1="34d8429a2b7ee742578bf2d4f6cd6e3724b31742"/>
+		<rom name="Bahnwelt, Die (Japan) (Ending Disk) [T-En by Non-Directional Translations v1.0].xdf" size="1261568" crc="5ed6e03e" md5="1c6c1e536c20fe603aabcb5668cd65ea" sha1="789e0ca253a00b03d02f5a8e5341b6ee0169f163"/>
+		<rom name="Bahnwelt, Die (Japan) (Opening Disk) [T-En by Non-Directional Translations v1.0].xdf" size="1261568" crc="034991fa" md5="81979350c61d541fca896983a5683968" sha1="8c489ffc6d8c92b312bb35ec18709f565bfa6518"/>
+		<rom name="Bahnwelt, Die (Japan) (System Disk) [T-En by Non-Directional Translations v1.0].xdf" size="1261568" crc="4bc1626c" md5="62c0431a3f670b3abe88f4dc7e738d04" sha1="d3ef77af0770b5a1e74db84560637b9b3d718b9b"/>
+	</machine>
+	<machine name="Genjuuki - Undead Line (Japan) [T-En by M.I.J.E.T. v071031]">
+		<description>Genjuuki - Undead Line (Japan) [T-En by M.I.J.E.T. v071031]</description>
+		<rom name="Genjuuki - Undead Line (Japan) (Disk A).xdf" size="1261568" crc="0e7739e8" md5="c622e4612b5dcba379e76465f2164bfa" sha1="69fe1eebfd256e1938f2388ee333f819a5300686"/>
+		<rom name="Genjuuki - Undead Line (Japan) (Disk B).xdf" size="1261568" crc="b3080b5e" md5="283b3b6c8edd95145c5276b77b450389" sha1="e77066ce2ff95ab50e3214f5276f1197b5e87213"/>
+		<rom name="Genjuuki - Undead Line (Japan) (Program Disk) [T-En by M.I.J.E.T. v071031].xdf" size="1261568" crc="e0a13e4a" md5="1e85449cf2f043e2a128d2222c7b5213" sha1="aebccd8091ee0c0bdb229f213eaf38eddf45ed27"/>
+	</machine>
+	<machine name="Lagoon (Japan) [T-En by NLeseul v0.9b]">
+		<description>Lagoon (Japan) [T-En by NLeseul v0.9b]</description>
+		<rom name="Lagoon (Japan) (Disk 1).xdf" size="1261568" crc="1c821fa6" md5="37ee55b382ac70978d9ef25263f9fc4c" sha1="2d62b284878f6d0d08a4683d53bacd49e7243ea2"/>
+		<rom name="Lagoon (Japan) (Disk 2).xdf" size="1261568" crc="3b6777a7" md5="9e345d63102441bad91c5d1b16b806ee" sha1="b935d7425b801ec29dcce497b8e64312665117b7"/>
+		<rom name="Lagoon (Japan) (Disk 3).xdf" size="1261568" crc="e41d0254" md5="f5ad154cc1059e0f55aa7e7ec2cdc668" sha1="12778aee2613711060f3258c765be2dc1cb5901f"/>
+		<rom name="Lagoon (Japan) (System Disk) [T-En by NLeseul v0.9b].xdf" size="1261568" crc="9eeaeb75" md5="2de396e69a6aa53f6bac938d34d7e43f" sha1="6afbc8b20cf0fb72003d6a87baa3e0c1084e9105"/>
+		<rom name="Lagoon (Japan) (User Disk) [T-En by NLeseul v0.9b].xdf" size="1261568" crc="817d8f3a" md5="7c65eb58f3585a4c34155df785530ed1" sha1="b1668684a9ce8bd9f50e73bbe925882f8224751b"/>
+	</machine>
+	<machine name="Lunatic Fantasy (Japan) [T-En by Pennywise &amp; Eien Ni Hen v2.0]">
+		<description>Lunatic Fantasy (Japan) [T-En by Pennywise &amp; Eien Ni Hen v2.0]</description>
+		<rom name="Lunatic Fantasy (Japan) [T-En by Pennywise &amp; Eien Ni Hen v2.0].xdf" size="1261568" crc="48689ca0" md5="9f0f0e93c5799181d6bc99d0eca856c1" sha1="33d29269311c38be63018ad57afa1eb4ddcb1eb3"/>
+	</machine>
+	<machine name="Mugen Senshi Valis II (Japan) [T-En by M.I.J.E.T. v091011]">
+		<description>Mugen Senshi Valis II (Japan) [T-En by M.I.J.E.T. v091011]</description>
+		<rom name="Mugen Senshi Valis II (Japan) (Disk A) [T-En by M.I.J.E.T. v091011].xdf" size="1261568" crc="e57b34c6" md5="a5016371e1b94686194be8a1c848b0e4" sha1="b2188685b7874fcaaa350526d3cbd3cc418d530b"/>
+		<rom name="Mugen Senshi Valis II (Japan) (Disk B).xdf" size="1261568" crc="6989c2d0" md5="bec0ede3cbbfa00118c7f373bae839f4" sha1="033a957d9b9c8fb04820728df7ed298b4a1563d3"/>
+		<rom name="Mugen Senshi Valis II (Japan) (Disk C).xdf" size="1261568" crc="0ce35497" md5="2f25e0b45d7b1159b06e2863c83c2bbd" sha1="e9747c51e10dd010d1b6baeb8a57a8641f4be0e4"/>
+		<rom name="Mugen Senshi Valis II (Japan) (Disk D).xdf" size="1261568" crc="e5136be2" md5="d12a6c958dc4ed2c26cc1e4b0599b656" sha1="d929ae33107073b6fbf87b5182e3fb2674d70edd"/>
+		<rom name="Mugen Senshi Valis II (Japan) (Disk E).xdf" size="1261568" crc="abb4d063" md5="233e3ee8f687d68a7771bbd0e671ff86" sha1="185ad41e6ded92b5702c5d12802071d7688718d2"/>
+	</machine>
+	<machine name="Music Intro Pro-68k (Japan) [T-En by M.I.J.E.T. v071108]">
+		<description>Music Intro Pro-68k (Japan) [T-En by M.I.J.E.T. v071108]</description>
+		<rom name="Music Intro Pro-68k (Japan) [T-En by M.I.J.E.T. v071108].xdf" size="1261568" crc="68616b07" md5="65e891fcdc24320d44e8cd1fa6810ddf" sha1="c4e79306886cfdf845cf2a8211416ecdf19f9041"/>
+	</machine>
+	<machine name="Nekketsu Koukou Dodgeball Bu - Soccer Hen (Japan) [T-En by Ghost-Tank v0.8] [i]">
+		<description>Nekketsu Koukou Dodgeball Bu - Soccer Hen (Japan) [T-En by Ghost-Tank v0.8] [i]</description>
+		<rom name="Nekketsu Koukou Dodgeball Bu - Soccer Hen (Japan) (Disk A) [T-En by Ghost-Tank v0.8] [i].xdf" size="1261568" crc="42644a53" md5="b94b0ab0b6ce6757fd09e963de17a5da" sha1="84c67ee2c54e1dc8c542a958f3c1d8697676244d"/>
+		<rom name="Nekketsu Koukou Dodgeball Bu - Soccer Hen (Japan) (Disk B).xdf" size="1261568" crc="a5f27755" md5="efb5019eca6ee15dbc67f9aab5ea7fd8" sha1="38ff12471ec887c71bc784987ef3c0bdb3aa0b5c"/>
+	</machine>
+	<machine name="Red Riding Hood Cha Cha Cha (Japan) [T-En by M.I.J.E.T. v071108] [n]">
+		<description>Red Riding Hood Cha Cha Cha (Japan) [T-En by M.I.J.E.T. v071108] [n]</description>
+		<rom name="Red Riding Hood Cha Cha Cha (Japan) [T-En by M.I.J.E.T. v071108] [n].xdf" size="1261568" crc="29d732b0" md5="6c4c65af44bf3cd70cb7f8e1cf991f7e" sha1="d76b11598eb50529d11bfe2bfcd8ed742d1a7cb7"/>
+	</machine>
+	<machine name="Star Cruiser (Japan) [T-En by Nebulous Translations v0.99]">
+		<description>Star Cruiser (Japan) [T-En by Nebulous Translations v0.99]</description>
+		<rom name="Star Cruiser (Japan) (Disk A) [T-En by Nebulous Translations v0.99].xdf" size="1261568" crc="cd5d7afc" md5="a41f63e56a79c52d70d9cadd6e59fc6d" sha1="a392c597e8ac7072c20721392ea6f35c6b4b9acb"/>
+		<rom name="Star Cruiser (Japan) (Disk B) [T-En by Nebulous Translations v0.99].xdf" size="1261568" crc="d7e45ffa" md5="9d573a1aac37141c3b8e8841ea87aced" sha1="b566c8f8d4f53b7c2d2761e872afdcfc080a3f11"/>
+	</machine>
+	<machine name="T-Dragon Quest - Joshou (Japan) [T-En by Helly &amp; MrRichard999 v0.15] [i]">
+		<description>T-Dragon Quest - Joshou (Japan) [T-En by Helly &amp; MrRichard999 v0.15] [i]</description>
+		<rom name="T-Dragon Quest - Joshou (Japan) [T-En by Helly &amp; MrRichard999 v0.15] [i].xdf" size="1261568" crc="a671ddfe" md5="c8a3234ccdb28b750f3ac99de422a77b" sha1="dfea353552604bbce25fff5edecbb261bd6eb7d8"/>
+	</machine>
+	<machine name="T-Dragon Quest 2 - Mazoku no Daichi (Japan) [T-En by MrRichard999 v0.101] [i]">
+		<description>T-Dragon Quest 2 - Mazoku no Daichi (Japan) [T-En by MrRichard999 v0.101] [i]</description>
+		<rom name="T-Dragon Quest 2 - Mazoku no Daichi (Japan) (Disk A).xdf" size="1261568" crc="b291f35a" md5="c01a6341a913fe746ad5b9f2f584e73e" sha1="101f8df6d8b0c852a7a9c4af65e78ea4b89f06b2"/>
+		<rom name="T-Dragon Quest 2 - Mazoku no Daichi (Japan) (Disk B) [T-En by MrRichard999 v0.101] [i].xdf" size="1261568" crc="3d421ec0" md5="0ddfc9a123dd9259a2cfaac75ba7e577" sha1="09d675cc7bc2bcbc2ce0bf08e92d2a8d21ba193a"/>
+	</machine>
+	<machine name="ZugyA (Japan) [T-En by M.I.J.E.T. v071112]">
+		<description>ZugyA (Japan) [T-En by M.I.J.E.T. v071112]</description>
+		<rom name="ZugyA (Japan) [T-En by M.I.J.E.T. v071112].xdf" size="1261568" crc="7cf23655" md5="a35efb840a573185d037cf98a65632ed" sha1="56c59d276183e71b3202bf6505709a64d228a89f"/>
+	</machine>
+</datafile>

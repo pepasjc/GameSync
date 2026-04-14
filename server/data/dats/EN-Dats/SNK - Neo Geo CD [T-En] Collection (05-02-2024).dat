@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>SNK - Neo Geo CD [T-En] Collection</name>
+		<description>SNK - Neo Geo CD [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>05-02-2024</version>
+		<date>05-02-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_SNK - Neo Geo CD [T-En] Docs">
+		<description>_SNK - Neo Geo CD [T-En] Docs</description>
+		<rom name="Samurai Spirits - Tales of the Bushido (Japan) [T-En by Jeff Nussbaum v1.10] [n] [Manual].pdf" size="453681" crc="b29fc4ae" md5="15bf838c3f9ce7e38a142dcfc529d800" sha1="e0edf48184c687907f6176b1cdffc443dfe7121b"/>
+		<rom name="Samurai Spirits - Tales of the Bushido (Japan) [T-En by Jeff Nussbaum v1.10] [n].txt" size="16252" crc="710b079f" md5="8e13a8952f676e5ad9cfa5189cd9b2e1" sha1="d7e11c78a055bc2a2f23e1e71878be9209acf9ac"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Samurai Spirits - Tales of the Bushido (Japan) [T-En by Jeff Nussbaum v1.10] [n]" sha1="e00cd4c12cd8d6b07d93f8e271337389af442f7d"/>
+	</machine>
+</datafile>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Sega - Mega CD [T-En] Collection</name>
+		<description>Sega - Mega CD [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>15-05-2022</version>
+		<date>15-05-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Sega - Mega CD [T-En] Docs">
+		<description>_Sega - Mega CD [T-En] Docs</description>
+		<rom name="Game no Kandume Vol. 1 &amp; 2 (Japan) [T-En by M.I.J.E.T. v100711].txt" size="6615" crc="2a335c05" md5="1b4ca2d68f734a42b7f1010832990f34" sha1="8e2d050b013ddf983b3cf489da5a3b24159e138a"/>
+		<rom name="Lunar - Eternal Blue (USA) [Un-Worked Design by Supper v3 (24-02-2017)].txt" size="12369" crc="efe4bb22" md5="f86cb5a29751f404fe9e89c0492b3195" sha1="d5ab8b7079358f99637e8eb4fec569f98e2e8e56"/>
+		<rom name="Lunar - The Silver Star (USA) [Un-Worked Design by Supper v1 (24-02-2017)].txt" size="12029" crc="228093a4" md5="4cc96f4dc7b9e41ce171af005df53266" sha1="9c649375251dcfddc3a18fcf7060d47384861221"/>
+		<rom name="Popful Mail (USA) [Un-Worked Design by Supper v3 (24-02-2017)].txt" size="9014" crc="d4c129a1" md5="1ce757a11ee6050d6581694301aa2a0f" sha1="df1212db0a51679ff5dde401a062b776c4b41061"/>
+		<rom name="Vay (USA) [Un-Worked Design by Supper v1 (24-02-2017)].txt" size="9161" crc="8eb7ebe7" md5="9501c2ac7dbb818d30f95b6b21ad2f78" sha1="2ff49eba46898e249ecc8cb2f15eefd06048a652"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Game no Kandume Vol. 1 (Japan) [T-En by M.I.J.E.T. v100711] [Boot Europe]" sha1="ee2d8381dfd3e27d21dd8459e0e267e683e030e0"/>
+		<disk name="Game no Kandume Vol. 1 (Japan) [T-En by M.I.J.E.T. v100711] [Boot Japan]" sha1="fc7f1d7e9414d4e64f5045dd1e8beb210ebbc010"/>
+		<disk name="Game no Kandume Vol. 1 (Japan) [T-En by M.I.J.E.T. v100711] [Boot USA]" sha1="14fc0db8be4cde4be678035a940214a342e93d11"/>
+		<disk name="Game no Kandume Vol. 2 (Japan) [T-En by M.I.J.E.T. v100711] [Boot Europe]" sha1="81fb43f03c151544bf8fd4e8326beb57f4f5ddef"/>
+		<disk name="Game no Kandume Vol. 2 (Japan) [T-En by M.I.J.E.T. v100711] [Boot Japan]" sha1="1df3ef5306c3c63f44805f0cd569d0842d1fe4f6"/>
+		<disk name="Game no Kandume Vol. 2 (Japan) [T-En by M.I.J.E.T. v100711] [Boot USA]" sha1="e4e078d84b758c047221e8419df128a374459cc4"/>
+		<disk name="Lunar - Eternal Blue (USA) [Un-Worked Design by Supper v3 (24-02-2017)]" sha1="2f2da57db15bb35c032c3b7b03831fe441b63c74"/>
+		<disk name="Lunar - The Silver Star (USA) [Un-Worked Design by Supper v1 (24-02-2017)]" sha1="4a4eaf84fb351b9ff9d8a4008e300caa358d0731"/>
+		<disk name="Popful Mail (USA) [Un-Worked Design by Supper v3 (24-02-2017)]" sha1="2b14ba3e35583e228a3886f1aff40a554568ba4c"/>
+		<disk name="Vay (USA) [Un-Worked Design by Supper v1 (24-02-2017)]" sha1="20b4813457527bee447dbd4ea464b44277b27430"/>
+	</machine>
+</datafile>

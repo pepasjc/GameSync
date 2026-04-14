@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Microsoft - MSX [T-En] Collection</name>
+		<description>Microsoft - MSX [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>01-07-2024</version>
+		<date>01-07-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_MSX (Cartridge) [T-En] Docs">
+		<description>_MSX (Cartridge) [T-En] Docs</description>
+		<rom name="Becky (Japan) [T-En by Hap &amp; Rieks v20100121].txt" size="566" crc="19eca4ea" md5="83ea77395e8f7123257d46b0c45f862b" sha1="d421593cc0779063b3682865b4ca3a09a36d3586"/>
+		<rom name="Black Onyx, The (Japan) [T-En by Polaris v1.0].pdf" size="33213" crc="fa2430f5" md5="34f1de71db6e93984ce76aff60bdfb10" sha1="147c3c5cd41268dc6c0a43e3a196cdd8ab70dab5"/>
+		<rom name="Borfes and the 5 Demons (Japan) [T-En by Hap v20081105] [n].txt" size="1330" crc="ce694240" md5="8a59bc6ccd8fe986ca4913f0e8a4461a" sha1="572032dcd97995bbd497e882c74558b4b563c48f"/>
+		<rom name="Digital Devil Story - Megami Tensei (Japan) [T-En by Kaisaan v1.0] [n].txt" size="3522" crc="0112d0e9" md5="32d6ea6388362b758342581a84941f6c" sha1="3f5072e6d6df16a200c7db2a26c752564e7d1075"/>
+		<rom name="Dragon Slayer Jr. - Romancia (Japan) [T-En by MSX Translations v0.7.0].txt" size="19803" crc="c8511085" md5="579deb8bb658216dc94190df30e0c0b5" sha1="15fec67d37155df24f77b2ba43f74514399cfaf4"/>
+		<rom name="Evil Mansion - Goblin (Japan) [T-En by Hap &amp; Zan v20080619] [n].txt" size="1229" crc="6e3a1997" md5="89546e78b80684c68eb724977f8cf3ac" sha1="8881a0f5ac822580f10a37b1bc6fb6e90d649bc8"/>
+		<rom name="Golvellius (Japan) [T-En by Novalia Spirit v1.0].txt" size="4172" crc="79d3a5e8" md5="7cc31b4c7207edfdbd00ec5f4a6bf366" sha1="028ce257ff7d7c49de92b5c3161edbb32a42f326"/>
+		<rom name="Jagur (Japan) [T-En by Django v201101xx].pdf" size="289676" crc="d9cc516d" md5="aafb73145fcfd71ab5e523ec8e8018a7" sha1="509e6001c41bcac1d3704a81268df7d9bcb633a3"/>
+		<rom name="King's Valley II - The Seal of El Giza (Japan, Europe) [T-En by FRS v1.1] [n].txt" size="8048" crc="b575bc18" md5="592c8124ce4bd1329e622ef4f647909f" sha1="9be053f6cd8258270e6b2ce404fa442829401f6f"/>
+		<rom name="M36 - A Life Planet (Japan) [T-En by Hubz &amp; Wyrdwad v1.2].txt" size="9971" crc="750dc730" md5="17e80820b8333c253cb4f981e5d90bd4" sha1="e752856ac3a91a8bf75292b0e098c448cffdc2ed"/>
+		<rom name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Booklet].pdf" size="11596639" crc="531d1653" md5="071ba67688e5f32c1073021128e89992" sha1="ad0f28d4ff61dd69c06ac5f3fd82cc2cb658882c"/>
+		<rom name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Manual].pdf" size="19223498" crc="8daf0d98" md5="8def37e917a4fe111245d16232414a6a" sha1="b60257ff06d816c2b04916e4dabcecb846d77e3e"/>
+		<rom name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605].txt" size="8322" crc="f8db5e17" md5="1b448ae190297e47f032ad984be4ca42" sha1="12cb8f62ac70a0b478d3ca50d6a1d598e604e8ff"/>
+		<rom name="Nyorols (Japan) [T-En by PentarouZero v1.0].txt" size="2343" crc="82ff5b97" md5="8b05c05474a2ebf2eee2602484952271" sha1="c803741d59a464d1c3edb7e4a3134562488e1cf7"/>
+		<rom name="Stone of Wisdom, The (Japan) [T-En by GDX v20210712] [Map].png" size="375540" crc="32c3fb39" md5="7ed16dc16c53269029fac5012fc21f61" sha1="8df1181c2f6aff67dde5e04a4f2b9babe775ac86"/>
+		<rom name="Stone of Wisdom, The (Japan) [T-En by GDX v20210712].txt" size="378" crc="9d2cf034" md5="a35b3f3d0b31943600367f3b2fa1a6b1" sha1="138d5b0385679889122a80e1436c050948ede9d6"/>
+		<rom name="Vilzam - Cosmic Struggle (Japan) [T-En by 232 &amp; BiFi &amp; Takamichi Suzukawa].txt" size="3401" crc="396b4a88" md5="48f62d7c84c7809f622747c072c222b9" sha1="5a9e911d8405fbd780695fde9d71a7f04f160704"/>
+	</machine>
+	<machine name="_MSX (Cassette) [T-En] Docs">
+		<description>_MSX (Cassette) [T-En] Docs</description>
+		<rom name="_load instructions.txt" size="193" crc="04abf46d" md5="def757cc86e43a2ba51287b784b241cd" sha1="df766cd562e64bd89111a81167819553767481ab"/>
+		<rom name="Mystery House II (Japan) [T-En by Umbrella Terms v1.0].txt" size="1813" crc="3fd471fe" md5="1588608f681926613645f1bd84dd810c" sha1="43a5303d7f02212976fbe88143b979b2df565129"/>
+		<rom name="Vilzam - Cosmic Struggle (Japan) [T-En by 232 &amp; BiFi &amp; Takamichi Suzukawa].txt" size="3401" crc="396b4a88" md5="48f62d7c84c7809f622747c072c222b9" sha1="5a9e911d8405fbd780695fde9d71a7f04f160704"/>
+	</machine>
+	<machine name="_MSX (Floppy) [T-En] Docs">
+		<description>_MSX (Floppy) [T-En] Docs</description>
+		<rom name="War in Middle Earth (Spain) [T-En by Robsy v1.0].txt" size="450" crc="a017a5d8" md5="1e06a01d5490a24d9d14f6c7f0338b17" sha1="7e1d5d87f5f4e497791c12973aafcf9fc494a121"/>
+	</machine>
+	<machine name="Becky (Japan) [T-En by Hap &amp; Rieks v20100121] (Cartridge)">
+		<description>Becky (Japan) [T-En by Hap &amp; Rieks v20100121] (Cartridge)</description>
+		<rom name="Becky (Japan) [T-En by Hap &amp; Rieks v20100121].rom" size="16384" crc="909b81fb" md5="8c83a0920b10a01f44ad50d3613708de" sha1="4eb5c8e5bc0b0c1bcfc55c53a819d5d592eb0551"/>
+	</machine>
+	<machine name="Black Onyx, The (Japan) [T-En by Polaris v1.0] (Cartridge)">
+		<description>Black Onyx, The (Japan) [T-En by Polaris v1.0] (Cartridge)</description>
+		<rom name="Black Onyx, The (Japan) [T-En by Polaris v1.0].rom" size="32768" crc="829c3d87" md5="2055d2c6de49788f90eefcadb208e5d6" sha1="42975e598eeafcb02bac82e6976d3cb2647e4a8e"/>
+	</machine>
+	<machine name="Borfes and the 5 Demons (Japan) [T-En by Hap v20081105] [n] (Cartridge)">
+		<description>Borfes and the 5 Demons (Japan) [T-En by Hap v20081105] [n] (Cartridge)</description>
+		<rom name="Borfes and the 5 Demons (Japan) [T-En by Hap v20081105] [n].rom" size="131072" crc="f2f2f0c8" md5="4872615111a6ac0d56007bb3bbfd1f35" sha1="855cabd1ad1abae3a9d26999d48c66de8096d7c5"/>
+	</machine>
+	<machine name="C.C.R. - Annex 1 - The Algorithm (Spain) [T-En by Daniel González] [n] (Cartridge)">
+		<description>C.C.R. - Annex 1 - The Algorithm (Spain) [T-En by Daniel González] [n] (Cartridge)</description>
+		<rom name="C.C.R. - Annex 1 - The Algorithm (Spain) [T-En by Daniel González] [n].rom" size="32768" crc="ebaa5e5e" md5="4d8556fa1ba62bef83287b85d9dba005" sha1="4454e9aab3d6efb7ff5cca0956205f46a9db8194"/>
+	</machine>
+	<machine name="Daiva Story 4 - Asura's Bloodfeud (Japan) [T-En] (Cartridge)">
+		<description>Daiva Story 4 - Asura's Bloodfeud (Japan) [T-En] (Cartridge)</description>
+		<rom name="Daiva Story 4 - Asura's Bloodfeud (Japan) [T-En].rom" size="262144" crc="a773c76a" md5="35ea38b82752c1cd26cc4d4bd7ee5c23" sha1="6159cdfc79c68bf7dfe2653fc0b5893ae913c72b"/>
+	</machine>
+	<machine name="Digital Devil Story - Megami Tensei (Japan) [T-En by Kaisaan v1.0] [n] (Cartridge)">
+		<description>Digital Devil Story - Megami Tensei (Japan) [T-En by Kaisaan v1.0] [n] (Cartridge)</description>
+		<rom name="Digital Devil Story - Megami Tensei (Japan) [T-En by Kaisaan v1.0] [n].rom" size="139264" crc="b72defbd" md5="e557b29ad6cae416ec6c3126a0761aac" sha1="d71600e87e0703706f481eb55cae0784f4393d8e"/>
+	</machine>
+	<machine name="Dragon Slayer Jr. - Romancia (Japan) [T-En by MSX Translations v0.7.0] (Cartridge)">
+		<description>Dragon Slayer Jr. - Romancia (Japan) [T-En by MSX Translations v0.7.0] (Cartridge)</description>
+		<rom name="Dragon Slayer Jr. - Romancia (Japan) [T-En by MSX Translations v0.7.0].rom" size="131072" crc="885773f9" md5="2f1515194333fcad40e81cf890d5fb56" sha1="f913ba02cd07e7d6a18d79d0fc2f4628841fc5c6"/>
+	</machine>
+	<machine name="Evil Mansion - Goblin (Japan) [T-En by Hap &amp; Zan v20080619] [n] (Cartridge)">
+		<description>Evil Mansion - Goblin (Japan) [T-En by Hap &amp; Zan v20080619] [n] (Cartridge)</description>
+		<rom name="Evil Mansion - Goblin (Japan) [T-En by Hap &amp; Zan v20080619] [n].rom" size="65536" crc="cb766c4a" md5="9da4a20830a9197c3d546dcef84a6a93" sha1="a0396786630e4a56206531a2ac9ddc2456ab71d3"/>
+	</machine>
+	<machine name="Fharanx (Japan) [T-En by Django] (Cassette)">
+		<description>Fharanx (Japan) [T-En by Django] (Cassette)</description>
+		<rom name="Fharanx (Japan) [T-En by Django] [CLOAD].cas" size="36719" crc="50d7a6bb" md5="a7fd8e04e5393d39d118bfbb627f3643" sha1="8a37933ce5bfa1f52a967a219722d54d91c7ab76"/>
+	</machine>
+	<machine name="Golvellius (Japan) [T-En by Novalia Spirit v1.0] (Cartridge)">
+		<description>Golvellius (Japan) [T-En by Novalia Spirit v1.0] (Cartridge)</description>
+		<rom name="Golvellius (Japan) [T-En by Novalia Spirit v1.0].rom" size="131072" crc="67cbd6d1" md5="9fc9ee41ce35ce4e1068e22277265f6d" sha1="8b7e4bc408a8c715943bfa00069f2d517b39a748"/>
+	</machine>
+	<machine name="Golvellius (Japan) [T-En by Woomb] (Cartridge)">
+		<description>Golvellius (Japan) [T-En by Woomb] (Cartridge)</description>
+		<rom name="Golvellius (Japan) [T-En by Woomb].rom" size="131072" crc="3891bc0f" md5="ba6a26759702b054c8e5965df67ca2cd" sha1="05767fec34beaaee390a86be496d98d2b27de641"/>
+	</machine>
+	<machine name="Golvellius (Japan) [T-En] (Cartridge)">
+		<description>Golvellius (Japan) [T-En] (Cartridge)</description>
+		<rom name="Golvellius (Japan) [T-En].rom" size="131072" crc="fd9d5dbd" md5="0c232255b9cfeedb431d0aecc8c2a21e" sha1="678efe599b8085bd27f9d3d42cfbbd7ca74ceb89"/>
+	</machine>
+	<machine name="Hydlide II - Shine of Darkness (Japan) [T-En by Rieks Warendorp Torringa] (Cartridge)">
+		<description>Hydlide II - Shine of Darkness (Japan) [T-En by Rieks Warendorp Torringa] (Cartridge)</description>
+		<rom name="Hydlide II - Shine of Darkness (Japan) [T-En by Rieks Warendorp Torringa].rom" size="131072" crc="92943e5b" md5="9e4d9df03f73f600f7c5920a37993e5c" sha1="0fe07b5f62e179a1294253a505a296ffefca8c95"/>
+	</machine>
+	<machine name="Hydlide II - Shine of Darkness (Japan) [T-En by Sargon v2003xxxx] (Floppy)">
+		<description>Hydlide II - Shine of Darkness (Japan) [T-En by Sargon v2003xxxx] (Floppy)</description>
+		<rom name="Hydlide II - Shine of Darkness (Japan) [T-En by Sargon v2003xxxx].dsk" size="737280" crc="19f6300f" md5="6cb481b9b977ca42465627ef65f7af51" sha1="02bef8563853076bd4302c4c7ec39e081ab15026"/>
+	</machine>
+	<machine name="Jagur (Japan) [T-En by Django v201101xx] (Cartridge)">
+		<description>Jagur (Japan) [T-En by Django v201101xx] (Cartridge)</description>
+		<rom name="Jagur (Japan) [T-En by Django v201101xx].rom" size="131072" crc="08fb6a34" md5="6c463444495b9efacfdb5190e86213a0" sha1="450d2a14c4c60ebf8d8d280340fe6ca06687d94e"/>
+	</machine>
+	<machine name="Kinasai (Japan) (Unl) [T-En by GD v1.0] (Cartridge)">
+		<description>Kinasai (Japan) (Unl) [T-En by GD v1.0] (Cartridge)</description>
+		<rom name="Kinasai (Japan) (Unl) [T-En by GD v1.0].rom" size="16384" crc="0697a1c1" md5="44625d8cbff7cd004da5ad49243b9872" sha1="4732da69df21dabf958ae181ef21f38c6f173881"/>
+	</machine>
+	<machine name="King's Valley II - The Seal of El Giza (Japan, Europe) [T-En by FRS v1.1] [n] (Cartridge)">
+		<description>King's Valley II - The Seal of El Giza (Japan, Europe) [T-En by FRS v1.1] [n] (Cartridge)</description>
+		<rom name="King's Valley II - The Seal of El Giza (Japan, Europe) [T-En by FRS v1.1] [n].rom" size="131072" crc="c70a5cfb" md5="d94380d337e0e8fc073a13280c8678d8" sha1="89d96d4b92d9a1c220cae0240cf0c00f310d14aa"/>
+	</machine>
+	<machine name="Knightmare III - Shalom (Japan) [T-En by Ricardo Bittencourt &amp; SLotman v1.0b4] (Cartridge)">
+		<description>Knightmare III - Shalom (Japan) [T-En by Ricardo Bittencourt &amp; SLotman v1.0b4] (Cartridge)</description>
+		<rom name="Knightmare III - Shalom (Japan) [T-En by Ricardo Bittencourt &amp; SLotman v1.0b4].rom" size="524288" crc="a00f616d" md5="5f81a88ef9940ff9fffb50f093801c39" sha1="828a38535cb6246469a65f429834db8ab469d914"/>
+	</machine>
+	<machine name="M36 - A Life Planet (Japan) [T-En by Hubz &amp; Wyrdwad v1.2] (Cartridge)">
+		<description>M36 - A Life Planet (Japan) [T-En by Hubz &amp; Wyrdwad v1.2] (Cartridge)</description>
+		<rom name="M36 - A Life Planet (Japan) [T-En by Hubz &amp; Wyrdwad v1.2].rom" size="131072" crc="015da0a4" md5="74d9cae80d15ae5d02ee32893d195ac0" sha1="47779c38c2d7e3e4fe1fc168229fe63352d763f3"/>
+	</machine>
+	<machine name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] (Cartridge)">
+		<description>Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] (Cartridge)</description>
+		<rom name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605].rom" size="172032" crc="efe1b953" md5="7b7b3b05da23b65f35dbd572e60e6411" sha1="ada6a3375dbab9c8059b08dd8f87bc8e23397f88"/>
+	</machine>
+	<machine name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Add by Armando Perez Abad v1.1] (Cartridge)">
+		<description>Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Add by Armando Perez Abad v1.1] (Cartridge)</description>
+		<rom name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Add by Armando Perez Abad v1.1].rom" size="262144" crc="337e4df1" md5="54e11fff0bc6e7f4c3c25f2a947e9fa6" sha1="d67ff59099a2e093d4882d63e5de663e8ef29280"/>
+	</machine>
+	<machine name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Add by Armando Perez Abad v1.1] [Konami SSC] (Cartridge)">
+		<description>Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Add by Armando Perez Abad v1.1] [Konami SSC] (Cartridge)</description>
+		<rom name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Add by Armando Perez Abad v1.1] [Konami SSC].rom" size="262144" crc="23b50ba8" md5="20f29b5f39ea38c615ab727b528902ba" sha1="c1796330ee46bdea5c7f05fad045c20ba8c7e46a"/>
+	</machine>
+	<machine name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Konami SSC] (Cartridge)">
+		<description>Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Konami SSC] (Cartridge)</description>
+		<rom name="Mitsumega Toohru - Three-Eyed One Comes Here, The (Japan) [T-En by Igor Bezhenar v20210605] [Konami SSC].rom" size="172032" crc="f504d8c3" md5="505052f2e5d019edbc76f36bcc0acd33" sha1="da8314c31879cbf5608dadf4e4f0a100feb19a43"/>
+	</machine>
+	<machine name="Mystery House II (Japan) [T-En by Umbrella Terms v1.0] (Cassette)">
+		<description>Mystery House II (Japan) [T-En by Umbrella Terms v1.0] (Cassette)</description>
+		<rom name="Mystery House II (Japan) [T-En by Umbrella Terms v1.0] [CLOAD].cas" size="39592" crc="91e6c465" md5="bf9515d0edcd5fa7f82ec394e1c7323c" sha1="62c3e93df44b0339ba186465e6082d99a6fe6ddc"/>
+	</machine>
+	<machine name="Nyorols (Japan) [T-En by PentarouZero v1.0] (Cartridge)">
+		<description>Nyorols (Japan) [T-En by PentarouZero v1.0] (Cartridge)</description>
+		<rom name="Nyorols (Japan) [T-En by PentarouZero v1.0].rom" size="16384" crc="5b5ff0ad" md5="34f4cc6570087c2052d60c2ea916d51f" sha1="53e618a7e1dae3db68d0706a288aff08e62b1376"/>
+	</machine>
+	<machine name="Parodius (Japan) [T-En by A&amp;L Software v1.0] (Cartridge)">
+		<description>Parodius (Japan) [T-En by A&amp;L Software v1.0] (Cartridge)</description>
+		<rom name="Parodius (Japan) [T-En by A&amp;L Software v1.0].rom" size="131072" crc="68dea3f0" md5="9ce36aeaa93f969b6c2ea91598b0b014" sha1="04e4eb1cae7cf379977d238b74d727bb929c8d23"/>
+	</machine>
+	<machine name="Stone of Wisdom, The (Japan) [T-En by GDX v20210712] (Cartridge)">
+		<description>Stone of Wisdom, The (Japan) [T-En by GDX v20210712] (Cartridge)</description>
+		<rom name="Stone of Wisdom, The (Japan) [T-En by GDX v20210712].rom" size="32768" crc="f728c9de" md5="b6b0f799ba2ed79e0c1dd6d33b872923" sha1="762751f816ada1cef6e9ab539ffffd37ab498b1f"/>
+	</machine>
+	<machine name="Vilzam - Cosmic Struggle (Japan) [T-En by 232 &amp; BiFi &amp; Takamichi Suzukawa] (Cartridge)">
+		<description>Vilzam - Cosmic Struggle (Japan) [T-En by 232 &amp; BiFi &amp; Takamichi Suzukawa] (Cartridge)</description>
+		<rom name="Vilzam - Cosmic Struggle (Japan) [T-En by 232 &amp; BiFi &amp; Takamichi Suzukawa].rom" size="32768" crc="5eee1e9b" md5="fbd44188ab0cf0a5ba30eae005bd1042" sha1="26ccbb6478f0b6c98536ba7432a391a3a023e74d"/>
+	</machine>
+	<machine name="Vilzam - Cosmic Struggle (Japan) [T-En by 232 &amp; BiFi &amp; Takamichi Suzukawa] (Cassette)">
+		<description>Vilzam - Cosmic Struggle (Japan) [T-En by 232 &amp; BiFi &amp; Takamichi Suzukawa] (Cassette)</description>
+		<rom name="Vilzam - Cosmic Struggle (Japan) [T-En by 232 &amp; BiFi &amp; Takamichi Suzukawa] [BLOAD''CAS'',R].cas" size="27942" crc="719be7af" md5="a40ccb6265cd620cdfa9aa8b981731c9" sha1="9426bf62e8f998755bacd4c817ce7025d01c4396"/>
+	</machine>
+	<machine name="War in Middle Earth (Spain) [T-En by Robsy v1.0] (Floppy)">
+		<description>War in Middle Earth (Spain) [T-En by Robsy v1.0] (Floppy)</description>
+		<rom name="War in Middle Earth (Spain) [T-En by Robsy v1.0].dsk" size="737280" crc="fe18baa0" md5="05495d17dbf270c959bb924b1e3dffed" sha1="dc0190c5f981221d6ff6ec36450a329d60e364fb"/>
+	</machine>
+</datafile>

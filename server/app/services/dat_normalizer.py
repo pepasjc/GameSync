@@ -16,6 +16,7 @@ Lookup order for each ROM:
   3. Fallback — just normalize the filename string
 """
 
+import json
 import re
 import xml.etree.ElementTree as ET
 import logging
@@ -25,6 +26,7 @@ from typing import Optional
 from app.services.rom_id import normalize_rom_name
 
 logger = logging.getLogger(__name__)
+_ALIAS_BRACKET_RE = re.compile(r"\s*\[[^\]]*\]")
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +188,11 @@ def _system_from_dat_stem(stem: str) -> Optional[str]:
     return None
 
 
+def _normalize_alias_lookup_name(name: str) -> str:
+    """Normalize translated ROM names while ignoring patch-style [] tags."""
+    return normalize_rom_name(_ALIAS_BRACKET_RE.sub("", name).strip())
+
+
 # ---------------------------------------------------------------------------
 # DatNormalizer class
 # ---------------------------------------------------------------------------
@@ -202,6 +209,12 @@ class DatNormalizer:
         self._slug_index: dict[str, dict[str, str]] = {}
         # system → {slug → [canonical_name, ...]}  (all candidates, for the picker)
         self._slug_candidates: dict[str, dict[str, list[str]]] = {}
+        # system → {alias_slug → canonical_name} (translated titles -> DAT titles)
+        self._alias_slug_index: dict[str, dict[str, str]] = {}
+        # system → {alias_slug → [canonical_name, ...]}
+        self._alias_slug_candidates: dict[str, dict[str, list[str]]] = {}
+        # system → {canonical_name, ...}
+        self._canonical_names: dict[str, set[str]] = {}
         # system → {lowercase_rom_stem → canonical_name}  (arcade set-name lookup)
         self._romfile_index: dict[str, dict[str, str]] = {}
         self._load_all()
@@ -230,6 +243,7 @@ class DatNormalizer:
             sys_idx = self._slug_index.setdefault(system, {})
             for slug, names in sys_cands.items():
                 sys_idx[slug] = min(names, key=_region_score)
+                self._canonical_names.setdefault(system, set()).update(names)
             # Merge ROM filename index
             if romfile_map:
                 self._romfile_index.setdefault(system, {}).update(romfile_map)
@@ -240,6 +254,59 @@ class DatNormalizer:
                 sum(len(v) for v in slug_cands.values()),
                 len(romfile_map),
                 dat_path.name,
+            )
+        self._load_aliases()
+
+    def _load_aliases(self) -> None:
+        aliases_path = self.dats_dir / "EN-Dats" / "aliases.json"
+        if not aliases_path.is_file():
+            return
+        try:
+            payload = json.loads(aliases_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.error(
+                "[dat_normalizer] Failed to parse alias file %s: %s",
+                aliases_path,
+                exc,
+            )
+            return
+
+        for system, mappings in payload.items():
+            if not isinstance(mappings, dict):
+                continue
+            sys_key = str(system).upper().strip()
+            known_canonicals = self._canonical_names.get(sys_key, set())
+            if not known_canonicals:
+                continue
+            sys_cands = self._alias_slug_candidates.setdefault(sys_key, {})
+            loaded = 0
+            skipped = 0
+            for alias_name, canonical_name in mappings.items():
+                alias = str(alias_name or "").strip()
+                canonical = str(canonical_name or "").strip()
+                if not alias or not canonical:
+                    continue
+                # Only trust aliases whose targets exist in the canonical DAT.
+                if canonical not in known_canonicals:
+                    skipped += 1
+                    continue
+                alias_slug = _normalize_alias_lookup_name(alias)
+                if not alias_slug:
+                    continue
+                existing = sys_cands.setdefault(alias_slug, [])
+                if canonical not in existing:
+                    existing.append(canonical)
+                    loaded += 1
+
+            sys_idx = self._alias_slug_index.setdefault(sys_key, {})
+            for alias_slug, names in sys_cands.items():
+                sys_idx[alias_slug] = min(names, key=_region_score)
+            logger.info(
+                "[dat_normalizer] %s: +%d aliases (%d skipped stale targets)  [%s]",
+                sys_key,
+                loaded,
+                skipped,
+                aliases_path.name,
             )
 
     def normalize(
@@ -253,7 +320,7 @@ class DatNormalizer:
         Result dict keys:
           canonical_name — best human-readable name
           slug           — lowercase_underscore slug used in title_id
-          source         — "dat_crc32" | "dat_filename" | "filename"
+          source         — "dat_crc32" | "dat_filename" | "dat_alias" | "filename"
         """
         sys_key = system.upper()
         stem = Path(filename).stem
@@ -279,7 +346,7 @@ class DatNormalizer:
                 "source": "dat_filename",
             }
 
-        # 3. Slug fuzzy lookup
+        # 3. Slug exact lookup
         query_slug = normalize_rom_name(stem)
         if query_slug in self._slug_index.get(sys_key, {}):
             canonical = self._slug_index[sys_key][query_slug]
@@ -289,7 +356,17 @@ class DatNormalizer:
                 "source": "dat_filename",
             }
 
-        # 3. Fallback — normalize filename as-is
+        # 4. Alias lookup for translated/patched filenames
+        alias_query_slug = _normalize_alias_lookup_name(stem)
+        if alias_query_slug in self._alias_slug_index.get(sys_key, {}):
+            canonical = self._alias_slug_index[sys_key][alias_query_slug]
+            return {
+                "canonical_name": canonical,
+                "slug": normalize_rom_name(canonical),
+                "source": "dat_alias",
+            }
+
+        # 5. Fallback — normalize filename as-is
         return {
             "canonical_name": stem,
             "slug": query_slug,
@@ -305,6 +382,10 @@ class DatNormalizer:
         sys_key = system.upper()
         query_slug = normalize_rom_name(Path(filename).stem)
         raw = self._slug_candidates.get(sys_key, {}).get(query_slug, [])
+        if raw:
+            return sorted(set(raw), key=_region_score)
+        alias_query_slug = _normalize_alias_lookup_name(Path(filename).stem)
+        raw = self._alias_slug_candidates.get(sys_key, {}).get(alias_query_slug, [])
         return sorted(set(raw), key=_region_score)
 
     def available_systems(self) -> list[str]:

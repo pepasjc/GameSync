@@ -40,7 +40,7 @@ class NormalizeResult(BaseModel):
     original_filename: str
     canonical_name: str
     title_id: str
-    source: str  # "dat_crc32" | "dat_filename" | "filename"
+    source: str  # "dat_crc32" | "dat_filename" | "dat_alias" | "filename"
     alternatives: list[str] = Field(
         default_factory=list
     )  # other possible canonical names, sorted by region priority
@@ -66,8 +66,9 @@ async def normalize_batch(req: NormalizeRequest) -> NormalizeResponse:
 
     For each entry the server tries, in order:
       1. CRC32 exact lookup in the DAT (most accurate)
-      2. Filename slug fuzzy match against DAT name index
-      3. Plain filename normalization (strips region/revision tags)
+      2. Exact DAT title lookup by filename slug
+      3. Alias lookup for translated/patched filenames
+      4. Plain filename normalization (strips region/revision tags)
 
     The returned `title_id` is ready to use for save sync — identical to what
     other clients (3DS, NDS, desktop) would generate for the same ROM.

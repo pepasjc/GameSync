@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Nintendo - Pokemon Mini [T-En] Collection</name>
+		<description>Nintendo - Pokemon Mini [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>21-02-2022</version>
+		<date>21-02-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Nintendo Pokemon Mini [T-En] Docs">
+		<description>_Nintendo Pokemon Mini [T-En] Docs</description>
+		<rom name="Pichu Bros. Mini (Japan) [T-En by NikcDC v1.0].txt" size="1403" crc="e8c8a3ed" md5="f8094b61827c56e89ec3ec9585ef3329" sha1="b6241b6e68e40961668f2d838950eea2a88edc3f"/>
+		<rom name="Pokemon Breeder Mini (Japan) [T-En by Snesy &amp; Wa &amp; Mr. Blinky v1.0] [n].txt" size="1644" crc="4d5f1266" md5="684214ce002e744436c12ab3ab960f80" sha1="2518dfa027e31cc504ac16bd757a3ec32928a634"/>
+		<rom name="Pokemon Puzzle Collection Vol. 2 (Japan) [T-En by Mr. Blinky &amp; Wa v1.2].txt" size="1127" crc="de57c048" md5="842c78f14ea5f340bab2f29db4263348" sha1="7a890d9d74ac657bdfa73ac13ae18d6938a70673"/>
+		<rom name="Pokemon Race Mini (Japan) [T-En by Snesy &amp; Wa &amp; Mr. Blinky &amp; JustBurn v1.0].txt" size="1064" crc="aeb620b6" md5="0703bcbb1359b48ea04c95a7f5f58d89" sha1="179f007d3bbc497679fd01e2b134d7b26ee673c0"/>
+		<rom name="Togepi's Great Adventure (Japan) [T-En by Mr. Blinky &amp; Snesy v1.0] [n].txt" size="810" crc="d1bb6870" md5="e524016113e860cdad6dfff7b0b44a7c" sha1="fd32a1ea1d20f15d4bebee1f1230e2df80e1c2a8"/>
+	</machine>
+	<machine name="Pichu Bros. Mini (Japan) [T-En by NikcDC v1.0]">
+		<description>Pichu Bros. Mini (Japan) [T-En by NikcDC v1.0]</description>
+		<rom name="Pichu Bros. Mini (Japan) [T-En by NikcDC v1.0].min" size="524288" crc="0451bd2d" md5="8a7ef76eacdeec95cee4f5e5939ccd17" sha1="e1e3ec1baf61bb637767122dbf8d8333a7f05fa7"/>
+	</machine>
+	<machine name="Pokemon Breeder Mini (Japan) [T-En by Snesy &amp; Wa &amp; Mr. Blinky v1.0] [n]">
+		<description>Pokemon Breeder Mini (Japan) [T-En by Snesy &amp; Wa &amp; Mr. Blinky v1.0] [n]</description>
+		<rom name="Pokemon Breeder Mini (Japan) [T-En by Snesy &amp; Wa &amp; Mr. Blinky v1.0] [n].min" size="524288" crc="c0460385" md5="0f78ee2c193fc8d0c129f051f262dcdf" sha1="f357875eb5a16dd7d8f883f1e6a12500c0f391e6"/>
+	</machine>
+	<machine name="Pokemon Puzzle Collection Vol. 2 (Japan) [T-En by Mr. Blinky &amp; Wa v1.2]">
+		<description>Pokemon Puzzle Collection Vol. 2 (Japan) [T-En by Mr. Blinky &amp; Wa v1.2]</description>
+		<rom name="Pokemon Puzzle Collection Vol. 2 (Japan) [T-En by Mr. Blinky &amp; Wa v1.2].min" size="524288" crc="171403a0" md5="302c418edc3e9d4ff8430b9662a11d1b" sha1="8e7cbae48ffc2e91baa339cf9fcb4b0983aca6c1"/>
+	</machine>
+	<machine name="Pokemon Race Mini (Japan) [T-En by Snesy &amp; Wa &amp; Mr. Blinky &amp; JustBurn v1.0]">
+		<description>Pokemon Race Mini (Japan) [T-En by Snesy &amp; Wa &amp; Mr. Blinky &amp; JustBurn v1.0]</description>
+		<rom name="Pokemon Race Mini (Japan) [T-En by Snesy &amp; Wa &amp; Mr. Blinky &amp; JustBurn v1.0].min" size="524288" crc="b43f3817" md5="1ee515c92cda64696b5085f19c752b57" sha1="b5b4b7137de1808ccabbf479529a7dd65eaa0a51"/>
+	</machine>
+	<machine name="Togepi's Great Adventure (Japan) [T-En by Mr. Blinky &amp; Snesy v1.0] [n]">
+		<description>Togepi's Great Adventure (Japan) [T-En by Mr. Blinky &amp; Snesy v1.0] [n]</description>
+		<rom name="Togepi's Great Adventure (Japan) [T-En by Mr. Blinky &amp; Snesy v1.0] [n].min" size="524288" crc="acab99f3" md5="cac3842f010dba9e4155e459111b6ebd" sha1="7f2de7dfabc1b52c916567a33d7bed1d655a5d44"/>
+	</machine>
+</datafile>
