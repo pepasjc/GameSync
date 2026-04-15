@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
@@ -141,18 +142,14 @@ def _is_retroarch_core_row(device_type: str, system: str) -> bool:
     return device_type == "RetroArch" and bool(_retroarch_core_options(system))
 
 
-def _is_retroarch_saturn_row(device_type: str, system: str) -> bool:
-    return _is_retroarch_core_row(device_type, system) and system.upper() == "SAT"
+def _path_basename(path: str) -> str:
+    """Return the last component of a path, handling both / and \\ separators."""
+    return re.split(r"[/\\]", (path or "").rstrip("/\\"))[-1].strip().lower()
 
 
 def _retroarch_saturn_display_value(save_ext: str, save_folder: str = "") -> str:
     ext = (save_ext or "").strip().lower()
-    folder_name = ""
-    if save_folder:
-        try:
-            folder_name = Path(save_folder).name.strip().lower()
-        except Exception:
-            folder_name = ""
+    folder_name = _path_basename(save_folder)
     if ext == ".bin" or folder_name == "yabasanshiro":
         return "YabaSanshiro"
     if ext == ".srm":
@@ -166,12 +163,7 @@ def _retroarch_saturn_storage_values(
 ) -> tuple[str, str]:
     label = (display_value or "").strip()
     folder = (save_folder or "").strip()
-    folder_name = ""
-    if folder:
-        try:
-            folder_name = Path(folder).name.strip().lower()
-        except Exception:
-            folder_name = ""
+    folder_name = _path_basename(folder)
 
     if label == "YabaSanshiro":
         return ".bin", folder
