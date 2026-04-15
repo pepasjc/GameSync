@@ -24,6 +24,32 @@ def test_scan_collection_prefers_usa_over_other_regions(tmp_path):
     assert not unmatched
 
 
+def test_scan_collection_can_include_all_variants_when_1g1r_disabled(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Advance Wars (Europe).gba").write_bytes(b"")
+    (roms / "Advance Wars (USA).gba").write_bytes(b"")
+
+    no_intro = {
+        "A": "Advance Wars (USA)",
+        "B": "Advance Wars (Europe)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=False,
+    )
+
+    assert [entry.canonical_name for entry in entries] == [
+        "Advance Wars (Europe)",
+        "Advance Wars (USA)",
+    ]
+    assert duplicates == []
+    assert unmatched == []
+
+
 def test_scan_collection_can_match_zip_member_by_filename(tmp_path):
     roms = tmp_path / "roms"
     roms.mkdir()
@@ -107,6 +133,131 @@ def test_scan_collection_prefers_translation_over_non_usa_official_dump(tmp_path
     assert entries[0].is_english_translation is True
     assert len(duplicates) == 1
     assert not unmatched
+
+
+def test_validate_collection_flags_wrong_region_and_missing_for_1g1r(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Advance Wars (Europe).gba").write_bytes(b"eu")
+
+    no_intro = {
+        "A": "Advance Wars (USA)",
+        "B": "Advance Wars (Europe)",
+        "C": "Metroid Fusion (USA)",
+    }
+
+    report = rc.validate_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=True,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+
+    assert report.expected_total == 2
+    # Having the Europe copy counts as "covering" the Advance Wars slot —
+    # wrong_region records it but it should NOT appear in missing too.
+    assert report.present == []
+    assert len(report.wrong_region) == 1
+    assert report.wrong_region[0].entry.canonical_name == "Advance Wars (Europe)"
+    assert report.wrong_region[0].expected_name == "Advance Wars (USA)"
+    # Advance Wars is covered (wrong region) so only the truly absent game is missing.
+    assert report.missing == ["Metroid Fusion (USA)"]
+
+
+def test_validate_collection_version_tag_counts_as_present(tmp_path):
+    """A ROM whose CRC matches a versioned DAT entry (e.g. (v1.03)) should count
+    as present for the 1G1R slot even when the preferred entry has no version tag."""
+    import zlib
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    data = b"v103_rom_data"
+    crc = f"{zlib.crc32(data) & 0xFFFFFFFF:08X}"
+    (roms / "Advance Wars (USA) (v1.03).gba").write_bytes(data)
+
+    no_intro = {
+        "AABBCCDD": "Advance Wars (USA)",       # preferred (no version)
+        crc: "Advance Wars (USA) (v1.03)",       # what the user actually has
+        "EEFF0011": "Metroid Fusion (USA)",
+    }
+
+    report = rc.validate_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=True,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+
+    # 1G1R expected: "Advance Wars (USA)" (preferred) + Metroid Fusion = 2 total
+    assert report.expected_total == 2
+    # The (v1.03) copy covers the Advance Wars slot → present, not wrong_region
+    assert len(report.present) == 1
+    assert report.present[0].canonical_name == "Advance Wars (USA) (v1.03)"
+    assert report.wrong_region == []
+    assert report.missing == ["Metroid Fusion (USA)"]
+
+
+def test_validate_collection_complete_mode_accepts_all_expected_regions(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Advance Wars (Europe).gba").write_bytes(b"eu")
+
+    no_intro = {
+        "A": "Advance Wars (USA)",
+        "B": "Advance Wars (Europe)",
+        "C": "Metroid Fusion (USA)",
+    }
+
+    report = rc.validate_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=False,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+
+    assert report.expected_total == 3
+    assert [entry.canonical_name for entry in report.present] == [
+        "Advance Wars (Europe)"
+    ]
+    assert report.wrong_region == []
+    assert report.missing == ["Advance Wars (USA)", "Metroid Fusion (USA)"]
+
+
+def test_format_validation_report_includes_summary_and_expected_region(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Advance Wars (Europe).gba").write_bytes(b"eu")
+
+    no_intro = {
+        "A": "Advance Wars (USA)",
+        "B": "Advance Wars (Europe)",
+    }
+
+    report = rc.validate_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=True,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+    text = rc.format_validation_report(
+        report,
+        roms,
+        "GBA",
+        one_game_one_rom=True,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+
+    assert "ROM Collection Validation Report" in text
+    assert "Mode: 1G1R" in text
+    assert "Incorrect region / not in target set: 1" in text
+    assert (
+        "Advance Wars (Europe) <- Advance Wars (Europe).gba; expected: Advance Wars (USA)"
+        in text
+    )
 
 
 def test_scan_collection_prefers_retail_over_beta(tmp_path):

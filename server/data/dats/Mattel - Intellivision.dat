@@ -21,6 +21,7 @@ game (
 )
 game (
 	name "Adventure (USA, Europe) (Intellivision Lives!)"
+	cloneof "Advanced Dungeons & Dragons (USA, Europe)"
 	region "USA"
 	rom ( name "Adventure (USA, Europe) (Intellivision Lives!).int" size 16384 crc 11C3BCFA md5 17FD2AF3368C310FB7928DCFE0311514 sha1 009683F3A40ADBDD97B7256D64614FEFF12469AE )
 )
@@ -31,6 +32,7 @@ game (
 )
 game (
 	name "All-Star Major League Baseball (USA) (Beta)"
+	cloneof "World Championship Baseball (USA)"
 	region "USA"
 	rom ( name "All-Star Major League Baseball (USA) (Beta).int" size 24576 crc B45633CF md5 92E0826C7D677D4038764A7933696921 sha1 A843B831F9B49EF88DD99414FDB56A0C71BF01B6 )
 )
@@ -182,6 +184,7 @@ game (
 )
 game (
 	name "Checkers (USA, Europe) (Intellivision Lives!)"
+	cloneof "Checkers (USA, Europe)"
 	region "USA"
 	rom ( name "Checkers (USA, Europe) (Intellivision Lives!).int" size 8192 crc 36E1D858 md5 8122BB07816ACDCB3F0A037B72F02142 sha1 4FEF3342C0E7100113B4022E4395AD552FDDACF1 )
 )
@@ -224,6 +227,7 @@ game (
 )
 game (
 	name "Deadly Dogs (USA, Europe) (Beta)"
+	cloneof "TRON Deadly Discs (USA, Europe)"
 	region "USA"
 	rom ( name "Deadly Dogs (USA, Europe) (Beta).int" size 8192 crc CDC14ED8 md5 251EAE6057E3B55773748C39850CBCBE sha1 7547823137185C7E5C7C196C47926E4A65CB3294 )
 )
@@ -311,6 +315,7 @@ game (
 )
 game (
 	name "Duncan's Thin Ice (USA)"
+	cloneof "Thin Ice (USA)"
 	region "USA"
 	rom ( name "Duncan's Thin Ice (USA).int" size 32768 crc F3DF94E0 md5 0960019B1AFCF56BAA851D36FAC4D295 sha1 4DA7B8AD3575A8D036A38BCC2C70903A443DA602 )
 )
@@ -571,6 +576,7 @@ game (
 )
 game (
 	name "Meteor (USA, Europe) (Beta)"
+	cloneof "Astrosmash (USA, Europe)"
 	region "USA"
 	rom ( name "Meteor (USA, Europe) (Beta).int" size 8192 crc 00BE8BBA md5 C7B00E08FECA5527C76F0EEA1BD9DB7E sha1 7DA15A0B713CFC79E577650BD372B37CB3F6D7A4 )
 )
@@ -586,6 +592,7 @@ game (
 )
 game (
 	name "Minotaur (USA)"
+	cloneof "Advanced Dungeons & Dragons - Treasure of Tarmin (USA, Europe)"
 	region "USA"
 	rom ( name "Minotaur (USA).int" size 16384 crc BD731E3C md5 F5AD906C25CC2AB000F2DBE55E1D5236 sha1 1CF301A48856CFF7AC5E2162889FD0F3956D911C )
 )
@@ -1001,11 +1008,13 @@ game (
 )
 game (
 	name "Super Pro Football (USA) (Revision)"
+	cloneof "Super Pro Football (USA)"
 	region "USA"
 	rom ( name "Super Pro Football (USA) (Revision).int" size 32768 crc 83141D85 md5 3F050F4D2A6E976201E17910EB8C1A29 sha1 383A774973DB126C1E17E88DE939BCEA29BBD220 )
 )
 game (
 	name "Super Soccer (USA) (Proto)"
+	cloneof "World Cup Soccer (USA, Europe)"
 	region "USA"
 	rom ( name "Super Soccer (USA) (Proto).int" size 32768 crc 51B82EB7 md5 2C4B44090566720364A5A4627B73390A sha1 C96409D50870049E907FF3AE5F43EA6CA63E287E )
 )
@@ -1050,6 +1059,7 @@ game (
 )
 game (
 	name "Thin Ice (USA) (Beta)"
+	cloneof "Thin Ice (USA)"
 	region "USA"
 	rom ( name "Thin Ice (USA) (Beta).int" size 16384 crc D6495910 md5 8C554FD4D06624BF878F3D50F5B59463 sha1 E038024463FC6B5577983621D861152602B281A6 )
 )

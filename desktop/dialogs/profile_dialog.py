@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from config import DEVICE_TYPES, SYSTEM_CHOICES
+from systems import SAVE_EXT_CHOICES, SYSTEM_DEFAULT_SAVE_EXT
 
 
 # ---------------------------------------------------------------------------
@@ -112,22 +113,8 @@ DEVICE_DEFAULT_EXT: dict[str, str] = {
     "EmuDeck": ".srm",
 }
 
-SAVE_EXT_OPTIONS = [
-    ".sav",
-    ".srm",
-    ".mcr",
-    ".frz",
-    ".fs",
-    ".mcd",
-    ".mc2",
-    ".dsv",
-    ".raw",
-    ".bkr",
-]
-
-SYSTEM_DEFAULT_EXT: dict[str, str] = {
-    "SAT": ".bkr",
-}
+SAVE_EXT_OPTIONS = SAVE_EXT_CHOICES   # UI save-extension dropdown list
+SYSTEM_DEFAULT_EXT = SYSTEM_DEFAULT_SAVE_EXT  # per-system save extension override
 
 RETROARCH_AUTO_CORE_LABEL = "Auto"
 RETROARCH_SATURN_CORE_LABELS = [

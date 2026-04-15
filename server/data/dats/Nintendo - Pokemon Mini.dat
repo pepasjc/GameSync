@@ -35,6 +35,7 @@ game (
 )
 game (
 	name "Pokemon Anime Card Daisakusen (Japan)"
+	cloneof "Pokemon Zany Cards (USA, Europe)"
 	region "Japan"
 	serial "MACJ"
 	rom ( name "Pokemon Anime Card Daisakusen (Japan).min" size 524288 crc 199D7AB1 md5 28451A7512A537ED8FF2B2F4DA57A489 sha1 2C3AEE0D0DB8B4A80083732B8DB07B0CC72608A8 serial "MACJ" )
@@ -83,6 +84,7 @@ game (
 )
 game (
 	name "Pokemon Party Mini - Pikachu's Rocket Start (Europe) (GameCube)"
+	cloneof "Pokemon Party Mini - Rocket Start (USA) (GameCube)"
 	region "Europe"
 	serial "MPTE"
 	rom ( name "Pokemon Party Mini - Pikachu's Rocket Start (Europe) (GameCube).min" size 524288 crc F15964AF md5 BA35472C8CD0475642C0D6D9AEE3C702 sha1 B1922F3D43F3A4E36876C3E0E8428809FD999EFC serial "MPTE" )
@@ -113,6 +115,7 @@ game (
 )
 game (
 	name "Pokemon Pinball Mini (Japan)"
+	cloneof "Pokemon Pinball Mini (USA, Europe)"
 	region "Japan"
 	serial "MPBJ"
 	rom ( name "Pokemon Pinball Mini (Japan).min" size 524288 crc 398D47DE md5 842551CDD9E0CAFDF2A6A57159D5BBC8 sha1 57C78731F17F29D9CDDFC7E21B4D8801E8569CA6 serial "MPBJ" )
@@ -125,36 +128,42 @@ game (
 )
 game (
 	name "Pokemon Puzzle Collection (France)"
+	cloneof "Pokemon Puzzle Collection (USA, Europe)"
 	region "France"
 	serial "MPZF"
 	rom ( name "Pokemon Puzzle Collection (France).min" size 524288 crc 3004C354 md5 DE1EDFAF924DC6CF48C6D3D789BA79D9 sha1 5A2927770C1E2C7DF3F8CC80C9252BB1111CA3A6 serial "MPZF" )
 )
 game (
 	name "Pokemon Puzzle Collection (France) (GameCube Preview)"
+	cloneof "Pokemon Puzzle Collection (USA) (GameCube Preview)"
 	region "France"
 	serial "MPZF"
 	rom ( name "Pokemon Puzzle Collection (France) (GameCube Preview).min" size 524288 crc 7776F2BB md5 1811BB9F759CA25E60886A8BC06F9018 sha1 D748F54BB50622858AE65CBA74BA0CC82415FCBC serial "MPZF" )
 )
 game (
 	name "Pokemon Puzzle Collection (Germany)"
+	cloneof "Pokemon Puzzle Collection (USA, Europe)"
 	region "Germany"
 	serial "MPZD"
 	rom ( name "Pokemon Puzzle Collection (Germany).min" size 524288 crc 22101046 md5 185A1995DC07E222152B591BFFBE7720 sha1 7C83682F595DC6EAFC9C438D92EBA7920FF3B2CA serial "MPZD" )
 )
 game (
 	name "Pokemon Puzzle Collection (Germany) (GameCube Preview)"
+	cloneof "Pokemon Puzzle Collection (USA) (GameCube Preview)"
 	region "Germany"
 	serial "MPZD"
 	rom ( name "Pokemon Puzzle Collection (Germany) (GameCube Preview).min" size 524288 crc 0E7752E8 md5 C1F450D01759AFF0A34457408D141F2E sha1 7DC61E11B482B873D58657C827E3B166B3882DB2 serial "MPZD" )
 )
 game (
 	name "Pokemon Puzzle Collection (Japan)"
+	cloneof "Pokemon Puzzle Collection (USA, Europe)"
 	region "Japan"
 	serial "MPZJ"
 	rom ( name "Pokemon Puzzle Collection (Japan).min" size 524288 crc 95AFAE59 md5 3D1DFD84AA956D86DA8EFB7DF8DD96DB sha1 2DA4D24ED3192A88AB0B71ADE7AEC387987C5000 serial "MPZJ" )
 )
 game (
 	name "Pokemon Puzzle Collection (Japan) (GameCube)"
+	cloneof "Pokemon Puzzle Collection (USA, Europe)"
 	region "Japan"
 	serial "MPZJ"
 	rom ( name "Pokemon Puzzle Collection (Japan) (GameCube).min" size 524288 crc DA278854 md5 BEEFCFD06308CD3A4F4033325BB11FDA sha1 1CE915F0C03BC0EC2E505669336E6B6965F7476C serial "MPZJ" )
@@ -191,6 +200,7 @@ game (
 )
 game (
 	name "Pokemon Shock Tetris (Japan)"
+	cloneof "Pokemon Tetris (Europe) (En,Fr,De)"
 	region "Japan"
 	serial "MSTJ"
 	rom ( name "Pokemon Shock Tetris (Japan).min" size 524288 crc B4B5CC20 md5 8243AD09F4E470E239056B096083B6BD sha1 E81C3576B0C96E6CA28B958F8DDA11CEA5FCE078 serial "MSTJ" )
@@ -209,12 +219,14 @@ game (
 )
 game (
 	name "Pokemon Zany Cards (France)"
+	cloneof "Pokemon Zany Cards (USA, Europe)"
 	region "France"
 	serial "MACF"
 	rom ( name "Pokemon Zany Cards (France).min" size 524288 crc 830DA957 md5 A2A2ADD2F368E532EEECEF5566B5FD8E sha1 7A8B3F6A3751CD39431D822FA3A8016FFD2D26D8 serial "MACF" )
 )
 game (
 	name "Pokemon Zany Cards (Germany)"
+	cloneof "Pokemon Zany Cards (USA, Europe)"
 	region "Germany"
 	serial "MACD"
 	rom ( name "Pokemon Zany Cards (Germany).min" size 524288 crc C009D501 md5 F974F9CA3A9FBAADCAF4FA1A88B5A763 sha1 0922E0147FF097E56D5EC98BF66EF050539329FA serial "MACD" )

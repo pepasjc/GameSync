@@ -98,6 +98,7 @@ game (
 )
 game (
 	name "Brandish 2 Renewal - The Planet Buster (Japan)"
+	cloneof "Brandish 2 - The Planet Buster (Japan)"
 	description "Brandish 2 Renewal - The Planet Buster (Japan)"
 	region "Japan"
 	serial "NW10081070"
@@ -112,6 +113,7 @@ game (
 )
 game (
 	name "Brandish Renewal (Japan)"
+	cloneof "Brandish (Japan)"
 	description "Brandish Renewal (Japan)"
 	region "Japan"
 	serial "NW10041050"

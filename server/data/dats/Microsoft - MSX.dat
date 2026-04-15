@@ -32,11 +32,13 @@ game (
 )
 game (
 	name "3-D Golf Simulation (Japan) (Alt)"
+	cloneof "3-D Golf Simulation (Japan)"
 	region "Japan"
 	rom ( name "3-D Golf Simulation (Japan) (Alt).rom" size 16384 crc F83D4B0D md5 6CF80E1861DE859E3E8E84941CA33EF1 sha1 6FE8C1725C35D85A5E489C0C8D21134DEF09ECFB )
 )
 game (
 	name "3-D Golf Simulation (Japan) (High Speed)"
+	cloneof "3-D Golf Simulation (Japan)"
 	region "Japan"
 	rom ( name "3-D Golf Simulation (Japan) (High Speed).rom" size 16384 crc CB935A50 md5 AE898E560F7C672540B0AC95B6E03C24 sha1 9A63D48C4FC05E76C9DE25E5C5F2A0C99B5D1BE4 )
 )
@@ -52,6 +54,7 @@ game (
 )
 game (
 	name "A1 Spirit - The Way to Formula-1 (Japan)"
+	cloneof "F-1 Spirit - The Way to Formula-1 (Japan)"
 	region "Japan"
 	rom ( name "A1 Spirit - The Way to Formula-1 (Japan).rom" size 131072 crc 2608C959 md5 DFA4DC1F4FBF0EDD19D5C58C4384EB21 sha1 937464EB371C68ADD2236BCEF91D24A8CE7C4ED1 )
 )
@@ -187,6 +190,7 @@ game (
 )
 game (
 	name "Antarctic Adventure (Europe) (Alt)"
+	cloneof "Antarctic Adventure (Europe)"
 	region "Europe"
 	rom ( name "Antarctic Adventure (Europe) (Alt).rom" size 16384 crc E8BDDEDD md5 4B1B0AB36E6DDB1FA317CF43E0A4611A sha1 44DEAEF747C572A4550681FCCCC1BBBDC46A1FFC )
 )
@@ -1397,6 +1401,7 @@ game (
 )
 game (
 	name "F-1 Spirit - The Way to Formula-1 (Japan) (Alt)"
+	cloneof "F-1 Spirit - The Way to Formula-1 (Japan)"
 	region "Japan"
 	rom ( name "F-1 Spirit - The Way to Formula-1 (Japan) (Alt).rom" size 131072 crc 64D2DF7C md5 910CC3718C00C9AF6A808E277F0E7586 sha1 42FBB18722DF3E34E5B0F935A2DC0CE0D85099E9 )
 )
@@ -2062,11 +2067,13 @@ game (
 )
 game (
 	name "Hyper Olympic 1 (Japan)"
+	cloneof "Track & Field 1 (Europe)"
 	region "Japan"
 	rom ( name "Hyper Olympic 1 (Japan).rom" size 16384 crc FEF1D8FA md5 5352404E1434C53266169A2BE3DB0866 sha1 56C4813AC549AF8711B2E2E42D7DB1B960C4C040 )
 )
 game (
 	name "Hyper Olympic 2 (Japan)"
+	cloneof "Track & Field 2 (Europe)"
 	region "Japan"
 	rom ( name "Hyper Olympic 2 (Japan).rom" size 16384 crc 38CB690B md5 77F023FCB66181850AA2F62BD24325D8 sha1 CC9A82898DA39E5CFEB0400006D093D3B869F28C )
 )
@@ -2272,6 +2279,7 @@ game (
 )
 game (
 	name "Kekkyoku Nankyoku Dai Bouken (Japan) (Wii U Virtual Console)"
+	cloneof "Antarctic Adventure (Europe)"
 	region "Japan"
 	rom ( name "Kekkyoku Nankyoku Dai Bouken (Japan) (Wii U Virtual Console).rom" size 16384 crc AAE7028B md5 97EE96F00FAC07A5D70A3801D8A9805A sha1 E894A38F3E2AD435CC5D17A66600E6016B5E47FB )
 )
@@ -2372,16 +2380,19 @@ game (
 )
 game (
 	name "Knightmare - Majou Densetsu (Japan) (Alt 2)"
+	cloneof "Knightmare II - The Maze of Galious (Japan)"
 	region "Japan"
 	rom ( name "Knightmare - Majou Densetsu (Japan) (Alt 2).rom" size 32768 crc 5876A372 md5 3B46F970FD4BD442737E41CAAB527390 sha1 1D6A355A9CE84C78E3BAFC27A4F1151E240F68F0 )
 )
 game (
 	name "Knightmare - Majou Densetsu (Japan) (Alt)"
+	cloneof "Knightmare II - The Maze of Galious (Japan)"
 	region "Japan"
 	rom ( name "Knightmare - Majou Densetsu (Japan) (Alt).rom" size 32768 crc CA9F791B md5 2F4E87CC751D116EA996AD4A2118F4AC sha1 DA8249452DA86C0BA44F0AE279CCFF82A1DDD756 )
 )
 game (
 	name "Knightmare - Majou Densetsu (Japan) (Wii U Virtual Console)"
+	cloneof "Knightmare II - The Maze of Galious (Japan)"
 	region "Japan"
 	rom ( name "Knightmare - Majou Densetsu (Japan) (Wii U Virtual Console).rom" size 32768 crc 0DB84205 md5 EBFCABA358D7CECA95C7385276321F78 sha1 C8FF858D239C62A859F15C2F1BF44E1D657CEC13 )
 )
@@ -2437,11 +2448,13 @@ game (
 )
 game (
 	name "Konami's Football (Europe) (Alt 2)"
+	cloneof "Konami's Football (Europe)"
 	region "Europe"
 	rom ( name "Konami's Football (Europe) (Alt 2).rom" size 32768 crc C700FC49 md5 83E03A16040F7CE9B92A5249C7A11091 sha1 10698EA6B0423F2E858A4C28C10F39646CA5495F )
 )
 game (
 	name "Konami's Football (Europe) (Alt)"
+	cloneof "Konami's Football (Europe)"
 	region "Europe"
 	rom ( name "Konami's Football (Europe) (Alt).rom" size 32768 crc 93604C07 md5 937C06EFBA04804C506C7403269416EB sha1 EAA6B787784BAE1C7F648B57DAA1C88CF2B1B095 )
 )
@@ -2487,21 +2500,25 @@ game (
 )
 game (
 	name "Konami's Soccer (Japan)"
+	cloneof "Konami's Football (Europe)"
 	region "Japan"
 	rom ( name "Konami's Soccer (Japan).rom" size 32768 crc 74BC8295 md5 A113021087CC957F6BD64600A315E44D sha1 FD7518A6AEDB51630364082C27BDFE4411ADFD4C )
 )
 game (
 	name "Konami's Soccer (Japan) (Alt 2)"
+	cloneof "Konami's Football (Europe)"
 	region "Japan"
 	rom ( name "Konami's Soccer (Japan) (Alt 2).rom" size 32768 crc E861D2BD md5 367AD85A80FE041D9741EDE84970F844 sha1 A0ED2C50E55241D23BB5D12CB6528A2A0C3BC156 )
 )
 game (
 	name "Konami's Soccer (Japan) (Alt 3)"
+	cloneof "Konami's Football (Europe)"
 	region "Japan"
 	rom ( name "Konami's Soccer (Japan) (Alt 3).rom" size 32768 crc CCFB0CA2 md5 81FBCFF39644D5FF3B4FF1399BA66939 sha1 79C1BF77C08B733AE04E069DEAF25FD24B28BEB7 )
 )
 game (
 	name "Konami's Soccer (Japan) (Wii U Virtual Console)"
+	cloneof "Konami's Football (Europe)"
 	region "Japan"
 	rom ( name "Konami's Soccer (Japan) (Wii U Virtual Console).rom" size 32768 crc 58EA53B9 md5 5075EE182797E8BA048ACE606D55E9DD sha1 89CCB1A7FFAAA75CEE9BDC9B4A9EC9B063AF7199 )
 )
@@ -3007,36 +3024,43 @@ game (
 )
 game (
 	name "Nemesis (Japan, Europe) (En)"
+	cloneof "Gradius (Japan) (Wii U Virtual Console)"
 	region "Japan"
 	rom ( name "Nemesis (Japan, Europe) (En).rom" size 131072 crc 4D44255F md5 25C0349164616A7540FAA04DCC90237A sha1 E31AC6520E912C27CE96431A1DFB112BF71CB7B9 )
 )
 game (
 	name "Nemesis (Japan, Europe) (En) (Alt)"
+	cloneof "Gradius (Japan) (Wii U Virtual Console)"
 	region "Japan"
 	rom ( name "Nemesis (Japan, Europe) (En) (Alt).rom" size 131072 crc 4DFCC009 md5 1D19E90B3DF492F0F1956747279FBBAC sha1 F0E4168EA18188FCA2581526C2503223B9A28581 )
 )
 game (
 	name "Nemesis 2 (Japan, Europe) (En) (Alt)"
+	cloneof "Gradius 2 (Japan, Europe) (En) (Wii U Virtual Console)"
 	region "Japan"
 	rom ( name "Nemesis 2 (Japan, Europe) (En) (Alt).rom" size 131072 crc 32ABA4E3 md5 EE3E6A50E3DE131D217E5DAB55519011 sha1 AB30CDEAACBDF14E6366D43D881338178FC665CB )
 )
 game (
 	name "Nemesis 2 (Japan, Europe) (En) (Beta)"
+	cloneof "Gradius 2 (Japan, Europe) (En) (Wii U Virtual Console)"
 	region "Japan"
 	rom ( name "Nemesis 2 (Japan, Europe) (En) (Beta).rom" size 131072 crc DFA8C827 md5 FF98B021526417A0422DF2A1D7E9ECDF sha1 4C2F015685A17DB7A8C3893E868E0A84A8DBF1E5 )
 )
 game (
 	name "Nemesis 3 - The Eve of Destruction (Japan, Europe) (En)"
+	cloneof "Gofer no Yabo - Episode II (Japan) (Wii U Virtual Console)"
 	region "Japan"
 	rom ( name "Nemesis 3 - The Eve of Destruction (Japan, Europe) (En).rom" size 262144 crc 4B61AE91 md5 DC31287CED6E601EA7FDF2AF9759C58F sha1 7393F677E0FAE5FC83071C6B74756117B7D75E2D )
 )
 game (
 	name "Nemesis 3 - The Eve of Destruction (Japan, Europe) (En) (Alt 2)"
+	cloneof "Gofer no Yabo - Episode II (Japan) (Wii U Virtual Console)"
 	region "Japan"
 	rom ( name "Nemesis 3 - The Eve of Destruction (Japan, Europe) (En) (Alt 2).rom" size 262144 crc 329987BC md5 55C020211EDCFC4C5A5D66BDD48F7D16 sha1 5692E41B3A4C5E767CF290FD6C24942D0FD7B2E3 )
 )
 game (
 	name "Nemesis 3 - The Eve of Destruction (Japan, Europe) (En) (Alt)"
+	cloneof "Gofer no Yabo - Episode II (Japan) (Wii U Virtual Console)"
 	region "Japan"
 	rom ( name "Nemesis 3 - The Eve of Destruction (Japan, Europe) (En) (Alt).rom" size 262144 crc 0DB7132F md5 FF9FEDE25893DC32F6A7DB275173B2B9 sha1 0413BB3AEACB0C28429B8C85B42796DBE48BEF6D )
 )
@@ -4281,11 +4305,13 @@ game (
 )
 game (
 	name "Video Hustler (Japan)"
+	cloneof "Konami's Billiards (Europe)"
 	region "Japan"
 	rom ( name "Video Hustler (Japan).rom" size 8192 crc 64853262 md5 08A7BF1AD4FDC213A203F191615BBC9C sha1 82868A81D805FB391FCE588623FC888296CBF62A )
 )
 game (
 	name "Video Hustler (Japan) (Alt)"
+	cloneof "Konami's Billiards (Europe)"
 	region "Japan"
 	rom ( name "Video Hustler (Japan) (Alt).rom" size 8192 crc 8D99C3B0 md5 CCFB673858F03940ACA707AD5C4AF7F2 sha1 EED68D254A17D76C36E094DD8A50A362A964E1B7 )
 )
@@ -4430,6 +4456,7 @@ game (
 )
 game (
 	name "Yume Tairiku Adventure (Japan) (Wii U Virtual Console)"
+	cloneof "Penguin Adventure (Japan, Europe) (En)"
 	region "Japan"
 	rom ( name "Yume Tairiku Adventure (Japan) (Wii U Virtual Console).rom" size 131072 crc 2B6CC569 md5 01FAC8E0C3CDF926360CDC6FDFF25584 sha1 EC25E8AF6E9083802C5CF2979E8B061FC45934BE )
 )

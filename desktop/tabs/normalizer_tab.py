@@ -23,15 +23,16 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
 
 from config import load_config, SYSTEM_CHOICES
+from systems import CD_ALL_EXTENSIONS, CD_DATA_EXTENSIONS, CD_FOLDER_SYSTEMS
 
 
 # Regex to extract a disc number from a folder name — used to restore the
 # correct disc tag after a disc-agnostic fuzzy match.
 _DISC_NUMBER_RE = re.compile(r"\((?:Disc|Disk|CD)\s*(\d+)\)", re.IGNORECASE)
 
-# CD image file extensions — presence of any of these marks a subfolder as a disc
-_CD_DATA_EXTS = frozenset({".iso", ".bin", ".img", ".mdf", ".chd"})
-_CD_ALL_EXTS = frozenset({".cue", ".iso", ".bin", ".img", ".mdf", ".chd"})
+# Aliases kept for readability inside this module
+_CD_DATA_EXTS = CD_DATA_EXTENSIONS
+_CD_ALL_EXTS = CD_ALL_EXTENSIONS
 
 
 def _find_cd_data_file(game_dir: Path) -> "Path | None":
@@ -77,6 +78,12 @@ def _find_cd_data_file(game_dir: Path) -> "Path | None":
         if f.is_file() and f.suffix.lower() == ".bin":
             return f
 
+    # Fallback: PSP single-file formats (.cso, .pbp)
+    for ext in (".cso", ".pbp"):
+        for f in sorted(files):
+            if f.is_file() and f.suffix.lower() == ext:
+                return f
+
     return None
 
 
@@ -92,6 +99,7 @@ class NormalizeScanWorker(QThread):
         save_folder: Path | None = None,
         device_type: str = "",
         normalize_fallback: bool = False,
+        use_crc: bool = True,
     ):
         super().__init__()
         self.folder = folder
@@ -100,6 +108,7 @@ class NormalizeScanWorker(QThread):
         self.save_folder = save_folder
         self.device_type = device_type
         self.normalize_fallback = normalize_fallback
+        self.use_crc = use_crc
 
     def run(self):
         import rom_normalizer as rn
@@ -113,8 +122,7 @@ class NormalizeScanWorker(QThread):
         # CD-based systems where games always live in subfolders (one dir per disc).
         # When the device is MEGA EverDrive and the system is one of these, we must
         # use folder-based scanning instead of individual-file scanning.
-        _CD_SYSTEMS = {"SEGACD", "SAT", "DC", "PS1"}
-        is_cd_system = self.system in _CD_SYSTEMS
+        is_cd_system = self.system in CD_FOLDER_SYSTEMS
 
         # ── CD Folder mode (or MEGA EverDrive + CD system): scan game subdirectories ──
         if is_cd_folder or (is_mega_everdrive and is_cd_system):
@@ -145,19 +153,20 @@ class NormalizeScanWorker(QThread):
 
                 if self.no_intro:
                     # Step 1: CRC match on the data track file
-                    data_file = _find_cd_data_file(game_dir)
-                    if data_file:
-                        self.progress.emit(
-                            f"CRC: {i + 1}/{total}: {game_dir.name} ({data_file.name})"
-                        )
-                        try:
-                            crc = rn._crc32_file(data_file)
-                            canonical = self.no_intro.get(crc)
-                            if canonical:
-                                new_stem = canonical
-                                source = "No-Intro"
-                        except Exception:
-                            pass
+                    if self.use_crc:
+                        data_file = _find_cd_data_file(game_dir)
+                        if data_file:
+                            self.progress.emit(
+                                f"CRC: {i + 1}/{total}: {game_dir.name} ({data_file.name})"
+                            )
+                            try:
+                                crc = rn._crc32_file(data_file)
+                                canonical = self.no_intro.get(crc)
+                                if canonical:
+                                    new_stem = canonical
+                                    source = "No-Intro"
+                            except Exception:
+                                pass
 
                     # Step 2: fuzzy folder-name match (fallback)
                     if source == "filename":
@@ -221,6 +230,76 @@ class NormalizeScanWorker(QThread):
                                 break
                     results.append(entry)
 
+            # Also scan flat ROM files that sit directly in the root (not inside
+            # a game subfolder).  This handles PSP ISO/CSO collections stored as
+            # individual files rather than one-folder-per-game.
+            try:
+                flat_roms = sorted(
+                    f
+                    for f in self.folder.iterdir()
+                    if f.is_file() and f.suffix.lower() in rn.ROM_EXTENSIONS
+                )
+            except OSError:
+                flat_roms = []
+
+            for rom in flat_roms:
+                ext = rom.suffix.lower()
+                source = "filename"
+                new_stem = rom.stem
+
+                if self.no_intro:
+                    if self.use_crc:
+                        try:
+                            crc = rn._crc32_file(rom)
+                            canonical = self.no_intro.get(crc)
+                            if canonical:
+                                new_stem = canonical
+                                source = "No-Intro"
+                        except Exception:
+                            canonical = None
+
+                    if source == "filename":
+                        header_title = rn.read_rom_header_title(rom, self.system)
+                        if header_title:
+                            canonical = rn.lookup_header_in_index(header_title, name_index)
+                            if canonical:
+                                new_stem = canonical
+                                source = "Header"
+
+                    if source == "filename":
+                        canonical = rn.fuzzy_filename_search(rom.name, name_index)
+                        if canonical:
+                            new_stem = canonical
+                            source = "Fuzzy"
+
+                    if source in ("Header", "Fuzzy"):
+                        region_hint = rn.extract_region_hint(rom.name)
+                        if region_hint:
+                            new_stem = rn.find_region_preferred(
+                                new_stem, self.no_intro, region_hint
+                            )
+
+                    if source == "filename" and self.normalize_fallback:
+                        bracket_idx = rom.stem.find("[")
+                        if bracket_idx > 0:
+                            new_stem = rom.stem[:bracket_idx].strip()
+                            source = "Bracket"
+                        else:
+                            new_stem = rn.normalize_name(rom.name)
+
+                new_rom = rom.parent / (new_stem + ext)
+                if new_rom != rom:
+                    results.append(
+                        {
+                            "old": rom,
+                            "new": new_rom,
+                            "source": source,
+                            "subfolder": "",
+                            "companions": [],
+                            "has_save": False,
+                        }
+                    )
+
             self.finished.emit(results)
             return
 
@@ -246,8 +325,10 @@ class NormalizeScanWorker(QThread):
 
             if self.no_intro:
                 # Step 1: exact CRC32 match → use canonical No-Intro name with region
-                crc = rn._crc32_file(rom)
-                canonical = self.no_intro.get(crc)
+                canonical = None
+                if self.use_crc:
+                    crc = rn._crc32_file(rom)
+                    canonical = self.no_intro.get(crc)
                 if canonical:
                     new_stem = canonical  # e.g. "Bahamut Lagoon (Japan)"
                     source = "No-Intro"
@@ -486,6 +567,12 @@ class RomNormalizerTab(QWidget):
             "Filename-normalized renames (yellow) are skipped."
         )
         self.nointro_only_check.stateChanged.connect(self._update_row_highlighting)
+        self.crc_check = QCheckBox("CRC matching")
+        self.crc_check.setChecked(True)
+        self.crc_check.setToolTip(
+            "When checked, the normalizer fingerprints ROM data and matches by DAT CRC first.\n"
+            "Uncheck to skip CRC lookups and rely on header, folder, and fuzzy filename matching only."
+        )
         self.apply_btn = QPushButton("Apply Renames")
         self.apply_btn.clicked.connect(self._apply)
         self.apply_btn.setEnabled(False)
@@ -493,6 +580,7 @@ class RomNormalizerTab(QWidget):
         btn_row.addWidget(check_all_btn)
         btn_row.addWidget(uncheck_all_btn)
         btn_row.addStretch()
+        btn_row.addWidget(self.crc_check)
         btn_row.addWidget(self.normalize_fallback_check)
         btn_row.addWidget(self.nointro_only_check)
         btn_row.addWidget(self.apply_btn)
@@ -702,6 +790,7 @@ class RomNormalizerTab(QWidget):
             save_folder,
             self.device_combo.currentText(),
             self.normalize_fallback_check.isChecked(),
+            self.crc_check.isChecked(),
         )
         self._worker.finished.connect(self._on_scan_done)
         self._worker.progress.connect(self.status_label.setText)

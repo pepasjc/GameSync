@@ -19,30 +19,35 @@ game (
 )
 game (
 	name "007 - Ein Quantum Trost (Germany)"
+	cloneof "007 - Quantum of Solace (USA, Europe) (En,Fr)"
 	region "Germany"
 	serial "AV-2047"
 	rom ( name "007 - Ein Quantum Trost (Germany).iso" size 7835492352 crc 21481DAC md5 DD9C79AF4650B8219F593B6CCEA5FD96 sha1 6786528538426804AF12D46B4DD1BF3D18DDA989 serial "AV-2047" )
 )
 game (
 	name "007 - Kvant Miloserdiya (Russia)"
+	cloneof "007 - Quantum of Solace (USA, Europe) (En,Fr)"
 	region "Russia"
 	serial "AV-2047"
 	rom ( name "007 - Kvant Miloserdiya (Russia).iso" size 7835492352 crc 9A0313C6 md5 3B50ED2A6AB5D9C6DAC99FFFB10DF86F sha1 B9DE99F79B8F3C56A9C7D40E290B5C058C537BB8 serial "AV-2047" )
 )
 game (
 	name "007 - Nagusame no Houshuu (Japan)"
+	cloneof "007 - Quantum of Solace (USA, Europe) (En,Fr)"
 	region "Japan"
 	serial "AV-2047"
 	rom ( name "007 - Nagusame no Houshuu (Japan).iso" size 7835492352 crc 65A57AF0 md5 6AFF3EE0A3C743CE4612D28B8300C1B9 sha1 DD314A2D134373B848A3BA73506A01DBA3A82446 serial "AV-2047" )
 )
 game (
 	name "007 - Quantum of Solace (Italy)"
+	cloneof "007 - Quantum of Solace (USA, Europe) (En,Fr)"
 	region "Italy"
 	serial "AV-2047"
 	rom ( name "007 - Quantum of Solace (Italy).iso" size 7835492352 crc 96183E59 md5 E8374E1F74DCC91AFA7AC79B539E1178 sha1 AF336BA0546FA8C22BDED7853635000825867BFE serial "AV-2047" )
 )
 game (
 	name "007 - Quantum of Solace (Spain)"
+	cloneof "007 - Quantum of Solace (USA, Europe) (En,Fr)"
 	region "Spain"
 	serial "AV-2047"
 	rom ( name "007 - Quantum of Solace (Spain).iso" size 7835492352 crc 7B6F37AD md5 5698A3062E3DF36827DC8C3A5EAC1FB6 sha1 3182153184B329E2BC6E8A9B0EF12C821D6A5211 serial "AV-2047" )
@@ -73,6 +78,7 @@ game (
 )
 game (
 	name "2010 FIFA World Cup - Minami Africa Taikai (Japan) (En,Ja)"
+	cloneof "FIFA Soccer 10 (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "EA-2276"
 	rom ( name "2010 FIFA World Cup - Minami Africa Taikai (Japan) (En,Ja).iso" size 7838695424 crc 937E4A9C md5 15C7BEE9393DA2233B72B62155088D27 sha1 262AE4596F61BD2C6F6BA43D4B6FF65028D4816C serial "EA-2276" )
@@ -97,18 +103,21 @@ game (
 )
 game (
 	name "2014 FIFA World Cup Brazil (Europe) (En,De,It)"
+	cloneof "2014 FIFA World Cup Brazil (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2516"
 	rom ( name "2014 FIFA World Cup Brazil (Europe) (En,De,It).iso" size 8738846720 crc DF51F920 md5 81D1FBA1F400A3819FA7A31C6B8E1846 sha1 FC5BC58CC3F13A631E810A0B101707B68C87A18F serial "EA-2516" )
 )
 game (
 	name "2014 FIFA World Cup Brazil (Europe) (Fr,Es,Nl)"
+	cloneof "2014 FIFA World Cup Brazil (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2516"
 	rom ( name "2014 FIFA World Cup Brazil (Europe) (Fr,Es,Nl).iso" size 8738846720 crc 8EF7FECA md5 E14E495BB26FFDE7AE86ED0F625D3A22 sha1 9E6CA178B1D4362A4B4366563B177E384D17483A serial "EA-2516" )
 )
 game (
 	name "2014 FIFA World Cup Brazil (Japan) (En,Ja)"
+	cloneof "2014 FIFA World Cup Brazil (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "EA-2516"
 	rom ( name "2014 FIFA World Cup Brazil (Japan) (En,Ja).iso" size 8738846720 crc 17EE7481 md5 88B6EFF3DBE7F5B23CDC0918AFAC4B2F sha1 E79212317CA108C80DBA2C69E1FF304F0D86315B serial "EA-2516" )
@@ -169,6 +178,7 @@ game (
 )
 game (
 	name "AC-DC Live - Rock Band (Europe) (En,Fr,De,Es,It)"
+	cloneof "AC-DC Live - Rock Band Track Pack (USA)"
 	region "Europe"
 	serial "EA-2185"
 	rom ( name "AC-DC Live - Rock Band (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc DBE2CFD4 md5 724B5CDD84468746E97B18B07B79A4AA sha1 C91B88FEA9282610577DE044C97E8A9982C94B07 serial "EA-2185" )
@@ -223,12 +233,14 @@ game (
 )
 game (
 	name "Ace Combat 6 - Fires of Liberation (Europe) (En,Fr,De,Es,It)"
+	cloneof "Ace Combat 6 - Fires of Liberation (USA, Japan) (En,Ja)"
 	region "Europe"
 	serial "NM-2001"
 	rom ( name "Ace Combat 6 - Fires of Liberation (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc B7FEA6EC md5 26753F4CC4F0FA78438AE0B2AA918BDD sha1 5DA9FBE89861B7ABEB1F580AB6E9F28594689984 serial "NM-2001" )
 )
 game (
 	name "Ace Combat 6 - Fires of Liberation (Europe) (En,Fr,De,Es,It) (Rev 1)"
+	cloneof "Ace Combat 6 - Fires of Liberation (USA, Japan) (En,Ja)"
 	region "Europe"
 	serial "NM-2001"
 	rom ( name "Ace Combat 6 - Fires of Liberation (Europe) (En,Fr,De,Es,It) (Rev 1).iso" size 7835492352 crc 22057441 md5 5C8A8D282B8E496F67BBAAFAD21083CC sha1 9B8BB1AA4DD50F55E1229A44EAA79427E3E5947D serial "NM-2001" )
@@ -241,6 +253,7 @@ game (
 )
 game (
 	name "Ace Combat 6 - Kaihou e no Senka (Japan, Asia) (En,Ja,Fr,De,Es,It) (Rev 1)"
+	cloneof "Ace Combat 6 - Fires of Liberation (USA, Japan) (En,Ja)"
 	region "Japan"
 	serial "NM-2001"
 	rom ( name "Ace Combat 6 - Kaihou e no Senka (Japan, Asia) (En,Ja,Fr,De,Es,It) (Rev 1).iso" size 7835492352 crc 1213D3AC md5 83AD029211E161624D8C16C12D66E578 sha1 0C43BF405193257237A774F0879EFECEAFD559EF serial "NM-2001" )
@@ -325,6 +338,7 @@ game (
 )
 game (
 	name "Adventures of Tintin, The - The Secret of the Unicorn (Europe) (Pl,Ru)"
+	cloneof "Adventures of Tintin, The - The Game (USA, Europe) (En,Fr,De,Es,It,Pt)"
 	region "Europe"
 	serial "US-2161"
 	rom ( name "Adventures of Tintin, The - The Secret of the Unicorn (Europe) (Pl,Ru).iso" size 8738846720 crc 600FAB74 md5 96528EDAF8024DBB912AA72C2C9523E1 sha1 ECDDDC10793EF4256CA490E94647BE7D968791F1 serial "US-2161" )
@@ -397,6 +411,7 @@ game (
 )
 game (
 	name "Akumajou Dracula - Lords of Shadow 2 (Japan)"
+	cloneof "Castlevania - Lords of Shadow 2 (USA, Europe) (En,Fr,De,Es,It,Pt)"
 	region "Japan"
 	serial "KN-2125"
 	rom ( name "Akumajou Dracula - Lords of Shadow 2 (Japan).iso" size 7838695424 crc 902CA0A5 md5 CECBAFFFC71D85E48A04D1B36044E410 sha1 FBF522166061315CD875D3D8EB613C8472CE5958 serial "KN-2125" )
@@ -599,6 +614,7 @@ game (
 )
 game (
 	name "Arcania - Gothic 4 (Japan)"
+	cloneof "Arcania - Gothic 4 (USA, Europe)"
 	region "Japan"
 	serial "JW-2002"
 	rom ( name "Arcania - Gothic 4 (Japan).iso" size 7838695424 crc 16FE89A2 md5 74D31763B6D20077ED0F2F0C0FCDAAF2 sha1 6FB6229128BF5D4F74912F4880DC86C6C7B9ACDD serial "JW-2002" )
@@ -611,6 +627,7 @@ game (
 )
 game (
 	name "Arcania - The Complete Tale (Europe) (En,Ja,Fr,De,Es,It,Pl,Ru)"
+	cloneof "Arcania - Gothic 4 (USA, Europe)"
 	region "Europe"
 	serial "JW-2002"
 	rom ( name "Arcania - The Complete Tale (Europe) (En,Ja,Fr,De,Es,It,Pl,Ru).iso" size 8738846720 crc 70FF85FD md5 C53342984D613073910B5CBBF19E1358 sha1 F596E0F3AAE49F44E5F4DE2940BB8F9D4B19882E serial "JW-2002" )
@@ -869,45 +886,53 @@ game (
 )
 game (
 	name "Assassin's Creed II (Japan) (En,Ja,It)"
+	cloneof "Assassin's Creed II (Europe) (It,Pl,Ru)"
 	region "Japan"
 	serial "US-2107"
 	rom ( name "Assassin's Creed II (Japan) (En,Ja,It).iso" size 7838695424 crc 73EE864D md5 A66D6C8796F8E532C36696B4BAC9AAEF sha1 2CC8E62F681E4F4923A135784C1A2F3A25464E3C serial "US-2107" )
 )
 game (
 	name "Assassin's Creed II (Korea) (It,Ko)"
+	cloneof "Assassin's Creed II (Europe) (It,Pl,Ru)"
 	region "Korea"
 	serial "US-2107"
 	rom ( name "Assassin's Creed II (Korea) (It,Ko).iso" size 7838695424 crc 26E42385 md5 B813C3BB196C7FC0F4CB6B48128C49FB sha1 E647CFFDA3DDFFB184F8FB7EB41C38B11849DD22 serial "US-2107" )
 )
 game (
 	name "Assassin's Creed II (UK) (En,It)"
+	cloneof "Assassin's Creed II (Europe) (It,Pl,Ru)"
 	serial "US-2107"
 	rom ( name "Assassin's Creed II (UK) (En,It).iso" size 7838695424 crc 4DA046EF md5 5C6CD8309B0E361CFA76F5537AEFD8B9 sha1 C95030348DC32D9BCDF0502E793DD69F8BEF82CF serial "US-2107" )
 )
 game (
 	name "Assassin's Creed II (World) (En,Fr,De,Es,It,Nl,Sv,No,Da)"
+	cloneof "Assassin's Creed II (Europe) (It,Pl,Ru)"
 	serial "US-2107"
 	rom ( name "Assassin's Creed II (World) (En,Fr,De,Es,It,Nl,Sv,No,Da).iso" size 7838695424 crc F4DE84C6 md5 809F7FE919297F6F13ED0454BC3B9BD2 sha1 42E5FC49AF288B661CBFA5753880F98FB3B4432A serial "US-2107" )
 )
 game (
 	name "Assassin's Creed II - Game of the Year Edition (Europe) (En,Fr,De,Es,It,Nl,Sv,No,Da)"
+	cloneof "Assassin's Creed II (Europe) (It,Pl,Ru)"
 	region "Europe"
 	serial "US-2107"
 	rom ( name "Assassin's Creed II - Game of the Year Edition (Europe) (En,Fr,De,Es,It,Nl,Sv,No,Da).iso" size 7838695424 crc E91E7289 md5 47D805D85C0528EF6D57BDEB04442E99 sha1 EE7D4B94BC6DBA3FD11576612EAD1800CFD6132D serial "US-2107" )
 )
 game (
 	name "Assassin's Creed II - Game of the Year Edition (Europe) (It,Pl,Ru)"
+	cloneof "Assassin's Creed II (Europe) (It,Pl,Ru)"
 	region "Europe"
 	serial "US-2107"
 	rom ( name "Assassin's Creed II - Game of the Year Edition (Europe) (It,Pl,Ru).iso" size 7838695424 crc 62D6DE69 md5 63D84C60748DB0A2B84845637DC0113F sha1 19BA305DB5B26463F144ED93D06CA3C78457731E serial "US-2107" )
 )
 game (
 	name "Assassin's Creed II - Game of the Year Edition (UK) (En,It)"
+	cloneof "Assassin's Creed II (Europe) (It,Pl,Ru)"
 	serial "US-2107"
 	rom ( name "Assassin's Creed II - Game of the Year Edition (UK) (En,It).iso" size 7838695424 crc 2CCE3DD2 md5 0A9EE8CDCDF622F0AF3647681041BC29 sha1 6D3E180CD8B9FBDCB1480E661A72C2F5C8CEC935 serial "US-2107" )
 )
 game (
 	name "Assassin's Creed II - Special Edition (Japan) (En,Ja,It)"
+	cloneof "Assassin's Creed II (Europe) (It,Pl,Ru)"
 	region "Japan"
 	serial "US-2107"
 	rom ( name "Assassin's Creed II - Special Edition (Japan) (En,Ja,It).iso" size 7838695424 crc D1204A63 md5 DB4A1833C610D875863608101F8F9787 sha1 839A63CE6C5513BD81237414A5888F488588B12F serial "US-2107" )
@@ -1329,6 +1354,7 @@ game (
 )
 game (
 	name "Batman - Arkham Asylum (Japan)"
+	cloneof "Batman - Arkham Asylum (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "SQ-2031"
 	rom ( name "Batman - Arkham Asylum (Japan).iso" size 7838695424 crc 231655FF md5 607B3ED6625E26B394426C204A05F1F9 sha1 04DF7B615C2CB7EFDF232ECD88AB86FBD6A089A1 serial "SQ-2031" )
@@ -1341,12 +1367,14 @@ game (
 )
 game (
 	name "Batman - Arkham Asylum - Game of the Year Edition (Europe) (En,Fr,De,Es,It)"
+	cloneof "Batman - Arkham Asylum (USA, Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "SC-2059"
 	rom ( name "Batman - Arkham Asylum - Game of the Year Edition (Europe) (En,Fr,De,Es,It).iso" size 7838695424 crc 5AA2020F md5 848EA46CBEE44AB0735A0F9E21F5EC36 sha1 59325B2B1CE9E45DE48AC05117557549AC85EF60 serial "SC-2059" )
 )
 game (
 	name "Batman - Arkham Asylum - Game of the Year Edition (USA) (En,Fr,De,Es,It)"
+	cloneof "Batman - Arkham Asylum (USA, Europe) (En,Fr,De,Es,It)"
 	region "USA"
 	serial "SC-2059"
 	rom ( name "Batman - Arkham Asylum - Game of the Year Edition (USA) (En,Fr,De,Es,It).iso" size 7838695424 crc 06A0194A md5 871B7C990CB893DAA87C548354CFE1F0 sha1 2D321BFEDED886A5B1265A251E4A03FE1EBFB755 serial "SC-2059" )
@@ -1448,18 +1476,21 @@ game (
 )
 game (
 	name "Battlefield - Bad Company (Europe) (En,Fr,De,Es,It)"
+	cloneof "Battlefield - Bad Company (USA) (En,Fr)"
 	region "Europe"
 	serial "EA-2041"
 	rom ( name "Battlefield - Bad Company (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc A2B24495 md5 E726D0511644181740E5EADBE200FC08 sha1 7CDC7FD5E292A9A4A1E1601386DD14628393911B serial "EA-2041" )
 )
 game (
 	name "Battlefield - Bad Company (Europe) (En,Fr,De,Es,It) (Gold Edition)"
+	cloneof "Battlefield - Bad Company (USA) (En,Fr)"
 	region "Europe"
 	serial "EA-2041"
 	rom ( name "Battlefield - Bad Company (Europe) (En,Fr,De,Es,It) (Gold Edition).iso" size 7835492352 crc 78E1700E md5 9946B894B48E2471F7939513ADB2736A sha1 4D95848741D252207FB4A584DEA54C8DB434380D serial "EA-2041" )
 )
 game (
 	name "Battlefield - Bad Company (Japan) (En,Ja)"
+	cloneof "Battlefield - Bad Company (USA) (En,Fr)"
 	region "Japan"
 	serial "EA-2041"
 	rom ( name "Battlefield - Bad Company (Japan) (En,Ja).iso" size 7835492352 crc 5681A218 md5 E930B89A1542D3520B996E4B8D75CAA9 sha1 5742DE058D2715FF45809D567498F4ABA8B6C3B5 serial "EA-2041" )
@@ -1472,30 +1503,35 @@ game (
 )
 game (
 	name "Battlefield - Bad Company (USA) (En,Fr) (Gold Edition)"
+	cloneof "Battlefield - Bad Company (USA) (En,Fr)"
 	region "USA"
 	serial "EA-2041"
 	rom ( name "Battlefield - Bad Company (USA) (En,Fr) (Gold Edition).iso" size 7835492352 crc 16F4063B md5 973002720DEEE7C0C06CD9558E931D4B sha1 4FAAD6208BD4E44DC389276268BD7F249248F2CC serial "EA-2041" )
 )
 game (
 	name "Battlefield - Bad Company 2 (Europe) (En,Fr,De,Es,It,Pl,Ru)"
+	cloneof "Battlefield - Bad Company 2 (USA, Korea) (En,Fr)"
 	region "Europe"
 	serial "EA-2216"
 	rom ( name "Battlefield - Bad Company 2 (Europe) (En,Fr,De,Es,It,Pl,Ru).iso" size 7838695424 crc 6E50BA45 md5 C357217D6839E5257A24533E53F8D796 sha1 73955AE15832B118088EE7D084EC3945FB405701 serial "EA-2216" )
 )
 game (
 	name "Battlefield - Bad Company 2 (Europe) (En,Fr,De,Es,It,Pl,Ru) (Limited Edition)"
+	cloneof "Battlefield - Bad Company 2 (USA, Korea) (En,Fr)"
 	region "Europe"
 	serial "EA-2216"
 	rom ( name "Battlefield - Bad Company 2 (Europe) (En,Fr,De,Es,It,Pl,Ru) (Limited Edition).iso" size 7838695424 crc 3817FA76 md5 DBDD4B73D066E0EA68E306C0A6D0088C sha1 821C08839F2E2C7653D3A13F69C6D0F5A84E9B77 serial "EA-2216" )
 )
 game (
 	name "Battlefield - Bad Company 2 (Japan) (En,Ja)"
+	cloneof "Battlefield - Bad Company 2 (USA, Korea) (En,Fr)"
 	region "Japan"
 	serial "EA-2216"
 	rom ( name "Battlefield - Bad Company 2 (Japan) (En,Ja).iso" size 7838695424 crc 567B5BC1 md5 7960D4159A8A7A12430346D7E0C6B071 sha1 70F3A7B49576B7EFBDDFDDFD13763482C17CB9EC serial "EA-2216" )
 )
 game (
 	name "Battlefield - Bad Company 2 (USA, Asia) (En,Fr) (Limited Edition)"
+	cloneof "Battlefield - Bad Company 2 (USA, Korea) (En,Fr)"
 	region "USA"
 	serial "EA-2216"
 	rom ( name "Battlefield - Bad Company 2 (USA, Asia) (En,Fr) (Limited Edition).iso" size 7838695424 crc 85190777 md5 33B1DFFBF258332346AC09AA7364C2A1 sha1 E85FD12223649F5569C2E30956602D6E7926956F serial "EA-2216" )
@@ -1722,6 +1758,7 @@ game (
 )
 game (
 	name "Beautiful Katamari (Europe)"
+	cloneof "Beautiful Katamari (USA) (En,Ja)"
 	region "Europe"
 	serial "NM-2012"
 	rom ( name "Beautiful Katamari (Europe).iso" size 7835492352 crc 527F1F14 md5 28A4746F7562BDE6F36D2807911FA128 sha1 55BDC4106B41B5CFCB0308A098DF2D3B0EDD2885 serial "NM-2012" )
@@ -1734,6 +1771,7 @@ game (
 )
 game (
 	name "Beautiful Katamari Damacy (Japan, Asia) (En,Ja)"
+	cloneof "Beautiful Katamari (USA) (En,Ja)"
 	region "Japan"
 	serial "NM-2012"
 	rom ( name "Beautiful Katamari Damacy (Japan, Asia) (En,Ja).iso" size 7835492352 crc B0E4EC0D md5 6067435F48BDE101974EF1E531F9B923 sha1 798EEEFCD529494D5828341C2DF05A7BF7506CB2 serial "NM-2012" )
@@ -1812,6 +1850,7 @@ game (
 )
 game (
 	name "Bigs 2 - Baseball, The (Europe)"
+	cloneof "Bigs 2, The (USA)"
 	region "Europe"
 	serial "TT-2096"
 	rom ( name "Bigs 2 - Baseball, The (Europe).iso" size 7838695424 crc A022A86B md5 2D5CC4C489146BCDC0F42582FC694852 sha1 1C1D25603BF182BEFA8CF670B5C5EB1B7FDD5E01 serial "TT-2096" )
@@ -1957,6 +1996,7 @@ game (
 )
 game (
 	name "Biohazard - Operation Raccoon City (Japan)"
+	cloneof "Resident Evil - Operation Raccoon City (USA, Europe) (En,Fr,De,Es,It,Pl,Ru)"
 	region "Japan"
 	serial "CC-2077"
 	rom ( name "Biohazard - Operation Raccoon City (Japan).iso" size 7838695424 crc B1DB43E9 md5 1E2B8CA9C7260E716803C757EDB04568 sha1 98E82D4E7B9CEDB1619A30FDA0887D5B2B6E3533 serial "CC-2077" )
@@ -2041,12 +2081,14 @@ game (
 )
 game (
 	name "Bladestorm - Hyakunen Sensou (Japan)"
+	cloneof "Bladestorm - The Hundred Years' War (USA)"
 	region "Japan"
 	serial "KO-2008"
 	rom ( name "Bladestorm - Hyakunen Sensou (Japan).iso" size 7835492352 crc B52A23FE md5 2E27DD77F30DA434431B0A01168115DF sha1 822A0D2D05993181E55F6F1B2ADB7ED5ACE70D48 serial "KO-2008" )
 )
 game (
 	name "Bladestorm - The Hundred Years' War (Europe) (En,Fr,De,Es,It)"
+	cloneof "Bladestorm - The Hundred Years' War (USA)"
 	region "Europe"
 	serial "KO-2008"
 	rom ( name "Bladestorm - The Hundred Years' War (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc 5D7923A4 md5 CA9385976F92A9FEA3A1EB2391E95839 sha1 E0B5E6A476AA5E9E47B24E11A2E9F99C91536DFC serial "KO-2008" )
@@ -2311,6 +2353,7 @@ game (
 )
 game (
 	name "Blur Racerz (Japan)"
+	cloneof "Blur (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "AV-2117"
 	rom ( name "Blur Racerz (Japan).iso" size 7838695424 crc EBB788C3 md5 DA0BFC1E820B1FC26EBF6D631EA325DF sha1 D37290A49E4B432B166D1FB5EA5010043AE029F3 serial "AV-2117" )
@@ -2377,6 +2420,7 @@ game (
 )
 game (
 	name "Borderlands - Add-On Doppelpack (Germany)"
+	cloneof "Borderlands - Double Game Add-On Pack (USA, Europe)"
 	region "Germany"
 	serial "TT-2157"
 	rom ( name "Borderlands - Add-On Doppelpack (Germany).iso" size 7838695424 crc 16DE74F3 md5 23236B6F718445230DBBBAE8C8274C25 sha1 2C7B02CB71B29F9A81698486BCDF7B78520AFE46 serial "TT-2157" )
@@ -2536,6 +2580,7 @@ game (
 )
 game (
 	name "Bullet Soul - Infinite Burst (Japan)"
+	cloneof "Bullet Soul (Japan)"
 	region "Japan"
 	serial "FV-2038"
 	rom ( name "Bullet Soul - Infinite Burst (Japan).iso" size 7838695424 crc 952885B0 md5 5252B1473F05075772B3998F84A9D4C3 sha1 475E2D81976275044BDEB256BF193915EB3423F9 serial "FV-2038" )
@@ -2584,18 +2629,21 @@ game (
 )
 game (
 	name "Bully - Scholarship Edition (Asia) (En,Fr,De,Es,It)"
+	cloneof "Bully (Japan)"
 	region "Asia"
 	serial "TT-2074"
 	rom ( name "Bully - Scholarship Edition (Asia) (En,Fr,De,Es,It).iso" size 7838695424 crc 00B9BCC4 md5 9DBDE001A1747CC82DDF1F761B29AD75 sha1 0A9BBF09A6844D1820CF8B9BEA319B9311F26E23 serial "TT-2074" )
 )
 game (
 	name "Bully - Scholarship Edition (Europe) (En,Fr,De,Es,It)"
+	cloneof "Bully (Japan)"
 	region "Europe"
 	serial "TT-2074"
 	rom ( name "Bully - Scholarship Edition (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc 6397CED4 md5 88588419ED6BE0B1A2401FFBB0B1D694 sha1 5E70444069743D9C27F8667B99851983BEDD72B7 serial "TT-2074" )
 )
 game (
 	name "Bully - Scholarship Edition (USA) (En,Fr,De,Es,It)"
+	cloneof "Bully (Japan)"
 	region "USA"
 	serial "TT-2074"
 	rom ( name "Bully - Scholarship Edition (USA) (En,Fr,De,Es,It).iso" size 7835492352 crc 6CC04327 md5 16616A7B3F97467116979E2B5F88200E sha1 0D8276AB948D2A2C08A471226E135D6159619461 serial "TT-2074" )
@@ -2613,24 +2661,28 @@ game (
 )
 game (
 	name "Burnout Paradise (Asia)"
+	cloneof "Burnout Paradise (USA)"
 	region "Asia"
 	serial "EA-2054"
 	rom ( name "Burnout Paradise (Asia).iso" size 7835492352 crc 9A352A19 md5 DD3BDB767F78419564F487F14DED1A84 sha1 E348C7625E5E4A83D5CC25A535CFB5F871E4516D serial "EA-2054" )
 )
 game (
 	name "Burnout Paradise (Europe)"
+	cloneof "Burnout Paradise (USA)"
 	region "Europe"
 	serial "EA-2054"
 	rom ( name "Burnout Paradise (Europe).iso" size 7835492352 crc 3286F307 md5 990978FBED08A64BBD0AFB276423CFD0 sha1 86D04134BDCBA318DCB6B71AA722142BDE7A566E serial "EA-2054" )
 )
 game (
 	name "Burnout Paradise (Europe) (Fr,De,Es,It)"
+	cloneof "Burnout Paradise (USA)"
 	region "Europe"
 	serial "EA-2054"
 	rom ( name "Burnout Paradise (Europe) (Fr,De,Es,It).iso" size 7835492352 crc B0F22875 md5 D9FAC29C9C604748E8D4F59A161A6215 sha1 975DB5C0CB7AB22A14BF4C87939A0E2D5752AB1D serial "EA-2054" )
 )
 game (
 	name "Burnout Paradise (Japan) (En,Ja)"
+	cloneof "Burnout Paradise (USA)"
 	region "Japan"
 	serial "EA-2054"
 	rom ( name "Burnout Paradise (Japan) (En,Ja).iso" size 7835492352 crc 4636A9A3 md5 669DD4C0B49E6DAB369AAFF30F7550FD sha1 97959FF7FFB21876270A9D9A01E9475B1B6C576E serial "EA-2054" )
@@ -2643,6 +2695,7 @@ game (
 )
 game (
 	name "Burnout Paradise - The Ultimate Box (Japan, Europe) (En,Ja,Fr,De,Es,It)"
+	cloneof "Burnout Paradise (USA)"
 	region "Japan"
 	serial "EA-2054"
 	rom ( name "Burnout Paradise - The Ultimate Box (Japan, Europe) (En,Ja,Fr,De,Es,It).iso" size 7835492352 crc 1BE2652D md5 65AAA7FDFF2531BF7A127CAB4B675186 sha1 018A6C21568A2A369CBB7437C16F9B35FABC4AC8 serial "EA-2054" )
@@ -2783,6 +2836,7 @@ game (
 )
 game (
 	name "Cabela's Dangerous Adventures (Europe)"
+	cloneof "Cabela's Dangerous Hunts 2009 (USA)"
 	region "Europe"
 	serial "AV-2086"
 	rom ( name "Cabela's Dangerous Adventures (Europe).iso" size 7835492352 crc 1AA43950 md5 5292B3EA1BB511AEB99AEC9174744AF0 sha1 11CC37AF2154E928DD5F3E7AE43F4C9151890753 serial "AV-2086" )
@@ -3563,6 +3617,7 @@ game (
 )
 game (
 	name "Champion Jockey - Gallop Racer & GI Jockey (Japan)"
+	cloneof "Champion Jockey - G1 Jockey & Gallop Racer (Europe)"
 	region "Japan"
 	serial "KV-2007"
 	rom ( name "Champion Jockey - Gallop Racer & GI Jockey (Japan).iso" size 7838695424 crc 094E1EC5 md5 E2223DED2DD49730713A59005E0EAF24 sha1 1FBB4423DE323533FED9F1C4FB588256F54D55EC serial "KV-2007" )
@@ -3598,12 +3653,14 @@ game (
 )
 game (
 	name "Chikyuu Boueigun 3 (Japan)"
+	cloneof "Earth Defense Force 2017 (USA, Europe)"
 	region "Japan"
 	serial "DP-2003"
 	rom ( name "Chikyuu Boueigun 3 (Japan).iso" size 7834892288 crc 7154F7C2 md5 1EE808BCD743B41E43C18C7704A83985 sha1 07E0A9C4B46CCA660B246303B0A331EB4E36D33D serial "DP-2003" )
 )
 game (
 	name "Chikyuu Boueigun 4 (Japan)"
+	cloneof "Earth Defense Force 2025 (USA)"
 	region "Japan"
 	serial "DP-2045"
 	rom ( name "Chikyuu Boueigun 4 (Japan).iso" size 7838695424 crc CE88F7D4 md5 0469C572B8BAACCB68E7A6F06A6C5C7F sha1 D6E88F840C988E37AE0805B66F44EB8C520A8F84 serial "DP-2045" )
@@ -3756,24 +3813,28 @@ game (
 )
 game (
 	name "Command & Conquer - Alarmstufe Rot 3 (Germany)"
+	cloneof "Command & Conquer - Red Alert 3 (USA, Europe) (En,Es)"
 	region "Germany"
 	serial "EA-2144"
 	rom ( name "Command & Conquer - Alarmstufe Rot 3 (Germany).iso" size 7835492352 crc 2CEC6C8F md5 D4E9206E038C2DF713FD222B7DB548CF sha1 32403945D979658FFDFEE42A26284F0E8865809B serial "EA-2144" )
 )
 game (
 	name "Command & Conquer - Alerte Rouge 3 (France)"
+	cloneof "Command & Conquer - Red Alert 3 (USA, Europe) (En,Es)"
 	region "France"
 	serial "EA-2144"
 	rom ( name "Command & Conquer - Alerte Rouge 3 (France).iso" size 7835492352 crc DD8F58F2 md5 CD4FCAD67E359E0C757E4A29103B1374 sha1 40ACE322AF873ACCBC8560D95FFCCBFC7EF8F2EC serial "EA-2144" )
 )
 game (
 	name "Command & Conquer - Red Alert 3 (Italy)"
+	cloneof "Command & Conquer - Red Alert 3 (USA, Europe) (En,Es)"
 	region "Italy"
 	serial "EA-2144"
 	rom ( name "Command & Conquer - Red Alert 3 (Italy).iso" size 7835492352 crc 841F9E96 md5 350B73359DACBC0E4CA1E5805D62C2B4 sha1 0E9FB69B88BC15B127B33B8D5EF42BE5AE90B233 serial "EA-2144" )
 )
 game (
 	name "Command & Conquer - Red Alert 3 (Russia)"
+	cloneof "Command & Conquer - Red Alert 3 (USA, Europe) (En,Es)"
 	region "Russia"
 	serial "EA-2144"
 	rom ( name "Command & Conquer - Red Alert 3 (Russia).iso" size 7835492352 crc 71E1BBA6 md5 42A2C2939C1B9BD35D01A7053D9284E1 sha1 7EB777B2575C7685AAA58F2E59666C11F3DD0F71 serial "EA-2144" )
@@ -3786,6 +3847,7 @@ game (
 )
 game (
 	name "Command & Conquer 3 - Kane's Wrath (Europe)"
+	cloneof "Command & Conquer 3 - Kane's Wrath (USA)"
 	region "Europe"
 	serial "EA-2106"
 	rom ( name "Command & Conquer 3 - Kane's Wrath (Europe).iso" size 7835492352 crc 569A0FB6 md5 19065EFB97A37F8A6A65C26825ED4F1C sha1 E59A8342CDD540AA7EAFA4DBA10B045053481A47 serial "EA-2106" )
@@ -3798,54 +3860,63 @@ game (
 )
 game (
 	name "Command & Conquer 3 - Kanes Rache (Germany)"
+	cloneof "Command & Conquer 3 - Kane's Wrath (USA)"
 	region "Germany"
 	serial "EA-2106"
 	rom ( name "Command & Conquer 3 - Kanes Rache (Germany).iso" size 7835492352 crc 528DE63A md5 C0059157890C30EB1668111037FA18D2 sha1 25BBA6FF5EA03BE7AE53FC70CD5183E5BB07E83B serial "EA-2106" )
 )
 game (
 	name "Command & Conquer 3 - L'Ira di Kane (Italy)"
+	cloneof "Command & Conquer 3 - Kane's Wrath (USA)"
 	region "Italy"
 	serial "EA-2106"
 	rom ( name "Command & Conquer 3 - L'Ira di Kane (Italy).iso" size 7835492352 crc 796B38E7 md5 92AEB807B28C20CD918240A121343005 sha1 86E0473E58005D5FCBE849F7CE439871D4FBF1D0 serial "EA-2106" )
 )
 game (
 	name "Command & Conquer 3 - La Fureur de Kane (Canada)"
+	cloneof "Command & Conquer 3 - Kane's Wrath (USA)"
 	region "Canada"
 	serial "EA-2106"
 	rom ( name "Command & Conquer 3 - La Fureur de Kane (Canada).iso" size 7835492352 crc 2A896D6C md5 7E2F2ECDE9CD42BDDF9AA52C98D863E3 sha1 0198684D387B7CEF28A4EDAC2CC913489564FBC0 serial "EA-2106" )
 )
 game (
 	name "Command & Conquer 3 - Les Guerres du Tiberium (France)"
+	cloneof "Command & Conquer 3 - Tiberium Wars (USA)"
 	region "France"
 	serial "EA-2062"
 	rom ( name "Command & Conquer 3 - Les Guerres du Tiberium (France).iso" size 7835492352 crc 630C1766 md5 CCE3A5E1FD45319D1EABD3B262B90EB5 sha1 FF879AEC693DA3B4D62EE9A990024AF51C57EF77 serial "EA-2062" )
 )
 game (
 	name "Command & Conquer 3 - Tiberium Wars (Europe)"
+	cloneof "Command & Conquer 3 - Tiberium Wars (USA)"
 	region "Europe"
 	serial "EA-2062"
 	rom ( name "Command & Conquer 3 - Tiberium Wars (Europe).iso" size 7835492352 crc C488E96E md5 5FBB77627E7B607A214C3178192336D2 sha1 D213BB9DB5A425749277F3775F9485E5B3D10848 serial "EA-2062" )
 )
 game (
 	name "Command & Conquer 3 - Tiberium Wars (Germany)"
+	cloneof "Command & Conquer 3 - Tiberium Wars (USA)"
 	region "Germany"
 	serial "EA-2062"
 	rom ( name "Command & Conquer 3 - Tiberium Wars (Germany).iso" size 7835492352 crc E5468BA4 md5 8135ADD49B34E79976AA4A411C7A25AD sha1 63D609AEB11D6BB8F83F63D1891D0F6EB483F2F5 serial "EA-2062" )
 )
 game (
 	name "Command & Conquer 3 - Tiberium Wars (Italy)"
+	cloneof "Command & Conquer 3 - Tiberium Wars (USA)"
 	region "Italy"
 	serial "EA-2062"
 	rom ( name "Command & Conquer 3 - Tiberium Wars (Italy).iso" size 7835492352 crc 04F032F6 md5 F6A9BDA72E860C6C654CAE4EB4664287 sha1 A2CC39869EA69CE4C4C28532A7BFA84ED2DDE0EE serial "EA-2062" )
 )
 game (
 	name "Command & Conquer 3 - Tiberium Wars (Korea)"
+	cloneof "Command & Conquer 3 - Tiberium Wars (USA)"
 	region "Korea"
 	serial "EA-2062"
 	rom ( name "Command & Conquer 3 - Tiberium Wars (Korea).iso" size 7835492352 crc A85DDC21 md5 09B38C8B96BAA4A9794608C83BCE36F7 sha1 7F151C7232FE68DADFE7D5BE69EBBB6478D87E18 serial "EA-2062" )
 )
 game (
 	name "Command & Conquer 3 - Tiberium Wars (Spain)"
+	cloneof "Command & Conquer 3 - Tiberium Wars (USA)"
 	region "Spain"
 	serial "EA-2062"
 	rom ( name "Command & Conquer 3 - Tiberium Wars (Spain).iso" size 7835492352 crc E3A3B87B md5 BEE7A5E48BA8923F14B94601676CA475 sha1 EA26A7977D91F2A9A4F7D5AC4898820A832D3901 serial "EA-2062" )
@@ -3881,6 +3952,7 @@ game (
 )
 game (
 	name "Condemned (Europe) (En,Fr,De,Es,It)"
+	cloneof "Condemned (USA, Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "SE-2002"
 	rom ( name "Condemned (Europe) (En,Fr,De,Es,It).iso" size 7834892288 crc 5B1F3193 md5 DCE4E4B0A1AFDF70EFEBBB5A6A43E08A sha1 83EDC8E0FC048384A8FA8EB65BD771974B76B4A7 serial "SE-2002" )
@@ -3893,6 +3965,7 @@ game (
 )
 game (
 	name "Condemned - Psycho Crime (Japan)"
+	cloneof "Condemned (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "SE-2002"
 	rom ( name "Condemned - Psycho Crime (Japan).iso" size 7834892288 crc 4ECBFE18 md5 7989DD374EB7727BE8265F369C651A45 sha1 860DD658111897FAC535A17109C32E36AB0B8B0F serial "SE-2002" )
@@ -3930,6 +4003,7 @@ game (
 )
 game (
 	name "Copa do Mundo da FIFA Brasil 2014 (Brazil) (En,Pt)"
+	cloneof "2014 FIFA World Cup Brazil (USA) (En,Fr,Es)"
 	region "Brazil"
 	serial "EA-2516"
 	rom ( name "Copa do Mundo da FIFA Brasil 2014 (Brazil) (En,Pt).iso" size 8738846720 crc 89C4A6A3 md5 B63A47903DDB38CC82843A2CF8ABE9CF sha1 3C74DD44F7EDED4876D2BA42D906F3F3E54CDCC7 serial "EA-2516" )
@@ -4206,6 +4280,7 @@ game (
 )
 game (
 	name "Dance Evolution (Japan, Europe)"
+	cloneof "Dance Masters (USA)"
 	region "Japan"
 	serial "KN-2078"
 	rom ( name "Dance Evolution (Japan, Europe).iso" size 7838695424 crc D1A07966 md5 9A7C9E476A2AFCA3C6619F103E87D4F1 sha1 3B6A5F18C9290AC0FFA6251A27E5004B7451A8BA serial "KN-2078" )
@@ -4230,6 +4305,7 @@ game (
 )
 game (
 	name "Dancing Stage Universe (Europe)"
+	cloneof "Dance Dance Revolution Universe (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "KN-2012"
 	rom ( name "Dancing Stage Universe (Europe).iso" size 7835492352 crc F8A60861 md5 BAF3F1616951D9B5EFF0ACBEB3F95CF5 sha1 0E2A933628D56855248CC6FB7113A7BE8AE1807A serial "KN-2012" )
@@ -4242,6 +4318,7 @@ game (
 )
 game (
 	name "Dante's Inferno (Europe) (En,De,It)"
+	cloneof "Dante's Inferno (USA, Europe) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2255"
 	rom ( name "Dante's Inferno (Europe) (En,De,It).iso" size 7838695424 crc D961DFAB md5 AA861251C4E9AF49D944F5E0B22EEE0C sha1 A8920BE61D80305158423092BB3AB1F089C7795C serial "EA-2255" )
@@ -4254,6 +4331,7 @@ game (
 )
 game (
 	name "Dante's Inferno - Shinkyoku Jigoku-hen (Japan)"
+	cloneof "Dante's Inferno (USA, Europe) (En,Fr,Es)"
 	region "Japan"
 	serial "EA-2255"
 	rom ( name "Dante's Inferno - Shinkyoku Jigoku-hen (Japan).iso" size 7838695424 crc F5C956B5 md5 92438DA3EF7BEC21D56B46B37483851E sha1 401B229FE7EDF77F7FF2D5BC8C842B34B4DF9EAE serial "EA-2255" )
@@ -4308,18 +4386,21 @@ game (
 )
 game (
 	name "Dark Souls (Europe)"
+	cloneof "Dark Souls (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "NM-2106"
 	rom ( name "Dark Souls (Europe).iso" size 8738846720 crc 84F6628F md5 0527552CC66040A4B756C2BEED4273BB sha1 AFC7D3D789B93A263C9855A7B5528F8E5F7652D7 serial "NM-2106" )
 )
 game (
 	name "Dark Souls (Europe) (En,Fr,De,Es,It)"
+	cloneof "Dark Souls (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "NM-2106"
 	rom ( name "Dark Souls (Europe) (En,Fr,De,Es,It).iso" size 8738846720 crc BACE2C77 md5 C1E73932D2D80D8F791BA424075E0F5A sha1 D51447A393227C916F5045691D36F706AF955ECC serial "NM-2106" )
 )
 game (
 	name "Dark Souls (Korea) (En,Zh,Ko)"
+	cloneof "Dark Souls (USA) (En,Fr,Es)"
 	region "Korea"
 	serial "NM-2106"
 	rom ( name "Dark Souls (Korea) (En,Zh,Ko).iso" size 8738846720 crc 48114FFC md5 2E1C1CB8B853120D177D6FBEC31D579E sha1 4A15555EFA982C0FBE63B5A6FC1B9873D16F05EF serial "NM-2106" )
@@ -4332,12 +4413,14 @@ game (
 )
 game (
 	name "Dark Souls (USA) (En,Fr,Es) (Rev 1)"
+	cloneof "Dark Souls (USA) (En,Fr,Es)"
 	region "USA"
 	serial "NM-2106"
 	rom ( name "Dark Souls (USA) (En,Fr,Es) (Rev 1).iso" size 7838695424 crc 73890456 md5 4F789150B43F4BC1175A85EAAB1C72D2 sha1 5A5FD3313866B1EA8985F85E76B36ABFD4D2222E serial "NM-2106" )
 )
 game (
 	name "Dark Souls - Prepare to Die Edition (Europe) (En,Fr,De,Es,It)"
+	cloneof "Dark Souls (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "NM-2106"
 	rom ( name "Dark Souls - Prepare to Die Edition (Europe) (En,Fr,De,Es,It).iso" size 8738846720 crc B7D9204F md5 5DC845DCDC8966D4DBEFC686D43ECBBD sha1 7884FBEDA06C71AC39ACF43432CC4B6FB6D19F33 serial "NM-2106" )
@@ -4350,6 +4433,7 @@ game (
 )
 game (
 	name "Dark Souls II (World) (En,Ja,Fr,De,Es,It,Zh,Ko,Pl,Ru)"
+	cloneof "Dark Souls II (Japan)"
 	serial "FS-2020"
 	rom ( name "Dark Souls II (World) (En,Ja,Fr,De,Es,It,Zh,Ko,Pl,Ru).iso" size 7838695424 crc 965772E0 md5 3C0AD83ECC69EAFF5BD1F48B566EB15B sha1 4E47E4ADBDC4E9F93FA5073C177C777C36F7D8DA serial "FS-2020" )
 )
@@ -4438,12 +4522,14 @@ game (
 )
 game (
 	name "Darksiders (USA, Europe) (En,Ja,Fr,De,Es,It,Ru)"
+	cloneof "Darksiders (USA) (En,Fr,Es)"
 	region "USA"
 	serial "TQ-2022"
 	rom ( name "Darksiders (USA, Europe) (En,Ja,Fr,De,Es,It,Ru).iso" size 7838695424 crc 87CCEBDD md5 970C1D730BA69E714292D502A577A1E6 sha1 654446A739E824201A12B293BF692F086457A356 serial "TQ-2022" )
 )
 game (
 	name "Darksiders - Shinpan no Toki (Japan)"
+	cloneof "Darksiders (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "KN-2068"
 	rom ( name "Darksiders - Shinpan no Toki (Japan).iso" size 7838695424 crc E42AD693 md5 08840C870D3040D32C5BCF6CA94326B0 sha1 00A4E21DBCC950EC379FE053C8ECEAC28BEFCF80 serial "KN-2068" )
@@ -4468,6 +4554,7 @@ game (
 )
 game (
 	name "Dead Island (Japan)"
+	cloneof "Dead Island (USA, Europe) (En,Fr,De,Es,It,Pl)"
 	region "Japan"
 	serial "SD-2051"
 	rom ( name "Dead Island (Japan).iso" size 7838695424 crc A3476FD0 md5 6382ACA9B0EA5C7D8A8B94900E9C0BA1 sha1 FEB290AE0CDEB9EA7429AD8EEEFFDCB823E0ECA7 serial "SD-2051" )
@@ -4480,12 +4567,14 @@ game (
 )
 game (
 	name "Dead Island - Game of the Year Edition (USA, Europe) (En,Fr,De,Es,It,Pl)"
+	cloneof "Dead Island (USA, Europe) (En,Fr,De,Es,It,Pl)"
 	region "USA"
 	serial "KM-2015"
 	rom ( name "Dead Island - Game of the Year Edition (USA, Europe) (En,Fr,De,Es,It,Pl).iso" size 7838695424 crc 3CBD32B1 md5 1F08C9DAC94721B361B4C25B85AA7435 sha1 D1D19DC36C825C9BD2EC2C97E30D62596B5A6425 serial "KM-2015" )
 )
 game (
 	name "Dead Island - Riptide (Japan)"
+	cloneof "Dead Island - Riptide (USA, Europe) (En,Fr,De,Es,It,Pl)"
 	region "Japan"
 	serial "WF-2005"
 	rom ( name "Dead Island - Riptide (Japan).iso" size 7838695424 crc E157D2F7 md5 3717E5ECD3A2510DEE3E9A7F95EC1446 sha1 B0B87D34C5F662C886964C82351DBC03D8194638 serial "WF-2005" )
@@ -4498,12 +4587,14 @@ game (
 )
 game (
 	name "Dead Island - Riptide - Complete Edition (Europe) (En,Fr,De,Es,It,Pl)"
+	cloneof "Dead Island - Riptide (USA, Europe) (En,Fr,De,Es,It,Pl)"
 	region "Europe"
 	serial "KM-2034"
 	rom ( name "Dead Island - Riptide - Complete Edition (Europe) (En,Fr,De,Es,It,Pl).iso" size 7838695424 crc FF597541 md5 70D3FDC6CD2F129EADFB4799A874B5EA sha1 3ECB5D8A4A01713379607A0FF7AEC1A0C185D6CC serial "KM-2034" )
 )
 game (
 	name "Dead Island - Zombie of the Year Edition (Japan)"
+	cloneof "Dead Island (USA, Europe) (En,Fr,De,Es,It,Pl)"
 	region "Japan"
 	serial "SD-2051"
 	rom ( name "Dead Island - Zombie of the Year Edition (Japan).iso" size 7838695424 crc 8821AD87 md5 BF1709F105FB417766DA8287C41688E3 sha1 DC50E340FE5A1A42215C375BC66C54424DE00079 serial "SD-2051" )
@@ -4834,12 +4925,14 @@ game (
 )
 game (
 	name "Dead or Alive 5 (Europe) (En,Ja,Fr,De,Es,It)"
+	cloneof "Dead or Alive 5 (USA)"
 	region "Europe"
 	serial "KV-2010"
 	rom ( name "Dead or Alive 5 (Europe) (En,Ja,Fr,De,Es,It).iso" size 8738846720 crc 0BB4A2FC md5 ABA74793C05E175DFC606C7EC18F3DF0 sha1 C2FED44CD242F4D1E1711C0BBA36B860E5C942AA serial "KV-2010" )
 )
 game (
 	name "Dead or Alive 5 (Japan)"
+	cloneof "Dead or Alive 5 (USA)"
 	region "Japan"
 	serial "KV-2010"
 	rom ( name "Dead or Alive 5 (Japan).iso" size 8738846720 crc F9F23640 md5 664963D975025365DF27B64361DE4173 sha1 360DC7DE831BA2283DAE033E8CA23DCC76D7FFAA serial "KV-2010" )
@@ -4852,6 +4945,7 @@ game (
 )
 game (
 	name "Dead or Alive 5 Ultimate (World)"
+	cloneof "Dead or Alive 5 (USA)"
 	serial "KV-2024"
 	rom ( name "Dead or Alive 5 Ultimate (World).iso" size 8738846720 crc 259CBE76 md5 4A0976BC6F3A36E10404763044F78D26 sha1 8E1F97233F4839FD4D1E93F4C3A3C22AE0624FCF serial "KV-2024" )
 )
@@ -4904,6 +4998,7 @@ game (
 )
 game (
 	name "Deadly Premonition (Europe) (En,Fr,De,Es,It)"
+	cloneof "Deadly Premonition (USA)"
 	region "Europe"
 	serial "MV-2001"
 	rom ( name "Deadly Premonition (Europe) (En,Fr,De,Es,It).iso" size 7838695424 crc 7F7CCA9B md5 3CB88BB5FCCE266ED7446FAAF8A301A6 sha1 DC12A20817094E775CB998D2A77332A6132DAB39 serial "MV-2001" )
@@ -5046,30 +5141,35 @@ game (
 )
 game (
 	name "Deus Ex - Human Revolution (France)"
+	cloneof "Deus Ex (Japan)"
 	region "France"
 	serial "SQ-2042"
 	rom ( name "Deus Ex - Human Revolution (France).iso" size 7838695424 crc DF17AD5F md5 10583F577278B196FA3975DDF750D3C3 sha1 B94C25D64810F84BCE4ACBC858E47499CFEC5E99 serial "SQ-2042" )
 )
 game (
 	name "Deus Ex - Human Revolution (Germany)"
+	cloneof "Deus Ex (Japan)"
 	region "Germany"
 	serial "SQ-2042"
 	rom ( name "Deus Ex - Human Revolution (Germany).iso" size 7838695424 crc EB5CEA84 md5 7E2FF0355F5D328874D646478B2BFC60 sha1 9FAC1E33767D7B0C1EB8CA7EAC254F11A4A95E2C serial "SQ-2042" )
 )
 game (
 	name "Deus Ex - Human Revolution (Italy)"
+	cloneof "Deus Ex (Japan)"
 	region "Italy"
 	serial "SQ-2042"
 	rom ( name "Deus Ex - Human Revolution (Italy).iso" size 7838695424 crc DEE4B116 md5 A705EB408365B24BC65CE355AD16B56F sha1 33C4BA738C1E0EDC950179A856378AE128CF5D32 serial "SQ-2042" )
 )
 game (
 	name "Deus Ex - Human Revolution (Poland)"
+	cloneof "Deus Ex (Japan)"
 	region "Poland"
 	serial "SQ-2042"
 	rom ( name "Deus Ex - Human Revolution (Poland).iso" size 7838695424 crc 6F2BF71A md5 6A1C94CCD512ADBD05F3F2D54A068722 sha1 9E34A4E4B7865DE14A073DC37185C23B2CCB8021 serial "SQ-2042" )
 )
 game (
 	name "Deus Ex - Human Revolution (Poland) (Beta)"
+	cloneof "Deus Ex (Japan)"
 	releaseyear "2011"
 	releasemonth "04"
 	releaseday "12"
@@ -5078,18 +5178,21 @@ game (
 )
 game (
 	name "Deus Ex - Human Revolution (Russia)"
+	cloneof "Deus Ex (Japan)"
 	region "Russia"
 	serial "SQ-2042"
 	rom ( name "Deus Ex - Human Revolution (Russia).iso" size 7838695424 crc 432147AA md5 D91F194EBBB2CE982D093C2C56B160AC sha1 060D3340455B30219750D70B04ABD39E873631F9 serial "SQ-2042" )
 )
 game (
 	name "Deus Ex - Human Revolution (Spain)"
+	cloneof "Deus Ex (Japan)"
 	region "Spain"
 	serial "SQ-2042"
 	rom ( name "Deus Ex - Human Revolution (Spain).iso" size 7838695424 crc 06534E23 md5 E41EB32091335559B0696160AABC22C4 sha1 64A003EC8AB85DD5E245292352C86CFAAA1B5880 serial "SQ-2042" )
 )
 game (
 	name "Deus Ex - Human Revolution (World)"
+	cloneof "Deus Ex (Japan)"
 	serial "SQ-2042"
 	rom ( name "Deus Ex - Human Revolution (World).iso" size 7838695424 crc 0F6A65A0 md5 7CBFDEEEBEB3A9EC42C83030A3E4F5FB sha1 AF6FF7B96F7DB57CFDE17F8AC1C064E241735E56 serial "SQ-2042" )
 )
@@ -5142,36 +5245,42 @@ game (
 )
 game (
 	name "Diablo III (Brazil) (Es,Pt)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Brazil"
 	serial "9O-2001"
 	rom ( name "Diablo III (Brazil) (Es,Pt).iso" size 8738846720 crc CAB9139B md5 F1E6DC520187F6751332F04F50CA296C sha1 AAFF90049B705C16B7599370FC4A3B2BFC2E5298 serial "9O-2001" )
 )
 game (
 	name "Diablo III (Europe, Australia) (En,Fr)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Europe"
 	serial "9O-2001"
 	rom ( name "Diablo III (Europe, Australia) (En,Fr).iso" size 8738846720 crc 582F736A md5 D66AFEEB7E327D4B9F814F36CFDFC72A sha1 321DFAE69F61EAE35065BCBB76246520775B3E8F serial "9O-2001" )
 )
 game (
 	name "Diablo III (Germany) (En,De)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Germany"
 	serial "9O-2001"
 	rom ( name "Diablo III (Germany) (En,De).iso" size 8738846720 crc BE3B1474 md5 D7EC9D4A6C173FF92C8648E9AB56E5EA sha1 1DB7002CC3DEB3BE97CB55A6EA27DBF62E4044DF serial "9O-2001" )
 )
 game (
 	name "Diablo III (Italy) (En,It)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Italy"
 	serial "9O-2001"
 	rom ( name "Diablo III (Italy) (En,It).iso" size 8738846720 crc 032B2F34 md5 26B54B11E0908FF063DA0FFFF799F567 sha1 13C901E42EA6D4A191B41E00AE8E67EBB78B9679 serial "9O-2001" )
 )
 game (
 	name "Diablo III (Russia) (Pl,Ru)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Russia"
 	serial "9O-2001"
 	rom ( name "Diablo III (Russia) (Pl,Ru).iso" size 8738846720 crc 4C622F8A md5 D06A1FF968D9B9C296DCE41F47E011CB sha1 34715AD95ABAF4464702D3CCCE3FAAEBB736090D serial "9O-2001" )
 )
 game (
 	name "Diablo III (Spain) (En,Es)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Spain"
 	serial "9O-2001"
 	rom ( name "Diablo III (Spain) (En,Es).iso" size 8738846720 crc 9E4A2564 md5 707A4E33B2F56A85AD248C69BE9BB852 sha1 2610F3F7257FF0EC4DD34AB81F5708C46801191A serial "9O-2001" )
@@ -5184,36 +5293,42 @@ game (
 )
 game (
 	name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Brazil)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Brazil"
 	serial "9O-2004"
 	rom ( name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Brazil).iso" size 8738846720 crc 4389D977 md5 F39DCB7BDB3C2D467939921ED1924166 sha1 CE677100AE016C6A9906E18415161DF29F54E8AC serial "9O-2004" )
 )
 game (
 	name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Germany)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Germany"
 	serial "9O-2004"
 	rom ( name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Germany).iso" size 8738846720 crc B5454845 md5 869C06936795E423B63EEC4062256F6F sha1 672AAD7A509C76359086624B8BEDA50DF11B7E81 serial "9O-2004" )
 )
 game (
 	name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Italy)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Italy"
 	serial "9O-2004"
 	rom ( name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Italy).iso" size 8738846720 crc 250F73CE md5 6F0261BE2EB7158D5D36D92BC87176B4 sha1 A4DAE330BCA0D06A03663F34AC8A31C51195693A serial "9O-2004" )
 )
 game (
 	name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Russia)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Russia"
 	serial "9O-2004"
 	rom ( name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Russia).iso" size 8738846720 crc 878EE85E md5 26726E75027B0C36B3241BA6636BB36E sha1 D22CDFA80394403217D9AA104B677032FF4FF799 serial "9O-2004" )
 )
 game (
 	name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Spain)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "Spain"
 	serial "9O-2004"
 	rom ( name "Diablo III - Reaper of Souls - Ultimate Evil Edition (Spain).iso" size 8738846720 crc 4A98BD14 md5 0503DA7DD79E0B57A0FEAE8EAB466EDA sha1 D51A4D081288FBAE6A265471F6CA9581F0F18A9B serial "9O-2004" )
 )
 game (
 	name "Diablo III - Reaper of Souls - Ultimate Evil Edition (USA)"
+	cloneof "Diablo III (USA) (En,Fr)"
 	region "USA"
 	serial "9O-2004"
 	rom ( name "Diablo III - Reaper of Souls - Ultimate Evil Edition (USA).iso" size 8738846720 crc 461A035F md5 028397B8F84105899295898C8460E7BF sha1 53DE8F4308F7A3BD0EA307A5BC5C816B9DFA380E serial "9O-2004" )
@@ -5256,6 +5371,7 @@ game (
 )
 game (
 	name "Dirt 3 (Japan)"
+	cloneof "Dirt 3 (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "CM-2109"
 	rom ( name "Dirt 3 (Japan).iso" size 7838695424 crc 21EB089D md5 B0B97E872BAD58A3840FFE4A0EC4B4BE sha1 D317F4E8B3EC6E6FB3F88B870EF06D5C5AD5FA97 serial "CM-2109" )
@@ -5268,6 +5384,7 @@ game (
 )
 game (
 	name "Dirt 3 - Complete Edition (USA, Europe) (En,Fr,De,Es,It)"
+	cloneof "Dirt 3 (USA, Europe) (En,Fr,De,Es,It)"
 	region "USA"
 	serial "CM-2109"
 	rom ( name "Dirt 3 - Complete Edition (USA, Europe) (En,Fr,De,Es,It).iso" size 8738846720 crc 302A0931 md5 E04676210F20A6F53A1232C3217557C0 sha1 44469B0EC183F3C30FA89512AB734FD3E1567F37 serial "CM-2109" )
@@ -5466,18 +5583,21 @@ game (
 )
 game (
 	name "Disney Infinity 2.0 - Igra bez Granic (Russia) (En,Ru)"
+	cloneof "Disney Infinity 2.0 Edition (USA) (En,Fr,Es,Pt)"
 	region "Russia"
 	serial "BV-2092"
 	rom ( name "Disney Infinity 2.0 - Igra bez Granic (Russia) (En,Ru).iso" size 7838695424 crc 0F82DD71 md5 7D47D3EBCDF63AB9FEA8277A0B0D2250 sha1 519202168F6039F55391F0C2B45E7831D5AD731F serial "BV-2092" )
 )
 game (
 	name "Disney Infinity 2.0 - Play Without Limits (Europe) (En,Es,Pl,Ar)"
+	cloneof "Disney Infinity 2.0 Edition (USA) (En,Fr,Es,Pt)"
 	region "Europe"
 	serial "BV-2092"
 	rom ( name "Disney Infinity 2.0 - Play Without Limits (Europe) (En,Es,Pl,Ar).iso" size 7838695424 crc 0768CA09 md5 9D1F24BEAC9D5C41CB64CED26A6C55A4 sha1 A1935297FDFAC9319013235212D595562040BE86 serial "BV-2092" )
 )
 game (
 	name "Disney Infinity 2.0 - Play Without Limits (Europe) (Fr,De,It,Nl)"
+	cloneof "Disney Infinity 2.0 Edition (USA) (En,Fr,Es,Pt)"
 	region "Europe"
 	serial "BV-2092"
 	rom ( name "Disney Infinity 2.0 - Play Without Limits (Europe) (Fr,De,It,Nl).iso" size 7838695424 crc 7D5D8DD4 md5 5CB0957B20C841CA819BEAAB3C96F763 sha1 D7581EA77592237D495A25FE5937FCF7D7535778 serial "BV-2092" )
@@ -5490,18 +5610,21 @@ game (
 )
 game (
 	name "Disney Infinity 3.0 - Play Without Limits (Europe) (En,Es,It)"
+	cloneof "Disney Infinity 3.0 Edition (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "BV-2098"
 	rom ( name "Disney Infinity 3.0 - Play Without Limits (Europe) (En,Es,It).iso" size 8738846720 crc 8D65E236 md5 D378B9CCC727CB9607718492E3E2EF2F sha1 8DC83739DD0746418C6ABEC43E4A12B365537625 serial "BV-2098" )
 )
 game (
 	name "Disney Infinity 3.0 - Play Without Limits (Europe) (En,Fi,Pl)"
+	cloneof "Disney Infinity 3.0 Edition (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "BV-2098"
 	rom ( name "Disney Infinity 3.0 - Play Without Limits (Europe) (En,Fi,Pl).iso" size 8738846720 crc DE3C5B53 md5 8068222F91E48C767FB6A75B975FB9EF sha1 ADAA550EF41E13738EA3309B50EFE8390092D891 serial "BV-2098" )
 )
 game (
 	name "Disney Infinity 3.0 - Play Without Limits (Europe) (Fr,De,Nl)"
+	cloneof "Disney Infinity 3.0 Edition (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "BV-2098"
 	rom ( name "Disney Infinity 3.0 - Play Without Limits (Europe) (Fr,De,Nl).iso" size 8738846720 crc DB35724C md5 65718F4346CF73010946E458604907B6 sha1 DC26A8EB1EF8005AA0932E46532584C4A272FA7F serial "BV-2098" )
@@ -5653,12 +5776,14 @@ game (
 )
 game (
 	name "Disney-Pixar Istoriya igrushek - Bol'shoj pobeg (Russia)"
+	cloneof "Disney-Pixar Toy Story 3 (USA) (En,Fr,Es)"
 	region "Russia"
 	serial "BV-2021"
 	rom ( name "Disney-Pixar Istoriya igrushek - Bol'shoj pobeg (Russia).iso" size 7838695424 crc 1B64EDD7 md5 9886F59E795CF2B1D140CAADE383C6F4 sha1 E94310A6BF74F3C868683C6F4A3F9ADEB8C027D1 serial "BV-2021" )
 )
 game (
 	name "Disney-Pixar Oben (Germany)"
+	cloneof "Disney-Pixar Up (USA) (En,Fr)"
 	region "Germany"
 	serial "TQ-2105"
 	rom ( name "Disney-Pixar Oben (Germany).iso" size 7838695424 crc 5BF9E5EA md5 ADBB95C518F5544387D3DF871B8C8A1E sha1 CB9DC66AF8F6ADDE4BB7ED189E96600F0D69DEA3 serial "TQ-2105" )
@@ -5683,12 +5808,14 @@ game (
 )
 game (
 	name "Disney-Pixar Toy Story 3 (Europe) (Fr,De,It,Nl)"
+	cloneof "Disney-Pixar Toy Story 3 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "BV-2021"
 	rom ( name "Disney-Pixar Toy Story 3 (Europe) (Fr,De,It,Nl).iso" size 7838695424 crc AD4B927F md5 78629C4E614E56751DD5A63C91109BEC sha1 F42A6F6041E56EA2B6D3693710FC021B10F4CB52 serial "BV-2021" )
 )
 game (
 	name "Disney-Pixar Toy Story 3 (Spain) (En,Es)"
+	cloneof "Disney-Pixar Toy Story 3 (USA) (En,Fr,Es)"
 	region "Spain"
 	serial "BV-2021"
 	rom ( name "Disney-Pixar Toy Story 3 (Spain) (En,Es).iso" size 7838695424 crc 0DE3E939 md5 EC96B77DFD870C27B4A5C35118616702 sha1 F35F2F8DC2E13B2678EC34D41FE94BA1866C3CB6 serial "BV-2021" )
@@ -5701,6 +5828,7 @@ game (
 )
 game (
 	name "Disney-Pixar Toy Story 3 (USA) (Toy Box Special Edition)"
+	cloneof "Disney-Pixar Toy Story 3 (USA) (En,Fr,Es)"
 	region "USA"
 	serial "BV-2021"
 	rom ( name "Disney-Pixar Toy Story 3 (USA) (Toy Box Special Edition).iso" size 7838695424 crc C4581D76 md5 DAAABF41C78C6DB03FA2A3F8B64CDBF6 sha1 11CAA517A5B86005C7C8EF199E2789175EE6BA11 serial "BV-2021" )
@@ -5713,12 +5841,14 @@ game (
 )
 game (
 	name "Disney-Pixar Up (Italy)"
+	cloneof "Disney-Pixar Up (USA) (En,Fr)"
 	region "Italy"
 	serial "TQ-2105"
 	rom ( name "Disney-Pixar Up (Italy).iso" size 7838695424 crc 4DE8B78F md5 7CA951C2DB1474E39D7C345231C74F95 sha1 07036FBC6231BB53AA7D4DA13B4FA7B580251ED0 serial "TQ-2105" )
 )
 game (
 	name "Disney-Pixar Up (Spain)"
+	cloneof "Disney-Pixar Up (USA) (En,Fr)"
 	region "Spain"
 	serial "TQ-2105"
 	rom ( name "Disney-Pixar Up (Spain).iso" size 7838695424 crc 4A852A87 md5 74D91A3C0BE58E31C952B1AF54A6734F sha1 9D74432319876A71479434E9B098E2144DEACCCC serial "TQ-2105" )
@@ -5731,18 +5861,21 @@ game (
 )
 game (
 	name "Disney-Pixar WALL-E (Italy)"
+	cloneof "Disney-Pixar WALL-E (USA) (En,Fr,Es)"
 	region "Italy"
 	serial "TQ-2084"
 	rom ( name "Disney-Pixar WALL-E (Italy).iso" size 7835492352 crc 02A0440B md5 2B2F55B6BDA49438A941640C2CBE3521 sha1 EE02C5A3432EA68D3066BC343A562CA71B61C58A serial "TQ-2084" )
 )
 game (
 	name "Disney-Pixar WALL-E (Korea)"
+	cloneof "Disney-Pixar WALL-E (USA) (En,Fr,Es)"
 	region "Korea"
 	serial "TQ-2096"
 	rom ( name "Disney-Pixar WALL-E (Korea).iso" size 7835492352 crc AE93D012 md5 8205973EF037B2039C920394E90BF421 sha1 8814F376316F53D00A7F7D50549EB1BB59D4671F serial "TQ-2096" )
 )
 game (
 	name "Disney-Pixar WALL-E (Russia)"
+	cloneof "Disney-Pixar WALL-E (USA) (En,Fr,Es)"
 	region "Russia"
 	serial "TQ-2084"
 	rom ( name "Disney-Pixar WALL-E (Russia).iso" size 7835492352 crc 38C3AE0F md5 7738EFB3680F6CB6E39E79C2FDE33D9C sha1 5041219AF97874D8654752441BB76D96D68D3078 serial "TQ-2084" )
@@ -5755,18 +5888,21 @@ game (
 )
 game (
 	name "Disney-Pixar WALL-E (United Arab Emirates) (En,Ar)"
+	cloneof "Disney-Pixar WALL-E (USA) (En,Fr,Es)"
 	region "United Arab Emirates"
 	serial "TQ-2084"
 	rom ( name "Disney-Pixar WALL-E (United Arab Emirates) (En,Ar).iso" size 7835492352 crc F66D5FA4 md5 7756EC6E1595CDDEA050573486FD3DEC sha1 53833C11C5694AFD650E30EA0BF0A6C18FF1C6A5 serial "TQ-2084" )
 )
 game (
 	name "Disney-Pixar WALL-E - Batallon de Limpieza (Spain) (En,Es)"
+	cloneof "Disney-Pixar WALL-E (USA) (En,Fr,Es)"
 	region "Spain"
 	serial "TQ-2084"
 	rom ( name "Disney-Pixar WALL-E - Batallon de Limpieza (Spain) (En,Es).iso" size 7835492352 crc 3661FEEF md5 41C036279FFFCA4F6B0181F163295F36 sha1 CD64FDA38C7E909950DF95215C400759D57D464A serial "TQ-2084" )
 )
 game (
 	name "Disney-Pixar WALL-E - Der Letzte raeumt die Erde auf (Germany)"
+	cloneof "Disney-Pixar WALL-E (USA) (En,Fr,Es)"
 	region "Germany"
 	serial "TQ-2084"
 	rom ( name "Disney-Pixar WALL-E - Der Letzte raeumt die Erde auf (Germany).iso" size 7835492352 crc 3FCA151E md5 DAF094E231B5C8D21EC8629F6E3FB886 sha1 84AB8FCB452E9A71FEB0515042E62157B5B6BA28 serial "TQ-2084" )
@@ -5779,18 +5915,21 @@ game (
 )
 game (
 	name "Divinity II - Ego Draconis (Europe, Asia) (En,Fr,Es,It)"
+	cloneof "Divinity II - Ego Draconis (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "DT-2003"
 	rom ( name "Divinity II - Ego Draconis (Europe, Asia) (En,Fr,Es,It).iso" size 7838695424 crc E081933A md5 E7F8937EC56E80B7FE12E74CD5A3765C sha1 AF635C2ED94C12746668AC8B0EC8DB712AE8A197 serial "DT-2003" )
 )
 game (
 	name "Divinity II - Ego Draconis (Germany) (Fr,De)"
+	cloneof "Divinity II - Ego Draconis (USA) (En,Fr,Es)"
 	region "Germany"
 	serial "DT-2003"
 	rom ( name "Divinity II - Ego Draconis (Germany) (Fr,De).iso" size 7838695424 crc 0744BE37 md5 2660D10EFD90599E4BF9A1EE7F6C892A sha1 1E84F88774492F119665259DF73CF62A7B11CBB9 serial "DT-2003" )
 )
 game (
 	name "Divinity II - Ego Draconis (USA) (Beta)"
+	cloneof "Divinity II - Ego Draconis (USA) (En,Fr,Es)"
 	releaseyear "2009"
 	releasemonth "10"
 	releaseday "08"
@@ -5805,24 +5944,28 @@ game (
 )
 game (
 	name "Divinity II - The Dragon Knight Saga (Europe) (En,Fr,Es,It)"
+	cloneof "Divinity II - Ego Draconis (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "FE-2006"
 	rom ( name "Divinity II - The Dragon Knight Saga (Europe) (En,Fr,Es,It).iso" size 7838695424 crc E2624895 md5 A0B38B07FFC55820FECA8F00DF09BE4C sha1 F3DFB7B938B5013150F5322E680FE7F23EEE0C11 serial "FE-2006" )
 )
 game (
 	name "Divinity II - The Dragon Knight Saga (Europe) (Fr,De)"
+	cloneof "Divinity II - Ego Draconis (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "FE-2006"
 	rom ( name "Divinity II - The Dragon Knight Saga (Europe) (Fr,De).iso" size 7838695424 crc BB54529E md5 E828E19E83D62E8B118A4C151B8B2195 sha1 4EE42E5736995D6ED96EA4552E0B184088F665ED serial "FE-2006" )
 )
 game (
 	name "Divinity II - The Dragon Knight Saga (Japan)"
+	cloneof "Divinity II - Ego Draconis (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "FE-2006"
 	rom ( name "Divinity II - The Dragon Knight Saga (Japan).iso" size 7838695424 crc D8BA691B md5 7769F6A2ACE6FA405983767FAE05CEA5 sha1 A0B1A81FC544EAB3863724B4F36433E4FB8379A3 serial "FE-2006" )
 )
 game (
 	name "Divinity II - The Dragon Knight Saga (USA)"
+	cloneof "Divinity II - Ego Draconis (USA) (En,Fr,Es)"
 	region "USA"
 	serial "AT-2008"
 	rom ( name "Divinity II - The Dragon Knight Saga (USA).iso" size 7838695424 crc DB9AECDA md5 D426198F8CC85F8E37090950B271EB16 sha1 0C2BF54EADE0099E900553DC5B15E29F52913A3F serial "AT-2008" )
@@ -5982,12 +6125,14 @@ game (
 )
 game (
 	name "Dragon Age - Nachalo (Russia)"
+	cloneof "Dragon Age - Origins (Japan) (Disc 1)"
 	region "Russia"
 	serial "EA-2240"
 	rom ( name "Dragon Age - Nachalo (Russia).iso" size 7838695424 crc 6698377F md5 E416B7AD4DC851883011D3EDDD95671C sha1 059DFAB3A4C9473AAC5D3F1580F99E078D286025 serial "EA-2240" )
 )
 game (
 	name "Dragon Age - Origins (Germany)"
+	cloneof "Dragon Age - Origins (Japan) (Disc 1)"
 	region "Germany"
 	serial "EA-2240"
 	rom ( name "Dragon Age - Origins (Germany).iso" size 7838695424 crc 6D4A6204 md5 4E9EDF48B1CA48322E3AB848C21E9802 sha1 150A670B192203DA7B35C6187A9FD42A6A7331E8 serial "EA-2240" )
@@ -6006,18 +6151,21 @@ game (
 )
 game (
 	name "Dragon Age - Origins (Japan) (Disc 2) (Tsuika Contents Disc)"
+	cloneof "Dragon Age - Origins (Japan) (Disc 1)"
 	region "Japan"
 	serial "SD-2050"
 	rom ( name "Dragon Age - Origins (Japan) (Disc 2) (Tsuika Contents Disc).iso" size 7838695424 crc AD6DF048 md5 3C319C4EB190350F85EE85BA077E626F sha1 BB174BC2CA16B4731352B5733718C600A90EE7EB serial "SD-2050" )
 )
 game (
 	name "Dragon Age - Origins (Japan) (Disc 2) (Tsuika Contents Disc)"
+	cloneof "Dragon Age - Origins (Japan) (Disc 1)"
 	region "Japan"
 	serial "SD-2050-1"
 	rom ( name "Dragon Age - Origins (Japan) (Disc 2) (Tsuika Contents Disc).iso" size 7838695424 crc AD6DF048 md5 3C319C4EB190350F85EE85BA077E626F sha1 BB174BC2CA16B4731352B5733718C600A90EE7EB serial "SD-2050-1" )
 )
 game (
 	name "Dragon Age - Origins (World) (En,Es,It)"
+	cloneof "Dragon Age - Origins (Japan) (Disc 1)"
 	serial "EA-2240"
 	rom ( name "Dragon Age - Origins (World) (En,Es,It).iso" size 7838695424 crc 316310F1 md5 287C2DFDC05D01C66C87E0373DB0DE52 sha1 DC3B3B67486CA3EE22993C9A97A39422A137F13C serial "EA-2240" )
 )
@@ -6119,6 +6267,7 @@ game (
 )
 game (
 	name "Dragon Ball - Ultimate Blast (Japan)"
+	cloneof "Dragon Ball Z - Ultimate Tenkaichi (USA)"
 	region "Japan"
 	serial "NM-2118"
 	rom ( name "Dragon Ball - Ultimate Blast (Japan).iso" size 7838695424 crc 93B11DB2 md5 AE9301E40245CEAF3280B71810AD0720 sha1 350C8B214B562A79F879962AE85B8ACF4D9AB879 serial "NM-2118" )
@@ -6185,6 +6334,7 @@ game (
 )
 game (
 	name "Dragon Ball Z - Ultimate Tenkaichi (Europe) (En,Fr,De,Es,It)"
+	cloneof "Dragon Ball Z - Ultimate Tenkaichi (USA)"
 	region "Europe"
 	serial "NM-2118"
 	rom ( name "Dragon Ball Z - Ultimate Tenkaichi (Europe) (En,Fr,De,Es,It).iso" size 7838695424 crc 7CE50D33 md5 8E2F34EEE270E411C88C6F058AFD0C2F sha1 01D27A596A4C133A66695C27618E03EFE0DCFEE8 serial "NM-2118" )
@@ -6348,6 +6498,7 @@ game (
 )
 game (
 	name "DreamWorks Shrek Forever After (Europe) (En,Fr,De,Es,Nl,Sv)"
+	cloneof "DreamWorks Shrek Forever After (USA)"
 	region "Europe"
 	serial "AV-2166"
 	rom ( name "DreamWorks Shrek Forever After (Europe) (En,Fr,De,Es,Nl,Sv).iso" size 7838695424 crc 9E3E8B31 md5 B35F960C1AD5B9FA2CDE63357946DE3C sha1 0278EF677A0A29D3EEA50EA804B7C500B7451999 serial "AV-2166" )
@@ -6360,18 +6511,21 @@ game (
 )
 game (
 	name "DreamWorks Shrek Terzo (Italy)"
+	cloneof "DreamWorks Shrek the Third (USA)"
 	region "Italy"
 	serial "AV-2024"
 	rom ( name "DreamWorks Shrek Terzo (Italy).iso" size 7835492352 crc 828E50BF md5 C1CF362C0551306E68D472AFD3BC8DD0 sha1 7173D733C653A1B98A0C0B0D8F3E1F34208886B2 serial "AV-2024" )
 )
 game (
 	name "DreamWorks Shrek e Vissero Felici e Contenti (Italy)"
+	cloneof "DreamWorks Shrek Forever After (USA)"
 	region "Italy"
 	serial "AV-2166"
 	rom ( name "DreamWorks Shrek e Vissero Felici e Contenti (Italy).iso" size 7838695424 crc B9D5268A md5 AE4A8F35C5A2042EE0D85214BBC95912 sha1 770F6EAD50DFCBAF4D1AEF15464B2343392F781B serial "AV-2166" )
 )
 game (
 	name "DreamWorks Shrek the Third (Europe) (De,Es)"
+	cloneof "DreamWorks Shrek the Third (USA)"
 	region "Europe"
 	serial "AV-2024"
 	rom ( name "DreamWorks Shrek the Third (Europe) (De,Es).iso" size 7835492352 crc 82D1A29E md5 266ACFFC1F75997ACB5D5A7272C9C4E2 sha1 6BEC95E25D8332DD5B471E1C05B6706B7E7995DF serial "AV-2024" )
@@ -6470,6 +6624,7 @@ game (
 )
 game (
 	name "Dynasty Warriors - Gundam (Europe)"
+	cloneof "Dynasty Warriors - Gundam (USA)"
 	region "Europe"
 	serial "NM-2021"
 	rom ( name "Dynasty Warriors - Gundam (Europe).iso" size 7835492352 crc DD5D5D41 md5 0A008ED590E928353370F8A24307AF08 sha1 EF618E6EDB72EF1AF9723FD117BAB57A63C711B4 serial "NM-2021" )
@@ -6482,6 +6637,7 @@ game (
 )
 game (
 	name "Dynasty Warriors - Gundam 2 (Europe)"
+	cloneof "Dynasty Warriors - Gundam 2 (USA)"
 	region "Europe"
 	serial "NM-2048"
 	rom ( name "Dynasty Warriors - Gundam 2 (Europe).iso" size 7838695424 crc FCF05E6A md5 5D1DF7ED5B12E90BF9A89AC636567816 sha1 8267A5AE6A58F654EB8660549B0CB14FDE1D31EA serial "NM-2048" )
@@ -6500,12 +6656,14 @@ game (
 )
 game (
 	name "Dynasty Warriors - Strikeforce (Asia) (En,Fr)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	region "Asia"
 	serial "KO-2042"
 	rom ( name "Dynasty Warriors - Strikeforce (Asia) (En,Fr).iso" size 7838695424 crc E9F39063 md5 67FF435DF6E3F2C9F723C42FE1D00E16 sha1 94F023CDD1DE5D2F0356BF589592223F63017443 serial "KO-2042" )
 )
 game (
 	name "Dynasty Warriors - Strikeforce (Europe) (En,Fr,De)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	region "Europe"
 	serial "KO-2042"
 	rom ( name "Dynasty Warriors - Strikeforce (Europe) (En,Fr,De).iso" size 7838695424 crc 3B951277 md5 179F761B4786EEEA230EE0A6EAA67CFB sha1 9E46AC259E49D6AC515372B93103434F5504F401 serial "KO-2042" )
@@ -6518,6 +6676,7 @@ game (
 )
 game (
 	name "Dynasty Warriors 5 - Empires (Europe)"
+	cloneof "Dynasty Warriors 5 - Empires (USA)"
 	region "Europe"
 	serial "KO-2003"
 	rom ( name "Dynasty Warriors 5 - Empires (Europe).iso" size 7834892288 crc 6DABC9A4 md5 FEB16EE1D285464657EA5C1F0D3C6608 sha1 82FC63021A0919D8B97584682BABF0654997C0A9 serial "KO-2003" )
@@ -6530,6 +6689,7 @@ game (
 )
 game (
 	name "Dynasty Warriors 6 (Europe) (En,Fr,De,Es,It)"
+	cloneof "Dynasty Warriors 6 (USA)"
 	region "Europe"
 	serial "KO-2017"
 	rom ( name "Dynasty Warriors 6 (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc C5C49D17 md5 CA95BFEB58F1E887C424402F1D06241E sha1 75D8E4A12DD6E8D5275C4CA5376A2377680B0872 serial "KO-2017" )
@@ -6560,6 +6720,7 @@ game (
 )
 game (
 	name "Dynasty Warriors 8 (Europe) (En,Fr,De)"
+	cloneof "Dynasty Warriors 8 (USA)"
 	region "Europe"
 	serial "KV-2021"
 	rom ( name "Dynasty Warriors 8 (Europe) (En,Fr,De).iso" size 8738846720 crc E95BE214 md5 BAF9615928788CF95F319F4ACE5D9D59 sha1 FBE94E14B79CFE7921C86790FDDD9A0B312D7CA0 serial "KV-2021" )
@@ -6620,6 +6781,7 @@ game (
 )
 game (
 	name "Eat Lead - Matt Hazard no Gyakushuu (Japan)"
+	cloneof "Eat Lead - The Return of Matt Hazard (USA) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "DP-2034"
 	rom ( name "Eat Lead - Matt Hazard no Gyakushuu (Japan).iso" size 7838695424 crc 78C91962 md5 F1195F96284DBF0190DB114AA25622B0 sha1 C51F5F075DDAEF0B77DEEA622030C5273DD41C47 serial "DP-2034" )
@@ -6650,36 +6812,42 @@ game (
 )
 game (
 	name "Elder Scrolls IV, The - Oblivion (Asia)"
+	cloneof "Elder Scrolls IV, The - Oblivion (USA)"
 	region "Asia"
 	serial "BS-2001"
 	rom ( name "Elder Scrolls IV, The - Oblivion (Asia).iso" size 7834892288 crc 30223584 md5 5C7779181836917688F9513C424DB237 sha1 D6C9A336C84F65BC747B8BD8049363B34D0D7BF1 serial "BS-2001" )
 )
 game (
 	name "Elder Scrolls IV, The - Oblivion (Europe)"
+	cloneof "Elder Scrolls IV, The - Oblivion (USA)"
 	region "Europe"
 	serial "BS-2001"
 	rom ( name "Elder Scrolls IV, The - Oblivion (Europe).iso" size 7834892288 crc 75C15AD4 md5 7F8FE7F28EA30640B48D6BC38F7554CA sha1 F83654DF584BCD1293F9B1E58ED3118E555A5AC0 serial "BS-2001" )
 )
 game (
 	name "Elder Scrolls IV, The - Oblivion (Germany)"
+	cloneof "Elder Scrolls IV, The - Oblivion (USA)"
 	region "Germany"
 	serial "BS-2001"
 	rom ( name "Elder Scrolls IV, The - Oblivion (Germany).iso" size 7834892288 crc 29C7BDCC md5 CA0372A87CC3B53B47BE9DDE204064AC sha1 F333CD1EEB89CCE37009940A25B53538122C698A serial "BS-2001" )
 )
 game (
 	name "Elder Scrolls IV, The - Oblivion (Italy)"
+	cloneof "Elder Scrolls IV, The - Oblivion (USA)"
 	region "Italy"
 	serial "BS-2001"
 	rom ( name "Elder Scrolls IV, The - Oblivion (Italy).iso" size 7834892288 crc D9B4FFCA md5 89400092FA47CBD947A8A7847DC25C67 sha1 3A37FFB110DB50F53121BB553CE400617F4358A9 serial "BS-2001" )
 )
 game (
 	name "Elder Scrolls IV, The - Oblivion (Japan)"
+	cloneof "Elder Scrolls IV, The - Oblivion (USA)"
 	region "Japan"
 	serial "BS-2001"
 	rom ( name "Elder Scrolls IV, The - Oblivion (Japan).iso" size 7835492352 crc 8E312403 md5 97117C5AEA6BF91F20EDFFD82DD4AE9E sha1 836B564FD28E7A400D021B82C69B3A8795E0D2FF serial "BS-2001" )
 )
 game (
 	name "Elder Scrolls IV, The - Oblivion (Spain)"
+	cloneof "Elder Scrolls IV, The - Oblivion (USA)"
 	region "Spain"
 	serial "BS-2001"
 	rom ( name "Elder Scrolls IV, The - Oblivion (Spain).iso" size 7834892288 crc EC8A7AF7 md5 8DE2AFCB677B79A10235C142888ED325 sha1 FB63E5F2A54998ABE5E62DF979F264E4B8649095 serial "BS-2001" )
@@ -6692,6 +6860,7 @@ game (
 )
 game (
 	name "Elder Scrolls IV, The - Oblivion (USA, Europe) (Rev 1)"
+	cloneof "Elder Scrolls IV, The - Oblivion (USA)"
 	region "USA"
 	serial "BS-2001"
 	rom ( name "Elder Scrolls IV, The - Oblivion (USA, Europe) (Rev 1).iso" size 7834892288 crc 518CFB16 md5 C3C47C5664923464E2B1D38838FBEC41 sha1 6CC5A12878148315FEA0DFF7527E05B22F1D8D05 serial "BS-2001" )
@@ -6812,12 +6981,14 @@ game (
 )
 game (
 	name "Elder Scrolls IV, The - Shivering Isles (Germany)"
+	cloneof "Elder Scrolls IV, The - Shivering Isles (USA)"
 	region "Germany"
 	serial "BS-2001"
 	rom ( name "Elder Scrolls IV, The - Shivering Isles (Germany).iso" size 7835492352 crc 2337AC12 md5 8E8B296F5B0304903F4FEE094C5DF988 sha1 8A8840820B7B6A0AF507EBDC54A229F8713072A6 serial "BS-2001" )
 )
 game (
 	name "Elder Scrolls IV, The - Shivering Isles (Italy)"
+	cloneof "Elder Scrolls IV, The - Shivering Isles (USA)"
 	region "Italy"
 	serial "BS-2001"
 	rom ( name "Elder Scrolls IV, The - Shivering Isles (Italy).iso" size 7835492352 crc B8DD33B4 md5 035A34814B88BDF20C5882F276E0D629 sha1 42A181B4C636C7B2D216CD11B06991CCAA6051A0 serial "BS-2001" )
@@ -6943,6 +7114,7 @@ game (
 )
 game (
 	name "End of Eternity (Japan, Asia)"
+	cloneof "Resonance of Fate (USA, Europe) (En,Ja,Fr,De,Es,It)"
 	region "Japan"
 	serial "SE-2098"
 	rom ( name "End of Eternity (Japan, Asia).iso" size 7838695424 crc 01CBFBEB md5 44EA5DFA5EE65EA7A6552D0576D86913 sha1 90C350DC319A37D8B8C7538DBC5EE6FB059FBE43 serial "SE-2098" )
@@ -6985,12 +7157,14 @@ game (
 )
 game (
 	name "Era Glaciale 3, L' - L'Alba dei Dinosauri (Italy)"
+	cloneof "Ice Age - Dawn of the Dinosaurs (USA, Europe) (En,Fr,De,Es,Nl,Sv)"
 	region "Italy"
 	serial "AV-2111"
 	rom ( name "Era Glaciale 3, L' - L'Alba dei Dinosauri (Italy).iso" size 7838695424 crc 03DF14D4 md5 85A6E7371536DBC90B00F503DC8ACB9D sha1 84D1D747EF13A0546C4715E5F0093AFBF475AC89 serial "AV-2111" )
 )
 game (
 	name "Era Glaciale 4, L' - Continenti alla Deriva - Giochi Polari (Italy)"
+	cloneof "Ice Age - Continental Drift - Arctic Games (USA, Europe)"
 	region "Italy"
 	serial "AV-2263"
 	rom ( name "Era Glaciale 4, L' - Continenti alla Deriva - Giochi Polari (Italy).iso" size 7838695424 crc CCDB45C9 md5 157DD2C9B779198B00A5EF02A206FD00 sha1 78A0A0EF24F3435B241C0E5B1F9AF2AC32633820 serial "AV-2263" )
@@ -7069,12 +7243,14 @@ game (
 )
 game (
 	name "Evil Within, The (Europe) (En,Ru)"
+	cloneof "Evil Within, The (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "BS-2036"
 	rom ( name "Evil Within, The (Europe) (En,Ru).iso" size 8738846720 crc 075DE8C9 md5 21F6B0E03F128D26E872D389C17B4653 sha1 B5AF9743E9EB06A4B0AFECD46E552F6102397AAF serial "BS-2036" )
 )
 game (
 	name "Evil Within, The (Europe) (Fr,De,Es,It)"
+	cloneof "Evil Within, The (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "BS-2036"
 	rom ( name "Evil Within, The (Europe) (Fr,De,Es,It).iso" size 8738846720 crc 1261B837 md5 40EF5784747F0251D995FE821C3757B5 sha1 439BE505E4C568A8D7522B8D8A8FEB4D46392DD2 serial "BS-2036" )
@@ -7411,12 +7587,14 @@ game (
 )
 game (
 	name "F1 2013 (Brazil) (En,Pt)"
+	cloneof "F1 2013 (USA, Europe) (En,Fr,De,Es,It,Pl,Ru)"
 	region "Brazil"
 	serial "CM-2127"
 	rom ( name "F1 2013 (Brazil) (En,Pt).iso" size 8738846720 crc 5DFF3C2B md5 0B12068F7DC0D61618D5AFD471E045DA sha1 8BA374A17E95C60210FDE49CA24E9E886A30B3F4 serial "CM-2127" )
 )
 game (
 	name "F1 2013 (Japan) (En,Ja)"
+	cloneof "F1 2013 (USA, Europe) (En,Fr,De,Es,It,Pl,Ru)"
 	region "Japan"
 	serial "CM-2127"
 	rom ( name "F1 2013 (Japan) (En,Ja).iso" size 8738846720 crc 8E74DBD9 md5 8D203A87ACD29A5DE9715ABF476267DD sha1 81115E0DF6379A197E97E79DD9C3B91AB665209A serial "CM-2127" )
@@ -7429,6 +7607,7 @@ game (
 )
 game (
 	name "F1 2013 - Complete Edition (Europe) (En,Fr,De,Es,It,Pl,Ru)"
+	cloneof "F1 2013 (USA, Europe) (En,Fr,De,Es,It,Pl,Ru)"
 	region "Europe"
 	serial "CM-2127"
 	rom ( name "F1 2013 - Complete Edition (Europe) (En,Fr,De,Es,It,Pl,Ru).iso" size 8738846720 crc 42239F1A md5 746813034529C9941C8FEE961273AA25 sha1 24374574EC06EE6EDF8652546036BF29A4F79FD5 serial "CM-2127" )
@@ -7459,24 +7638,28 @@ game (
 )
 game (
 	name "FIFA 06 - Road to FIFA World Cup (Europe)"
+	cloneof "FIFA 06 - Road to FIFA World Cup (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2007"
 	rom ( name "FIFA 06 - Road to FIFA World Cup (Europe).iso" size 7834892288 crc 696B2AC9 md5 3A29B285BAEDB073215B4EDE7E387569 sha1 9082377D9548E053F17DC515D628EF11075FF615 serial "EA-2007" )
 )
 game (
 	name "FIFA 06 - Road to FIFA World Cup (Europe) (Es,It)"
+	cloneof "FIFA 06 - Road to FIFA World Cup (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2007"
 	rom ( name "FIFA 06 - Road to FIFA World Cup (Europe) (Es,It).iso" size 7834892288 crc E70D368C md5 66BBCB57D58C60DBF708C0FD9C779ABE sha1 25A17774E36DFBE0046F7BBA764524223F596161 serial "EA-2007" )
 )
 game (
 	name "FIFA 06 - Road to FIFA World Cup (Japan)"
+	cloneof "FIFA 06 - Road to FIFA World Cup (USA) (En,Es)"
 	region "Japan"
 	serial "EA-2007"
 	rom ( name "FIFA 06 - Road to FIFA World Cup (Japan).iso" size 7834892288 crc B30C51B4 md5 2164937F9F1143A7C8514A3EB5A86E4D sha1 3BB86204FB2F25F8523D622B877F27BBA22DFE30 serial "EA-2007" )
 )
 game (
 	name "FIFA 06 - Road to FIFA World Cup (Korea) (En,Es)"
+	cloneof "FIFA 06 - Road to FIFA World Cup (USA) (En,Es)"
 	region "Korea"
 	serial "EA-2007"
 	rom ( name "FIFA 06 - Road to FIFA World Cup (Korea) (En,Es).iso" size 7834892288 crc 8B5751B2 md5 C35C51FBAB95CCC88A9F0326C5679734 sha1 DC16F5A15D2E42F63BC3CD061FFF7C4FF1FE2BBC serial "EA-2007" )
@@ -7489,275 +7672,321 @@ game (
 )
 game (
 	name "FIFA 07 (Europe)"
+	cloneof "FIFA Soccer 07 (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2031"
 	rom ( name "FIFA 07 (Europe).iso" size 7834892288 crc CAC61AAF md5 6D54FE5A81D7C040FBB197226D5F77B7 sha1 DFC20590C96A448189A05DB437E8B5E5BE2F0A83 serial "EA-2031" )
 )
 game (
 	name "FIFA 07 (Europe) (Es,Pt)"
+	cloneof "FIFA Soccer 07 (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2031"
 	rom ( name "FIFA 07 (Europe) (Es,Pt).iso" size 7834892288 crc 9CCD2675 md5 1C314DE27C4B75913579E44B2E0A9E28 sha1 E77CD36661FCA42D477BCBCBBD567E71F36F5A97 serial "EA-2031" )
 )
 game (
 	name "FIFA 07 (Europe) (Fr,De)"
+	cloneof "FIFA Soccer 07 (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2031"
 	rom ( name "FIFA 07 (Europe) (Fr,De).iso" size 7834892288 crc 6F7EA2C7 md5 CE9905BA31185B9D040D6769FEB368E3 sha1 596C581B9C9E6EF49AF844A529C762F67C06ED9C serial "EA-2031" )
 )
 game (
 	name "FIFA 07 (Italy)"
+	cloneof "FIFA Soccer 07 (USA) (En,Es)"
 	region "Italy"
 	serial "EA-2031"
 	rom ( name "FIFA 07 (Italy).iso" size 7834892288 crc A5962135 md5 C9406BAE0EC6FFF392A33C5FB4DDD4F9 sha1 AC6FBC657EEBDF2C1498D512AFBBC19524D2AE7B serial "EA-2031" )
 )
 game (
 	name "FIFA 07 (Korea) (En,Ko)"
+	cloneof "FIFA Soccer 07 (USA) (En,Es)"
 	region "Korea"
 	serial "EA-2031"
 	rom ( name "FIFA 07 (Korea) (En,Ko).iso" size 7835492352 crc 7A53C843 md5 A4525740AD3D2CA8D75EC3D73DD78956 sha1 1A16E606DC2A573ADB8F19791A844EB473D778C8 serial "EA-2031" )
 )
 game (
 	name "FIFA 07 (Netherlands) (En,Nl)"
+	cloneof "FIFA Soccer 07 (USA) (En,Es)"
 	region "Netherlands"
 	serial "EA-2031"
 	rom ( name "FIFA 07 (Netherlands) (En,Nl).iso" size 7834892288 crc ABB353EA md5 63AB2388330F993C96C3EF8ED6EDC36C sha1 8C79F2D958DFE665249B398B0D243875D176FFFF serial "EA-2031" )
 )
 game (
 	name "FIFA 07 (Scandinavia) (En,Sv,No,Da)"
+	cloneof "FIFA Soccer 07 (USA) (En,Es)"
 	serial "EA-2031"
 	rom ( name "FIFA 07 (Scandinavia) (En,Sv,No,Da).iso" size 7834892288 crc CD2F7888 md5 62DF4DC9292B2D297610DB503A82E58F sha1 0B80BC92A1458C23639F7B2BB33A990FF77E9F05 serial "EA-2031" )
 )
 game (
 	name "FIFA 08 (Asia) (En,Ko)"
+	cloneof "FIFA Soccer 08 (USA) (En,Es)"
 	region "Asia"
 	serial "EA-2079"
 	rom ( name "FIFA 08 (Asia) (En,Ko).iso" size 7835492352 crc 1D9125B5 md5 1768E383066EC7257EDA6FA59CBE6A7D sha1 1C74CF567B540EA8FFAA667284DEBB72F31942E4 serial "EA-2079" )
 )
 game (
 	name "FIFA 08 (Europe)"
+	cloneof "FIFA Soccer 08 (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2079"
 	rom ( name "FIFA 08 (Europe).iso" size 7835492352 crc 592CF96C md5 E28333E12D429DAEAA8E6DF371627FD0 sha1 D499E923A69FB2D28F991A3B2297E936395B9136 serial "EA-2079" )
 )
 game (
 	name "FIFA 08 (Europe) (Es,Nl,Sv)"
+	cloneof "FIFA Soccer 08 (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2079"
 	rom ( name "FIFA 08 (Europe) (Es,Nl,Sv).iso" size 7835492352 crc 34FF4DEA md5 D426768A23EC6641EB2933D727F0E48D sha1 1EA525C0F9096F2E8EE8C6F7273ABD65B6DC2525 serial "EA-2079" )
 )
 game (
 	name "FIFA 08 (Europe) (Fr,De,It)"
+	cloneof "FIFA Soccer 08 (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2079"
 	rom ( name "FIFA 08 (Europe) (Fr,De,It).iso" size 7835492352 crc A1C64F1E md5 600F9FB78E52C7AC7E98B4B2FF4D1F7A sha1 7140AEFF5B322D4DC9D1D1BE948F86E890B7A7BE serial "EA-2079" )
 )
 game (
 	name "FIFA 08 (Russia)"
+	cloneof "FIFA Soccer 08 (USA) (En,Es)"
 	region "Russia"
 	serial "EA-2079"
 	rom ( name "FIFA 08 (Russia).iso" size 7835492352 crc 3EDD56DC md5 CC17F80639907145FF3C27C1CC0F4E12 sha1 64094B946670BA768057C58A88019A4F1EE33FD2 serial "EA-2079" )
 )
 game (
 	name "FIFA 08 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 08 (USA) (En,Es)"
 	region "Japan"
 	serial "EA-2079"
 	rom ( name "FIFA 08 - World Class Soccer (Japan).iso" size 7835492352 crc C9E5AB8C md5 512F380A757631D699095A9F076FF92F sha1 C2BEDF8638FD81EBD332CD5018461AFB9F770CD2 serial "EA-2079" )
 )
 game (
 	name "FIFA 09 (Europe) (En,Nl,Sv,No,Da)"
+	cloneof "FIFA Soccer 09 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2139"
 	rom ( name "FIFA 09 (Europe) (En,Nl,Sv,No,Da).iso" size 7835492352 crc 7B2064E3 md5 AC77AAD54F0A4F85AF562B0F2BDF98B8 sha1 01061B09555C7C92EAFF7090611E10FC6015EE09 serial "EA-2139" )
 )
 game (
 	name "FIFA 09 (Europe) (Es,Cs,Hu)"
+	cloneof "FIFA Soccer 09 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2139"
 	rom ( name "FIFA 09 (Europe) (Es,Cs,Hu).iso" size 7835492352 crc DC5AE991 md5 A7344D5DC4F3116545CB39E243366ABE sha1 0D9C7B41B458BDF96F1E03A757B36401EDA94300 serial "EA-2139" )
 )
 game (
 	name "FIFA 09 (Europe) (Fr,De,It)"
+	cloneof "FIFA Soccer 09 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2139"
 	rom ( name "FIFA 09 (Europe) (Fr,De,It).iso" size 7835492352 crc 2D8C3B1C md5 74476B24AC490036D798A81B49B3BE8E sha1 EB4B1D80370306F9ACB48F54725D9E9EBB712D4A serial "EA-2139" )
 )
 game (
 	name "FIFA 09 (Korea) (En,Ko)"
+	cloneof "FIFA Soccer 09 (USA) (En,Fr,Es)"
 	region "Korea"
 	serial "EA-2139"
 	rom ( name "FIFA 09 (Korea) (En,Ko).iso" size 7835492352 crc A791E2A0 md5 BFECC96DAC02B97ABB07F23FD637A441 sha1 42C8CDDB06C677EAE77792C48A86C2AEC3C52EC9 serial "EA-2139" )
 )
 game (
 	name "FIFA 09 (Russia) (En,Pl,Ru)"
+	cloneof "FIFA Soccer 09 (USA) (En,Fr,Es)"
 	region "Russia"
 	serial "EA-2139"
 	rom ( name "FIFA 09 (Russia) (En,Pl,Ru).iso" size 7835492352 crc A08C9599 md5 E1F2326FC0763180B729213825FE16E3 sha1 B0660D51991E63C8B4CF3723371528DBF8B8AACC serial "EA-2139" )
 )
 game (
 	name "FIFA 09 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 09 (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "EA-2139"
 	rom ( name "FIFA 09 - World Class Soccer (Japan).iso" size 7835492352 crc FC9DD815 md5 F124B554FAFAD4C25E9AE282D4F13B05 sha1 5FAC1E5FFD3DC3088E5055A6C3808467960C4070 serial "EA-2139" )
 )
 game (
 	name "FIFA 10 (Europe) (Es,Cs,Hu)"
+	cloneof "FIFA Soccer 10 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2236"
 	rom ( name "FIFA 10 (Europe) (Es,Cs,Hu).iso" size 7838695424 crc ABAD3374 md5 8CD506FD8470B9032D7970A0C712CD6F sha1 253C0E3B9B14FB9AC8AB0F87270C16617DB0BD8B serial "EA-2236" )
 )
 game (
 	name "FIFA 10 (Europe) (Fr,De,It)"
+	cloneof "FIFA Soccer 10 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2236"
 	rom ( name "FIFA 10 (Europe) (Fr,De,It).iso" size 7838695424 crc 4D6AE3B4 md5 2801699432FAF224B22AB4388AA58F7D sha1 C4A0E9072ABD25344B16E5E42A7CE6DF805402A4 serial "EA-2236" )
 )
 game (
 	name "FIFA 10 (Europe, Asia) (En,Nl,Sv,No,Da)"
+	cloneof "FIFA Soccer 10 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2236"
 	rom ( name "FIFA 10 (Europe, Asia) (En,Nl,Sv,No,Da).iso" size 7838695424 crc D4277A93 md5 A290D7A83EFCBEAA283730E147918D34 sha1 CCB3BC4524AC8D4F1F9F577D511342262BFEF0FA serial "EA-2236" )
 )
 game (
 	name "FIFA 10 (Korea)"
+	cloneof "FIFA Soccer 10 (USA) (En,Fr,Es)"
 	region "Korea"
 	serial "EA-2236"
 	rom ( name "FIFA 10 (Korea).iso" size 7838695424 crc 9BFC3ACB md5 1DCEE1CDC3152D1373BD1C25A27A9658 sha1 F26B56157C72B284699E7C151A4B54411B1A216A serial "EA-2236" )
 )
 game (
 	name "FIFA 10 (Russia) (En,Pl,Ru)"
+	cloneof "FIFA Soccer 10 (USA) (En,Fr,Es)"
 	region "Russia"
 	serial "EA-2236"
 	rom ( name "FIFA 10 (Russia) (En,Pl,Ru).iso" size 7838695424 crc 289BF7BA md5 76DB1CB6E59E4CA9514371B5EFD9E2E3 sha1 3637AF154EAA92D6DB300528650A7DD4D13440EB serial "EA-2236" )
 )
 game (
 	name "FIFA 10 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 10 (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "EA-2236"
 	rom ( name "FIFA 10 - World Class Soccer (Japan).iso" size 7838695424 crc 4A0E2C7D md5 7BC27B89873112F44E625CB5A07ECBCF sha1 360E0D3EF0D5BDF51A9CA0EA2FBE3AB7B7BEA4AE serial "EA-2236" )
 )
 game (
 	name "FIFA 11 (Europe) (De,It,Hu)"
+	cloneof "FIFA Soccer 11 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2291"
 	rom ( name "FIFA 11 (Europe) (De,It,Hu).iso" size 7838695424 crc 08226D1C md5 BD650A373E89198EBAF2891771B1C711 sha1 88DBDC0E76730A0841B1DAACDB95A116B3FE8D4F serial "EA-2291" )
 )
 game (
 	name "FIFA 11 (Europe) (En,Es,Sv,No,Da)"
+	cloneof "FIFA Soccer 11 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2291"
 	rom ( name "FIFA 11 (Europe) (En,Es,Sv,No,Da).iso" size 7838695424 crc 9102BE13 md5 951F86628BAC54D5DE4D5A50492F31A4 sha1 691B657C1EC3CD0C1C595A596F8638C130F95E65 serial "EA-2291" )
 )
 game (
 	name "FIFA 11 (Europe) (En,Fr,Nl)"
+	cloneof "FIFA Soccer 11 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2291"
 	rom ( name "FIFA 11 (Europe) (En,Fr,Nl).iso" size 7838695424 crc 8E8DD07E md5 87F9485157B5101E9AF555FEB87D0165 sha1 BDF96020AA67B1DC0BFE6AA085D0A65BA2E24C64 serial "EA-2291" )
 )
 game (
 	name "FIFA 11 (Europe) (Pl,Ru,Cs)"
+	cloneof "FIFA Soccer 11 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2291"
 	rom ( name "FIFA 11 (Europe) (Pl,Ru,Cs).iso" size 7838695424 crc 92D9959B md5 A5363278DD967F03418722017E8A6D20 sha1 8F3AB10A5D07E07BE3D4AA017B9053472189093F serial "EA-2291" )
 )
 game (
 	name "FIFA 11 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 11 (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "EA-2291"
 	rom ( name "FIFA 11 - World Class Soccer (Japan).iso" size 7838695424 crc 11E1BB3A md5 8143E11E88838DA16BAFED24E9FECA56 sha1 E3BCD9DDEA7F32B9CF2A7BBD9889F2704A9A0E03 serial "EA-2291" )
 )
 game (
 	name "FIFA 12 (Europe) (De,It,Hu)"
+	cloneof "FIFA Soccer 12 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2407"
 	rom ( name "FIFA 12 (Europe) (De,It,Hu).iso" size 7838695424 crc 7D6103D8 md5 DB4352DE269A0C676972E8FFA3BC1BBA sha1 4E995DB715E3BD14FFE5A0983D3AA09BD33DDE48 serial "EA-2407" )
 )
 game (
 	name "FIFA 12 (Europe) (En,Es,Sv,No,Da)"
+	cloneof "FIFA Soccer 12 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2407"
 	rom ( name "FIFA 12 (Europe) (En,Es,Sv,No,Da).iso" size 7838695424 crc 2C2D701F md5 F6311C70D2BCF4283114C87AE728E3C9 sha1 B3B62CE248DDB9A3E6C1BF49B60EDDA9AA7D02B3 serial "EA-2407" )
 )
 game (
 	name "FIFA 12 (Europe) (En,Fr,Nl)"
+	cloneof "FIFA Soccer 12 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2407"
 	rom ( name "FIFA 12 (Europe) (En,Fr,Nl).iso" size 7838695424 crc 8E223E4E md5 5F5DC00B74692A6A057755B696E91270 sha1 E6664C880A3925D449EEECD68F44E061B0555B1D serial "EA-2407" )
 )
 game (
 	name "FIFA 12 (Russia) (Pl,Ru,Cs)"
+	cloneof "FIFA Soccer 12 (USA) (En,Fr,Es)"
 	region "Russia"
 	serial "EA-2407"
 	rom ( name "FIFA 12 (Russia) (Pl,Ru,Cs).iso" size 7838695424 crc 28FFD880 md5 573DE0C7FD208EC02C43012D98E51D77 sha1 E31470FDB78802CE91715DBEF31566D7A76792B2 serial "EA-2407" )
 )
 game (
 	name "FIFA 12 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 12 (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "EA-2407"
 	rom ( name "FIFA 12 - World Class Soccer (Japan).iso" size 7838695424 crc C9191B01 md5 87B8FB04C2215095799932A2C171C521 sha1 D8FDC089151D9C6C6DFDC6C16C1688B953FC6F93 serial "EA-2407" )
 )
 game (
 	name "FIFA 13 (Brazil) (En,Pt)"
+	cloneof "FIFA Soccer 13 (USA) (En,Fr,Es)"
 	region "Brazil"
 	serial "EA-2456"
 	rom ( name "FIFA 13 (Brazil) (En,Pt).iso" size 8738846720 crc 35AF369C md5 76A03BAAD3E89926B13B97269066A9AD sha1 3B1C3A41C086022F0DABF325A72E76855327B0C0 serial "EA-2456" )
 )
 game (
 	name "FIFA 13 (Europe) (En,De,It,Hu)"
+	cloneof "FIFA Soccer 13 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2456"
 	rom ( name "FIFA 13 (Europe) (En,De,It,Hu).iso" size 8738846720 crc 5E576F83 md5 CB682E889B8B678AB205EE92A6E38B78 sha1 C092626895B43E40CE59118BC3E97E83FE8A775B serial "EA-2456" )
 )
 game (
 	name "FIFA 13 (Europe) (En,Es,Sv,No,Da)"
+	cloneof "FIFA Soccer 13 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2456"
 	rom ( name "FIFA 13 (Europe) (En,Es,Sv,No,Da).iso" size 8738846720 crc B8F4FF19 md5 B06C6668AA4EF709AF3F03F7157BFE86 sha1 AE1230B7DDFA4F1D820A6D2760D74F01FC989B4F serial "EA-2456" )
 )
 game (
 	name "FIFA 13 (Europe) (En,Fr,Nl)"
+	cloneof "FIFA Soccer 13 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2456"
 	rom ( name "FIFA 13 (Europe) (En,Fr,Nl).iso" size 8738846720 crc 8FA10074 md5 98A1E81BEFDC3F6E4EE50408B2D93860 sha1 A200FC457AE08FC8D6EDD417342208EC4BB1988E serial "EA-2456" )
 )
 game (
 	name "FIFA 13 (Russia) (Pl,Ru,Cs)"
+	cloneof "FIFA Soccer 13 (USA) (En,Fr,Es)"
 	region "Russia"
 	serial "EA-2456"
 	rom ( name "FIFA 13 (Russia) (Pl,Ru,Cs).iso" size 8738846720 crc B156F566 md5 77133B526B34B88EF892980AEA6E2E52 sha1 FE69A9ED503BE3AA8DAEC03808609AF15C370D96 serial "EA-2456" )
 )
 game (
 	name "FIFA 13 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 13 (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "EA-2456"
 	rom ( name "FIFA 13 - World Class Soccer (Japan).iso" size 8738846720 crc 56DBB1C6 md5 EE9C22EE02B74A3623AA6EAB8DFC1A1B sha1 27F22C7702E349F2223EE592203C349E0C98AEEC serial "EA-2456" )
 )
 game (
 	name "FIFA 14 (Brazil) (En,Pt)"
+	cloneof "FIFA 14 (USA) (En,Fr,Es)"
 	region "Brazil"
 	serial "EA-2499"
 	rom ( name "FIFA 14 (Brazil) (En,Pt).iso" size 8738846720 crc A7447B2B md5 F0BC36A8522CC0FF01003F84F1D64967 sha1 A192A580DE27036A865A5AA768B814CA6D9D55BB serial "EA-2499" )
 )
 game (
 	name "FIFA 14 (Europe) (En,De,It)"
+	cloneof "FIFA 14 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2499"
 	rom ( name "FIFA 14 (Europe) (En,De,It).iso" size 8738846720 crc EE44638F md5 13BFB41FE73DB7FDFE4757518825E611 sha1 174B827A103D225B2C5824897302A0521F9D19DE serial "EA-2499" )
 )
 game (
 	name "FIFA 14 (Europe) (En,Es,Pt,Sv,No,Da)"
+	cloneof "FIFA 14 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2499"
 	rom ( name "FIFA 14 (Europe) (En,Es,Pt,Sv,No,Da).iso" size 8738846720 crc 5188DCAD md5 F3099B12318622C9DABFB854193E4727 sha1 9DA0B4E8D0388266200D7281D049AE35C75347FB serial "EA-2499" )
 )
 game (
 	name "FIFA 14 (Europe, Asia) (En,Fr,Nl)"
+	cloneof "FIFA 14 (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2499"
 	rom ( name "FIFA 14 (Europe, Asia) (En,Fr,Nl).iso" size 8738846720 crc 65032FB0 md5 5BC92840E66315BAA8F1D748A118A1B4 sha1 A31E19717A1878154206195082F2B7B7F4BADBB8 serial "EA-2499" )
 )
 game (
 	name "FIFA 14 (Russia) (Pl,Ru,Cs,Hu)"
+	cloneof "FIFA 14 (USA) (En,Fr,Es)"
 	region "Russia"
 	serial "EA-2499"
 	rom ( name "FIFA 14 (Russia) (Pl,Ru,Cs,Hu).iso" size 8738846720 crc 1AF7E93E md5 47BE88DAC55240D52E19BDA729A43331 sha1 EBB5FBFDEF462A9C2FB4955A70184C5585651CCF serial "EA-2499" )
@@ -7770,6 +7999,7 @@ game (
 )
 game (
 	name "FIFA 14 - World Class Soccer (Japan)"
+	cloneof "FIFA 14 (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "EA-2499"
 	rom ( name "FIFA 14 - World Class Soccer (Japan).iso" size 8738846720 crc A879DECD md5 90AF4DDC9F4354C712C13B2BF2948EBF sha1 D011EE2D3083E5F7088FF80ABE61D920E7037AB6 serial "EA-2499" )
@@ -7884,24 +8114,28 @@ game (
 )
 game (
 	name "FIFA 18 (Brazil) (En,Pt)"
+	cloneof "FIFA 18 - Legacy Edition (USA) (En,Fr,Es)"
 	region "Brazil"
 	serial "EA-2552"
 	rom ( name "FIFA 18 (Brazil) (En,Pt).iso" size 8738846720 crc 82B34861 md5 80695896E3B32DE21BE6D5744754EFDC sha1 FAD3F1C1C05673825984A948A496D11D464D9740 serial "EA-2552" )
 )
 game (
 	name "FIFA 18 - Legacy Edition (Europe) (En,De,It)"
+	cloneof "FIFA 18 - Legacy Edition (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2552"
 	rom ( name "FIFA 18 - Legacy Edition (Europe) (En,De,It).iso" size 8738846720 crc 7CE2DEAF md5 496FD5EE3580D34B1CCD92DB57739496 sha1 BBCE22B4E188AE86DAFA47AD9D02080439D8BF62 serial "EA-2552" )
 )
 game (
 	name "FIFA 18 - Legacy Edition (Europe) (En,Pl,Ru)"
+	cloneof "FIFA 18 - Legacy Edition (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "EA-2552"
 	rom ( name "FIFA 18 - Legacy Edition (Europe) (En,Pl,Ru).iso" size 8738846720 crc 33A490E2 md5 BE756886AAC1EF4C0CF3A00F17E8964F sha1 1F6E5B71BB57AE49C2C69AF70673C2E13D8C28D3 serial "EA-2552" )
 )
 game (
 	name "FIFA 18 - Legacy Edition (Spain) (En,Es)"
+	cloneof "FIFA 18 - Legacy Edition (USA) (En,Fr,Es)"
 	region "Spain"
 	serial "EA-2552"
 	rom ( name "FIFA 18 - Legacy Edition (Spain) (En,Es).iso" size 8738846720 crc FA9A0768 md5 2817A0F4EC6ECABBD0FED5F8DB03D8E8 sha1 999EC3A2F00B9FEF44BE786688F8DAC7BFC7DDDA serial "EA-2552" )
@@ -7914,12 +8148,14 @@ game (
 )
 game (
 	name "FIFA 19 - Edicao Legacy (Brazil) (En,Pt)"
+	cloneof "FIFA 19 - Legacy Edition (Europe) (En,De,It)"
 	region "Brazil"
 	serial "EA-2553"
 	rom ( name "FIFA 19 - Edicao Legacy (Brazil) (En,Pt).iso" size 8738846720 crc 30F0031A md5 22FB4B01D79B82A25C49CE55CD66E0E4 sha1 3DBF83DE38BC27CCF76DBD1B44155FC716B25D6C serial "EA-2553" )
 )
 game (
 	name "FIFA 19 - Izdanie Legacy (Russia) (En,Pl,Ru,Ar)"
+	cloneof "FIFA 19 - Legacy Edition (Europe) (En,De,It)"
 	region "Russia"
 	serial "EA-2553"
 	rom ( name "FIFA 19 - Izdanie Legacy (Russia) (En,Pl,Ru,Ar).iso" size 8738846720 crc A34DBE53 md5 166E16977A6BA1F2EDBC71816E55C20F sha1 0E8D30E92ADABEE20D9D3529D5CBC7E1504D22B7 serial "EA-2553" )
@@ -7932,12 +8168,14 @@ game (
 )
 game (
 	name "FIFA 19 - Legacy Edition (Europe) (En,Fr,Nl)"
+	cloneof "FIFA 19 - Legacy Edition (Europe) (En,De,It)"
 	region "Europe"
 	serial "EA-2553"
 	rom ( name "FIFA 19 - Legacy Edition (Europe) (En,Fr,Nl).iso" size 8738846720 crc 82CB4872 md5 807FD49BD7F177C0D43102C62059F2A5 sha1 C82B72A246594D4BAA0184BB6E72381F9111188F serial "EA-2553" )
 )
 game (
 	name "FIFA 19 - Legacy Edition (Spain) (En,Es)"
+	cloneof "FIFA 19 - Legacy Edition (Europe) (En,De,It)"
 	region "Spain"
 	serial "EA-2553"
 	rom ( name "FIFA 19 - Legacy Edition (Spain) (En,Es).iso" size 8738846720 crc D92BC50E md5 6A97591050B225440FEA48D2CC2EEFB8 sha1 B1CB194A1D1ED5776D2A2E3145A9BB55BF9A711B serial "EA-2553" )
@@ -8016,30 +8254,35 @@ game (
 )
 game (
 	name "FIFA World Cup Germany 2006 (Europe)"
+	cloneof "FIFA 06 - Road to FIFA World Cup (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2022"
 	rom ( name "FIFA World Cup Germany 2006 (Europe).iso" size 7834892288 crc AF08FCB6 md5 7DE73BA16E2819EF79D6028B7C8E4FA1 sha1 0A903B1FEBFE53F348906AEB8F3E2E71223D4FFE serial "EA-2022" )
 )
 game (
 	name "FIFA World Cup Germany 2006 (Europe) (Es,It)"
+	cloneof "FIFA 06 - Road to FIFA World Cup (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2022"
 	rom ( name "FIFA World Cup Germany 2006 (Europe) (Es,It).iso" size 7834892288 crc 87CD6982 md5 29F52133DDADF7F68E1FA07F6E5B27D6 sha1 62E71F1A97019719E2F0C094521AE02AE3F5101E serial "EA-2022" )
 )
 game (
 	name "FIFA World Cup Germany 2006 (Japan) (En,Ja)"
+	cloneof "FIFA 06 - Road to FIFA World Cup (USA) (En,Es)"
 	region "Japan"
 	serial "EA-2022"
 	rom ( name "FIFA World Cup Germany 2006 (Japan) (En,Ja).iso" size 7834892288 crc 8C346CDE md5 213181AAEAF8C86954125D7776CC0D46 sha1 45F4C4370191CABBE879AF3C750F2033C5E81F80 serial "EA-2022" )
 )
 game (
 	name "FIFA World Cup Germany 2006 (Korea) (En,Ko)"
+	cloneof "FIFA 06 - Road to FIFA World Cup (USA) (En,Es)"
 	region "Korea"
 	serial "EA-2022"
 	rom ( name "FIFA World Cup Germany 2006 (Korea) (En,Ko).iso" size 7834892288 crc C99D8250 md5 48CD54513C6D7DF38E8BCD1229C51FAA sha1 C6C8502E4474C4571F3F51C5AFA71A9E3644381C serial "EA-2022" )
 )
 game (
 	name "FIFA World Cup Germany 2006 (USA) (En,Es)"
+	cloneof "FIFA 06 - Road to FIFA World Cup (USA) (En,Es)"
 	region "USA"
 	serial "EA-2022"
 	rom ( name "FIFA World Cup Germany 2006 (USA) (En,Es).iso" size 7834892288 crc 51FED082 md5 6E1C76265C631E8A29320303538DF115 sha1 590002395749EDB1E71A1F78FB1816BD2503A4DB serial "EA-2022" )
@@ -8088,90 +8331,105 @@ game (
 )
 game (
 	name "Fable II (Europe, Canada)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Europe"
 	serial "MS-2033"
 	rom ( name "Fable II (Europe, Canada).iso" size 7835492352 crc E58843C2 md5 AFCD3791F817115ED803B2D414E0F718 sha1 CFA6A077631DEB1190BAD9E204CBACB2B633F695 serial "MS-2033" )
 )
 game (
 	name "Fable II (France) (Rev 2)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "France"
 	serial "MS-2033"
 	rom ( name "Fable II (France) (Rev 2).iso" size 7838695424 crc 434E6B35 md5 BD898A9DA5AE6EFA28661897CEBE81D4 sha1 4284D061E1815D329F55B22F7D154BCAAC60FD41 serial "MS-2033" )
 )
 game (
 	name "Fable II (Germany) (Rev 1)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Germany"
 	serial "MS-2033"
 	rom ( name "Fable II (Germany) (Rev 1).iso" size 7838695424 crc B7669193 md5 25CECB645FC8B32155723A6757DA5FF2 sha1 B1E713A02788EA2F55B202DCC6CBFE1F924CB086 serial "MS-2033" )
 )
 game (
 	name "Fable II (Germany) (Rev 2)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Germany"
 	serial "MS-2033"
 	rom ( name "Fable II (Germany) (Rev 2).iso" size 7838695424 crc 4BFE56B9 md5 3A336F7F207DA3377B2002F4DB3C666D sha1 507B8E3A3A6FD158870E016957CE2324F5950D8D serial "MS-2033" )
 )
 game (
 	name "Fable II (Italy)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Italy"
 	serial "MS-2033"
 	rom ( name "Fable II (Italy).iso" size 7835492352 crc 37A5F096 md5 0D7AC37431FDAFBEA551AD6DABE8BAB6 sha1 2946EC8B080144FFA507CE104570BE661F34E8AC serial "MS-2033" )
 )
 game (
 	name "Fable II (Italy) (Rev 1)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Italy"
 	serial "MS-2033"
 	rom ( name "Fable II (Italy) (Rev 1).iso" size 7838695424 crc F9DA8EFC md5 424D4C7E356A156E7091964931DAD3FD sha1 A9A84EA20559A9BF155A807024B0BBE852B3882A serial "MS-2033" )
 )
 game (
 	name "Fable II (Italy) (Rev 2)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Italy"
 	serial "MS-2033"
 	rom ( name "Fable II (Italy) (Rev 2).iso" size 7838695424 crc DA7E60F7 md5 6C98C873409720E1170B20DDDA4DAC9E sha1 7961691200E93C6083CB38EF0939052EC6F47810 serial "MS-2033" )
 )
 game (
 	name "Fable II (Japan)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Japan"
 	serial "MS-2033"
 	rom ( name "Fable II (Japan).iso" size 7835492352 crc D1FEFAE6 md5 77B2845AE8C068F68F0B0A8C77BDB24C sha1 132A650C6DBA573AA561BE0B62E2A3CA0AA2CCC3 serial "MS-2033" )
 )
 game (
 	name "Fable II (Japan) (En,Ja,Fr,De,Es,It,Zh,Ko,Pl,Ru,Cs,Hu,Sk) (Bonus DVD)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Japan"
 	serial "MS-2174"
 	rom ( name "Fable II (Japan) (En,Ja,Fr,De,Es,It,Zh,Ko,Pl,Ru,Cs,Hu,Sk) (Bonus DVD).iso" size 7835492352 crc 14C352CD md5 32F5018E80B63EC1FBFFA91D256AB622 sha1 CF50E6B1DEF29EA7B072C63EFEAAD298CFEDE875 serial "MS-2174" )
 )
 game (
 	name "Fable II (Russia)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Russia"
 	serial "MS-2033"
 	rom ( name "Fable II (Russia).iso" size 7835492352 crc BC039DF4 md5 DD6EEDA4D12064166F96944ECF848BCA sha1 98A640AB728AEF574445890CBAC4F360EC32B4EA serial "MS-2033" )
 )
 game (
 	name "Fable II (Russia) (Rev 1)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Russia"
 	serial "MS-2033"
 	rom ( name "Fable II (Russia) (Rev 1).iso" size 7838695424 crc D62A1750 md5 873335886B5A4F2FF7237F85CB3B0593 sha1 154D4867C0C5C9B949BBD1E48A35F44D31202752 serial "MS-2033" )
 )
 game (
 	name "Fable II (Russia) (Rev 2)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Russia"
 	serial "MS-2033"
 	rom ( name "Fable II (Russia) (Rev 2).iso" size 7838695424 crc 397F70AB md5 191C63953CBEE0AB419C79C48B39C43F sha1 9236272DFF4F7ED525CA5FE1915EB6878F95A932 serial "MS-2033" )
 )
 game (
 	name "Fable II (Spain)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Spain"
 	serial "MS-2033"
 	rom ( name "Fable II (Spain).iso" size 7835492352 crc 5D1903BA md5 F85658B6147257D6638F106B7A869739 sha1 6B01D60C8D547F6D03CEE0F9DD9FA0E3A932AACC serial "MS-2033" )
 )
 game (
 	name "Fable II (Spain) (Rev 1)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Spain"
 	serial "MS-2033"
 	rom ( name "Fable II (Spain) (Rev 1).iso" size 7838695424 crc 0AC897E5 md5 DDADD095B5C351FF713C90AB894CCE0C sha1 14C7B1133EB98907334C1055E28E5DC0C9535C53 serial "MS-2033" )
 )
 game (
 	name "Fable II (Spain) (Rev 2)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "Spain"
 	serial "MS-2033"
 	rom ( name "Fable II (Spain) (Rev 2).iso" size 7838695424 crc AFE5EE48 md5 990F03188C45F3473CE1302F525E6187 sha1 FAF514C6412D0D40492C953D75701074BFC9146C serial "MS-2033" )
@@ -8184,18 +8442,21 @@ game (
 )
 game (
 	name "Fable II (USA, Europe) (En,Ja,Fr,De,Es,It,Zh,Ko,Pl,Ru,Cs,Hu,Sk) (Bonus Disc)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "USA"
 	serial "MS-2174"
 	rom ( name "Fable II (USA, Europe) (En,Ja,Fr,De,Es,It,Zh,Ko,Pl,Ru,Cs,Hu,Sk) (Bonus Disc).iso" size 7835492352 crc 0A0675D3 md5 0D5D2A33C77A37583A5112A5211496C8 sha1 0AA09B7FFA2C41F546FE9750150968C35C78451A serial "MS-2174" )
 )
 game (
 	name "Fable II (USA, Europe) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 2)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	region "USA"
 	serial "MS-2033"
 	rom ( name "Fable II (USA, Europe) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 2).iso" size 7838695424 crc 8A52C9E7 md5 C22B76B8D6FFD6F7B43F1D0F043A37BF sha1 F9A2954A1825B9F456196E2950A30FDCF23B709E serial "MS-2033" )
 )
 game (
 	name "Fable II (World) (En,Zh,Ko,Pl,Cs,Hu,Sk)"
+	cloneof "Fable II (USA, Asia) (En,Zh,Ko,Pl,Cs,Hu,Sk) (Rev 1)"
 	serial "MS-2033"
 	rom ( name "Fable II (World) (En,Zh,Ko,Pl,Cs,Hu,Sk).iso" size 7835492352 crc BFFB0011 md5 419A2388A28F98744079208B70DAEBC7 sha1 17A20C6D52B47D0C3B70B27A7F6F8A8C0F6F39FC serial "MS-2033" )
 )
@@ -8440,12 +8701,14 @@ game (
 )
 game (
 	name "Fallout 3 - Game Add-On Pack - Broken Steel and Point Lookout (Germany)"
+	cloneof "Fallout 3 - Game Add-On Pack - Broken Steel and Point Lookout (USA, Europe)"
 	region "Germany"
 	serial "BS-2005"
 	rom ( name "Fallout 3 - Game Add-On Pack - Broken Steel and Point Lookout (Germany).iso" size 7838695424 crc CEC885D1 md5 7A577F30FBE740701206470C87F70B67 sha1 753413D301BC64E6856A2B5E49898E89949E3EA0 serial "BS-2005" )
 )
 game (
 	name "Fallout 3 - Game Add-On Pack - Broken Steel and Point Lookout (Italy)"
+	cloneof "Fallout 3 - Game Add-On Pack - Broken Steel and Point Lookout (USA, Europe)"
 	region "Italy"
 	serial "BS-2005"
 	rom ( name "Fallout 3 - Game Add-On Pack - Broken Steel and Point Lookout (Italy).iso" size 7838695424 crc FF180BC4 md5 60D46FEE53C91652678D6822B2CDAFCD sha1 818DE1A60569F85E2BBDAA40DD5ED58D9D0B2166 serial "BS-2005" )
@@ -8458,12 +8721,14 @@ game (
 )
 game (
 	name "Fallout 3 - Game Add-On Pack - The Pitt and Operation - Anchorage (Germany)"
+	cloneof "Fallout 3 - Game Add-On Pack - The Pitt and Operation - Anchorage (USA, Europe)"
 	region "Germany"
 	serial "BS-2005"
 	rom ( name "Fallout 3 - Game Add-On Pack - The Pitt and Operation - Anchorage (Germany).iso" size 7838695424 crc 424D1D52 md5 28AB22EC4CEB3BD86924D9AAF9E570D0 sha1 647EFA503324DCCA07B10724D397BB05A52536B1 serial "BS-2005" )
 )
 game (
 	name "Fallout 3 - Game Add-On Pack - The Pitt and Operation - Anchorage (Italy)"
+	cloneof "Fallout 3 - Game Add-On Pack - The Pitt and Operation - Anchorage (USA, Europe)"
 	region "Italy"
 	serial "BS-2005"
 	rom ( name "Fallout 3 - Game Add-On Pack - The Pitt and Operation - Anchorage (Italy).iso" size 7838695424 crc 8DAD46A1 md5 82378942E9F189095988F2F185251330 sha1 641E17C372D228514B59824F5BE27ADF48A69E76 serial "BS-2005" )
@@ -8548,12 +8813,14 @@ game (
 )
 game (
 	name "Fallout 3 - Pack de Expansion del Juego - Broken Steel y Point Lookout (Spain)"
+	cloneof "Fallout 3 - Game Add-On Pack - Broken Steel and Point Lookout (USA, Europe)"
 	region "Spain"
 	serial "BS-2005"
 	rom ( name "Fallout 3 - Pack de Expansion del Juego - Broken Steel y Point Lookout (Spain).iso" size 7838695424 crc E7EEA315 md5 C5605BFA9FBF8865CAC9059BAFEB3CD3 sha1 66EFBB04B4EC8AEC422646565059FB27BD766AFA serial "BS-2005" )
 )
 game (
 	name "Fallout 3 - Pack de Expansion del Juego - The Pitt y Operation - Anchorage (Spain)"
+	cloneof "Fallout 3 - Game Add-On Pack - The Pitt and Operation - Anchorage (USA, Europe)"
 	region "Spain"
 	serial "BS-2005"
 	rom ( name "Fallout 3 - Pack de Expansion del Juego - The Pitt y Operation - Anchorage (Spain).iso" size 7838695424 crc 345E6B7E md5 1BD8908340165F688C9E42919B64567D sha1 0C056C97FFC05A5BC4C94E87FB4ED04805EFCE03 serial "BS-2005" )
@@ -8584,6 +8851,7 @@ game (
 )
 game (
 	name "Family Games (USA) (Toys R Us)"
+	cloneof "Family Games (USA)"
 	region "USA"
 	serial "IM-2133"
 	rom ( name "Family Games (USA) (Toys R Us).iso" size 7838695424 crc 5822474D md5 1FDCC3D1E4B0A9BBBD06F76E17D26B6F sha1 9DE46B3052741A4810F6DA3E72A07E296ABA20DE serial "IM-2133" )
@@ -8764,6 +9032,7 @@ game (
 )
 game (
 	name "Final Fantasy XI (USA)"
+	cloneof "Final Fantasy XI - Online (Europe)"
 	region "USA"
 	serial "SQ-2005"
 	rom ( name "Final Fantasy XI (USA).iso" size 7834892288 crc 018F55AD md5 76DFC2E282B534F99D7512A1F3327BB3 sha1 F472EBDC1DB1D40E931CE34FFCFA649E3327C487 serial "SQ-2005" )
@@ -8782,6 +9051,7 @@ game (
 )
 game (
 	name "Final Fantasy XI - Altana no Shinpei (Japan)"
+	cloneof "Final Fantasy XI - Online - Wings of the Goddess Expansion Pack (USA)"
 	region "Japan"
 	serial "SQ-2005"
 	rom ( name "Final Fantasy XI - Altana no Shinpei (Japan).iso" size 7835492352 crc 5A9EA7D6 md5 6532A27DAA4DBD8FC1CE2D47625CE3AE sha1 01F1ED88B00C646D8FC97E57437EE53CBDAEE6E9 serial "SQ-2005" )
@@ -8794,24 +9064,28 @@ game (
 )
 game (
 	name "Final Fantasy XI - Online (Europe) (Beta)"
+	cloneof "Final Fantasy XI - Online (Europe)"
 	region "Europe"
 	serial "SQ-2002"
 	rom ( name "Final Fantasy XI - Online (Europe) (Beta).iso" size 7834892288 crc 9BE18B96 md5 FA074A81B1E7A923F91C7320E32347DC sha1 FEF54AD67BEDD920684F963FB5C3FFAA035911AC serial "SQ-2002" )
 )
 game (
 	name "Final Fantasy XI - Online (Japan) (Beta)"
+	cloneof "Final Fantasy XI - Online (Europe)"
 	region "Japan"
 	serial "SQ-2002"
 	rom ( name "Final Fantasy XI - Online (Japan) (Beta).iso" size 7834892288 crc 65AB691F md5 4DF98875155E8D0B48005BAFE53BB05B sha1 A10C8863A7D33074BB007BA12BFFF7606CF77048 serial "SQ-2002" )
 )
 game (
 	name "Final Fantasy XI - Online - 2007 Edition (Europe) (En,Fr,De)"
+	cloneof "Final Fantasy XI - Online - Vana'diel Collection 2008 (USA)"
 	region "Europe"
 	serial "SQ-2005"
 	rom ( name "Final Fantasy XI - Online - 2007 Edition (Europe) (En,Fr,De).iso" size 7835492352 crc 890F2009 md5 5A544EB8837415E3220456C0C78AFB5D sha1 AF66120763BC12DE5E4C203066E1C44AC37A9ED2 serial "SQ-2005" )
 )
 game (
 	name "Final Fantasy XI - Online - 2008 Edition (Europe) (En,Fr,De)"
+	cloneof "Final Fantasy XI - Online - Vana'diel Collection 2008 (USA)"
 	region "Europe"
 	serial "SQ-2005"
 	rom ( name "Final Fantasy XI - Online - 2008 Edition (Europe) (En,Fr,De).iso" size 7835492352 crc 5D355E78 md5 887BD754DABE114958AA155274ABC474 sha1 F8F15CF12900BB41EA22B214EB28889C0FED2576 serial "SQ-2005" )
@@ -8836,6 +9110,7 @@ game (
 )
 game (
 	name "Final Fantasy XI - Online - Wings of the Goddess Expansion Pack (Europe) (En,Fr,De)"
+	cloneof "Final Fantasy XI - Online - Wings of the Goddess Expansion Pack (USA)"
 	region "Europe"
 	serial "SQ-2005"
 	rom ( name "Final Fantasy XI - Online - Wings of the Goddess Expansion Pack (Europe) (En,Fr,De).iso" size 7835492352 crc 6EB24B35 md5 856FEB48912B84E5ACA45B16E49BF535 sha1 D04FC546FDA4827791F4C4D321DEF807E7C30F22 serial "SQ-2005" )
@@ -9585,6 +9860,7 @@ game (
 )
 game (
 	name "Geomho Zero (Korea)"
+	cloneof "Kengo - Legend of the 9 (USA)"
 	region "Korea"
 	serial "GE-2002"
 	rom ( name "Geomho Zero (Korea).iso" size 7834892288 crc 9258C2BC md5 63DFF9EB0AB4D9C6811DDFD4EC7CD717 sha1 CE8D1094519FEB7432C80A1EC809E9C3FF4F27EB serial "GE-2002" )
@@ -9609,24 +9885,28 @@ game (
 )
 game (
 	name "Godfather II, The (Europe) (En,Nl,Pl,Ru)"
+	cloneof "Godfather II, The (USA) (En,Fr)"
 	region "Europe"
 	serial "EA-2150"
 	rom ( name "Godfather II, The (Europe) (En,Nl,Pl,Ru).iso" size 7835492352 crc C862325E md5 3BEECA883AFF857F01D8B8CFE1295D6D sha1 77022A4B53E97585AB5D9173BEE97B67990EAC26 serial "EA-2150" )
 )
 game (
 	name "Godfather II, The (Europe) (Es,It)"
+	cloneof "Godfather II, The (USA) (En,Fr)"
 	region "Europe"
 	serial "EA-2150"
 	rom ( name "Godfather II, The (Europe) (Es,It).iso" size 7835492352 crc B0E948F9 md5 A97536500473DE443505952FE313ECF3 sha1 5ED78C8D2294A255AF5EED45F01226F029C373FE serial "EA-2150" )
 )
 game (
 	name "Godfather II, The (Europe) (Fr,De)"
+	cloneof "Godfather II, The (USA) (En,Fr)"
 	region "Europe"
 	serial "EA-2150"
 	rom ( name "Godfather II, The (Europe) (Fr,De).iso" size 7835492352 crc 3FAB9704 md5 852C8E3DCD588009113630298600B105 sha1 3855BF608C9C2D0A61485A888FE31816F66E8FA6 serial "EA-2150" )
 )
 game (
 	name "Godfather II, The (Japan)"
+	cloneof "Godfather II, The (USA) (En,Fr)"
 	region "Japan"
 	serial "EA-2150"
 	rom ( name "Godfather II, The (Japan).iso" size 7835492352 crc 4756AFC7 md5 E190F8BA1EEA684A12CEB13871FD2E0A sha1 3E242700164AF190360A22A86F78FB1242F9C268 serial "EA-2150" )
@@ -9639,12 +9919,14 @@ game (
 )
 game (
 	name "Godfather, The (Europe) (En,Nl,Pt,Sv,Da)"
+	cloneof "Godfather, The (USA)"
 	region "Europe"
 	serial "EA-2025"
 	rom ( name "Godfather, The (Europe) (En,Nl,Pt,Sv,Da).iso" size 7834892288 crc 75BAE47C md5 F3265488B12596E67897E2F3A0E36358 sha1 DCFD4ED76C5F9F70CFFFBD539BD56F7DE7F66AC9 serial "EA-2025" )
 )
 game (
 	name "Godfather, The (Japan)"
+	cloneof "Godfather, The (USA)"
 	region "Japan"
 	serial "EA-2025"
 	rom ( name "Godfather, The (Japan).iso" size 7835492352 crc 1EA60BA2 md5 6864D96D4E0F58D99A24A39B3E879576 sha1 33B44D631C66CE81827A4BC1C3C5534B824348A8 serial "EA-2025" )
@@ -9976,18 +10258,21 @@ game (
 )
 game (
 	name "Gundam Musou 2 (Japan)"
+	cloneof "Dynasty Warriors - Gundam 2 (USA)"
 	region "Japan"
 	serial "NM-2043"
 	rom ( name "Gundam Musou 2 (Japan).iso" size 7835492352 crc C6BEAB18 md5 BF1DFC32CE07A8D1FF7B6BAFA4B16EEB sha1 DB96EE4F2D2B2DABD7CBD09BAFC6E7785527579A serial "NM-2043" )
 )
 game (
 	name "Gundam Musou 3 (Japan)"
+	cloneof "Dynasty Warriors - Gundam 3 (USA, Europe)"
 	region "Japan"
 	serial "NM-2100"
 	rom ( name "Gundam Musou 3 (Japan).iso" size 7838695424 crc B260BDCE md5 CAB510E22B33681C3641A5804EE97965 sha1 3FA5FCEB3E9E216E7D5FD2A34D75C4D214E67EAD serial "NM-2100" )
 )
 game (
 	name "Gundam Musou International (Japan)"
+	cloneof "Dynasty Warriors - Gundam (USA)"
 	region "Japan"
 	serial "NM-2021"
 	rom ( name "Gundam Musou International (Japan).iso" size 7835492352 crc 02829BBF md5 3375E71B4D8021AE93A84E0A96DCF926 sha1 6CD2D943F2C6894B94CE94AC8FACA84E1DCEBF5A serial "NM-2021" )
@@ -10451,12 +10736,14 @@ game (
 )
 game (
 	name "Hard Drive Transfer Disc (Europe)"
+	cloneof "Hard Drive Transfer Disc (USA)"
 	region "Europe"
 	serial "XI-2001"
 	rom ( name "Hard Drive Transfer Disc (Europe).iso" size 7835492352 crc 12AD7686 md5 6C50829BD5DDC3BACA3CF40DCC165BAD sha1 FA8B35772B1CE8E7F5D7BCA5FC1FE1490475A565 serial "XI-2001" )
 )
 game (
 	name "Hard Drive Transfer Disc (Europe) (Rev 1)"
+	cloneof "Hard Drive Transfer Disc (USA)"
 	region "Europe"
 	serial "XI-2001"
 	rom ( name "Hard Drive Transfer Disc (Europe) (Rev 1).iso" size 7835492352 crc 30FC9C5B md5 AF90FE6E7A3C73294B5302E0DD9A8C60 sha1 A4A6007C222D713F6435F7D870B65AF8958BA64B serial "XI-2001" )
@@ -10469,6 +10756,7 @@ game (
 )
 game (
 	name "Hard Drive Transfer Disc (USA) (Rev 1)"
+	cloneof "Hard Drive Transfer Disc (USA)"
 	region "USA"
 	serial "XI-2001"
 	rom ( name "Hard Drive Transfer Disc (USA) (Rev 1).iso" size 7835492352 crc 8079DEA4 md5 889CDF69DEFD37D79E8621C426584CDD sha1 E53CAF6C6457D620AFB61A2E2BD13A206F8B0A0F serial "XI-2001" )
@@ -10517,6 +10805,7 @@ game (
 )
 game (
 	name "Harry Potter and the Order of the Phoenix (Europe) (En,Fr,De,Es,It)"
+	cloneof "Harry Potter and the Order of the Phoenix (USA)"
 	region "Europe"
 	serial "EA-2073"
 	rom ( name "Harry Potter and the Order of the Phoenix (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc E765B56D md5 91296A13F0DFE457F876E554DAC2CE45 sha1 64220B0C6DAC757282D821FF2BFD500EC96C32E0 serial "EA-2073" )
@@ -10535,6 +10824,7 @@ game (
 )
 game (
 	name "Harry Potter to Fushichou no Kishidan (Japan)"
+	cloneof "Harry Potter and the Order of the Phoenix (USA)"
 	region "Japan"
 	serial "EA-2073"
 	rom ( name "Harry Potter to Fushichou no Kishidan (Japan).iso" size 7835492352 crc DDB13382 md5 7B1158A6C038266DEFB1334A08C27CCF sha1 5A7E6FFC69F20BC196FA27F4F4F97A5D78E1B342 serial "EA-2073" )
@@ -10719,6 +11009,7 @@ game (
 )
 game (
 	name "Hokuto Musou (Japan)"
+	cloneof "Fist of the North Star - Ken's Rage (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "KO-2036"
 	rom ( name "Hokuto Musou (Japan).iso" size 7838695424 crc 63AF57CB md5 43EC8C9CDB25207F2C868312223FCE2B sha1 0C7A10AB1C8985D15DEE677782F29DF8A341E833 serial "KO-2036" )
@@ -10875,6 +11166,7 @@ game (
 )
 game (
 	name "Incredible Hulk, The (Europe) (En,Fr,De,Es,It)"
+	cloneof "Incredible Hulk, The (USA) (En,Fr)"
 	region "Europe"
 	serial "SE-2033"
 	rom ( name "Incredible Hulk, The (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc B820C5B9 md5 48DF50126631207B66AB847ADA1B4A62 sha1 F3B587515D3172D47E905B738A2F61006ED30CF5 serial "SE-2033" )
@@ -10887,6 +11179,7 @@ game (
 )
 game (
 	name "Incredible Hulk, The (USA) (GameStop)"
+	cloneof "Incredible Hulk, The (USA) (En,Fr)"
 	region "USA"
 	serial "SE-2033"
 	rom ( name "Incredible Hulk, The (USA) (GameStop).iso" size 7835492352 crc 7B05A0F4 md5 843CCC60C2A3F914A8B9D20AD96274A8 sha1 D880B3C3642E82A429B3C716A227FE3EE96A57D5 serial "SE-2033" )
@@ -11013,6 +11306,7 @@ game (
 )
 game (
 	name "Injustice - Gods Among Us - Ultimate Edition (USA, Europe) (En,Fr,De,Es,It,Pt,Pl,Ru)"
+	cloneof "Injustice - Gods Among Us (USA, Europe) (En,Fr,De,Es,It,Pt,Pl,Ru)"
 	region "USA"
 	serial "WR-2089"
 	rom ( name "Injustice - Gods Among Us - Ultimate Edition (USA, Europe) (En,Fr,De,Es,It,Pt,Pl,Ru).iso" size 8738846720 crc E1AF7F52 md5 1E1E5D1EFBAA7261EB26C45CB6BB3640 sha1 EB919552892C8619C06F7196D905B6CEF9BBBA12 serial "WR-2089" )
@@ -11067,6 +11361,7 @@ game (
 )
 game (
 	name "James Cameron's Avatar - Gra Komputerowa (Poland)"
+	cloneof "James Cameron's Avatar - The Game (USA, Europe) (En,Fr,De,Es,It,Nl)"
 	region "Poland"
 	serial "US-2108"
 	rom ( name "James Cameron's Avatar - Gra Komputerowa (Poland).iso" size 7838695424 crc DCA0449E md5 483E56DAF858F137B42518610E71DDAE sha1 690F8D44893A01D8BB78D389F82D7C1A2B22AE8C serial "US-2108" )
@@ -11079,6 +11374,7 @@ game (
 )
 game (
 	name "James Cameron's Avatar The Game (Japan) (En,Ja)"
+	cloneof "James Cameron's Avatar - The Game (USA, Europe) (En,Fr,De,Es,It,Nl)"
 	region "Japan"
 	serial "US-2108"
 	rom ( name "James Cameron's Avatar The Game (Japan) (En,Ja).iso" size 7838695424 crc 5801E79C md5 B02C384278257E1D9F956C3F0A4925D2 sha1 CC78531847DF74544A165D5A1B0E69B0163A10E2 serial "US-2108" )
@@ -11115,18 +11411,21 @@ game (
 )
 game (
 	name "Jin Samguk Mussang - Multi Raid Special (Korea)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	region "Korea"
 	serial "KO-2034"
 	rom ( name "Jin Samguk Mussang - Multi Raid Special (Korea).iso" size 7838695424 crc 0DD0AE01 md5 2702A419104D4F214046C3B8A82B6AA5 sha1 30B91B94E9926A74F7E4F608ED80465D0C7BD611 serial "KO-2034" )
 )
 game (
 	name "Jin Samguk Mussang 5 (Korea)"
+	cloneof "Dynasty Warriors 6 (USA)"
 	region "Korea"
 	serial "KO-2015"
 	rom ( name "Jin Samguk Mussang 5 (Korea).iso" size 7835492352 crc 9F7B562A md5 B017D2EAC86B6173DFEB0FF9C3B86301 sha1 8F2435CB9B3B4D5FEAD88A97850703CB665DC9E6 serial "KO-2015" )
 )
 game (
 	name "Jin Samguk Mussang 5 - Empires (Korea)"
+	cloneof "Dynasty Warriors 6 - Empires (USA, Europe)"
 	region "Korea"
 	serial "KO-2023"
 	rom ( name "Jin Samguk Mussang 5 - Empires (Korea).iso" size 7838695424 crc B2BCA17C md5 EEE13E8C9CE99D8E21E9563E44AAA27C sha1 3E45DE6762835DCAB83E242DF474D57A32C3F443 serial "KO-2023" )
@@ -11199,6 +11498,7 @@ game (
 )
 game (
 	name "Just Cause - Viva Revolution (Japan)"
+	cloneof "Just Cause (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "SC-2005"
 	rom ( name "Just Cause - Viva Revolution (Japan).iso" size 7835492352 crc 434779D4 md5 5C8A0FB1203BF3BB5DFEAEE9B84C4618 sha1 184DEF0E704C57163DF802A0DFBAE59A13C68AF4 serial "SC-2005" )
@@ -11426,12 +11726,14 @@ game (
 )
 game (
 	name "Kengo Zero (Europe)"
+	cloneof "Kengo - Legend of the 9 (USA)"
 	region "Europe"
 	serial "GE-2002"
 	rom ( name "Kengo Zero (Europe).iso" size 7835492352 crc 7D7C7371 md5 46826C2BBAC55B18EC8D19561AD8FA12 sha1 0B7284E50809693FF2D8CF6D4FEF1FF5C43407CC serial "GE-2002" )
 )
 game (
 	name "Kengou Zero (Japan)"
+	cloneof "Kengo - Legend of the 9 (USA)"
 	region "Japan"
 	serial "GE-2002"
 	rom ( name "Kengou Zero (Japan).iso" size 7834892288 crc 1FE82E55 md5 3DB4998CC2B76973CAED5C64F0689666 sha1 1DB3E5F39F9F152D22BC47F70AAAF1E508D600D7 serial "GE-2002" )
@@ -11609,6 +11911,7 @@ game (
 )
 game (
 	name "Kinectimals - Now with Bears! (USA, Europe) (En,Ja,Fr,De,Es,It,Nl,Pt,Zh,Ko,Pl,Ru)"
+	cloneof "Kinectimals (World) (En,Ja,Fr,De,Es,It,Nl,Pt,Zh,Ko,Pl,Ru)"
 	region "USA"
 	serial "MS-2227"
 	rom ( name "Kinectimals - Now with Bears! (USA, Europe) (En,Ja,Fr,De,Es,It,Nl,Pt,Zh,Ko,Pl,Ru).iso" size 8738846720 crc 0D352BF5 md5 BF6D5F7B19413BA591FEBF46D2B564FD sha1 DFDAC8A781CF151BCE3C8C47A9F6A201BBD1F673 serial "MS-2227" )
@@ -11649,6 +11952,7 @@ game (
 )
 game (
 	name "Kingdoms of Amalur - Reckoning (World) (En,Fr,De,Es,It)"
+	cloneof "Kingdoms of Amalur - Reckoning (Japan) (En,Ja)"
 	serial "EA-2366"
 	rom ( name "Kingdoms of Amalur - Reckoning (World) (En,Fr,De,Es,It).iso" size 8738846720 crc F5608527 md5 0B210D8CBFE3202A18B9F858037CDD23 sha1 A3BB1A22A0EC2131472DA2FF36F4D8B9ED0E0985 serial "EA-2366" )
 )
@@ -12090,12 +12394,14 @@ game (
 )
 game (
 	name "Lednikovyj period 4 - Kontinental'nyj drejf - Arkticheskie igry (Russia)"
+	cloneof "Ice Age - Continental Drift - Arctic Games (USA, Europe)"
 	region "Russia"
 	serial "AV-2263"
 	rom ( name "Lednikovyj period 4 - Kontinental'nyj drejf - Arkticheskie igry (Russia).iso" size 7838695424 crc A28A0571 md5 AA0A934C0705A5800DFADF2B179E258E sha1 14D85279C08538602B0ABA333AE7BC822C2BD7BE serial "AV-2263" )
 )
 game (
 	name "Left 4 Dead (Germany) (Fr,De,Es,Ru)"
+	cloneof "Left 4 Dead (Japan)"
 	region "Germany"
 	serial "EA-2096"
 	rom ( name "Left 4 Dead (Germany) (Fr,De,Es,Ru).iso" size 7835492352 crc 91C13678 md5 7ECE9B57FB8A70DF98206AC1B353BFA4 sha1 89DF528F4606B86FA21AEB18B79EF38C04892396 serial "EA-2096" )
@@ -12108,11 +12414,13 @@ game (
 )
 game (
 	name "Left 4 Dead (World) (En,Ja,Fr,De,Es,It,Pt,Zh,Ko,Pl,Ru)"
+	cloneof "Left 4 Dead (Japan)"
 	serial "EA-2096"
 	rom ( name "Left 4 Dead (World) (En,Ja,Fr,De,Es,It,Pt,Zh,Ko,Pl,Ru).iso" size 7835492352 crc 8717161E md5 9BA25DB016C10473743DEDFF5B6A06A6 sha1 0C6340124B3C72390117440944A74F1BEA23E2A8 serial "EA-2096" )
 )
 game (
 	name "Left 4 Dead - Game of the Year Edition (USA, Europe) (En,Ja,Fr,De,Es,It,Pt,Zh,Ko,Pl,Ru)"
+	cloneof "Left 4 Dead (Japan)"
 	region "USA"
 	serial "EA-2096"
 	rom ( name "Left 4 Dead - Game of the Year Edition (USA, Europe) (En,Ja,Fr,De,Es,It,Pt,Zh,Ko,Pl,Ru).iso" size 7838695424 crc 2AC7203B md5 7B238BABA65418DE05279EA54E684994 sha1 AECD962651CDD4D9D194003F21CAD48E9DEF76B8 serial "EA-2096" )
@@ -12503,6 +12811,7 @@ game (
 )
 game (
 	name "Lost Planet - Extreme Condition (Japan)"
+	cloneof "Lost Planet - Extreme Condition (USA, Europe) (En,Ja,Fr,De,Es,It,Ko)"
 	region "Japan"
 	serial "CC-2003"
 	rom ( name "Lost Planet - Extreme Condition (Japan).iso" size 7834892288 crc 53278664 md5 4A2FF14DA415998BFADA77DE02DC71EE sha1 11ADCEF92D20BCA35BA6A0D1C03C4918E3A64C2F serial "CC-2003" )
@@ -12515,6 +12824,7 @@ game (
 )
 game (
 	name "Lost Planet - Extreme Condition - Colonies Edition (World) (En,Ja,Fr,De,Es,It,Ko)"
+	cloneof "Lost Planet - Extreme Condition (USA, Europe) (En,Ja,Fr,De,Es,It,Ko)"
 	serial "CC-2014"
 	rom ( name "Lost Planet - Extreme Condition - Colonies Edition (World) (En,Ja,Fr,De,Es,It,Ko).iso" size 7835492352 crc E43A0C44 md5 F6A3A8DBA039945C96214519C3BA8427 sha1 49278AEE96A243F17124DBD4E6DAFEF4A3A178F4 serial "CC-2014" )
 )
@@ -12702,12 +13012,14 @@ game (
 )
 game (
 	name "Madden NFL 08 (Europe)"
+	cloneof "Madden NFL 08 (USA)"
 	region "Europe"
 	serial "EA-2077"
 	rom ( name "Madden NFL 08 (Europe).iso" size 7835492352 crc CA4AC519 md5 8FA117F421E474942886FA287E81F7A8 sha1 1E6DC33ECB5157F0004533CB636D4830FA7718EE serial "EA-2077" )
 )
 game (
 	name "Madden NFL 08 (Japan)"
+	cloneof "Madden NFL 08 (USA)"
 	region "Japan"
 	serial "EA-2077"
 	rom ( name "Madden NFL 08 (Japan).iso" size 7835492352 crc D868F3C2 md5 4D92F9D2EAD7285535AB588741D1E735 sha1 135C1A371435B7322C1682D6BBF1CE2BFBB5A8AB serial "EA-2077" )
@@ -12720,6 +13032,7 @@ game (
 )
 game (
 	name "Madden NFL 08 en Espanol (USA)"
+	cloneof "Madden NFL 08 (USA)"
 	region "USA"
 	serial "EA-2077"
 	rom ( name "Madden NFL 08 en Espanol (USA).iso" size 7835492352 crc BDAAB4BF md5 E10F8CF032101053338FA679BF9E334D sha1 8928E672DC4F7E53FAAFB918E470FA4C0EE8277C serial "EA-2077" )
@@ -12732,6 +13045,7 @@ game (
 )
 game (
 	name "Madden NFL 09 (World)"
+	cloneof "Madden NFL 09 (USA) (20th Anniversary Collector's Edition)"
 	serial "EA-2148"
 	rom ( name "Madden NFL 09 (World).iso" size 7835492352 crc 84D53909 md5 84A847C56AAA4A804FA351E40DD5BCA3 sha1 0B2354272C9308AE2064266AD44C976BB617F63F serial "EA-2148" )
 )
@@ -12933,6 +13247,7 @@ game (
 )
 game (
 	name "Majin and the Forsaken Kingdom (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru)"
+	cloneof "Majin and the Forsaken Kingdom (USA) (En,Fr,Es,Ko)"
 	region "Europe"
 	serial "NM-2070"
 	rom ( name "Majin and the Forsaken Kingdom (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru).iso" size 7838695424 crc 9E55CF5E md5 505893A362B2DF768DBDBDB825172B12 sha1 57824B7F6B5932CFADF192233C574149DD54CCD3 serial "NM-2070" )
@@ -12945,6 +13260,7 @@ game (
 )
 game (
 	name "Majin to Ushinawareta Oukoku (Japan)"
+	cloneof "Majin and the Forsaken Kingdom (USA) (En,Fr,Es,Ko)"
 	region "Japan"
 	serial "NM-2070"
 	rom ( name "Majin to Ushinawareta Oukoku (Japan).iso" size 7838695424 crc 9E916756 md5 6592E25AD63C8249B93A7963E99524EC sha1 A51691D2436CA8AF400FDE1E6CA743DA48BAB9BA serial "NM-2070" )
@@ -13035,6 +13351,7 @@ game (
 )
 game (
 	name "Marvel - Ultimate Alliance (USA) (En,It) (Gold Edition)"
+	cloneof "Marvel - Ultimate Alliance (USA, Europe) (En,It)"
 	region "USA"
 	serial "AV-2010"
 	rom ( name "Marvel - Ultimate Alliance (USA) (En,It) (Gold Edition).iso" size 7835492352 crc 1E78EFF0 md5 4E5FCD4CF7DF3508EE7AA20788BB13E4 sha1 EFC3D878BE04532EE22C57B1FDFBA1378B4B3E9B serial "AV-2010" )
@@ -13941,12 +14258,14 @@ game (
 )
 game (
 	name "Midnight Club - Los Angeles (Europe) (En,Fr,De,Es,It)"
+	cloneof "Midnight Club - Los Angeles (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "TT-2040"
 	rom ( name "Midnight Club - Los Angeles (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc C53B59C2 md5 1995B83014A9C31EF54FB76EB6517613 sha1 2B4402C8AE0E2DDBDF3D0371E88B924F234E0ED1 serial "TT-2040" )
 )
 game (
 	name "Midnight Club - Los Angeles (Japan)"
+	cloneof "Midnight Club - Los Angeles (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "TT-2040"
 	rom ( name "Midnight Club - Los Angeles (Japan).iso" size 7835492352 crc 7447AAC9 md5 415F314BC713F781115952FF9695222F sha1 E063599A57EF6D8166D69E55A3FA146C516B6F09 serial "TT-2040" )
@@ -13959,6 +14278,7 @@ game (
 )
 game (
 	name "Midnight Club - Los Angeles - Complete Edition (USA, Europe)"
+	cloneof "Midnight Club - Los Angeles (USA) (En,Fr,Es)"
 	region "USA"
 	serial "TT-2040"
 	rom ( name "Midnight Club - Los Angeles - Complete Edition (USA, Europe).iso" size 7838695424 crc B236E1FF md5 EF8343B204596785D33FD38A7284527F sha1 4CA07FCF49427834692042FAAF07FCFDEFA4B263 serial "TT-2040" )
@@ -13988,6 +14308,7 @@ game (
 )
 game (
 	name "Minecraft - Story Mode - A Telltale Games Series - The Complete Adventure (USA, Europe)"
+	cloneof "Minecraft - Story Mode - A Telltale Games Series (USA, Europe)"
 	region "USA"
 	serial "D6-2012"
 	rom ( name "Minecraft - Story Mode - A Telltale Games Series - The Complete Adventure (USA, Europe).iso" size 8738846720 crc 641722EF md5 1D48F269DF571DD2FE428E20F3E34CAA sha1 F14EAE3FD6F27C0B748A48566C6C161532A0B35F serial "D6-2012" )
@@ -14255,6 +14576,7 @@ game (
 )
 game (
 	name "Murdered - Tamashii no Yobu Koe (Japan)"
+	cloneof "Murdered - Soul Suspect (USA, Europe) (En,Fr,De,Es,It,Pl,Ru)"
 	region "Japan"
 	serial "SQ-2078"
 	rom ( name "Murdered - Tamashii no Yobu Koe (Japan).iso" size 7838695424 crc 3DE0ED56 md5 2F67ED4246ADE8850672CEFDCCA122E4 sha1 9E12D243263D0EA19F25C36B67F293859B0D72FD serial "SQ-2078" )
@@ -14267,18 +14589,21 @@ game (
 )
 game (
 	name "Mushihimesama HD (Japan)"
+	cloneof "Mushihimesama Futari Ver 1.5 (Japan)"
 	region "Japan"
 	serial "CZ-2019"
 	rom ( name "Mushihimesama HD (Japan).iso" size 7838695424 crc 99368EDD md5 5BB86A0B3AB1F1807029710A12CA830F sha1 994A4E7089F789D160B42B512A6DB2857AC3E0EF serial "CZ-2019" )
 )
 game (
 	name "Musou Orochi (Japan)"
+	cloneof "Warriors Orochi (USA, Europe) (En,Fr,De)"
 	region "Japan"
 	serial "KO-2009"
 	rom ( name "Musou Orochi (Japan).iso" size 7835492352 crc 4E1277BB md5 4B86789C78CECE3DA8E78C966DE8065B sha1 51325BA579227CB922C9B3DF2F08A05C7901BC4F serial "KO-2009" )
 )
 game (
 	name "Musou Orochi - Maou Sairin (Japan)"
+	cloneof "Warriors Orochi 2 (USA, Europe) (En,Fr,De)"
 	region "Japan"
 	serial "KO-2019"
 	rom ( name "Musou Orochi - Maou Sairin (Japan).iso" size 7835492352 crc 7A6FA563 md5 C3A13A8F47A25DE79ADC332BB871DF09 sha1 546D458F7F4FE8DC7930AA3F1CAFE84C36687BD9 serial "KO-2019" )
@@ -14972,6 +15297,7 @@ game (
 )
 game (
 	name "Naruto Shippuden - Ultimate Ninja Storm 2 (Europe) (En,Ja,Fr,De,Es,It)"
+	cloneof "Naruto Shippuden - Ultimate Ninja Storm 2 (USA)"
 	region "Europe"
 	serial "NM-2073"
 	rom ( name "Naruto Shippuden - Ultimate Ninja Storm 2 (Europe) (En,Ja,Fr,De,Es,It).iso" size 7838695424 crc 6FA1344A md5 CB396F5D1E4E7EF16BC4AE1F5ECDB3CB sha1 A8E8727210C2FDEC4CF3C061C3AEB66E191575DE serial "NM-2073" )
@@ -14984,6 +15310,7 @@ game (
 )
 game (
 	name "Naruto Shippuden - Ultimate Ninja Storm 3 (Europe)"
+	cloneof "Naruto Shippuden - Ultimate Ninja Storm 3 (USA)"
 	region "Europe"
 	serial "NM-2140"
 	rom ( name "Naruto Shippuden - Ultimate Ninja Storm 3 (Europe).iso" size 8738846720 crc 88AD4C85 md5 BBDF4C437B8A1F91C3BD4A831F15ABAC sha1 58B6896F97D9DFA040B5481E6BDD2DBB21830CD7 serial "NM-2140" )
@@ -15008,6 +15335,7 @@ game (
 )
 game (
 	name "Naruto Shippuden - Ultimate Ninja Storm Generations (Europe)"
+	cloneof "Naruto Shippuden - Ultimate Ninja Storm Generations (USA)"
 	region "Europe"
 	serial "NM-2114"
 	rom ( name "Naruto Shippuden - Ultimate Ninja Storm Generations (Europe).iso" size 8738846720 crc 1E6191D5 md5 FED2422ED458E113BA90D343C355190B sha1 41E4214189D63AAE7D536E6BDAFD0DB26237027C serial "NM-2114" )
@@ -15032,18 +15360,21 @@ game (
 )
 game (
 	name "Naruto Shippuuden - Narutimate Storm 2 (Japan)"
+	cloneof "Naruto Shippuden - Ultimate Ninja Storm 2 (USA)"
 	region "Japan"
 	serial "NM-2073"
 	rom ( name "Naruto Shippuuden - Narutimate Storm 2 (Japan).iso" size 7838695424 crc D5C092D0 md5 7EE1BADBFC391A935404E56FC50D84AA sha1 CBF524311121F9AAAA10E64AF874A0FB95E85CC5 serial "NM-2073" )
 )
 game (
 	name "Naruto Shippuuden - Narutimate Storm 3 (Japan, Korea)"
+	cloneof "Naruto Shippuden - Ultimate Ninja Storm 3 (USA)"
 	region "Japan"
 	serial "NM-2140"
 	rom ( name "Naruto Shippuuden - Narutimate Storm 3 (Japan, Korea).iso" size 8738846720 crc CD46A096 md5 5C07753B76BFC71D0635690D5B715396 sha1 7D600F89EBC862A7BA138CE5F3F46A760DBA60B6 serial "NM-2140" )
 )
 game (
 	name "Naruto Shippuuden - Narutimate Storm Generation (Japan)"
+	cloneof "Naruto Shippuden - Ultimate Ninja Storm Generations (USA)"
 	region "Japan"
 	serial "NM-2114"
 	rom ( name "Naruto Shippuuden - Narutimate Storm Generation (Japan).iso" size 8738846720 crc 503C182E md5 F6F928E21A8B7A6D2C2CDDCF8F3A51DE sha1 B2EED15F4D23733251F0989FF97B145C8C87E22E serial "NM-2114" )
@@ -15068,6 +15399,7 @@ game (
 )
 game (
 	name "Naughty Bear - Gold Edition (USA) (En,Fr,De,Es,It)"
+	cloneof "Naughty Bear (USA, Europe) (En,Fr,De,Es,It)"
 	region "USA"
 	serial "FO-2008"
 	rom ( name "Naughty Bear - Gold Edition (USA) (En,Fr,De,Es,It).iso" size 7838695424 crc 6D770BFB md5 5B4F488CE3D8A01510AE080ED3AACA57 sha1 B478A5A20898550E268AA641E18D40D1DE216F6A serial "FO-2008" )
@@ -15080,36 +15412,42 @@ game (
 )
 game (
 	name "Need for Speed - Carbon (Europe)"
+	cloneof "Need for Speed - Carbon (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2028"
 	rom ( name "Need for Speed - Carbon (Europe).iso" size 7834892288 crc E7AFC379 md5 01714A16549B30966CF5EDF2D414FC58 sha1 8A12D8667588CF560405F898F800683E9C4655A1 serial "EA-2028" )
 )
 game (
 	name "Need for Speed - Carbon (Europe) (En,Nl,Sv,Da,Fi)"
+	cloneof "Need for Speed - Carbon (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2028"
 	rom ( name "Need for Speed - Carbon (Europe) (En,Nl,Sv,Da,Fi).iso" size 7834892288 crc 0883263E md5 183515E58082E9DB372766F2FFA6111D sha1 26228DF5923734DDBDB5632B5920303A34BF63B1 serial "EA-2028" )
 )
 game (
 	name "Need for Speed - Carbon (France)"
+	cloneof "Need for Speed - Carbon (USA) (En,Es)"
 	region "France"
 	serial "EA-2028"
 	rom ( name "Need for Speed - Carbon (France).iso" size 7834892288 crc 63E162CE md5 7339B066C805E65AB0343A064B1D7688 sha1 50164B67CBFEF60BA753029B4323875CE9C423DE serial "EA-2028" )
 )
 game (
 	name "Need for Speed - Carbon (Germany)"
+	cloneof "Need for Speed - Carbon (USA) (En,Es)"
 	region "Germany"
 	serial "EA-2028"
 	rom ( name "Need for Speed - Carbon (Germany).iso" size 7834892288 crc 09C1A8A4 md5 B11D754EC757F6B253D5FD7A27998CF7 sha1 1535CD7785DDFA9A5F3F51FAFCD0820A6EE0C5F0 serial "EA-2028" )
 )
 game (
 	name "Need for Speed - Carbon (Italy)"
+	cloneof "Need for Speed - Carbon (USA) (En,Es)"
 	region "Italy"
 	serial "EA-2028"
 	rom ( name "Need for Speed - Carbon (Italy).iso" size 7834892288 crc 83D6C6E4 md5 347FA100EB77D9C49CDC5A1BB46E44E6 sha1 ECCE463229D23551046AC6DA62979B96B2744B8D serial "EA-2028" )
 )
 game (
 	name "Need for Speed - Carbon (Japan)"
+	cloneof "Need for Speed - Carbon (USA) (En,Es)"
 	region "Japan"
 	serial "EA-2028"
 	rom ( name "Need for Speed - Carbon (Japan).iso" size 7834892288 crc 179C2306 md5 989A8692636E5FDA9925F13C156DB23D sha1 17E85F8717F6209F0D7E6B9B29DB4FEEED0CEA71 serial "EA-2028" )
@@ -15122,18 +15460,21 @@ game (
 )
 game (
 	name "Need for Speed - Carbon - Collector's Edition (Europe)"
+	cloneof "Need for Speed - Carbon (USA) (En,Es)"
 	region "Europe"
 	serial "EA-2028"
 	rom ( name "Need for Speed - Carbon - Collector's Edition (Europe).iso" size 7834892288 crc 6201F980 md5 50A74AF6212916CA10A15E146C836E3A sha1 A26D59FBA3BFFABFB2FF52FB9350DCBBDE3ACB99 serial "EA-2028" )
 )
 game (
 	name "Need for Speed - Carbon - Collector's Edition (USA) (En,Es)"
+	cloneof "Need for Speed - Carbon (USA) (En,Es)"
 	region "USA"
 	serial "EA-2028"
 	rom ( name "Need for Speed - Carbon - Collector's Edition (USA) (En,Es).iso" size 7834892288 crc 99B13D12 md5 BD732A99E40557DAE48869C35751F839 sha1 C16330119755D2F5089960391F28D06F7B83E498 serial "EA-2028" )
 )
 game (
 	name "Need for Speed - Carbono (Spain)"
+	cloneof "Need for Speed - Carbon (USA) (En,Es)"
 	region "Spain"
 	serial "EA-2028"
 	rom ( name "Need for Speed - Carbono (Spain).iso" size 7834892288 crc 5D182318 md5 AB584F0890256E59B2867DFA67A5FFD0 sha1 2066D025565C5CB0E9644D7A4EF23C2027931B66 serial "EA-2028" )
@@ -15371,6 +15712,7 @@ game (
 )
 game (
 	name "Nickelodeon Gubka Bob Kvadratnye Shtany - Plankton - Mest' robotov (Russia)"
+	cloneof "Nickelodeon SpongeBob SquarePants - Plankton's Robotic Revenge (USA, Europe) (En,Fr,De,Es,It,Nl,Sv)"
 	region "Russia"
 	serial "AV-2304"
 	rom ( name "Nickelodeon Gubka Bob Kvadratnye Shtany - Plankton - Mest' robotov (Russia).iso" size 7838695424 crc E5B9706D md5 013DFBED49EF547335247FC0B2224AB6 sha1 EE13A8CC650E8A92199EC61432B5911A80B66561 serial "AV-2304" )
@@ -15437,6 +15779,7 @@ game (
 )
 game (
 	name "Nier Gestalt (Japan)"
+	cloneof "Nier (USA, Europe) (En,Ja,Fr,De)"
 	region "Japan"
 	serial "SQ-2029"
 	rom ( name "Nier Gestalt (Japan).iso" size 7838695424 crc 39E20208 md5 687870853131AC2E2CC39DFBBB246AB6 sha1 6EC84B2DD06FAE064DDB6FE941629F74BBE8C19B serial "SQ-2029" )
@@ -15478,12 +15821,14 @@ game (
 )
 game (
 	name "Ninja Gaiden 3 (Europe)"
+	cloneof "Ninja Gaiden 3 (USA)"
 	region "Europe"
 	serial "KV-2004"
 	rom ( name "Ninja Gaiden 3 (Europe).iso" size 8738846720 crc 19B86031 md5 EBC2FB47DA26FD898F177929B55D7802 sha1 AE18AF332AF4C0ADC25A41B33DF292CE526C28A7 serial "KV-2004" )
 )
 game (
 	name "Ninja Gaiden 3 (Japan)"
+	cloneof "Ninja Gaiden 3 (USA)"
 	region "Japan"
 	serial "KV-2004"
 	rom ( name "Ninja Gaiden 3 (Japan).iso" size 8738846720 crc 2139EC20 md5 36A02130C6A98749BBD7C51F22E39138 sha1 EEE8692BB963C640E0DB564C1878004EBA7E4B87 serial "KV-2004" )
@@ -15496,6 +15841,7 @@ game (
 )
 game (
 	name "Ninja Gaiden 3 - Razor's Edge (USA)"
+	cloneof "Ninja Gaiden 3 (USA)"
 	region "USA"
 	serial "KV-2020"
 	rom ( name "Ninja Gaiden 3 - Razor's Edge (USA).iso" size 8738846720 crc D172D568 md5 2B9615D7C18AE68093EF65003ECBC886 sha1 65AEE5B5279F0DE3412ABE993CA5B49DC69F9F4B serial "KV-2020" )
@@ -15538,6 +15884,7 @@ game (
 )
 game (
 	name "Novyj Chelovek-Pauk (Russia)"
+	cloneof "Amazing Spider-Man, The (USA, Europe) (En,Fr,De,Es,It)"
 	region "Russia"
 	serial "AV-2229"
 	rom ( name "Novyj Chelovek-Pauk (Russia).iso" size 8738846720 crc DCFC0CE3 md5 6896230C9046BE6C6C8D18267FABC188 sha1 B8F45510E67AF0CE45B43355663ACD4D53C08AEF serial "AV-2229" )
@@ -16060,6 +16407,7 @@ game (
 )
 game (
 	name "Oneechanbara VorteX - Imichi o Tsugu Mono-tachi (Japan)"
+	cloneof "Onechanbara - Bikini Samurai Squad (USA, Europe) (En,Fr)"
 	region "Japan"
 	serial "DP-2002"
 	rom ( name "Oneechanbara VorteX - Imichi o Tsugu Mono-tachi (Japan).iso" size 7834892288 crc FDF15537 md5 A1C8C272378C3AC0BAE34C61FF0FC0AA sha1 13CFB703350719C4E22CFD83100D100E94CB661F serial "DP-2002" )
@@ -16161,6 +16509,7 @@ game (
 )
 game (
 	name "Otomedius Excellent! (Japan)"
+	cloneof "Otomedius Excellent (USA)"
 	region "Japan"
 	serial "KN-2074"
 	rom ( name "Otomedius Excellent! (Japan).iso" size 7838695424 crc F7DE0F7B md5 95C6FCC30450671C8A847E35F22AED29 sha1 82E78A28834FB393EC1BCDB4D64C9DB0E7BD3AE5 serial "KN-2074" )
@@ -16191,6 +16540,7 @@ game (
 )
 game (
 	name "Over G - Energy Airforce (Japan) (En,Ja)"
+	cloneof "Over G Fighters (USA, Europe) (En,Fr,De,Es)"
 	region "Japan"
 	serial "TI-2001"
 	rom ( name "Over G - Energy Airforce (Japan) (En,Ja).iso" size 7834892288 crc 5EC36247 md5 5A5D9167709F1E6CBF03BC8EFA4274BA sha1 5D6E1368861D2292155A6AF5FFE49134A4B4AB6C serial "TI-2001" )
@@ -16248,6 +16598,7 @@ game (
 )
 game (
 	name "PES 2008 - Pro Evolution Soccer (Europe) (En,Fr,De,Es,It,Pt)"
+	cloneof "PES 2008 - Pro Evolution Soccer (USA) (En,Fr,Es)"
 	region "Europe"
 	serial "KN-2022"
 	rom ( name "PES 2008 - Pro Evolution Soccer (Europe) (En,Fr,De,Es,It,Pt).iso" size 7835492352 crc C205ADA0 md5 8396324D50CD4F3A213B1214ED2AEC66 sha1 6E1847B99C2D1E41CE0A544CF8BBFDC25EBE27BC serial "KN-2022" )
@@ -16260,12 +16611,14 @@ game (
 )
 game (
 	name "PES 2009 - Pro Evolution Soccer (Europe) (En,Fr,De)"
+	cloneof "PES 2009 - Pro Evolution Soccer (USA) (En,Fr,Es,Pt)"
 	region "Europe"
 	serial "KN-2032"
 	rom ( name "PES 2009 - Pro Evolution Soccer (Europe) (En,Fr,De).iso" size 7835492352 crc 2496D3DC md5 CF3DE3237EDA4E8B8E49E95A9C20A669 sha1 56027436B3732069CA0A09D7B4EBCB2BEA60FCFD serial "KN-2032" )
 )
 game (
 	name "PES 2009 - Pro Evolution Soccer (Europe) (Es,It,Pt)"
+	cloneof "PES 2009 - Pro Evolution Soccer (USA) (En,Fr,Es,Pt)"
 	region "Europe"
 	serial "KN-2032"
 	rom ( name "PES 2009 - Pro Evolution Soccer (Europe) (Es,It,Pt).iso" size 7835492352 crc C4B421B9 md5 AE99C954540D7FCF3DBF843BA1139F65 sha1 FC6AF06370558322E090D67511774F90AE08CB5E serial "KN-2032" )
@@ -16278,36 +16631,42 @@ game (
 )
 game (
 	name "PES 2010 - Pro Evolution Soccer (Canada) (En,Fr)"
+	cloneof "PES 2010 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Canada"
 	serial "KN-2053"
 	rom ( name "PES 2010 - Pro Evolution Soccer (Canada) (En,Fr).iso" size 7838695424 crc A93B12CA md5 BA48B029BDB6D5E037FAB3B5273E764A sha1 616ED037D65D50C59ABF7D4BBDBDDE91D898E6E6 serial "KN-2053" )
 )
 game (
 	name "PES 2010 - Pro Evolution Soccer (Europe) (En,Nl,Sv,Ru,El)"
+	cloneof "PES 2010 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2049"
 	rom ( name "PES 2010 - Pro Evolution Soccer (Europe) (En,Nl,Sv,Ru,El).iso" size 7838695424 crc 1DED80E1 md5 53DF12C067EE419D6E1A6F4BA7EAB157 sha1 BF6B01FD3405CED19E1314C69EF8460FD52E4906 serial "KN-2049" )
 )
 game (
 	name "PES 2010 - Pro Evolution Soccer (Europe) (Es,Pt)"
+	cloneof "PES 2010 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2049"
 	rom ( name "PES 2010 - Pro Evolution Soccer (Europe) (Es,Pt).iso" size 7838695424 crc 54BD252E md5 4C9DB9B8AD7BBBF1424DE655FFF25AD1 sha1 8603990524029617E63ABB1013F60466A595B309 serial "KN-2049" )
 )
 game (
 	name "PES 2010 - Pro Evolution Soccer (Europe) (Fr,De)"
+	cloneof "PES 2010 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2049"
 	rom ( name "PES 2010 - Pro Evolution Soccer (Europe) (Fr,De).iso" size 7838695424 crc DD89A901 md5 680AC067FCE0EEF5F3F08EB2928B93E5 sha1 CCAB190609D8496BB2603BD54640ED9EB85D5780 serial "KN-2049" )
 )
 game (
 	name "PES 2010 - Pro Evolution Soccer (Italy)"
+	cloneof "PES 2010 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Italy"
 	serial "KN-2049"
 	rom ( name "PES 2010 - Pro Evolution Soccer (Italy).iso" size 7838695424 crc CD35B687 md5 CD92B50D912613CECFF821E6ECB55C46 sha1 4DE2DAD80763B0B7D3F4C12F3513CC9CF3BB5D32 serial "KN-2049" )
 )
 game (
 	name "PES 2010 - Pro Evolution Soccer (Latin America) (Es,Pt)"
+	cloneof "PES 2010 - Pro Evolution Soccer (USA) (En,Es)"
 	serial "KN-2053"
 	rom ( name "PES 2010 - Pro Evolution Soccer (Latin America) (Es,Pt).iso" size 7838695424 crc BE3DDC5E md5 D3D764C6DBE570E0A6088507C2C2A595 sha1 DC8E758266715FD25BB1AFF3A73D07D723AA0B4C serial "KN-2053" )
 )
@@ -16319,30 +16678,35 @@ game (
 )
 game (
 	name "PES 2011 - Pro Evolution Soccer (Brazil) (Es,Pt)"
+	cloneof "PES 2011 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Brazil"
 	serial "KN-2077"
 	rom ( name "PES 2011 - Pro Evolution Soccer (Brazil) (Es,Pt).iso" size 7838695424 crc F53B452D md5 F0FD711BC1E19A69C7DCCC5C91D6A48B sha1 6456B29E6AE8C7819B96B1CAE77B61CC99438D25 serial "KN-2077" )
 )
 game (
 	name "PES 2011 - Pro Evolution Soccer (Europe) (En,Nl,Sv,Ru,Tr)"
+	cloneof "PES 2011 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2077"
 	rom ( name "PES 2011 - Pro Evolution Soccer (Europe) (En,Nl,Sv,Ru,Tr).iso" size 7838695424 crc 050393BE md5 A039D3DF457E1BAE1599FB3D874765F0 sha1 B3FE7F8B137D8A34758A89394D5FDFCDDA142B8A serial "KN-2077" )
 )
 game (
 	name "PES 2011 - Pro Evolution Soccer (Europe) (Es,Pt)"
+	cloneof "PES 2011 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2077"
 	rom ( name "PES 2011 - Pro Evolution Soccer (Europe) (Es,Pt).iso" size 7838695424 crc D2DD969B md5 B8EEBCBE384FE7B2E2EC381C84C7833B sha1 72CFBBFEE4CB684E6020D46244DAABCA22716A34 serial "KN-2077" )
 )
 game (
 	name "PES 2011 - Pro Evolution Soccer (Europe) (Fr,De)"
+	cloneof "PES 2011 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2077"
 	rom ( name "PES 2011 - Pro Evolution Soccer (Europe) (Fr,De).iso" size 7838695424 crc 2F692770 md5 417BCB84437729484E75062D444D401C sha1 CA0DD5C5EC7C48EECB2E97D7005436B8CBDB9828 serial "KN-2077" )
 )
 game (
 	name "PES 2011 - Pro Evolution Soccer (Europe) (It,El)"
+	cloneof "PES 2011 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2077"
 	rom ( name "PES 2011 - Pro Evolution Soccer (Europe) (It,El).iso" size 7838695424 crc A9EC1159 md5 2A6F3EA0BFF5C75CF6CD755F1E84E917 sha1 17D61B9E8D565348C1DCD69662617B6165674F14 serial "KN-2077" )
@@ -16433,24 +16797,28 @@ game (
 )
 game (
 	name "PES 2014 - Pro Evolution Soccer (Brazil) (Es,Pt)"
+	cloneof "PES 2014 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Brazil"
 	serial "KN-2134"
 	rom ( name "PES 2014 - Pro Evolution Soccer (Brazil) (Es,Pt).iso" size 8738846720 crc EAB4AA56 md5 636510BB45EE999DCE0251678EF054DA sha1 E62475A54D64A760BF0CF2872A51F06841D806D7 serial "KN-2134" )
 )
 game (
 	name "PES 2014 - Pro Evolution Soccer (Europe) (En,Fr,De,It,Nl,Ru,Tr)"
+	cloneof "PES 2014 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2134"
 	rom ( name "PES 2014 - Pro Evolution Soccer (Europe) (En,Fr,De,It,Nl,Ru,Tr).iso" size 8738846720 crc 4764BADE md5 D9F9B2F1AC2B231B80202ACE8843514D sha1 26440B62BB88E3E55C81EE0F831AB237BF00CC52 serial "KN-2134" )
 )
 game (
 	name "PES 2014 - Pro Evolution Soccer (Europe) (En,Sv)"
+	cloneof "PES 2014 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2134"
 	rom ( name "PES 2014 - Pro Evolution Soccer (Europe) (En,Sv).iso" size 8738846720 crc 5310C89C md5 63D3F82FD6CCF6B7B323A7E18EAC0579 sha1 5FE5E018186C1D20E03CEB943796588730E681BB serial "KN-2134" )
 )
 game (
 	name "PES 2014 - Pro Evolution Soccer (Europe) (Es,Pt,El)"
+	cloneof "PES 2014 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2134"
 	rom ( name "PES 2014 - Pro Evolution Soccer (Europe) (Es,Pt,El).iso" size 8738846720 crc ACE4EC7A md5 DC90EB2B6072C8343956BF99A959C919 sha1 641EE7884963BF2CD99D2DC80F5EF0E8E130F66D serial "KN-2134" )
@@ -16565,6 +16933,7 @@ game (
 )
 game (
 	name "PES 6 - Pro Evolution Soccer (Europe) (En,Fr,De,Es,It)"
+	cloneof "Winning Eleven - Pro Evolution Soccer 2007 (USA) (En,Es)"
 	region "Europe"
 	serial "KN-2010"
 	rom ( name "PES 6 - Pro Evolution Soccer (Europe) (En,Fr,De,Es,It).iso" size 7834892288 crc 7D1A315E md5 620311695F5EFBFB5231B79980349B2F sha1 24106DDA4C8F968BE1157A9A46AEEEBE3786D8EF serial "KN-2010" )
@@ -16583,12 +16952,14 @@ game (
 )
 game (
 	name "Padrino, El (Spain)"
+	cloneof "Godfather, The (USA)"
 	region "Spain"
 	serial "EA-2025"
 	rom ( name "Padrino, El (Spain).iso" size 7834892288 crc C5D4CD9E md5 BDD21DCC395BC97B81ED233AEB11E4A3 sha1 44C9415A57444541C7B580FFD67977985BFBB87D serial "EA-2025" )
 )
 game (
 	name "Padrino, Il (Italy)"
+	cloneof "Godfather, The (USA)"
 	region "Italy"
 	serial "EA-2025"
 	rom ( name "Padrino, Il (Italy).iso" size 7834892288 crc 8F68B9C4 md5 709AFE0836BD69C051E5EFE29E14BC12 sha1 CAD37A3DBC755B5A19DD21829B818FBF3B8FB769 serial "EA-2025" )
@@ -16607,6 +16978,7 @@ game (
 )
 game (
 	name "Pate II, Der (Germany)"
+	cloneof "Godfather II, The (USA) (En,Fr)"
 	region "Germany"
 	serial "EA-2150"
 	rom ( name "Pate II, Der (Germany).iso" size 7838695424 crc 771F3721 md5 35CD5A757A6BDA87284B683B48350860 sha1 D6B7C55DE4352C2267BB3678209F3E22F93E907B serial "EA-2150" )
@@ -16666,12 +17038,14 @@ game (
 )
 game (
 	name "Persona 4 - The Ultimate in Mayonaka Arena (Japan) (En,Ja)"
+	cloneof "Persona 4 Arena (USA)"
 	region "Japan"
 	serial "E9-2002"
 	rom ( name "Persona 4 - The Ultimate in Mayonaka Arena (Japan) (En,Ja).iso" size 7838695424 crc 59BFD8C9 md5 D998413A8C118163A5AC8B76F3472CFD sha1 DD52BAFB3CBF572CC8DDD4E6F56C6101C9833543 serial "E9-2002" )
 )
 game (
 	name "Persona 4 Arena (Europe) (En,Ja)"
+	cloneof "Persona 4 Arena (USA)"
 	region "Europe"
 	serial "E9-2002"
 	rom ( name "Persona 4 Arena (Europe) (En,Ja).iso" size 7838695424 crc 0CE6CD6B md5 CEE391B44A3D5CA43DC5AE8D9106A7DD sha1 B4CA7DE8E27A77112A4ECD5914667C243619264C serial "E9-2002" )
@@ -17035,12 +17409,14 @@ game (
 )
 game (
 	name "Psycho Break (Japan) (En,Ja)"
+	cloneof "Evil Within, The (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "BS-2039"
 	rom ( name "Psycho Break (Japan) (En,Ja).iso" size 8738846720 crc 95C85592 md5 08C7823AED2AF511DA2A16A9307BCE5B sha1 D9A1F8C69734B3758AA080187C4E8CB2750D72B9 serial "BS-2039" )
 )
 game (
 	name "Pure (World) (En,Fr,De,Es,It,Nl)"
+	cloneof "Extreme Racing Pure (Japan)"
 	serial "BV-2009"
 	rom ( name "Pure (World) (En,Fr,De,Es,It,Nl).iso" size 7835492352 crc 3953DA30 md5 1C3D1049C8EDDAAEE89BAFC14E816529 sha1 3B18B44191FC6761BFEE9F5EF03CBA60601BAD3B serial "BV-2009" )
 )
@@ -17489,6 +17865,7 @@ game (
 )
 game (
 	name "Red Dead Redemption (World) (En,Fr,De,Es,It)"
+	cloneof "Red Dead Redemption (Japan)"
 	serial "TT-2091"
 	rom ( name "Red Dead Redemption (World) (En,Fr,De,Es,It).iso" size 7838695424 crc 11CA8BE9 md5 2DBABDB7BE8BD034829C90A7380D6AA6 sha1 7051EAF8D64701406DC896DDC35719D6C96FEC94 serial "TT-2091" )
 )
@@ -17542,6 +17919,7 @@ game (
 )
 game (
 	name "Red Dead Redemption - Undead Nightmare (Japan)"
+	cloneof "Red Dead Redemption - Undead Nightmare (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "TT-2091"
 	rom ( name "Red Dead Redemption - Undead Nightmare (Japan).iso" size 7838695424 crc D387DF00 md5 ABF5B0809075792D2FF5C09F66901E2D sha1 B894C6FA907BF2F3F4A6EBDEB73C50C156B67427 serial "TT-2091" )
@@ -17613,6 +17991,7 @@ game (
 )
 game (
 	name "Red Seeds Profile (Japan)"
+	cloneof "Deadly Premonition (USA)"
 	region "Japan"
 	serial "MV-2001"
 	rom ( name "Red Seeds Profile (Japan).iso" size 7838695424 crc 1C1B131A md5 FD88FCA6A49ED15A683E5CA31B3C8624 sha1 3AF230B848706FA73C2986115EFF3CA9F1088110 serial "MV-2001" )
@@ -17625,6 +18004,7 @@ game (
 )
 game (
 	name "Resident Evil - Operation Raccoon City (Germany)"
+	cloneof "Resident Evil - Operation Raccoon City (USA, Europe) (En,Fr,De,Es,It,Pl,Ru)"
 	region "Germany"
 	serial "CC-2077"
 	rom ( name "Resident Evil - Operation Raccoon City (Germany).iso" size 7838695424 crc 379AF0A5 md5 FC0BACABD8116FE6541C3354B1743619 sha1 17B43D5B2DEA8C5661CDC223FDE79875AF78E0F9 serial "CC-2077" )
@@ -17648,6 +18028,7 @@ game (
 )
 game (
 	name "Resident Evil 5 (World) (Beta)"
+	cloneof "Resident Evil 5 (World) (En,Ja,Fr,De,Es,It)"
 	releaseyear "2008"
 	releasemonth "11"
 	releaseday "29"
@@ -17655,6 +18036,7 @@ game (
 )
 game (
 	name "Resident Evil 5 (World) (Beta)"
+	cloneof "Resident Evil 5 (World) (En,Ja,Fr,De,Es,It)"
 	releaseyear "2009"
 	releasemonth "01"
 	releaseday "14"
@@ -17667,6 +18049,7 @@ game (
 )
 game (
 	name "Resident Evil 5 (World) (En,Ja,Fr,De,Es,It) (Beta)"
+	cloneof "Resident Evil 5 (World) (En,Ja,Fr,De,Es,It)"
 	releaseyear "2009"
 	releasemonth "01"
 	releaseday "07"
@@ -17714,6 +18097,7 @@ game (
 )
 game (
 	name "Ricky Ponting International Cricket 2007 (Australia)"
+	cloneof "Brian Lara International Cricket 2007 (Europe)"
 	region "Australia"
 	serial "CM-2008"
 	rom ( name "Ricky Ponting International Cricket 2007 (Australia).iso" size 7835492352 crc 5CD30C26 md5 8413F707C499A5CA722EAFA959BA9A85 sha1 D63BBFAFBCA3C2C2D461A6DD2D986175B0BE5821 serial "CM-2008" )
@@ -17881,6 +18265,7 @@ game (
 )
 game (
 	name "Rock Band - Song Pack 2 (Europe) (En,Fr,De,Es,It)"
+	cloneof "Rock Band - Track Pack Volume 2 (USA)"
 	region "Europe"
 	serial "EA-2177"
 	rom ( name "Rock Band - Song Pack 2 (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc F1876C9A md5 FBE6FBF7EF69F794D52AD105CDC9E773 sha1 74232704D7A5C4A38A6C7AD4E67AFED14F02C16B serial "EA-2177" )
@@ -17947,23 +18332,27 @@ game (
 )
 game (
 	name "Rocksmith (USA) (En,Fr,Es) (Best Buy Edition)"
+	cloneof "Rocksmith (USA)"
 	region "USA"
 	serial "US-2163"
 	rom ( name "Rocksmith (USA) (En,Fr,Es) (Best Buy Edition).iso" size 8738846720 crc 69AC3D4A md5 F7C7F004CDBB46B6FC81D111918DA7E7 sha1 1D1E062CAAB3438FE94C419656365268087A7D05 serial "US-2163" )
 )
 game (
 	name "Rocksmith (World) (En,Ja,Fr,De,Es,It,Nl) (Guitar and Bass)"
+	cloneof "Rocksmith (USA)"
 	serial "US-2163"
 	rom ( name "Rocksmith (World) (En,Ja,Fr,De,Es,It,Nl) (Guitar and Bass).iso" size 8738846720 crc BABC2F28 md5 561B7DE67A5B5F6E92B00FB2521271BD sha1 98D707DC5B5067303F6DC524A9A9B42B9BBDBE28 serial "US-2163" )
 )
 game (
 	name "Rocksmith - All-New 2014 Edition (USA) (Rev 1)"
+	cloneof "Rocksmith (USA)"
 	region "USA"
 	serial "US-2240"
 	rom ( name "Rocksmith - All-New 2014 Edition (USA) (Rev 1).iso" size 8738846720 crc 2297F200 md5 AE1E485D6EE528761DB906D8D7D4444E sha1 FFD4CA7A66E85E153C752B8028E436E71E3CC6D6 serial "US-2240" )
 )
 game (
 	name "Rocksmith - All-New 2014 Edition (World) (En,Ja,Fr,De,Es,It)"
+	cloneof "Rocksmith (USA)"
 	serial "US-2240"
 	rom ( name "Rocksmith - All-New 2014 Edition (World) (En,Ja,Fr,De,Es,It).iso" size 8738846720 crc CDAAB53C md5 53F4C5E3CA6D88212EA0AD35A2C91BB5 sha1 7D15A4BDA5418C07912762CA29AA361B9D830728 serial "US-2240" )
 )
@@ -17999,6 +18388,7 @@ game (
 )
 game (
 	name "Royaumes D'Amalur, Les - Reckoning (France) (En,Fr,De,Es,It)"
+	cloneof "Kingdoms of Amalur - Reckoning (Japan) (En,Ja)"
 	region "France"
 	serial "EA-2366"
 	rom ( name "Royaumes D'Amalur, Les - Reckoning (France) (En,Fr,De,Es,It).iso" size 8738846720 crc 64282372 md5 E4F865C9254003EA3250E936C3B6CDE8 sha1 A069558C1E49B856AF926B893CE605F09C3D1E71 serial "EA-2366" )
@@ -18047,6 +18437,7 @@ game (
 )
 game (
 	name "Rugby League Live 2 - World Cup Edition (Australia)"
+	cloneof "Rugby League Live 2 (Europe)"
 	region "Australia"
 	serial "HE-2009"
 	rom ( name "Rugby League Live 2 - World Cup Edition (Australia).iso" size 7838695424 crc 6005A2C6 md5 AC63B2C5FD21BEC1C21F83B2DC498E40 sha1 C7BC843FDF20E0605054F4EE8259D3A8BE723F64 serial "HE-2009" )
@@ -18332,6 +18723,7 @@ game (
 )
 game (
 	name "Saints Row IV - Ultra Super Ultimate Deluxe Edition (Japan) (En,Ja)"
+	cloneof "Saints Row IV (World) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "KM-2038"
 	rom ( name "Saints Row IV - Ultra Super Ultimate Deluxe Edition (Japan) (En,Ja).iso" size 8738846720 crc 529D6C3D md5 106915F6E543C751F71B5DF78F76B811 sha1 5C878D30611AB598BE077F5BC7359567E3A1439A serial "KM-2038" )
@@ -18344,6 +18736,7 @@ game (
 )
 game (
 	name "Samurai Dou 3 (Japan)"
+	cloneof "Way of the Samurai 3 (USA)"
 	region "Japan"
 	serial "SD-2044"
 	rom ( name "Samurai Dou 3 (Japan).iso" size 7835492352 crc 4653E1D4 md5 1A6DBDD3DD49D91CF967CA17B565863E sha1 B93AB87D08F0421F24D87947A79D5691453E5D87 serial "SD-2044" )
@@ -18356,6 +18749,7 @@ game (
 )
 game (
 	name "Samurai Spirits Sen (Japan)"
+	cloneof "Samurai Shodown Sen (USA, Europe) (En,Ja)"
 	region "Japan"
 	serial "SN-2005"
 	rom ( name "Samurai Spirits Sen (Japan).iso" size 7838695424 crc EECE2AC6 md5 945117AD965B5F590251A24E7FC78145 sha1 9E07EBEB07B03CE10DFBFDA7B2D15E864A30D4BE serial "SN-2005" )
@@ -18403,18 +18797,21 @@ game (
 )
 game (
 	name "Scene It Box Office Smash! (Europe)"
+	cloneof "Scene It Box Office Smash! (USA, Europe) (En,Fr,Es)"
 	region "Europe"
 	serial "MS-2144"
 	rom ( name "Scene It Box Office Smash! (Europe).iso" size 7835492352 crc 8F325CC1 md5 BE61065437722F272FBAE87A85D5AFAB sha1 ED61CD5307069078020FBCDE0EC54058CAA8D38E serial "MS-2144" )
 )
 game (
 	name "Scene It Box Office Smash! (France)"
+	cloneof "Scene It Box Office Smash! (USA, Europe) (En,Fr,Es)"
 	region "France"
 	serial "MS-2144"
 	rom ( name "Scene It Box Office Smash! (France).iso" size 7835492352 crc E0477BA0 md5 6B5A0FC564DA64E768509C5F425B4599 sha1 3B7C142FF8902DD8A60CEA7339AE720BD371A191 serial "MS-2144" )
 )
 game (
 	name "Scene It Box Office Smash! (Italy)"
+	cloneof "Scene It Box Office Smash! (USA, Europe) (En,Fr,Es)"
 	region "Italy"
 	serial "MS-2144"
 	rom ( name "Scene It Box Office Smash! (Italy).iso" size 7835492352 crc 6C8062D1 md5 3F70BB2931FC932A12086E87154F52BE sha1 14C7A52AD60F756938F806A1B26011EEA278A006 serial "MS-2144" )
@@ -18427,6 +18824,7 @@ game (
 )
 game (
 	name "Scene It Bright Lights! Big Screen! (Canada)"
+	cloneof "Scene It Bright Lights! Big Screen! (USA)"
 	region "Canada"
 	serial "WR-2038"
 	rom ( name "Scene It Bright Lights! Big Screen! (Canada).iso" size 7838695424 crc 59D99F5A md5 BAF3B946B93454F87AE0AF603E51A5C3 sha1 27B1BD678A5C08C2FB8F99CAF26A2791DD58023D serial "WR-2038" )
@@ -18439,30 +18837,35 @@ game (
 )
 game (
 	name "Scene It Ciak! Si Gira! (Italy)"
+	cloneof "Scene It Bright Lights! Big Screen! (USA)"
 	region "Italy"
 	serial "WR-2044"
 	rom ( name "Scene It Ciak! Si Gira! (Italy).iso" size 7838695424 crc 3085098D md5 97904D6BDC991CB28C90C1D8F36685D9 sha1 0B065E6ABA5C2155AE370058CCE5B659CFACC7F5 serial "WR-2044" )
 )
 game (
 	name "Scene It Estrellas en la Pantalla Gigante (Spain)"
+	cloneof "Scene It Bright Lights! Big Screen! (USA)"
 	region "Spain"
 	serial "WR-2041"
 	rom ( name "Scene It Estrellas en la Pantalla Gigante (Spain).iso" size 7838695424 crc 4DE1C338 md5 1BA0C49DA4AD67055A94F27187BFDF89 sha1 CBF396758A8E347DAFB66D1A9A516FDA1B0D87E5 serial "WR-2041" )
 )
 game (
 	name "Scene It Ganz grosses Kino! (Germany)"
+	cloneof "Scene It Bright Lights! Big Screen! (USA)"
 	region "Germany"
 	serial "WR-2040"
 	rom ( name "Scene It Ganz grosses Kino! (Germany).iso" size 7838695424 crc A267E36B md5 B2646F9A4BAE3795632C5CB38384E257 sha1 6AC518300227739236F60B727A4DCECA893396A0 serial "WR-2040" )
 )
 game (
 	name "Scene It Grandes Exitos de Taquilla (Spain)"
+	cloneof "Scene It Box Office Smash! (USA, Europe) (En,Fr,Es)"
 	region "Spain"
 	serial "MS-2144"
 	rom ( name "Scene It Grandes Exitos de Taquilla (Spain).iso" size 7835492352 crc 7A2D84E7 md5 2868795C5B89E9F34F7E05CA014A6733 sha1 E86B1E3B950DCB58C80004CB77B2638AE040205F serial "MS-2144" )
 )
 game (
 	name "Scene It Kinohits (Germany)"
+	cloneof "Scene It Box Office Smash! (USA, Europe) (En,Fr,Es)"
 	region "Germany"
 	serial "MS-2144"
 	rom ( name "Scene It Kinohits (Germany).iso" size 7835492352 crc FCC53075 md5 086E5975CDA74363846CB2DF11FB5244 sha1 01033B7D6AC07F7902C2200B112F00F5F3513309 serial "MS-2144" )
@@ -18475,18 +18878,21 @@ game (
 )
 game (
 	name "Scene It Lights, Camera, Action! (Italy)"
+	cloneof "Scene It Lights, Camera, Action (USA)"
 	region "Italy"
 	serial "MS-2098"
 	rom ( name "Scene It Lights, Camera, Action! (Italy).iso" size 7835492352 crc 5B696AED md5 5CA77932B99C0AE368CB8E7A2E99192D sha1 58ABD4933DCF854330EF4BCCD69B6D031159186A serial "MS-2098" )
 )
 game (
 	name "Scene It Luces, Camara, Accion! (Spain)"
+	cloneof "Scene It Lights, Camera, Action (USA)"
 	region "Spain"
 	serial "MS-2098"
 	rom ( name "Scene It Luces, Camara, Accion! (Spain).iso" size 7835492352 crc E50284D1 md5 80E3958C6DADA9AB1D1E85C349DF5C24 sha1 53C2D04C9F2DF13C9B371E74CCF48B35307D65FF serial "MS-2098" )
 )
 game (
 	name "Scene It Lumieres ! Action ! (France)"
+	cloneof "Scene It Lights, Camera, Action (USA)"
 	region "France"
 	serial "WR-2042"
 	rom ( name "Scene It Lumieres ! Action ! (France).iso" size 7838695424 crc 24F6832F md5 95BB0129F28E266C32AD7217A9266BB2 sha1 CCC2F8E0231C417C76745AE743F69D1D568FF711 serial "WR-2042" )
@@ -18517,6 +18923,7 @@ game (
 )
 game (
 	name "Sega Mega Drive Ultimate Collection (Europe) (En,Fr,De,Es,It)"
+	cloneof "Sonic's Ultimate Genesis Collection (USA)"
 	region "Europe"
 	serial "SE-2085"
 	rom ( name "Sega Mega Drive Ultimate Collection (Europe) (En,Fr,De,Es,It).iso" size 7835492352 crc 0C92BBA7 md5 21355033DF38483A225469196468C232 sha1 5C98044E2BCF40D7F59455C928B5239FCAF4431B serial "SE-2085" )
@@ -18540,6 +18947,7 @@ game (
 )
 game (
 	name "Sengoku Musou 2 (Japan)"
+	cloneof "Samurai Warriors 2 (USA, Europe)"
 	region "Japan"
 	serial "KO-2005"
 	rom ( name "Sengoku Musou 2 (Japan).iso" size 7834892288 crc 141E5F7F md5 12A172913FC9424F274E90C318FADCD7 sha1 5460FB840DC8C1B611A87AFD2BD0B19EEA38672B serial "KO-2005" )
@@ -18570,12 +18978,14 @@ game (
 )
 game (
 	name "Serious Sam Collection, The (Europe)"
+	cloneof "Serious Sam HD (Europe)"
 	region "Europe"
 	serial "MK-2010"
 	rom ( name "Serious Sam Collection, The (Europe).iso" size 7838695424 crc 34260B74 md5 33A59191891F99ADE6DADF90FE322709 sha1 C52B4A58B54D727636EDF3495B408F49621463A4 serial "MK-2010" )
 )
 game (
 	name "Serious Sam Collection, The (USA)"
+	cloneof "Serious Sam HD (Europe)"
 	region "USA"
 	serial "VQ-2010"
 	rom ( name "Serious Sam Collection, The (USA).iso" size 7838695424 crc 1ADD6285 md5 3F4F9B29A4D592822CD63C35144A7594 sha1 BD7E5C7350E9918DA568D7C2019A7A811C1522E1 serial "VQ-2010" )
@@ -18706,18 +19116,21 @@ game (
 )
 game (
 	name "Shin Hokuto Musou (Japan)"
+	cloneof "Fist of the North Star - Ken's Rage 2 (USA, Europe) (En,Fr,It)"
 	region "Japan"
 	serial "KO-2047"
 	rom ( name "Shin Hokuto Musou (Japan).iso" size 7838695424 crc 40646D5E md5 8DF06887A0E666E2B7EE3EC9C271865D sha1 9E5E90E9B63D24F869B2822DC3B313B6DFF10E0B serial "KO-2047" )
 )
 game (
 	name "Shin Sangoku Musou - Multi Raid Special (Japan, Asia)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	region "Japan"
 	serial "KO-2028"
 	rom ( name "Shin Sangoku Musou - Multi Raid Special (Japan, Asia).iso" size 7838695424 crc ACB2E1FC md5 43A3A81B5EDEC930D89FF797FBF3B0A2 sha1 28CFFAACCE57DCE123DF7E6F5BE1CB4EF6C5826D serial "KO-2028" )
 )
 game (
 	name "Shin Sangoku Musou 4 - Empires (Japan, Korea)"
+	cloneof "Dynasty Warriors 5 - Empires (USA)"
 	region "Japan"
 	serial "KO-2003"
 	rom ( name "Shin Sangoku Musou 4 - Empires (Japan, Korea).iso" size 7834892288 crc 98CD93D6 md5 B9ECE49278751FB59932FD50A6AB2BF6 sha1 AA5426B73A95936E82B86F68D0F8604D7930B2F2 serial "KO-2003" )
@@ -18736,6 +19149,7 @@ game (
 )
 game (
 	name "Shin Sangoku Musou 5 (Japan)"
+	cloneof "Dynasty Warriors 6 (USA)"
 	region "Japan"
 	serial "KO-2010"
 	rom ( name "Shin Sangoku Musou 5 (Japan).iso" size 7835492352 crc A595ED66 md5 414004FE2EDDCFFCE9CAAC03ACCB2D0A sha1 7E1D07978C6F1BF3B92F62D79EE556B39FDCA04E serial "KO-2010" )
@@ -18772,6 +19186,7 @@ game (
 )
 game (
 	name "Shutokou Battle X (Japan)"
+	cloneof "Import Tuner Challenge (USA, Europe)"
 	region "Japan"
 	serial "GE-2001"
 	rom ( name "Shutokou Battle X (Japan).iso" size 7834892288 crc 96AFA43A md5 7FC78018C68A2F73E703E1679AC4051E sha1 310437E17214FA454226542D432A077A5E40A666 serial "GE-2001" )
@@ -18826,24 +19241,28 @@ game (
 )
 game (
 	name "Simpson, Les - Le Jeu (France)"
+	cloneof "Simpsons Game, The (USA)"
 	region "France"
 	serial "EA-2057"
 	rom ( name "Simpson, Les - Le Jeu (France).iso" size 7835492352 crc 6EFBD211 md5 24CBC368BD4AC2B8ABBE752A7F260F37 sha1 7FF5432E397E80B9A2B19C12652413B2ACDFC89A serial "EA-2057" )
 )
 game (
 	name "Simpsons Game, The (Asia)"
+	cloneof "Simpsons Game, The (USA)"
 	region "Asia"
 	serial "EA-2057"
 	rom ( name "Simpsons Game, The (Asia).iso" size 7835492352 crc 25EAC45D md5 5CE8541089C53E75046E186B1086CD07 sha1 3CF63C9F444408033AF1EBC894C3BD0090E9676C serial "EA-2057" )
 )
 game (
 	name "Simpsons Game, The (Europe) (En,No,Da,Fi)"
+	cloneof "Simpsons Game, The (USA)"
 	region "Europe"
 	serial "EA-2057"
 	rom ( name "Simpsons Game, The (Europe) (En,No,Da,Fi).iso" size 7835492352 crc 717A24D8 md5 54EBAB2F775407A028AF67B3CC6F3D88 sha1 101F34F12530704CD1B985F339AE2A7C21CD72B1 serial "EA-2057" )
 )
 game (
 	name "Simpsons Game, The (Europe) (Es,It)"
+	cloneof "Simpsons Game, The (USA)"
 	region "Europe"
 	serial "EA-2057"
 	rom ( name "Simpsons Game, The (Europe) (Es,It).iso" size 7835492352 crc 7F12B34F md5 F7FC94F27844DC65340402A795D2D87F sha1 6F664A6832298C9CDB3DB3E02703121AB3F53AED serial "EA-2057" )
@@ -18856,6 +19275,7 @@ game (
 )
 game (
 	name "Simpsons Game, The (USA) (Beta)"
+	cloneof "Simpsons Game, The (USA)"
 	releaseyear "2007"
 	releasemonth "09"
 	releaseday "26"
@@ -18864,6 +19284,7 @@ game (
 )
 game (
 	name "Simpsons, Die - Das Spiel (Germany)"
+	cloneof "Simpsons Game, The (USA)"
 	region "Germany"
 	serial "EA-2057"
 	rom ( name "Simpsons, Die - Das Spiel (Germany).iso" size 7835492352 crc 2A5C75FC md5 022A2E37D7828FBE4D43EDDDD3DA7D83 sha1 9838409EFEA0C6CC8B97526722D4A39F323E3CA9 serial "EA-2057" )
@@ -19169,12 +19590,14 @@ game (
 )
 game (
 	name "Sniper Elite III - Ultimate Edition (USA, Europe)"
+	cloneof "Sniper Elite III (USA, Europe) (En,Fr,De,Es,It,Pt,Pl,Ru)"
 	region "USA"
 	serial "FO-2051"
 	rom ( name "Sniper Elite III - Ultimate Edition (USA, Europe).iso" size 8738846720 crc 610BB756 md5 55B85EAFCA556A6B07D307E22CC77E5A sha1 4603C6DAA083CFFAC0910883D8FB5783B4211975 serial "FO-2051" )
 )
 game (
 	name "Sniper Elite V2 (Japan)"
+	cloneof "Sniper Elite V2 (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "FO-2024"
 	rom ( name "Sniper Elite V2 (Japan).iso" size 7838695424 crc 26EC2A6C md5 1E9DCD4560AE34BF446D7AE8581CB38A sha1 9718DADE7DD8B9A3DEB7FBDD0D4C336EC217AA1B serial "FO-2024" )
@@ -19187,6 +19610,7 @@ game (
 )
 game (
 	name "Sniper Elite V2 - Silver Star Edition (USA, Europe)"
+	cloneof "Sniper Elite V2 (USA, Europe) (En,Fr,De,Es,It)"
 	region "USA"
 	serial "FO-2024"
 	rom ( name "Sniper Elite V2 - Silver Star Edition (USA, Europe).iso" size 7838695424 crc 6BF48968 md5 519374491936BE7799210CD4927167B9 sha1 F09454B0584435457D54D30618910B38D9BD5473 serial "FO-2024" )
@@ -19245,6 +19669,7 @@ game (
 )
 game (
 	name "Sonic Unleashed (Europe) (En,Ja,Fr,De,Es,It)"
+	cloneof "Sonic Unleashed (USA) (En,Ja,Fr,De,Es,It)"
 	region "Europe"
 	serial "SE-2066"
 	rom ( name "Sonic Unleashed (Europe) (En,Ja,Fr,De,Es,It).iso" size 7835492352 crc 5CD5CCDD md5 E6E249E87064EE75FEE6CF35135D3CA8 sha1 B03E4AFBC3A379D58F9C14BDF5B23F9FB284D09F serial "SE-2066" )
@@ -19257,6 +19682,7 @@ game (
 )
 game (
 	name "Sonic World Adventure (Japan)"
+	cloneof "Sonic Unleashed (USA) (En,Ja,Fr,De,Es,It)"
 	region "Japan"
 	serial "SE-2066"
 	rom ( name "Sonic World Adventure (Japan).iso" size 7835492352 crc 72A16D70 md5 604D128C807F4BFFCB580E7680B2F503 sha1 FDAF4F7FA214D11FC8C22255A6AE3247E1697050 serial "SE-2066" )
@@ -19291,24 +19717,28 @@ game (
 )
 game (
 	name "South Park - Der Stab der Wahrheit (Germany)"
+	cloneof "South Park - The Stick of Truth (USA) (En,Fr,De,Es,It,Pt)"
 	region "Germany"
 	serial "US-2245"
 	rom ( name "South Park - Der Stab der Wahrheit (Germany).iso" size 7838695424 crc F76EB2ED md5 DA871583317E673301F3A409098A1A1A sha1 6B5776919FFFB010EF9C22920F45C008543357DF serial "US-2245" )
 )
 game (
 	name "South Park - The Stick of Truth (Australia)"
+	cloneof "South Park - The Stick of Truth (USA) (En,Fr,De,Es,It,Pt)"
 	region "Australia"
 	serial "US-2245"
 	rom ( name "South Park - The Stick of Truth (Australia).iso" size 7838695424 crc 9C0C65F4 md5 37E5F34103E90F4342D9F5B1FCF7DDF8 sha1 EED239BB88E8DFF1BAA567511F2ACF7551896B9C serial "US-2245" )
 )
 game (
 	name "South Park - The Stick of Truth (Europe) (En,Fr,De,Es,It,Pl)"
+	cloneof "South Park - The Stick of Truth (USA) (En,Fr,De,Es,It,Pt)"
 	region "Europe"
 	serial "US-2245"
 	rom ( name "South Park - The Stick of Truth (Europe) (En,Fr,De,Es,It,Pl).iso" size 7838695424 crc A487AF65 md5 8959CDEECAF9101524CD1725120F3744 sha1 B4C3ADEF52DCB6831210CDB10DFF289E89B99D5B serial "US-2245" )
 )
 game (
 	name "South Park - The Stick of Truth (Russia) (En,Ru)"
+	cloneof "South Park - The Stick of Truth (USA) (En,Fr,De,Es,It,Pt)"
 	region "Russia"
 	serial "US-2245"
 	rom ( name "South Park - The Stick of Truth (Russia) (En,Ru).iso" size 7838695424 crc 451B9FF9 md5 5177A18798F056D0715A7EE8F20360D8 sha1 BD6E311D89D6FC7ABF73ED29C111A72141121B76 serial "US-2245" )
@@ -19351,12 +19781,14 @@ game (
 )
 game (
 	name "Spectral Force 3 - Innocent Rage (Japan)"
+	cloneof "Spectral Force 3 (USA)"
 	region "Japan"
 	serial "IF-2001"
 	rom ( name "Spectral Force 3 - Innocent Rage (Japan).iso" size 7834892288 crc 8DCB39F0 md5 1504368BFD9CEAA313ED50A3394FACCF sha1 444EE52A41AEA2DFE181D048A1E5857696A3DC1D serial "IF-2001" )
 )
 game (
 	name "Spectral Force 3 - Innocent Rage (Korea)"
+	cloneof "Spectral Force 3 (USA)"
 	region "Korea"
 	serial "IF-2001"
 	rom ( name "Spectral Force 3 - Innocent Rage (Korea).iso" size 7834892288 crc E349CEC4 md5 994D013EACAABE0691D9DBC636911379 sha1 935AA7570B18BF83C200826670CBB4A2CB75CF6D serial "IF-2001" )
@@ -19435,6 +19867,7 @@ game (
 )
 game (
 	name "Split-Second - Velocity (Russia)"
+	cloneof "Split-Second (USA, Europe) (En,Fr,De,Es,It)"
 	region "Russia"
 	serial "BV-2023"
 	rom ( name "Split-Second - Velocity (Russia).iso" size 7838695424 crc 3F97992B md5 497E67235F23C7C5A8DA999A5882C8FF sha1 9328A600E4E0A64734894B148C879C8CC02D3EDC serial "BV-2023" )
@@ -19679,12 +20112,14 @@ game (
 )
 game (
 	name "Stoked (Europe)"
+	cloneof "Stoked (USA)"
 	region "Europe"
 	serial "DE-2003"
 	rom ( name "Stoked (Europe).iso" size 7838695424 crc BD82C20F md5 B976E05992EE599FA4E36BFE4EE88A54 sha1 C6902205350E53FDC5308E2641C57D1AA26A5EC1 serial "DE-2003" )
 )
 game (
 	name "Stoked (Japan)"
+	cloneof "Stoked (USA)"
 	region "Japan"
 	serial "DE-2003"
 	rom ( name "Stoked (Japan).iso" size 7838695424 crc CF8E5652 md5 86F7E857517E5C139AF60BCB3291F172 sha1 EB0773E3BAB39C5EB7D1C724FDCEEE91D1B7B28E serial "DE-2003" )
@@ -19697,12 +20132,14 @@ game (
 )
 game (
 	name "Stoked - Big Air Edition (Europe)"
+	cloneof "Stoked (USA)"
 	region "Europe"
 	serial "DE-2005"
 	rom ( name "Stoked - Big Air Edition (Europe).iso" size 7838695424 crc E22B790E md5 DC5E26E3B4769E952F9361463304BC15 sha1 63473D33F34798B5811A0DF0C3BFD2700C285678 serial "DE-2005" )
 )
 game (
 	name "Stoked - Big Air Edition (USA)"
+	cloneof "Stoked (USA)"
 	region "USA"
 	serial "DE-2005"
 	rom ( name "Stoked - Big Air Edition (USA).iso" size 7838695424 crc E3127306 md5 8283D7D0BC7EEE21D6C818C5063661A9 sha1 BF7AF091B973F11E271A2C36FEA1642AB81911A1 serial "DE-2005" )
@@ -19756,6 +20193,7 @@ game (
 )
 game (
 	name "Summer Athletics (Europe)"
+	cloneof "Summer Athletics - The Ultimate Challenge (USA)"
 	region "Europe"
 	serial "DT-2002"
 	rom ( name "Summer Athletics (Europe).iso" size 7835492352 crc D60F4682 md5 170A10AE4F72AD6934CF021A4BB0153C sha1 E8FB8F685451BBE6BE90C72FA85E4439D356C1CF serial "DT-2002" )
@@ -19968,6 +20406,7 @@ game (
 )
 game (
 	name "Tenchu Senran (Japan)"
+	cloneof "Tenchu Z (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "FS-2001"
 	rom ( name "Tenchu Senran (Japan).iso" size 7834892288 crc 6AA65B76 md5 DB4F9B2AC038EF5AB03E5586EB6A7136 sha1 9DC14C30D790CDA44BC4D571843E6BDBF832AE53 serial "FS-2001" )
@@ -20212,6 +20651,7 @@ game (
 )
 game (
 	name "Tiger Woods PGA Tour 13 (USA, Europe) (Masters Collector's Edition)"
+	cloneof "Tiger Woods PGA Tour 13 (USA, Europe)"
 	region "USA"
 	serial "EA-2418"
 	rom ( name "Tiger Woods PGA Tour 13 (USA, Europe) (Masters Collector's Edition).iso" size 7838695424 crc 3E5D639C md5 69B58354E84D694392875D32E5951C77 sha1 185FD78C2151CC7EDD1DFA4AABE9AEAC0C68CE81 serial "EA-2418" )
@@ -20224,6 +20664,7 @@ game (
 )
 game (
 	name "Tiger Woods PGA Tour 14 - Masters Historic Edition (USA, Europe)"
+	cloneof "Tiger Woods PGA Tour 14 (USA, Europe)"
 	region "USA"
 	serial "EA-2473"
 	rom ( name "Tiger Woods PGA Tour 14 - Masters Historic Edition (USA, Europe).iso" size 7838695424 crc 1378BE51 md5 000262AEA2B8C462C65E3E5650D67D7F sha1 BB8178EC3E0CEA82963A4DD3B923C10C277C9AC9 serial "EA-2473" )
@@ -20390,12 +20831,14 @@ game (
 )
 game (
 	name "Tom Clancy's Rainbow Six - Vegas 2 (Germany) (En,Fr,De,Es,It)"
+	cloneof "Tom Clancy's Rainbow Six - Vegas 2 (USA, Europe) (En,Fr,De,Es,It)"
 	region "Germany"
 	serial "US-2079"
 	rom ( name "Tom Clancy's Rainbow Six - Vegas 2 (Germany) (En,Fr,De,Es,It).iso" size 7835492352 crc D1A4388D md5 7173B1D7F1AB2B2D6E73D0B5A0ED9BFF sha1 E219CAEAE9F1F37F8CDE98E0E333182CF7AF3791 serial "US-2079" )
 )
 game (
 	name "Tom Clancy's Rainbow Six - Vegas 2 (Japan) (En,Ja)"
+	cloneof "Tom Clancy's Rainbow Six - Vegas 2 (USA, Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "US-2055"
 	rom ( name "Tom Clancy's Rainbow Six - Vegas 2 (Japan) (En,Ja).iso" size 7835492352 crc 708D9BCE md5 30C18E39774D9DDA1FDFFDAC70B66F4F sha1 0078BA178F077153D62CCD19131E78EABE49802D serial "US-2055" )
@@ -20408,6 +20851,7 @@ game (
 )
 game (
 	name "Tom Clancy's Rainbow Six - Vegas 2 - Complete Edition (Europe) (En,Fr,De,Es,It)"
+	cloneof "Tom Clancy's Rainbow Six - Vegas 2 (USA, Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "US-2055"
 	rom ( name "Tom Clancy's Rainbow Six - Vegas 2 - Complete Edition (Europe) (En,Fr,De,Es,It).iso" size 7838695424 crc 2F336BDC md5 5A6F7F59176A1CECB68B01B8BE6DEF85 sha1 245BCB45EE76FA7F3EC74C0D47B2E90F57650D57 serial "US-2055" )
@@ -20791,6 +21235,7 @@ game (
 )
 game (
 	name "Transformers - Die Rache (Germany)"
+	cloneof "Transformers - Revenge of the Fallen (USA, Europe) (En,Fr)"
 	region "Germany"
 	serial "AV-2100"
 	rom ( name "Transformers - Die Rache (Germany).iso" size 7838695424 crc C9D6A0E1 md5 9F64B10447438E0BF1E7C6984AD25327 sha1 373623B385895906570E5EC74C58654F9086834D serial "AV-2100" )
@@ -20803,12 +21248,14 @@ game (
 )
 game (
 	name "Transformers - Kampf um Cybertron (Germany)"
+	cloneof "Transformers - War for Cybertron (USA) (En,Fr)"
 	region "Germany"
 	serial "AV-2124"
 	rom ( name "Transformers - Kampf um Cybertron (Germany).iso" size 7838695424 crc 415AD3E3 md5 FC5EB8683077B94757DF0C9571C638A8 sha1 B8F9ACB0EAE03175830708A7EE44AA5118982CD4 serial "AV-2124" )
 )
 game (
 	name "Transformers - Revenge of the Fallen (Europe) (Es,It)"
+	cloneof "Transformers - Revenge of the Fallen (USA, Europe) (En,Fr)"
 	region "Europe"
 	serial "AV-2100"
 	rom ( name "Transformers - Revenge of the Fallen (Europe) (Es,It).iso" size 7838695424 crc 639AF97A md5 3B838B4DB736B02B3808AC82C1D7186C sha1 CF95894AEFCBF82866A6B7857361C170729948AA serial "AV-2100" )
@@ -20845,6 +21292,7 @@ game (
 )
 game (
 	name "Transformers - War for Cybertron (Europe) (Es,It)"
+	cloneof "Transformers - War for Cybertron (USA) (En,Fr)"
 	region "Europe"
 	serial "AV-2124"
 	rom ( name "Transformers - War for Cybertron (Europe) (Es,It).iso" size 7838695424 crc F3A45840 md5 A36B3CD99718D7A83859D10D2ADD84EE sha1 E9B2575D5CD3B52A776EDCA4D1BAB434152D16EE serial "AV-2124" )
@@ -20887,6 +21335,7 @@ game (
 )
 game (
 	name "Tropico 4 (Japan)"
+	cloneof "Tropico 4 (USA, Europe)"
 	region "Japan"
 	serial "KY-2012"
 	rom ( name "Tropico 4 (Japan).iso" size 7838695424 crc 128BE488 md5 C1BE7AC6404709672485E7872AE6B43A sha1 6B51A623356EA40DBF8DA9A9B6D86E5D0CD899DE serial "KY-2012" )
@@ -20899,6 +21348,7 @@ game (
 )
 game (
 	name "Tropico 4 - Gold Edition (USA, Europe) (En,Ja,Fr,De,Es,It)"
+	cloneof "Tropico 4 (USA, Europe)"
 	region "USA"
 	serial "KY-2012"
 	rom ( name "Tropico 4 - Gold Edition (USA, Europe) (En,Ja,Fr,De,Es,It).iso" size 7838695424 crc B3D3DB6C md5 56AD842ADD2ADABE5242006A8A6E782E sha1 3CA600FE3C61C815A49DA1188A2753306EDDC748 serial "KY-2012" )
@@ -20911,6 +21361,7 @@ game (
 )
 game (
 	name "Troy Musou (Japan)"
+	cloneof "Warriors - Legends of Troy (Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "KO-2032"
 	rom ( name "Troy Musou (Japan).iso" size 7838695424 crc 79B14D52 md5 A415FE610D70DE7EB03C16D1FF99ED86 sha1 57FF7F24FF65CEC57AC3F1E042E125C7B4462808 serial "KO-2032" )
@@ -21019,12 +21470,14 @@ game (
 )
 game (
 	name "Two Worlds II (Europe)"
+	cloneof "Two Worlds II (USA)"
 	region "Europe"
 	serial "ZE-2010"
 	rom ( name "Two Worlds II (Europe).iso" size 7838695424 crc E22F4F9B md5 8A97CF2E61E4B6113CEE9616DAB0E97E sha1 113235DC80330903D2000CF86DD46865A7A53E19 serial "ZE-2010" )
 )
 game (
 	name "Two Worlds II (Japan)"
+	cloneof "Two Worlds II (USA)"
 	region "Japan"
 	serial "ZE-2010"
 	rom ( name "Two Worlds II (Japan).iso" size 7838695424 crc 024C53B5 md5 3469B7E43506EF334771E9C7CCE50D67 sha1 6D4971D8A82496073C1AC32A4ACF28229C9FD54A serial "ZE-2010" )
@@ -21037,6 +21490,7 @@ game (
 )
 game (
 	name "Two Worlds II - Game of the Year Edition (Europe) (En,Fr,De,Es,It,Pl,Cs)"
+	cloneof "Two Worlds II (USA)"
 	region "Europe"
 	serial "ZE-2010"
 	rom ( name "Two Worlds II - Game of the Year Edition (Europe) (En,Fr,De,Es,It,Pl,Cs).iso" size 7838695424 crc F8EF5518 md5 B84C0B209C251DC9009AEF6C28FE554A sha1 3D41FCA006282C921D8CC6C6418EDA8CB56BED6A serial "ZE-2010" )
@@ -21149,6 +21603,7 @@ game (
 )
 game (
 	name "Under Defeat HD (Japan)"
+	cloneof "Under Defeat HD - Deluxe Edition (Europe) (En,Fr,De,Es,It)"
 	region "Japan"
 	serial "GR-2044"
 	rom ( name "Under Defeat HD (Japan).iso" size 7838695424 crc C487EFC3 md5 121415E25BE73CF20E4B78EE3AB914D4 sha1 2A2EE03BD85CA51A44B029E3D3F7573BC76D528B serial "GR-2044" )
@@ -21274,6 +21729,7 @@ game (
 )
 game (
 	name "Virtua Fighter 5 (World) (Beta)"
+	cloneof "Virtua Fighter 5 Online (USA, Europe) (En,Ja,Fr,De,Es,It)"
 	releaseyear "2007"
 	releasemonth "08"
 	releaseday "15"
@@ -21281,6 +21737,7 @@ game (
 )
 game (
 	name "Virtua Fighter 5 - Live Arena (Japan)"
+	cloneof "Virtua Fighter 5 Online (USA, Europe) (En,Ja,Fr,De,Es,It)"
 	region "Japan"
 	serial "SE-2030"
 	rom ( name "Virtua Fighter 5 - Live Arena (Japan).iso" size 7835492352 crc 48F360CD md5 C18C447B47628B6BC630724BB04141E9 sha1 AD3E81069A942D2121CC4F0955925B56033A8E66 serial "SE-2030" )
@@ -21525,6 +21982,7 @@ game (
 )
 game (
 	name "Walking Dead, The - A Telltale Games Series (Europe)"
+	cloneof "Walking Dead, The - A Telltale Games Series (USA)"
 	region "Europe"
 	serial "D6-2002"
 	rom ( name "Walking Dead, The - A Telltale Games Series (Europe).iso" size 7838695424 crc E0B01CA5 md5 9D63A11C773B546573304BBDD21185C3 sha1 77D829235F8E906B93A674663509020A0B781B7D serial "D6-2002" )
@@ -21537,6 +21995,7 @@ game (
 )
 game (
 	name "Walking Dead, The - A Telltale Games Series - Game of the Year Edition (USA, Europe)"
+	cloneof "Walking Dead, The - A Telltale Games Series (USA)"
 	region "USA"
 	serial "D6-2002"
 	rom ( name "Walking Dead, The - A Telltale Games Series - Game of the Year Edition (USA, Europe).iso" size 7838695424 crc DAE9659A md5 284379DF229099BA5ECFA2AD51CE8306 sha1 B302D16ADF3CB9876EC0DA0229F13064579CA330 serial "D6-2002" )
@@ -21603,6 +22062,7 @@ game (
 )
 game (
 	name "WarTech - Senko no Ronde (World) (En,Ja)"
+	cloneof "Senkou no Ronde Rev.X (Japan)"
 	serial "GR-2001"
 	rom ( name "WarTech - Senko no Ronde (World) (En,Ja).iso" size 7835492352 crc 17B6B1C2 md5 A42B9C3A42345663E37B8724C226197C sha1 E42903405F60F15790AD122F2721E219DA1FF720 serial "GR-2001" )
 )
@@ -21754,6 +22214,7 @@ game (
 )
 game (
 	name "Way of the Samurai 3 (Europe)"
+	cloneof "Way of the Samurai 3 (USA)"
 	region "Europe"
 	serial "SD-2044"
 	rom ( name "Way of the Samurai 3 (Europe).iso" size 7838695424 crc 28B96CA4 md5 4372AA88DC9DF6843F8705270B99D0E2 sha1 7BD6588854227C92252757C4BCC860BB66E09BDB serial "SD-2044" )
@@ -22117,36 +22578,42 @@ game (
 )
 game (
 	name "World Soccer Winning Eleven 2008 (Japan, Asia) (En,Ja)"
+	cloneof "PES 2008 - Pro Evolution Soccer (USA) (En,Fr,Es)"
 	region "Japan"
 	serial "KN-2024"
 	rom ( name "World Soccer Winning Eleven 2008 (Japan, Asia) (En,Ja).iso" size 7835492352 crc 7C2AC8AB md5 E8DC07D518CA8AF1954EE0797A254739 sha1 DC2FDC1436ADFFBBE3BF1F10A100CD2BA5F0E536 serial "KN-2024" )
 )
 game (
 	name "World Soccer Winning Eleven 2009 (Japan)"
+	cloneof "PES 2009 - Pro Evolution Soccer (USA) (En,Fr,Es,Pt)"
 	region "Japan"
 	serial "KN-2033"
 	rom ( name "World Soccer Winning Eleven 2009 (Japan).iso" size 7835492352 crc A8F4CA77 md5 2DC2F1CBEEEC26A21865915194044391 sha1 195FEA2DC84F30C98BF9ED65F537385A00B1759E serial "KN-2033" )
 )
 game (
 	name "World Soccer Winning Eleven 2010 (Japan, Asia) (En,Ja)"
+	cloneof "PES 2010 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Japan"
 	serial "KN-2061"
 	rom ( name "World Soccer Winning Eleven 2010 (Japan, Asia) (En,Ja).iso" size 7838695424 crc 7B3E9168 md5 54AE9E129FB152C19455754DF8866779 sha1 25688A0EDE2F0B8A0D54252E516C8F5499302306 serial "KN-2061" )
 )
 game (
 	name "World Soccer Winning Eleven 2011 (Japan)"
+	cloneof "PES 2011 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Japan"
 	serial "KN-2077"
 	rom ( name "World Soccer Winning Eleven 2011 (Japan).iso" size 7838695424 crc A6C58AC7 md5 C4F2C01E72FE21532F15D6A94CAF13FB sha1 EEDE559DA856CD403B297C8ED4CD007F50FEF13C serial "KN-2077" )
 )
 game (
 	name "World Soccer Winning Eleven 2014 (Asia) (En,Zh)"
+	cloneof "PES 2014 - Pro Evolution Soccer (USA) (En,Es)"
 	region "Asia"
 	serial "KN-2134"
 	rom ( name "World Soccer Winning Eleven 2014 (Asia) (En,Zh).iso" size 8738846720 crc 7FDA63ED md5 9983BE239181EF108A07594BAEB8E182 sha1 235B276BAA621D248CB51C7E606B2F4404234994 serial "KN-2134" )
 )
 game (
 	name "World Soccer Winning Eleven X (Japan)"
+	cloneof "Winning Eleven - Pro Evolution Soccer 2007 (USA) (En,Es)"
 	region "Japan"
 	serial "KN-2014"
 	rom ( name "World Soccer Winning Eleven X (Japan).iso" size 7834892288 crc 479F385B md5 476D5D40D509B90FFD535845F4691082 sha1 0F6052AF7A712FE43B1C42F0C286B0DE0A04AF20 serial "KN-2014" )
@@ -23047,12 +23514,14 @@ game (
 )
 game (
 	name "Xbox 360 Hard Disk Data Tensou-you Disc (Japan)"
+	cloneof "Hard Drive Transfer Disc (USA)"
 	region "Japan"
 	serial "XI-2001"
 	rom ( name "Xbox 360 Hard Disk Data Tensou-you Disc (Japan).iso" size 7835492352 crc 501439ED md5 4C4889B84AA04297A541A6FE158F59F6 sha1 B9669BC328AB5403F5C462E5D61DD9C18AF37C6E serial "XI-2001" )
 )
 game (
 	name "Xbox 360 Hard Drive Transfer Disc (Asia)"
+	cloneof "Hard Drive Transfer Disc (USA)"
 	region "Asia"
 	serial "XI-2001"
 	rom ( name "Xbox 360 Hard Drive Transfer Disc (Asia).iso" size 7835492352 crc 4CC3E83B md5 42803DD1F5E41E20FC1110443A901092 sha1 6AD031938C532A5EE70958A75581982F7EC3427C serial "XI-2001" )
@@ -23225,24 +23694,28 @@ game (
 )
 game (
 	name "Zhen Sanguo Wushuang - Multi Raid Special (Taiwan)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	region "Taiwan"
 	serial "KO-2033"
 	rom ( name "Zhen Sanguo Wushuang - Multi Raid Special (Taiwan).iso" size 7838695424 crc 11F2D6EE md5 B99868BE9129C58F8DD69035149D48AB sha1 773C1076FE93639508A5994E874C5A59B1D04E44 serial "KO-2033" )
 )
 game (
 	name "Zhen Sanguo Wushuang 5 (Taiwan)"
+	cloneof "Dynasty Warriors 6 (USA)"
 	region "Taiwan"
 	serial "KO-2020"
 	rom ( name "Zhen Sanguo Wushuang 5 (Taiwan).iso" size 7835492352 crc FB0FC7CA md5 4774F4F30F5FD0E7958F40A291C7568B sha1 735F09FC3488DA09078F3A3881E4DA35DEA22B65 serial "KO-2020" )
 )
 game (
 	name "Zhen Sanguo Wushuang 7 (Taiwan) (En,Zh)"
+	cloneof "Dynasty Warriors 8 (USA)"
 	region "Taiwan"
 	serial "KV-2022"
 	rom ( name "Zhen Sanguo Wushuang 7 (Taiwan) (En,Zh).iso" size 8738846720 crc E7C234FE md5 102E80E2B7583C6D680C281ABF9C3514 sha1 4210C25B1BA47327882EC597A27D9D6F3722E278 serial "KV-2022" )
 )
 game (
 	name "Zoids Alternative (Japan)"
+	cloneof "Zoids Assault (USA)"
 	region "Japan"
 	serial "TO-2002"
 	rom ( name "Zoids Alternative (Japan).iso" size 7835492352 crc C73AF0D1 md5 12282D1359EE13C5B71759D583AEC82F sha1 8FC2FB57C0F13AB11B81154E520D25DE4F78A869 serial "TO-2002" )
@@ -23261,12 +23734,14 @@ game (
 )
 game (
 	name "Zone of the Enders - HD Edition (Japan)"
+	cloneof "Zone of the Enders HD Collection (USA)"
 	region "Japan"
 	serial "KN-2114"
 	rom ( name "Zone of the Enders - HD Edition (Japan).iso" size 8738846720 crc 8B08EF26 md5 98C9800C6C5832A10F3A99E878B134C4 sha1 DD2B4FFC10C865FF34A01E9574437AAA816B6D8B serial "KN-2114" )
 )
 game (
 	name "Zone of the Enders HD Collection (Europe, Australia)"
+	cloneof "Zone of the Enders HD Collection (USA)"
 	region "Europe"
 	serial "KN-2114"
 	rom ( name "Zone of the Enders HD Collection (Europe, Australia).iso" size 8738846720 crc 9CAA9056 md5 D46A58B759498DFA76D411ABD780805E sha1 9E32CDEEC4165E85353591F5B82306A4B5398FE8 serial "KN-2114" )
@@ -23351,12 +23826,14 @@ game (
 )
 game (
 	name "[eM] - Enchant Arm (Asia)"
+	cloneof "Enchanted Arms (USA, Europe)"
 	region "Asia"
 	serial "FS-2003"
 	rom ( name "[eM] - Enchant Arm (Asia).iso" size 7834892288 crc D38E6EEF md5 9AC578A8EAEC181F9A140EA03B52E258 sha1 9692F39287792EA935931DBEB854976F8CB74EEB serial "FS-2003" )
 )
 game (
 	name "[eM] - Enchant Arm (Japan)"
+	cloneof "Enchanted Arms (USA, Europe)"
 	region "Japan"
 	serial "FS-2002"
 	rom ( name "[eM] - Enchant Arm (Japan).iso" size 7834892288 crc B1E2EFF9 md5 DABE5B84A6ED03ABEAD3B9AC0DE350B9 sha1 19FEB442BFBE9AE3C96825AC76088A93E948A547 serial "FS-2002" )

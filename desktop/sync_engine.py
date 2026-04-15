@@ -21,49 +21,20 @@ from typing import Optional
 
 import requests
 
+from systems import (
+    CD_ALL_EXTENSIONS,
+    MEGA_EVERDRIVE_CD_SYSTEMS,
+    ROM_EXTENSIONS,
+    SAVE_EXTENSIONS,
+    SYSTEM_CODES,
+    SYSTEM_DEFAULT_SAVE_EXT,
+)
+
 # ---------------------------------------------------------------------------
 # ROM name normalization (mirrors server/app/services/rom_id.py)
 # ---------------------------------------------------------------------------
 
-SYSTEM_CODES = frozenset(
-    {
-        "GBA",
-        "SNES",
-        "NES",
-        "MD",
-        "N64",
-        "GB",
-        "GBC",
-        "GG",
-        "NGP",
-        "NGPC",
-        "PCE",
-        "PCSG",
-        "PS1",
-        "PS2",
-        "SMS",
-        "A2600",
-        "A7800",
-        "LYNX",
-        "NEOGEO",
-        "32X",
-        "SEGACD",
-        "SAT",
-        "TG16",
-        "WSWAN",
-        "WSWANC",
-        "VB",
-        "DC",
-        "NDS",
-        "GC",
-        "ARCADE",
-        "MAME",
-        "CPS1",
-        "CPS2",
-        "CPS3",
-        "FDS",
-    }
-)
+# SYSTEM_CODES imported from systems
 
 _REGION_RE = re.compile(
     r"\s*\((?:USA|Europe|Japan|World|Germany|France|Italy|Spain|Australia|"
@@ -381,68 +352,11 @@ POCKET_OPENFPGA_FOLDER_MAP: dict[str, str] = {
     "segasaturn": "SAT",
 }
 
-# Save file extensions to consider
-SAVE_EXTENSIONS = {
-    ".sav",
-    ".srm",
-    ".bkr",
-    ".mcr",
-    ".frz",
-    ".fs",
-    ".mcd",
-    ".dsv",
-    ".ps2",
-    ".mc2",
-    ".raw",
-}
-
-# CD game image extensions — presence of any of these inside a subfolder marks it as a CD game
-CD_ROM_EXTENSIONS: frozenset[str] = frozenset(
-    {
-        ".cue",
-        ".iso",
-        ".bin",
-        ".img",
-        ".mdf",
-        ".chd",
-    }
-)
-
-# ROM file extensions used when scanning ROM folders (Pocket openFPGA etc.)
-ROM_EXTENSIONS = {
-    ".sfc",
-    ".smc",  # SNES
-    ".gba",  # GBA
-    ".gb",
-    ".gbc",  # GB/GBC
-    ".nes",  # NES
-    ".md",
-    ".smd",
-    ".gen",  # Genesis/MD
-    ".32x",  # 32X
-    ".n64",
-    ".z64",
-    ".v64",  # N64
-    ".ndd",  # N64DD
-    ".gg",  # Game Gear
-    ".sms",  # SMS
-    ".vb",  # Virtual Boy
-    ".pce",  # PC Engine
-    ".lnx",  # Lynx
-    ".ws",
-    ".wsc",  # WonderSwan
-    ".ngp",
-    ".ngc",  # NGP
-    ".nds",  # NDS
-    ".fds",  # Famicom Disk System
-    ".qd",   # Famicom Disk System Quick Disk
-    ".chd",  # CD-compressed images when scanned as standalone ROM files
-}
+# ROM_EXTENSIONS, SAVE_EXTENSIONS, SYSTEM_CODES, SYSTEM_DEFAULT_SAVE_EXT imported from systems
+# CD_ALL_EXTENSIONS replaces the old CD_ROM_EXTENSIONS (now also includes .cso/.pbp)
+CD_ROM_EXTENSIONS = CD_ALL_EXTENSIONS  # backwards-compat alias
 ZIP_ROM_EXTENSIONS = {".zip"}
-
-SYSTEM_DEFAULT_SAVE_EXTENSIONS = {
-    "SAT": ".bkr",
-}
+SYSTEM_DEFAULT_SAVE_EXTENSIONS = SYSTEM_DEFAULT_SAVE_EXT  # backwards-compat alias
 
 _LEGACY_GENERIC_SAVE_EXTENSIONS = {"", ".sav", ".srm"}
 
@@ -459,7 +373,7 @@ def resolve_save_ext(system: str, save_ext: str | None, fallback: str = ".sav") 
     if not ext.startswith("."):
         ext = "." + ext
 
-    default_ext = SYSTEM_DEFAULT_SAVE_EXTENSIONS.get(system_code)
+    default_ext = SYSTEM_DEFAULT_SAVE_EXT.get(system_code)
     if default_ext and ext.lower() in _LEGACY_GENERIC_SAVE_EXTENSIONS:
         return default_ext
     return ext
@@ -2185,9 +2099,8 @@ def _scan_mega_everdrive(
     subfolders that contain the appropriate save file are returned; folders
     without it have no battery save to sync.
     """
-    # Sega CD uses a different save filename
-    _CD_SYSTEMS = {"SEGACD"}
-    is_cd_system = system in _CD_SYSTEMS
+    # Sega CD uses a different save filename on the MEGA EverDrive
+    is_cd_system = system in MEGA_EVERDRIVE_CD_SYSTEMS
     save_filename = "cd-bram.brm" if is_cd_system else "bram.srm"
 
     results = []

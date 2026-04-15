@@ -253,11 +253,13 @@ game (
 )
 game (
 	name "Atomic Reloaded (World) (Aftermarket) (Unl)"
+	cloneof "Atomic (World) (Aftermarket) (Unl)"
 	description "Atomic Reloaded (World) (Aftermarket) (Unl)"
 	rom ( name "Atomic Reloaded (World) (Aftermarket) (Unl).j64" size 2097152 crc FF38C49E md5 4E46BB2A331CF6B574FB0FFA7BF700B3 sha1 992AABF198B924A7746E3BA6BA8DD368452299A7 )
 )
 game (
 	name "Atomic Reloaded (World) (Aftermarket) (Unl)"
+	cloneof "Atomic (World) (Aftermarket) (Unl)"
 	description "Atomic Reloaded (World) (Aftermarket) (Unl)"
 	rom ( name "Atomic Reloaded (World) (Aftermarket) (Unl).rom" size 2088960 crc 078A5422 md5 C4EEB2DC08B195F52FFDDB5D6006338A sha1 E820131D81EB54A537BAF9D160FC25FA93B60382 )
 )
@@ -345,11 +347,13 @@ game (
 )
 game (
 	name "Battle Sphere (World) (Aftermarket) (Unl)"
+	cloneof "Battle Sphere Gold (World) (Aftermarket) (Unl)"
 	description "Battle Sphere (World) (Aftermarket) (Unl)"
 	rom ( name "Battle Sphere (World) (Aftermarket) (Unl).j64" size 4194304 crc 5F2C2774 md5 984ED59D91435EC0D8193E168DF31C10 sha1 8F4C964D2411A52C64EEC1D1A3061F77117BB7A6 )
 )
 game (
 	name "Battle Sphere (World) (Aftermarket) (Unl)"
+	cloneof "Battle Sphere Gold (World) (Aftermarket) (Unl)"
 	description "Battle Sphere (World) (Aftermarket) (Unl)"
 	rom ( name "Battle Sphere (World) (Aftermarket) (Unl).rom" size 4186112 crc AD6FE9B5 md5 6562144944B6FB86744757A5B99AE506 sha1 51A8269226015A4428F863EC9067D7E69762BFF3 )
 )
@@ -615,11 +619,13 @@ game (
 )
 game (
 	name "Checkered Flag (World) (Beta) (CES 1993)"
+	cloneof "Checkered Flag (World)"
 	description "Checkered Flag (World) (Beta) (CES 1993)"
 	rom ( name "Checkered Flag (World) (Beta) (CES 1993).j64" size 1048576 crc CE94C0D5 md5 B6162E77821433B474FC25BE89795211 sha1 BF00EC1FCA2A97BEAF28D52140DF2006B1120C67 )
 )
 game (
 	name "Checkered Flag (World) (Beta) (CES 1993)"
+	cloneof "Checkered Flag (World)"
 	description "Checkered Flag (World) (Beta) (CES 1993)"
 	rom ( name "Checkered Flag (World) (Beta) (CES 1993).rom" size 1040384 crc A5B30631 md5 D0A0A6F9C9C2F3023E28645BAD8DC74D sha1 172E4F17D071DED4BB74AFD5489BA6145E29E7B4 )
 )
@@ -1285,16 +1291,19 @@ game (
 )
 game (
 	name "HMS RaptoR (World) (v1.1) (U-235) (Aftermarket) (Unl)"
+	cloneof "HMS RaptoR (World) (Aftermarket) (Unl)"
 	description "HMS RaptoR (World) (v1.1) (U-235) (Aftermarket) (Unl)"
 	rom ( name "HMS RaptoR (World) (v1.1) (U-235) (Aftermarket) (Unl).abs" size 1637486 crc 9CC4D8AE md5 4ADC417055CBFD1830AFBA4D0BBA19BE sha1 9B6C3D07F16756D9A2AA999151B9B3914E8E257E )
 )
 game (
 	name "HMS RaptoR (World) (v1.1) (U-235) (Aftermarket) (Unl)"
+	cloneof "HMS RaptoR (World) (Aftermarket) (Unl)"
 	description "HMS RaptoR (World) (v1.1) (U-235) (Aftermarket) (Unl)"
 	rom ( name "HMS RaptoR (World) (v1.1) (U-235) (Aftermarket) (Unl).j64" size 2097152 crc F2A3C58A md5 C73BEA7814A410E1262D031CDEF26EC5 sha1 519D67592B2871F4567503E448950466C7C5C4CE )
 )
 game (
 	name "HMS RaptoR (World) (v1.1) (U-235) (Aftermarket) (Unl)"
+	cloneof "HMS RaptoR (World) (Aftermarket) (Unl)"
 	description "HMS RaptoR (World) (v1.1) (U-235) (Aftermarket) (Unl)"
 	rom ( name "HMS RaptoR (World) (v1.1) (U-235) (Aftermarket) (Unl).rom" size 2088960 crc 0A115536 md5 BE6FD45DF046633924E75724E0DD68C6 sha1 BBCED2BBC28FD58D2255A38B629358A59F8C2097 )
 )
@@ -1656,16 +1665,19 @@ game (
 )
 game (
 	name "Martian Attack (World) (JagCode 2007) (Aftermarket) (Unl)"
+	cloneof "Martian Attack (World) (Aftermarket) (Unl)"
 	description "Martian Attack (World) (JagCode 2007) (Aftermarket) (Unl)"
 	rom ( name "Martian Attack (World) (JagCode 2007) (Aftermarket) (Unl).cof" size 1012826 crc DC582985 md5 B4B039348C5AD83761824865E4419FF8 sha1 806A9D7574A1C763B92E1B6DDE3EC695F8CB5FE9 )
 )
 game (
 	name "Martian Attack (World) (JagCode 2007) (Aftermarket) (Unl)"
+	cloneof "Martian Attack (World) (Aftermarket) (Unl)"
 	description "Martian Attack (World) (JagCode 2007) (Aftermarket) (Unl)"
 	rom ( name "Martian Attack (World) (JagCode 2007) (Aftermarket) (Unl).j64" size 1048576 crc 8431522D md5 5D3E832C278D56D900B0C6F49E54E50D sha1 A4475BB8822AD63301A64313482F72218B8B47E1 )
 )
 game (
 	name "Martian Attack (World) (JagCode 2007) (Aftermarket) (Unl)"
+	cloneof "Martian Attack (World) (Aftermarket) (Unl)"
 	description "Martian Attack (World) (JagCode 2007) (Aftermarket) (Unl)"
 	rom ( name "Martian Attack (World) (JagCode 2007) (Aftermarket) (Unl).rom" size 1040384 crc EF1694C9 md5 B748A6AFFB7F9FBF60F03D48BE80AC01 sha1 6744BF547E9D39FCCA0B3FF184F3F4BB8CF3D6E8 )
 )
@@ -1691,6 +1703,7 @@ game (
 )
 game (
 	name "Missile Command VR (World) (Beta)"
+	cloneof "Missile Command 3D (World)"
 	description "Missile Command VR (World) (Beta)"
 	releaseyear "1995"
 	releasemonth "07"
@@ -1699,6 +1712,7 @@ game (
 )
 game (
 	name "Missile Command VR (World) (Beta)"
+	cloneof "Missile Command 3D (World)"
 	description "Missile Command VR (World) (Beta)"
 	releaseyear "1995"
 	releasemonth "07"
@@ -1914,11 +1928,13 @@ game (
 )
 game (
 	name "Protector (World) (Aftermarket) (Unl)"
+	cloneof "Protector - Special Edition (World) (Aftermarket) (Unl)"
 	description "Protector (World) (Aftermarket) (Unl)"
 	rom ( name "Protector (World) (Aftermarket) (Unl).j64" size 2097152 crc 1A20C5C4 md5 6564DA92B5D4A9DC1D34AB2C941A3B55 sha1 8043E3B521EA00E806D3AB79C6C548A140944DB1 )
 )
 game (
 	name "Protector (World) (Aftermarket) (Unl)"
+	cloneof "Protector - Special Edition (World) (Aftermarket) (Unl)"
 	description "Protector (World) (Aftermarket) (Unl)"
 	rom ( name "Protector (World) (Aftermarket) (Unl).rom" size 2088960 crc 0FD06CD1 md5 56EE76358738E1B2804D095D2999670A sha1 0EFE60C7C1230D93F0A2672BB7A1BEEAD20D75E9 )
 )
@@ -2496,16 +2512,19 @@ game (
 )
 game (
 	name "Tube (World) (Aftermarket) (Unl)"
+	cloneof "Tube - Second Edition (World) (Aftermarket) (Unl)"
 	description "Tube (World) (Aftermarket) (Unl)"
 	rom ( name "Tube (World) (Aftermarket) (Unl).cof" size 604708 crc C312EDE5 md5 F34AC8937CDF8E0B9A1A1C1923273D0D sha1 4411AFA64D6F6282A37A2931066AD01A93985BC1 )
 )
 game (
 	name "Tube (World) (Aftermarket) (Unl)"
+	cloneof "Tube - Second Edition (World) (Aftermarket) (Unl)"
 	description "Tube (World) (Aftermarket) (Unl)"
 	rom ( name "Tube (World) (Aftermarket) (Unl).j64" size 1048576 crc 80DAF2BA md5 A822557A1C0D8E818285302252C7E168 sha1 C9237D345B5CF98591294A378F859C1DDA454A37 )
 )
 game (
 	name "Tube (World) (Aftermarket) (Unl)"
+	cloneof "Tube - Second Edition (World) (Aftermarket) (Unl)"
 	description "Tube (World) (Aftermarket) (Unl)"
 	rom ( name "Tube (World) (Aftermarket) (Unl).rom" size 1040384 crc EBFD345E md5 67B422982D2CACB849E07CCA79752A46 sha1 1A531B8B1EE218ACC303163A58127C8DB4EFCF9E )
 )
@@ -2588,6 +2607,7 @@ game (
 )
 game (
 	name "Ultra Vortex (World) (Beta)"
+	cloneof "Ultra Vortek (World)"
 	description "Ultra Vortex (World) (Beta)"
 	releaseyear "1995"
 	releasemonth "03"
@@ -2596,6 +2616,7 @@ game (
 )
 game (
 	name "Ultra Vortex (World) (Beta)"
+	cloneof "Ultra Vortek (World)"
 	description "Ultra Vortex (World) (Beta)"
 	releaseyear "1995"
 	releasemonth "03"

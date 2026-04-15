@@ -6,53 +6,9 @@ from pathlib import Path
 
 from PyQt6.QtGui import QColor
 
+from systems import ALL_CONSOLE_TYPES, SYSTEM_CHOICES  # noqa: F401 (re-exported)
 
 CONFIG_FILE = Path(__file__).parent / "config.json"
-
-ALL_CONSOLE_TYPES = sorted(
-    [
-        "3DS",
-        "NDS",
-        "PSP",
-        "PS1",
-        "PS3",
-        "VITA",
-        "GBA",
-        "SNES",
-        "NES",
-        "MD",
-        "N64",
-        "GB",
-        "GBC",
-        "GG",
-        "SMS",
-        "PCE",
-        "PCSG",
-        "PCECD",
-        "PS2",
-        "NGP",
-        "NGPC",
-        "DC",
-        "GC",
-        "SAT",
-        "A2600",
-        "A7800",
-        "LYNX",
-        "NEOGEO",
-        "32X",
-        "SEGACD",
-        "WSWAN",
-        "WSWANC",
-        "VB",
-        "ARCADE",
-        "MAME",
-        "FDS",
-        "N64DD",
-    ],
-    key=lambda x: x.lower(),
-)
-
-ALL_CONSOLE_TYPES.insert(0, "All")
 
 DEVICE_TYPES = [
     "Generic",
@@ -67,48 +23,6 @@ DEVICE_TYPES = [
     "MemCard Pro",
     "CD Folder",
 ]
-
-SYSTEM_CHOICES = sorted(
-    [
-        "GBA",
-        "SNES",
-        "NES",
-        "MD",
-        "N64",
-        "GB",
-        "GBC",
-        "GG",
-        "NGP",
-        "NGPC",
-        "PCE",
-        "PCSG",
-        "PCECD",
-        "PS1",
-        "PS2",
-        "PSP",
-        "PS3",
-        "SMS",
-        "A2600",
-        "A7800",
-        "LYNX",
-        "NEOGEO",
-        "32X",
-        "SAT",
-        "SEGACD",
-        "TG16",
-        "WSWAN",
-        "WSWANC",
-        "VB",
-        "DC",
-        "NDS",
-        "GC",
-        "ARCADE",
-        "MAME",
-        "FDS",
-        "N64DD",
-    ],
-    key=lambda x: x.lower(),
-)
 
 STATUS_COLORS = {
     "up_to_date": QColor(0, 200, 0),

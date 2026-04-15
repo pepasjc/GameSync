@@ -30,6 +30,7 @@ from config import (
     get_api_headers,
     get_base_url,
 )
+from systems import MEGA_EVERDRIVE_CD_SYSTEMS
 
 
 _PS_TITLE_ID_RE = re.compile(r"^[A-Z]{4}\d{5}$")
@@ -1229,8 +1230,7 @@ class SyncTab(QWidget):
         elif device_type == "MEGA EverDrive":
             # Sega CD: gamedata/<Game Name (Region).cue>/cd-bram.brm
             # Cartridge: gamedata/<Game Name (Region).ext>/bram.srm
-            _CD_SYSTEMS = {"SEGACD"}
-            is_cd = system in _CD_SYSTEMS
+            is_cd = system in MEGA_EVERDRIVE_CD_SYSTEMS
             save_name = "cd-bram.brm" if is_cd else "bram.srm"
 
             # Try to recover the exact .cue / ROM filename so the gamedata

@@ -1596,24 +1596,28 @@ game (
 )
 game (
 	name "Golf - Japan Course (Japan) (DV 2)"
+	cloneof "Golf - Japan Course (Japan)"
 	region "Japan"
 	serial "GFJE"
 	rom ( name "Golf - Japan Course (Japan) (DV 2).fds" size 131000 crc FD5B83A1 md5 33DD52AE0C66E52E142B9DC07E06A449 sha1 532214DACBAC874DEB1C944F894C450FEEFFD2EB serial "GFJE" )
 )
 game (
 	name "Golf - Japan Course (Japan) (DV 2)"
+	cloneof "Golf - Japan Course (Japan)"
 	region "Japan"
 	serial "GFJE"
 	rom ( name "Golf - Japan Course (Japan) (DV 2).qd" size 131072 crc E4DCDF83 md5 23486056F504624866DEAD2B8BC1EE39 sha1 4499B2287F74107B53FD7DA93FDBB543A5B63867 serial "GFJE" )
 )
 game (
 	name "Golf - Japan Course (Japan) (Prize Card)"
+	cloneof "Golf - Japan Course (Japan)"
 	region "Japan"
 	serial "GSJE"
 	rom ( name "Golf - Japan Course (Japan) (Prize Card).fds" size 131000 crc C1BD72F2 md5 55741F2EA46AADBBFA25FE7F1E07C77A sha1 31EB8B7E7C867E8DD3996633AB703CA318220519 serial "GSJE" )
 )
 game (
 	name "Golf - Japan Course (Japan) (Prize Card)"
+	cloneof "Golf - Japan Course (Japan)"
 	region "Japan"
 	serial "GSJE"
 	rom ( name "Golf - Japan Course (Japan) (Prize Card).qd" size 131072 crc 0AF11B6B md5 86E974567D905FCFA9DDCE09AE84D49D sha1 D6807D5A2DED98B9ED7E4EF38B434FDDEF146EAF serial "GSJE" )
@@ -1644,24 +1648,28 @@ game (
 )
 game (
 	name "Golf - US Course (Japan) (DV 1)"
+	cloneof "Golf - US Course (Japan)"
 	region "Japan"
 	serial "GFUE"
 	rom ( name "Golf - US Course (Japan) (DV 1).fds" size 131000 crc B1879EFD md5 A4A7CB14010E85A2D6280960A4B8EF6C sha1 D5A29613806FFD6C8FAE1D81050EA015C4476906 serial "GFUE" )
 )
 game (
 	name "Golf - US Course (Japan) (DV 1)"
+	cloneof "Golf - US Course (Japan)"
 	region "Japan"
 	serial "GFUE"
 	rom ( name "Golf - US Course (Japan) (DV 1).qd" size 131072 crc B0938DF5 md5 B5AA019B5CFC9436EA2695E234065E4D sha1 6F367059EA0DE53CD3E19C153E0B051FAFF51577 serial "GFUE" )
 )
 game (
 	name "Golf - US Course (Japan) (DV 2) (Disk Writer)"
+	cloneof "Golf - US Course (Japan)"
 	region "Japan"
 	serial "GFUE"
 	rom ( name "Golf - US Course (Japan) (DV 2) (Disk Writer).fds" size 131000 crc BE6A0596 md5 9942A61CFD95AF14C2C66DBA4CC979CA sha1 BA9ACB65D9D009C08C0FDF521646FA84EBB4C69A serial "GFUE" )
 )
 game (
 	name "Golf - US Course (Japan) (DV 2) (Disk Writer)"
+	cloneof "Golf - US Course (Japan)"
 	region "Japan"
 	serial "GFUE"
 	rom ( name "Golf - US Course (Japan) (DV 2) (Disk Writer).qd" size 131072 crc 72915EA7 md5 50E3881CCFB8F0B00C84A7CDB3A63445 sha1 3663646B6C7BF07946AF9BDB151A69EB1F57DADB serial "GFUE" )
@@ -2259,35 +2267,41 @@ game (
 )
 game (
 	name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1)"
+	cloneof "Link no Bouken - The Legend of Zelda 2 (Japan)"
 	region "Japan"
 	serial "LNK"
 	rom ( name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1).fds" size 131000 crc 3024CAD5 md5 4673E288B392EFC26326D8FC00C18B26 sha1 9D29FD1E38993AE67564262434B775E0A7DA1DE2 serial "LNK" )
 )
 game (
 	name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1)"
+	cloneof "Link no Bouken - The Legend of Zelda 2 (Japan)"
 	region "Japan"
 	serial "LNK"
 	rom ( name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1).qd" size 131072 crc 20BD1155 md5 EA8E8C250DFB2868BCC488402F7B5194 sha1 C5AC41BCB37C24CF8B1833FD0D609537C09A1948 serial "LNK" )
 )
 game (
 	name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1) (Collector's Edition)"
+	cloneof "Link no Bouken - The Legend of Zelda 2 (Japan)"
 	region "Japan"
 	serial "LNK"
 	rom ( name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1) (Collector's Edition).fds" size 131000 crc D9D60599 md5 BA67BB9631BE2DC9591DF42F623E382A sha1 F4B5F7594BE7625F568BFCB1650288C977A07051 serial "LNK" )
 )
 game (
 	name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1) (Collector's Edition)"
+	cloneof "Link no Bouken - The Legend of Zelda 2 (Japan)"
 	region "Japan"
 	rom ( name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1) (Collector's Edition).qd" size 131072 crc DF122ED1 md5 A0594AA7521CB59E3C0BFB1CADC85C89 sha1 B95411A6492C02D336D743F71A0A6233C9FEC873 )
 )
 game (
 	name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1) (Wii and Wii U Virtual Console)"
+	cloneof "Link no Bouken - The Legend of Zelda 2 (Japan)"
 	region "Japan"
 	serial "LNK"
 	rom ( name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1) (Wii and Wii U Virtual Console).fds" size 131000 crc 5F1D39CB md5 91D1089D011431C6006F78573D7E6437 sha1 AFDA1BE5C8A24872318BFE32C8DD2CA794E6F460 serial "LNK" )
 )
 game (
 	name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1) (Wii and Wii U Virtual Console)"
+	cloneof "Link no Bouken - The Legend of Zelda 2 (Japan)"
 	region "Japan"
 	serial "LNK"
 	rom ( name "Link no Bouken - The Legend of Zelda 2 (Japan) (Rev 1) (Wii and Wii U Virtual Console).qd" size 131072 crc 08E60207 md5 667AB7788C04A22471BA47F50B959D1B sha1 24B865A34D1D0F61D6BE73C29A2087C0F798AF9F serial "LNK" )
@@ -3454,34 +3468,40 @@ game (
 )
 game (
 	name "Super Mario Bros. 2 (Japan) (En) (DV 2)"
+	cloneof "Super Mario Bros. 2 (Japan) (En)"
 	region "Japan"
 	serial "SMB"
 	rom ( name "Super Mario Bros. 2 (Japan) (En) (DV 2).fds" size 65500 crc 5C419EE8 md5 F62909AD7125ED94EF0FC1D44164A518 sha1 08927227B6FF67F42E759505D176CD924931BD14 serial "SMB" )
 )
 game (
 	name "Super Mario Bros. 2 (Japan) (En) (DV 2)"
+	cloneof "Super Mario Bros. 2 (Japan) (En)"
 	region "Japan"
 	serial "SMB"
 	rom ( name "Super Mario Bros. 2 (Japan) (En) (DV 2).qd" size 65536 crc B243E077 md5 BBB6F029224C60100A8F9B9E00309800 sha1 9E730E40FA3178DB96201004A9D85841EB8E2C74 serial "SMB" )
 )
 game (
 	name "Super Mario Bros. 2 (Japan) (En) (Game & Watch - Super Mario Bros.)"
+	cloneof "Super Mario Bros. 2 (Japan) (En)"
 	region "Japan"
 	serial "SMB"
 	rom ( name "Super Mario Bros. 2 (Japan) (En) (Game & Watch - Super Mario Bros.).fds" size 65500 crc 42B63CA5 md5 2A322BD3832945CF8D5F71644A9E2135 sha1 CB9FB99B7731ED05B81D4B6BAE06E0FBF8D21FA8 serial "SMB" )
 )
 game (
 	name "Super Mario Bros. 2 (Japan) (En) (Game & Watch - Super Mario Bros.)"
+	cloneof "Super Mario Bros. 2 (Japan) (En)"
 	region "Japan"
 	rom ( name "Super Mario Bros. 2 (Japan) (En) (Game & Watch - Super Mario Bros.).qd" size 57344 crc 88675F5C md5 652B3C9E31328DB7C637037E39AA1CDB sha1 426287581F2E1E1B9F24A42AFE60796587234B4E )
 )
 game (
 	name "Super Mario Bros. 2 (World) (GameCube, Wii and Wii U Virtual Console)"
+	cloneof "Super Mario Bros. 2 (Japan) (En)"
 	serial "SMB"
 	rom ( name "Super Mario Bros. 2 (World) (GameCube, Wii and Wii U Virtual Console).fds" size 65500 crc 5D08DD11 md5 B210C0F117D46819CC81720FF521D762 sha1 B2DBC55EFCAE77ABAD6207B802C0A76D7A47ED0D serial "SMB" )
 )
 game (
 	name "Super Mario Bros. 2 (World) (GameCube, Wii and Wii U Virtual Console)"
+	cloneof "Super Mario Bros. 2 (Japan) (En)"
 	serial "SMB"
 	rom ( name "Super Mario Bros. 2 (World) (GameCube, Wii and Wii U Virtual Console).qd" size 65536 crc 378CB78C md5 11DDFC008E43FAED668D60255B0C33CE sha1 B47163160ED6925A95C3CC3DA0A5171F908D99EA serial "SMB" )
 )
@@ -3732,6 +3752,7 @@ game (
 )
 game (
 	name "Topple Zip (Japan) (Project EGG)"
+	cloneof "Topple Zip (Japan)"
 	region "Japan"
 	serial "TPZ"
 	rom ( name "Topple Zip (Japan) (Project EGG).fds" size 131000 crc A461BF9B md5 EBB3CCD86E68DE110B4FE528129D52D5 sha1 065C0137021B5097ADA7C347EF50857D777720BD serial "TPZ" )
@@ -4031,6 +4052,7 @@ game (
 )
 game (
 	name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Beta)"
+	cloneof "Zelda no Densetsu - The Hyrule Fantasy (Japan)"
 	releaseyear "1985"
 	releasemonth "12"
 	releaseday "28"
@@ -4039,48 +4061,56 @@ game (
 )
 game (
 	name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Collector's Edition)"
+	cloneof "Zelda no Densetsu - The Hyrule Fantasy (Japan)"
 	region "Japan"
 	serial "ZEL"
 	rom ( name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Collector's Edition).fds" size 131000 crc B64B1456 md5 659C5F15E548CD4075091C6E9B7F4893 sha1 EB72C80FEF3F55395AD3FC9A0F845935593CFD61 serial "ZEL" )
 )
 game (
 	name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Collector's Edition)"
+	cloneof "Zelda no Densetsu - The Hyrule Fantasy (Japan)"
 	region "Japan"
 	serial "ZEL"
 	rom ( name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Collector's Edition).qd" size 131072 crc B9367EFF md5 ECAA6DC4DE07E280FA7EC73316960285 sha1 6988177928785901B5B1ED53EDC87C5E335F82BA serial "ZEL" )
 )
 game (
 	name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (GameCube)"
+	cloneof "Zelda no Densetsu - The Hyrule Fantasy (Japan)"
 	region "Japan"
 	serial "ZEL"
 	rom ( name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (GameCube).fds" size 131000 crc 3F9E421C md5 E54440C35BD79EBE3F4BD271ADAC7178 sha1 391A14143328F45AE7CDD0E38FE3D39082C9F786 serial "ZEL" )
 )
 game (
 	name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (GameCube)"
+	cloneof "Zelda no Densetsu - The Hyrule Fantasy (Japan)"
 	region "Japan"
 	serial "ZEL"
 	rom ( name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (GameCube).qd" size 131072 crc 7507B8A0 md5 F7EA59CC795A056412CA2A7087D3168E sha1 B6C2EBFF6D1C6B08380D46E207427CD4D8C10DC2 serial "ZEL" )
 )
 game (
 	name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Rev 1)"
+	cloneof "Zelda no Densetsu - The Hyrule Fantasy (Japan)"
 	region "Japan"
 	serial "ZEL"
 	rom ( name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Rev 1).fds" size 131000 crc 8F2202BF md5 18D20A07FD107D9DB045451578914C94 sha1 1429FBE3E62059994B6FF7C5E5E2A330831FAF63 serial "ZEL" )
 )
 game (
 	name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Rev 1)"
+	cloneof "Zelda no Densetsu - The Hyrule Fantasy (Japan)"
 	region "Japan"
 	serial "ZEL"
 	rom ( name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Rev 1).qd" size 131072 crc 6BD3385C md5 F8B104168A44991D956E324757C87819 sha1 0BE33D87903018BDE4F01672B434800B89C4FA7E serial "ZEL" )
 )
 game (
 	name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Virtual Console)"
+	cloneof "Zelda no Densetsu - The Hyrule Fantasy (Japan)"
 	region "Japan"
 	serial "ZEL"
 	rom ( name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Virtual Console).fds" size 131000 crc 0FB00A60 md5 4D4A13629AEAC9407EC40F59954CD8C5 sha1 21D7A4FA72C8D78319797EEF812DFF23BAB08A43 serial "ZEL" )
 )
 game (
 	name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Virtual Console)"
+	cloneof "Zelda no Densetsu - The Hyrule Fantasy (Japan)"
 	region "Japan"
 	serial "ZEL"
 	rom ( name "Zelda no Densetsu - The Hyrule Fantasy (Japan) (Virtual Console).qd" size 131072 crc 2E1D63D6 md5 2511540BD9684AFA1C86D04F79C6145A sha1 6CA85EB434B48A65053514C82D15BAE7E9918AE2 serial "ZEL" )

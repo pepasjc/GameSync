@@ -40,6 +40,13 @@ import xml.etree.ElementTree as ET
 import zlib
 from pathlib import Path
 
+from systems import (
+    COMPANION_EXTENSIONS,
+    ROM_EXTENSIONS,
+    SAVE_EXTENSIONS,
+    SYSTEM_DAT_KEYWORDS,
+)
+
 # Same normalization as sync_engine.py / server/app/services/rom_id.py
 _REGION_RE = re.compile(
     r"\s*\((?:USA|Europe|Japan|World|Germany|France|Italy|Spain|Australia|"
@@ -104,46 +111,7 @@ _ROMAN_TO_ARABIC: dict[str, str] = {
 }
 _ARABIC_TO_ROMAN: dict[str, str] = {v: k for k, v in _ROMAN_TO_ARABIC.items()}
 
-SAVE_EXTENSIONS = {".sav", ".srm", ".mcr", ".frz", ".fs", ".rtc"}
-# Companion file extensions handled by find_companion_files (not scanned as ROMs)
-COMPANION_EXTENSIONS = {".msu", ".pcm", ".cue"}
-ROM_EXTENSIONS = {
-    ".gba",
-    ".gb",
-    ".gbc",
-    ".sfc",
-    ".smc",
-    ".nes",
-    ".md",
-    ".gen",
-    ".32x",
-    ".n64",
-    ".z64",
-    ".v64",
-    ".ndd",
-    ".gg",
-    ".sms",
-    ".pce",
-    ".ngp",
-    ".ngc",
-    ".vb",
-    ".ws",
-    ".wsc",
-    ".lnx",
-    ".nds",
-    ".a26",
-    ".a78",
-    ".rom",
-    ".bin",
-    ".iso",
-    ".chd",
-    ".cso",
-    ".pbp",
-    ".pkg",  # PSP / PS3
-    ".mdf",  # Saturn / Alcohol 120%
-    ".fds",  # Famicom Disk System
-    ".qd",  # Famicom Disk System Quick Disk
-}
+# ROM_EXTENSIONS, SAVE_EXTENSIONS, COMPANION_EXTENSIONS imported from systems
 
 
 def normalize_name(filename: str) -> str:
@@ -481,41 +449,8 @@ def _load_cloneof_clrmamepro(dat_path: Path) -> dict[str, str]:
     return clone_map
 
 
-# Maps --system code to keywords to search for in DAT filenames
-_SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
-    "SNES": ["Super Nintendo"],
-    "NES": ["Nintendo Entertainment System"],
-    "GBA": ["Game Boy Advance"],
-    "GBC": ["Game Boy Color"],
-    "GB": ["Game Boy"],
-    "N64": ["Nintendo 64"],
-    "MD": ["Mega Drive", "Genesis"],
-    "GG": ["Game Gear"],
-    "SMS": ["Master System"],
-    "PCE": ["NEC - PC Engine - TurboGrafx 16", "PC Engine - TurboGrafx 16"],
-    "PCSG": ["NEC - PC Engine SuperGrafx", "PC Engine SuperGrafx", "SuperGrafx"],
-    "PCECD": ["PC Engine CD", "TurboGrafx CD", "PC Engine CD-ROM"],
-    "NEOCD": ["SNK - Neo Geo CD", "Neo Geo CD"],
-    "NGPC": ["SNK - Neo Geo Pocket Color", "Neo Geo Pocket Color"],
-    "NGP": ["SNK - Neo Geo Pocket", "Neo Geo Pocket"],
-    "LYNX": ["Lynx"],
-    "WSWANC": ["Bandai - WonderSwan Color", "WonderSwan Color"],
-    "WSWAN": ["WonderSwan"],
-    "VB": ["Nintendo - Virtual Boy", "Virtual Boy"],
-    "SAT": ["Sega - Saturn", "Saturn"],
-    "SEGACD": ["Sega - Mega-CD", "Mega-CD", "Sega CD"],
-    "PS1": ["Sony - PlayStation"],
-    "PS2": ["Sony - PlayStation 2"],
-    "PSP": ["Sony - PlayStation Portable"],
-    "PS3": ["Sony - PlayStation 3"],
-    "DC": ["Sega - Dreamcast", "Dreamcast"],
-    "GC": ["GameCube", "Gamecube"],
-    "NDS": ["Nintendo DS"],
-    "FDS": ["Family Computer Disk System"],
-    "N64DD": ["Nintendo 64DD"],
-    "A2600": ["Atari 2600"],
-    "A7800": ["Atari 7800"],
-}
+# DAT keyword lookup — imported from systems; alias kept for internal use
+_SYSTEM_DAT_KEYWORDS = SYSTEM_DAT_KEYWORDS
 
 DATS_DIR = Path(__file__).parent.parent / "server" / "data" / "dats"
 

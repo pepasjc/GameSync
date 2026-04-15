@@ -15,6 +15,7 @@ game (
 
 game (
 	name "007 - From Russia with Love (Asia) (En)"
+	cloneof "007 - From Russia with Love (USA)"
 	description "007 - From Russia with Love (Asia) (En)"
 	region "Asia"
 	serial "ULAS-42043"
@@ -23,6 +24,7 @@ game (
 
 game (
 	name "007 - From Russia with Love (Australia) (En,Fr,De,Es,It)"
+	cloneof "007 - From Russia with Love (USA)"
 	description "007 - From Russia with Love (Australia) (En,Fr,De,Es,It)"
 	region "Australia"
 	serial "ULES-00288"
@@ -31,6 +33,7 @@ game (
 
 game (
 	name "007 - From Russia with Love (Europe) (En,Fr,De,Es,It)"
+	cloneof "007 - From Russia with Love (USA)"
 	description "007 - From Russia with Love (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00290"
@@ -47,6 +50,7 @@ game (
 
 game (
 	name "007 - Russia Yori Ai o Komete (Japan)"
+	cloneof "007 - From Russia with Love (USA)"
 	description "007 - Russia Yori Ai o Komete (Japan)"
 	region "Japan"
 	serial "ULJM-05129"
@@ -95,6 +99,7 @@ game (
 
 game (
 	name "2010 FIFA World Cup - Minami Africa Taikai (Japan) (v1.01)"
+	cloneof "2010 FIFA World Cup - South Africa (USA) (En,Es) (v1.01)"
 	description "2010 FIFA World Cup - Minami Africa Taikai (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50250"
@@ -103,6 +108,7 @@ game (
 
 game (
 	name "2010 FIFA World Cup - South Africa (Europe) (En,Nl) (v1.01)"
+	cloneof "2010 FIFA World Cup - South Africa (USA) (En,Es) (v1.01)"
 	description "2010 FIFA World Cup - South Africa (Europe) (En,Nl) (v1.01)"
 	region "Europe"
 	serial "ULES-01412"
@@ -111,6 +117,7 @@ game (
 
 game (
 	name "2010 FIFA World Cup - South Africa (Europe) (Es,It) (v1.01)"
+	cloneof "2010 FIFA World Cup - South Africa (USA) (En,Es) (v1.01)"
 	description "2010 FIFA World Cup - South Africa (Europe) (Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-01414"
@@ -119,6 +126,7 @@ game (
 
 game (
 	name "2010 FIFA World Cup - South Africa (Europe) (Fr,De) (v1.01)"
+	cloneof "2010 FIFA World Cup - South Africa (USA) (En,Es) (v1.01)"
 	description "2010 FIFA World Cup - South Africa (Europe) (Fr,De) (v1.01)"
 	region "Europe"
 	serial "ULES-01413"
@@ -399,6 +407,7 @@ game (
 
 game (
 	name "Ace Combat - Joint Assault (Europe) (En,Ja,Fr,De,Es,It) (v1.01)"
+	cloneof "Ace Combat - Joint Assault (USA)"
 	description "Ace Combat - Joint Assault (Europe) (En,Ja,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-01408"
@@ -447,6 +456,7 @@ game (
 
 game (
 	name "Ace Combat X2 - Joint Assault (Japan) (En,Ja,Fr,De,Es,It) (v1.01)"
+	cloneof "Ace Combat - Joint Assault (USA)"
 	description "Ace Combat X2 - Joint Assault (Japan) (En,Ja,Fr,De,Es,It) (v1.01)"
 	region "Japan"
 	serial "NPJH-50263"
@@ -487,6 +497,7 @@ game (
 
 game (
 	name "Adventures to Go! (Europe) (En,Fr,De) (v1.02)"
+	cloneof "Adventures to Go! (USA) (v1.02)"
 	description "Adventures to Go! (Europe) (En,Fr,De) (v1.02)"
 	region "Europe"
 	serial "ULES-01383"
@@ -615,6 +626,7 @@ game (
 
 game (
 	name "Akiba's Trip Plus (Japan) (v1.02)"
+	cloneof "Akiba's Trip (Japan) (v1.07)"
 	description "Akiba's Trip Plus (Japan) (v1.02)"
 	region "Japan"
 	serial "NPJH-50563"
@@ -639,6 +651,7 @@ game (
 
 game (
 	name "Akumajou Dracula - X Chronicle (Japan) (v1.03)"
+	cloneof "Castlevania - The Dracula X Chronicles (USA) (v1.02)"
 	description "Akumajou Dracula - X Chronicle (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05287"
@@ -799,6 +812,7 @@ game (
 
 game (
 	name "Ape Academy (Europe) (En,Fr,De,Es,It)"
+	cloneof "Ape Escape Academy (USA) (v1.01)"
 	description "Ape Academy (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-00010"
@@ -887,6 +901,7 @@ game (
 
 game (
 	name "Archer Maclean's Mercury (Europe) (En,Fr,De,Es,It)"
+	cloneof "Archer Maclean's Mercury (USA)"
 	description "Archer Maclean's Mercury (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00011"
@@ -927,6 +942,7 @@ game (
 
 game (
 	name "Armored Core - Formula Front (Japan) (v1.01)"
+	cloneof "Armored Core - Formula Front - Extreme Battle (USA) (v1.02)"
 	description "Armored Core - Formula Front (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00003"
@@ -935,6 +951,7 @@ game (
 
 game (
 	name "Armored Core - Formula Front (Korea) (v1.02)"
+	cloneof "Armored Core - Formula Front (Japan) (v1.01)"
 	description "Armored Core - Formula Front (Korea) (v1.02)"
 	region "Korea"
 	serial "ULKS-46003"
@@ -943,6 +960,7 @@ game (
 
 game (
 	name "Armored Core - Formula Front - Extreme Battle (Europe) (v1.02)"
+	cloneof "Armored Core - Formula Front - Extreme Battle (USA) (v1.02)"
 	description "Armored Core - Formula Front - Extreme Battle (Europe) (v1.02)"
 	region "Europe"
 	serial "ULES-00219"
@@ -959,6 +977,7 @@ game (
 
 game (
 	name "Armored Core - Formula Front International (Japan) (En,Ja)"
+	cloneof "Armored Core - Formula Front (Japan) (v1.01)"
 	description "Armored Core - Formula Front International (Japan) (En,Ja)"
 	region "Japan"
 	serial "ULJS-19001"
@@ -1023,6 +1042,7 @@ game (
 
 game (
 	name "Arnaqueur, L' (France) (v1.02)"
+	cloneof "Con, The (USA)"
 	description "Arnaqueur, L' (France) (v1.02)"
 	region "France"
 	serial "ULES-00510"
@@ -1039,6 +1059,7 @@ game (
 
 game (
 	name "Arthur and the Invisibles (Europe) (En,Es,Nl,Sv,Fi)"
+	cloneof "Arthur and the Invisibles (Europe) (De,It)"
 	description "Arthur and the Invisibles (Europe) (En,Es,Nl,Sv,Fi)"
 	region "Europe"
 	serial "ULES-00668"
@@ -1135,6 +1156,7 @@ game (
 
 game (
 	name "Astonishia Story 2 (Korea) (v1.08)"
+	cloneof "Crimson Gem Saga (USA)"
 	description "Astonishia Story 2 (Korea) (v1.08)"
 	region "Korea"
 	serial "ULKS-46142"
@@ -1263,6 +1285,7 @@ game (
 
 game (
 	name "Baku-No (Japan) (v1.01)"
+	cloneof "Smart Bomb (USA) (v1.03)"
 	description "Baku-No (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00017"
@@ -1271,6 +1294,7 @@ game (
 
 game (
 	name "Bakudan-Handan (Japan) (v1.01)"
+	cloneof "Sweet Fuse - At Your Side (USA)"
 	description "Bakudan-Handan (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-06099"
@@ -1599,6 +1623,7 @@ game (
 
 game (
 	name "Blade Dancer - Lineage of Light (Europe) (En,Fr,De,Es,It) (v1.02)"
+	cloneof "Blade Dancer - Lineage of Light (USA) (v1.01)"
 	description "Blade Dancer - Lineage of Light (Europe) (En,Fr,De,Es,It) (v1.02)"
 	region "Europe"
 	serial "ULES-00541"
@@ -1615,6 +1640,7 @@ game (
 
 game (
 	name "Blade Dancer - Sennen no Yakusoku (Japan) (v1.02)"
+	cloneof "Blade Dancer - Lineage of Light (USA) (v1.01)"
 	description "Blade Dancer - Sennen no Yakusoku (Japan) (v1.02)"
 	region "Japan"
 	serial "UCJS-10021"
@@ -1623,6 +1649,7 @@ game (
 
 game (
 	name "BlazBlue - Calamity Trigger Portable (Europe) (En,Ja,Fr,De,Es,It,Zh,Ko)"
+	cloneof "BlazBlue - Calamity Trigger Portable (USA) (En,Ja,Zh,Ko)"
 	description "BlazBlue - Calamity Trigger Portable (Europe) (En,Ja,Fr,De,Es,It,Zh,Ko)"
 	region "Europe"
 	serial "ULES-01497"
@@ -1631,6 +1658,7 @@ game (
 
 game (
 	name "BlazBlue - Calamity Trigger Portable (Japan) (v1.01)"
+	cloneof "BlazBlue - Calamity Trigger Portable (USA) (En,Ja,Zh,Ko)"
 	description "BlazBlue - Calamity Trigger Portable (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50180"
@@ -1935,6 +1963,7 @@ game (
 
 game (
 	name "Boku no Watashi no Katamari Damacy (Japan) (v1.01)"
+	cloneof "Me & My Katamari (USA)"
 	description "Boku no Watashi no Katamari Damacy (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00033"
@@ -1991,6 +2020,7 @@ game (
 
 game (
 	name "Bokujou Monogatari - Harvest Moon - Boy & Girl (Japan) (v1.04)"
+	cloneof "Harvest Moon - Boy & Girl (USA)"
 	description "Bokujou Monogatari - Harvest Moon - Boy & Girl (Japan) (v1.04)"
 	region "Japan"
 	serial "ULJS-00034"
@@ -1999,6 +2029,7 @@ game (
 
 game (
 	name "Bokujou Monogatari - Sugar Mura to Minna no Negai (Japan)"
+	cloneof "Harvest Moon - Hero of Leaf Valley (USA)"
 	description "Bokujou Monogatari - Sugar Mura to Minna no Negai (Japan)"
 	region "Japan"
 	serial "ULJS-00188"
@@ -2007,6 +2038,7 @@ game (
 
 game (
 	name "Bomberman (Europe) (En,Fr,De,Es,It) (v1.02)"
+	cloneof "Bomberman (USA)"
 	description "Bomberman (Europe) (En,Fr,De,Es,It) (v1.02)"
 	region "Europe"
 	serial "ULES-00469"
@@ -2039,6 +2071,7 @@ game (
 
 game (
 	name "Bomberman Land (Europe) (En,Fr,De,Es,It) (v1.02)"
+	cloneof "Bomberman Land (USA) (v1.02)"
 	description "Bomberman Land (Europe) (En,Fr,De,Es,It) (v1.02)"
 	region "Europe"
 	serial "ULES-00959"
@@ -2055,6 +2088,7 @@ game (
 
 game (
 	name "Bomberman Land Portable (Japan) (v1.01)"
+	cloneof "Bomberman Land (USA) (v1.02)"
 	description "Bomberman Land Portable (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05181"
@@ -2063,6 +2097,7 @@ game (
 
 game (
 	name "Bomberman Portable (Japan) (v1.02)"
+	cloneof "Bomberman (USA)"
 	description "Bomberman Portable (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05034"
@@ -2111,6 +2146,7 @@ game (
 
 game (
 	name "Brave Story - Aratanaru Tabibito (Japan)"
+	cloneof "Brave Story - New Traveler (USA) (v1.01)"
 	description "Brave Story - Aratanaru Tabibito (Japan)"
 	region "Japan"
 	serial "UCJS-10024"
@@ -2143,6 +2179,7 @@ game (
 
 game (
 	name "Brian Lara 2007 - Pressure Play (Europe) (En,Fr) (v1.01)"
+	cloneof "Ricky Ponting 2007 - Pressure Play (Europe) (v1.01)"
 	description "Brian Lara 2007 - Pressure Play (Europe) (En,Fr) (v1.01)"
 	region "Europe"
 	serial "ULES-00814"
@@ -2215,6 +2252,7 @@ game (
 
 game (
 	name "Bubble Bobble - Evolution (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Bubble Bobble - Evolution (USA) (v1.01)"
 	description "Bubble Bobble - Evolution (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00303"
@@ -2231,6 +2269,7 @@ game (
 
 game (
 	name "Bubble Bobble - Magical Tower Daisakusen!! (Japan) (v1.05)"
+	cloneof "Bubble Bobble - Evolution (USA) (v1.01)"
 	description "Bubble Bobble - Magical Tower Daisakusen!! (Japan) (v1.05)"
 	region "Japan"
 	serial "ULJM-05121"
@@ -2375,6 +2414,7 @@ game (
 
 game (
 	name "Bussola D'Oro, La (Italy)"
+	cloneof "Golden Compass, The (USA)"
 	description "Bussola D'Oro, La (Italy)"
 	region "Italy"
 	serial "ULES-00953"
@@ -2391,6 +2431,7 @@ game (
 
 game (
 	name "Bust-A-Move Ghost (Europe) (v1.01)"
+	cloneof "Bust-A-Move - Deluxe (USA)"
 	description "Bust-A-Move Ghost (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00233"
@@ -2415,6 +2456,7 @@ game (
 
 game (
 	name "Buzz! Brain of Oz (Australia) (v1.01)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! Brain of Oz (Australia) (v1.01)"
 	region "Australia"
 	serial "UCES-01202"
@@ -2423,6 +2465,7 @@ game (
 
 game (
 	name "Buzz! Brain of Switzerland (Europe) (De,It)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! Brain of Switzerland (Europe) (De,It)"
 	region "Europe"
 	serial "UCES-01209"
@@ -2431,6 +2474,7 @@ game (
 
 game (
 	name "Buzz! Brain of the UK (Europe) (v1.01)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! Brain of the UK (Europe) (v1.01)"
 	region "Europe"
 	serial "UCES-01196"
@@ -2455,6 +2499,7 @@ game (
 
 game (
 	name "Buzz! De Slimste van Nederland (Netherlands) (v1.01)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! De Slimste van Nederland (Netherlands) (v1.01)"
 	region "Netherlands"
 	serial "UCES-01217"
@@ -2463,6 +2508,7 @@ game (
 
 game (
 	name "Buzz! Deutschlands Superquiz (Germany) (v1.01)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! Deutschlands Superquiz (Germany) (v1.01)"
 	region "Germany"
 	serial "UCES-01199"
@@ -2471,6 +2517,7 @@ game (
 
 game (
 	name "Buzz! Il Quizzone Nazionale (Italy) (v1.01)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! Il Quizzone Nazionale (Italy) (v1.01)"
 	region "Italy"
 	serial "UCES-01198"
@@ -2487,6 +2534,7 @@ game (
 
 game (
 	name "Buzz! Le Plus Malin des Francais (France)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! Le Plus Malin des Francais (France)"
 	region "France"
 	serial "UCES-01197"
@@ -2567,6 +2615,7 @@ game (
 
 game (
 	name "Buzz! Que Sabes de tu Pais (Spain) (v1.01)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! Que Sabes de tu Pais (Spain) (v1.01)"
 	region "Spain"
 	serial "UCES-01200"
@@ -2575,6 +2624,7 @@ game (
 
 game (
 	name "Buzz! Quem e o Genio Portugues (Europe) (Pt,Ru) (v1.01)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! Quem e o Genio Portugues (Europe) (Pt,Ru) (v1.01)"
 	region "Europe"
 	serial "UCES-01207"
@@ -2591,6 +2641,7 @@ game (
 
 game (
 	name "Buzz! Quiz World (Europe) (De,It)"
+	cloneof "Buzz! Quiz World (Europe)"
 	description "Buzz! Quiz World (Europe) (De,It)"
 	region "Europe"
 	serial "UCES-01290"
@@ -2599,6 +2650,7 @@ game (
 
 game (
 	name "Buzz! Quiz World (Europe) (El,Cs)"
+	cloneof "Buzz! Quiz World (Europe)"
 	description "Buzz! Quiz World (Europe) (El,Cs)"
 	region "Europe"
 	serial "UCES-01297"
@@ -2607,6 +2659,7 @@ game (
 
 game (
 	name "Buzz! Quiz World (Europe) (En,Pl)"
+	cloneof "Buzz! Quiz World (Europe)"
 	description "Buzz! Quiz World (Europe) (En,Pl)"
 	region "Europe"
 	serial "UCES-01289"
@@ -2615,6 +2668,7 @@ game (
 
 game (
 	name "Buzz! Quiz World (Europe) (Es,Pt)"
+	cloneof "Buzz! Quiz World (Europe)"
 	description "Buzz! Quiz World (Europe) (Es,Pt)"
 	region "Europe"
 	serial "UCES-01292"
@@ -2623,6 +2677,7 @@ game (
 
 game (
 	name "Buzz! Quiz World (Europe) (Fr,Nl)"
+	cloneof "Buzz! Quiz World (Europe)"
 	description "Buzz! Quiz World (Europe) (Fr,Nl)"
 	region "Europe"
 	serial "UCES-01291"
@@ -2631,6 +2686,7 @@ game (
 
 game (
 	name "Buzz! Quiz World (Europe) (No,Da)"
+	cloneof "Buzz! Quiz World (Europe)"
 	description "Buzz! Quiz World (Europe) (No,Da)"
 	region "Europe"
 	serial "UCES-01294"
@@ -2639,6 +2695,7 @@ game (
 
 game (
 	name "Buzz! Quiz World (Europe) (Ru,Hr)"
+	cloneof "Buzz! Quiz World (Europe)"
 	description "Buzz! Quiz World (Europe) (Ru,Hr)"
 	region "Europe"
 	serial "UCES-01296"
@@ -2647,6 +2704,7 @@ game (
 
 game (
 	name "Buzz! Quiz World (Europe) (Sv,Fi)"
+	cloneof "Buzz! Quiz World (Europe)"
 	description "Buzz! Quiz World (Europe) (Sv,Fi)"
 	region "Europe"
 	serial "UCES-01295"
@@ -2655,6 +2713,7 @@ game (
 
 game (
 	name "Buzz! Svenska Genier (Europe) (Sv,Fi)"
+	cloneof "Buzz! Brain of the World (Europe)"
 	description "Buzz! Svenska Genier (Europe) (Sv,Fi)"
 	region "Europe"
 	serial "UCES-01204"
@@ -2806,6 +2865,7 @@ game (
 
 game (
 	name "Capcom Classics Collection (Japan) (v1.01)"
+	cloneof "Capcom Classics Collection Reloaded (USA)"
 	description "Capcom Classics Collection (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05104"
@@ -2814,6 +2874,7 @@ game (
 
 game (
 	name "Capcom Classics Collection Reloaded (Europe) (v1.01)"
+	cloneof "Capcom Classics Collection Reloaded (USA)"
 	description "Capcom Classics Collection Reloaded (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00377"
@@ -2886,6 +2947,7 @@ game (
 
 game (
 	name "Carol Vorderman's Sudoku (Europe) (En,Fr,De) (v1.01)"
+	cloneof "Carol Vorderman's Sudoku (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Carol Vorderman's Sudoku (Europe) (En,Fr,De) (v1.01)"
 	region "Europe"
 	serial "ULES-00388"
@@ -3022,6 +3084,7 @@ game (
 
 game (
 	name "Castlevania - The Dracula X Chronicles (Europe) (En,Fr,De,Es,It) (v1.03)"
+	cloneof "Castlevania - The Dracula X Chronicles (USA) (v1.02)"
 	description "Castlevania - The Dracula X Chronicles (Europe) (En,Fr,De,Es,It) (v1.03)"
 	region "Europe"
 	serial "ULES-00841"
@@ -3030,6 +3093,7 @@ game (
 
 game (
 	name "Castlevania - The Dracula X Chronicles (Korea) (En,Ja) (v2.00)"
+	cloneof "Castlevania - The Dracula X Chronicles (USA) (v1.02)"
 	description "Castlevania - The Dracula X Chronicles (Korea) (En,Ja) (v2.00)"
 	region "Korea"
 	serial "ULKS-46155"
@@ -3126,6 +3190,7 @@ game (
 
 game (
 	name "Chi Vuol Essere Milionario - Party Edition (Italy) (v1.01)"
+	cloneof "Who Wants to Be a Millionaire - Party Edition (Europe) (v1.02)"
 	description "Chi Vuol Essere Milionario - Party Edition (Italy) (v1.01)"
 	region "Italy"
 	serial "ULES-00712"
@@ -3182,6 +3247,7 @@ game (
 
 game (
 	name "Chronicle of Dungeon Maker (Japan) (v1.01)"
+	cloneof "Dungeon Maker - Hunting Ground (USA) (v1.01)"
 	description "Chronicle of Dungeon Maker (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05172"
@@ -3190,6 +3256,7 @@ game (
 
 game (
 	name "Chronicle of Dungeon Maker II (Japan) (v1.01)"
+	cloneof "Dungeon Maker II - The Hidden War (USA) (v1.01)"
 	description "Chronicle of Dungeon Maker II (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05294"
@@ -3230,6 +3297,7 @@ game (
 
 game (
 	name "Chuumon Shiyouze! Oretachi no Sekai (Japan) (v1.01)"
+	cloneof "Adventures to Go! (USA) (v1.02)"
 	description "Chuumon Shiyouze! Oretachi no Sekai (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05381"
@@ -3310,6 +3378,7 @@ game (
 
 game (
 	name "Cloudy with a Chance of Meatballs (Europe)"
+	cloneof "Cloudy with a Chance of Meatballs (USA) (En,Fr,Es)"
 	description "Cloudy with a Chance of Meatballs (Europe)"
 	region "Europe"
 	serial "ULES-01319"
@@ -3318,6 +3387,7 @@ game (
 
 game (
 	name "Cloudy with a Chance of Meatballs (Europe) (En,Fr,De,Es,It)"
+	cloneof "Cloudy with a Chance of Meatballs (USA) (En,Fr,Es)"
 	description "Cloudy with a Chance of Meatballs (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-01318"
@@ -3326,6 +3396,7 @@ game (
 
 game (
 	name "Cloudy with a Chance of Meatballs (Russia)"
+	cloneof "Cloudy with a Chance of Meatballs (USA) (En,Fr,Es)"
 	description "Cloudy with a Chance of Meatballs (Russia)"
 	region "Russia"
 	serial "ULES-01361"
@@ -3382,6 +3453,7 @@ game (
 
 game (
 	name "Coded Arms (Asia) (En,Ja) (v1.01)"
+	cloneof "Coded Arms (USA) (v1.01)"
 	description "Coded Arms (Asia) (En,Ja) (v1.01)"
 	region "Asia"
 	serial "ULAS-42009"
@@ -3390,6 +3462,7 @@ game (
 
 game (
 	name "Coded Arms (Europe) (En,Fr,De,Es,It)"
+	cloneof "Coded Arms (USA) (v1.01)"
 	description "Coded Arms (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00124"
@@ -3398,6 +3471,7 @@ game (
 
 game (
 	name "Coded Arms (Japan) (v1.03)"
+	cloneof "Coded Arms (USA) (v1.01)"
 	description "Coded Arms (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05024"
@@ -3414,6 +3488,7 @@ game (
 
 game (
 	name "Coded Arms - Contagion (Asia) (En) (v1.04)"
+	cloneof "Coded Arms - Contagion (USA) (v1.04)"
 	description "Coded Arms - Contagion (Asia) (En) (v1.04)"
 	region "Asia"
 	serial "ULUS-10184"
@@ -3422,6 +3497,7 @@ game (
 
 game (
 	name "Coded Arms - Contagion (Europe) (En,Fr,De,Es,It) (v1.06)"
+	cloneof "Coded Arms - Contagion (USA) (v1.04)"
 	description "Coded Arms - Contagion (Europe) (En,Fr,De,Es,It) (v1.06)"
 	region "Europe"
 	serial "ULES-00718"
@@ -3430,6 +3506,7 @@ game (
 
 game (
 	name "Coded Arms - Contagion (Japan) (v1.02)"
+	cloneof "Coded Arms - Contagion (USA) (v1.04)"
 	description "Coded Arms - Contagion (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05243"
@@ -3446,6 +3523,7 @@ game (
 
 game (
 	name "Coded Gun - Contagion (Korea) (v1.02)"
+	cloneof "Coded Arms - Contagion (USA) (v1.04)"
 	description "Coded Gun - Contagion (Korea) (v1.02)"
 	region "Korea"
 	serial "ULKS-46139"
@@ -3478,6 +3556,7 @@ game (
 
 game (
 	name "Colin McRae - DiRT 2 (Europe) (En,Fr,De,Es,It) (v1.02)"
+	cloneof "Colin McRae - DiRT 2 (USA) (v1.02)"
 	description "Colin McRae - DiRT 2 (Europe) (En,Fr,De,Es,It) (v1.02)"
 	region "Europe"
 	serial "ULES-01301"
@@ -3486,6 +3565,7 @@ game (
 
 game (
 	name "Colin McRae - DiRT 2 (Japan) (v1.01)"
+	cloneof "Colin McRae - DiRT 2 (USA) (v1.02)"
 	description "Colin McRae - DiRT 2 (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50006"
@@ -3542,6 +3622,7 @@ game (
 
 game (
 	name "Con, The (Europe) (v1.02)"
+	cloneof "Con, The (USA)"
 	description "Con, The (Europe) (v1.02)"
 	region "Europe"
 	serial "ULES-00516"
@@ -3550,6 +3631,7 @@ game (
 
 game (
 	name "Con, The (Germany) (v1.02)"
+	cloneof "Con, The (USA)"
 	description "Con, The (Germany) (v1.02)"
 	region "Germany"
 	serial "ULES-00511"
@@ -3558,6 +3640,7 @@ game (
 
 game (
 	name "Con, The (Italy) (v1.03)"
+	cloneof "Con, The (USA)"
 	description "Con, The (Italy) (v1.03)"
 	region "Italy"
 	serial "ULES-00512"
@@ -3566,6 +3649,7 @@ game (
 
 game (
 	name "Con, The (Spain) (v1.02)"
+	cloneof "Con, The (USA)"
 	description "Con, The (Spain) (v1.02)"
 	region "Spain"
 	serial "ULES-00513"
@@ -3646,6 +3730,7 @@ game (
 
 game (
 	name "Crash - Mind Over Mutant (Europe)"
+	cloneof "Crash - Mind Over Mutant (USA) (En,Fr) (v1.01)"
 	description "Crash - Mind Over Mutant (Europe)"
 	region "Europe"
 	serial "ULES-01170"
@@ -3654,6 +3739,7 @@ game (
 
 game (
 	name "Crash - Mind Over Mutant (Europe) (De,Ru) (v1.03)"
+	cloneof "Crash - Mind Over Mutant (USA) (En,Fr) (v1.01)"
 	description "Crash - Mind Over Mutant (Europe) (De,Ru) (v1.03)"
 	region "Europe"
 	serial "ULES-01171"
@@ -3662,6 +3748,7 @@ game (
 
 game (
 	name "Crash - Mind Over Mutant (Europe) (Es,It)"
+	cloneof "Crash - Mind Over Mutant (USA) (En,Fr) (v1.01)"
 	description "Crash - Mind Over Mutant (Europe) (Es,It)"
 	region "Europe"
 	serial "ULES-01172"
@@ -3670,6 +3757,7 @@ game (
 
 game (
 	name "Crash - Mind Over Mutant (Europe) (Fr,Nl)"
+	cloneof "Crash - Mind Over Mutant (USA) (En,Fr) (v1.01)"
 	description "Crash - Mind Over Mutant (Europe) (Fr,Nl)"
 	region "Europe"
 	serial "ULES-01173"
@@ -3694,6 +3782,7 @@ game (
 
 game (
 	name "Crash Tag Team Racing (Europe)"
+	cloneof "Crash Tag Team Racing (USA) (v1.01)"
 	description "Crash Tag Team Racing (Europe)"
 	region "Europe"
 	serial "ULES-00168"
@@ -3702,6 +3791,7 @@ game (
 
 game (
 	name "Crash Tag Team Racing (France)"
+	cloneof "Crash Tag Team Racing (USA) (v1.01)"
 	description "Crash Tag Team Racing (France)"
 	region "France"
 	serial "ULES-00169"
@@ -3710,6 +3800,7 @@ game (
 
 game (
 	name "Crash Tag Team Racing (Germany)"
+	cloneof "Crash Tag Team Racing (USA) (v1.01)"
 	description "Crash Tag Team Racing (Germany)"
 	region "Germany"
 	serial "ULES-00170"
@@ -3718,6 +3809,7 @@ game (
 
 game (
 	name "Crash Tag Team Racing (Italy)"
+	cloneof "Crash Tag Team Racing (USA) (v1.01)"
 	description "Crash Tag Team Racing (Italy)"
 	region "Italy"
 	serial "ULES-00172"
@@ -3726,6 +3818,7 @@ game (
 
 game (
 	name "Crash Tag Team Racing (Netherlands)"
+	cloneof "Crash Tag Team Racing (USA) (v1.01)"
 	description "Crash Tag Team Racing (Netherlands)"
 	region "Netherlands"
 	serial "ULES-00173"
@@ -3734,6 +3827,7 @@ game (
 
 game (
 	name "Crash Tag Team Racing (Spain)"
+	cloneof "Crash Tag Team Racing (USA) (v1.01)"
 	description "Crash Tag Team Racing (Spain)"
 	region "Spain"
 	serial "ULES-00171"
@@ -3790,6 +3884,7 @@ game (
 
 game (
 	name "Crazy Taxi - Double Punch (Japan) (v1.02)"
+	cloneof "Crazy Taxi - Fare Wars (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Crazy Taxi - Double Punch (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05340"
@@ -3798,6 +3893,7 @@ game (
 
 game (
 	name "Crazy Taxi - Fare Wars (Europe) (En,Fr,De,Es,It)"
+	cloneof "Crazy Taxi - Fare Wars (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Crazy Taxi - Fare Wars (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00811"
@@ -3814,6 +3910,7 @@ game (
 
 game (
 	name "Crazy Taxi - Fare Wars (USA) (En,Fr,De,Es,It) (v2.01)"
+	cloneof "Crazy Taxi - Fare Wars (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Crazy Taxi - Fare Wars (USA) (En,Fr,De,Es,It) (v2.01)"
 	region "USA"
 	serial "ULUS-10273"
@@ -4310,6 +4407,7 @@ game (
 
 game (
 	name "Dante's Inferno (Asia) (En) (v1.01)"
+	cloneof "Dante's Inferno (USA) (v1.01)"
 	description "Dante's Inferno (Asia) (En) (v1.01)"
 	region "Asia"
 	serial "ULUS-10469"
@@ -4318,6 +4416,7 @@ game (
 
 game (
 	name "Dante's Inferno (Europe)"
+	cloneof "Dante's Inferno (USA) (v1.01)"
 	description "Dante's Inferno (Europe)"
 	region "Europe"
 	serial "ULES-01384"
@@ -4326,6 +4425,7 @@ game (
 
 game (
 	name "Dante's Inferno (France)"
+	cloneof "Dante's Inferno (USA) (v1.01)"
 	description "Dante's Inferno (France)"
 	region "France"
 	serial "ULES-01385"
@@ -4334,6 +4434,7 @@ game (
 
 game (
 	name "Dante's Inferno (Germany)"
+	cloneof "Dante's Inferno (USA) (v1.01)"
 	description "Dante's Inferno (Germany)"
 	region "Germany"
 	serial "ULES-01387"
@@ -4342,6 +4443,7 @@ game (
 
 game (
 	name "Dante's Inferno (Italy)"
+	cloneof "Dante's Inferno (USA) (v1.01)"
 	description "Dante's Inferno (Italy)"
 	region "Italy"
 	serial "ULES-01386"
@@ -4350,6 +4452,7 @@ game (
 
 game (
 	name "Dante's Inferno (Spain)"
+	cloneof "Dante's Inferno (USA) (v1.01)"
 	description "Dante's Inferno (Spain)"
 	region "Spain"
 	serial "ULES-01388"
@@ -4366,6 +4469,7 @@ game (
 
 game (
 	name "Dante's Inferno - Shinkyoku Jigoku-Hen (Japan) (v1.01)"
+	cloneof "Dante's Inferno (USA) (v1.01)"
 	description "Dante's Inferno - Shinkyoku Jigoku-Hen (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50220"
@@ -4390,6 +4494,7 @@ game (
 
 game (
 	name "Darkstalkers Chronicle - The Chaos Tower (Europe)"
+	cloneof "Darkstalkers Chronicle - The Chaos Tower (USA)"
 	description "Darkstalkers Chronicle - The Chaos Tower (Europe)"
 	region "Europe"
 	serial "ULES-00016"
@@ -4462,6 +4567,7 @@ game (
 
 game (
 	name "Dead Head Fred (Asia) (En)"
+	cloneof "Dead Head Fred (USA) (v1.02)"
 	description "Dead Head Fred (Asia) (En)"
 	region "Asia"
 	serial "ULUS-10288"
@@ -4470,6 +4576,7 @@ game (
 
 game (
 	name "Dead Head Fred (Europe)"
+	cloneof "Dead Head Fred (USA) (v1.02)"
 	description "Dead Head Fred (Europe)"
 	region "Europe"
 	serial "ULES-00902"
@@ -4478,6 +4585,7 @@ game (
 
 game (
 	name "Dead Head Fred (Europe) (En,Fr,De,Es,It)"
+	cloneof "Dead Head Fred (USA) (v1.02)"
 	description "Dead Head Fred (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00903"
@@ -4486,6 +4594,7 @@ game (
 
 game (
 	name "Dead Head Fred (USA) (Demo)"
+	cloneof "Dead Head Fred (USA) (v1.02)"
 	description "Dead Head Fred (USA) (Demo)"
 	region "USA"
 	serial "ULUS-90002"
@@ -4502,6 +4611,7 @@ game (
 
 game (
 	name "Dead Head Fred - Kubinashi Tantei no Akumu (Japan) (v1.03)"
+	cloneof "Dead Head Fred (USA) (v1.02)"
 	description "Dead Head Fred - Kubinashi Tantei no Akumu (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJS-00136"
@@ -4718,6 +4828,7 @@ game (
 
 game (
 	name "Despicable Me (Europe) (En,Fr,De,Es,It,Sv,No,Da,Fi)"
+	cloneof "Despicable Me - The Game (USA) (En,Fr,Es)"
 	description "Despicable Me (Europe) (En,Fr,De,Es,It,Sv,No,Da,Fi)"
 	region "Europe"
 	serial "ULES-01447"
@@ -4790,6 +4901,7 @@ game (
 
 game (
 	name "Diner Dash (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Diner Dash - Sizzle & Serve (USA) (v1.01)"
 	description "Diner Dash (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00755"
@@ -4806,6 +4918,7 @@ game (
 
 game (
 	name "Disgaea - Afternoon of Darkness (Asia) (En)"
+	cloneof "Disgaea - Afternoon of Darkness (USA)"
 	description "Disgaea - Afternoon of Darkness (Asia) (En)"
 	region "Asia"
 	serial "ULUS-10308"
@@ -4814,6 +4927,7 @@ game (
 
 game (
 	name "Disgaea - Afternoon of Darkness (Europe)"
+	cloneof "Disgaea - Afternoon of Darkness (USA)"
 	description "Disgaea - Afternoon of Darkness (Europe)"
 	region "Europe"
 	serial "ULES-00999"
@@ -4830,6 +4944,7 @@ game (
 
 game (
 	name "Disgaea 2 - Dark Hero Days (Europe) (v1.01)"
+	cloneof "Disgaea 2 - Dark Hero Days (USA) (v1.02)"
 	description "Disgaea 2 - Dark Hero Days (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-01392"
@@ -4862,6 +4977,7 @@ game (
 
 game (
 	name "Disgaea Portable (Asia) (Zh,Ko) (v1.01)"
+	cloneof "Disgaea - Afternoon of Darkness (USA)"
 	description "Disgaea Portable (Asia) (Zh,Ko) (v1.01)"
 	region "Asia"
 	serial "UCAS-40315"
@@ -4870,6 +4986,7 @@ game (
 
 game (
 	name "Dissidia - Final Fantasy (Asia) (En)"
+	cloneof "Dissidia - Final Fantasy (USA)"
 	description "Dissidia - Final Fantasy (Asia) (En)"
 	region "Asia"
 	serial "ULUS-10437"
@@ -4878,6 +4995,7 @@ game (
 
 game (
 	name "Dissidia - Final Fantasy (Europe) (En,Fr,De,Es,It)"
+	cloneof "Dissidia - Final Fantasy (USA)"
 	description "Dissidia - Final Fantasy (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-01270"
@@ -4886,6 +5004,7 @@ game (
 
 game (
 	name "Dissidia - Final Fantasy (Europe) (En,Fr,De,Es,It) (Beta)"
+	cloneof "Dissidia - Final Fantasy (USA)"
 	description "Dissidia - Final Fantasy (Europe) (En,Fr,De,Es,It) (Beta)"
 	region "Europe"
 	serial "ULET-01271"
@@ -4894,6 +5013,7 @@ game (
 
 game (
 	name "Dissidia - Final Fantasy (Japan) (v1.03)"
+	cloneof "Dissidia - Final Fantasy (USA)"
 	description "Dissidia - Final Fantasy (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05262"
@@ -4902,6 +5022,7 @@ game (
 
 game (
 	name "Dissidia - Final Fantasy (Russia)"
+	cloneof "Dissidia - Final Fantasy (USA)"
 	description "Dissidia - Final Fantasy (Russia)"
 	region "Russia"
 	serial "UCES-01229"
@@ -4918,6 +5039,7 @@ game (
 
 game (
 	name "Dissidia - Final Fantasy (USA) (Demo)"
+	cloneof "Dissidia - Final Fantasy (USA)"
 	description "Dissidia - Final Fantasy (USA) (Demo)"
 	region "USA"
 	serial "NPUH-90029"
@@ -4926,6 +5048,7 @@ game (
 
 game (
 	name "Dissidia - Final Fantasy - Universal Tuning (Japan)"
+	cloneof "Dissidia - Final Fantasy (USA)"
 	description "Dissidia - Final Fantasy - Universal Tuning (Japan)"
 	region "Japan"
 	serial "NPJH-50065"
@@ -5102,6 +5225,7 @@ game (
 
 game (
 	name "Dragon Ball Tag VS (Japan) (v1.01)"
+	cloneof "Dragon Ball Z - Tenkaichi Tag Team (USA) (En,Fr,Es)"
 	description "Dragon Ball Tag VS (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00311"
@@ -5110,6 +5234,7 @@ game (
 
 game (
 	name "Dragon Ball Z - Shin Budokai (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Dragon Ball Z - Shin Budokai (USA)"
 	description "Dragon Ball Z - Shin Budokai (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00309"
@@ -5118,6 +5243,7 @@ game (
 
 game (
 	name "Dragon Ball Z - Shin Budokai (Japan) (v1.02)"
+	cloneof "Dragon Ball Z - Shin Budokai (USA)"
 	description "Dragon Ball Z - Shin Budokai (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJS-00049"
@@ -5134,6 +5260,7 @@ game (
 
 game (
 	name "Dragon Ball Z - Shin Budokai 2 (Europe) (En,Fr,De,Es,It)"
+	cloneof "Dragon Ball Z - Shin Budokai Another Road (USA)"
 	description "Dragon Ball Z - Shin Budokai 2 (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00789"
@@ -5142,6 +5269,7 @@ game (
 
 game (
 	name "Dragon Ball Z - Shin Budokai 2 (Japan) (Kiosk Demo)"
+	cloneof "Dragon Ball Z - Shin Budokai 2 (Europe) (En,Fr,De,Es,It)"
 	description "Dragon Ball Z - Shin Budokai 2 (Japan) (Kiosk Demo)"
 	region "Japan"
 	serial "ULJM-91010"
@@ -5150,6 +5278,7 @@ game (
 
 game (
 	name "Dragon Ball Z - Shin Budokai 2 (Japan) (v1.02)"
+	cloneof "Dragon Ball Z - Shin Budokai 2 (Europe) (En,Fr,De,Es,It)"
 	description "Dragon Ball Z - Shin Budokai 2 (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJS-00107"
@@ -5166,6 +5295,7 @@ game (
 
 game (
 	name "Dragon Ball Z - Tenkaichi Tag Team (Europe) (En,Fr,De,Es,It)"
+	cloneof "Dragon Ball Z - Tenkaichi Tag Team (USA) (En,Fr,Es)"
 	description "Dragon Ball Z - Tenkaichi Tag Team (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-01456"
@@ -5198,6 +5328,7 @@ game (
 
 game (
 	name "Dragoneer's Aria (Asia) (En)"
+	cloneof "Dragoneer's Aria (USA)"
 	description "Dragoneer's Aria (Asia) (En)"
 	region "Asia"
 	serial "ULUS-10291"
@@ -5206,6 +5337,7 @@ game (
 
 game (
 	name "Dragoneer's Aria (Europe)"
+	cloneof "Dragoneer's Aria (USA)"
 	description "Dragoneer's Aria (Europe)"
 	region "Europe"
 	serial "ULES-01004"
@@ -5262,6 +5394,7 @@ game (
 
 game (
 	name "Dungeon Explorer (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Dungeon Explorer - Warriors of Ancient Arts (USA) (v1.01)"
 	description "Dungeon Explorer (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00847"
@@ -5270,6 +5403,7 @@ game (
 
 game (
 	name "Dungeon Explorer - Meiyaku no Tobira (Japan) (v1.01)"
+	cloneof "Dungeon Explorer - Warriors of Ancient Arts (USA) (v1.01)"
 	description "Dungeon Explorer - Meiyaku no Tobira (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05164"
@@ -5350,6 +5484,7 @@ game (
 
 game (
 	name "Durarara!! 3way Standoff - Alley (Japan) (v1.01)"
+	cloneof "Durarara!! 3way Standoff (Japan) (v1.01)"
 	description "Durarara!! 3way Standoff - Alley (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50484"
@@ -5358,6 +5493,7 @@ game (
 
 game (
 	name "Dynasty Warriors (Europe)"
+	cloneof "Dynasty Warriors (USA)"
 	description "Dynasty Warriors (Europe)"
 	region "Europe"
 	serial "ULES-00026"
@@ -5366,6 +5502,7 @@ game (
 
 game (
 	name "Dynasty Warriors (France) (v1.01)"
+	cloneof "Dynasty Warriors (USA)"
 	description "Dynasty Warriors (France) (v1.01)"
 	region "France"
 	serial "ULES-00118"
@@ -5374,6 +5511,7 @@ game (
 
 game (
 	name "Dynasty Warriors (Germany) (v1.01)"
+	cloneof "Dynasty Warriors (USA)"
 	description "Dynasty Warriors (Germany) (v1.01)"
 	region "Germany"
 	serial "ULES-00119"
@@ -5382,6 +5520,7 @@ game (
 
 game (
 	name "Dynasty Warriors (Korea) (v1.02)"
+	cloneof "Dynasty Warriors (USA)"
 	description "Dynasty Warriors (Korea) (v1.02)"
 	region "Korea"
 	serial "ULKS-46012"
@@ -5398,6 +5537,7 @@ game (
 
 game (
 	name "Dynasty Warriors - Strikeforce (Europe) (En,Fr,De)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	description "Dynasty Warriors - Strikeforce (Europe) (En,Fr,De)"
 	region "Europe"
 	serial "ULES-01221"
@@ -5414,6 +5554,7 @@ game (
 
 game (
 	name "Dynasty Warriors Vol. 2 (Europe)"
+	cloneof "Dynasty Warriors Vol. 2 (USA)"
 	description "Dynasty Warriors Vol. 2 (Europe)"
 	region "Europe"
 	serial "ULES-00604"
@@ -5422,6 +5563,7 @@ game (
 
 game (
 	name "Dynasty Warriors Vol. 2 (France)"
+	cloneof "Dynasty Warriors Vol. 2 (USA)"
 	description "Dynasty Warriors Vol. 2 (France)"
 	region "France"
 	serial "ULES-00605"
@@ -5430,6 +5572,7 @@ game (
 
 game (
 	name "Dynasty Warriors Vol. 2 (Germany)"
+	cloneof "Dynasty Warriors Vol. 2 (USA)"
 	description "Dynasty Warriors Vol. 2 (Germany)"
 	region "Germany"
 	serial "ULES-00606"
@@ -5477,6 +5620,7 @@ game (
 
 game (
 	name "Echochrome (Europe) (En,Fr,De,Es,It) (Demo)"
+	cloneof "Echochrome (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru)"
 	description "Echochrome (Europe) (En,Fr,De,Es,It) (Demo)"
 	region "Europe"
 	serial "UCED-01060"
@@ -5508,6 +5652,7 @@ game (
 
 game (
 	name "Echoshift (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (v2.00)"
+	cloneof "Echoshift (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru)"
 	description "Echoshift (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (v2.00)"
 	region "Europe"
 	serial "UCES-01313"
@@ -5540,6 +5685,7 @@ game (
 
 game (
 	name "Eiyuu Densetsu - Sora no Kiseki FC (Japan) (v1.01)"
+	cloneof "Legend of Heroes, The - Trails in the Sky (USA)"
 	description "Eiyuu Densetsu - Sora no Kiseki FC (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05170"
@@ -5572,6 +5718,7 @@ game (
 
 game (
 	name "Eiyuu Densetsu Gagharv Trilogy - Shiroki Majo (Japan) (v1.01)"
+	cloneof "Legend of Heroes II, The - Prophecy of the Moonlight Witch (USA)"
 	description "Eiyuu Densetsu Gagharv Trilogy - Shiroki Majo (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00004"
@@ -5580,6 +5727,7 @@ game (
 
 game (
 	name "Eiyuu Densetsu Gagharv Trilogy - Umi no Oriuta (Japan)"
+	cloneof "Legend of Heroes III, The - Song of the Ocean (USA) (v1.01)"
 	description "Eiyuu Densetsu Gagharv Trilogy - Umi no Oriuta (Japan)"
 	region "Japan"
 	serial "ULJS-00032"
@@ -5716,6 +5864,7 @@ game (
 
 game (
 	name "Entraineur 2006, L' - Championship Manager (France)"
+	cloneof "Championship Manager 2006 (Europe)"
 	description "Entraineur 2006, L' - Championship Manager (France)"
 	region "France"
 	serial "ULES-00331"
@@ -5724,6 +5873,7 @@ game (
 
 game (
 	name "Eragon (Europe) (En,Fr,De,Es,It)"
+	cloneof "Eragon (USA) (v1.03)"
 	description "Eragon (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00474"
@@ -5732,6 +5882,7 @@ game (
 
 game (
 	name "Eragon (Russia)"
+	cloneof "Eragon (USA) (v1.03)"
 	description "Eragon (Russia)"
 	region "Russia"
 	serial "ULES-00475"
@@ -5804,6 +5955,7 @@ game (
 
 game (
 	name "Everybody's Golf (Europe) (En,Fr,De,Es,It)"
+	cloneof "Hot Shots Golf - Open Tee (USA)"
 	description "Everybody's Golf (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-00012"
@@ -5812,6 +5964,7 @@ game (
 
 game (
 	name "Everybody's Golf 2 (Europe) (En,Fr,De,Es,It)"
+	cloneof "Hot Shots Golf - Open Tee 2 (USA) (FW3.80)"
 	description "Everybody's Golf 2 (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-00767"
@@ -5828,6 +5981,7 @@ game (
 
 game (
 	name "Everybody's Tennis (Asia) (En,Zh) (v1.01)"
+	cloneof "Hot Shots Tennis - Get a Grip (USA) (v1.01)"
 	description "Everybody's Tennis (Asia) (En,Zh) (v1.01)"
 	region "Asia"
 	serial "UCAS-40307"
@@ -5836,6 +5990,7 @@ game (
 
 game (
 	name "Everybody's Tennis (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Hot Shots Tennis - Get a Grip (USA) (v1.01)"
 	description "Everybody's Tennis (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "UCES-01420"
@@ -5844,6 +5999,7 @@ game (
 
 game (
 	name "Exciting Pro Wrestling 7 - SmackDown! vs. RAW 2006 (Japan) (v1.02)"
+	cloneof "WWE SmackDown! vs. RAW 2006 (USA) (v1.02)"
 	description "Exciting Pro Wrestling 7 - SmackDown! vs. RAW 2006 (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05103"
@@ -5996,6 +6152,7 @@ game (
 
 game (
 	name "F1 Grand Prix (Europe) (En,Fr,De,Es,It) (v2.00) (Platinum)"
+	cloneof "F1 Grand Prix (Europe) (En,Fr,De,Es,It)"
 	description "F1 Grand Prix (Europe) (En,Fr,De,Es,It) (v2.00) (Platinum)"
 	region "Europe"
 	serial "UCES-00004"
@@ -6004,6 +6161,7 @@ game (
 
 game (
 	name "FIFA 06 (Europe)"
+	cloneof "FIFA Soccer 06 (USA)"
 	description "FIFA 06 (Europe)"
 	region "Europe"
 	serial "ULES-00161"
@@ -6012,6 +6170,7 @@ game (
 
 game (
 	name "FIFA 06 (France)"
+	cloneof "FIFA Soccer 06 (USA)"
 	description "FIFA 06 (France)"
 	region "France"
 	serial "ULES-00162"
@@ -6020,6 +6179,7 @@ game (
 
 game (
 	name "FIFA 06 (Germany)"
+	cloneof "FIFA Soccer 06 (USA)"
 	description "FIFA 06 (Germany)"
 	region "Germany"
 	serial "ULES-00163"
@@ -6028,6 +6188,7 @@ game (
 
 game (
 	name "FIFA 06 (Italy)"
+	cloneof "FIFA Soccer 06 (USA)"
 	description "FIFA 06 (Italy)"
 	region "Italy"
 	serial "ULES-00164"
@@ -6036,6 +6197,7 @@ game (
 
 game (
 	name "FIFA 06 (Japan) (v1.02)"
+	cloneof "FIFA Soccer 06 (USA)"
 	description "FIFA 06 (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05061"
@@ -6044,6 +6206,7 @@ game (
 
 game (
 	name "FIFA 06 (Korea) (v1.01)"
+	cloneof "FIFA Soccer 06 (USA)"
 	description "FIFA 06 (Korea) (v1.01)"
 	region "Korea"
 	serial "ULKS-46031"
@@ -6052,6 +6215,7 @@ game (
 
 game (
 	name "FIFA 06 (Spain)"
+	cloneof "FIFA Soccer 06 (USA)"
 	description "FIFA 06 (Spain)"
 	region "Spain"
 	serial "ULES-00165"
@@ -6060,6 +6224,7 @@ game (
 
 game (
 	name "FIFA 07 (Europe) (v1.02)"
+	cloneof "FIFA Soccer 07 (USA)"
 	description "FIFA 07 (Europe) (v1.02)"
 	region "Europe"
 	serial "ULES-00440"
@@ -6068,6 +6233,7 @@ game (
 
 game (
 	name "FIFA 07 (France) (v1.02)"
+	cloneof "FIFA Soccer 07 (USA)"
 	description "FIFA 07 (France) (v1.02)"
 	region "France"
 	serial "ULES-00441"
@@ -6076,6 +6242,7 @@ game (
 
 game (
 	name "FIFA 07 (Germany) (v1.02)"
+	cloneof "FIFA Soccer 07 (USA)"
 	description "FIFA 07 (Germany) (v1.02)"
 	region "Germany"
 	serial "ULES-00443"
@@ -6084,6 +6251,7 @@ game (
 
 game (
 	name "FIFA 07 (Italy) (v1.02)"
+	cloneof "FIFA Soccer 07 (USA)"
 	description "FIFA 07 (Italy) (v1.02)"
 	region "Italy"
 	serial "ULES-00442"
@@ -6092,6 +6260,7 @@ game (
 
 game (
 	name "FIFA 07 (Japan) (v1.02)"
+	cloneof "FIFA Soccer 07 (USA)"
 	description "FIFA 07 (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05191"
@@ -6100,6 +6269,7 @@ game (
 
 game (
 	name "FIFA 07 (Korea) (v1.01)"
+	cloneof "FIFA Soccer 07 (USA)"
 	description "FIFA 07 (Korea) (v1.01)"
 	region "Korea"
 	serial "ULKS-46113"
@@ -6108,6 +6278,7 @@ game (
 
 game (
 	name "FIFA 07 (Netherlands) (v1.02)"
+	cloneof "FIFA Soccer 07 (USA)"
 	description "FIFA 07 (Netherlands) (v1.02)"
 	region "Netherlands"
 	serial "ULES-00459"
@@ -6116,6 +6287,7 @@ game (
 
 game (
 	name "FIFA 07 (Spain) (v1.02)"
+	cloneof "FIFA Soccer 07 (USA)"
 	description "FIFA 07 (Spain) (v1.02)"
 	region "Spain"
 	serial "ULES-00444"
@@ -6124,6 +6296,7 @@ game (
 
 game (
 	name "FIFA 08 (Asia) (En)"
+	cloneof "FIFA Soccer 08 (USA)"
 	description "FIFA 08 (Asia) (En)"
 	region "Asia"
 	serial "ULAS-42114"
@@ -6132,6 +6305,7 @@ game (
 
 game (
 	name "FIFA 08 (Europe) (v1.01)"
+	cloneof "FIFA Soccer 08 (USA)"
 	description "FIFA 08 (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00891"
@@ -6140,6 +6314,7 @@ game (
 
 game (
 	name "FIFA 08 (France)"
+	cloneof "FIFA Soccer 08 (USA)"
 	description "FIFA 08 (France)"
 	region "France"
 	serial "ULES-00892"
@@ -6148,6 +6323,7 @@ game (
 
 game (
 	name "FIFA 08 (Germany)"
+	cloneof "FIFA Soccer 08 (USA)"
 	description "FIFA 08 (Germany)"
 	region "Germany"
 	serial "ULES-00894"
@@ -6156,6 +6332,7 @@ game (
 
 game (
 	name "FIFA 08 (Italy)"
+	cloneof "FIFA Soccer 08 (USA)"
 	description "FIFA 08 (Italy)"
 	region "Italy"
 	serial "ULES-00893"
@@ -6164,6 +6341,7 @@ game (
 
 game (
 	name "FIFA 08 (Portugal)"
+	cloneof "FIFA Soccer 08 (USA)"
 	description "FIFA 08 (Portugal)"
 	region "Portugal"
 	serial "ULES-00896"
@@ -6172,6 +6350,7 @@ game (
 
 game (
 	name "FIFA 08 (Spain)"
+	cloneof "FIFA Soccer 08 (USA)"
 	description "FIFA 08 (Spain)"
 	region "Spain"
 	serial "ULES-00895"
@@ -6180,6 +6359,7 @@ game (
 
 game (
 	name "FIFA 09 (Asia) (En,Es)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (Asia) (En,Es)"
 	region "Asia"
 	serial "ULUS-10369"
@@ -6188,6 +6368,7 @@ game (
 
 game (
 	name "FIFA 09 (Europe) (Pl,Cs,Hu)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (Europe) (Pl,Cs,Hu)"
 	region "Europe"
 	serial "ULES-01142"
@@ -6196,6 +6377,7 @@ game (
 
 game (
 	name "FIFA 09 (Europe) (v1.01)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-01135"
@@ -6204,6 +6386,7 @@ game (
 
 game (
 	name "FIFA 09 (France)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (France)"
 	region "France"
 	serial "ULES-01136"
@@ -6212,6 +6395,7 @@ game (
 
 game (
 	name "FIFA 09 (Germany)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (Germany)"
 	region "Germany"
 	serial "ULES-01137"
@@ -6220,6 +6404,7 @@ game (
 
 game (
 	name "FIFA 09 (Italy)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (Italy)"
 	region "Italy"
 	serial "ULES-01138"
@@ -6228,6 +6413,7 @@ game (
 
 game (
 	name "FIFA 09 (Netherlands)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (Netherlands)"
 	region "Netherlands"
 	serial "ULES-01141"
@@ -6236,6 +6422,7 @@ game (
 
 game (
 	name "FIFA 09 (Portugal)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (Portugal)"
 	region "Portugal"
 	serial "ULES-01143"
@@ -6244,6 +6431,7 @@ game (
 
 game (
 	name "FIFA 09 (Russia)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (Russia)"
 	region "Russia"
 	serial "ULES-01140"
@@ -6252,6 +6440,7 @@ game (
 
 game (
 	name "FIFA 09 (Spain)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 (Spain)"
 	region "Spain"
 	serial "ULES-01139"
@@ -6260,6 +6449,7 @@ game (
 
 game (
 	name "FIFA 09 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 09 (USA) (En,Es)"
 	description "FIFA 09 - World Class Soccer (Japan)"
 	region "Japan"
 	serial "ULJM-05396"
@@ -6268,6 +6458,7 @@ game (
 
 game (
 	name "FIFA 10 (Asia) (En)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 (Asia) (En)"
 	region "Asia"
 	serial "ULES-01322"
@@ -6276,6 +6467,7 @@ game (
 
 game (
 	name "FIFA 10 (Europe) (Pl,Cs,Hu)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 (Europe) (Pl,Cs,Hu)"
 	region "Europe"
 	serial "ULES-01328"
@@ -6284,6 +6476,7 @@ game (
 
 game (
 	name "FIFA 10 (Europe) (v1.01)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-01322"
@@ -6292,6 +6485,7 @@ game (
 
 game (
 	name "FIFA 10 (France)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 (France)"
 	region "France"
 	serial "ULES-01326"
@@ -6300,6 +6494,7 @@ game (
 
 game (
 	name "FIFA 10 (Germany)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 (Germany)"
 	region "Germany"
 	serial "ULES-01330"
@@ -6308,6 +6503,7 @@ game (
 
 game (
 	name "FIFA 10 (Italy)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 (Italy)"
 	region "Italy"
 	serial "ULES-01325"
@@ -6316,6 +6512,7 @@ game (
 
 game (
 	name "FIFA 10 (Netherlands)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 (Netherlands)"
 	region "Netherlands"
 	serial "ULES-01324"
@@ -6324,6 +6521,7 @@ game (
 
 game (
 	name "FIFA 10 (Russia)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 (Russia)"
 	region "Russia"
 	serial "ULES-01329"
@@ -6332,6 +6530,7 @@ game (
 
 game (
 	name "FIFA 10 (Spain)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 (Spain)"
 	region "Spain"
 	serial "ULES-01323"
@@ -6340,6 +6539,7 @@ game (
 
 game (
 	name "FIFA 10 - World Class Soccer (Japan) (v1.01)"
+	cloneof "FIFA Soccer 10 (USA) (En,Es)"
 	description "FIFA 10 - World Class Soccer (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50093"
@@ -6348,6 +6548,7 @@ game (
 
 game (
 	name "FIFA 11 (Europe) (v1.01)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-01475"
@@ -6356,6 +6557,7 @@ game (
 
 game (
 	name "FIFA 11 (France)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (France)"
 	region "France"
 	serial "ULES-01476"
@@ -6364,6 +6566,7 @@ game (
 
 game (
 	name "FIFA 11 (Germany)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Germany)"
 	region "Germany"
 	serial "ULES-01478"
@@ -6372,6 +6575,7 @@ game (
 
 game (
 	name "FIFA 11 (Italy)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Italy)"
 	region "Italy"
 	serial "ULES-01477"
@@ -6380,6 +6584,7 @@ game (
 
 game (
 	name "FIFA 11 (Italy) (v2.00)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Italy) (v2.00)"
 	region "Italy"
 	serial "ULES-01477"
@@ -6388,6 +6593,7 @@ game (
 
 game (
 	name "FIFA 11 (Netherlands)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Netherlands)"
 	region "Netherlands"
 	serial "ULES-01482"
@@ -6396,6 +6602,7 @@ game (
 
 game (
 	name "FIFA 11 (Poland)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Poland)"
 	region "Poland"
 	serial "ULES-01483"
@@ -6404,6 +6611,7 @@ game (
 
 game (
 	name "FIFA 11 (Poland) (v2.01) (PSP Essentials)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Poland) (v2.01) (PSP Essentials)"
 	region "Poland"
 	serial "ULES-01483"
@@ -6412,6 +6620,7 @@ game (
 
 game (
 	name "FIFA 11 (Portugal)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Portugal)"
 	region "Portugal"
 	serial "ULES-01481"
@@ -6420,6 +6629,7 @@ game (
 
 game (
 	name "FIFA 11 (Russia)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Russia)"
 	region "Russia"
 	serial "ULES-01480"
@@ -6428,6 +6638,7 @@ game (
 
 game (
 	name "FIFA 11 (Russia) (v2.01) (Platinum Edition)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Russia) (v2.01) (Platinum Edition)"
 	region "Russia"
 	serial "ULES-01480"
@@ -6436,6 +6647,7 @@ game (
 
 game (
 	name "FIFA 11 (Spain)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Spain)"
 	region "Spain"
 	serial "ULES-01479"
@@ -6444,6 +6656,7 @@ game (
 
 game (
 	name "FIFA 11 (Spain) (v2.01) (Platinum Edition)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 (Spain) (v2.01) (Platinum Edition)"
 	region "Spain"
 	serial "ULES-01479"
@@ -6452,6 +6665,7 @@ game (
 
 game (
 	name "FIFA 11 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA 11 - World Class Soccer (Japan)"
 	region "Japan"
 	serial "NPJH-50340"
@@ -6460,6 +6674,7 @@ game (
 
 game (
 	name "FIFA 12 (Europe)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 (Europe)"
 	region "Europe"
 	serial "ULES-01543"
@@ -6468,6 +6683,7 @@ game (
 
 game (
 	name "FIFA 12 (France)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 (France)"
 	region "France"
 	serial "ULES-01546"
@@ -6476,6 +6692,7 @@ game (
 
 game (
 	name "FIFA 12 (Germany)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 (Germany)"
 	region "Germany"
 	serial "ULES-01547"
@@ -6484,6 +6701,7 @@ game (
 
 game (
 	name "FIFA 12 (Italy)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 (Italy)"
 	region "Italy"
 	serial "ULES-01551"
@@ -6492,6 +6710,7 @@ game (
 
 game (
 	name "FIFA 12 (Netherlands)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 (Netherlands)"
 	region "Netherlands"
 	serial "ULES-01544"
@@ -6500,6 +6719,7 @@ game (
 
 game (
 	name "FIFA 12 (Poland)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 (Poland)"
 	region "Poland"
 	serial "ULES-01545"
@@ -6508,6 +6728,7 @@ game (
 
 game (
 	name "FIFA 12 (Portugal)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 (Portugal)"
 	region "Portugal"
 	serial "ULES-01550"
@@ -6516,6 +6737,7 @@ game (
 
 game (
 	name "FIFA 12 (Russia)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 (Russia)"
 	region "Russia"
 	serial "ULES-01548"
@@ -6524,6 +6746,7 @@ game (
 
 game (
 	name "FIFA 12 (Spain)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 (Spain)"
 	region "Spain"
 	serial "ULES-01549"
@@ -6532,6 +6755,7 @@ game (
 
 game (
 	name "FIFA 12 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 12 (USA) (En,Es)"
 	description "FIFA 12 - World Class Soccer (Japan)"
 	region "Japan"
 	serial "NPJH-50509"
@@ -6540,6 +6764,7 @@ game (
 
 game (
 	name "FIFA 13 (Europe)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (Europe)"
 	region "Europe"
 	serial "ULES-01565"
@@ -6548,6 +6773,7 @@ game (
 
 game (
 	name "FIFA 13 (Europe) (En,Es)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (Europe) (En,Es)"
 	region "Europe"
 	serial "ULES-01565"
@@ -6556,6 +6782,7 @@ game (
 
 game (
 	name "FIFA 13 (France)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (France)"
 	region "France"
 	serial "ULES-01569"
@@ -6564,6 +6791,7 @@ game (
 
 game (
 	name "FIFA 13 (Germany)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (Germany)"
 	region "Germany"
 	serial "ULES-01574"
@@ -6572,6 +6800,7 @@ game (
 
 game (
 	name "FIFA 13 (Italy)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (Italy)"
 	region "Italy"
 	serial "ULES-01573"
@@ -6580,6 +6809,7 @@ game (
 
 game (
 	name "FIFA 13 (Netherlands)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (Netherlands)"
 	region "Netherlands"
 	serial "ULES-01567"
@@ -6588,6 +6818,7 @@ game (
 
 game (
 	name "FIFA 13 (Poland)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (Poland)"
 	region "Poland"
 	serial "ULES-01568"
@@ -6596,6 +6827,7 @@ game (
 
 game (
 	name "FIFA 13 (Portugal)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (Portugal)"
 	region "Portugal"
 	serial "ULES-01571"
@@ -6604,6 +6836,7 @@ game (
 
 game (
 	name "FIFA 13 (Russia)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (Russia)"
 	region "Russia"
 	serial "ULES-01570"
@@ -6612,6 +6845,7 @@ game (
 
 game (
 	name "FIFA 13 (Spain)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 (Spain)"
 	region "Spain"
 	serial "ULES-01572"
@@ -6620,6 +6854,7 @@ game (
 
 game (
 	name "FIFA 13 - World Class Soccer (Japan)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA 13 - World Class Soccer (Japan)"
 	region "Japan"
 	serial "NPJH-50697"
@@ -6636,6 +6871,7 @@ game (
 
 game (
 	name "FIFA 14 (France)"
+	cloneof "FIFA 14 (Europe)"
 	description "FIFA 14 (France)"
 	region "France"
 	serial "ULES-01587"
@@ -6644,6 +6880,7 @@ game (
 
 game (
 	name "FIFA 14 (Germany)"
+	cloneof "FIFA 14 (Europe)"
 	description "FIFA 14 (Germany)"
 	region "Germany"
 	serial "ULES-01589"
@@ -6652,6 +6889,7 @@ game (
 
 game (
 	name "FIFA 14 (Italy)"
+	cloneof "FIFA 14 (Europe)"
 	description "FIFA 14 (Italy)"
 	region "Italy"
 	serial "ULES-01588"
@@ -6660,6 +6898,7 @@ game (
 
 game (
 	name "FIFA 14 (Netherlands)"
+	cloneof "FIFA 14 (Europe)"
 	description "FIFA 14 (Netherlands)"
 	region "Netherlands"
 	serial "ULES-01594"
@@ -6668,6 +6907,7 @@ game (
 
 game (
 	name "FIFA 14 (Poland)"
+	cloneof "FIFA 14 (Europe)"
 	description "FIFA 14 (Poland)"
 	region "Poland"
 	serial "ULES-01593"
@@ -6676,6 +6916,7 @@ game (
 
 game (
 	name "FIFA 14 (Russia)"
+	cloneof "FIFA 14 (Europe)"
 	description "FIFA 14 (Russia)"
 	region "Russia"
 	serial "ULES-01591"
@@ -6684,6 +6925,7 @@ game (
 
 game (
 	name "FIFA 14 (Spain)"
+	cloneof "FIFA 14 (Europe)"
 	description "FIFA 14 (Spain)"
 	region "Spain"
 	serial "ULES-01590"
@@ -6692,6 +6934,7 @@ game (
 
 game (
 	name "FIFA 14 - World Class Soccer (Japan)"
+	cloneof "FIFA 14 (Europe)"
 	description "FIFA 14 - World Class Soccer (Japan)"
 	region "Japan"
 	serial "NPJH-50813"
@@ -6764,6 +7007,7 @@ game (
 
 game (
 	name "FIFA Soccer 11 (USA) (En,Es) (v2.00)"
+	cloneof "FIFA Soccer 11 (USA) (En,Es)"
 	description "FIFA Soccer 11 (USA) (En,Es) (v2.00)"
 	region "USA"
 	serial "ULUS-10550"
@@ -6780,6 +7024,7 @@ game (
 
 game (
 	name "FIFA Soccer 13 (Asia) (En,Es)"
+	cloneof "FIFA Soccer 13 (USA) (En,Es)"
 	description "FIFA Soccer 13 (Asia) (En,Es)"
 	region "Asia"
 	serial "ULUS-10595"
@@ -6820,6 +7065,7 @@ game (
 
 game (
 	name "FIFA World Cup - Germany 2006 (Asia) (En)"
+	cloneof "FIFA World Cup - Germany 2006 (USA) (v1.01)"
 	description "FIFA World Cup - Germany 2006 (Asia) (En)"
 	region "Asia"
 	serial "ULAS-42058"
@@ -6828,6 +7074,7 @@ game (
 
 game (
 	name "FIFA World Cup - Germany 2006 (Europe) (v1.02)"
+	cloneof "FIFA World Cup - Germany 2006 (USA) (v1.01)"
 	description "FIFA World Cup - Germany 2006 (Europe) (v1.02)"
 	region "Europe"
 	serial "ULES-00340"
@@ -6836,6 +7083,7 @@ game (
 
 game (
 	name "FIFA World Cup - Germany 2006 (France) (v1.02)"
+	cloneof "FIFA World Cup - Germany 2006 (USA) (v1.01)"
 	description "FIFA World Cup - Germany 2006 (France) (v1.02)"
 	region "France"
 	serial "ULES-00341"
@@ -6844,6 +7092,7 @@ game (
 
 game (
 	name "FIFA World Cup - Germany 2006 (Germany) (v1.02)"
+	cloneof "FIFA World Cup - Germany 2006 (USA) (v1.01)"
 	description "FIFA World Cup - Germany 2006 (Germany) (v1.02)"
 	region "Germany"
 	serial "ULES-00342"
@@ -6852,6 +7101,7 @@ game (
 
 game (
 	name "FIFA World Cup - Germany 2006 (Italy) (v1.02)"
+	cloneof "FIFA World Cup - Germany 2006 (USA) (v1.01)"
 	description "FIFA World Cup - Germany 2006 (Italy) (v1.02)"
 	region "Italy"
 	serial "ULES-00343"
@@ -6860,6 +7110,7 @@ game (
 
 game (
 	name "FIFA World Cup - Germany 2006 (Japan) (v1.02)"
+	cloneof "FIFA World Cup - Germany 2006 (USA) (v1.01)"
 	description "FIFA World Cup - Germany 2006 (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05133"
@@ -6868,6 +7119,7 @@ game (
 
 game (
 	name "FIFA World Cup - Germany 2006 (Korea) (v1.01)"
+	cloneof "FIFA World Cup - Germany 2006 (USA) (v1.01)"
 	description "FIFA World Cup - Germany 2006 (Korea) (v1.01)"
 	region "Korea"
 	serial "ULKS-46088"
@@ -6876,6 +7128,7 @@ game (
 
 game (
 	name "FIFA World Cup - Germany 2006 (Spain) (v1.02)"
+	cloneof "FIFA World Cup - Germany 2006 (USA) (v1.01)"
 	description "FIFA World Cup - Germany 2006 (Spain) (v1.02)"
 	region "Spain"
 	serial "ULES-00344"
@@ -7012,6 +7265,7 @@ game (
 
 game (
 	name "Fantasy Golf Pangya Portable (Japan)"
+	cloneof "Pangya - Fantasy Golf (USA)"
 	description "Fantasy Golf Pangya Portable (Japan)"
 	region "Japan"
 	serial "ULJM-05440"
@@ -7020,6 +7274,7 @@ game (
 
 game (
 	name "Fantasy Golf Pangya Portable (Korea) (v1.03)"
+	cloneof "Pangya - Fantasy Golf (USA)"
 	description "Fantasy Golf Pangya Portable (Korea) (v1.03)"
 	region "Korea"
 	serial "ULKS-46164"
@@ -7196,6 +7451,7 @@ game (
 
 game (
 	name "Final Fantasy (Japan) (En,Ja) (v1.01)"
+	cloneof "Final Fantasy - 20th Anniversary Edition (USA) (En,Ja) (System 3.03)"
 	description "Final Fantasy (Japan) (En,Ja) (v1.01)"
 	region "Japan"
 	serial "ULJM-05241"
@@ -7204,6 +7460,7 @@ game (
 
 game (
 	name "Final Fantasy - 20th Anniversary Edition (Europe) (En,Ja)"
+	cloneof "Final Fantasy - 20th Anniversary Edition (USA) (En,Ja) (System 3.03)"
 	description "Final Fantasy - 20th Anniversary Edition (Europe) (En,Ja)"
 	region "Europe"
 	serial "ULES-00986"
@@ -7220,6 +7477,7 @@ game (
 
 game (
 	name "Final Fantasy - 20th Anniversary Edition (USA) (En,Ja) (System 6.00)"
+	cloneof "Final Fantasy - 20th Anniversary Edition (USA) (En,Ja) (System 3.03)"
 	description "Final Fantasy - 20th Anniversary Edition (USA) (En,Ja) (System 6.00)"
 	region "USA"
 	serial "ULUS-10251"
@@ -7228,6 +7486,7 @@ game (
 
 game (
 	name "Final Fantasy II (Japan) (v1.02)"
+	cloneof "Final Fantasy II - 20th Anniversary Edition (USA) (En,Ja)"
 	description "Final Fantasy II (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05245"
@@ -7236,6 +7495,7 @@ game (
 
 game (
 	name "Final Fantasy II - 20th Anniversary Edition (Europe) (En,Ja)"
+	cloneof "Final Fantasy II - 20th Anniversary Edition (USA) (En,Ja)"
 	description "Final Fantasy II - 20th Anniversary Edition (Europe) (En,Ja)"
 	region "Europe"
 	serial "ULES-00987"
@@ -7260,6 +7520,7 @@ game (
 
 game (
 	name "Final Fantasy IV - The Complete Collection (Europe) (En,Ja,Fr)"
+	cloneof "Final Fantasy IV - The Complete Collection (USA) (En,Ja,Fr)"
 	description "Final Fantasy IV - The Complete Collection (Europe) (En,Ja,Fr)"
 	region "Europe"
 	serial "ULES-01521"
@@ -7268,6 +7529,7 @@ game (
 
 game (
 	name "Final Fantasy IV - The Complete Collection (Japan) (En,Ja,Fr) (v1.01)"
+	cloneof "Final Fantasy IV - The Complete Collection (USA) (En,Ja,Fr)"
 	description "Final Fantasy IV - The Complete Collection (Japan) (En,Ja,Fr) (v1.01)"
 	region "Japan"
 	serial "NPJH-50414"
@@ -7292,6 +7554,7 @@ game (
 
 game (
 	name "Final Fantasy Tactics - Shishi Sensou (Japan)"
+	cloneof "Final Fantasy Tactics - The War of the Lions (USA)"
 	description "Final Fantasy Tactics - Shishi Sensou (Japan)"
 	region "Japan"
 	serial "ULJM-05194"
@@ -7300,6 +7563,7 @@ game (
 
 game (
 	name "Final Fantasy Tactics - The War of the Lions (Europe)"
+	cloneof "Final Fantasy Tactics - The War of the Lions (USA)"
 	description "Final Fantasy Tactics - The War of the Lions (Europe)"
 	region "Europe"
 	serial "ULES-00850"
@@ -7492,6 +7756,7 @@ game (
 
 game (
 	name "Ford Racing - Off Road (Asia) (En)"
+	cloneof "Ford Racing - Off Road (USA)"
 	description "Ford Racing - Off Road (Asia) (En)"
 	region "Asia"
 	serial "ULUS-10326"
@@ -7500,6 +7765,7 @@ game (
 
 game (
 	name "Ford Racing - Off Road (Europe) (v0.02) (Beta)"
+	cloneof "Ford Racing - Off Road (USA)"
 	description "Ford Racing - Off Road (Europe) (v0.02) (Beta)"
 	region "Europe"
 	serial "ULET-00996"
@@ -7516,6 +7782,7 @@ game (
 
 game (
 	name "Ford Street Racing - L.A. Duel (Europe)"
+	cloneof "Ford Bold Moves Street Racing (USA) (v1.01)"
 	description "Ford Street Racing - L.A. Duel (Europe)"
 	region "Europe"
 	serial "ULES-00564"
@@ -7524,6 +7791,7 @@ game (
 
 game (
 	name "Ford Street Racing - XR Edition (Europe)"
+	cloneof "Ford Bold Moves Street Racing (USA) (v1.01)"
 	description "Ford Street Racing - XR Edition (Europe)"
 	region "Europe"
 	serial "ULES-00588"
@@ -7532,6 +7800,7 @@ game (
 
 game (
 	name "Formula One 2005 Portable (Japan) (v1.01)"
+	cloneof "F1 Grand Prix (Europe) (En,Fr,De,Es,It)"
 	description "Formula One 2005 Portable (Japan) (v1.01)"
 	region "Japan"
 	serial "UCJS-10019"
@@ -7572,6 +7841,7 @@ game (
 
 game (
 	name "Frantix - Kirakira Nazotoki Daibouken (Japan) (v1.01)"
+	cloneof "Frantix (Europe) (En,Fr,De,Es,It) (v1.01)"
 	description "Frantix - Kirakira Nazotoki Daibouken (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05088"
@@ -7620,6 +7890,7 @@ game (
 
 game (
 	name "Frontier Gate Boost+ (Japan) (v1.01)"
+	cloneof "Frontier Gate (Japan) (v1.01)"
 	description "Frontier Gate Boost+ (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50721"
@@ -7660,6 +7931,7 @@ game (
 
 game (
 	name "Fullmetal Alchemist - Brotherhood (France)"
+	cloneof "Fullmetal Alchemist - Brotherhood (Europe) (En,De)"
 	description "Fullmetal Alchemist - Brotherhood (France)"
 	region "France"
 	serial "ULES-01433"
@@ -7844,6 +8116,7 @@ game (
 
 game (
 	name "Gamble Con Fight (Japan) (v1.01)"
+	cloneof "Con, The (USA)"
 	description "Gamble Con Fight (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05092"
@@ -7892,6 +8165,7 @@ game (
 
 game (
 	name "Garnet Chronicle - Kouki no Maseki (Japan) (v1.01)"
+	cloneof "Crimson Gem Saga (USA)"
 	description "Garnet Chronicle - Kouki no Maseki (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05369"
@@ -7908,6 +8182,7 @@ game (
 
 game (
 	name "Geki Sengoku Musou (Japan) (v1.01)"
+	cloneof "Samurai Warriors - State of War (USA) (v1.01)"
 	description "Geki Sengoku Musou (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05071"
@@ -7940,6 +8215,7 @@ game (
 
 game (
 	name "Generation of Chaos (Europe) (v1.01)"
+	cloneof "Generation of Chaos (USA) (v1.02)"
 	description "Generation of Chaos (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00820"
@@ -7972,6 +8248,7 @@ game (
 
 game (
 	name "Gensan (Europe) (En,Fr,De,Es,It) (v1.05)"
+	cloneof "Hammerin' Hero (USA)"
 	description "Gensan (Europe) (En,Fr,De,Es,It) (v1.05)"
 	region "Europe"
 	serial "ULES-01360"
@@ -8068,6 +8345,7 @@ game (
 
 game (
 	name "Ghost in the Shell - Stand Alone Complex (Europe)"
+	cloneof "Ghost in the Shell - Stand Alone Complex (USA) (v1.01)"
 	description "Ghost in the Shell - Stand Alone Complex (Europe)"
 	region "Europe"
 	serial "ULES-00135"
@@ -8180,6 +8458,7 @@ game (
 
 game (
 	name "Gladiator Begins (Europe) (v1.01)"
+	cloneof "Gladiator Begins (USA)"
 	description "Gladiator Begins (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-01515"
@@ -8236,6 +8515,7 @@ game (
 
 game (
 	name "Go! Sudoku (Europe) (En,Fr,De,Es,It)"
+	cloneof "Go! Sudoku (USA) (En,Fr,De,Es,It)"
 	description "Go! Sudoku (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-00152"
@@ -8276,6 +8556,7 @@ game (
 
 game (
 	name "God Eater (Japan) (Demo)"
+	cloneof "God Eater (Japan) (v1.01)"
 	description "God Eater (Japan) (Demo)"
 	region "Japan"
 	serial "ULJM-91019"
@@ -8324,6 +8605,7 @@ game (
 
 game (
 	name "God of War - Chains of Olympus (Asia) (En,Zh)"
+	cloneof "God of War - Chains of Olympus (USA)"
 	description "God of War - Chains of Olympus (Asia) (En,Zh)"
 	region "Asia"
 	serial "UCAS-40198"
@@ -8332,6 +8614,7 @@ game (
 
 game (
 	name "God of War - Chains of Olympus (Europe) (Demo)"
+	cloneof "God of War - Chains of Olympus (USA)"
 	description "God of War - Chains of Olympus (Europe) (Demo)"
 	region "Europe"
 	serial "UCED-00970"
@@ -8340,6 +8623,7 @@ game (
 
 game (
 	name "God of War - Chains of Olympus (Europe) (En,Fr,De,Es,It)"
+	cloneof "God of War - Chains of Olympus (USA)"
 	description "God of War - Chains of Olympus (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-00842"
@@ -8348,6 +8632,7 @@ game (
 
 game (
 	name "God of War - Chains of Olympus (Europe) (Promo)"
+	cloneof "God of War - Chains of Olympus (USA)"
 	description "God of War - Chains of Olympus (Europe) (Promo)"
 	region "Europe"
 	serial "UCET-00844"
@@ -8356,6 +8641,7 @@ game (
 
 game (
 	name "God of War - Chains of Olympus (Korea)"
+	cloneof "God of War - Chains of Olympus (USA)"
 	description "God of War - Chains of Olympus (Korea)"
 	region "Korea"
 	serial "UCKS-45084"
@@ -8372,6 +8658,7 @@ game (
 
 game (
 	name "God of War - Chains of Olympus (USA) (v0.01) (Beta)"
+	cloneof "God of War - Chains of Olympus (USA)"
 	description "God of War - Chains of Olympus (USA) (v0.01) (Beta)"
 	region "USA"
 	serial "UCUS-98719"
@@ -8396,6 +8683,7 @@ game (
 
 game (
 	name "God of War - Ghost of Sparta (Asia) (En,Zh)"
+	cloneof "God of War - Ghost of Sparta (USA) (En,Fr,Es) (v2.00)"
 	description "God of War - Ghost of Sparta (Asia) (En,Zh)"
 	region "Asia"
 	serial "NPHG-00092"
@@ -8404,6 +8692,7 @@ game (
 
 game (
 	name "God of War - Ghost of Sparta (Europe) (En,Fr,De,Es,It)"
+	cloneof "God of War - Ghost of Sparta (USA) (En,Fr,Es) (v2.00)"
 	description "God of War - Ghost of Sparta (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-01401"
@@ -8412,6 +8701,7 @@ game (
 
 game (
 	name "God of War - Ghost of Sparta (Europe) (En,Pl,Ru) (v1.01)"
+	cloneof "God of War - Ghost of Sparta (USA) (En,Fr,Es) (v2.00)"
 	description "God of War - Ghost of Sparta (Europe) (En,Pl,Ru) (v1.01)"
 	region "Europe"
 	serial "UCES-01473"
@@ -8428,6 +8718,7 @@ game (
 
 game (
 	name "God of War - Koutan no Kokuin (Japan)"
+	cloneof "God of War - Ghost of Sparta (USA) (En,Fr,Es) (v2.00)"
 	description "God of War - Koutan no Kokuin (Japan)"
 	region "Japan"
 	serial "UCJS-10114"
@@ -8436,6 +8727,7 @@ game (
 
 game (
 	name "God of War - Rakujitsu no Hisoukyoku (Japan) (v1.01)"
+	cloneof "God of War - Chains of Olympus (USA)"
 	description "God of War - Rakujitsu no Hisoukyoku (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05348"
@@ -8444,6 +8736,7 @@ game (
 
 game (
 	name "Godfather, The (Europe) (En,Nl,Pl)"
+	cloneof "Godfather, The - Mob Wars (USA)"
 	description "Godfather, The (Europe) (En,Nl,Pl)"
 	region "Europe"
 	serial "ULES-00394"
@@ -8452,6 +8745,7 @@ game (
 
 game (
 	name "Godfather, The - Mob Wars (Asia) (En)"
+	cloneof "Godfather, The - Mob Wars (USA)"
 	description "Godfather, The - Mob Wars (Asia) (En)"
 	region "Asia"
 	serial "ULAS-42054"
@@ -8484,6 +8778,7 @@ game (
 
 game (
 	name "Goku Makaimura (Japan) (v1.01)"
+	cloneof "Ultimate Ghosts 'n Goblins (USA)"
 	description "Goku Makaimura (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05147"
@@ -8492,6 +8787,7 @@ game (
 
 game (
 	name "Goku Makaimura Kai (Japan)"
+	cloneof "Goku Makaimura (Japan) (v1.01)"
 	description "Goku Makaimura Kai (Japan)"
 	region "Japan"
 	serial "ULJM-05265"
@@ -8500,6 +8796,7 @@ game (
 
 game (
 	name "Golden Compass, The (Europe) (En,Nl,Sv,No,Da)"
+	cloneof "Golden Compass, The (USA)"
 	description "Golden Compass, The (Europe) (En,Nl,Sv,No,Da)"
 	region "Europe"
 	serial "ULES-00950"
@@ -8516,6 +8813,7 @@ game (
 
 game (
 	name "Goldene Kompass, Der (Germany)"
+	cloneof "Golden Compass, The (USA)"
 	description "Goldene Kompass, Der (Germany)"
 	region "Germany"
 	serial "ULES-00952"
@@ -8524,6 +8822,7 @@ game (
 
 game (
 	name "Gottlieb Pinball Classics (Europe) (En,Fr,De,Es,It) (v1.03)"
+	cloneof "Pinball Hall of Fame - The Gottlieb Collection (USA)"
 	description "Gottlieb Pinball Classics (Europe) (En,Fr,De,Es,It) (v1.03)"
 	region "Europe"
 	serial "ULES-00213"
@@ -8532,6 +8831,7 @@ game (
 
 game (
 	name "Gottlieb Pinball Classics (Europe) (v1.02)"
+	cloneof "Pinball Hall of Fame - The Gottlieb Collection (USA)"
 	description "Gottlieb Pinball Classics (Europe) (v1.02)"
 	region "Europe"
 	serial "ULES-00212"
@@ -8548,6 +8848,7 @@ game (
 
 game (
 	name "Gradius Portable (Europe)"
+	cloneof "Gradius Collection (USA) (v1.01)"
 	description "Gradius Portable (Europe)"
 	region "Europe"
 	serial "ULES-00381"
@@ -8556,6 +8857,7 @@ game (
 
 game (
 	name "Gradius Portable (Japan) (v1.03)"
+	cloneof "Gradius Collection (USA) (v1.01)"
 	description "Gradius Portable (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05091"
@@ -8844,6 +9146,7 @@ game (
 
 game (
 	name "Growlanser IV - Over Reloaded (Japan)"
+	cloneof "Growlanser - Wayfarer of Time (USA)"
 	description "Growlanser IV - Over Reloaded (Japan)"
 	region "Japan"
 	serial "ULJM-05896"
@@ -8972,6 +9275,7 @@ game (
 
 game (
 	name "Gungnir - Masou no Gunshin to Eiyuu Sensou (Japan) (v1.01)"
+	cloneof "Gungnir (USA)"
 	description "Gungnir - Masou no Gunshin to Eiyuu Sensou (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05779"
@@ -9004,6 +9308,7 @@ game (
 
 game (
 	name "Gurumin (Japan) (v1.01)"
+	cloneof "Gurumin - A Monstrous Adventure (USA)"
 	description "Gurumin (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05123"
@@ -9012,6 +9317,7 @@ game (
 
 game (
 	name "Gurumin - A Monstrous Adventure (Europe)"
+	cloneof "Gurumin - A Monstrous Adventure (USA)"
 	description "Gurumin - A Monstrous Adventure (Europe)"
 	region "Europe"
 	serial "ULES-00627"
@@ -9028,6 +9334,7 @@ game (
 
 game (
 	name "Gurumin - Une Aventure Monstrueuse (France) (v1.02)"
+	cloneof "Gurumin - A Monstrous Adventure (USA)"
 	description "Gurumin - Une Aventure Monstrueuse (France) (v1.02)"
 	region "France"
 	serial "ULES-00628"
@@ -9036,6 +9343,7 @@ game (
 
 game (
 	name "Hagane no Renkinjutsushi - Fullmetal Alchemist - Senaka o Takuseshi Mono (Japan) (v1.01)"
+	cloneof "Fullmetal Alchemist - Brotherhood (Europe) (En,De)"
 	description "Hagane no Renkinjutsushi - Fullmetal Alchemist - Senaka o Takuseshi Mono (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00220"
@@ -9140,6 +9448,7 @@ game (
 
 game (
 	name "Half-Minute Hero (Europe) (v1.01)"
+	cloneof "Half-Minute Hero (USA)"
 	description "Half-Minute Hero (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-01359"
@@ -9284,6 +9593,7 @@ game (
 
 game (
 	name "Harry Potter and the Goblet of Fire (Europe) (Es,It)"
+	cloneof "Harry Potter and the Goblet of Fire (USA)"
 	description "Harry Potter and the Goblet of Fire (Europe) (Es,It)"
 	region "Europe"
 	serial "ULES-00216"
@@ -9292,6 +9602,7 @@ game (
 
 game (
 	name "Harry Potter and the Goblet of Fire (Europe) (v1.01)"
+	cloneof "Harry Potter and the Goblet of Fire (USA)"
 	description "Harry Potter and the Goblet of Fire (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00210"
@@ -9300,6 +9611,7 @@ game (
 
 game (
 	name "Harry Potter and the Goblet of Fire (Korea)"
+	cloneof "Harry Potter and the Goblet of Fire (USA)"
 	description "Harry Potter and the Goblet of Fire (Korea)"
 	region "Korea"
 	serial "ULKS-46047"
@@ -9372,6 +9684,7 @@ game (
 
 game (
 	name "Harry Potter et la Coupe de Feu (France)"
+	cloneof "Harry Potter and the Goblet of Fire (USA)"
 	description "Harry Potter et la Coupe de Feu (France)"
 	region "France"
 	serial "ULES-00214"
@@ -9468,6 +9781,7 @@ game (
 
 game (
 	name "Harvest Moon - Hero of Leaf Valley (Europe)"
+	cloneof "Harvest Moon - Hero of Leaf Valley (USA)"
 	description "Harvest Moon - Hero of Leaf Valley (Europe)"
 	region "Europe"
 	serial "ULES-01489"
@@ -9524,6 +9838,7 @@ game (
 
 game (
 	name "Hatsune Miku - Project Diva 2nd (Japan) (Okaidokuban)"
+	cloneof "Hatsune Miku - Project Diva 2nd (Japan)"
 	description "Hatsune Miku - Project Diva 2nd (Japan) (Okaidokuban)"
 	region "Japan"
 	serial "NPJH-50475"
@@ -9700,6 +10015,7 @@ game (
 
 game (
 	name "Herr der Ringe, Der - Taktiken (Germany) (v1.04)"
+	cloneof "Lord of the Rings, The - Tactics (USA)"
 	description "Herr der Ringe, Der - Taktiken (Germany) (v1.04)"
 	region "Germany"
 	serial "ULES-00200"
@@ -9724,6 +10040,7 @@ game (
 
 game (
 	name "Hg Hydrium (Japan) (v1.02)"
+	cloneof "Archer Maclean's Mercury (USA)"
 	description "Hg Hydrium (Japan) (v1.02)"
 	region "Japan"
 	serial "UCJS-10011"
@@ -9732,6 +10049,7 @@ game (
 
 game (
 	name "Hg Hydrium (Korea) (v1.01)"
+	cloneof "Archer Maclean's Mercury (USA)"
 	description "Hg Hydrium (Korea) (v1.01)"
 	region "Korea"
 	serial "UCKS-45007"
@@ -9756,6 +10074,7 @@ game (
 
 game (
 	name "Higurashi Daybreak Portable Mega Edition (Japan) (v1.01)"
+	cloneof "Higurashi Daybreak Portable (Japan)"
 	description "Higurashi Daybreak Portable Mega Edition (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05557"
@@ -9940,6 +10259,7 @@ game (
 
 game (
 	name "Hot Shots Golf - Open Tee (Asia) (En)"
+	cloneof "Hot Shots Golf - Open Tee (USA)"
 	description "Hot Shots Golf - Open Tee (Asia) (En)"
 	region "Asia"
 	serial "UCAS-40016"
@@ -9956,6 +10276,7 @@ game (
 
 game (
 	name "Hot Shots Golf - Open Tee (USA) (v2.00)"
+	cloneof "Hot Shots Golf - Open Tee (USA)"
 	description "Hot Shots Golf - Open Tee (USA) (v2.00)"
 	region "USA"
 	serial "UCUS-98614"
@@ -9964,6 +10285,7 @@ game (
 
 game (
 	name "Hot Shots Golf - Open Tee 2 (Asia) (En)"
+	cloneof "Hot Shots Golf - Open Tee 2 (USA) (FW3.80)"
 	description "Hot Shots Golf - Open Tee 2 (Asia) (En)"
 	region "Asia"
 	serial "UCUS-98693"
@@ -9980,6 +10302,7 @@ game (
 
 game (
 	name "Hot Shots Golf - Open Tee 2 (USA) (FW3.96)"
+	cloneof "Hot Shots Golf - Open Tee 2 (USA) (FW3.80)"
 	description "Hot Shots Golf - Open Tee 2 (USA) (FW3.96)"
 	region "USA"
 	serial "UCUS-98693"
@@ -9988,6 +10311,7 @@ game (
 
 game (
 	name "Hot Shots Golf - Open Tee 2 (USA) (v0.01) (Beta)"
+	cloneof "Hot Shots Golf - Open Tee 2 (USA) (FW3.80)"
 	description "Hot Shots Golf - Open Tee 2 (USA) (v0.01) (Beta)"
 	region "USA"
 	serial "UCUS-98693"
@@ -10092,6 +10416,7 @@ game (
 
 game (
 	name "IL-2 Sturmovik - Birds of Prey (Europe) (En,Fr,De,Es,It) (v1.02)"
+	cloneof "IL-2 Sturmovik - Birds of Prey (USA) (En,Fr) (v1.02)"
 	description "IL-2 Sturmovik - Birds of Prey (Europe) (En,Fr,De,Es,It) (v1.02)"
 	region "Europe"
 	serial "ULES-01316"
@@ -10100,6 +10425,7 @@ game (
 
 game (
 	name "IL-2 Sturmovik - Birds of Prey (Russia) (v1.01)"
+	cloneof "IL-2 Sturmovik - Birds of Prey (USA) (En,Fr) (v1.02)"
 	description "IL-2 Sturmovik - Birds of Prey (Russia) (v1.01)"
 	region "Russia"
 	serial "ULES-01317"
@@ -10196,6 +10522,7 @@ game (
 
 game (
 	name "Ikuze! Gen-San - Yuuyake Daiku Monogatari (Japan) (v1.01)"
+	cloneof "Hammerin' Hero (USA)"
 	description "Ikuze! Gen-San - Yuuyake Daiku Monogatari (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00141"
@@ -10308,6 +10635,7 @@ game (
 
 game (
 	name "Innocent Life - A Futuristic Harvest Moon (Europe) (En,Fr,De,Es,It) (v1.02)"
+	cloneof "Innocent Life - A Futuristic Harvest Moon (USA)"
 	description "Innocent Life - A Futuristic Harvest Moon (Europe) (En,Fr,De,Es,It) (v1.02)"
 	region "Europe"
 	serial "ULES-00658"
@@ -10324,6 +10652,7 @@ game (
 
 game (
 	name "Innocent Life - Shin Bokujou Monogatari (Japan) (v1.01) (Best Collection)"
+	cloneof "Innocent Life - A Futuristic Harvest Moon (USA)"
 	description "Innocent Life - Shin Bokujou Monogatari (Japan) (v1.01) (Best Collection)"
 	region "Japan"
 	serial "ULJS-00119"
@@ -10332,6 +10661,7 @@ game (
 
 game (
 	name "Innocent Life - Shin Bokujou Monogatari (Japan) (v1.02)"
+	cloneof "Innocent Life - A Futuristic Harvest Moon (USA)"
 	description "Innocent Life - Shin Bokujou Monogatari (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJS-00063"
@@ -10348,6 +10678,7 @@ game (
 
 game (
 	name "Intelligent License (Japan) (v1.02)"
+	cloneof "PQ - Practical Intelligence Quotient (USA) (v1.01)"
 	description "Intelligent License (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJS-00014"
@@ -10356,6 +10687,7 @@ game (
 
 game (
 	name "Intelligent License 2 (Japan) (v1.05)"
+	cloneof "PQ2 - Practical Intelligence Quotient 2 (USA) (v1.01)"
 	description "Intelligent License 2 (Japan) (v1.05)"
 	region "Japan"
 	serial "ULJS-00087"
@@ -10468,6 +10800,7 @@ game (
 
 game (
 	name "Iron Man 2 - The Video Game (Europe) (En,Fr,De,Es,It)"
+	cloneof "Iron Man 2 - The Video Game (USA)"
 	description "Iron Man 2 - The Video Game (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-01422"
@@ -10484,6 +10817,7 @@ game (
 
 game (
 	name "Irregular Hunter X (Japan) (v1.02)"
+	cloneof "Mega Man - Maverick Hunter X (USA) (v1.01)"
 	description "Irregular Hunter X (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05043"
@@ -10604,6 +10938,7 @@ game (
 
 game (
 	name "Jak and Daxter - Elf to Itachi no Daibouken (Japan)"
+	cloneof "Jak and Daxter - The Lost Frontier (USA) (En,Fr,Es)"
 	description "Jak and Daxter - Elf to Itachi no Daibouken (Japan)"
 	region "Japan"
 	serial "UCJS-10103"
@@ -10612,6 +10947,7 @@ game (
 
 game (
 	name "Jak and Daxter - The Lost Frontier (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl)"
+	cloneof "Jak and Daxter - The Lost Frontier (USA) (En,Fr,Es)"
 	description "Jak and Daxter - The Lost Frontier (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl)"
 	region "Europe"
 	serial "UCES-01225"
@@ -10620,6 +10956,7 @@ game (
 
 game (
 	name "Jak and Daxter - The Lost Frontier (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl) (UCES-01378)"
+	cloneof "Jak and Daxter - The Lost Frontier (USA) (En,Fr,Es)"
 	description "Jak and Daxter - The Lost Frontier (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl) (UCES-01378)"
 	region "Europe"
 	serial "UCES-01378"
@@ -10724,6 +11061,7 @@ game (
 
 game (
 	name "Jigen Kairou (Japan)"
+	cloneof "Echoshift (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru)"
 	description "Jigen Kairou (Japan)"
 	region "Japan"
 	serial "UCJS-10096"
@@ -10732,6 +11070,7 @@ game (
 
 game (
 	name "Jikan de Fantasia (Japan)"
+	cloneof "Jikandia - The Timeless Land (USA)"
 	description "Jikan de Fantasia (Japan)"
 	region "Japan"
 	serial "ULJM-05696"
@@ -11084,6 +11423,7 @@ game (
 
 game (
 	name "Kameleon (Europe) (v1.01)"
+	cloneof "Chameleon (USA) (v1.01)"
 	description "Kameleon (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00369"
@@ -11164,6 +11504,7 @@ game (
 
 game (
 	name "Kangaeru EXIT (Japan) (v1.02)"
+	cloneof "Exit 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
 	description "Kangaeru EXIT (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05161"
@@ -11220,6 +11561,7 @@ game (
 
 game (
 	name "Karakuri (Japan) (v1.01)"
+	cloneof "Tokobot (USA) (v1.02)"
 	description "Karakuri (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00029"
@@ -11260,6 +11602,7 @@ game (
 
 game (
 	name "Kazuo (Japan)"
+	cloneof "Go! Sudoku (USA) (En,Fr,De,Es,It)"
 	description "Kazuo (Japan)"
 	region "Japan"
 	serial "UCJS-10036"
@@ -11284,6 +11627,7 @@ game (
 
 game (
 	name "Ken to Mahou to Gakuen Mono. (Japan) (v1.01)"
+	cloneof "Class of Heroes (USA) (v1.01)"
 	description "Ken to Mahou to Gakuen Mono. (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05343"
@@ -11292,6 +11636,7 @@ game (
 
 game (
 	name "Ken to Mahou to Gakuen Mono. (Japan) (v1.01) (PSP The Best)"
+	cloneof "Class of Heroes (USA) (v1.01)"
 	description "Ken to Mahou to Gakuen Mono. (Japan) (v1.01) (PSP The Best)"
 	region "Japan"
 	serial "ULJM-08021"
@@ -11300,6 +11645,7 @@ game (
 
 game (
 	name "Ken to Mahou to Gakuen Mono. 2 (Japan) (v1.01) (PSP The Best)"
+	cloneof "Class of Heroes 2 (USA) (v1.01)"
 	description "Ken to Mahou to Gakuen Mono. 2 (Japan) (v1.01) (PSP The Best)"
 	region "Japan"
 	serial "ULJM-08029"
@@ -11308,6 +11654,7 @@ game (
 
 game (
 	name "Ken to Mahou to Gakuen Mono. 2 (Japan) (v1.03)"
+	cloneof "Class of Heroes 2 (USA) (v1.01)"
 	description "Ken to Mahou to Gakuen Mono. 2 (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05476"
@@ -11340,6 +11687,7 @@ game (
 
 game (
 	name "Kenka Banchou 3 - Zenkoku Seiha (Japan)"
+	cloneof "Kenka Bancho - Badass Rumble (USA)"
 	description "Kenka Banchou 3 - Zenkoku Seiha (Japan)"
 	region "Japan"
 	serial "ULJS-00166"
@@ -11348,6 +11696,7 @@ game (
 
 game (
 	name "Kenka Banchou 3 - Zenkoku Seiha (Japan) (PSP The Best)"
+	cloneof "Kenka Bancho - Badass Rumble (USA)"
 	description "Kenka Banchou 3 - Zenkoku Seiha (Japan) (PSP The Best)"
 	region "Japan"
 	serial "ULJS-19030"
@@ -11388,6 +11737,7 @@ game (
 
 game (
 	name "Kentoushi - Gladiator Begins (Japan) (v1.02)"
+	cloneof "Gladiator Begins (USA)"
 	description "Kentoushi - Gladiator Begins (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05544"
@@ -11396,6 +11746,7 @@ game (
 
 game (
 	name "Key of Heaven (Europe) (Beta)"
+	cloneof "Kingdom of Paradise (USA)"
 	description "Key of Heaven (Europe) (Beta)"
 	region "Europe"
 	serial "UCET-00247"
@@ -11404,6 +11755,7 @@ game (
 
 game (
 	name "Key of Heaven (Europe) (En,Fr,De,Es,It)"
+	cloneof "Kingdom of Paradise (USA)"
 	description "Key of Heaven (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-00178"
@@ -11692,6 +12044,7 @@ game (
 
 game (
 	name "Kingdom Hearts - Birth by Sleep (Europe) (En,Fr,De,Es,It)"
+	cloneof "Kingdom Hearts - Birth by Sleep (USA) (En,Fr,Es)"
 	description "Kingdom Hearts - Birth by Sleep (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-01441"
@@ -11700,6 +12053,7 @@ game (
 
 game (
 	name "Kingdom Hearts - Birth by Sleep (Japan) (Final Mix)"
+	cloneof "Kingdom Hearts - Birth by Sleep (USA) (En,Fr,Es)"
 	description "Kingdom Hearts - Birth by Sleep (Japan) (Final Mix)"
 	region "Japan"
 	serial "ULJM-05775"
@@ -11708,6 +12062,7 @@ game (
 
 game (
 	name "Kingdom Hearts - Birth by Sleep (Japan) (v1.02)"
+	cloneof "Kingdom Hearts - Birth by Sleep (USA) (En,Fr,Es)"
 	description "Kingdom Hearts - Birth by Sleep (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05600"
@@ -11908,6 +12263,7 @@ game (
 
 game (
 	name "Kollon (Japan) (v1.03)"
+	cloneof "Ultimate Block Party (USA) (v1.02)"
 	description "Kollon (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJS-00010"
@@ -11916,6 +12272,7 @@ game (
 
 game (
 	name "Kollon (Korea)"
+	cloneof "Ultimate Block Party (USA) (v1.02)"
 	description "Kollon (Korea)"
 	region "Korea"
 	serial "ULKS-46001"
@@ -11924,6 +12281,7 @@ game (
 
 game (
 	name "Koloomn (Europe) (En,Fr,De,Es,It) (v1.02)"
+	cloneof "Ultimate Block Party (USA) (v1.02)"
 	description "Koloomn (Europe) (En,Fr,De,Es,It) (v1.02)"
 	region "Europe"
 	serial "ULES-00143"
@@ -11996,6 +12354,7 @@ game (
 
 game (
 	name "Koukaku Kidoutai - Stand Alone Complex - Kariudo no Ryouiki (Japan) (v1.01)"
+	cloneof "Ghost in the Shell - Stand Alone Complex (USA) (v1.01)"
 	description "Koukaku Kidoutai - Stand Alone Complex - Kariudo no Ryouiki (Japan) (v1.01)"
 	region "Japan"
 	serial "UCJS-10018"
@@ -12076,6 +12435,7 @@ game (
 
 game (
 	name "Kuru Kuru Chameleon (Asia)"
+	cloneof "Chameleon (USA) (v1.01)"
 	description "Kuru Kuru Chameleon (Asia)"
 	region "Asia"
 	serial "UCAS-40053"
@@ -12084,6 +12444,7 @@ game (
 
 game (
 	name "Kuru Kuru Chameleon (Japan) (v1.01)"
+	cloneof "Chameleon (USA) (v1.01)"
 	description "Kuru Kuru Chameleon (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05067"
@@ -12116,6 +12477,7 @@ game (
 
 game (
 	name "L.A. Rush (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Rush (USA) (v1.01)"
 	description "L.A. Rush (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00554"
@@ -12228,6 +12590,7 @@ game (
 
 game (
 	name "LEGO Pirates of the Caribbean - The Video Game (Europe) (En,Fr,De,Es,It,Nl,Sv,No,Da)"
+	cloneof "LEGO Pirates of the Caribbean - The Video Game (USA) (En,Fr,Es)"
 	description "LEGO Pirates of the Caribbean - The Video Game (Europe) (En,Fr,De,Es,It,Nl,Sv,No,Da)"
 	region "Europe"
 	serial "ULES-01528"
@@ -12236,6 +12599,7 @@ game (
 
 game (
 	name "LEGO Pirates of the Caribbean - The Video Game (Russia)"
+	cloneof "LEGO Pirates of the Caribbean - The Video Game (USA) (En,Fr,Es)"
 	description "LEGO Pirates of the Caribbean - The Video Game (Russia)"
 	region "Russia"
 	serial "ULES-01529"
@@ -12372,6 +12736,7 @@ game (
 
 game (
 	name "Legend of Heroes, The - Trails in the Sky (Europe)"
+	cloneof "Legend of Heroes, The - Trails in the Sky (USA)"
 	description "Legend of Heroes, The - Trails in the Sky (Europe)"
 	region "Europe"
 	serial "ULES-01556"
@@ -12492,6 +12857,7 @@ game (
 
 game (
 	name "LittleBigPlanet (Asia) (En,Zh,Ko)"
+	cloneof "LittleBigPlanet (USA) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl)"
 	description "LittleBigPlanet (Asia) (En,Zh,Ko)"
 	region "Asia"
 	serial "UCAS-40262"
@@ -12500,6 +12866,7 @@ game (
 
 game (
 	name "LittleBigPlanet (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl,Ru) (v1.01)"
+	cloneof "LittleBigPlanet (USA) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl)"
 	description "LittleBigPlanet (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl,Ru) (v1.01)"
 	region "Europe"
 	serial "UCES-01264"
@@ -12508,6 +12875,7 @@ game (
 
 game (
 	name "LittleBigPlanet (Japan) (v1.01)"
+	cloneof "LittleBigPlanet (USA) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl)"
 	description "LittleBigPlanet (Japan) (v1.01)"
 	region "Japan"
 	serial "UCJS-10107"
@@ -12524,6 +12892,7 @@ game (
 
 game (
 	name "LocoRoco (Asia) (En,Zh)"
+	cloneof "LocoRoco (USA)"
 	description "LocoRoco (Asia) (En,Zh)"
 	region "Asia"
 	serial "UCAS-40063"
@@ -12532,6 +12901,7 @@ game (
 
 game (
 	name "LocoRoco (Europe) (Demo)"
+	cloneof "LocoRoco (USA)"
 	description "LocoRoco (Europe) (Demo)"
 	region "Europe"
 	serial "UCED-00365"
@@ -12540,6 +12910,7 @@ game (
 
 game (
 	name "LocoRoco (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Ru) (v1.01)"
+	cloneof "LocoRoco (USA)"
 	description "LocoRoco (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Ru) (v1.01)"
 	region "Europe"
 	serial "UCES-00304"
@@ -12548,6 +12919,7 @@ game (
 
 game (
 	name "LocoRoco (Japan) (v1.01)"
+	cloneof "LocoRoco (USA)"
 	description "LocoRoco (Japan) (v1.01)"
 	region "Japan"
 	serial "UCJS-10041"
@@ -12556,6 +12928,7 @@ game (
 
 game (
 	name "LocoRoco (Japan) (v1.01) (Toku Toku Pack)"
+	cloneof "LocoRoco (USA)"
 	description "LocoRoco (Japan) (v1.01) (Toku Toku Pack)"
 	region "Japan"
 	serial "UCJB-98011"
@@ -12564,6 +12937,7 @@ game (
 
 game (
 	name "LocoRoco (Korea)"
+	cloneof "LocoRoco (USA)"
 	description "LocoRoco (Korea)"
 	region "Korea"
 	serial "UCKS-45020"
@@ -12580,6 +12954,7 @@ game (
 
 game (
 	name "LocoRoco (USA) (Demo)"
+	cloneof "LocoRoco (USA)"
 	description "LocoRoco (USA) (Demo)"
 	region "USA"
 	serial "UCUS-98685"
@@ -12588,6 +12963,7 @@ game (
 
 game (
 	name "LocoRoco (USA) (En,Ja,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Zh,Ko,Ru) (v0.10) (Beta) (Test Sample)"
+	cloneof "LocoRoco (USA)"
 	description "LocoRoco (USA) (En,Ja,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Zh,Ko,Ru) (v0.10) (Beta) (Test Sample)"
 	region "USA"
 	serial "UCUS-98662"
@@ -12684,6 +13060,7 @@ game (
 
 game (
 	name "Lord of the Rings, The - Tactics (Europe)"
+	cloneof "Lord of the Rings, The - Tactics (USA)"
 	description "Lord of the Rings, The - Tactics (Europe)"
 	region "Europe"
 	serial "ULES-00198"
@@ -12708,6 +13085,7 @@ game (
 
 game (
 	name "Lost Regnum - Makutsu no Koutei (Japan) (v1.02)"
+	cloneof "Warriors of the Lost Empire (USA) (En,Fr,Es) (v1.03)"
 	description "Lost Regnum - Makutsu no Koutei (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05217"
@@ -12716,6 +13094,7 @@ game (
 
 game (
 	name "Lost Regnum - Makutsu no Koutei (Korea) (v1.01)"
+	cloneof "Warriors of the Lost Empire (USA) (En,Fr,Es) (v1.03)"
 	description "Lost Regnum - Makutsu no Koutei (Korea) (v1.01)"
 	region "Korea"
 	serial "ULKS-46138"
@@ -12780,6 +13159,7 @@ game (
 
 game (
 	name "Lumines (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Lumines (USA) (v1.01)"
 	description "Lumines (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00043"
@@ -12788,6 +13168,7 @@ game (
 
 game (
 	name "Lumines (Japan) (v1.02)"
+	cloneof "Lumines (USA) (v1.01)"
 	description "Lumines (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJS-00005"
@@ -12796,6 +13177,7 @@ game (
 
 game (
 	name "Lumines (Japan) (v1.02) (PSP The Best)"
+	cloneof "Lumines (USA) (v1.01)"
 	description "Lumines (Japan) (v1.02) (PSP The Best)"
 	region "Japan"
 	serial "ULJS-00005"
@@ -12836,6 +13218,7 @@ game (
 
 game (
 	name "Lunar - Harmony of Silver Star (Japan) (v1.01)"
+	cloneof "Lunar - Silver Star Harmony (USA)"
 	description "Lunar - Harmony of Silver Star (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50054"
@@ -13020,6 +13403,7 @@ game (
 
 game (
 	name "MX vs. ATV Extreme Limite (France)"
+	cloneof "MX vs. ATV Untamed (USA)"
 	description "MX vs. ATV Extreme Limite (France)"
 	region "France"
 	serial "ULES-00994"
@@ -13060,6 +13444,7 @@ game (
 
 game (
 	name "MX vs. ATV Untamed (Europe)"
+	cloneof "MX vs. ATV Untamed (USA)"
 	description "MX vs. ATV Untamed (Europe)"
 	region "Europe"
 	serial "ULES-00993"
@@ -13444,6 +13829,7 @@ game (
 
 game (
 	name "Makai Senki Disgaea 2 Portable (Japan)"
+	cloneof "Disgaea 2 - Dark Hero Days (USA) (v1.02)"
 	description "Makai Senki Disgaea 2 Portable (Japan)"
 	region "Japan"
 	serial "ULJS-00183"
@@ -13452,6 +13838,7 @@ game (
 
 game (
 	name "Makai Senki Disgaea Portable (Japan) (v1.01)"
+	cloneof "Disgaea - Afternoon of Darkness (USA)"
 	description "Makai Senki Disgaea Portable (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00089"
@@ -13460,6 +13847,7 @@ game (
 
 game (
 	name "Makai Senki Disgaea Portable (Japan) (v1.01) (Shokai Genteiban)"
+	cloneof "Disgaea - Afternoon of Darkness (USA)"
 	description "Makai Senki Disgaea Portable (Japan) (v1.01) (Shokai Genteiban)"
 	region "Japan"
 	serial "ULJS-00088"
@@ -13468,6 +13856,7 @@ game (
 
 game (
 	name "Makai Senki Disgaea Portable - Tsuushin Taisen Hajimemashita (Japan) (v1.01)"
+	cloneof "Disgaea - Afternoon of Darkness (USA)"
 	description "Makai Senki Disgaea Portable - Tsuushin Taisen Hajimemashita (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00113"
@@ -13476,6 +13865,7 @@ game (
 
 game (
 	name "Mana Khemia - Gakuen no Renkinjutsushi-tachi Portable + (Japan) (v1.04)"
+	cloneof "Mana Khemia - Student Alliance (USA)"
 	description "Mana Khemia - Gakuen no Renkinjutsushi-tachi Portable + (Japan) (v1.04)"
 	region "Japan"
 	serial "ULJM-05345"
@@ -13484,6 +13874,7 @@ game (
 
 game (
 	name "Mana Khemia - Student Alliance (Europe) (v1.01)"
+	cloneof "Mana Khemia - Student Alliance (USA)"
 	description "Mana Khemia - Student Alliance (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-01215"
@@ -13524,6 +13915,7 @@ game (
 
 game (
 	name "Maplus - Portable Navi (Japan) (v1.03)"
+	cloneof "Maplus - Portable Navi 3 (Japan) (v1.07)"
 	description "Maplus - Portable Navi (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJS-00092"
@@ -13532,6 +13924,7 @@ game (
 
 game (
 	name "Maplus - Portable Navi (Japan) (v1.03) (GPS Receiver Doukonban)"
+	cloneof "Maplus - Portable Navi 3 (Japan) (v1.07)"
 	description "Maplus - Portable Navi (Japan) (v1.03) (GPS Receiver Doukonban)"
 	region "Japan"
 	serial "ULJS-00091"
@@ -13540,6 +13933,7 @@ game (
 
 game (
 	name "Maplus - Portable Navi 2 (Japan) (v1.02)"
+	cloneof "Maplus - Portable Navi 3 (Japan) (v1.07)"
 	description "Maplus - Portable Navi 2 (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJS-00128"
@@ -13756,6 +14150,7 @@ game (
 
 game (
 	name "Mawaskes - Based on Carton-kun (Japan) (v1.01)"
+	cloneof "Puzzle Guzzle (USA) (v1.02)"
 	description "Mawaskes - Based on Carton-kun (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00105"
@@ -13764,6 +14159,7 @@ game (
 
 game (
 	name "Mawaskes - Based on Carton-kun (Korea)"
+	cloneof "Puzzle Guzzle (USA) (v1.02)"
 	description "Mawaskes - Based on Carton-kun (Korea)"
 	region "Korea"
 	serial "UCKS-45068"
@@ -13772,6 +14168,7 @@ game (
 
 game (
 	name "Mawaskes Puzzle (Europe) (En,Fr,De,Es,It,Nl) (v1.02)"
+	cloneof "Puzzle Guzzle (USA) (v1.02)"
 	description "Mawaskes Puzzle (Europe) (En,Fr,De,Es,It,Nl) (v1.02)"
 	region "Europe"
 	serial "ULES-01104"
@@ -13780,6 +14177,7 @@ game (
 
 game (
 	name "Me & My Katamari (Europe)"
+	cloneof "Me & My Katamari (USA)"
 	description "Me & My Katamari (Europe)"
 	region "Europe"
 	serial "ULES-00339"
@@ -13948,6 +14346,7 @@ game (
 
 game (
 	name "Mega Man - Maverick Hunter X (Europe) (v1.01)"
+	cloneof "Mega Man - Maverick Hunter X (USA) (v1.01)"
 	description "Mega Man - Maverick Hunter X (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00251"
@@ -13964,6 +14363,7 @@ game (
 
 game (
 	name "Mega Man - Powered Up (Europe)"
+	cloneof "Mega Man - Powered Up (USA)"
 	description "Mega Man - Powered Up (Europe)"
 	region "Europe"
 	serial "ULES-00307"
@@ -14156,6 +14556,7 @@ game (
 
 game (
 	name "Mercury Meltdown (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Mercury Meltdown (USA) (En,Fr,Es) (v1.01)"
 	description "Mercury Meltdown (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00466"
@@ -14252,6 +14653,7 @@ game (
 
 game (
 	name "Metal Gear Solid - Digital Graphic Novel (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Metal Gear Solid - Digital Graphic Novel (USA) (v1.01)"
 	description "Metal Gear Solid - Digital Graphic Novel (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00382"
@@ -14372,6 +14774,7 @@ game (
 
 game (
 	name "Metal Slug Anthology (Europe) (v1.01)"
+	cloneof "Metal Slug Anthology (USA) (v1.03)"
 	description "Metal Slug Anthology (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00530"
@@ -14388,6 +14791,7 @@ game (
 
 game (
 	name "Metal Slug Complete (Japan) (v1.06)"
+	cloneof "Metal Slug Anthology (USA) (v1.03)"
 	description "Metal Slug Complete (Japan) (v1.06)"
 	region "Japan"
 	serial "ULJS-00090"
@@ -14740,6 +15144,7 @@ game (
 
 game (
 	name "Minna no Golf Portable (Japan) (v1.04)"
+	cloneof "Hot Shots Golf - Open Tee (USA)"
 	description "Minna no Golf Portable (Japan) (v1.04)"
 	region "Japan"
 	serial "UCJS-10001"
@@ -14748,6 +15153,7 @@ game (
 
 game (
 	name "Minna no Golf Portable (Korea) (v1.02)"
+	cloneof "Hot Shots Golf - Open Tee (USA)"
 	description "Minna no Golf Portable (Korea) (v1.02)"
 	region "Korea"
 	serial "UCKS-45004"
@@ -14764,6 +15170,7 @@ game (
 
 game (
 	name "Minna no Golf Portable 2 (Japan) (v1.09)"
+	cloneof "Hot Shots Golf - Open Tee 2 (USA) (FW3.80)"
 	description "Minna no Golf Portable 2 (Japan) (v1.09)"
 	region "Japan"
 	serial "UCJS-10075"
@@ -14772,6 +15179,7 @@ game (
 
 game (
 	name "Minna no Golf Portable 2 (Japan) (v2.01)"
+	cloneof "Hot Shots Golf - Open Tee 2 (USA) (FW3.80)"
 	description "Minna no Golf Portable 2 (Japan) (v2.01)"
 	region "Japan"
 	rom ( name "Minna no Golf Portable 2 (Japan) (v2.01).iso" size 922025984 crc C1D4183F md5 DBF7E2E7053CA717A1303015C10E4873 sha1 596C99CECAC77D0F41C4D21224F55901D2A444CB )
@@ -14803,6 +15211,7 @@ game (
 
 game (
 	name "Minna no Tennis Portable (Japan) (v1.02)"
+	cloneof "Hot Shots Tennis - Get a Grip (USA) (v1.01)"
 	description "Minna no Tennis Portable (Japan) (v1.02)"
 	region "Japan"
 	serial "UCJS-10101"
@@ -14915,6 +15324,7 @@ game (
 
 game (
 	name "ModNation Racers (Asia) (En,Zh)"
+	cloneof "ModNation Racers (USA) (En,Fr,Es)"
 	description "ModNation Racers (Asia) (En,Zh)"
 	region "Asia"
 	serial "NPHG-00080"
@@ -14923,6 +15333,7 @@ game (
 
 game (
 	name "ModNation Racers (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl,Ru) (v1.01)"
+	cloneof "ModNation Racers (USA) (En,Fr,Es)"
 	description "ModNation Racers (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl,Ru) (v1.01)"
 	region "Europe"
 	serial "UCES-01327"
@@ -15027,6 +15438,7 @@ game (
 
 game (
 	name "Monster Hunter Freedom (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Monster Hunter Freedom (USA) (v1.01)"
 	description "Monster Hunter Freedom (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00318"
@@ -15043,6 +15455,7 @@ game (
 
 game (
 	name "Monster Hunter Freedom 2 (Asia) (En) (v1.01)"
+	cloneof "Monster Hunter Freedom 2 (USA) (v1.01)"
 	description "Monster Hunter Freedom 2 (Asia) (En) (v1.01)"
 	region "Asia"
 	serial "ULAS-42110"
@@ -15051,6 +15464,7 @@ game (
 
 game (
 	name "Monster Hunter Freedom 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Monster Hunter Freedom 2 (USA) (v1.01)"
 	description "Monster Hunter Freedom 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00851"
@@ -15059,6 +15473,7 @@ game (
 
 game (
 	name "Monster Hunter Freedom 2 (Korea)"
+	cloneof "Monster Hunter Freedom 2 (USA) (v1.01)"
 	description "Monster Hunter Freedom 2 (Korea)"
 	region "Korea"
 	serial "ULUS-10266"
@@ -15075,6 +15490,7 @@ game (
 
 game (
 	name "Monster Hunter Freedom Unite (Europe) (En,Fr,De,Es,It) (Demo)"
+	cloneof "Monster Hunter Freedom 2 (USA) (v1.01)"
 	description "Monster Hunter Freedom Unite (Europe) (En,Fr,De,Es,It) (Demo)"
 	region "Europe"
 	serial "ULED-01244"
@@ -15083,6 +15499,7 @@ game (
 
 game (
 	name "Monster Hunter Freedom Unite (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Monster Hunter Freedom 2 (USA) (v1.01)"
 	description "Monster Hunter Freedom Unite (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-01213"
@@ -15091,6 +15508,7 @@ game (
 
 game (
 	name "Monster Hunter Freedom Unite (USA) (Demo)"
+	cloneof "Monster Hunter Freedom 2 (USA) (v1.01)"
 	description "Monster Hunter Freedom Unite (USA) (Demo)"
 	region "USA"
 	serial "ULUS-90003"
@@ -15099,6 +15517,7 @@ game (
 
 game (
 	name "Monster Hunter Freedom Unite (USA) (En,Fr,De,Es,It)"
+	cloneof "Monster Hunter Freedom 2 (USA) (v1.01)"
 	description "Monster Hunter Freedom Unite (USA) (En,Fr,De,Es,It)"
 	region "USA"
 	serial "ULUS-10391"
@@ -15107,6 +15526,7 @@ game (
 
 game (
 	name "Monster Hunter Portable (Japan) (v1.01)"
+	cloneof "Monster Hunter Freedom (USA) (v1.01)"
 	description "Monster Hunter Portable (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05066"
@@ -15115,6 +15535,7 @@ game (
 
 game (
 	name "Monster Hunter Portable (Korea)"
+	cloneof "Monster Hunter Freedom (USA) (v1.01)"
 	description "Monster Hunter Portable (Korea)"
 	region "Korea"
 	serial "UCKS-45036"
@@ -15123,6 +15544,7 @@ game (
 
 game (
 	name "Monster Hunter Portable 2nd (Japan) (v1.01)"
+	cloneof "Monster Hunter Freedom 2 (USA) (v1.01)"
 	description "Monster Hunter Portable 2nd (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05156"
@@ -15131,6 +15553,7 @@ game (
 
 game (
 	name "Monster Hunter Portable 2nd G (Japan) (v1.03)"
+	cloneof "Monster Hunter Freedom 2 (USA) (v1.01)"
 	description "Monster Hunter Portable 2nd G (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05500"
@@ -15243,6 +15666,7 @@ game (
 
 game (
 	name "MotorStorm - Arctic Edge (Asia) (En,Ko)"
+	cloneof "MotorStorm - Arctic Edge (USA) (En,Fr,De,Es,It,Nl,Pt,Ru)"
 	description "MotorStorm - Arctic Edge (Asia) (En,Ko)"
 	region "Asia"
 	serial "UCAS-40266"
@@ -15251,6 +15675,7 @@ game (
 
 game (
 	name "MotorStorm - Arctic Edge (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl,Ru,El) (v1.01)"
+	cloneof "MotorStorm - Arctic Edge (USA) (En,Fr,De,Es,It,Nl,Pt,Ru)"
 	description "MotorStorm - Arctic Edge (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl,Ru,El) (v1.01)"
 	region "Europe"
 	serial "UCES-01250"
@@ -15259,6 +15684,7 @@ game (
 
 game (
 	name "MotorStorm - Arctic Edge (Korea)"
+	cloneof "MotorStorm - Arctic Edge (USA) (En,Fr,De,Es,It,Nl,Pt,Ru)"
 	description "MotorStorm - Arctic Edge (Korea)"
 	region "Korea"
 	serial "UCKS-45124"
@@ -15275,6 +15701,7 @@ game (
 
 game (
 	name "MotorStorm - Raging Ice (Japan)"
+	cloneof "MotorStorm - Arctic Edge (USA) (En,Fr,De,Es,It,Nl,Pt,Ru)"
 	description "MotorStorm - Raging Ice (Japan)"
 	region "Japan"
 	serial "UCJS-10104"
@@ -15307,6 +15734,7 @@ game (
 
 game (
 	name "Mugen Kairou (Japan)"
+	cloneof "Echochrome (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru)"
 	description "Mugen Kairou (Japan)"
 	region "Japan"
 	serial "UCJS-10081"
@@ -15323,6 +15751,7 @@ game (
 
 game (
 	name "Musou Orochi (Asia)"
+	cloneof "Warriors Orochi (USA)"
 	description "Musou Orochi (Asia)"
 	region "Asia"
 	serial "ULAS-42131"
@@ -15331,6 +15760,7 @@ game (
 
 game (
 	name "Musou Orochi (Japan) (v1.02)"
+	cloneof "Warriors Orochi (USA)"
 	description "Musou Orochi (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05314"
@@ -15339,6 +15769,7 @@ game (
 
 game (
 	name "Musou Orochi - Maou Sairin (Japan)"
+	cloneof "Warriors Orochi 2 (USA) (En,Fr) (v1.02)"
 	description "Musou Orochi - Maou Sairin (Japan)"
 	region "Japan"
 	serial "ULJM-05402"
@@ -15347,6 +15778,7 @@ game (
 
 game (
 	name "Musou Orochi - Maou Sairin Enhanced Version (Asia) (v1.01)"
+	cloneof "Warriors Orochi 2 (USA) (En,Fr) (v1.02)"
 	description "Musou Orochi - Maou Sairin Enhanced Version (Asia) (v1.01)"
 	region "Asia"
 	serial "ULAS-42164"
@@ -16027,6 +16459,7 @@ game (
 
 game (
 	name "Namco Museum - Battle Collection (Asia) (En) (v1.01)"
+	cloneof "Namco Museum - Battle Collection (USA) (v1.01)"
 	description "Namco Museum - Battle Collection (Asia) (En) (v1.01)"
 	region "Asia"
 	serial "ULUS-10035"
@@ -16035,6 +16468,7 @@ game (
 
 game (
 	name "Namco Museum - Battle Collection (Europe) (En,Fr,De,Es,It)"
+	cloneof "Namco Museum - Battle Collection (USA) (v1.01)"
 	description "Namco Museum - Battle Collection (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-00116"
@@ -16043,6 +16477,7 @@ game (
 
 game (
 	name "Namco Museum - Battle Collection (Europe) (En,Fr,De,Es,It) (v1.02)"
+	cloneof "Namco Museum - Battle Collection (USA) (v1.01)"
 	description "Namco Museum - Battle Collection (Europe) (En,Fr,De,Es,It) (v1.02)"
 	region "Europe"
 	serial "UCES-00116"
@@ -16059,6 +16494,7 @@ game (
 
 game (
 	name "Namco Museum Vol.2 (Japan) (v1.01)"
+	cloneof "Namco Museum - Battle Collection (USA) (v1.01)"
 	description "Namco Museum Vol.2 (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00047"
@@ -16147,6 +16583,7 @@ game (
 
 game (
 	name "Naruto - Ultimate Ninja Heroes 2 - The Phantom Fortress (Europe) (En,Fr,De,Es,It)"
+	cloneof "Naruto - Ultimate Ninja Heroes 2 - The Phantom Fortress (USA)"
 	description "Naruto - Ultimate Ninja Heroes 2 - The Phantom Fortress (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-01088"
@@ -16163,6 +16600,7 @@ game (
 
 game (
 	name "Naruto Shippuden - Kizuna Drive (Europe) (En,Fr,De,Es,It)"
+	cloneof "Naruto Shippuden - Kizuna Drive (USA) (En,Fr,Es)"
 	description "Naruto Shippuden - Kizuna Drive (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-01516"
@@ -16171,6 +16609,7 @@ game (
 
 game (
 	name "Naruto Shippuden - Kizuna Drive (Japan) (v1.01)"
+	cloneof "Naruto Shippuden - Kizuna Drive (USA) (En,Fr,Es)"
 	description "Naruto Shippuden - Kizuna Drive (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00291"
@@ -16219,6 +16658,7 @@ game (
 
 game (
 	name "Naruto Shippuden - Ultimate Ninja Heroes 3 (Europe) (En,Fr,De,Es,It)"
+	cloneof "Naruto Shippuden - Ultimate Ninja Heroes 3 (USA)"
 	description "Naruto Shippuden - Ultimate Ninja Heroes 3 (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-01407"
@@ -16235,6 +16675,7 @@ game (
 
 game (
 	name "Naruto Shippuden - Ultimate Ninja Impact (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Naruto Shippuden - Ultimate Ninja Impact (USA) (En,Fr,Es)"
 	description "Naruto Shippuden - Ultimate Ninja Impact (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-01537"
@@ -16547,6 +16988,7 @@ game (
 
 game (
 	name "New Rainbow Island - Hurdy Gurdy Daibouken!! (Japan) (v1.01)"
+	cloneof "Rainbow Islands Evolution (USA) (En,Fr,Es)"
 	description "New Rainbow Island - Hurdy Gurdy Daibouken!! (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00099"
@@ -16803,6 +17245,7 @@ game (
 
 game (
 	name "Off Road (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Ford Racing - Off Road (USA)"
 	description "Off Road (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00963"
@@ -17163,6 +17606,7 @@ game (
 
 game (
 	name "PQ - Practical Intelligence Quotient (Europe) (v1.01)"
+	cloneof "PQ - Practical Intelligence Quotient (USA) (v1.01)"
 	description "PQ - Practical Intelligence Quotient (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00358"
@@ -17291,6 +17735,7 @@ game (
 
 game (
 	name "Padrino, El (Spain)"
+	cloneof "Godfather, The - Mob Wars (USA)"
 	description "Padrino, El (Spain)"
 	region "Spain"
 	serial "ULES-00400"
@@ -17299,6 +17744,7 @@ game (
 
 game (
 	name "Padrino, Il (Italy)"
+	cloneof "Godfather, The - Mob Wars (USA)"
 	description "Padrino, Il (Italy)"
 	region "Italy"
 	serial "ULES-00399"
@@ -17443,6 +17889,7 @@ game (
 
 game (
 	name "Patapon 2 (Europe) (En,Fr,De,Es,It)"
+	cloneof "Patapon 2 (USA) (En,Fr,Es)"
 	description "Patapon 2 (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-01177"
@@ -17459,6 +17906,7 @@ game (
 
 game (
 	name "Patapon 2 (USA) (En,Fr,Es) (PSN & Store)"
+	cloneof "Patapon 2 (USA) (En,Fr,Es)"
 	description "Patapon 2 (USA) (En,Fr,Es) (PSN & Store)"
 	region "USA"
 	serial "UCUS-98732"
@@ -17467,6 +17915,7 @@ game (
 
 game (
 	name "Patapon 2 - Don-Chaka (Asia) (Zh,Ko)"
+	cloneof "Patapon 2 (USA) (En,Fr,Es)"
 	description "Patapon 2 - Don-Chaka (Asia) (Zh,Ko)"
 	region "Asia"
 	serial "UCAS-40239"
@@ -17475,6 +17924,7 @@ game (
 
 game (
 	name "Patapon 2 - Don-Chaka (Japan)"
+	cloneof "Patapon 2 (USA) (En,Fr,Es)"
 	description "Patapon 2 - Don-Chaka (Japan)"
 	region "Japan"
 	serial "UCJS-10089"
@@ -17483,6 +17933,7 @@ game (
 
 game (
 	name "Patapon 2 - Don-Chaka (Japan) (Season's Greetings! Ver.)"
+	cloneof "Patapon 2 (USA) (En,Fr,Es)"
 	description "Patapon 2 - Don-Chaka (Japan) (Season's Greetings! Ver.)"
 	region "Japan"
 	serial "UCJX-90028"
@@ -17523,6 +17974,7 @@ game (
 
 game (
 	name "Pate, Der (Germany)"
+	cloneof "Godfather, The - Mob Wars (USA)"
 	description "Pate, Der (Germany)"
 	region "Germany"
 	serial "ULES-00398"
@@ -17539,6 +17991,7 @@ game (
 
 game (
 	name "Persona (Japan)"
+	cloneof "Shin Megami Tensei - Persona (USA)"
 	description "Persona (Japan)"
 	region "Japan"
 	serial "ULJM-05422"
@@ -17563,6 +18016,7 @@ game (
 
 game (
 	name "Persona 3 Portable (Japan) (v1.02)"
+	cloneof "Shin Megami Tensei - Persona 3 Portable (USA)"
 	description "Persona 3 Portable (Japan) (v1.02)"
 	region "Japan"
 	serial "NPJH-50040"
@@ -17603,6 +18057,7 @@ game (
 
 game (
 	name "Petz - My Baby Hamster (Europe) (En,Fr,De,Es,It)"
+	cloneof "Petz - Hamsterz Bunch (USA)"
 	description "Petz - My Baby Hamster (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-01266"
@@ -17611,6 +18066,7 @@ game (
 
 game (
 	name "Petz - My Puppy Family (Europe) (En,Fr,De,Es,It,Ru)"
+	cloneof "Petz - Dogz Family (USA)"
 	description "Petz - My Puppy Family (Europe) (En,Fr,De,Es,It,Ru)"
 	region "Europe"
 	serial "ULES-01267"
@@ -17659,6 +18115,7 @@ game (
 
 game (
 	name "Phantasy Star Portable 2 (Europe)"
+	cloneof "Phantasy Star Portable 2 (USA)"
 	description "Phantasy Star Portable 2 (Europe)"
 	region "Europe"
 	serial "ULES-01439"
@@ -17667,6 +18124,7 @@ game (
 
 game (
 	name "Phantasy Star Portable 2 (Japan)"
+	cloneof "Phantasy Star Portable 2 (USA)"
 	description "Phantasy Star Portable 2 (Japan)"
 	region "Japan"
 	serial "NPJH-50043"
@@ -17691,6 +18149,7 @@ game (
 
 game (
 	name "Phantasy Star Portable 2 Infinity (Japan) (v1.02)"
+	cloneof "Phantasy Star Portable 2 (USA)"
 	description "Phantasy Star Portable 2 Infinity (Japan) (v1.02)"
 	region "Japan"
 	serial "NPJH-50332"
@@ -17715,6 +18174,7 @@ game (
 
 game (
 	name "Phantom Brave Portable (Japan) (v1.01)"
+	cloneof "Phantom Brave - The Hermuda Triangle (USA)"
 	description "Phantom Brave Portable (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50331"
@@ -17811,6 +18271,7 @@ game (
 
 game (
 	name "Pilot ni Narou! Flying All Stars (Japan) (v1.04)"
+	cloneof "Pilot Academy (Europe) (En,Ja,Fr,De,Es,It) (v1.01)"
 	description "Pilot ni Narou! Flying All Stars (Japan) (v1.04)"
 	region "Japan"
 	serial "ULJS-00059"
@@ -17859,6 +18320,7 @@ game (
 
 game (
 	name "Pipe Mania (Asia) (En,Fr) (FW4.01)"
+	cloneof "Pipe Mania (USA) (En,Fr) (FW3.95)"
 	description "Pipe Mania (Asia) (En,Fr) (FW4.01)"
 	region "Asia"
 	serial "ULUS-10359"
@@ -17867,6 +18329,7 @@ game (
 
 game (
 	name "Pipe Mania (Europe) (En,De,Es,It,Nl) (v1.01)"
+	cloneof "Pipe Mania (USA) (En,Fr) (FW3.95)"
 	description "Pipe Mania (Europe) (En,De,Es,It,Nl) (v1.01)"
 	region "Europe"
 	serial "ULES-01094"
@@ -17891,6 +18354,7 @@ game (
 
 game (
 	name "Piposaru Academia - Dossari! Saruge Daizenshuu (Japan) (v1.05)"
+	cloneof "Ape Escape Academy (USA) (v1.01)"
 	description "Piposaru Academia - Dossari! Saruge Daizenshuu (Japan) (v1.05)"
 	region "Japan"
 	serial "UCJS-10003"
@@ -17915,6 +18379,7 @@ game (
 
 game (
 	name "Piposaru Academia 2 - Aiai Saruge Janken Battle! (Japan)"
+	cloneof "Ape Academy 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru)"
 	description "Piposaru Academia 2 - Aiai Saruge Janken Battle! (Japan)"
 	region "Japan"
 	serial "UCJS-10020"
@@ -17971,6 +18436,7 @@ game (
 
 game (
 	name "PixelJunk Monsters Deluxe (Asia) (En,Ja) (Limited Edition)"
+	cloneof "PixelJunk Monsters Deluxe (USA)"
 	description "PixelJunk Monsters Deluxe (Asia) (En,Ja) (Limited Edition)"
 	region "Asia"
 	serial "UCAS-40261"
@@ -18099,6 +18565,7 @@ game (
 
 game (
 	name "PoPoLoCrois (Europe) (v1.01)"
+	cloneof "PoPoLoCrois (USA)"
 	description "PoPoLoCrois (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00291"
@@ -18115,6 +18582,7 @@ game (
 
 game (
 	name "PoPoLoCrois Monogatari - Pietro Ouji no Bouken (Japan) (v1.03)"
+	cloneof "PoPoLoCrois (USA)"
 	description "PoPoLoCrois Monogatari - Pietro Ouji no Bouken (Japan) (v1.03)"
 	region "Japan"
 	serial "UCJS-10005"
@@ -18123,6 +18591,7 @@ game (
 
 game (
 	name "PoPoLoCrois Monogatari - Pietro Ouji no Bouken (Japan) (v2.01) (PSP The Best)"
+	cloneof "PoPoLoCrois (USA)"
 	description "PoPoLoCrois Monogatari - Pietro Ouji no Bouken (Japan) (v2.01) (PSP The Best)"
 	region "Japan"
 	serial "UCJS-10005"
@@ -18195,6 +18664,7 @@ game (
 
 game (
 	name "Power Smash - New Generation (Japan) (v1.01)"
+	cloneof "Virtua Tennis - World Tour (USA) (v1.02)"
 	description "Power Smash - New Generation (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05079"
@@ -18227,6 +18697,7 @@ game (
 
 game (
 	name "Practical IQ - Test Your Intelligence (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "PQ2 - Practical Intelligence Quotient 2 (USA) (v1.01)"
 	description "Practical IQ - Test Your Intelligence (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00806"
@@ -18251,6 +18722,7 @@ game (
 
 game (
 	name "Prince of Persia - Boukyaku no Suna (Japan)"
+	cloneof "Prince of Persia - The Forgotten Sands (USA) (En,Fr,Es) (v1.01)"
 	description "Prince of Persia - Boukyaku no Suna (Japan)"
 	region "Japan"
 	serial "NPJH-50260"
@@ -18291,6 +18763,7 @@ game (
 
 game (
 	name "Prince of Persia - The Forgotten Sands (Asia) (En) (v1.01)"
+	cloneof "Prince of Persia - The Forgotten Sands (USA) (En,Fr,Es) (v1.01)"
 	description "Prince of Persia - The Forgotten Sands (Asia) (En) (v1.01)"
 	region "Asia"
 	serial "ULUS-10480"
@@ -18299,6 +18772,7 @@ game (
 
 game (
 	name "Prince of Persia - The Forgotten Sands (Europe) (En,Fr,De,Es,It,Nl)"
+	cloneof "Prince of Persia - The Forgotten Sands (USA) (En,Fr,Es) (v1.01)"
 	description "Prince of Persia - The Forgotten Sands (Europe) (En,Fr,De,Es,It,Nl)"
 	region "Europe"
 	serial "ULES-01409"
@@ -18307,6 +18781,7 @@ game (
 
 game (
 	name "Prince of Persia - The Forgotten Sands (Russia)"
+	cloneof "Prince of Persia - The Forgotten Sands (USA) (En,Fr,Es) (v1.01)"
 	description "Prince of Persia - The Forgotten Sands (Russia)"
 	region "Russia"
 	serial "ULES-01438"
@@ -18387,6 +18862,7 @@ game (
 
 game (
 	name "Prinny - Can I Really Be the Hero (Europe) (En,Fr)"
+	cloneof "Prinny - Can I Really Be the Hero (USA)"
 	description "Prinny - Can I Really Be the Hero (Europe) (En,Fr)"
 	region "Europe"
 	serial "ULES-01278"
@@ -18403,6 +18879,7 @@ game (
 
 game (
 	name "Prinny - Ore ga Shujinkou de Iinsuka (Japan)"
+	cloneof "Prinny - Can I Really Be the Hero (USA)"
 	description "Prinny - Ore ga Shujinkou de Iinsuka (Japan)"
 	region "Japan"
 	serial "ULJS-00150"
@@ -18747,6 +19224,7 @@ game (
 
 game (
 	name "Professor Sudoku (Europe) (En,Es,It) (v1.01)"
+	cloneof "Carol Vorderman's Sudoku (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Professor Sudoku (Europe) (En,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00389"
@@ -18795,6 +19273,7 @@ game (
 
 game (
 	name "Pursuit Force (Europe) (En,Fr,De,Es,It)"
+	cloneof "Pursuit Force (USA)"
 	description "Pursuit Force (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-00019"
@@ -18803,6 +19282,7 @@ game (
 
 game (
 	name "Pursuit Force (Europe) (En,Fr,De,Es,It) (Beta)"
+	cloneof "Pursuit Force (USA)"
 	description "Pursuit Force (Europe) (En,Fr,De,Es,It) (Beta)"
 	region "Europe"
 	serial "UCET-00007"
@@ -18811,6 +19291,7 @@ game (
 
 game (
 	name "Pursuit Force (Europe) (En,Fr,De,Es,It) (Demo)"
+	cloneof "Pursuit Force (USA)"
 	description "Pursuit Force (Europe) (En,Fr,De,Es,It) (Demo)"
 	region "Europe"
 	serial "UCED-00150"
@@ -18819,6 +19300,7 @@ game (
 
 game (
 	name "Pursuit Force (Korea)"
+	cloneof "Pursuit Force (USA)"
 	description "Pursuit Force (Korea)"
 	region "Korea"
 	serial "UCKS-45016"
@@ -18835,6 +19317,7 @@ game (
 
 game (
 	name "Pursuit Force (USA) (Demo)"
+	cloneof "Pursuit Force (USA)"
 	description "Pursuit Force (USA) (Demo)"
 	region "USA"
 	serial "UCUS-98655"
@@ -18843,6 +19326,7 @@ game (
 
 game (
 	name "Pursuit Force - Daitsuiseki (Japan)"
+	cloneof "Pursuit Force (USA)"
 	description "Pursuit Force - Daitsuiseki (Japan)"
 	region "Japan"
 	serial "ULJM-05097"
@@ -18899,6 +19383,7 @@ game (
 
 game (
 	name "Puyo Puyo Fever (Japan) (En,Ja) (v1.02)"
+	cloneof "Puyo Pop Fever (Europe) (v1.01)"
 	description "Puyo Puyo Fever (Japan) (En,Ja) (v1.02)"
 	region "Japan"
 	serial "ULJM-05007"
@@ -18979,6 +19464,7 @@ game (
 
 game (
 	name "Puzzle Quest - Challenge of the Warlords (Europe) (En,Fr,De,Es,It)"
+	cloneof "Puzzle Quest - Challenge of the Warlords (USA)"
 	description "Puzzle Quest - Challenge of the Warlords (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00909"
@@ -18987,6 +19473,7 @@ game (
 
 game (
 	name "Puzzle Quest - Challenge of the Warlords (Europe) (v1.01)"
+	cloneof "Puzzle Quest - Challenge of the Warlords (USA)"
 	description "Puzzle Quest - Challenge of the Warlords (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00720"
@@ -19003,6 +19490,7 @@ game (
 
 game (
 	name "Puzzle Quest - Challenge of the Warlords (USA) (Demo)"
+	cloneof "Puzzle Quest - Challenge of the Warlords (USA)"
 	description "Puzzle Quest - Challenge of the Warlords (USA) (Demo)"
 	region "USA"
 	serial "ULUS-90001"
@@ -19083,6 +19571,7 @@ game (
 
 game (
 	name "R-Type Tactics (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "R-Type Command (USA)"
 	description "R-Type Tactics (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-01121"
@@ -19091,6 +19580,7 @@ game (
 
 game (
 	name "R-Type Tactics (Japan) (v1.02)"
+	cloneof "R-Type Command (USA)"
 	description "R-Type Tactics (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJS-00111"
@@ -19099,6 +19589,7 @@ game (
 
 game (
 	name "R-Type Tactics (Korea)"
+	cloneof "R-Type Command (USA)"
 	description "R-Type Tactics (Korea)"
 	region "Korea"
 	serial "UCKS-45065"
@@ -19131,6 +19622,7 @@ game (
 
 game (
 	name "Ragnarok - Hikari to Yami no Koujo (Japan) (v1.02)"
+	cloneof "Ragnarok Tactics (USA)"
 	description "Ragnarok - Hikari to Yami no Koujo (Japan) (v1.02)"
 	region "Japan"
 	serial "NPJH-50431"
@@ -19179,6 +19671,7 @@ game (
 
 game (
 	name "Rainbow Islands Evolution (Europe) (En,Ja,Fr,De,Es,It) (v1.01)"
+	cloneof "Rainbow Islands Evolution (USA) (En,Fr,Es)"
 	description "Rainbow Islands Evolution (Europe) (En,Ja,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00594"
@@ -19315,6 +19808,7 @@ game (
 
 game (
 	name "Ratchet & Clank - Size Matters (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi)"
+	cloneof "Ratchet & Clank - Size Matters (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Ratchet & Clank - Size Matters (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi)"
 	region "Europe"
 	serial "UCES-00420"
@@ -19323,6 +19817,7 @@ game (
 
 game (
 	name "Ratchet & Clank - Size Matters (Korea)"
+	cloneof "Ratchet & Clank - Size Matters (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Ratchet & Clank - Size Matters (Korea)"
 	region "Korea"
 	serial "UCKS-45048"
@@ -19339,6 +19834,7 @@ game (
 
 game (
 	name "Ratchet & Clank - Size Matters (USA) (v0.10) (Demo)"
+	cloneof "Ratchet & Clank - Size Matters (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Ratchet & Clank - Size Matters (USA) (v0.10) (Demo)"
 	region "USA"
 	serial "UCUS-98684"
@@ -19347,6 +19843,7 @@ game (
 
 game (
 	name "Ratchet & Clank - Size Matters (USA) (v1.01) (Beta)"
+	cloneof "Ratchet & Clank - Size Matters (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Ratchet & Clank - Size Matters (USA) (v1.01) (Beta)"
 	region "USA"
 	serial "UCUS-98695"
@@ -19355,6 +19852,7 @@ game (
 
 game (
 	name "Ratchet & Clank 5 - Gekitotsu! Dodeka Ginga no MiriMiri Gundan (Japan)"
+	cloneof "Ratchet & Clank - Size Matters (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Ratchet & Clank 5 - Gekitotsu! Dodeka Ginga no MiriMiri Gundan (Japan)"
 	region "Japan"
 	serial "UCJS-10052"
@@ -19363,6 +19861,7 @@ game (
 
 game (
 	name "Ratchet & Clank 5 - Gekitotsu! Dodeka Ginga no MiriMiri Gundan (Japan) (Beta) (2006-12-20)"
+	cloneof "Ratchet & Clank - Size Matters (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Ratchet & Clank 5 - Gekitotsu! Dodeka Ginga no MiriMiri Gundan (Japan) (Beta) (2006-12-20)"
 	region "Japan"
 	serial "UCJP-00083"
@@ -19507,6 +20006,7 @@ game (
 
 game (
 	name "Resistance - Houfuku no Toki (Japan) (En,Ja,Fr,Es)"
+	cloneof "Resistance - Retribution (USA) (En,Ja,Fr,Es)"
 	description "Resistance - Houfuku no Toki (Japan) (En,Ja,Fr,Es)"
 	region "Japan"
 	serial "UCJS-10090"
@@ -19515,6 +20015,7 @@ game (
 
 game (
 	name "Resistance - Retribution (Asia) (En,Ja,Fr,Es)"
+	cloneof "Resistance - Retribution (USA) (En,Ja,Fr,Es)"
 	description "Resistance - Retribution (Asia) (En,Ja,Fr,Es)"
 	region "Asia"
 	serial "UCAS-40233"
@@ -19523,6 +20024,7 @@ game (
 
 game (
 	name "Resistance - Retribution (Europe) (En,Ja,Fr,De,Es,It)"
+	cloneof "Resistance - Retribution (USA) (En,Ja,Fr,Es)"
 	description "Resistance - Retribution (Europe) (En,Ja,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-01184"
@@ -19571,6 +20073,7 @@ game (
 
 game (
 	name "Ridge Racer (Asia) (En,Fr,De,Es,It)"
+	cloneof "Ridge Racer (USA)"
 	description "Ridge Racer (Asia) (En,Fr,De,Es,It)"
 	region "Asia"
 	serial "UCAS-40015"
@@ -19579,6 +20082,7 @@ game (
 
 game (
 	name "Ridge Racer (Europe) (En,Fr,De,Es,It)"
+	cloneof "Ridge Racer (USA)"
 	description "Ridge Racer (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "UCES-00002"
@@ -19587,6 +20091,7 @@ game (
 
 game (
 	name "Ridge Racer (Korea)"
+	cloneof "Ridge Racer (USA)"
 	description "Ridge Racer (Korea)"
 	region "Korea"
 	serial "UCKS-45002"
@@ -19603,6 +20108,7 @@ game (
 
 game (
 	name "Ridge Racer 2 (Asia) (En,Fr,De,Es,It)"
+	cloneof "Ridge Racer 2 (Europe) (En,Fr,De,Es,It)"
 	description "Ridge Racer 2 (Asia) (En,Fr,De,Es,It)"
 	region "Asia"
 	serial "UCAS-40119"
@@ -19619,6 +20125,7 @@ game (
 
 game (
 	name "Ridge Racers (Japan) (v1.01)"
+	cloneof "Ridge Racer (USA)"
 	description "Ridge Racers (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00001"
@@ -19627,6 +20134,7 @@ game (
 
 game (
 	name "Ridge Racers 2 (Japan) (v1.01)"
+	cloneof "Ridge Racer 2 (Europe) (En,Fr,De,Es,It)"
 	description "Ridge Racers 2 (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00080"
@@ -19635,6 +20143,7 @@ game (
 
 game (
 	name "Riviera - The Promised Land (Europe) (En,Fr,It)"
+	cloneof "Riviera - Yakusoku no Chi (Japan) (v1.01)"
 	description "Riviera - The Promised Land (Europe) (En,Fr,It)"
 	region "Europe"
 	serial "ULES-00818"
@@ -19643,6 +20152,7 @@ game (
 
 game (
 	name "Riviera - The Promised Land (USA)"
+	cloneof "Riviera - Yakusoku no Chi (Japan) (v1.01)"
 	description "Riviera - The Promised Land (USA)"
 	region "USA"
 	serial "ULUS-10286"
@@ -19659,6 +20169,7 @@ game (
 
 game (
 	name "Riviera - Yakusoku no Chi (Japan) (v1.01) (Special Edition)"
+	cloneof "Riviera - Yakusoku no Chi (Japan) (v1.01)"
 	description "Riviera - Yakusoku no Chi (Japan) (v1.01) (Special Edition)"
 	region "Japan"
 	serial "ULJM-05283"
@@ -19715,6 +20226,7 @@ game (
 
 game (
 	name "Rockman Rockman (Asia)"
+	cloneof "Mega Man - Powered Up (USA)"
 	description "Rockman Rockman (Asia)"
 	region "Asia"
 	serial "ULAS-42050"
@@ -19723,6 +20235,7 @@ game (
 
 game (
 	name "Rockman Rockman (Japan) (v1.01)"
+	cloneof "Mega Man - Powered Up (USA)"
 	description "Rockman Rockman (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05044"
@@ -19851,6 +20364,7 @@ game (
 
 game (
 	name "SBK - Superbike World Championship (USA) (En,Fr,Es) (v1.01)"
+	cloneof "SBK Superbike World Championship (USA) (v1.01)"
 	description "SBK - Superbike World Championship (USA) (En,Fr,Es) (v1.01)"
 	region "USA"
 	serial "ULUS-10300"
@@ -19867,6 +20381,7 @@ game (
 
 game (
 	name "SBK 08 - Superbike World Championship (Europe) (En,Fr,De,Es,It) (v1.02)"
+	cloneof "SBK - Superbike World Championship (USA) (En,Fr,Es) (v1.01)"
 	description "SBK 08 - Superbike World Championship (Europe) (En,Fr,De,Es,It) (v1.02)"
 	region "Europe"
 	serial "ULES-01063"
@@ -20027,6 +20542,7 @@ game (
 
 game (
 	name "SOCOM - U.S. Navy SEALs - Fireteam Bravo 3 (Asia) (En,Ko) (v1.01)"
+	cloneof "SOCOM - U.S. Navy SEALs - Fireteam Bravo 3 (USA) (v1.01)"
 	description "SOCOM - U.S. Navy SEALs - Fireteam Bravo 3 (Asia) (En,Ko) (v1.01)"
 	region "Asia"
 	serial "NPHG-00032"
@@ -20043,6 +20559,7 @@ game (
 
 game (
 	name "SOCOM - U.S. Navy SEALs - Portable (Japan) (En,Ja) (v1.01)"
+	cloneof "SOCOM - U.S. Navy SEALs - Fireteam Bravo 3 (USA) (v1.01)"
 	description "SOCOM - U.S. Navy SEALs - Portable (Japan) (En,Ja) (v1.01)"
 	region "Japan"
 	serial "NPJG-00035"
@@ -20075,6 +20592,7 @@ game (
 
 game (
 	name "SSX - On Tour (Europe) (En,Fr,De)"
+	cloneof "SSX - On Tour (USA) (En,Fr,De)"
 	description "SSX - On Tour (Europe) (En,Fr,De)"
 	region "Europe"
 	serial "ULES-00192"
@@ -20083,6 +20601,7 @@ game (
 
 game (
 	name "SSX - On Tour (Korea) (v1.01)"
+	cloneof "SSX - On Tour (USA) (En,Fr,De)"
 	description "SSX - On Tour (Korea) (v1.01)"
 	region "Korea"
 	serial "ULKS-46038"
@@ -20099,6 +20618,7 @@ game (
 
 game (
 	name "SSX - On Tour Portable (Japan) (v1.01)"
+	cloneof "SSX - On Tour (USA) (En,Fr,De)"
 	description "SSX - On Tour Portable (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05063"
@@ -20274,6 +20794,7 @@ game (
 
 game (
 	name "Samurai Warriors - State of War (Europe)"
+	cloneof "Samurai Warriors - State of War (USA) (v1.01)"
 	description "Samurai Warriors - State of War (Europe)"
 	region "Europe"
 	serial "ULES-00297"
@@ -20282,6 +20803,7 @@ game (
 
 game (
 	name "Samurai Warriors - State of War (France)"
+	cloneof "Samurai Warriors - State of War (USA) (v1.01)"
 	description "Samurai Warriors - State of War (France)"
 	region "France"
 	serial "ULES-00298"
@@ -20290,6 +20812,7 @@ game (
 
 game (
 	name "Samurai Warriors - State of War (Germany)"
+	cloneof "Samurai Warriors - State of War (USA) (v1.01)"
 	description "Samurai Warriors - State of War (Germany)"
 	region "Germany"
 	serial "ULES-00299"
@@ -20418,6 +20941,7 @@ game (
 
 game (
 	name "Saru Get You - SaruSaru Daisakusen (Asia)"
+	cloneof "Saru Get You - SaruSaru Daisakusen (Japan)"
 	description "Saru Get You - SaruSaru Daisakusen (Asia)"
 	region "Asia"
 	serial "UCAS-40154"
@@ -20554,6 +21078,7 @@ game (
 
 game (
 	name "Scooby-Doo! - Who's Watching Who (Australia)"
+	cloneof "Scooby-Doo! - Who's Watching Who (USA) (v1.01)"
 	description "Scooby-Doo! - Who's Watching Who (Australia)"
 	region "Australia"
 	serial "ULES-00571"
@@ -20562,6 +21087,7 @@ game (
 
 game (
 	name "Scooby-Doo! - Who's Watching Who (Europe)"
+	cloneof "Scooby-Doo! - Who's Watching Who (USA) (v1.01)"
 	description "Scooby-Doo! - Who's Watching Who (Europe)"
 	region "Europe"
 	serial "ULES-00572"
@@ -20570,6 +21096,7 @@ game (
 
 game (
 	name "Scooby-Doo! - Who's Watching Who (Europe) (Es,It)"
+	cloneof "Scooby-Doo! - Who's Watching Who (USA) (v1.01)"
 	description "Scooby-Doo! - Who's Watching Who (Europe) (Es,It)"
 	region "Europe"
 	serial "ULES-00573"
@@ -20594,6 +21121,7 @@ game (
 
 game (
 	name "Scudetto 2006 Championship Manager (Italy)"
+	cloneof "Championship Manager 2006 (Europe)"
 	description "Scudetto 2006 Championship Manager (Italy)"
 	region "Italy"
 	serial "ULES-00332"
@@ -20610,6 +21138,7 @@ game (
 
 game (
 	name "Secret Agent Clank (Asia) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Secret Agent Clank (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Secret Agent Clank (Asia) (En,Fr,De,Es,It) (v1.01)"
 	region "Asia"
 	serial "UCAS-40218"
@@ -20618,6 +21147,7 @@ game (
 
 game (
 	name "Secret Agent Clank (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl) (v1.01)"
+	cloneof "Secret Agent Clank (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Secret Agent Clank (Europe) (En,Fr,De,Es,It,Nl,Pt,Sv,No,Da,Fi,Pl) (v1.01)"
 	region "Europe"
 	serial "UCES-00942"
@@ -20626,6 +21156,7 @@ game (
 
 game (
 	name "Secret Agent Clank (Korea)"
+	cloneof "Secret Agent Clank (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Secret Agent Clank (Korea)"
 	region "Korea"
 	serial "UCKS-45096"
@@ -20682,6 +21213,7 @@ game (
 
 game (
 	name "Sega Mega Drive Collection (Europe) (v1.01)"
+	cloneof "Sega Genesis Collection (USA) (v1.01)"
 	description "Sega Mega Drive Collection (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00556"
@@ -20690,6 +21222,7 @@ game (
 
 game (
 	name "Sega Rally (Europe) (En,Fr,De,Es,It)"
+	cloneof "Sega Rally Revo (USA)"
 	description "Sega Rally (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00910"
@@ -20698,6 +21231,7 @@ game (
 
 game (
 	name "Sega Rally (Europe) (En,Fr,De,Es,It) (v2)"
+	cloneof "Sega Rally Revo (USA)"
 	description "Sega Rally (Europe) (En,Fr,De,Es,It) (v2)"
 	region "Europe"
 	serial "ULES-00910"
@@ -20706,6 +21240,7 @@ game (
 
 game (
 	name "Sega Rally (Russia)"
+	cloneof "Sega Rally Revo (USA)"
 	description "Sega Rally (Russia)"
 	region "Russia"
 	serial "ULES-00911"
@@ -20714,6 +21249,7 @@ game (
 
 game (
 	name "Sega Rally Revo (Europe) (En,Fr,De,Es,It) (Promo)"
+	cloneof "Sega Rally Revo (USA)"
 	description "Sega Rally Revo (Europe) (En,Fr,De,Es,It) (Promo)"
 	region "Europe"
 	serial "ULET-00919"
@@ -20722,6 +21258,7 @@ game (
 
 game (
 	name "Sega Rally Revo (Japan)"
+	cloneof "Sega Rally Revo (USA)"
 	description "Sega Rally Revo (Japan)"
 	region "Japan"
 	serial "ULJM-05302"
@@ -20882,6 +21419,7 @@ game (
 
 game (
 	name "Senjou no Valkyria 2 - Gallia Ouritsu Shikan Gakkou (Japan) (v1.01)"
+	cloneof "Valkyria Chronicles II (USA)"
 	description "Senjou no Valkyria 2 - Gallia Ouritsu Shikan Gakkou (Japan) (v1.01)"
 	region "Japan"
 	serial "NPJH-50145"
@@ -20906,6 +21444,7 @@ game (
 
 game (
 	name "Senor de los Anillos, El - Tacticas (Spain)"
+	cloneof "Lord of the Rings, The - Tactics (USA)"
 	description "Senor de los Anillos, El - Tacticas (Spain)"
 	region "Spain"
 	serial "ULES-00202"
@@ -20930,6 +21469,7 @@ game (
 
 game (
 	name "Shadow of Memories (Japan) (v1.02)"
+	cloneof "Shadow of Destiny (USA)"
 	description "Shadow of Memories (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05512"
@@ -21066,6 +21606,7 @@ game (
 
 game (
 	name "Shin Megami Tensei - Persona 2 - Innocent Sin (Europe)"
+	cloneof "Shin Megami Tensei - Persona 2 - Innocent Sin (USA)"
 	description "Shin Megami Tensei - Persona 2 - Innocent Sin (Europe)"
 	region "Europe"
 	serial "ULES-01557"
@@ -21082,6 +21623,7 @@ game (
 
 game (
 	name "Shin Megami Tensei - Persona 3 Portable (Europe) (v1.01)"
+	cloneof "Shin Megami Tensei - Persona 3 Portable (USA)"
 	description "Shin Megami Tensei - Persona 3 Portable (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-01523"
@@ -21090,6 +21632,7 @@ game (
 
 game (
 	name "Shin Megami Tensei - Persona 3 Portable (Korea)"
+	cloneof "Shin Megami Tensei - Persona 3 Portable (USA)"
 	description "Shin Megami Tensei - Persona 3 Portable (Korea)"
 	region "Korea"
 	serial "UCKS-45140"
@@ -21106,6 +21649,7 @@ game (
 
 game (
 	name "Shin Sangoku Musou (Japan) (v1.01)"
+	cloneof "Dynasty Warriors (USA)"
 	description "Shin Sangoku Musou (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05003"
@@ -21114,6 +21658,7 @@ game (
 
 game (
 	name "Shin Sangoku Musou - 2nd Evolution (Asia)"
+	cloneof "Dynasty Warriors Vol. 2 (USA)"
 	description "Shin Sangoku Musou - 2nd Evolution (Asia)"
 	region "Asia"
 	serial "ULAS-42150"
@@ -21122,6 +21667,7 @@ game (
 
 game (
 	name "Shin Sangoku Musou - 2nd Evolution (Japan)"
+	cloneof "Dynasty Warriors Vol. 2 (USA)"
 	description "Shin Sangoku Musou - 2nd Evolution (Japan)"
 	region "Japan"
 	serial "ULJM-05113"
@@ -21130,6 +21676,7 @@ game (
 
 game (
 	name "Shin Sangoku Musou - 2nd Evolution (Korea) (v1.01)"
+	cloneof "Dynasty Warriors Vol. 2 (USA)"
 	description "Shin Sangoku Musou - 2nd Evolution (Korea) (v1.01)"
 	region "Korea"
 	serial "ULKS-46084"
@@ -21138,6 +21685,7 @@ game (
 
 game (
 	name "Shin Sangoku Musou - Multi Raid (Asia)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	description "Shin Sangoku Musou - Multi Raid (Asia)"
 	region "Asia"
 	serial "ULAS-42156"
@@ -21146,6 +21694,7 @@ game (
 
 game (
 	name "Shin Sangoku Musou - Multi Raid (Japan)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	description "Shin Sangoku Musou - Multi Raid (Japan)"
 	region "Japan"
 	serial "ULJM-05427"
@@ -21154,6 +21703,7 @@ game (
 
 game (
 	name "Shin Sangoku Musou - Multi Raid (Japan) (Demo)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	description "Shin Sangoku Musou - Multi Raid (Japan) (Demo)"
 	region "Japan"
 	serial "ULJM-91017"
@@ -21162,6 +21712,7 @@ game (
 
 game (
 	name "Shin Sangoku Musou - Multi Raid (Korea)"
+	cloneof "Dynasty Warriors - Strikeforce (USA)"
 	description "Shin Sangoku Musou - Multi Raid (Korea)"
 	region "Korea"
 	serial "ULKS-46201"
@@ -21274,6 +21825,7 @@ game (
 
 game (
 	name "Shinki Gensou - SSII Unlimited Side (Japan) (v1.04)"
+	cloneof "Spectral Souls - Resurrection of the Ethereal Empires (USA)"
 	description "Shinki Gensou - SSII Unlimited Side (Japan) (v1.04)"
 	region "Japan"
 	serial "ULJM-05041"
@@ -21282,6 +21834,7 @@ game (
 
 game (
 	name "Shinki Gensou - SSII Unlimited Side (Korea)"
+	cloneof "Spectral Souls - Resurrection of the Ethereal Empires (USA)"
 	description "Shinki Gensou - SSII Unlimited Side (Korea)"
 	region "Korea"
 	serial "ULKS-46094"
@@ -21322,6 +21875,7 @@ game (
 
 game (
 	name "Shinobido Homura (Japan) (v1.03)"
+	cloneof "Shinobido - Tales of the Ninja (Europe) (En,Fr,De,Es,It)"
 	description "Shinobido Homura (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05035"
@@ -21330,6 +21884,7 @@ game (
 
 game (
 	name "Shinobido Homura (Korea) (v1.01)"
+	cloneof "Shinobido - Tales of the Ninja (Europe) (En,Fr,De,Es,It)"
 	description "Shinobido Homura (Korea) (v1.01)"
 	region "Korea"
 	serial "ULKS-46097"
@@ -21450,6 +22005,7 @@ game (
 
 game (
 	name "Shirokishi Monogatari Episode Portable - Dogma Wars (Japan)"
+	cloneof "White Knight Chronicles - Origins (Europe) (En,Fr,De,Es,It)"
 	description "Shirokishi Monogatari Episode Portable - Dogma Wars (Japan)"
 	region "Japan"
 	serial "UCJS-10115"
@@ -21530,6 +22086,7 @@ game (
 
 game (
 	name "Shutokou Battle (Japan) (v1.01)"
+	cloneof "Street Supremacy (USA)"
 	description "Shutokou Battle (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05017"
@@ -21562,6 +22119,7 @@ game (
 
 game (
 	name "Signore degli Anelli, Il - Tactics (Italy)"
+	cloneof "Lord of the Rings, The - Tactics (USA)"
 	description "Signore degli Anelli, Il - Tactics (Italy)"
 	region "Italy"
 	serial "ULES-00201"
@@ -21570,6 +22128,7 @@ game (
 
 game (
 	name "Silent Hill - Origins (Asia) (En,Fr,De,Es,It)"
+	cloneof "Silent Hill - Origins (USA) (En,Fr,De,Es,It)"
 	description "Silent Hill - Origins (Asia) (En,Fr,De,Es,It)"
 	region "Asia"
 	serial "ULUS-10285"
@@ -21578,6 +22137,7 @@ game (
 
 game (
 	name "Silent Hill - Origins (Europe) (En,Fr,De,Es,It)"
+	cloneof "Silent Hill - Origins (USA) (En,Fr,De,Es,It)"
 	description "Silent Hill - Origins (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00869"
@@ -21586,6 +22146,7 @@ game (
 
 game (
 	name "Silent Hill - Origins (Europe) (En,Fr,De,Es,It) (v0.01) (Beta) (2007-07-19)"
+	cloneof "Silent Hill - Origins (USA) (En,Fr,De,Es,It)"
 	description "Silent Hill - Origins (Europe) (En,Fr,De,Es,It) (v0.01) (Beta) (2007-07-19)"
 	region "Europe"
 	serial "ULET-00870"
@@ -21626,6 +22187,7 @@ game (
 
 game (
 	name "Silent Hill - Zero (Japan) (v1.02)"
+	cloneof "Silent Hill - Origins (USA) (En,Fr,De,Es,It)"
 	description "Silent Hill - Zero (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05281"
@@ -21666,6 +22228,7 @@ game (
 
 game (
 	name "Simple 2500 Series Portable!! Vol. 10 - The IQ Cube - Moyatto Atama o Puzzle de Sukkiri! (Japan) (v1.03)"
+	cloneof "Cube (USA) (v1.01)"
 	description "Simple 2500 Series Portable!! Vol. 10 - The IQ Cube - Moyatto Atama o Puzzle de Sukkiri! (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJS-00108"
@@ -21674,6 +22237,7 @@ game (
 
 game (
 	name "Simple 2500 Series Portable!! Vol. 11 - The Puzzle Quest - Agaria no Kishi (Japan) (v1.01)"
+	cloneof "Puzzle Quest - Challenge of the Warlords (USA)"
 	description "Simple 2500 Series Portable!! Vol. 11 - The Puzzle Quest - Agaria no Kishi (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00114"
@@ -21698,6 +22262,7 @@ game (
 
 game (
 	name "Simple 2500 Series Portable!! Vol. 2 - The Tennis (Japan) (v1.05)"
+	cloneof "Super Pocket Tennis (Europe) (v1.01)"
 	description "Simple 2500 Series Portable!! Vol. 2 - The Tennis (Japan) (v1.05)"
 	region "Japan"
 	serial "ULJS-00038"
@@ -21762,6 +22327,7 @@ game (
 
 game (
 	name "Simpson, I - Il Videogioco (Italy)"
+	cloneof "Simpsons Game, The (USA)"
 	description "Simpson, I - Il Videogioco (Italy)"
 	region "Italy"
 	serial "ULES-00977"
@@ -21770,6 +22336,7 @@ game (
 
 game (
 	name "Simpson, Les - Le Jeu (France)"
+	cloneof "Simpsons Game, The (USA)"
 	description "Simpson, Les - Le Jeu (France)"
 	region "France"
 	serial "ULES-00976"
@@ -21778,6 +22345,7 @@ game (
 
 game (
 	name "Simpsons Game, The (Europe)"
+	cloneof "Simpsons Game, The (USA)"
 	description "Simpsons Game, The (Europe)"
 	region "Europe"
 	serial "ULES-00975"
@@ -21794,6 +22362,7 @@ game (
 
 game (
 	name "Simpsons, Die - Das Spiel (Germany)"
+	cloneof "Simpsons Game, The (USA)"
 	description "Simpsons, Die - Das Spiel (Germany)"
 	region "Germany"
 	serial "ULES-00978"
@@ -21858,6 +22427,7 @@ game (
 
 game (
 	name "Sims 2, The - Pet Wan Nyan Life (Japan) (v1.01)"
+	cloneof "Sims 2, The - Pets (USA)"
 	description "Sims 2, The - Pet Wan Nyan Life (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05212"
@@ -21866,6 +22436,7 @@ game (
 
 game (
 	name "Sims 2, The - Pets (Asia) (En,Fr,De,Es,It,Nl,Zh)"
+	cloneof "Sims 2, The - Pets (USA)"
 	description "Sims 2, The - Pets (Asia) (En,Fr,De,Es,It,Nl,Zh)"
 	region "Asia"
 	serial "ULAS-42085"
@@ -21874,6 +22445,7 @@ game (
 
 game (
 	name "Sims 2, The - Pets (Europe)"
+	cloneof "Sims 2, The - Pets (USA)"
 	description "Sims 2, The - Pets (Europe)"
 	region "Europe"
 	serial "ULES-00595"
@@ -21882,6 +22454,7 @@ game (
 
 game (
 	name "Sims 2, The - Pets (Europe) (En,Fr,De,Es,It,Nl)"
+	cloneof "Sims 2, The - Pets (USA)"
 	description "Sims 2, The - Pets (Europe) (En,Fr,De,Es,It,Nl)"
 	region "Europe"
 	serial "ULES-00596"
@@ -22234,6 +22807,7 @@ game (
 
 game (
 	name "Space Invaders - Galaxy Beat (Japan) (v1.02)"
+	cloneof "Space Invaders Evolution (Europe) (En,Fr,De,Es,It,Nl) (v1.02)"
 	description "Space Invaders - Galaxy Beat (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05045"
@@ -22330,6 +22904,7 @@ game (
 
 game (
 	name "Spider-Man - Freund oder Feind (Germany) (v1.01)"
+	cloneof "Spider-Man - Friend or Foe (USA)"
 	description "Spider-Man - Freund oder Feind (Germany) (v1.01)"
 	region "Germany"
 	serial "ULES-00901"
@@ -22338,6 +22913,7 @@ game (
 
 game (
 	name "Spider-Man - Friend or Foe (Europe) (En,It) (v1.01)"
+	cloneof "Spider-Man - Friend or Foe (USA)"
 	description "Spider-Man - Friend or Foe (Europe) (En,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00899"
@@ -22346,6 +22922,7 @@ game (
 
 game (
 	name "Spider-Man - Friend or Foe (Europe) (Fr,Es) (v1.01)"
+	cloneof "Spider-Man - Friend or Foe (USA)"
 	description "Spider-Man - Friend or Foe (Europe) (Fr,Es) (v1.01)"
 	region "Europe"
 	serial "ULES-00900"
@@ -22434,6 +23011,7 @@ game (
 
 game (
 	name "Split-Second (Japan) (v1.04)"
+	cloneof "Split-Second (USA) (En,Fr,Es)"
 	description "Split-Second (Japan) (v1.04)"
 	region "Japan"
 	serial "ULJM-05812"
@@ -22450,6 +23028,7 @@ game (
 
 game (
 	name "Split-Second - Velocity (Europe) (En,Fr,De,Es,It,Ru)"
+	cloneof "Split-Second (USA) (En,Fr,Es)"
 	description "Split-Second - Velocity (Europe) (En,Fr,De,Es,It,Ru)"
 	region "Europe"
 	serial "ULES-01402"
@@ -22906,6 +23485,7 @@ game (
 
 game (
 	name "Street Fighter Alpha 3 Max (Europe) (v1.01)"
+	cloneof "Street Fighter Alpha 3 Max (USA)"
 	description "Street Fighter Alpha 3 Max (Europe) (v1.01)"
 	region "Europe"
 	serial "ULES-00235"
@@ -22922,6 +23502,7 @@ game (
 
 game (
 	name "Street Fighter Zero 3 - Double Upper (Japan) (v1.01)"
+	cloneof "Street Fighter Alpha 3 Max (USA)"
 	description "Street Fighter Zero 3 - Double Upper (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05082"
@@ -22938,6 +23519,7 @@ game (
 
 game (
 	name "Street Supremacy (Europe) (v1.02)"
+	cloneof "Street Supremacy (USA)"
 	description "Street Supremacy (Europe) (v1.02)"
 	region "Europe"
 	serial "ULES-00239"
@@ -23010,6 +23592,7 @@ game (
 
 game (
 	name "Sudoku Coach (Europe) (v1.03)"
+	cloneof "Carol Vorderman's Sudoku (USA) (En,Fr,De,Es,It) (v1.01)"
 	description "Sudoku Coach (Europe) (v1.03)"
 	region "Europe"
 	serial "ULES-00387"
@@ -23234,6 +23817,7 @@ game (
 
 game (
 	name "Suzumiya Haruhi no Yakusoku (Japan) (v1.06) (Super Premium Box)"
+	cloneof "Suzumiya Haruhi no Yakusoku (Japan) (v1.06)"
 	description "Suzumiya Haruhi no Yakusoku (Japan) (v1.06) (Super Premium Box)"
 	region "Japan"
 	serial "ULJS-00123"
@@ -23378,6 +23962,7 @@ game (
 
 game (
 	name "Tactics Ogre - Let Us Cling Together (Europe)"
+	cloneof "Tactics Ogre - Let Us Cling Together (USA)"
 	description "Tactics Ogre - Let Us Cling Together (Europe)"
 	region "Europe"
 	serial "ULES-01500"
@@ -23394,6 +23979,7 @@ game (
 
 game (
 	name "Tactics Ogre - Unmei no Wa (Japan) (v1.02)"
+	cloneof "Tactics Ogre - Let Us Cling Together (USA)"
 	description "Tactics Ogre - Unmei no Wa (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05753"
@@ -23506,6 +24092,7 @@ game (
 
 game (
 	name "Taito Legends Power-Up (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Taito Memories Pocket (Japan) (v1.01)"
 	description "Taito Legends Power-Up (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00473"
@@ -23514,6 +24101,7 @@ game (
 
 game (
 	name "Taito Legends Power-Up (USA) (v1.01)"
+	cloneof "Taito Memories Pocket (Japan) (v1.01)"
 	description "Taito Legends Power-Up (USA) (v1.01)"
 	region "USA"
 	serial "ULUS-10208"
@@ -23602,6 +24190,7 @@ game (
 
 game (
 	name "Tales of the World - Radiant Mythology (Europe)"
+	cloneof "Tales of the World - Radiant Mythology (USA)"
 	description "Tales of the World - Radiant Mythology (Europe)"
 	region "Europe"
 	serial "ULES-00837"
@@ -23610,6 +24199,7 @@ game (
 
 game (
 	name "Tales of the World - Radiant Mythology (Japan) (v1.01)"
+	cloneof "Tales of the World - Radiant Mythology (USA)"
 	description "Tales of the World - Radiant Mythology (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00093"
@@ -23618,6 +24208,7 @@ game (
 
 game (
 	name "Tales of the World - Radiant Mythology (Japan) (v1.01) (PSP Bundle Edition)"
+	cloneof "Tales of the World - Radiant Mythology (USA)"
 	description "Tales of the World - Radiant Mythology (Japan) (v1.01) (PSP Bundle Edition)"
 	region "Japan"
 	serial "ULJM-95004"
@@ -23650,6 +24241,7 @@ game (
 
 game (
 	name "TalkMan (Asia) (En,Ja,Zh,Ko) (v1.03)"
+	cloneof "TalkMan (Europe) (En,Ja,Fr,De,Es,It) (v1.01)"
 	description "TalkMan (Asia) (En,Ja,Zh,Ko) (v1.03)"
 	region "Asia"
 	serial "UCAS-40045"
@@ -23666,6 +24258,7 @@ game (
 
 game (
 	name "TalkMan (Japan) (En,Ja,Zh,Ko) (Software Tantaiban)"
+	cloneof "TalkMan (Europe) (En,Ja,Fr,De,Es,It) (v1.01)"
 	description "TalkMan (Japan) (En,Ja,Zh,Ko) (Software Tantaiban)"
 	region "Japan"
 	serial "UCJS-10035"
@@ -23674,6 +24267,7 @@ game (
 
 game (
 	name "TalkMan (Japan) (En,Ja,Zh,Ko) (v1.02) (Microphone Doukonban)"
+	cloneof "TalkMan (Europe) (En,Ja,Fr,De,Es,It) (v1.01)"
 	description "TalkMan (Japan) (En,Ja,Zh,Ko) (v1.02) (Microphone Doukonban)"
 	region "Japan"
 	serial "UCJS-10009"
@@ -23682,6 +24276,7 @@ game (
 
 game (
 	name "TalkMan (Korea) (En,Ja,Zh,Ko) (v1.02)"
+	cloneof "TalkMan (Europe) (En,Ja,Fr,De,Es,It) (v1.01)"
 	description "TalkMan (Korea) (En,Ja,Zh,Ko) (v1.02)"
 	region "Korea"
 	serial "UCKS-45012"
@@ -23738,6 +24333,7 @@ game (
 
 game (
 	name "TalkMan Shiki Shabelingual Eikaiwa (Japan) (En,Ja) (Software Tantaiban)"
+	cloneof "TalkMan Shiki Shabelingual Eikaiwa (Japan) (En,Ja) (Microphone Doukonban)"
 	description "TalkMan Shiki Shabelingual Eikaiwa (Japan) (En,Ja) (Software Tantaiban)"
 	region "Japan"
 	serial "UCJS-10051"
@@ -23994,6 +24590,7 @@ game (
 
 game (
 	name "Tenchi no Mon (Asia) (Ja)"
+	cloneof "Kingdom of Paradise (USA)"
 	description "Tenchi no Mon (Asia) (Ja)"
 	region "Asia"
 	serial "UCAS-40018"
@@ -24002,6 +24599,7 @@ game (
 
 game (
 	name "Tenchi no Mon (China)"
+	cloneof "Kingdom of Paradise (USA)"
 	description "Tenchi no Mon (China)"
 	region "China"
 	serial "UCAS-40023"
@@ -24010,6 +24608,7 @@ game (
 
 game (
 	name "Tenchi no Mon (Japan) (v1.01)"
+	cloneof "Kingdom of Paradise (USA)"
 	description "Tenchi no Mon (Japan) (v1.01)"
 	region "Japan"
 	serial "UCJS-10010"
@@ -24018,6 +24617,7 @@ game (
 
 game (
 	name "Tenchi no Mon (Korea)"
+	cloneof "Kingdom of Paradise (USA)"
 	description "Tenchi no Mon (Korea)"
 	region "Korea"
 	serial "UCKS-45011"
@@ -24026,6 +24626,7 @@ game (
 
 game (
 	name "Tenchi no Mon 2 Busouden (Asia) (v1.01)"
+	cloneof "Tenchi no Mon 2 Busouden (Japan)"
 	description "Tenchi no Mon 2 Busouden (Asia) (v1.01)"
 	region "Asia"
 	serial "UCAS-40116"
@@ -24042,6 +24643,7 @@ game (
 
 game (
 	name "Tenchi no Mon 2 Busouden (Korea)"
+	cloneof "Tenchi no Mon 2 Busouden (Japan)"
 	description "Tenchi no Mon 2 Busouden (Korea)"
 	region "Korea"
 	serial "UCKS-45034"
@@ -24058,6 +24660,7 @@ game (
 
 game (
 	name "Tenchu - Shadow Assassins (Europe)"
+	cloneof "Tenchu - Shadow Assassins (USA) (v1.01)"
 	description "Tenchu - Shadow Assassins (Europe)"
 	region "Europe"
 	serial "ULES-01237"
@@ -24074,6 +24677,7 @@ game (
 
 game (
 	name "Tenchu - Shinobi Taizen (Japan)"
+	cloneof "Tenchu - Time of the Assassins (Europe) (En,Fr,De,Es,It) (v1.01)"
 	description "Tenchu - Shinobi Taizen (Japan)"
 	region "Japan"
 	serial "ULJS-00018"
@@ -24090,6 +24694,7 @@ game (
 
 game (
 	name "Tenchu 4 (Japan) (v1.01)"
+	cloneof "Tenchu - Shadow Assassins (USA) (v1.01)"
 	description "Tenchu 4 (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05425"
@@ -24098,6 +24703,7 @@ game (
 
 game (
 	name "Tenchu 4 Plus (Japan)"
+	cloneof "Tenchu - Shadow Assassins (USA) (v1.01)"
 	description "Tenchu 4 Plus (Japan)"
 	region "Japan"
 	serial "ULJM-05471"
@@ -24402,6 +25008,7 @@ game (
 
 game (
 	name "ToCA Race Driver 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "DTM Race Driver 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
 	description "ToCA Race Driver 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00040"
@@ -24418,6 +25025,7 @@ game (
 
 game (
 	name "ToCA Race Driver 3 Challenge (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "DTM Race Driver 3 Challenge (Europe) (En,Fr,De,Es,It) (v1.01)"
 	description "ToCA Race Driver 3 Challenge (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00613"
@@ -24522,6 +25130,7 @@ game (
 
 game (
 	name "Tokobot (Europe) (En,Fr,De,Es,It)"
+	cloneof "Tokobot (USA) (v1.02)"
 	description "Tokobot (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00312"
@@ -24850,6 +25459,7 @@ game (
 
 game (
 	name "Transformers - Die Rache (Germany)"
+	cloneof "Transformers - Revenge of the Fallen (USA)"
 	description "Transformers - Die Rache (Germany)"
 	region "Germany"
 	serial "ULES-01288"
@@ -24858,6 +25468,7 @@ game (
 
 game (
 	name "Transformers - Revenge of the Fallen (Asia) (En)"
+	cloneof "Transformers - Revenge of the Fallen (USA)"
 	description "Transformers - Revenge of the Fallen (Asia) (En)"
 	region "Asia"
 	serial "ULUS-10433"
@@ -24866,6 +25477,7 @@ game (
 
 game (
 	name "Transformers - Revenge of the Fallen (Europe) (En,Fr)"
+	cloneof "Transformers - Revenge of the Fallen (USA)"
 	description "Transformers - Revenge of the Fallen (Europe) (En,Fr)"
 	region "Europe"
 	serial "ULES-01286"
@@ -24874,6 +25486,7 @@ game (
 
 game (
 	name "Transformers - Revenge of the Fallen (Europe) (Es,It)"
+	cloneof "Transformers - Revenge of the Fallen (USA)"
 	description "Transformers - Revenge of the Fallen (Europe) (Es,It)"
 	region "Europe"
 	serial "ULES-01287"
@@ -24994,6 +25607,7 @@ game (
 
 game (
 	name "Tube Mania (Europe) (Fr,Nl)"
+	cloneof "Pipe Mania (USA) (En,Fr) (FW3.95)"
 	description "Tube Mania (Europe) (Fr,Nl)"
 	region "Europe"
 	serial "ULES-01168"
@@ -25170,6 +25784,7 @@ game (
 
 game (
 	name "Ultimate Ghosts 'n Goblins (Asia) (En)"
+	cloneof "Ultimate Ghosts 'n Goblins (USA)"
 	description "Ultimate Ghosts 'n Goblins (Asia) (En)"
 	region "Asia"
 	serial "ULAS-42073"
@@ -25178,6 +25793,7 @@ game (
 
 game (
 	name "Ultimate Ghosts 'n Goblins (Europe) (En,Fr,De,Es,It)"
+	cloneof "Ultimate Ghosts 'n Goblins (USA)"
 	description "Ultimate Ghosts 'n Goblins (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00419"
@@ -25194,6 +25810,7 @@ game (
 
 game (
 	name "Ultra Puzzle Bobble Pocket (Japan) (v1.03)"
+	cloneof "Bust-A-Move - Deluxe (USA)"
 	description "Ultra Puzzle Bobble Pocket (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05116"
@@ -25498,6 +26115,7 @@ game (
 
 game (
 	name "V8 Supercars Australia 2 (Australia) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "DTM Race Driver 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
 	description "V8 Supercars Australia 2 (Australia) (En,Fr,De,Es,It) (v1.01)"
 	region "Australia"
 	serial "ULES-00042"
@@ -25506,6 +26124,7 @@ game (
 
 game (
 	name "V8 Supercars Australia 3 - Shootout (Australia) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "ToCA Race Driver 3 Challenge (Europe) (En,Fr,De,Es,It) (v1.01)"
 	description "V8 Supercars Australia 3 - Shootout (Australia) (En,Fr,De,Es,It) (v1.01)"
 	region "Australia"
 	serial "ULES-00614"
@@ -25514,6 +26133,7 @@ game (
 
 game (
 	name "Valhalla Knights (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Valhalla Knights (USA) (v1.01)"
 	description "Valhalla Knights (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00657"
@@ -25522,6 +26142,7 @@ game (
 
 game (
 	name "Valhalla Knights (Japan) (v1.03)"
+	cloneof "Valhalla Knights (USA) (v1.01)"
 	description "Valhalla Knights (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJS-00075"
@@ -25530,6 +26151,7 @@ game (
 
 game (
 	name "Valhalla Knights (Korea)"
+	cloneof "Valhalla Knights (USA) (v1.01)"
 	description "Valhalla Knights (Korea)"
 	region "Korea"
 	serial "ULKS-46133"
@@ -25570,6 +26192,7 @@ game (
 
 game (
 	name "Valhalla Knights 2 - Battle Stance (Japan) (v1.01)"
+	cloneof "Valhalla Knights (USA) (v1.01)"
 	description "Valhalla Knights 2 - Battle Stance (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJS-00196"
@@ -25578,6 +26201,7 @@ game (
 
 game (
 	name "Valkyria Chronicles II (Europe)"
+	cloneof "Valkyria Chronicles II (USA)"
 	description "Valkyria Chronicles II (Europe)"
 	region "Europe"
 	serial "ULES-01417"
@@ -25618,6 +26242,7 @@ game (
 
 game (
 	name "Vampire Chronicle - The Chaos Tower (Japan) (v1.01)"
+	cloneof "Darkstalkers Chronicle - The Chaos Tower (USA)"
 	description "Vampire Chronicle - The Chaos Tower (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05005"
@@ -25650,6 +26275,7 @@ game (
 
 game (
 	name "Viewtiful Joe - Battle Carnival (Japan) (v1.01)"
+	cloneof "Viewtiful Joe - Red Hot Rumble (USA)"
 	description "Viewtiful Joe - Battle Carnival (Japan) (v1.01)"
 	region "Japan"
 	serial "ULJM-05080"
@@ -25658,6 +26284,7 @@ game (
 
 game (
 	name "Viewtiful Joe - Red Hot Rumble (Europe) (En,Fr,De,Es,It)"
+	cloneof "Viewtiful Joe - Red Hot Rumble (USA)"
 	description "Viewtiful Joe - Red Hot Rumble (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00256"
@@ -25682,6 +26309,7 @@ game (
 
 game (
 	name "Virtua Tennis - World Tour (Europe) (En,Fr,De,Es,It)"
+	cloneof "Virtua Tennis - World Tour (USA) (v1.02)"
 	description "Virtua Tennis - World Tour (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00126"
@@ -25690,6 +26318,7 @@ game (
 
 game (
 	name "Virtua Tennis - World Tour (Korea) (v1.02)"
+	cloneof "Virtua Tennis - World Tour (USA) (v1.02)"
 	description "Virtua Tennis - World Tour (Korea) (v1.02)"
 	region "Korea"
 	serial "ULKS-46023"
@@ -25914,6 +26543,7 @@ game (
 
 game (
 	name "WWE SmackDown! vs. RAW 2006 (Europe) (En,Fr,De,Es,It)"
+	cloneof "WWE SmackDown! vs. RAW 2006 (USA) (v1.02)"
 	description "WWE SmackDown! vs. RAW 2006 (Europe) (En,Fr,De,Es,It)"
 	region "Europe"
 	serial "ULES-00227"
@@ -25922,6 +26552,7 @@ game (
 
 game (
 	name "WWE SmackDown! vs. RAW 2006 (Korea) (v1.02)"
+	cloneof "WWE SmackDown! vs. RAW 2006 (USA) (v1.02)"
 	description "WWE SmackDown! vs. RAW 2006 (Korea) (v1.02)"
 	region "Korea"
 	serial "ULKS-46057"
@@ -26138,6 +26769,7 @@ game (
 
 game (
 	name "Warriors Orochi (Europe)"
+	cloneof "Warriors Orochi (USA)"
 	description "Warriors Orochi (Europe)"
 	region "Europe"
 	serial "ULES-01054"
@@ -26146,6 +26778,7 @@ game (
 
 game (
 	name "Warriors Orochi (France)"
+	cloneof "Warriors Orochi (USA)"
 	description "Warriors Orochi (France)"
 	region "France"
 	serial "ULES-01055"
@@ -26154,6 +26787,7 @@ game (
 
 game (
 	name "Warriors Orochi (Germany)"
+	cloneof "Warriors Orochi (USA)"
 	description "Warriors Orochi (Germany)"
 	region "Germany"
 	serial "ULES-01056"
@@ -26170,6 +26804,7 @@ game (
 
 game (
 	name "Warriors Orochi 2 (Europe) (En,Fr) (v1.01)"
+	cloneof "Warriors Orochi 2 (USA) (En,Fr) (v1.02)"
 	description "Warriors Orochi 2 (Europe) (En,Fr) (v1.01)"
 	region "Europe"
 	serial "ULES-01261"
@@ -26178,6 +26813,7 @@ game (
 
 game (
 	name "Warriors Orochi 2 (Germany) (v1.01)"
+	cloneof "Warriors Orochi 2 (USA) (En,Fr) (v1.02)"
 	description "Warriors Orochi 2 (Germany) (v1.01)"
 	region "Germany"
 	serial "ULES-01262"
@@ -26194,6 +26830,7 @@ game (
 
 game (
 	name "Warriors of the Lost Empire (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Warriors of the Lost Empire (USA) (En,Fr,Es) (v1.03)"
 	description "Warriors of the Lost Empire (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00924"
@@ -26266,6 +26903,7 @@ game (
 
 game (
 	name "What Did I Do to Deserve This, My Lord! 2 (Europe) (En,Fr) (v1.01)"
+	cloneof "What Did I Do to Deserve This, My Lord! 2 (USA) (v1.01)"
 	description "What Did I Do to Deserve This, My Lord! 2 (Europe) (En,Fr) (v1.01)"
 	region "Europe"
 	serial "ULES-01418"
@@ -26306,6 +26944,7 @@ game (
 
 game (
 	name "Wild Arms XF (Europe)"
+	cloneof "Wild Arms XF (USA)"
 	description "Wild Arms XF (Europe)"
 	region "Europe"
 	serial "ULES-01085"
@@ -26314,6 +26953,7 @@ game (
 
 game (
 	name "Wild Arms XF (Japan)"
+	cloneof "Wild Arms XF (USA)"
 	description "Wild Arms XF (Japan)"
 	region "Japan"
 	serial "UCJS-10049"
@@ -26338,6 +26978,7 @@ game (
 
 game (
 	name "Williams Pinball Classics (Europe) (En,Fr,De,Es) (v2.01)"
+	cloneof "Pinball Hall of Fame - The Williams Collection (USA)"
 	description "Williams Pinball Classics (Europe) (En,Fr,De,Es) (v2.01)"
 	region "Europe"
 	serial "ULES-01014"
@@ -26698,6 +27339,7 @@ game (
 
 game (
 	name "World Soccer Winning Eleven 10 - Ubiquitous Evolution (Japan) (v1.03)"
+	cloneof "Winning Eleven - Pro Evolution Soccer 2007 (USA) (En,Es) (v1.01)"
 	description "World Soccer Winning Eleven 10 - Ubiquitous Evolution (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05132"
@@ -26730,6 +27372,7 @@ game (
 
 game (
 	name "World Soccer Winning Eleven 2011 (Asia) (En,Zh,Ko) (v1.01)"
+	cloneof "World Soccer Winning Eleven 2011 (Japan) (v1.01)"
 	description "World Soccer Winning Eleven 2011 (Asia) (En,Zh,Ko) (v1.01)"
 	region "Asia"
 	serial "ULAS-42256"
@@ -26746,6 +27389,7 @@ game (
 
 game (
 	name "World Soccer Winning Eleven 2011 (Korea) (v1.01)"
+	cloneof "World Soccer Winning Eleven 2011 (Japan) (v1.01)"
 	description "World Soccer Winning Eleven 2011 (Korea) (v1.01)"
 	region "Korea"
 	serial "ULKS-45261"
@@ -26754,6 +27398,7 @@ game (
 
 game (
 	name "World Soccer Winning Eleven 2012 (Asia) (En,Zh)"
+	cloneof "World Soccer Winning Eleven 2012 (Japan)"
 	description "World Soccer Winning Eleven 2012 (Asia) (En,Zh)"
 	region "Asia"
 	serial "ULAS-42289"
@@ -26802,6 +27447,7 @@ game (
 
 game (
 	name "World Soccer Winning Eleven 9 - Ubiquitous Evolution (Japan) (v1.03)"
+	cloneof "Pro Evolution Soccer 5 (Europe) (En,Fr,De,Es,It) (v1.01)"
 	description "World Soccer Winning Eleven 9 - Ubiquitous Evolution (Japan) (v1.03)"
 	region "Japan"
 	serial "ULJM-05033"
@@ -26834,6 +27480,7 @@ game (
 
 game (
 	name "World Tour Soccer 06 (USA) (Demo)"
+	cloneof "World Tour Soccer 06 (USA)"
 	description "World Tour Soccer 06 (USA) (Demo)"
 	region "USA"
 	serial "UCUS-98676"
@@ -26842,6 +27489,7 @@ game (
 
 game (
 	name "World Tour Soccer 2 (Europe) (En,Fr,De,Es,It) (Demo)"
+	cloneof "World Tour Soccer 06 (USA)"
 	description "World Tour Soccer 2 (Europe) (En,Fr,De,Es,It) (Demo)"
 	region "Europe"
 	serial "UCED-00350"
@@ -26850,6 +27498,7 @@ game (
 
 game (
 	name "World Tour Soccer 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "World Tour Soccer 06 (USA)"
 	description "World Tour Soccer 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "UCES-00206"
@@ -26898,6 +27547,7 @@ game (
 
 game (
 	name "X-Men Legends II - El Ascenso de Apocalipsis (Spain) (v1.01)"
+	cloneof "X-Men Legends II - Rise of Apocalypse (USA) (v1.01)"
 	description "X-Men Legends II - El Ascenso de Apocalipsis (Spain) (v1.01)"
 	region "Spain"
 	serial "ULES-00191"
@@ -26906,6 +27556,7 @@ game (
 
 game (
 	name "X-Men Legends II - Rise of Apocalypse (Europe) (En,Fr,It) (v1.01)"
+	cloneof "X-Men Legends II - Rise of Apocalypse (USA) (v1.01)"
 	description "X-Men Legends II - Rise of Apocalypse (Europe) (En,Fr,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00189"
@@ -26914,6 +27565,7 @@ game (
 
 game (
 	name "X-Men Legends II - Rise of Apocalypse (Germany) (v1.01)"
+	cloneof "X-Men Legends II - Rise of Apocalypse (USA) (v1.01)"
 	description "X-Men Legends II - Rise of Apocalypse (Germany) (v1.01)"
 	region "Germany"
 	serial "ULES-00190"
@@ -27178,6 +27830,7 @@ game (
 
 game (
 	name "Ys - Felghana no Chikai (Japan)"
+	cloneof "Ys - The Oath in Felghana (USA)"
 	description "Ys - Felghana no Chikai (Japan)"
 	region "Japan"
 	serial "NPJH-50226"
@@ -27202,6 +27855,7 @@ game (
 
 game (
 	name "Ys - The Ark of Napishtim (Europe) (En,Fr,De,Es,It) (v1.03)"
+	cloneof "Ys - The Ark of Napishtim (USA)"
 	description "Ys - The Ark of Napishtim (Europe) (En,Fr,De,Es,It) (v1.03)"
 	region "Europe"
 	serial "ULES-00267"
@@ -27290,6 +27944,7 @@ game (
 
 game (
 	name "Yu-Gi-Oh! 5D's - Tag Force 5 (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Yu-Gi-Oh! 5D's - Tag Force 5 (USA) (En,Fr,De,Es,It)"
 	description "Yu-Gi-Oh! 5D's - Tag Force 5 (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-01474"
@@ -27298,6 +27953,7 @@ game (
 
 game (
 	name "Yu-Gi-Oh! 5D's - Tag Force 5 (Japan) (v1.02)"
+	cloneof "Yu-Gi-Oh! 5D's - Tag Force 5 (USA) (En,Fr,De,Es,It)"
 	description "Yu-Gi-Oh! 5D's - Tag Force 5 (Japan) (v1.02)"
 	region "Japan"
 	serial "ULJM-05734"
@@ -27322,6 +27978,7 @@ game (
 
 game (
 	name "Yu-Gi-Oh! Duel Monsters GX - Tag Force (Japan) (En,Ja,Fr,De,Es,It) (v1.02)"
+	cloneof "Yu-Gi-Oh! GX - Tag Force (USA) (v1.03)"
 	description "Yu-Gi-Oh! Duel Monsters GX - Tag Force (Japan) (En,Ja,Fr,De,Es,It) (v1.02)"
 	region "Japan"
 	serial "ULJM-05151"
@@ -27330,6 +27987,7 @@ game (
 
 game (
 	name "Yu-Gi-Oh! Duel Monsters GX - Tag Force 2 (Japan) (v1.06)"
+	cloneof "Yu-Gi-Oh! GX - Tag Force 2 (USA) (v1.02)"
 	description "Yu-Gi-Oh! Duel Monsters GX - Tag Force 2 (Japan) (v1.06)"
 	region "Japan"
 	serial "ULJM-05260"
@@ -27338,6 +27996,7 @@ game (
 
 game (
 	name "Yu-Gi-Oh! Duel Monsters GX - Tag Force 3 (Japan) (v1.04)"
+	cloneof "Yu-Gi-Oh! GX - Tag Force 3 (Europe) (En,Fr,De,Es,It,Nl,Pt,Pl) (v1.02)"
 	description "Yu-Gi-Oh! Duel Monsters GX - Tag Force 3 (Japan) (v1.04)"
 	region "Japan"
 	serial "ULJM-05373"
@@ -27346,6 +28005,7 @@ game (
 
 game (
 	name "Yu-Gi-Oh! GX - Tag Force (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Yu-Gi-Oh! GX - Tag Force (USA) (v1.03)"
 	description "Yu-Gi-Oh! GX - Tag Force (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00600"
@@ -27362,6 +28022,7 @@ game (
 
 game (
 	name "Yu-Gi-Oh! GX - Tag Force 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
+	cloneof "Yu-Gi-Oh! GX - Tag Force 2 (USA) (v1.02)"
 	description "Yu-Gi-Oh! GX - Tag Force 2 (Europe) (En,Fr,De,Es,It) (v1.01)"
 	region "Europe"
 	serial "ULES-00925"
@@ -27370,6 +28031,7 @@ game (
 
 game (
 	name "Yu-Gi-Oh! GX - Tag Force 2 (Europe) (En,Fr,De,Es,It) (v2.0)"
+	cloneof "Yu-Gi-Oh! GX - Tag Force 2 (USA) (v1.02)"
 	description "Yu-Gi-Oh! GX - Tag Force 2 (Europe) (En,Fr,De,Es,It) (v2.0)"
 	region "Europe"
 	serial "ULES-00925"
@@ -27394,6 +28056,7 @@ game (
 
 game (
 	name "Yuusha 30 (Japan)"
+	cloneof "Half-Minute Hero (USA)"
 	description "Yuusha 30 (Japan)"
 	region "Japan"
 	serial "ULJS-00195"

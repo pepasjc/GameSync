@@ -120,6 +120,7 @@ game (
 )
 game (
 	name "Jack Bros. no Meiro de Hiihoo! (Japan)"
+	cloneof "Jack Bros. (USA)"
 	region "Japan"
 	serial "VJBJ"
 	rom ( name "Jack Bros. no Meiro de Hiihoo! (Japan).vb" size 1048576 crc CAB61E8B md5 1B177FE2DD12EC1D67F6A43502F8D391 sha1 A973406590382EE503037271330D68D2834B79DB serial "VJBJ" )
@@ -236,6 +237,7 @@ game (
 )
 game (
 	name "Space Pinball (Japan) (En) (Proto)"
+	cloneof "Galactic Pinball (Japan, USA) (En)"
 	region "Japan"
 	rom ( name "Space Pinball (Japan) (En) (Proto).vb" size 2097152 crc 44C2B723 md5 31073126FAD41777357391ECC36D6F7F sha1 DC182360C7C8D26323DB8921F09DB76638E81CED )
 )
@@ -247,6 +249,7 @@ game (
 )
 game (
 	name "T&E Virtual Golf (Japan)"
+	cloneof "Golf (USA)"
 	region "Japan"
 	serial "VVGJ"
 	rom ( name "T&E Virtual Golf (Japan).vb" size 2097152 crc 6BA07915 md5 C1DC0852AF217146F93D701E1DA233D4 sha1 C595285D42C69F14B2B418C1EDFBE4A7F9A624B6 serial "VVGJ" )
@@ -259,6 +262,7 @@ game (
 )
 game (
 	name "Tobidase! Panibon (Japan)"
+	cloneof "Panic Bomber (USA)"
 	region "Japan"
 	serial "VH2J"
 	rom ( name "Tobidase! Panibon (Japan).vb" size 524288 crc 40498F5E md5 44039DFAA0F8FCF8ECE03B8CDA267E4A sha1 B8A12A9677AFA5CBCE6ED43EB0EFFB5A02875534 serial "VH2J" )
@@ -318,6 +322,7 @@ game (
 )
 game (
 	name "Virtual Pro Yakyuu '95 (Japan)"
+	cloneof "Virtual League Baseball (USA)"
 	region "Japan"
 	serial "VVPJ"
 	rom ( name "Virtual Pro Yakyuu '95 (Japan).vb" size 1048576 crc 9BA8BB5E md5 154B76BE987A604FF8AAFA4D438928F5 sha1 AB8FA82B79512EEFEFCCDCCEA6768078A374C4AA serial "VVPJ" )

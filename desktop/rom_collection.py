@@ -20,8 +20,8 @@ MATCH_PRIORITY = {
 REGION_PRIORITY = {
     "USA": 0,
     "World": 1,
-    "Europe": 2,
-    "Japan": 3,
+    "Japan": 2,
+    "Europe": 3,
 }
 _ENGLISH_TRANSLATION_MARKERS = (
     "[t-en",
@@ -76,7 +76,7 @@ class CollectionCandidate:
     @property
     def region_rank(self) -> int:
         if self.is_english_translation:
-            return 1
+            return 2
         canonical_regions = rn.extract_region_hints(self.canonical_name)
         for region, rank in REGION_PRIORITY.items():
             if region in canonical_regions:
@@ -150,6 +150,22 @@ class CollectionCandidate:
         return "#"
 
 
+@dataclass
+class ValidationIssue:
+    entry: CollectionCandidate
+    expected_name: str | None = None
+
+
+@dataclass
+class CollectionValidationReport:
+    present: list[CollectionCandidate]
+    wrong_region: list[ValidationIssue]
+    missing: list[str]
+    unmatched: list[Path]
+    duplicates: list[CollectionCandidate]
+    expected_total: int
+
+
 def _iter_source_files(folder: Path) -> list[Path]:
     return sorted(
         path
@@ -184,7 +200,9 @@ def _is_bios_zip(path: Path) -> bool:
     except zipfile.BadZipFile:
         return False
 
-    return bool(rom_members) and all(_is_bios_name(info.filename) for info in rom_members)
+    return bool(rom_members) and all(
+        _is_bios_name(info.filename) for info in rom_members
+    )
 
 
 def _read_member_header_title(
@@ -404,6 +422,7 @@ def scan_collection(
     progress_callback=None,
     clone_map: dict[str, str] | None = None,
     skip_crc: bool = False,
+    one_game_one_rom: bool = True,
 ) -> tuple[list[CollectionCandidate], list[CollectionCandidate], list[Path]]:
     name_index = rn.build_name_index(no_intro) if no_intro else {}
     selected: dict[str, CollectionCandidate] = {}
@@ -448,7 +467,7 @@ def scan_collection(
             # Use cloneof leader's base_key when available so cross-language
             # variants (e.g. Japanese name vs USA name) share the same dedup
             # bucket.
-            dedup_key = _dedup_key(candidate, clone_map)
+            dedup_key = _selection_key(candidate, clone_map, one_game_one_rom)
             existing = selected.get(dedup_key)
             if existing is None or _is_better_candidate(candidate, existing):
                 if existing is not None:
@@ -478,6 +497,16 @@ def _dedup_key(candidate: CollectionCandidate, clone_map: dict[str, str]) -> str
     return candidate.base_key
 
 
+def _selection_key(
+    candidate: CollectionCandidate,
+    clone_map: dict[str, str],
+    one_game_one_rom: bool,
+) -> str:
+    if one_game_one_rom:
+        return _dedup_key(candidate, clone_map)
+    return candidate.canonical_name.lower()
+
+
 def filter_by_regions(
     entries: list[CollectionCandidate],
     enabled_regions: set[str],
@@ -497,6 +526,179 @@ def filter_by_regions(
         elif region == "Translated" and "Other" in enabled_regions:
             kept.append(entry)
     return kept
+
+
+def expected_collection_entries(
+    no_intro: dict[str, str],
+    clone_map: dict[str, str] | None = None,
+    one_game_one_rom: bool = True,
+    enabled_regions: set[str] | None = None,
+) -> list[CollectionCandidate]:
+    clone_map = clone_map or {}
+    selected: dict[str, CollectionCandidate] = {}
+    unique_names = sorted(set(no_intro.values()), key=str.lower)
+    for canonical_name in unique_names:
+        candidate = CollectionCandidate(
+            source_path=Path(canonical_name),
+            canonical_name=canonical_name,
+            source_kind="expected",
+            extension="",
+            match_source="filename",
+        )
+        if enabled_regions is not None and not filter_by_regions(
+            [candidate], enabled_regions
+        ):
+            continue
+        key = _selection_key(candidate, clone_map, one_game_one_rom)
+        existing = selected.get(key)
+        if existing is None or _is_better_candidate(candidate, existing):
+            selected[key] = candidate
+    return sorted(selected.values(), key=lambda c: c.canonical_name.lower())
+
+
+def validate_collection(
+    folder: Path,
+    system: str,
+    no_intro: dict[str, str],
+    progress_callback=None,
+    clone_map: dict[str, str] | None = None,
+    skip_crc: bool = False,
+    one_game_one_rom: bool = True,
+    enabled_regions: set[str] | None = None,
+) -> CollectionValidationReport:
+    clone_map = clone_map or {}
+    entries, duplicates, unmatched = scan_collection(
+        folder,
+        system,
+        no_intro,
+        progress_callback=progress_callback,
+        clone_map=clone_map,
+        skip_crc=skip_crc,
+        one_game_one_rom=False,
+    )
+    if enabled_regions is not None:
+        entries = filter_by_regions(entries, enabled_regions)
+        duplicates = filter_by_regions(duplicates, enabled_regions)
+    expected_entries = expected_collection_entries(
+        no_intro,
+        clone_map=clone_map,
+        one_game_one_rom=one_game_one_rom,
+        enabled_regions=enabled_regions,
+    )
+    expected_by_name = {entry.canonical_name: entry for entry in expected_entries}
+    expected_by_key = {
+        _selection_key(entry, clone_map, one_game_one_rom): entry
+        for entry in expected_entries
+    }
+
+    present: list[CollectionCandidate] = []
+    wrong_region: list[ValidationIssue] = []
+    seen_expected: set[str] = set()
+    for entry in entries:
+        # 1. Exact canonical name match — perfect hit.
+        if entry.canonical_name in expected_by_name:
+            present.append(entry)
+            seen_expected.add(entry.canonical_name)
+            continue
+
+        # 2. Same 1G1R group (clone, revision, or translation of the same game).
+        entry_key = _dedup_key(entry, clone_map)
+        expected = expected_by_key.get(entry_key)
+
+        if expected:
+            # Mark the expected slot as covered so it won't appear in "missing".
+            seen_expected.add(expected.canonical_name)
+            # Distinguish version/revision variant (same region) from a different-
+            # region copy.  English translations count as a "present" equivalent.
+            if entry.region == expected.region or entry.is_english_translation:
+                present.append(entry)
+            else:
+                wrong_region.append(
+                    ValidationIssue(
+                        entry=entry,
+                        expected_name=expected.canonical_name,
+                    )
+                )
+        else:
+            # Not matched to any expected entry — truly outside the target set.
+            wrong_region.append(
+                ValidationIssue(entry=entry, expected_name=None)
+            )
+
+    missing = sorted(
+        (name for name in expected_by_name if name not in seen_expected), key=str.lower
+    )
+    return CollectionValidationReport(
+        present=sorted(present, key=lambda e: e.canonical_name.lower()),
+        wrong_region=sorted(
+            wrong_region, key=lambda issue: issue.entry.canonical_name.lower()
+        ),
+        missing=missing,
+        unmatched=unmatched,
+        duplicates=sorted(duplicates, key=lambda e: e.canonical_name.lower()),
+        expected_total=len(expected_entries),
+    )
+
+
+def format_validation_report(
+    report: CollectionValidationReport,
+    folder: Path,
+    system: str,
+    one_game_one_rom: bool,
+    enabled_regions: set[str],
+) -> str:
+    mode = "1G1R" if one_game_one_rom else "Complete Collection"
+    regions = ", ".join(sorted(enabled_regions)) if enabled_regions else "None"
+    lines = [
+        "ROM Collection Validation Report",
+        "",
+        f"Folder: {folder}",
+        f"System: {system}",
+        f"Mode: {mode}",
+        f"Regions: {regions}",
+        "",
+        f"Expected games: {report.expected_total}",
+        f"Present games: {len(report.present)}",
+        f"Incorrect region / not in target set: {len(report.wrong_region)}",
+        f"Missing games: {len(report.missing)}",
+        f"Unmatched files: {len(report.unmatched)}",
+        f"Duplicate source copies skipped: {len(report.duplicates)}",
+    ]
+
+    def _append_section(title: str, items: list[str]):
+        lines.append("")
+        lines.append(f"{title}:")
+        if not items:
+            lines.append("- None")
+            return
+        lines.extend(f"- {item}" for item in items)
+
+    _append_section(
+        "Present games",
+        [f"{entry.canonical_name} <- {entry.source_label}" for entry in report.present],
+    )
+    _append_section(
+        "Incorrect region / not in target set",
+        [
+            (
+                f"{issue.entry.canonical_name} <- {issue.entry.source_label}; expected: {issue.expected_name}"
+                if issue.expected_name
+                else f"{issue.entry.canonical_name} <- {issue.entry.source_label}"
+            )
+            for issue in report.wrong_region
+        ],
+    )
+    _append_section("Missing games", report.missing)
+    _append_section("Unmatched files", [path.name for path in report.unmatched])
+    _append_section(
+        "Duplicate source copies skipped",
+        [
+            f"{entry.canonical_name} <- {entry.source_label}"
+            for entry in report.duplicates
+        ],
+    )
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _is_better_candidate(

@@ -125,6 +125,7 @@ game (
 
 game (
 	name "3D Bare Knuckle II - Shitou e no Requiem (Japan) (eShop)"
+	cloneof "3D Streets of Rage 2 (USA) (eShop)"
 	description "3D Bare Knuckle II - Shitou e no Requiem (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-KSRJ"
@@ -485,6 +486,7 @@ game (
 
 game (
 	name "3D Streets of Rage 2 (Europe) (En,Fr) (eShop)"
+	cloneof "3D Streets of Rage 2 (USA) (eShop)"
 	description "3D Streets of Rage 2 (Europe) (En,Fr) (eShop)"
 	region "Europe"
 	serial "CTR-N-KSRP"
@@ -605,6 +607,7 @@ game (
 
 game (
 	name "AeternoBlade (Europe) (eShop)"
+	cloneof "AeternoBlade (USA) (eShop)"
 	description "AeternoBlade (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-P-ACUP"
@@ -701,6 +704,7 @@ game (
 
 game (
 	name "Animal Crossing - New Leaf (Europe) (En,Fr,De,Es,It) (Legit CIA)"
+	cloneof "Animal Crossing - New Leaf (USA) (Legit CIA)"
 	description "Animal Crossing - New Leaf (Europe) (En,Fr,De,Es,It) (Legit CIA)"
 	region "Europe"
 	serial "CTR-P-EGDP"
@@ -741,6 +745,7 @@ game (
 
 game (
 	name "Armed Blue - Gunvolt (Japan) (eShop)"
+	cloneof "Azure Striker Gunvolt (USA) (eShop)"
 	description "Armed Blue - Gunvolt (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JV7J"
@@ -765,6 +770,7 @@ game (
 
 game (
 	name "Attack of the Friday Monsters! A Tokyo Tale (Europe) (eShop)"
+	cloneof "Attack of the Friday Monsters! A Tokyo Tale (USA) (eShop)"
 	description "Attack of the Friday Monsters! A Tokyo Tale (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JKEP"
@@ -789,6 +795,7 @@ game (
 
 game (
 	name "Azure Striker Gunvolt (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Azure Striker Gunvolt (USA) (eShop)"
 	description "Azure Striker Gunvolt (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JV7P"
@@ -981,6 +988,7 @@ game (
 
 game (
 	name "Bike Rider DX (Europe) (eShop)"
+	cloneof "Bike Rider DX (USA) (eShop)"
 	description "Bike Rider DX (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JCXP"
@@ -1357,6 +1365,7 @@ game (
 
 game (
 	name "Chari-Sou DX (Japan) (eShop)"
+	cloneof "Bike Rider DX (USA) (eShop)"
 	description "Chari-Sou DX (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JCXJ"
@@ -1389,6 +1398,7 @@ game (
 
 game (
 	name "Chibi-Robo! Let's Go, Photo! (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Chibi-Robo! Photo Finder (USA) (eShop)"
 	description "Chibi-Robo! Let's Go, Photo! (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JPMP"
@@ -1397,6 +1407,7 @@ game (
 
 game (
 	name "Chibi-Robo! Photo Finder (USA) (Rev 1) (eShop)"
+	cloneof "Chibi-Robo! Photo Finder (USA) (eShop)"
 	description "Chibi-Robo! Photo Finder (USA) (Rev 1) (eShop)"
 	region "USA"
 	serial "CTR-N-JPME"
@@ -1573,6 +1584,7 @@ game (
 
 game (
 	name "Comic Workshop (Europe) (En,Fr) (Rev 1) (eShop)"
+	cloneof "Comic Workshop (Europe) (En,Fr) (eShop)"
 	description "Comic Workshop (Europe) (En,Fr) (Rev 1) (eShop)"
 	region "Europe"
 	serial "CTR-N-JWMP"
@@ -1837,6 +1849,7 @@ game (
 
 game (
 	name "Deco Photo 3D (France) (eShop)"
+	cloneof "Sparkle Snapshots 3D (Europe) (eShop)"
 	description "Deco Photo 3D (France) (eShop)"
 	region "France"
 	serial "CTR-N-JCVF"
@@ -1909,6 +1922,7 @@ game (
 
 game (
 	name "Denpa Ningen no RPG (Japan) (eShop)"
+	cloneof "DENPA MEN, The - They Came By Wave (Europe) (eShop)"
 	description "Denpa Ningen no RPG (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JD8J"
@@ -1941,6 +1955,7 @@ game (
 
 game (
 	name "Dillon's Rolling Western - The Last Ranger (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Dillon's Rolling Western - The Last Ranger (USA) (eShop)"
 	description "Dillon's Rolling Western - The Last Ranger (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JGWP"
@@ -2188,6 +2203,7 @@ game (
 
 game (
 	name "F-Zero - Maximum Velocity (Europe) (GBA) (Virtual Console)"
+	cloneof "F-Zero - Maximum Velocity (USA) (GBA) (Virtual Console)"
 	description "F-Zero - Maximum Velocity (Europe) (GBA) (Virtual Console)"
 	region "Europe"
 	serial "CTR-N-PAAP"
@@ -2236,6 +2252,7 @@ game (
 
 game (
 	name "Fallblox (Europe) (eShop)"
+	cloneof "Crashmo (USA) (eShop)"
 	description "Fallblox (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JAUP"
@@ -2292,6 +2309,7 @@ game (
 
 game (
 	name "Fire Emblem - Seima no Kouseki (Japan) (GBA) (Virtual Console)"
+	cloneof "Fire Emblem - The Sacred Stones (USA) (GBA) (Virtual Console)"
 	description "Fire Emblem - Seima no Kouseki (Japan) (GBA) (Virtual Console)"
 	region "Japan"
 	serial "CTR-N-PAJJ"
@@ -2300,6 +2318,7 @@ game (
 
 game (
 	name "Fire Emblem - The Sacred Stones (Europe) (En,Fr,De,Es,It) (GBA) (Virtual Console)"
+	cloneof "Fire Emblem - The Sacred Stones (USA) (GBA) (Virtual Console)"
 	description "Fire Emblem - The Sacred Stones (Europe) (En,Fr,De,Es,It) (GBA) (Virtual Console)"
 	region "Europe"
 	serial "CTR-N-PAJP"
@@ -2356,6 +2375,7 @@ game (
 
 game (
 	name "Flipnote Studio 3D (Europe) (En,Fr,De,Es,It) (Rev 1) (eShop)"
+	cloneof "Flipnote Studio 3D (USA) (eShop)"
 	description "Flipnote Studio 3D (Europe) (En,Fr,De,Es,It) (Rev 1) (eShop)"
 	region "Europe"
 	serial "CTR-N-JKZP"
@@ -2364,6 +2384,7 @@ game (
 
 game (
 	name "Flipnote Studio 3D (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Flipnote Studio 3D (USA) (eShop)"
 	description "Flipnote Studio 3D (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JKZP"
@@ -2420,6 +2441,7 @@ game (
 
 game (
 	name "Foto-Zauber 3D (Germany) (eShop)"
+	cloneof "Sparkle Snapshots 3D (Europe) (eShop)"
 	description "Foto-Zauber 3D (Germany) (eShop)"
 	region "Germany"
 	serial "CTR-N-JCVD"
@@ -2436,6 +2458,7 @@ game (
 
 game (
 	name "Freakyforms - Your Creations, Alive! (USA) (Rev 1) (eShop)"
+	cloneof "Freakyforms - Your Creations, Alive! (USA) (eShop)"
 	description "Freakyforms - Your Creations, Alive! (USA) (Rev 1) (eShop)"
 	region "USA"
 	serial "CTR-N-JPTE"
@@ -2444,6 +2467,7 @@ game (
 
 game (
 	name "Freakyforms - Your Creations, Alive! (USA) (Rev 2) (eShop)"
+	cloneof "Freakyforms - Your Creations, Alive! (USA) (eShop)"
 	description "Freakyforms - Your Creations, Alive! (USA) (Rev 2) (eShop)"
 	region "USA"
 	serial "CTR-N-JPTE"
@@ -2460,6 +2484,7 @@ game (
 
 game (
 	name "Fullblox (Europe) (eShop)"
+	cloneof "Stretchmo (USA) (eShop)"
 	description "Fullblox (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-KAAP"
@@ -2484,6 +2509,7 @@ game (
 
 game (
 	name "Gekidou! Arbeiter Koji (Japan) (eShop)"
+	cloneof "Johnny's Payday Panic (Europe) (En,Fr,De,Es,It) (eShop)"
 	description "Gekidou! Arbeiter Koji (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-KAKJ"
@@ -2500,6 +2526,7 @@ game (
 
 game (
 	name "Gekiyaba Runner (Taiwan) (eShop)"
+	cloneof "2 Fast 4 Gnomz (Europe) (eShop)"
 	description "Gekiyaba Runner (Taiwan) (eShop)"
 	region "Taiwan"
 	serial "CTR-N-JT4W"
@@ -2572,6 +2599,7 @@ game (
 
 game (
 	name "Gumman Story (Japan) (eShop)"
+	cloneof "Gunman Clive (USA) (eShop)"
 	description "Gumman Story (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JGCJ"
@@ -2580,6 +2608,7 @@ game (
 
 game (
 	name "Gumman Story 2 (Japan) (eShop)"
+	cloneof "Gunman Clive 2 (USA) (eShop)"
 	description "Gumman Story 2 (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JWGJ"
@@ -2588,6 +2617,7 @@ game (
 
 game (
 	name "Gunman Clive (Europe) (eShop)"
+	cloneof "Gunman Clive (USA) (eShop)"
 	description "Gunman Clive (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JGCP"
@@ -2596,6 +2626,7 @@ game (
 
 game (
 	name "Gunman Clive (USA) (Rev 1) (eShop)"
+	cloneof "Gunman Clive (USA) (eShop)"
 	description "Gunman Clive (USA) (Rev 1) (eShop)"
 	region "USA"
 	serial "CTR-N-JGCE"
@@ -2612,6 +2643,7 @@ game (
 
 game (
 	name "Gunman Clive 2 (Europe) (eShop)"
+	cloneof "Gunman Clive 2 (USA) (eShop)"
 	description "Gunman Clive 2 (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JWGP"
@@ -2628,6 +2660,7 @@ game (
 
 game (
 	name "Gunman Story (Taiwan) (eShop)"
+	cloneof "Gunman Clive (USA) (eShop)"
 	description "Gunman Story (Taiwan) (eShop)"
 	region "Taiwan"
 	serial "CTR-N-JGCW"
@@ -2660,6 +2693,7 @@ game (
 
 game (
 	name "Gyouretsu NageLoop (Japan) (eShop)"
+	cloneof "Tokyo Crash Mobs (USA) (eShop)"
 	description "Gyouretsu NageLoop (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JUEJ"
@@ -2684,6 +2718,7 @@ game (
 
 game (
 	name "Hana Samurai - Art of the Sword (Europe) (eShop)"
+	cloneof "Sakura Samurai - Art of the Sword (USA) (eShop)"
 	description "Hana Samurai - Art of the Sword (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JLLP"
@@ -2756,6 +2791,7 @@ game (
 
 game (
 	name "Hikudasu - Hippa Land (Japan) (eShop)"
+	cloneof "Stretchmo (USA) (eShop)"
 	description "Hikudasu - Hippa Land (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-KAAJ"
@@ -2764,6 +2800,7 @@ game (
 
 game (
 	name "Hikuosu (Japan) (eShop)"
+	cloneof "Pushmo (USA) (eShop)"
 	description "Hikuosu (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JCAJ"
@@ -2772,6 +2809,7 @@ game (
 
 game (
 	name "Hikuosu (Taiwan) (eShop)"
+	cloneof "Pushmo (USA) (eShop)"
 	description "Hikuosu (Taiwan) (eShop)"
 	region "Taiwan"
 	serial "CTR-N-JCAW"
@@ -2780,6 +2818,7 @@ game (
 
 game (
 	name "Hikuotsu (Japan) (eShop)"
+	cloneof "Crashmo (USA) (eShop)"
 	description "Hikuotsu (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JAUJ"
@@ -2844,6 +2883,7 @@ game (
 
 game (
 	name "Hoshi no Kirby - Kagami no Daimeikyuu (Japan) (GBA) (Virtual Console)"
+	cloneof "Kirby & the Amazing Mirror (USA) (GBA) (Virtual Console)"
 	description "Hoshi no Kirby - Kagami no Daimeikyuu (Japan) (GBA) (Virtual Console)"
 	region "Japan"
 	serial "CTR-N-PAGJ"
@@ -2860,6 +2900,7 @@ game (
 
 game (
 	name "Hydroventure - Spin Cycle (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Fluidity - Spin Cycle (USA) (eShop)"
 	description "Hydroventure - Spin Cycle (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JA2P"
@@ -3012,6 +3053,7 @@ game (
 
 game (
 	name "Iron Combat - War in the Air (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Iron Combat - War in the Air (USA) (eShop)"
 	description "Iron Combat - War in the Air (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JRZP"
@@ -3028,6 +3070,7 @@ game (
 
 game (
 	name "Ishi Sengokuden Sadame (Japan) (eShop)"
+	cloneof "Sadame (USA) (eShop)"
 	description "Ishi Sengokuden Sadame (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JFTJ"
@@ -3252,6 +3295,7 @@ game (
 
 game (
 	name "Kirby & The Amazing Mirror (Europe) (GBA) (Virtual Console)"
+	cloneof "Kirby & the Amazing Mirror (USA) (GBA) (Virtual Console)"
 	description "Kirby & The Amazing Mirror (Europe) (GBA) (Virtual Console)"
 	region "Europe"
 	serial "CTR-N-PAGP"
@@ -3563,6 +3607,7 @@ game (
 
 game (
 	name "Legend of Zelda, The - The Minish Cap (Europe) (En,Fr,De,Es,It) (GBA) (Virtual Console)"
+	cloneof "Legend of Zelda, The - The Minish Cap (USA) (GBA) (Virtual Console)"
 	description "Legend of Zelda, The - The Minish Cap (Europe) (En,Fr,De,Es,It) (GBA) (Virtual Console)"
 	region "Europe"
 	serial "CTR-N-PAKP"
@@ -3619,6 +3664,7 @@ game (
 
 game (
 	name "Loop Line Racing (Japan) (eShop)"
+	cloneof "Proun+ (Europe) (eShop)"
 	description "Loop Line Racing (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-KPRJ"
@@ -3643,6 +3689,7 @@ game (
 
 game (
 	name "Luigi's Mansion 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (Legit CIA)"
+	cloneof "Luigi's Mansion - Dark Moon (USA) (En,Fr,Es) (Legit CIA)"
 	description "Luigi's Mansion 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (Legit CIA)"
 	region "Europe"
 	serial "CTR-P-AGGP"
@@ -3659,6 +3706,7 @@ game (
 
 game (
 	name "Made in Wario (Japan) (GBA) (Virtual Console)"
+	cloneof "WarioWare, Inc. - Mega Microgame$! (USA) (GBA) (Virtual Console)"
 	description "Made in Wario (Japan) (GBA) (Virtual Console)"
 	region "Japan"
 	serial "CTR-N-PAFJ"
@@ -3667,6 +3715,7 @@ game (
 
 game (
 	name "Magic Hammer, The (Europe) (eShop)"
+	cloneof "Magic Hammer, The (USA) (eShop)"
 	description "Magic Hammer, The (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-KHMP"
@@ -3691,6 +3740,7 @@ game (
 
 game (
 	name "Majo to Yuusha (Japan) (eShop)"
+	cloneof "Witch & Hero (USA) (eShop)"
 	description "Majo to Yuusha (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JWHJ"
@@ -3739,6 +3789,7 @@ game (
 
 game (
 	name "Mario Kart - Super Circuit (Europe) (GBA) (Virtual Console)"
+	cloneof "Mario Kart - Super Circuit (USA) (GBA) (Virtual Console)"
 	description "Mario Kart - Super Circuit (Europe) (GBA) (Virtual Console)"
 	region "Europe"
 	serial "CTR-N-PABP"
@@ -3787,6 +3838,7 @@ game (
 
 game (
 	name "Mario Kart Advance (Japan) (GBA) (Virtual Console)"
+	cloneof "Mario Kart - Super Circuit (USA) (GBA) (Virtual Console)"
 	description "Mario Kart Advance (Japan) (GBA) (Virtual Console)"
 	region "Japan"
 	serial "CTR-N-PABJ"
@@ -3795,6 +3847,7 @@ game (
 
 game (
 	name "Mario and Donkey Kong - Mini Mini Carnival (Japan) (eShop)"
+	cloneof "Mario and Donkey Kong - Minis on the Move (USA) (eShop)"
 	description "Mario and Donkey Kong - Mini Mini Carnival (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JB7J"
@@ -3803,6 +3856,7 @@ game (
 
 game (
 	name "Mario and Donkey Kong - Minis on the Move (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Mario and Donkey Kong - Minis on the Move (USA) (eShop)"
 	description "Mario and Donkey Kong - Minis on the Move (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JB7P"
@@ -4195,6 +4249,7 @@ game (
 
 game (
 	name "Monster Hunter 3 Ultimate Data Transfer Program (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Monster Hunter 3 Ultimate Data Transfer Program (USA) (En,Fr,Es) (eShop)"
 	description "Monster Hunter 3 Ultimate Data Transfer Program (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JMUP"
@@ -4211,6 +4266,7 @@ game (
 
 game (
 	name "Monster Hunter 4 Ultimate (Europe) (En,Fr,De,Es,It) (Demo) (eShop)"
+	cloneof "Monster Hunter 4 Ultimate (USA) (Legit CIA)"
 	description "Monster Hunter 4 Ultimate (Europe) (En,Fr,De,Es,It) (Demo) (eShop)"
 	region "Europe"
 	serial "CTR-N-KFGP"
@@ -4219,6 +4275,7 @@ game (
 
 game (
 	name "Monster Hunter 4 Ultimate (Europe) (En,Fr,De,Es,It) (Legit CIA)"
+	cloneof "Monster Hunter 4 Ultimate (USA) (Legit CIA)"
 	description "Monster Hunter 4 Ultimate (Europe) (En,Fr,De,Es,It) (Legit CIA)"
 	region "Europe"
 	serial "CTR-P-BFGP"
@@ -4259,6 +4316,7 @@ game (
 
 game (
 	name "Mud Attack! Max vs Dorodoro Seijin (Japan) (eShop)"
+	cloneof "Mutant Mudds (USA) (eShop)"
 	description "Mud Attack! Max vs Dorodoro Seijin (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JMDJ"
@@ -4283,6 +4341,7 @@ game (
 
 game (
 	name "Mutant Mudds (Europe) (Demo) (eShop)"
+	cloneof "Mutant Mudds (USA) (eShop)"
 	description "Mutant Mudds (Europe) (Demo) (eShop)"
 	region "Europe"
 	serial "CTR-T-JMDP"
@@ -4291,6 +4350,7 @@ game (
 
 game (
 	name "Mutant Mudds (Europe) (Rev 1) (eShop)"
+	cloneof "Mutant Mudds (USA) (eShop)"
 	description "Mutant Mudds (Europe) (Rev 1) (eShop)"
 	region "Europe"
 	serial "CTR-N-JMDP"
@@ -4299,6 +4359,7 @@ game (
 
 game (
 	name "Mutant Mudds (Europe) (eShop)"
+	cloneof "Mutant Mudds (USA) (eShop)"
 	description "Mutant Mudds (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JMDP"
@@ -4506,6 +4567,7 @@ game (
 
 game (
 	name "New Super Mario Bros. 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (eShop)"
+	cloneof "New Super Mario Bros. 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (DLC)"
 	description "New Super Mario Bros. 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (eShop)"
 	region "Europe"
 	serial "CTR-P-ABEP"
@@ -4514,6 +4576,7 @@ game (
 
 game (
 	name "New Super Mario Bros. 2 (Japan) (Legit CIA)"
+	cloneof "New Super Mario Bros. 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (DLC)"
 	description "New Super Mario Bros. 2 (Japan) (Legit CIA)"
 	region "Japan"
 	serial "CTR-P-ABEJ"
@@ -4522,6 +4585,7 @@ game (
 
 game (
 	name "New Super Mario Bros. 2 (Korea) (eShop) (Encrypted CIA)"
+	cloneof "New Super Mario Bros. 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (DLC)"
 	description "New Super Mario Bros. 2 (Korea) (eShop) (Encrypted CIA)"
 	region "Korea"
 	serial "CTR-P-ABEK"
@@ -4530,6 +4594,7 @@ game (
 
 game (
 	name "New Super Mario Bros. 2 Gold Edition (USA) (Legit CIA)"
+	cloneof "New Super Mario Bros. 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (DLC)"
 	description "New Super Mario Bros. 2 Gold Edition (USA) (Legit CIA)"
 	region "USA"
 	serial "CTR-P-ABEE"
@@ -4538,6 +4603,7 @@ game (
 
 game (
 	name "New Super Mario Bros. 2 Special Edition (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (Legit CIA)"
+	cloneof "New Super Mario Bros. 2 (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (DLC)"
 	description "New Super Mario Bros. 2 Special Edition (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (Legit CIA)"
 	region "Europe"
 	serial "CTR-P-ABEP"
@@ -4618,6 +4684,7 @@ game (
 
 game (
 	name "Nintendo Badge Arcade (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Nintendo Badge Arcade (USA) (eShop)"
 	description "Nintendo Badge Arcade (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JWVP"
@@ -4634,6 +4701,7 @@ game (
 
 game (
 	name "Nintendo Letter Box (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (Rev 1)"
+	cloneof "Swapnote (USA) (En,Fr,Es,Pt) (eShop)"
 	description "Nintendo Letter Box (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (Rev 1)"
 	region "Europe"
 	serial "CTR-N-JFRP"
@@ -4642,6 +4710,7 @@ game (
 
 game (
 	name "Nintendo Letter Box (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (Rev 2) (eShop)"
+	cloneof "Swapnote (USA) (En,Fr,Es,Pt) (eShop)"
 	description "Nintendo Letter Box (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (Rev 2) (eShop)"
 	region "Europe"
 	serial "CTR-N-JFRP"
@@ -4650,6 +4719,7 @@ game (
 
 game (
 	name "Nintendo Letter Box (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (eShop)"
+	cloneof "Swapnote (USA) (En,Fr,Es,Pt) (eShop)"
 	description "Nintendo Letter Box (Europe) (En,Fr,De,Es,It,Nl,Pt,Ru) (eShop)"
 	region "Europe"
 	serial "CTR-N-JFRP"
@@ -4666,6 +4736,7 @@ game (
 
 game (
 	name "Nintendo Video (Europe) (Rev 1) (eShop)"
+	cloneof "Nintendo Video (USA) (En,Fr,Es) (eShop)"
 	description "Nintendo Video (Europe) (Rev 1) (eShop)"
 	region "Europe"
 	serial "CTR-N-JESP"
@@ -4674,6 +4745,7 @@ game (
 
 game (
 	name "Nintendo Video (Europe) (eShop)"
+	cloneof "Nintendo Video (USA) (En,Fr,Es) (eShop)"
 	description "Nintendo Video (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JESP"
@@ -4890,6 +4962,7 @@ game (
 
 game (
 	name "Photos with Mario (Europe) (eShop)"
+	cloneof "Photos with Mario (USA) (En,Fr,Es) (eShop)"
 	description "Photos with Mario (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-NACP"
@@ -5074,6 +5147,7 @@ game (
 
 game (
 	name "Pikmin Short Movies 3D (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Pikmin Short Movies 3D (USA) (En,Fr,Es) (eShop)"
 	description "Pikmin Short Movies 3D (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-P-BPSP"
@@ -5159,6 +5233,7 @@ game (
 
 game (
 	name "Pokedex 3D Pro (World) (En,Ja,Fr,De,Es,It,Ko) (Rev 1) (eShop)"
+	cloneof "Pokedex 3D (World) (En,Fr,Es) (Rev 1) (eShop)"
 	description "Pokedex 3D Pro (World) (En,Ja,Fr,De,Es,It,Ko) (Rev 1) (eShop)"
 	serial "CTR-P-AQ9A"
 	rom ( name "Pokedex 3D Pro (World) (En,Ja,Fr,De,Es,It,Ko) (Rev 1) (eShop).3ds" size 536870912 crc FEFC9C16 md5 36D34329E0DDB4CA3F78349310ACF062 sha1 CD1F7DFF95B46F712E6CC0DCBE2EAFCD1FDDECE2 serial "CTR-P-AQ9A" )
@@ -5166,6 +5241,7 @@ game (
 
 game (
 	name "Pokedex 3D Pro (World) (En,Ja,Fr,De,Es,It,Ko) (eShop)"
+	cloneof "Pokedex 3D (World) (En,Fr,Es) (Rev 1) (eShop)"
 	description "Pokedex 3D Pro (World) (En,Ja,Fr,De,Es,It,Ko) (eShop)"
 	serial "CTR-P-AQ9A"
 	rom ( name "Pokedex 3D Pro (World) (En,Ja,Fr,De,Es,It,Ko) (eShop).3ds" size 536870912 crc 87A28D8C md5 AB1CAAD9AA54340B1D28A4BE480B3A08 sha1 CD22DAE2E5688344595DFB6E46590722F26E7281 serial "CTR-P-AQ9A" )
@@ -5194,6 +5270,7 @@ game (
 
 game (
 	name "Pokemon Battle Trozei (Japan) (eShop)"
+	cloneof "Pokemon Link - Battle! (Europe) (En,Fr,De,Es,It) (eShop)"
 	description "Pokemon Battle Trozei (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JR8A"
@@ -5341,6 +5418,7 @@ game (
 
 game (
 	name "Pony Pets 3D (Japan) (eShop)"
+	cloneof "101 Pony Pets 3D (Europe) (En,Fr,De,Es,It) (eShop)"
 	description "Pony Pets 3D (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JHDJ"
@@ -5373,6 +5451,7 @@ game (
 
 game (
 	name "Pullblox (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Pushmo (USA) (eShop)"
 	description "Pullblox (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JCAP"
@@ -5397,6 +5476,7 @@ game (
 
 game (
 	name "Pushmo (USA) (Rev 1) (eShop)"
+	cloneof "Pushmo (USA) (eShop)"
 	description "Pushmo (USA) (Rev 1) (eShop)"
 	region "USA"
 	serial "CTR-N-JCAE"
@@ -5469,6 +5549,7 @@ game (
 
 game (
 	name "Quell Memento (Europe) (eShop)"
+	cloneof "Quell Memento (USA) (eShop)"
 	description "Quell Memento (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JZDP"
@@ -5525,6 +5606,7 @@ game (
 
 game (
 	name "Rabi Laby 3 (Europe) (eShop)"
+	cloneof "Rabi Laby 3 (USA) (eShop)"
 	description "Rabi Laby 3 (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JR3P"
@@ -5541,6 +5623,7 @@ game (
 
 game (
 	name "Rabi x Rabi - Episode 3 (Japan) (eShop)"
+	cloneof "Rabi Laby 3 (USA) (eShop)"
 	description "Rabi x Rabi - Episode 3 (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JR3J"
@@ -5629,6 +5712,7 @@ game (
 
 game (
 	name "Rinkou no Lantse (Japan) (eShop)"
+	cloneof "Iron Combat - War in the Air (USA) (eShop)"
 	description "Rinkou no Lantse (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JRZJ"
@@ -5677,6 +5761,7 @@ game (
 
 game (
 	name "Rolling Western, The - Saigo no Youjinbou (Japan) (eShop)"
+	cloneof "Dillon's Rolling Western - The Last Ranger (USA) (eShop)"
 	description "Rolling Western, The - Saigo no Youjinbou (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JGWJ"
@@ -5725,6 +5810,7 @@ game (
 
 game (
 	name "Sadame (Europe) (eShop)"
+	cloneof "Sadame (USA) (eShop)"
 	description "Sadame (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JFTP"
@@ -5820,6 +5906,7 @@ game (
 
 game (
 	name "Sayonara Umihara Kawase (Europe) (eShop)"
+	cloneof "Yumi's Odd Odyssey (USA) (eShop)"
 	description "Sayonara Umihara Kawase (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-AUFP"
@@ -5868,6 +5955,7 @@ game (
 
 game (
 	name "Shantae and the Pirate's Curse (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Shantae and the Pirate's Curse (USA) (En,Fr,Es) (eShop)"
 	description "Shantae and the Pirate's Curse (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JSAP"
@@ -5940,6 +6028,7 @@ game (
 
 game (
 	name "Shingeki no Kyojin - Humanity in Chains (Europe) (eShop)"
+	cloneof "Attack on Titan - Humanity in Chains (USA) (eShop)"
 	description "Shingeki no Kyojin - Humanity in Chains (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-BG2P"
@@ -5980,6 +6069,7 @@ game (
 
 game (
 	name "Shizuku Memory (Japan) (eShop)"
+	cloneof "Quell Memento (USA) (eShop)"
 	description "Shizuku Memory (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JZDJ"
@@ -6284,6 +6374,7 @@ game (
 
 game (
 	name "SpeedThru - Potzol's Puzzle (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Ketzal's Corridors (USA) (eShop)"
 	description "SpeedThru - Potzol's Puzzle (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-JELP"
@@ -6292,6 +6383,7 @@ game (
 
 game (
 	name "SpeedX 3D (Europe) (eShop)"
+	cloneof "SpeedX 3D (USA) (eShop)"
 	description "SpeedX 3D (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JSXP"
@@ -6308,6 +6400,7 @@ game (
 
 game (
 	name "SpeedX 3D Hyper Edition (Europe) (eShop)"
+	cloneof "SpeedX 3D (USA) (eShop)"
 	description "SpeedX 3D Hyper Edition (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JSYP"
@@ -6316,6 +6409,7 @@ game (
 
 game (
 	name "SpeedX 3D Hyper Edition (USA) (eShop)"
+	cloneof "SpeedX 3D (USA) (eShop)"
 	description "SpeedX 3D Hyper Edition (USA) (eShop)"
 	region "USA"
 	serial "CTR-N-JSYE"
@@ -6324,6 +6418,7 @@ game (
 
 game (
 	name "Splash or Crash (Europe) (eShop)"
+	cloneof "Kersploosh! (USA) (eShop)"
 	description "Splash or Crash (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JHSP"
@@ -6668,6 +6763,7 @@ game (
 
 game (
 	name "Swapnote (USA) (En,Fr,Es,Pt) (Rev 1) (eShop)"
+	cloneof "Swapnote (USA) (En,Fr,Es,Pt) (eShop)"
 	description "Swapnote (USA) (En,Fr,Es,Pt) (Rev 1) (eShop)"
 	region "USA"
 	serial "CTR-N-JFRE"
@@ -6676,6 +6772,7 @@ game (
 
 game (
 	name "Swapnote (USA) (En,Fr,Es,Pt) (Rev 2) (eShop)"
+	cloneof "Swapnote (USA) (En,Fr,Es,Pt) (eShop)"
 	description "Swapnote (USA) (En,Fr,Es,Pt) (Rev 2) (eShop)"
 	region "USA"
 	serial "CTR-N-JFRE"
@@ -6772,6 +6869,7 @@ game (
 
 game (
 	name "Tangram Style (Europe) (En,Fr,De,Es,It,Pt) (eShop)"
+	cloneof "Tangram Attack (USA) (eShop)"
 	description "Tangram Style (Europe) (En,Fr,De,Es,It,Pt) (eShop)"
 	region "Europe"
 	serial "CTR-N-JT8P"
@@ -6828,6 +6926,7 @@ game (
 
 game (
 	name "Tetris (Europe) (GB) (Virtual Console)"
+	cloneof "Tetris (USA) (GB) (Virtual Console)"
 	description "Tetris (Europe) (GB) (Virtual Console)"
 	region "Europe"
 	serial "CTR-N-RBSP"
@@ -6844,6 +6943,7 @@ game (
 
 game (
 	name "Tetsudou Nippon! Rosen Tabi - Nagaragawa Tetsudou Hen (Taiwan) (eShop)"
+	cloneof "Japanese Rail Sim 3D - Journey in Suburbs #1 (USA) (eShop)"
 	description "Tetsudou Nippon! Rosen Tabi - Nagaragawa Tetsudou Hen (Taiwan) (eShop)"
 	region "Taiwan"
 	serial "CTR-N-ARJW"
@@ -6860,6 +6960,7 @@ game (
 
 game (
 	name "Time Avenger (Japan) (eShop)"
+	cloneof "AeternoBlade (USA) (eShop)"
 	description "Time Avenger (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-ACUJ"
@@ -6900,6 +7001,7 @@ game (
 
 game (
 	name "Tokyo Crash Mobs (Europe) (eShop)"
+	cloneof "Tokyo Crash Mobs (USA) (eShop)"
 	description "Tokyo Crash Mobs (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JUEP"
@@ -6916,6 +7018,7 @@ game (
 
 game (
 	name "Tomodachi Collection - Shin Seikatsu (Japan) (Legit CIA)"
+	cloneof "Tomodachi Life (Europe) (En,Fr,De,Es) (Legit CIA)"
 	description "Tomodachi Collection - Shin Seikatsu (Japan) (Legit CIA)"
 	region "Japan"
 	serial "CTR-P-EC6J"
@@ -6940,6 +7043,7 @@ game (
 
 game (
 	name "Tomodachi Life - Welcome Version (Europe) (En,Fr,De,Es,It) (Rev 1) (eShop)"
+	cloneof "Tomodachi Life - Move-In Version (USA) (eShop)"
 	description "Tomodachi Life - Welcome Version (Europe) (En,Fr,De,Es,It) (Rev 1) (eShop)"
 	region "Europe"
 	serial "CTR-N-NC6P"
@@ -6948,6 +7052,7 @@ game (
 
 game (
 	name "Tomodachi Life - Welcome Version (Europe) (En,Fr,De,Es,It) (Rev 2) (eShop)"
+	cloneof "Tomodachi Life - Move-In Version (USA) (eShop)"
 	description "Tomodachi Life - Welcome Version (Europe) (En,Fr,De,Es,It) (Rev 2) (eShop)"
 	region "Europe"
 	serial "CTR-N-NC6P"
@@ -6956,6 +7061,7 @@ game (
 
 game (
 	name "Tomodachi Life - Welcome Version (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Tomodachi Life - Move-In Version (USA) (eShop)"
 	description "Tomodachi Life - Welcome Version (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-NC6P"
@@ -6996,6 +7102,7 @@ game (
 
 game (
 	name "Toys vs Monsters (Europe) (En,Fr,De,Es,It) (eShop)"
+	cloneof "Toys vs Monsters (USA) (eShop)"
 	description "Toys vs Monsters (Europe) (En,Fr,De,Es,It) (eShop)"
 	region "Europe"
 	serial "CTR-N-KTMP"
@@ -7044,6 +7151,7 @@ game (
 
 game (
 	name "Ugoku Memo Chou 3D (Japan) (Rev 2) (eShop)"
+	cloneof "Flipnote Studio 3D (USA) (eShop)"
 	description "Ugoku Memo Chou 3D (Japan) (Rev 2) (eShop)"
 	region "Japan"
 	serial "CTR-N-JKZJ"
@@ -7052,6 +7160,7 @@ game (
 
 game (
 	name "Ugoku Memo Chou 3D (Japan) (eShop)"
+	cloneof "Flipnote Studio 3D (USA) (eShop)"
 	description "Ugoku Memo Chou 3D (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JKZJ"
@@ -7156,6 +7265,7 @@ game (
 
 game (
 	name "Vampire Sniper (Japan) (eShop)"
+	cloneof "Van Helsing Sniper Zx100 (Europe) (En,Fr,De,Es,It) (eShop)"
 	description "Vampire Sniper (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JVHJ"
@@ -7188,6 +7298,7 @@ game (
 
 game (
 	name "Wario Land 4 (Europe) (GBA) (Virtual Console)"
+	cloneof "Wario Land 4 (USA) (GBA) (Virtual Console)"
 	description "Wario Land 4 (Europe) (GBA) (Virtual Console)"
 	region "Europe"
 	serial "CTR-N-PACP"
@@ -7204,6 +7315,7 @@ game (
 
 game (
 	name "Wario Land Advance - Youki no Otakara (Japan) (GBA) (Virtual Console)"
+	cloneof "Wario Land 4 (USA) (GBA) (Virtual Console)"
 	description "Wario Land Advance - Youki no Otakara (Japan) (GBA) (Virtual Console)"
 	region "Japan"
 	serial "CTR-N-PACJ"
@@ -7260,6 +7372,7 @@ game (
 
 game (
 	name "Witch & Hero (Europe) (eShop)"
+	cloneof "Witch & Hero (USA) (eShop)"
 	description "Witch & Hero (Europe) (eShop)"
 	region "Europe"
 	serial "CTR-N-JWHP"
@@ -7268,6 +7381,7 @@ game (
 
 game (
 	name "Witch & Hero (Taiwan) (eShop)"
+	cloneof "Witch & Hero (USA) (eShop)"
 	description "Witch & Hero (Taiwan) (eShop)"
 	region "Taiwan"
 	serial "CTR-N-JWHW"
@@ -7364,6 +7478,7 @@ game (
 
 game (
 	name "Yoshi's Island - Super Mario Advance 3 (Europe) (En,Fr,De,Es,It) (GBA) (Virtual Console)"
+	cloneof "Yoshi's Island - Super Mario Advance 3 (USA) (GBA) (Virtual Console)"
 	description "Yoshi's Island - Super Mario Advance 3 (Europe) (En,Fr,De,Es,It) (GBA) (Virtual Console)"
 	region "Europe"
 	serial "CTR-N-PADP"
@@ -7380,6 +7495,7 @@ game (
 
 game (
 	name "YouTube (Europe) (En,Fr,De,Es,It,Pt,Ru) (Rev 1) (eShop)"
+	cloneof "YouTube (USA) (eShop)"
 	description "YouTube (Europe) (En,Fr,De,Es,It,Pt,Ru) (Rev 1) (eShop)"
 	region "Europe"
 	serial "CTR-N-JYTP"
@@ -7388,6 +7504,7 @@ game (
 
 game (
 	name "YouTube (Europe) (En,Fr,De,Es,It,Pt,Ru) (Rev 2) (eShop)"
+	cloneof "YouTube (USA) (eShop)"
 	description "YouTube (Europe) (En,Fr,De,Es,It,Pt,Ru) (Rev 2) (eShop)"
 	region "Europe"
 	serial "CTR-N-JYTP"
@@ -7396,6 +7513,7 @@ game (
 
 game (
 	name "YouTube (Europe) (En,Fr,De,Es,It,Pt,Ru) (eShop)"
+	cloneof "YouTube (USA) (eShop)"
 	description "YouTube (Europe) (En,Fr,De,Es,It,Pt,Ru) (eShop)"
 	region "Europe"
 	serial "CTR-N-JYTP"
@@ -7404,6 +7522,7 @@ game (
 
 game (
 	name "YouTube (Japan) (eShop)"
+	cloneof "YouTube (USA) (eShop)"
 	description "YouTube (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JYTJ"
@@ -7412,6 +7531,7 @@ game (
 
 game (
 	name "YouTube (USA) (En,Fr,De,Es,It,Nl,Pt,Ru) (Rev 1) (eShop)"
+	cloneof "YouTube (USA) (eShop)"
 	description "YouTube (USA) (En,Fr,De,Es,It,Nl,Pt,Ru) (Rev 1) (eShop)"
 	region "USA"
 	serial "CTR-N-JYTE"
@@ -7420,6 +7540,7 @@ game (
 
 game (
 	name "YouTube (USA) (Rev 2) (eShop)"
+	cloneof "YouTube (USA) (eShop)"
 	description "YouTube (USA) (Rev 2) (eShop)"
 	region "USA"
 	serial "CTR-N-JYTE"
@@ -7452,6 +7573,7 @@ game (
 
 game (
 	name "Zelda no Densetsu - Fushigi no Boushi (Japan) (GBA) (Virtual Console)"
+	cloneof "Legend of Zelda, The - The Minish Cap (USA) (GBA) (Virtual Console)"
 	description "Zelda no Densetsu - Fushigi no Boushi (Japan) (GBA) (Virtual Console)"
 	region "Japan"
 	serial "CTR-N-PAKJ"
@@ -7548,6 +7670,7 @@ game (
 
 game (
 	name "peakvox - Mew Mew Train (Japan) (eShop)"
+	cloneof "Skater Cat (Europe) (En,Fr,De,Es,It) (eShop)"
 	description "peakvox - Mew Mew Train (Japan) (eShop)"
 	region "Japan"
 	serial "CTR-N-JMYJ"

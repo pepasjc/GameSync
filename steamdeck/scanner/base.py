@@ -3,8 +3,16 @@
 import hashlib
 import re
 import struct
+import sys
 from pathlib import Path
 from typing import Optional
+
+# Make the repo root importable so 'shared' can be found.
+_REPO_ROOT = str(Path(__file__).parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from shared.systems import PSX_RETAIL_PREFIXES  # noqa: E402
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -45,22 +53,7 @@ _MULTI_UNDERSCORE_RE = re.compile(r"_+")
 # PS1 product code pattern: 4 letters + 5+ digits (e.g. SLUS01234)
 PS1_SERIAL_RE = re.compile(r"^[A-Z]{4}\d{5,}$")
 
-# PS1 retail disc prefixes (match Android's psxRetailPrefixes)
-PSX_RETAIL_PREFIXES = {
-    "SLUS",
-    "SCUS",
-    "PAPX",  # NA
-    "SLES",
-    "SCES",
-    "SCED",  # EU
-    "SLPS",
-    "SLPM",
-    "SCPS",
-    "SCPM",  # JP
-    "SLAJ",
-    "SLEJ",
-    "SCAJ",  # Other
-}
+# PSX_RETAIL_PREFIXES imported from shared.systems above.
 
 # Shared / global memory card names to skip (DuckStation / ePSXe)
 SHARED_CARD_NAMES = {

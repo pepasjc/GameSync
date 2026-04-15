@@ -17,21 +17,25 @@ game (
 )
 game (
 	name "1942 (Small) (World) (Aftermarket) (Unl)"
+	cloneof "1942 (Extended) (World) (Aftermarket) (Unl)"
 	description "1942 (Small) (World) (Aftermarket) (Unl)"
 	rom ( name "1942 (Small) (World) (Aftermarket) (Unl).a78" size 131200 crc F8A336F7 md5 2C709A3D4A4C10582AE9BEAA544AB748 sha1 934AA6BD79B6AA957DA2EE3B97DC3C8AD2849530 )
 )
 game (
 	name "1942 (Small) (World) (Aftermarket) (Unl)"
+	cloneof "1942 (Extended) (World) (Aftermarket) (Unl)"
 	description "1942 (Small) (World) (Aftermarket) (Unl)"
 	rom ( name "1942 (Small) (World) (Aftermarket) (Unl).bin" size 131072 crc 75E09FF6 md5 0430094AD660D9900A8489C936FA2F20 sha1 90763D46CF73DC145103904B1A5FB7BE57CD091A )
 )
 game (
 	name "1942 (World) (Aftermarket) (Unl)"
+	cloneof "1942 (Extended) (World) (Aftermarket) (Unl)"
 	description "1942 (World) (Aftermarket) (Unl)"
 	rom ( name "1942 (World) (Aftermarket) (Unl).a78" size 262272 crc C44CD08A md5 9C1AC6C8A85B4787D4C521189485FA98 sha1 C7D22ECDCD7F86B1F114D769CD053C568188BDA9 )
 )
 game (
 	name "1942 (World) (Aftermarket) (Unl)"
+	cloneof "1942 (Extended) (World) (Aftermarket) (Unl)"
 	description "1942 (World) (Aftermarket) (Unl)"
 	rom ( name "1942 (World) (Aftermarket) (Unl).bin" size 262144 crc F9E37618 md5 FD9353D42CCA5F81FE7AF866592B94C3 sha1 FF87C796E86D7E0FD29455C44C1F3F4F3AFF2BC2 )
 )
@@ -209,6 +213,7 @@ game (
 )
 game (
 	name "Baseball (Europe)"
+	cloneof "Pete Rose Baseball (USA)"
 	description "Baseball (Europe)"
 	region "Europe"
 	rom ( name "Baseball (Europe).bin" size 32768 crc 68D48FDC md5 386BDED4A944BAE455FEDF56206DD1DD sha1 C44FE244206590ABC26FBBD520A5726353899E35 )
@@ -425,6 +430,7 @@ game (
 )
 game (
 	name "Dragon's Cache (World) (BupSystem) (Aftermarket) (Unl)"
+	cloneof "Dragon's Cache (World) (Aftermarket) (Unl)"
 	description "Dragon's Cache (World) (BupSystem) (Aftermarket) (Unl)"
 	releaseyear "2020"
 	releasemonth "10"
@@ -433,6 +439,7 @@ game (
 )
 game (
 	name "Dragon's Cache (World) (BupSystem) (Aftermarket) (Unl)"
+	cloneof "Dragon's Cache (World) (Aftermarket) (Unl)"
 	description "Dragon's Cache (World) (BupSystem) (Aftermarket) (Unl)"
 	releaseyear "2020"
 	releasemonth "10"
@@ -1091,21 +1098,25 @@ game (
 )
 game (
 	name "Pac-Man Collection (World) (Digital) (Aftermarket) (Unl)"
+	cloneof "Pac-Man Collection - 40th Anniversary Edition (World) (Digital) (Aftermarket) (Unl)"
 	description "Pac-Man Collection (World) (Digital) (Aftermarket) (Unl)"
 	rom ( name "Pac-Man Collection (World) (Digital) (NTSC) (Aftermarket) (Unl).a78" size 32896 crc 1E857EA5 md5 06762CFC3C6086A7E0E11C2C3DD7D908 sha1 2A8E374E032364B9168D5D70475EDA91A23BB6B2 )
 )
 game (
 	name "Pac-Man Collection (World) (Digital) (Aftermarket) (Unl)"
+	cloneof "Pac-Man Collection - 40th Anniversary Edition (World) (Digital) (Aftermarket) (Unl)"
 	description "Pac-Man Collection (World) (Digital) (Aftermarket) (Unl)"
 	rom ( name "Pac-Man Collection (World) (Digital) (NTSC) (Aftermarket) (Unl).bin" size 32768 crc 0542BFF8 md5 290DBB0FA08F4750A5934BBDC27DC5BC sha1 F44FEB600B9B8F705A17AA10AE820334C6AA4B88 )
 )
 game (
 	name "Pac-Man Collection (World) (Digital) (PAL) (Aftermarket) (Unl)"
+	cloneof "Pac-Man Collection - 40th Anniversary Edition (World) (Digital) (Aftermarket) (Unl)"
 	description "Pac-Man Collection (World) (Digital) (PAL) (Aftermarket) (Unl)"
 	rom ( name "Pac-Man Collection (World) (Digital) (PAL) (Aftermarket) (Unl).a78" size 32896 crc 3B674661 md5 40A409911FA51FF0B5AA3ECAD332CFED sha1 1C139B85A151FFF18F8921E91DCC8ADA35864896 )
 )
 game (
 	name "Pac-Man Collection (World) (Digital) (PAL) (Aftermarket) (Unl)"
+	cloneof "Pac-Man Collection - 40th Anniversary Edition (World) (Digital) (Aftermarket) (Unl)"
 	description "Pac-Man Collection (World) (Digital) (PAL) (Aftermarket) (Unl)"
 	rom ( name "Pac-Man Collection (World) (Digital) (PAL) (Aftermarket) (Unl).bin" size 32768 crc 20A0873C md5 D622C9DE8A823BA1C079510CEF6ED817 sha1 B9672ADA1D272B738EB8B6FE91DB682E9485C62C )
 )

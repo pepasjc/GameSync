@@ -7,90 +7,16 @@ Examples:
     MD_sonic_the_hedgehog
 """
 
+import sys
+from pathlib import Path
 import re
 
-SYSTEM_CODES = frozenset(
-    {
-        # Nintendo handhelds
-        "GBA",
-        "GBC",
-        "GB",
-        "NDS",
-        "3DS",
-        # Nintendo home
-        "NES",
-        "SNES",
-        "N64",
-        "GC",
-        "WII",
-        "FDS",
-        "N64DD",
-        # Sony
-        "PS1",
-        "PS2",
-        "PSP",
-        # Sega
-        "GEN",
-        "MD",  # Mega Drive / Genesis (both accepted; MD is canonical)
-        "SCD",
-        "SEGACD",  # Sega CD (both accepted; SEGACD is canonical)
-        "32X",
-        "SMS",  # Master System
-        "GG",  # Game Gear
-        "SAT",  # Saturn
-        "DC",  # Dreamcast
-        # SNK
-        "NGP",
-        "NGPC",
-        "NEOGEO",
-        "NEOCD",
-        # NEC
-        "PCE",
-        "PCSG",
-        "PCECD",
-        "TG16",
-        # Bandai
-        "WS",
-        "WSWAN",  # WonderSwan (WSWAN canonical; WS is legacy)
-        "WSWANC",
-        # Atari
-        "A2600",  # Atari 2600 (canonical)
-        "ATARI2600",  # legacy
-        "A5200",  # Atari 5200 (canonical)
-        "ATARI5200",  # legacy
-        "A7800",  # Atari 7800 (canonical)
-        "ATARI7800",  # legacy
-        "A800",  # Atari 800 / 400 / XL / XE 8-bit computers
-        "ATARIXED",  # Atari XE Game System
-        "LYNX",  # Atari Lynx
-        "JAGUAR",  # Atari Jaguar
-        "JAGCD",  # Atari Jaguar CD
-        "ATARIST",  # Atari ST / STE / TT / Falcon
-        # Nintendo misc
-        "VB",  # Virtual Boy
-        "BS",  # Satellaview (BS-X)
-        "POKEMINI",  # Pokémon Mini
-        # Sega misc
-        "NAOMI",  # Sega NAOMI arcade
-        "NAOMI2",  # Sega NAOMI 2 arcade
-        # NEC misc
-        "PC98",  # NEC PC-98
-        "PCFX",  # NEC PC-FX
-        # Sharp
-        "X1",  # Sharp X1
-        "X68K",  # Sharp X68000
-        # 3DO
-        "3DO",
-        # Arcade
-        "ARCADE",
-        "MAME",
-        "FBA",
-        "FBNEO",
-        "CPS1",
-        "CPS2",
-        "CPS3",
-    }
-)
+# Make the repo root importable so 'shared' can be found.
+_REPO_ROOT = str(Path(__file__).parent.parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from shared.systems import SYSTEM_CODES  # noqa: E402
 
 # Regex for emulator title_id format: SYSTEM_slug
 # Slug may be lowercase (ROM-name style: GBA_zelda_the_minish_cap) or uppercase with

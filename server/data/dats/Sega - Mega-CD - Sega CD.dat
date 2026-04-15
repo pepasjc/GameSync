@@ -31,6 +31,7 @@ game (
 )
 game (
 	name "AX-101 (Japan)"
+	cloneof "A-X-101 (USA)"
 	region "Japan"
 	serial "G-6031"
 	rom ( name "AX-101 (Japan) (Track 1).bin" size 615817104 crc 03CBF674 md5 CB1E01076185D819F0BEC8350FC1744B sha1 616DA93BFE4C511DCAB19BBBF3AEBCAC4876A2EE serial "G-6031" )
@@ -157,6 +158,7 @@ game (
 )
 game (
 	name "Bari-Arm (Japan)"
+	cloneof "Android Assault - The Revenge of Bari-Arm (USA)"
 	region "Japan"
 	serial "T-43024"
 	rom ( name "Bari-Arm (Japan) (Track 01).bin" size 16849728 crc AF764474 md5 B085A96A1F51FD4F29900AF0BD1F86FD sha1 805003E27212C103478FE3D04EF28C794712394E serial "T-43024" )
@@ -175,6 +177,7 @@ game (
 )
 game (
 	name "Battle Fantasy (Japan) (Rev A)"
+	cloneof "Revengers of Vengeance (USA)"
 	region "Japan"
 	serial "T-22044"
 	rom ( name "Battle Fantasy (Japan) (Rev A) (Track 01).bin" size 21499632 crc 86074E4B md5 F252F521025FCE0F9EE54F4D49910E70 sha1 1967B086E5D451AF6CC818A8C83D98870A316ECC serial "T-22044" )
@@ -209,6 +212,7 @@ game (
 )
 game (
 	name "Beast II (Europe)"
+	cloneof "Shadow of the Beast II (USA)"
 	region "Europe"
 	serial "T-113045-50"
 	rom ( name "Beast II (Europe) (Track 01).bin" size 24051552 crc 7E722AB6 md5 9C546DFC9B919CA13DEF2310C991D6B4 sha1 92B7E222CDA092CBF743CC9CF9882234D87D5B69 serial "T-113045-50" )
@@ -227,12 +231,14 @@ game (
 )
 game (
 	name "Black Hole Assault (Japan)"
+	cloneof "Blackhole Assault (USA)"
 	region "Japan"
 	serial "T-22024"
 	rom ( name "Black Hole Assault (Japan) (Track 01).bin" size 14055552 crc D889B03D md5 0748B3CF07C310062E1007A095D102F9 sha1 DB6DCAF56313FEE37C708DA0CA068336CF209376 serial "T-22024" )
 )
 game (
 	name "Blackhole Assault (Europe)"
+	cloneof "Blackhole Assault (USA)"
 	region "Europe"
 	serial "4405"
 	rom ( name "Blackhole Assault (Europe) (Track 01).bin" size 13855632 crc 9CDF503D md5 BE1F8325B0D304DBAB35B4D33DD3986B sha1 161B608499C51FF0F4E05833BEA094B6945419D6 serial "4405" )
@@ -245,18 +251,21 @@ game (
 )
 game (
 	name "Blackhole Assault (USA) (Alt)"
+	cloneof "Blackhole Assault (USA)"
 	region "USA"
 	serial "PN-6400"
 	rom ( name "Blackhole Assault (USA) (Alt) (Track 01).bin" size 13855632 crc EFE1D3ED md5 DC8BB69E1CA1C965B335B89A0C1834D0 sha1 5296C30A94093D90FAB63BC73651C885D7A804E9 serial "PN-6400" )
 )
 game (
 	name "Bloodshot (Europe) (En,Fr,De,Es)"
+	cloneof "Battle Frenzy (USA)"
 	region "Europe"
 	serial "T-88045-18"
 	rom ( name "Bloodshot (Europe) (En,Fr,De,Es) (Track 01).bin" size 7542864 crc BD7EF798 md5 7283292740B3B9F2C5C55B30F8CFBEDA sha1 AE7713A336417D92F23FD96E9BB3321D59ED9B31 serial "T-88045-18" )
 )
 game (
 	name "Bloodshot (Europe) (En,Fr,De,Es)"
+	cloneof "Battle Frenzy (USA)"
 	region "Europe"
 	serial "T-88045-50"
 	rom ( name "Bloodshot (Europe) (En,Fr,De,Es) (Track 01).bin" size 7542864 crc BD7EF798 md5 7283292740B3B9F2C5C55B30F8CFBEDA sha1 AE7713A336417D92F23FD96E9BB3321D59ED9B31 serial "T-88045-50" )
@@ -398,6 +407,7 @@ game (
 )
 game (
 	name "Cobra Command (Europe)"
+	cloneof "Cobra Command (USA)"
 	region "Europe"
 	serial "4402"
 	rom ( name "Cobra Command (Europe) (Track 1).bin" size 256344480 crc 4B176DF2 md5 5E961B6F28A48F58937654C987D0BF96 sha1 BB003DBEE57D4AB134BED8F0BE666FC069E93C99 serial "4402" )
@@ -437,12 +447,14 @@ game (
 )
 game (
 	name "Corpse Killer (Europe)"
+	cloneof "Corpse Killer (USA)"
 	region "Europe"
 	serial "T-162055-50"
 	rom ( name "Corpse Killer (Europe) (Track 1).bin" size 626234112 crc 60CF5A65 md5 A570C8488508710BEB7686504F5C0F7B sha1 A7AFE571446CD80BA2FA54912110E0FB2BB3CF3C serial "T-162055-50" )
 )
 game (
 	name "Corpse Killer (Europe) (Mega-CD 32X)"
+	cloneof "Corpse Killer (USA)"
 	region "Europe"
 	serial "T-16201F-50"
 	rom ( name "Corpse Killer (Europe) (Mega-CD 32X) (Track 1).bin" size 624898176 crc D9E345F0 md5 009637215F1F8484364FB5178607506F sha1 C8B3DD903DAC8F7C2074B4949ED5CD2590158B23 serial "T-16201F-50" )
@@ -455,6 +467,7 @@ game (
 )
 game (
 	name "Corpse Killer (USA) (Sega CD 32X)"
+	cloneof "Corpse Killer (USA)"
 	region "USA"
 	serial "T-16201F"
 	rom ( name "Corpse Killer (USA) (Sega CD 32X) (Track 1).bin" size 624898176 crc ACD1F057 md5 A4A5231387A14BEE1CA512FD7471EC11 sha1 393DC5FB09FD9A05AAD0E480EDAE182CDE7FFB30 serial "T-16201F" )
@@ -491,6 +504,7 @@ game (
 )
 game (
 	name "Dark Wizard - Yomigaerishi Yami no Madoushi (Japan)"
+	cloneof "Dark Wizard (USA)"
 	region "Japan"
 	serial "G-6005"
 	rom ( name "Dark Wizard - Yomigaerishi Yami no Madoushi (Japan) (Track 01).bin" size 413505120 crc D1AF4AB4 md5 77ED85FA93DBD2EDDDECABE576AA333B sha1 6BAF5AA10645F53C23F68772274EAC6878CF9F0A serial "G-6005" )
@@ -509,6 +523,7 @@ game (
 )
 game (
 	name "Dennin Aleste - Nobunaga and His Ninja Force (Japan)"
+	cloneof "Robo Aleste (USA)"
 	region "Japan"
 	serial "T-66014"
 	rom ( name "Dennin Aleste - Nobunaga and His Ninja Force (Japan) (Track 01).bin" size 15005760 crc 2BBA56F5 md5 05A96A84AD6979212F70D88FA9D1B78D sha1 AF3F90534F5DA5FEB7EA385C8E4C2C59A0083B07 serial "T-66014" )
@@ -707,6 +722,7 @@ game (
 )
 game (
 	name "Ecco - The Tides of Time (Europe) (En,Fr,De,Es)"
+	cloneof "Ecco - The Tides of Time (USA)"
 	region "Europe"
 	serial "4441-50"
 	rom ( name "Ecco - The Tides of Time (Europe) (En,Fr,De,Es) (Track 01).bin" size 150542112 crc E22640DE md5 8ECC231AB5A0E02415F19AA84DA30A4E sha1 B5190AE5B74EDD3B93DF63F7F6E76BF8C096BC96 serial "4441-50" )
@@ -719,18 +735,21 @@ game (
 )
 game (
 	name "Ecco - The Tides of Time (USA) (Alt)"
+	cloneof "Ecco - The Tides of Time (USA)"
 	region "USA"
 	serial "4441"
 	rom ( name "Ecco - The Tides of Time (USA) (Alt) (Track 01).bin" size 150640896 crc EAC03FE1 md5 7C43CB79F3C2553A198BEC7FB2EE341A sha1 BAB86C4A7B3373B720D8E722B145B31622925F74 serial "4441" )
 )
 game (
 	name "Ecco the Dolphin (Australia)"
+	cloneof "Ecco the Dolphin (USA)"
 	region "Australia"
 	serial "4408"
 	rom ( name "Ecco the Dolphin (Australia) (Track 01).bin" size 59618496 crc 881D6C0D md5 002303CEA6246E0ECAB8B7F9E9B42AA1 sha1 5DBB8388380D785049AAB7D7B60FC867348FF623 serial "4408" )
 )
 game (
 	name "Ecco the Dolphin (Europe) (Rerelease)"
+	cloneof "Ecco the Dolphin (USA)"
 	region "Europe"
 	serial "4408"
 	rom ( name "Ecco the Dolphin (Europe) (Rerelease) (Track 01).bin" size 59616144 crc E6EAF047 md5 072049CEE317E60963B02978DDFCAB00 sha1 131AB295B255134BAD5B3C1CE0306FBF836D799A serial "4408" )
@@ -825,36 +844,42 @@ game (
 )
 game (
 	name "FIFA International Soccer - Championship Edition (Europe) (En,Fr,De,Es)"
+	cloneof "FIFA International Soccer (USA) (En,Fr,De,Es)"
 	region "Europe"
 	serial "T-50055-50"
 	rom ( name "FIFA International Soccer - Championship Edition (Europe) (En,Fr,De,Es) (Track 01).bin" size 262836000 crc 30822DDC md5 F5DD6EBF5F7FA5A29CA1B4251AE04841 sha1 14D0BEA103C134788BB2E6EA45B5537847CEA559 serial "T-50055-50" )
 )
 game (
 	name "Fahrenheit (Europe)"
+	cloneof "Fahrenheit (USA) (Disc 2) (32X CD)"
 	region "Europe"
 	serial "4438-50"
 	rom ( name "Fahrenheit (Europe) (Track 1).bin" size 593710656 crc FF7637DA md5 D5C67A545C1D49A86583820A382DD80B sha1 6B3F27A1B17CC008B6988EF1BA6DDA48BDC6AC4A serial "4438-50" )
 )
 game (
 	name "Fahrenheit (France)"
+	cloneof "Fahrenheit (USA) (Disc 2) (32X CD)"
 	region "France"
 	serial "4438-09"
 	rom ( name "Fahrenheit (France) (Track 1).bin" size 593710656 crc 1D62A4DD md5 DF763F8AB7631DB4AF05DE2A1BBF5193 sha1 1F8E22AC1311032AB70F0DB1B4127114FEE0D3C8 serial "4438-09" )
 )
 game (
 	name "Fahrenheit (Japan)"
+	cloneof "Fahrenheit (USA) (Disc 2) (32X CD)"
 	region "Japan"
 	serial "G-6043"
 	rom ( name "Fahrenheit (Japan) (Track 1).bin" size 593534256 crc F2BC9334 md5 A96F6D3FB1A6B022B6ABA5B49AB3CD19 sha1 4DFA3F0021F9C4193A3A03E14E580C91CAD90A75 serial "G-6043" )
 )
 game (
 	name "Fahrenheit (USA) (Disc 1) (Key Disc) (Sega CD)"
+	cloneof "Fahrenheit (USA) (Disc 2) (32X CD)"
 	region "USA"
 	serial "4438"
 	rom ( name "Fahrenheit (USA) (Disc 1) (Key Disc) (Sega CD) (Track 1).bin" size 593710656 crc E22FF784 md5 F96FDB4FC2F8A6308C46D8AF793D5C21 sha1 436141455A4726CE065D37DB8E39F540C303DE0A serial "4438" )
 )
 game (
 	name "Fahrenheit (USA) (Disc 1) (Key Disc) (Sega CD)"
+	cloneof "Fahrenheit (USA) (Disc 2) (32X CD)"
 	region "USA"
 	serial "4438-0"
 	rom ( name "Fahrenheit (USA) (Disc 1) (Key Disc) (Sega CD) (Track 1).bin" size 593710656 crc E22FF784 md5 F96FDB4FC2F8A6308C46D8AF793D5C21 sha1 436141455A4726CE065D37DB8E39F540C303DE0A serial "4438-0" )
@@ -873,6 +898,7 @@ game (
 )
 game (
 	name "Fatal Fury Special (Europe)"
+	cloneof "Fatal Fury Special (USA)"
 	region "Europe"
 	serial "T-60165-50"
 	rom ( name "Fatal Fury Special (Europe) (Track 01).bin" size 15845424 crc D6DAD22D md5 5EF0F3075F13F0A77EE0785FF3B899DB sha1 66C5A0CAF0B1BF856C4423EF75D727BB2D683A2B serial "T-60165-50" )
@@ -933,6 +959,7 @@ game (
 )
 game (
 	name "Formula One World Championship - Beyond the Limit (Europe)"
+	cloneof "Formula One World Championship - Beyond the Limit (USA)"
 	region "Europe"
 	serial "4608-50"
 	rom ( name "Formula One World Championship - Beyond the Limit (Europe) (Track 01).bin" size 202768272 crc 41EDE562 md5 D3A246C2B74F6057B503C1BB060C7C93 sha1 35472A5121DED387A53A74FD2B3EC1BA8E8ED952 serial "4608-50" )
@@ -963,6 +990,7 @@ game (
 )
 game (
 	name "Garou Densetsu Special (Japan)"
+	cloneof "Fatal Fury Special (USA)"
 	region "Japan"
 	serial "T-60214"
 	rom ( name "Garou Densetsu Special (Japan) (Track 01).bin" size 15826608 crc 9CAB4019 md5 C04B109E873A3B82023C0137B3515D13 sha1 AFE22536C271B2845E1688BBE9E79ABB0EA1035C serial "T-60214" )
@@ -1035,6 +1063,7 @@ game (
 )
 game (
 	name "Heavenly Symphony - Formula One World Championship 1993 (Japan)"
+	cloneof "Formula One World Championship - Beyond the Limit (USA)"
 	region "Japan"
 	serial "G-6034"
 	rom ( name "Heavenly Symphony - Formula One World Championship 1993 (Japan) (Track 01).bin" size 202761216 crc 41AAFAC7 md5 03900CE1266499CE0726375A28B19443 sha1 22ED2B1B687244AAB837681D560DAE69AD0AA421 serial "G-6034" )
@@ -1086,6 +1115,7 @@ game (
 )
 game (
 	name "IIIrd World War, The (Japan)"
+	cloneof "Third World War (USA)"
 	region "Japan"
 	serial "T-22034"
 	rom ( name "IIIrd World War, The (Japan) (Track 01).bin" size 175906080 crc EC170EA8 md5 D5E3A2274A7F59C006C4FA21620F7114 sha1 E55989D33A7752E3BFA625DFEC2D883DF3DD8A35 serial "T-22034" )
@@ -1176,12 +1206,14 @@ game (
 )
 game (
 	name "Kamen Rider ZO (Japan)"
+	cloneof "Masked Rider, The - Kamen Rider ZO (USA)"
 	region "Japan"
 	serial "T-141014"
 	rom ( name "Kamen Rider ZO (Japan) (Track 1).bin" size 449996400 crc A21571DE md5 27D6778504375D324B1A267813ECD4FA sha1 1E9F137B00FFFD580EF38BB52DB47684A7F610D6 serial "T-141014" )
 )
 game (
 	name "Keio Flying Squadron (Europe)"
+	cloneof "Keio Flying Squadron (USA)"
 	region "Europe"
 	serial "T-60185-50"
 	rom ( name "Keio Flying Squadron (Europe) (Track 01).bin" size 77853552 crc 4F1E9D60 md5 2AAF1AE59D45077D7DEF2BE4DFB6D03F sha1 942ACAFA357BD967994A8DACC217BE795F73AB7A serial "T-60185-50" )
@@ -1194,6 +1226,7 @@ game (
 )
 game (
 	name "Keiou Yuugekitai (Japan)"
+	cloneof "Keio Flying Squadron (USA)"
 	region "Japan"
 	serial "T-60114"
 	rom ( name "Keiou Yuugekitai (Japan) (Track 01).bin" size 77853552 crc 8586C1E7 md5 FF783F66AFE6F480976AAA2DD3390BDC sha1 843EC18F57D20C87F3AB58F164413502EAFB2453 serial "T-60114" )
@@ -1236,12 +1269,14 @@ game (
 )
 game (
 	name "Lethal Enforcers II - Gun Fighters (Europe)"
+	cloneof "Lethal Enforcers II - Gun Fighters (USA)"
 	region "Europe"
 	serial "T-95025-50"
 	rom ( name "Lethal Enforcers II - Gun Fighters (Europe) (Track 01).bin" size 14845824 crc 3D5DF472 md5 4CBEA82F63CF056965E256B70EF0C373 sha1 0059F985764F4095DF9D83F2ABCFA9D1F4EF129A serial "T-95025-50" )
 )
 game (
 	name "Lethal Enforcers II - Gun Fighters (Europe) (Beta)"
+	cloneof "Lethal Enforcers II - Gun Fighters (USA)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "23"
@@ -1256,6 +1291,7 @@ game (
 )
 game (
 	name "Lethal Enforcers II - The Western (Japan)"
+	cloneof "Lethal Enforcers II - Gun Fighters (USA)"
 	region "Japan"
 	serial "T-95034"
 	rom ( name "Lethal Enforcers II - The Western (Japan) (Track 01).bin" size 14845824 crc A3CCFCBB md5 A5107424FCE478B0EC32FB2ADFCF9E7F sha1 163A466DD8CFCDC76E219D3E5F2A3574B2397796 serial "T-95034" )
@@ -1351,6 +1387,7 @@ game (
 )
 game (
 	name "Make My Video - INXS (Europe)"
+	cloneof "Make My Video - INXS (USA)"
 	region "Europe"
 	serial "4902"
 	rom ( name "Make My Video - INXS (Europe) (Track 1).bin" size 509570208 crc 4BEAB01B md5 DD928FA639EE8515F05C4CFAB972CE02 sha1 462E16F9B3F6CD37E85F0B085BA022E7B941F95D serial "4902" )
@@ -1363,6 +1400,7 @@ game (
 )
 game (
 	name "Make My Video - INXS (USA) (Beta)"
+	cloneof "Make My Video - INXS (USA)"
 	releaseyear "1992"
 	releasemonth "12"
 	releaseday "15"
@@ -1389,6 +1427,7 @@ game (
 )
 game (
 	name "Make My Video - Marky Mark and the Funky Bunch (USA) (Beta)"
+	cloneof "Make My Video - Marky Mark and the Funky Bunch (USA)"
 	releaseyear "1992"
 	releasemonth "12"
 	releaseday "11"
@@ -1408,6 +1447,7 @@ game (
 )
 game (
 	name "Marko's Magic Football (Europe) (En,Fr,De,Es)"
+	cloneof "Marko (USA)"
 	region "Europe"
 	serial "T-88025-50"
 	rom ( name "Marko's Magic Football (Europe) (En,Fr,De,Es) (Track 01).bin" size 16162944 crc 88018E29 md5 7DB280687CA037D5C40F7D0B9A9769EC sha1 76E2801A9A68E8A714BC6E07CC114FB7177FDA49 serial "T-88025-50" )
@@ -1438,6 +1478,7 @@ game (
 )
 game (
 	name "Mickey Mania (Europe)"
+	cloneof "Mickey Mania - The Timeless Adventures of Mickey Mouse (USA)"
 	region "Europe"
 	serial "T-93305-50"
 	rom ( name "Mickey Mania (Europe) (Track 01).bin" size 15676080 crc 024D38A9 md5 60D7C286360420498DE4D4FC7FCCDFE2 sha1 116015AEC553967475538C71B4425FEEF9636983 serial "T-93305-50" )
@@ -1509,6 +1550,7 @@ game (
 )
 game (
 	name "Mortal Kombat (Europe)"
+	cloneof "Mortal Kombat (USA)"
 	region "Europe"
 	serial "T-81025-50"
 	rom ( name "Mortal Kombat (Europe) (Track 01).bin" size 37516752 crc 509C1303 md5 9727C3711393F0919208814332C3FC8A sha1 AC8F5611DB7D765102131E647896D46856CE7BE0 serial "T-81025-50" )
@@ -1521,6 +1563,7 @@ game (
 )
 game (
 	name "Mortal Kombat Kanzenban (Japan)"
+	cloneof "Mortal Kombat (USA)"
 	region "Japan"
 	serial "T-81014"
 	rom ( name "Mortal Kombat Kanzenban (Japan) (Track 01).bin" size 37516752 crc 4E1E3619 md5 2D61162F4882CB2BBF8FE39F35A3BB3B sha1 8C498A7923B41F2E4F0A32766BBF2F8889991FDD serial "T-81014" )
@@ -1569,6 +1612,7 @@ game (
 )
 game (
 	name "NHL Hockey '94 (Europe)"
+	cloneof "NHL '94 (USA)"
 	region "Europe"
 	serial "T-50015-50"
 	rom ( name "NHL Hockey '94 (Europe) (Track 01).bin" size 209363280 crc 09AC07A1 md5 9408074D515A8C5DA92A1BEDCF5E318D sha1 CAF31C308037F4EE76D34E7B11F5D9B8F84D3621 serial "T-50015-50" )
@@ -1861,6 +1905,7 @@ game (
 )
 game (
 	name "PopfulMail (Japan)"
+	cloneof "Popful Mail (USA)"
 	region "Japan"
 	serial "G-6029"
 	rom ( name "PopfulMail (Japan) (Track 1).bin" size 349281408 crc DA0DB5B4 md5 BCB0D7EF81F3045471A5CAFB1FA9486F sha1 C290DA2671D57DFB111F3AC98C15410A9B7F663C serial "G-6029" )
@@ -1885,6 +1930,7 @@ game (
 )
 game (
 	name "PowerMonger (Europe)"
+	cloneof "Power Monger (USA)"
 	region "Europe"
 	serial "T-50035-50"
 	rom ( name "PowerMonger (Europe) (Track 01).bin" size 387948288 crc 6968976D md5 C517B57F2DFD53763AB27D543E241046 sha1 D6BEC3FEACE1418EF6E4BAFFA86C94860F906EBB serial "T-50035-50" )
@@ -2088,18 +2134,21 @@ game (
 )
 game (
 	name "Rise of the Dragon (USA) (Rerelease)"
+	cloneof "Rise of the Dragon (USA)"
 	region "USA"
 	serial "T-110035"
 	rom ( name "Rise of the Dragon (USA) (Rerelease) (RE) (Track 1).bin" size 129028368 crc E2D7B047 md5 A469B7FCB595ABCC3D14A85D6165536E sha1 0B0C8F0007912BF523879736B26218118E25D9E6 serial "T-110035" )
 )
 game (
 	name "Rise of the Dragon - A Blade Hunter Mystery (Japan)"
+	cloneof "Rise of the Dragon (USA)"
 	region "Japan"
 	serial "G-6002"
 	rom ( name "Rise of the Dragon - A Blade Hunter Mystery (Japan) (Track 1).bin" size 178145184 crc E9C09483 md5 97D0D5FF19E421473F35C1C7623054FF sha1 8453616166778BA5D9A0AD3241B1BDDC4D36E4A9 serial "G-6002" )
 )
 game (
 	name "Road Avenger (Europe)"
+	cloneof "Road Avenger (USA)"
 	region "Europe"
 	serial "4603"
 	rom ( name "Road Avenger (Europe) (Track 1).bin" size 317816352 crc C15FDE6F md5 DEF62F1421D66233572585339A56D2F1 sha1 7346E7F482F45C28A29BC6BBA82CCFF2171F8CD5 serial "4603" )
@@ -2112,6 +2161,7 @@ game (
 )
 game (
 	name "Road Blaster FX (Japan)"
+	cloneof "Road Avenger (USA)"
 	region "Japan"
 	serial "T-32124"
 	rom ( name "Road Blaster FX (Japan) (Track 1).bin" size 317806944 crc 6F7B2D24 md5 792D39BA731E4A7304156A2A625E894C sha1 0D82D86145EE05D186FD558DDAD3587E2FD59311 serial "T-32124" )
@@ -2124,6 +2174,7 @@ game (
 )
 game (
 	name "Robo Aleste (Europe)"
+	cloneof "Robo Aleste (USA)"
 	region "Europe"
 	serial "4416"
 	rom ( name "Robo Aleste (Europe) (Track 01).bin" size 14930496 crc 559CBDE2 md5 325596AEC3B649157816E225B8B4FCF1 sha1 06659A8B9BFC7FCD7700CA853EBB0663E8E2E4E6 serial "4416" )
@@ -2185,6 +2236,7 @@ game (
 )
 game (
 	name "Sega Classic Arcade Collection - Limited Edition (Japan)"
+	cloneof "Sega Classics Arcade Collection - Limited Edition (Europe) (Rev A) (Alt)"
 	region "Japan"
 	serial "G-6012"
 	rom ( name "Sega Classic Arcade Collection - Limited Edition (Japan) (Track 01).bin" size 25149936 crc A65DB4BA md5 FBB25208230E66D223312749715476BC sha1 8CCCC706236BA5827598FA1B3B46AD9D03968EE8 serial "G-6012" )
@@ -2239,6 +2291,7 @@ game (
 )
 game (
 	name "Sensible Soccer (Europe) (En,Fr,De,It)"
+	cloneof "Championship Soccer '94 (USA) (En,Fr,De,It)"
 	region "Europe"
 	serial "T-93185-50"
 	rom ( name "Sensible Soccer (Europe) (En,Fr,De,It) (Track 01).bin" size 27048000 crc 4887822B md5 D54C909099832D965A83EDD3344788DE sha1 2BA6A5A734C712B4C706906B441A772DB99BA2C0 serial "T-93185-50" )
@@ -2275,6 +2328,7 @@ game (
 )
 game (
 	name "Shadow of the Beast II - Juushin no Jubaku (Japan)"
+	cloneof "Shadow of the Beast II (USA)"
 	region "Japan"
 	serial "T-60034"
 	rom ( name "Shadow of the Beast II - Juushin no Jubaku (Japan) (Track 01).bin" size 29976240 crc 0330E73D md5 845EF4AE5C7D29B28F32BC06D39FA904 sha1 F1E4A7D0924AF808F5D2DE587B28B89DB01C267C serial "T-60034" )
@@ -2685,12 +2739,14 @@ game (
 )
 game (
 	name "Sonic CD (Europe)"
+	cloneof "Sonic CD (USA) (RE125) (Alt 2)"
 	region "Europe"
 	serial "4407"
 	rom ( name "Sonic CD (Europe) (Track 01).bin" size 129590496 crc 0060AC74 md5 1E0E1D19BBC308E9524FF853C2320E88 sha1 1AB058C8228AF31A50DEF1B01F1F33961F2F23D7 serial "4407" )
 )
 game (
 	name "Sonic CD (Europe) (Beta)"
+	cloneof "Sonic CD (USA) (RE125) (Alt 2)"
 	releaseyear "1993"
 	releasemonth "08"
 	releaseday "06"
@@ -2699,6 +2755,7 @@ game (
 )
 game (
 	name "Sonic CD (Europe) (Beta)"
+	cloneof "Sonic CD (USA) (RE125) (Alt 2)"
 	releaseyear "1993"
 	releasemonth "08"
 	releaseday "19"
@@ -2717,12 +2774,14 @@ game (
 )
 game (
 	name "Sonic the Hedgehog CD (Japan)"
+	cloneof "Sonic CD (USA) (RE125) (Alt 2)"
 	region "Japan"
 	serial "G-6021"
 	rom ( name "Sonic the Hedgehog CD (Japan) (Track 01).bin" size 129592848 crc 4C9FB365 md5 5595A2F1BC28F045FEE385FFC074581B sha1 BD33F07167EB25372975143483B27927CF13E2DB serial "G-6021" )
 )
 game (
 	name "Sonic the Hedgehog CD (Japan) (Beta)"
+	cloneof "Sonic CD (USA) (RE125) (Alt 2)"
 	releaseyear "1993"
 	releasemonth "07"
 	releaseday "12"
@@ -2731,6 +2790,7 @@ game (
 )
 game (
 	name "Sonic the Hedgehog CD (Japan) (Beta)"
+	cloneof "Sonic CD (USA) (RE125) (Alt 2)"
 	releaseyear "1993"
 	releasemonth "08"
 	releaseday "01"
@@ -2918,30 +2978,35 @@ game (
 )
 game (
 	name "Surgical Strike (Brazil) (Sega CD 32X)"
+	cloneof "Surgical Strike (USA)"
 	region "Brazil"
 	serial "4435"
 	rom ( name "Surgical Strike (Brazil) (Sega CD 32X) (Track 1).bin" size 438499824 crc 2356DCC6 md5 945D37549F11012247E5B064B161340D sha1 19BB54E5AF096AE321AF5A02C9E2741CB8C992C4 serial "4435" )
 )
 game (
 	name "Surgical Strike (Brazil) (Sega CD 32X)"
+	cloneof "Surgical Strike (USA)"
 	region "Brazil"
 	serial "157036"
 	rom ( name "Surgical Strike (Brazil) (Sega CD 32X) (Track 1).bin" size 438499824 crc 2356DCC6 md5 945D37549F11012247E5B064B161340D sha1 19BB54E5AF096AE321AF5A02C9E2741CB8C992C4 serial "157036" )
 )
 game (
 	name "Surgical Strike (Europe)"
+	cloneof "Surgical Strike (USA)"
 	region "Europe"
 	serial "4435-50"
 	rom ( name "Surgical Strike (Europe) (Track 1).bin" size 445005456 crc 8BD8629B md5 ED9F28C5EC7993C5D84A1722752FC36C sha1 8E2D4455E1D8896AE976C08B38AC17899F2056CE serial "4435-50" )
 )
 game (
 	name "Surgical Strike (Europe)"
+	cloneof "Surgical Strike (USA)"
 	region "Europe"
 	serial "670-6783-50"
 	rom ( name "Surgical Strike (Europe) (Track 1).bin" size 445005456 crc 8BD8629B md5 ED9F28C5EC7993C5D84A1722752FC36C sha1 8E2D4455E1D8896AE976C08B38AC17899F2056CE serial "670-6783-50" )
 )
 game (
 	name "Surgical Strike (Japan)"
+	cloneof "Surgical Strike (USA)"
 	region "Japan"
 	serial "G-6044"
 	rom ( name "Surgical Strike (Japan) (Track 1).bin" size 447752592 crc DE3ED309 md5 88698ED8DB9BA7B756A7FA383DC5E017 sha1 E51626F37222CC849F3AAFE59E25F31EBF33F87C serial "G-6044" )
@@ -2954,12 +3019,14 @@ game (
 )
 game (
 	name "Surgical Strike (USA) (Alt)"
+	cloneof "Surgical Strike (USA)"
 	region "USA"
 	serial "4435"
 	rom ( name "Surgical Strike (USA) (Alt) (Track 1).bin" size 445005456 crc EB94DB26 md5 7624E55D7C85825036A21A9E13E7DD52 sha1 D4204796AC98245A7AD9ED9FF5792C5A58D0D7CD serial "4435" )
 )
 game (
 	name "Switch (Japan)"
+	cloneof "Panic! (USA)"
 	region "Japan"
 	serial "G-6009"
 	rom ( name "Switch (Japan) (Track 01).bin" size 253884288 crc 09ACEEF5 md5 7ED241D359E1BBBC3500A4B1A9E807DF sha1 8464CDD35ABFE18CBD5D43B5B3EDC360FFFB294D serial "G-6009" )
@@ -3008,18 +3075,21 @@ game (
 )
 game (
 	name "Thunder Storm FX (Japan)"
+	cloneof "Cobra Command (USA)"
 	region "Japan"
 	serial "T-32064"
 	rom ( name "Thunder Storm FX (Japan) (Track 1).bin" size 259446768 crc 5512FD9C md5 8C1E251EAA509B5A4E22ABBAFC2A675E sha1 103A73671B8B5AEE069D191357EB0DDB77D0161D serial "T-32064" )
 )
 game (
 	name "Thunderhawk (Europe) (En,Fr,De,Es)"
+	cloneof "AH3 - Thunderstrike (USA)"
 	region "Europe"
 	serial "T-115015-50"
 	rom ( name "Thunderhawk (Europe) (En,Fr,De,Es) (RE) (Track 01).bin" size 147500976 crc 1894660A md5 6D97B9999C4DA460A75190A3B4E79EA9 sha1 BC90E88FBE915FA644D7A81CA31FD43D93B4386C serial "T-115015-50" )
 )
 game (
 	name "Thunderhawk (Japan)"
+	cloneof "AH3 - Thunderstrike (USA)"
 	region "Japan"
 	serial "T-60134"
 	rom ( name "Thunderhawk (Japan) (Track 01).bin" size 104504064 crc 590BDA55 md5 36F154EDB9CF31A50C8D7441675EC315 sha1 ED973B667EF3C52CCE40025B7504AE90E27B171F serial "T-60134" )
@@ -3116,12 +3186,14 @@ game (
 )
 game (
 	name "Vay - Ryuusei no Yoroi (Japan)"
+	cloneof "Vay (USA)"
 	region "Japan"
 	serial "T-44014"
 	rom ( name "Vay - Ryuusei no Yoroi (Japan) (Track 01).bin" size 122294592 crc E080738E md5 A8B804E9A19CFCCE042DAECDCFAACF01 sha1 95F96A6605AA8EFEE811E2F38EA940339849A0CE serial "T-44014" )
 )
 game (
 	name "WWF - Rage in the Cage (Europe)"
+	cloneof "WWF - Rage in the Cage (USA)"
 	region "Europe"
 	serial "T-81015-50"
 	rom ( name "WWF - Rage in the Cage (Europe) (Track 1).bin" size 244424544 crc 763BA4EC md5 C4F9C12F6D7EBDE9A157E75E2C619EEA sha1 4F847388ABFB95C240EC3D29916380FE00ACB8EB serial "T-81015-50" )
@@ -3134,6 +3206,7 @@ game (
 )
 game (
 	name "WWF Mania Tour - WWF - Rage in the Cage (Japan)"
+	cloneof "WWF - Rage in the Cage (USA)"
 	region "Japan"
 	serial "T-81024"
 	rom ( name "WWF Mania Tour - WWF - Rage in the Cage (Japan) (Track 1).bin" size 244424544 crc 5EA20193 md5 BA48A73897F9ADEBF5C306D8CFBF6F0D sha1 7EAC082765283034734726107CC4B2A20F4FCEBF serial "T-81024" )
@@ -3262,18 +3335,21 @@ game (
 )
 game (
 	name "Yumemi Mystery Mansion (Australia)"
+	cloneof "Mansion of Hidden Souls (USA)"
 	region "Australia"
 	serial "4430"
 	rom ( name "Yumemi Mystery Mansion (Australia) (Track 1).bin" size 605143728 crc B81ED2CD md5 084E818D25FC867DF31DF74BE6B9038E sha1 1283A45A157DFF81EC6AFC47C42B5364D6628ACA serial "4430" )
 )
 game (
 	name "Yumemi Mystery Mansion (Europe)"
+	cloneof "Mansion of Hidden Souls (USA)"
 	region "Europe"
 	serial "4430"
 	rom ( name "Yumemi Mystery Mansion (Europe) (Made in Japan) (Track 1).bin" size 605141376 crc 75E317E6 md5 4B70DDBEB5A0B5181843A9879689A528 sha1 77956A0620C691AA986B73E482CF0F763DAE6F0E serial "4430" )
 )
 game (
 	name "Yumemi Yakata no Monogatari (Japan)"
+	cloneof "Mansion of Hidden Souls (USA)"
 	region "Japan"
 	serial "G-6027"
 	rom ( name "Yumemi Yakata no Monogatari (Japan) (Track 1).bin" size 625389744 crc E491E189 md5 FCC0915D6BB80C64C81B65BC0A943366 sha1 483AA4469A9E579ED99803C5EB9CF70D1F15F836 serial "G-6027" )
