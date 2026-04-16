@@ -109,6 +109,17 @@ async def lifespan(app: FastAPI):
 async def _periodic_rom_scan():
     interval = settings.rom_scan_interval
     try:
+        # Scan immediately on startup so new files added while the server was
+        # down are picked up without waiting for the first interval to elapse.
+        try:
+            catalog = rom_scanner.rescan()
+            if catalog:
+                logger.info(
+                    "[rom_scanner] Startup scan: %d ROMs", len(catalog.entries)
+                )
+        except Exception:
+            logger.exception("[rom_scanner] Startup scan failed")
+
         while True:
             await asyncio.sleep(interval)
             try:
