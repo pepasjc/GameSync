@@ -1,8 +1,7 @@
 """Sync engine for ROM-based save syncing (RetroArch, MiSTer, Analogue Pocket, etc.).
 
-Standalone module — does not import from the server codebase.
-Uses dedicated server save endpoints when a platform needs format-aware
-conversion (for example PS1/PS2 memory cards), and `/raw` for simpler systems.
+Uses the shared package for cross-app ROM/title-id helpers while keeping the
+device sync workflow independent from the server package layout.
 """
 
 from __future__ import annotations
@@ -24,24 +23,19 @@ import requests
 from systems import (
     CD_ALL_EXTENSIONS,
     MEGA_EVERDRIVE_CD_SYSTEMS,
+    MISTER_FOLDER_MAP,
     ROM_EXTENSIONS,
     SAVE_EXTENSIONS,
     SYSTEM_CODES,
     SYSTEM_DEFAULT_SAVE_EXT,
 )
+from shared.rom_id import make_title_id, normalize_rom_name
 
 # ---------------------------------------------------------------------------
-# ROM name normalization (mirrors server/app/services/rom_id.py)
+# ROM name normalization helpers layered on top of shared.rom_id
 # ---------------------------------------------------------------------------
 
 # SYSTEM_CODES imported from systems
-
-_REGION_RE = re.compile(
-    r"\s*\((?:USA|Europe|Japan|World|Germany|France|Italy|Spain|Australia|"
-    r"Brazil|Korea|China|Netherlands|Sweden|Denmark|Norway|Finland|Asia|"
-    r"En|Ja|Fr|De|Es|It|Nl|Pt|Sv|No|Da|Fi|Ko|Zh|[A-Z][a-z,\s]+)\)",
-    re.IGNORECASE,
-)
 _REV_RE = re.compile(
     r"\s*\((?:Rev\s*\w+|v\d[\d.]*|Version\s*\w+|Beta\s*\d*|Proto\s*\d*|Demo|Sample|Unl)\)",
     re.IGNORECASE,
@@ -49,9 +43,6 @@ _REV_RE = re.compile(
 _DISC_RE = re.compile(r"\s*\((?:Disc|Disk|CD)\s*\d+\)", re.IGNORECASE)
 _EXTRA_RE = re.compile(r"\s*\([^)]+\)")
 _BRACKET_TAG_RE = re.compile(r"\s*\[[^\]]*\]")
-_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
-_MULTI_UNDERSCORE_RE = re.compile(r"_+")
-_EMULATOR_TITLE_ID_RE = re.compile(r"^([A-Z0-9]{2,8})_([a-z0-9][a-z0-9_]{0,99})$")
 
 _REGION_NAMES = {
     "usa",
@@ -130,56 +121,6 @@ def _extract_regions(stem: str) -> list[str]:
 def _normalize_alias_lookup_name(filename: str) -> str:
     """Normalize translated names while ignoring [patch] metadata."""
     return normalize_rom_name(_BRACKET_TAG_RE.sub("", filename).strip())
-
-
-def normalize_rom_name(filename: str) -> str:
-    """Strip extension and revision/disc tags; append region to the slug.
-
-    Mirrors server/app/services/rom_id.py — must stay in sync.
-
-    Examples:
-        "Super Mario World (USA).sfc"            -> "super_mario_world_usa"
-        "Sonic the Hedgehog (USA, Europe).md"    -> "sonic_the_hedgehog_usa_europe"
-        "Final Fantasy VII (Rev 1) (USA).bin"    -> "final_fantasy_vii_usa"
-        "Homebrew Game.sfc"                      -> "homebrew_game"
-    """
-    name = filename
-    for _ in range(3):
-        dot_idx = name.rfind(".")
-        if dot_idx <= 0:
-            break
-        suffix = name[dot_idx + 1 :]
-        if 1 <= len(suffix) <= 5 and suffix.isalnum():
-            name = name[:dot_idx]
-        else:
-            break
-
-    # Extract region before stripping all parenthetical tags
-    region_match = _REGION_RE.search(name)
-    region_parts = ""
-    if region_match:
-        region_text = region_match.group(0).strip(" ()")
-        region_parts = "_".join(region_text.lower().replace(",", " ").split())
-
-    name = _REV_RE.sub("", name)
-    name = _DISC_RE.sub("", name)
-    name = _EXTRA_RE.sub("", name)
-    name = name.lower()
-    name = _NON_ALNUM_RE.sub("_", name)
-    name = _MULTI_UNDERSCORE_RE.sub("_", name).strip("_")
-
-    if region_parts:
-        name = f"{name}_{region_parts}"
-
-    return name or "unknown"
-
-
-def make_title_id(system: str, rom_filename: str) -> str:
-    """Return canonical title_id e.g. GBA_zelda_the_minish_cap."""
-    system = system.upper().strip()
-    if system not in SYSTEM_CODES:
-        raise ValueError(f"Unknown system code: {system!r}")
-    return f"{system}_{normalize_rom_name(rom_filename)}"
 
 
 def slug_to_display_name(slug: str) -> str:
@@ -275,29 +216,6 @@ RETROARCH_SYSTEM_CORES: dict[str, list[str]] = {
     "CPS2": ["FinalBurn Neo", "MAME"],
     "CPS3": ["FinalBurn Neo", "MAME"],
     "FDS": ["Nestopia", "FCEUmm"],
-}
-
-# MiSTer saves folder name -> system code
-MISTER_FOLDER_MAP: dict[str, str] = {
-    "GBA": "GBA",
-    "SNES": "SNES",
-    "NES": "NES",
-    "Genesis": "MD",
-    "MegaDrive": "MD",
-    "N64": "N64",
-    "Gameboy": "GB",
-    "GBC": "GBC",
-    "GameGear": "GG",
-    "SMS": "SMS",
-    "PCEngine": "PCE",
-    "TurboGrafx16": "PCE",
-    "Atari2600": "A2600",
-    "Atari7800": "A7800",
-    "Lynx": "LYNX",
-    "NeoGeo": "NEOGEO",
-    "32X": "32X",
-    "MegaCD": "SEGACD",
-    "PSX": "PS1",
 }
 
 # Analogue Pocket platform folder -> system code (standard Memories/<Platform>/ layout)

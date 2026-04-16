@@ -6,6 +6,7 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                   ?extract=gdi  — CHD → GDI ZIP (Dreamcast)
                                   ?extract=iso  — CHD → ISO (PSP)
                                   ?extract=cso  — CHD → CSO compressed image (PSP)
+                                  ?extract=rvz  — RVZ → ISO (GameCube / Wii via DolphinTool)
 POST /api/v1/roms/scan         — Trigger rescan of ROM directory
 GET  /api/v1/roms/systems      — List systems with ROMs and counts
 """
@@ -48,6 +49,9 @@ _GDI_SYSTEMS = frozenset({'DC', 'DREAMCAST'})
 # PSP uses its own ISO/CSO pipeline
 _PSP_SYSTEMS = frozenset({'PSP'})
 
+# GameCube / Wii use RVZ (Dolphin compressed) — convert with DolphinTool
+_GC_SYSTEMS = frozenset({'GC', 'WII'})
+
 # All systems that support any CHD extraction
 _CD_SYSTEMS   = _CUE_SYSTEMS | _GDI_SYSTEMS
 _ALL_EXTRACT  = _CD_SYSTEMS | _PSP_SYSTEMS
@@ -86,14 +90,16 @@ async def list_roms(
     for e in entries:
         d = e.to_dict()
         sys_up = (e.system or '').upper()
-        is_chd = Path(e.filename).suffix.lower() == '.chd'
-        if is_chd:
+        suffix = Path(e.filename).suffix.lower()
+        if suffix == '.chd':
             if sys_up in _PSP_SYSTEMS:
                 d['extract_format'] = 'psp'
             elif sys_up in _GDI_SYSTEMS:
                 d['extract_format'] = 'gdi'
             elif sys_up in _CUE_SYSTEMS:
                 d['extract_format'] = 'cue'
+        elif suffix == '.rvz' and sys_up in _GC_SYSTEMS:
+            d['extract_format'] = 'rvz'
         result.append(d)
 
     return {"roms": result, "total": len(result)}
@@ -158,7 +164,9 @@ async def download_rom(
     if extract:
         fmt = extract.lower()
         sys_up = (entry.system or '').upper()
-        if fmt in ('iso', 'cso'):
+        if fmt == 'rvz' or (fmt == 'iso' and file_path.suffix.lower() == '.rvz'):
+            return await _extract_rvz(file_path, file_path.stem)
+        elif fmt in ('iso', 'cso'):
             return await _extract_psp(file_path, sys_up, file_path.stem, fmt)
         else:
             # 'cue', 'gdi', or legacy 'true'
@@ -170,6 +178,56 @@ async def download_rom(
     if range_header:
         return _serve_range(file_path, file_size, content_type, range_header)
     return _serve_full(file_path, file_size, content_type)
+
+
+# ── GameCube / Wii RVZ → ISO ─────────────────────────────────────────────────
+
+async def _extract_rvz(rvz_path: Path, stem: str) -> Response:
+    """Convert a Dolphin RVZ compressed disc image to a plain ISO."""
+    if rvz_path.suffix.lower() != '.rvz':
+        return Response(status_code=400, content="Only RVZ files can be converted with this endpoint")
+
+    dolphin_tool = (
+        shutil.which('DolphinTool')
+        or shutil.which('dolphin-tool')
+        or (Path('/usr/games/dolphin-tool').is_file() and '/usr/games/dolphin-tool')
+    )
+    if not dolphin_tool:
+        return Response(
+            status_code=503,
+            content=(
+                "DolphinTool not found. Install Dolphin emulator and ensure DolphinTool "
+                "is on PATH (Linux: dolphin-tool, Windows: DolphinTool.exe)."
+            ),
+        )
+
+    def _run() -> bytes:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            iso_path = Path(tmpdir) / (stem + '.iso')
+            r = subprocess.run(
+                [dolphin_tool, 'convert', '-f', 'iso', '-i', str(rvz_path), '-o', str(iso_path)],
+                capture_output=True, text=True, timeout=600,
+            )
+            if r.returncode != 0:
+                raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'DolphinTool failed')
+            return iso_path.read_bytes()
+
+    try:
+        data = await asyncio.get_event_loop().run_in_executor(None, _run)
+    except RuntimeError as exc:
+        return Response(status_code=500, content=f"Conversion failed: {exc}")
+    except subprocess.TimeoutExpired:
+        return Response(status_code=504, content="Conversion timed out (>10 min)")
+
+    filename = stem + '.iso'
+    return Response(
+        content=data,
+        media_type='application/x-iso9660-image',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Length': str(len(data)),
+        },
+    )
 
 
 # ── PSP CHD → ISO / CSO ──────────────────────────────────────────────────────
@@ -375,6 +433,7 @@ _CONTENT_TYPES = {
     '.iso': 'application/x-iso9660-image',
     '.chd': 'application/x-chd',
     '.cso': 'application/x-cso',
+    '.rvz': 'application/x-rvz',
     '.zip': 'application/zip',
     '.7z':  'application/x-7z-compressed',
     '.rar': 'application/x-rar-compressed',

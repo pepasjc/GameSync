@@ -207,6 +207,7 @@ ROM_EXTENSIONS: frozenset[str] = frozenset(
         # GameCube / Wii
         ".gcm",    # GameCube disc image
         ".gci",    # GameCube save container (used as ROM in some loaders)
+        ".rvz",    # Dolphin compressed disc image (GameCube / Wii)
         # Sega 8-bit
         ".sms",    # Master System
         ".gg",     # Game Gear

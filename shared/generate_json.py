@@ -12,9 +12,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import mister
 import systems  # relative import when run from this directory
 
-OUTPUT = Path(__file__).parent / "systems.json"
+OUTPUTS = [
+    Path(__file__).parent / "systems.json",
+    Path(__file__).parent.parent / "mister" / "systems.json",
+]
 
 
 def main() -> None:
@@ -37,9 +41,13 @@ def main() -> None:
         "system_color": systems.SYSTEM_COLOR,
         "default_system_color": systems.DEFAULT_SYSTEM_COLOR,
         "psx_retail_prefixes": sorted(systems.PSX_RETAIL_PREFIXES),
+        "mister_folder_to_system": mister.MISTER_FOLDER_TO_SYSTEM,
+        "mister_system_to_folder": mister.MISTER_SYSTEM_TO_FOLDER,
     }
-    OUTPUT.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-    print(f"Written: {OUTPUT}")
+    payload = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    for output in OUTPUTS:
+        output.write_text(payload, encoding="utf-8")
+        print(f"Written: {output}")
 
 
 if __name__ == "__main__":

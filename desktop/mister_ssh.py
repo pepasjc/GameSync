@@ -21,7 +21,11 @@ try:
 except ImportError:
     PARAMIKO_AVAILABLE = False
 
-from systems import SAVE_EXTENSIONS  # noqa: E402 (after conditional import above)
+from systems import (  # noqa: E402 (after conditional import above)
+    MISTER_FOLDER_TO_SYSTEM,
+    MISTER_SYSTEM_TO_FOLDER,
+    SAVE_EXTENSIONS,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -30,55 +34,8 @@ from systems import SAVE_EXTENSIONS  # noqa: E402 (after conditional import abov
 MISTER_SAVES_DIR = "/media/fat/saves"
 MISTER_STATE_FILE = "/media/fat/3dssync_state.json"
 
-# MiSTer folder name → system code.  Mirrors mister/sync_saves.sh.
-FOLDER_TO_SYSTEM: dict[str, str] = {
-    "GBA": "GBA",
-    "SNES": "SNES",
-    "NES": "NES",
-    "Genesis": "MD",
-    "MegaDrive": "MD",
-    "N64": "N64",
-    "Gameboy": "GB",
-    "GBC": "GBC",
-    "GameGear": "GG",
-    "SMS": "SMS",
-    "PCEngine": "PCE",
-    "TurboGrafx16": "PCE",
-    "Atari2600": "A2600",
-    "Atari7800": "A7800",
-    "Lynx": "LYNX",
-    "NeoGeo": "NEOGEO",
-    "32X": "32X",
-    "MegaCD": "SEGACD",
-    "PSX": "PS1",
-    # Some MiSTer builds use slightly different names
-    "GG": "GG",
-    "NEOGEO": "NEOGEO",
-    "Lynx48": "LYNX",
-    "Saturn": "SAT",
-}
-
-# System code → preferred MiSTer folder (for downloads)
-SYSTEM_TO_FOLDER: dict[str, str] = {
-    "GBA": "GBA",
-    "SNES": "SNES",
-    "NES": "NES",
-    "MD": "Genesis",
-    "N64": "N64",
-    "GB": "Gameboy",
-    "GBC": "GBC",
-    "GG": "GameGear",
-    "SMS": "SMS",
-    "PCE": "PCEngine",
-    "A2600": "Atari2600",
-    "A7800": "Atari7800",
-    "LYNX": "Lynx",
-    "NEOGEO": "NeoGeo",
-    "32X": "32X",
-    "SEGACD": "MegaCD",
-    "PS1": "PSX",
-    "SAT": "Saturn",
-}
+FOLDER_TO_SYSTEM = MISTER_FOLDER_TO_SYSTEM
+SYSTEM_TO_FOLDER = MISTER_SYSTEM_TO_FOLDER
 
 
 # ---------------------------------------------------------------------------

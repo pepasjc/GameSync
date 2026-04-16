@@ -35,6 +35,11 @@ from shared.systems import (  # noqa: E402
     SYSTEM_DAT_KEYWORDS,
     SYSTEM_DEFAULT_SAVE_EXT,
 )
+from shared.mister import (  # noqa: E402
+    MISTER_FOLDER_MAP,
+    MISTER_FOLDER_TO_SYSTEM,
+    MISTER_SYSTEM_TO_FOLDER,
+)
 
 __all__ = [
     "ALL_CONSOLE_TYPES",
@@ -45,6 +50,9 @@ __all__ = [
     "DEFAULT_SYSTEM_COLOR",
     "FOLDER_TO_SYSTEM",
     "MEGA_EVERDRIVE_CD_SYSTEMS",
+    "MISTER_FOLDER_MAP",
+    "MISTER_FOLDER_TO_SYSTEM",
+    "MISTER_SYSTEM_TO_FOLDER",
     "PSX_RETAIL_PREFIXES",
     "ROM_EXTENSIONS",
     "SAVE_EXTENSIONS",

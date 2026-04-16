@@ -636,6 +636,12 @@ const STAGES = {
     'Writing ISO…',
     'Compressing to CSO…',
   ],
+  rvz: [
+    'Starting conversion…',
+    'Reading RVZ archive…',
+    'Decompressing disc image…',
+    'Writing ISO file…',
+  ],
 };
 
 // Labels and filename suffixes per format
@@ -644,6 +650,7 @@ const FMT_META = {
   gdi: { badge:'GDI',     suffix:' · packaging as ZIP', ext:'.zip',  errHint:'Check that chdman is installed on the server.' },
   iso: { badge:'ISO',     suffix:'',                    ext:'.iso',  errHint:'Check that chdman is installed on the server.' },
   cso: { badge:'CSO',     suffix:' · compressing',      ext:'.cso',  errHint:'Check that chdman and ciso/maxcso are installed on the server.' },
+  rvz: { badge:'ISO',     suffix:'',                    ext:'.iso',  errHint:'Check that DolphinTool is installed on the server.' },
 };
 
 function queueKey(titleId, fmt) {
@@ -1048,6 +1055,16 @@ function renderRoms() {
           <button class="dl-btn" data-action="dl"
             data-url="${rawUrl}" data-fn="${fn}"
             title="Download original CHD">CHD</button>
+        </div>`;
+      } else if (fmt === 'rvz') {
+        // GameCube / Wii: ISO conversion + original RVZ download
+        btnHtml = `<div class="rom-btns">
+          <button class="dl-btn extract" data-action="extract"
+            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="rvz"
+            title="Convert RVZ to ISO">ISO</button>
+          <button class="dl-btn" data-action="dl"
+            data-url="${rawUrl}" data-fn="${fn}"
+            title="Download original RVZ">RVZ</button>
         </div>`;
       } else {
         btnHtml = `<button class="dl-btn" data-action="dl"
