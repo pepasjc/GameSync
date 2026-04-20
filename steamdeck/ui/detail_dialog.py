@@ -427,13 +427,19 @@ QLabel#detailLabel {{
             extract_format=rom.get("extract_format"),
         )
 
-        ResultDialog(
-            ok,
-            f"ROM for '{entry.display_name}' downloaded to {target_path}."
-            if ok
-            else f"Download failed for '{entry.display_name}'.",
-            parent=self,
-        ).exec()
+        if ok:
+            result_msg = f"ROM for '{entry.display_name}' downloaded to {target_path}."
+        else:
+            # Surface whatever the client captured (HTTP status + server
+            # error body, timeout explanation, exception message) so the
+            # user isn't left guessing why a bare "Download failed"
+            # appeared.
+            detail = getattr(self._client, "last_download_error", "") or ""
+            result_msg = f"Download failed for '{entry.display_name}'."
+            if detail:
+                result_msg += f"\n\n{detail}"
+
+        ResultDialog(ok, result_msg, parent=self).exec()
         if ok:
             self.rom_downloaded = True
             self.accept()

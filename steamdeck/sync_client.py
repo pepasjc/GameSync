@@ -358,6 +358,16 @@ class SyncClient:
         self.base_url = f"http://{host}:{port}/api/v1"
         self.headers = {"X-API-Key": api_key}
         self._timeout = 10
+        # ROM downloads need a much longer read timeout than the generic
+        # API calls: CHD/RVZ extraction runs server-side (chdman /
+        # DolphinTool) *before* the first byte hits the wire, so the
+        # client has to wait through the whole extraction.  Split into
+        # (connect, read) so connection problems still fail fast.
+        self._download_timeout = (30, 900)
+        # Populated by :meth:`download_rom` so the caller can surface a
+        # useful message in the failure dialog (HTTP status, extraction
+        # stderr the server returned in the body, timeout, ...).
+        self.last_download_error: str = ""
 
     # ------------------------------------------------------------------
     # Connection
@@ -450,7 +460,9 @@ class SyncClient:
         ``progress_cb(downloaded, total)`` is invoked after each chunk; total
         is 0 when the server did not advertise ``Content-Length``.
         """
+        self.last_download_error = ""
         if not rom_id:
+            self.last_download_error = "No ROM id supplied."
             return False
 
         params: dict[str, str] = {}
@@ -463,13 +475,27 @@ class SyncClient:
                 params=params,
                 headers=self.headers,
                 stream=True,
-                # ROMs can be multi-GB; use a generous timeout for the
-                # connect/headers phase but rely on the streaming loop for
-                # the body rather than a wall-clock deadline.
-                timeout=self._timeout,
+                # ROMs can be multi-GB and CHD/RVZ extraction runs in a
+                # server-side subprocess (chdman, DolphinTool) before the
+                # first byte arrives.  Use a long read timeout so we wait
+                # for extraction to finish; keep the connect timeout
+                # small so unreachable servers still fail fast.
+                timeout=self._download_timeout,
             ) as r:
                 if r.status_code != 200:
-                    print(f"[ROMs] download HTTP {r.status_code} for {rom_id}")
+                    # Surface the server's error body — the /roms endpoint
+                    # uses plain-text responses for extraction failures
+                    # ("chdman not installed", "Extraction failed: ..."),
+                    # and those are what the user actually needs to see.
+                    detail = ""
+                    try:
+                        detail = r.text.strip()
+                    except Exception:
+                        pass
+                    self.last_download_error = (
+                        f"HTTP {r.status_code}" + (f": {detail}" if detail else "")
+                    )
+                    print(f"[ROMs] download HTTP {r.status_code} for {rom_id}: {detail}")
                     return False
                 total = int(r.headers.get("Content-Length", "0") or 0)
                 target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -497,7 +523,16 @@ class SyncClient:
                         pass
                     raise
             return True
+        except requests.exceptions.Timeout:
+            self.last_download_error = (
+                "Timed out waiting for the server.  For CHD/RVZ files the "
+                "server has to extract them before sending — very large "
+                "games can take several minutes."
+            )
+            print(f"[ROMs] download timed out for {rom_id}")
+            return False
         except Exception as exc:
+            self.last_download_error = str(exc) or exc.__class__.__name__
             print(f"[ROMs] download failed for {rom_id}: {exc}")
             return False
 

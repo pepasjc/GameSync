@@ -90,3 +90,9 @@ ps3/tools/
 *.self
 *.elf
 android/.gradle-user/caches/*
+
+# server build artifacts
+# mcr2vmp is auto-compiled from the adjacent .c sources by
+# ensure_mcr2vmp_binary() when PS1 card conversion is first used.
+server/third_party/mcr2vmp/mcr2vmp
+server/third_party/mcr2vmp/mcr2vmp.exe

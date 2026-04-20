@@ -13,6 +13,7 @@ _3ds_names: dict[str, str] = {}  # 4-char game code -> name
 _ds_names: dict[str, str] = {}  # 4-char game code -> name
 _psp_names: dict[str, str] = {}  # keyed by full product code e.g. "ULUS10272"
 _psx_names: dict[str, str] = {}  # keyed by full product code e.g. "SCUS94163"
+_ps2_names: dict[str, str] = {}  # keyed by full product code e.g. "SCUS97203"
 _sat_names: dict[str, str] = {}  # keyed by Saturn serial e.g. "T-12705H"
 _vita_names: dict[str, str] = {}  # keyed by full product code e.g. "PCSE00082"
 _wii_names: dict[
@@ -26,6 +27,7 @@ _ps3_names: dict[str, str] = {}  # keyed by 9-char product code e.g. "BLJM61131"
 # entries loaded first are never overwritten by PSN entries loaded later.
 _psp_priority: dict[str, tuple[int, int]] = {}
 _psx_priority: dict[str, tuple[int, int]] = {}
+_ps2_priority: dict[str, tuple[int, int]] = {}
 _sat_priority: dict[str, tuple[int, int]] = {}
 _vita_priority: dict[str, tuple[int, int]] = {}
 _3ds_priority: dict[str, tuple[int, int]] = {}
@@ -372,6 +374,7 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
     """
     global \
         _psx_names, \
+        _ps2_names, \
         _psp_names, \
         _sat_names, \
         _vita_names, \
@@ -381,6 +384,7 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
         _ps3_names
     global \
         _psx_priority, \
+        _ps2_priority, \
         _psp_priority, \
         _sat_priority, \
         _vita_priority, \
@@ -406,6 +410,10 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
     elif "playstation 3" in fname:
         target = _ps3_names
         priority = _ps3_priority
+        mode = "strip_hyphens"
+    elif "playstation 2" in fname:
+        target = _ps2_names
+        priority = _ps2_priority
         mode = "strip_hyphens"
     elif "playstation" in fname:
         target = _psx_names
@@ -588,6 +596,15 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             name = _psx_names.get(base)
             if name:
                 result[code] = (name, "PS1")
+            continue
+        if platform == "PS2":
+            # Fall back to _psx_names when the PS2 DAT hasn't been loaded
+            # yet — legacy data in the wild carries SLUS/SCUS/SLES codes
+            # in the PSX dict from before "Sony - PlayStation 2.dat"
+            # was routed to its own dict.
+            name = _ps2_names.get(base) or _psx_names.get(base)
+            if name:
+                result[code] = (name, "PS2")
             continue
         if code_upper in _sat_names:
             result[code] = (_sat_names[code_upper], "SAT")
