@@ -761,9 +761,20 @@ class MainWindow(QMainWindow):
         entry = self._list_view.selected_entry()
         if not entry:
             return
-        dlg = DetailDialog(entry, self._client, self)
+        dlg = DetailDialog(
+            entry,
+            self._client,
+            self,
+            emulation_path=self._config.get("emulation_path"),
+            rom_scan_dir=self._config.get("rom_scan_dir", ""),
+        )
         dlg.exec()
-        self._apply_filters()
+        # A freshly downloaded ROM doesn't show up in the current scan result,
+        # so fall through to a full rescan instead of just reapplying filters.
+        if getattr(dlg, "rom_downloaded", False):
+            self._start_scan()
+        else:
+            self._apply_filters()
 
     def _action_refresh(self):
         self._start_scan()

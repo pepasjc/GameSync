@@ -2,6 +2,7 @@
 
 import time
 from pathlib import Path
+from typing import Optional
 
 from PyQt6.QtWidgets import (
     QDialog,
@@ -25,6 +26,7 @@ from scanner.models import (
     SYSTEM_COLOR,
     DEFAULT_SYSTEM_COLOR,
 )
+from scanner.rom_target import resolve_rom_target_dir
 from . import theme
 from .confirm_dialog import ConfirmDialog, ResultDialog
 from .gamepad_modal import GamepadModalMixin
@@ -36,7 +38,14 @@ class DetailDialog(QDialog, GamepadModalMixin):
     hashes, timestamps, and sync status.  Gamepad-friendly.
     """
 
-    def __init__(self, entry: GameEntry, sync_client, parent=None):
+    def __init__(
+        self,
+        entry: GameEntry,
+        sync_client,
+        parent=None,
+        emulation_path: Optional[Path] = None,
+        rom_scan_dir: Optional[str] = None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Save Info")
         self.setModal(True)
@@ -47,6 +56,12 @@ class DetailDialog(QDialog, GamepadModalMixin):
         self.setStyleSheet(theme.STYLESHEET)
         self._entry = entry
         self._client = sync_client
+        self._emulation_path = Path(emulation_path) if emulation_path else None
+        self._rom_scan_dir = rom_scan_dir or ""
+        # Caller checks this after exec() to decide whether to trigger a full
+        # rescan — a downloaded ROM changes the SERVER_ONLY → SYNCED status
+        # for its save entry, but only after the scanner re-runs.
+        self.rom_downloaded = False
         self._init_gamepad_modal()
         self.setObjectName("detailDialog")
         self.setStyleSheet(
@@ -255,6 +270,23 @@ QLabel#detailLabel {{
             self._download_btn.clicked.connect(self._do_download)
             btn_layout.addWidget(self._download_btn)
 
+        # Download-ROM is only offered when the user is missing the ROM
+        # locally.  The actual catalog check happens on click so we don't
+        # block the dialog open on an HTTP round trip; if the server has no
+        # ROM for this title the handler shows a "not available" result.
+        self._rom_download_btn = None
+        if self._emulation_path is not None and (
+            entry.rom_path is None or not entry.rom_path.exists()
+        ):
+            self._rom_download_btn = QPushButton("Download ROM  [Y]")
+            self._rom_download_btn.setStyleSheet(
+                f"QPushButton {{ background:{theme.STATUS_DOWNLOAD}; color:#fff;"
+                f" border:none; font-weight:bold; }}"
+                f" QPushButton:hover {{ opacity:0.9; }}"
+            )
+            self._rom_download_btn.clicked.connect(self._do_download_rom)
+            btn_layout.addWidget(self._rom_download_btn)
+
         root.addWidget(btn_bar)
 
     # ──────────────────────────────────────────────────────────────
@@ -323,6 +355,91 @@ QLabel#detailLabel {{
             entry.status = SyncStatus.SYNCED
             self.accept()
 
+    def _do_download_rom(self):
+        """
+        Ask the server if it has a ROM for this title, confirm with the user,
+        stream it to the standard per-system folder, and flag the parent
+        window to rescan so the save status flips to SYNCED.
+        """
+        entry = self._entry
+        if self._emulation_path is None:
+            ResultDialog(
+                False,
+                "Emulation path not configured — set it in Settings to enable"
+                " ROM downloads.",
+                parent=self,
+            ).exec()
+            return
+
+        roms = self._client.find_roms_for_title(entry.title_id, entry.system)
+        if not roms:
+            ResultDialog(
+                False,
+                f"No server ROM available for '{entry.display_name}'.",
+                parent=self,
+            ).exec()
+            return
+
+        # Multi-disc games show up as multiple catalog rows sharing a
+        # title_id; pick the first so the common single-disc case stays
+        # one click.  A future change could present a chooser for multi-
+        # row cases.
+        rom = roms[0]
+        filename = rom.get("filename") or f"{rom.get('rom_id', entry.title_id)}.rom"
+        size = int(rom.get("size") or 0)
+        size_txt = f" ({_fmt_size(size)})" if size else ""
+
+        roms_base = self._rom_roots_base()
+        target_dir = resolve_rom_target_dir(roms_base, entry.system)
+        target_path = target_dir / filename
+
+        msg = (
+            f"Download ROM for '{entry.display_name}'?\n"
+            f"File: {filename}{size_txt}\n"
+            f"Destination: {target_dir}"
+        )
+        if target_path.exists():
+            msg += "\n\nA file with this name already exists and will be overwritten."
+
+        dlg = ConfirmDialog(
+            title="Download ROM",
+            message=msg,
+            confirm_label="Download",
+            confirm_color=theme.STATUS_DOWNLOAD,
+            parent=self,
+        )
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+
+        ok = self._client.download_rom(
+            rom_id=str(rom.get("rom_id") or entry.title_id),
+            target_path=target_path,
+            extract_format=rom.get("extract_format"),
+        )
+
+        ResultDialog(
+            ok,
+            f"ROM for '{entry.display_name}' downloaded to {target_path}."
+            if ok
+            else f"Download failed for '{entry.display_name}'.",
+            parent=self,
+        ).exec()
+        if ok:
+            self.rom_downloaded = True
+            self.accept()
+
+    def _rom_roots_base(self) -> Path:
+        """
+        Pick the directory whose subfolders hold per-system ROM folders.
+        Prefers the user's ``rom_scan_dir`` when set (matches the scanner's
+        search order), else falls back to ``<emulation_path>/roms``.
+        """
+        if self._rom_scan_dir:
+            scan_root = Path(self._rom_scan_dir)
+            if scan_root.is_dir():
+                return scan_root
+        return (self._emulation_path or Path.home()) / "roms"
+
     # ──────────────────────────────────────────────────────────────
     # Gamepad / keyboard
     # ──────────────────────────────────────────────────────────────
@@ -344,6 +461,11 @@ QLabel#detailLabel {{
         if key == Qt.Key.Key_X:
             if self._download_btn:
                 self._do_download()
+                return True
+            return False
+        if key == Qt.Key.Key_Y:
+            if self._rom_download_btn:
+                self._do_download_rom()
                 return True
             return False
         return False
