@@ -277,7 +277,11 @@ def scan(
         _record(fallback_tid, entry)
 
     # ------------------------------------------------------------------
-    # Pass C — for ROM entries that still lack a card, try predicted names
+    # Pass C — for ROM entries that still lack a card, attach an existing
+    # one by predicted name, OR set the DuckStation-expected write path so
+    # a server Download Save has somewhere to land.  Matches Android's
+    # DuckStationEmulator.buildRomEntry(), which always points saveFile at
+    # "<clean label>_1.mcd" whether the file exists yet or not.
     # ------------------------------------------------------------------
     if memcards_dir:
         for entry in yielded.values():
@@ -285,16 +289,17 @@ def scan(
                 continue
             label = entry.display_name
             predicted = _predict_card(memcards_dir, label)
-            if predicted is None:
-                # Final synthesised location: where DuckStation would create
-                # a card on first launch.  Only use when the file actually
-                # exists — a non-existent path confuses download_save.
-                clean_label = _clean_card_label(label) or label
-                candidate = memcards_dir / f"{clean_label}_1.mcd"
-                predicted = candidate if candidate.exists() else None
             if predicted is not None:
                 entry.save_path = predicted
                 _fill_save_metadata(entry, predicted)
+                continue
+            # No card exists yet — point save_path at the path DuckStation
+            # will create on first launch (or where a server Download Save
+            # should write).  We do NOT call _fill_save_metadata because the
+            # file has no content; save_hash stays None and compute_status
+            # correctly reports SERVER_ONLY / NO_SAVE.
+            clean_label = _clean_card_label(label) or label
+            entry.save_path = memcards_dir / f"{clean_label}_1.mcd"
 
     yield from yielded.values()
 

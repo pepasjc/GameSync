@@ -138,6 +138,68 @@ def test_scan_card_only_entry_has_no_rom(monkeypatch, tmp_path):
     assert len(results) == 2
 
 
+def test_scan_dino_crisis_duplicate_collapses_to_serial_and_duckstation_path(
+    monkeypatch, tmp_path
+):
+    """The exact duplicate the user reported pre-fix:
+
+        Dino Crisis 2              (title_id: SLUS01279)  ← from the ROM
+        Dino Crisis 2 (USA)        (title_id: PS1_dino_crisis_2_usa)  ← from card
+
+    must collapse to ONE serial-keyed entry with the save_path set to the
+    path DuckStation writes: ``<memcards>/Dino Crisis 2_1.mcd``.  The card
+    name must NOT include the region tag — that's what breaks round-trip
+    sync with the actual emulator.
+    """
+    emulation = tmp_path / "Emulation"
+    memcards = emulation / "saves" / "duckstation" / "memcards"
+    roms_dir = emulation / "roms" / "PS1"
+    memcards.mkdir(parents=True)
+    roms_dir.mkdir(parents=True)
+
+    card = _write(memcards / "Dino Crisis 2_1.mcd", b"existing-card")
+    rom = _write(roms_dir / "Dino Crisis 2 (USA).bin", b"rom")
+
+    monkeypatch.setattr(
+        duckstation, "read_ps1_serial", lambda p: "SLUS01279" if p == rom else None
+    )
+
+    results = list(duckstation.scan(emulation))
+    assert len(results) == 1, [r.title_id for r in results]
+    entry = results[0]
+    assert entry.title_id == "SLUS01279"
+    assert entry.save_path == card
+    assert entry.rom_path == rom
+
+
+def test_scan_rom_without_card_gets_duckstation_write_path(monkeypatch, tmp_path):
+    """If the user has the ROM but no memory card yet, the entry must still
+    carry the DuckStation-expected write path so a server Download Save can
+    land there without pulling in a region tag."""
+    emulation = tmp_path / "Emulation"
+    memcards = emulation / "saves" / "duckstation" / "memcards"
+    roms_dir = emulation / "roms" / "PS1"
+    memcards.mkdir(parents=True)
+    roms_dir.mkdir(parents=True)
+
+    rom = _write(roms_dir / "Dino Crisis 2 (USA).bin", b"rom")
+    monkeypatch.setattr(
+        duckstation, "read_ps1_serial", lambda p: "SLUS01279" if p == rom else None
+    )
+
+    results = list(duckstation.scan(emulation))
+    assert len(results) == 1
+    entry = results[0]
+    assert entry.title_id == "SLUS01279"
+    # save_path points at the exact file DuckStation would create on first
+    # launch — no region tag, `_1.mcd` slot suffix.
+    assert entry.save_path == memcards / "Dino Crisis 2_1.mcd"
+    assert not entry.save_path.exists()
+    # No content yet -> no hash; status logic will treat this as SERVER_ONLY
+    # when the server has a save for SLUS01279.
+    assert entry.save_hash is None
+
+
 def test_scan_serial_filename_card_matches_rom_serial(monkeypatch, tmp_path):
     """
     A card already named by serial (e.g. "SLUS01234_1.mcd") plus a ROM whose
