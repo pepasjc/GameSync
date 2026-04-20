@@ -56,6 +56,26 @@ _REGION_RE = re.compile(
     r"\((USA|Europe|Japan|World|France|Germany|Italy|Spain|Australia)\)", re.IGNORECASE
 )
 
+_ROMAN_TO_ARABIC: dict[str, str] = {
+    "i": "1",
+    "ii": "2",
+    "iii": "3",
+    "iv": "4",
+    "v": "5",
+    "vi": "6",
+    "vii": "7",
+    "viii": "8",
+    "ix": "9",
+    "x": "10",
+    "xi": "11",
+    "xii": "12",
+    "xiii": "13",
+    "xiv": "14",
+    "xv": "15",
+}
+_ARABIC_TO_ROMAN: dict[str, str] = {v: k for k, v in _ROMAN_TO_ARABIC.items()}
+_AMBIGUOUS_PSX_PREFIXES = {"SLPM", "SLPS", "SCPS"}
+
 
 def _psx_name_slug(name: str) -> str:
     """Normalize a psxdb game name to a plain slug for reverse lookup.
@@ -70,6 +90,23 @@ def _psx_name_slug(name: str) -> str:
 def _psx_region_hint(name: str) -> str | None:
     match = _REGION_RE.search(name)
     return match.group(1).upper() if match else None
+
+
+def _slug_roman_variants(slug: str) -> list[str]:
+    """Return roman<->arabic variants for a normalized slug.
+
+    We only use these as a fallback when the exact slug misses, which keeps
+    names like "Mega Man X" from colliding with "Mega Man 10" unless one side
+    is actually absent from the index.
+    """
+    parts = slug.split("_")
+    variants: list[str] = []
+    for idx, part in enumerate(parts):
+        replacement = _ROMAN_TO_ARABIC.get(part) or _ARABIC_TO_ROMAN.get(part)
+        if not replacement:
+            continue
+        variants.append("_".join(parts[:idx] + [replacement] + parts[idx + 1 :]))
+    return variants
 
 
 def _psx_serial_region_rank(code: str, region_hint: str | None) -> tuple[int, int, str]:
@@ -581,6 +618,20 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
                 result[code] = (name, "PS3")
             continue
 
+        # For PS1/PS2-style serial families the numeric heuristic is not
+        # sufficient for every region prefix (notably Japanese SLPM/SLPS
+        # ranges). When one local DAT contains the code and the other does
+        # not, trust the explicit DAT membership before falling back to the
+        # prefix/number heuristic.
+        in_ps1_dat = base in _psx_names
+        in_ps2_dat = base in _ps2_names
+        if in_ps2_dat and not in_ps1_dat:
+            result[code] = (_ps2_names[base], "PS2")
+            continue
+        if in_ps1_dat and not in_ps2_dat and base[:4] in _AMBIGUOUS_PSX_PREFIXES:
+            result[code] = (_psx_names[base], "PS1")
+            continue
+
         platform = _detect_playstation_platform_heuristic(code_upper)
         if platform == "VITA":
             name = _vita_names.get(base)
@@ -781,7 +832,20 @@ def lookup_psx_serial(name: str) -> str | None:
     slug = _psx_name_slug(name)
     candidates = _psx_serials_by_slug.get(slug)
     if not candidates:
-        return _psx_by_slug.get(slug)
+        fallback = _psx_by_slug.get(slug)
+        if fallback:
+            return fallback
+
+        for variant in _slug_roman_variants(slug):
+            candidates = _psx_serials_by_slug.get(variant)
+            if candidates:
+                break
+            fallback = _psx_by_slug.get(variant)
+            if fallback:
+                return fallback
+
+    if not candidates:
+        return None
     region_hint = _psx_region_hint(name)
     return min(candidates, key=lambda code: _psx_serial_region_rank(code, region_hint))
 

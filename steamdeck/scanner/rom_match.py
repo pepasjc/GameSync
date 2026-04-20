@@ -34,6 +34,24 @@ DISC_SLUG_SYSTEMS = frozenset({"PS1", "PS2", "SAT"})
 
 _BRACKET_TAG_RE = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
+_ROMAN_TO_ARABIC: dict[str, str] = {
+    "i": "1",
+    "ii": "2",
+    "iii": "3",
+    "iv": "4",
+    "v": "5",
+    "vi": "6",
+    "vii": "7",
+    "viii": "8",
+    "ix": "9",
+    "x": "10",
+    "xi": "11",
+    "xii": "12",
+    "xiii": "13",
+    "xiv": "14",
+    "xv": "15",
+}
+_ARABIC_TO_ROMAN: dict[str, str] = {v: k for k, v in _ROMAN_TO_ARABIC.items()}
 
 
 def is_disc_slug_title_id(title_id: str, system: str) -> bool:
@@ -72,6 +90,23 @@ def core_name_slug(label: str | None) -> str:
     name = _BRACKET_TAG_RE.sub("", name).strip().lower()
     name = _NON_ALNUM_RE.sub("_", name).strip("_")
     return name
+
+
+def _slug_roman_variants(slug: str) -> list[str]:
+    """Return roman<->arabic variants for a normalized slug.
+
+    These are only consulted as a fallback after exact matches miss so we do
+    not eagerly collapse genuinely distinct titles such as "Mega Man X" and
+    "Mega Man 10".
+    """
+    parts = slug.split("_")
+    variants: list[str] = []
+    for idx, part in enumerate(parts):
+        replacement = _ROMAN_TO_ARABIC.get(part) or _ARABIC_TO_ROMAN.get(part)
+        if not replacement:
+            continue
+        variants.append("_".join(parts[:idx] + [replacement] + parts[idx + 1 :]))
+    return variants
 
 
 class RomIndex:
@@ -124,7 +159,13 @@ class RomIndex:
                 return tid
         core = core_name_slug(name)
         if core and core != "unknown":
-            return self._by_core.get((sys_up, core))
+            tid = self._by_core.get((sys_up, core))
+            if tid:
+                return tid
+        for variant in _slug_roman_variants(core):
+            tid = self._by_core.get((sys_up, variant))
+            if tid:
+                return tid
         return None
 
     def matches_for(self, entry: GameEntry) -> list[dict]:
@@ -177,6 +218,7 @@ def dedup_disc_slug_entries(entries: list[GameEntry]) -> list[GameEntry]:
 
     survivors: list[GameEntry] = []
     dropped: set[int] = set()
+    absorbed_variant_keys: set[tuple[str, str]] = set()
     for group in by_key.values():
         if len(group) == 1:
             survivors.append(group[0])
@@ -203,6 +245,50 @@ def dedup_disc_slug_entries(entries: list[GameEntry]) -> list[GameEntry]:
             _merge_entry_into(winner, loser)
             dropped.add(id(loser))
 
+    # Fallback: when the slug row and the serial row differ only by Roman vs
+    # Arabic numerals ("Breath of Fire IV" vs "Breath of Fire 4"), the exact
+    # core slug keys won't collide. Merge those groups conservatively only
+    # when the source group contains slug rows and the target group contains
+    # serial rows under a Roman/Arabic variant key.
+    for (system, slug), group in by_key.items():
+        if (system, slug) in absorbed_variant_keys:
+            continue
+        slug_entries = [
+            e for e in group if is_disc_slug_title_id(e.title_id, e.system)
+        ]
+        if not slug_entries:
+            continue
+        serial_entries = [
+            e for e in group if not is_disc_slug_title_id(e.title_id, e.system)
+        ]
+        if serial_entries:
+            continue
+
+        target_group: list[GameEntry] | None = None
+        for variant in _slug_roman_variants(slug):
+            candidate_group = by_key.get((system, variant))
+            if not candidate_group:
+                continue
+            candidate_serials = [
+                e
+                for e in candidate_group
+                if not is_disc_slug_title_id(e.title_id, e.system)
+            ]
+            if candidate_serials:
+                target_group = candidate_group
+                absorbed_variant_keys.add((system, slug))
+                break
+
+        if not target_group:
+            continue
+
+        winner = next(
+            e for e in target_group if not is_disc_slug_title_id(e.title_id, e.system)
+        )
+        for loser in slug_entries:
+            _merge_entry_into(winner, loser)
+            dropped.add(id(loser))
+
     result: list[GameEntry] = []
     seen: set[int] = set()
     for entry in order + survivors:
@@ -220,7 +306,21 @@ def _merge_entry_into(winner: GameEntry, loser: GameEntry) -> None:
         winner.rom_path = loser.rom_path
     if not winner.rom_filename and loser.rom_filename:
         winner.rom_filename = loser.rom_filename
-    if winner.save_path is None and loser.save_path is not None:
+    winner_has_real_save = bool(
+        winner.save_path
+        and (
+            winner.save_hash
+            or (winner.save_path.exists() if winner.save_path is not None else False)
+        )
+    )
+    loser_has_real_save = bool(
+        loser.save_path
+        and (
+            loser.save_hash
+            or (loser.save_path.exists() if loser.save_path is not None else False)
+        )
+    )
+    if loser.save_path is not None and (winner.save_path is None or (loser_has_real_save and not winner_has_real_save)):
         winner.save_path = loser.save_path
         winner.save_hash = loser.save_hash
         winner.save_mtime = loser.save_mtime

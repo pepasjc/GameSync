@@ -117,6 +117,22 @@ def test_rom_index_falls_back_to_region_stripped_match():
     ) == "NDS_chrono_trigger_usa"
 
 
+def test_rom_index_falls_back_to_roman_arabic_core_match():
+    idx = RomIndex.build(
+        [
+            {
+                "rom_id": "r1",
+                "title_id": "SLUS01324",
+                "system": "PS1",
+                "name": "Breath of Fire 4",
+                "filename": "Breath of Fire 4.chd",
+            }
+        ]
+    )
+
+    assert idx.title_id_for_name("PS1", "Breath of Fire IV (USA)") == "SLUS01324"
+
+
 def test_rom_index_matches_for_entry_uses_all_strategies(tmp_path):
     idx = RomIndex.build(_catalog())
 
@@ -196,16 +212,23 @@ def test_dedup_keeps_serial_entry_and_absorbs_local_save(tmp_path):
     assert winner.status == SyncStatus.LOCAL_ONLY
 
 
-def test_dedup_dedupes_across_naming_differences():
+def test_dedup_merges_roman_arabic_ps1_title_variants(tmp_path):
+    save_path = tmp_path / "Breath of Fire IV (USA)_1.mcd"
+    save_path.write_text("save")
+
     # Server stored "Breath of Fire 4" (psxdb name); local has "Breath of
-    # Fire IV (USA)".  core_name_slug strips parens but doesn't map
-    # "iv" ↔ "4", so we deliberately do NOT merge in that case — the
-    # dedup is conservative and only merges entries it can prove match.
+    # Fire IV (USA)".  Roman/arithmetic sequel markers should still collapse
+    # to one serial-backed row, preserving the real local save path.
     local_slug = GameEntry(
         title_id="PS1_breath_of_fire_iv_usa",
         display_name="Breath of Fire IV (USA)",
         system="PS1",
         emulator="DuckStation",
+        save_path=save_path,
+        save_hash="abcd",
+        save_mtime=1700000000.0,
+        save_size=128 * 1024,
+        status=SyncStatus.LOCAL_ONLY,
     )
     server_only = GameEntry(
         title_id="SLUS01324",
@@ -214,11 +237,47 @@ def test_dedup_dedupes_across_naming_differences():
         emulator="Server",
         status=SyncStatus.SERVER_ONLY,
     )
-    # Different display names → two rows survive.  The catalog/normalize
-    # enrichment is the path that resolves this case (by re-keying the
-    # local entry to SLUS01324 before server_only ever runs).
+
     result = dedup_disc_slug_entries([local_slug, server_only])
-    assert len(result) == 2
+    assert len(result) == 1
+    winner = result[0]
+    assert winner.title_id == "SLUS01324"
+    assert winner.save_path == save_path
+    assert winner.save_hash == "abcd"
+    assert winner.status == SyncStatus.LOCAL_ONLY
+
+
+def test_dedup_prefers_real_local_card_over_predicted_serial_path(tmp_path):
+    predicted = tmp_path / "Breath of Fire 4_1.mcd"
+    actual = tmp_path / "Breath of Fire IV (USA)_1.mcd"
+    actual.write_text("save")
+
+    serial_entry = GameEntry(
+        title_id="SLUS01324",
+        display_name="Breath of Fire 4",
+        system="PS1",
+        emulator="DuckStation",
+        save_path=predicted,
+        status=SyncStatus.SERVER_ONLY,
+    )
+    local_slug = GameEntry(
+        title_id="PS1_breath_of_fire_iv_usa",
+        display_name="Breath of Fire IV (USA)",
+        system="PS1",
+        emulator="DuckStation",
+        save_path=actual,
+        save_hash="abcd",
+        save_mtime=1700000000.0,
+        save_size=128 * 1024,
+        status=SyncStatus.LOCAL_ONLY,
+    )
+
+    result = dedup_disc_slug_entries([serial_entry, local_slug])
+    assert len(result) == 1
+    winner = result[0]
+    assert winner.title_id == "SLUS01324"
+    assert winner.save_path == actual
+    assert winner.save_hash == "abcd"
 
 
 def test_dedup_leaves_non_disc_systems_alone():

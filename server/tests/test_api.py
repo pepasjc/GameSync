@@ -5,7 +5,7 @@ from app.services.bundle import create_bundle
 from app.services import game_names
 from app.services.ps1_cards import create_vmp, extract_raw_card
 from app.services.ps2_cards import add_ecc, strip_ecc
-from app.services import serialstation
+from app.services import storage
 
 
 def _make_bundle_bytes(
@@ -170,14 +170,10 @@ class TestTitlesEndpoint:
         assert titles[0]["title_id"] == title_id
         assert titles[0]["save_hash"] == hashlib.sha256(b"v2").hexdigest()
 
-    def test_titles_names_uses_serialstation_for_ps2_codes(
+    def test_titles_names_uses_local_db_for_ps2_codes(
         self, client, auth_headers, monkeypatch
     ):
-        async def fake_lookup_batch(codes):
-            assert codes == ["SLPM65590"]
-            return {"SLPM65590": ("Densha de Go! FINAL", "PS2")}
-
-        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
+        monkeypatch.setitem(game_names._ps2_names, "SLPM65590", "Densha de Go! FINAL")
 
         r = client.post(
             "/api/v1/titles/names",
@@ -193,11 +189,6 @@ class TestTitlesEndpoint:
         self, client, auth_headers, monkeypatch
     ):
         monkeypatch.setitem(game_names._ps3_names, "NPUB30096", "Hard Corps Uprising")
-
-        async def fake_lookup_batch(codes):
-            return {}
-
-        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
 
         r = client.post(
             "/api/v1/titles/names",
@@ -243,6 +234,14 @@ class TestTitlesEndpoint:
         # Heuristic identifies SLUS20002 as PS2 (serial ≥ 20000); the
         # fallback lookup finds the legacy name and tags it PS2.
         assert result["SLUS20002"] == ("Armored Core 2 (USA)", "PS2")
+
+    def test_lookup_names_typed_prefers_ps1_dat_for_ambiguous_japanese_prefixes(
+        self, monkeypatch
+    ):
+        monkeypatch.setitem(game_names._psx_names, "SLPM86034", "Parasite Eve (Japan)")
+
+        result = game_names.lookup_names_typed(["SLPM86034"])
+        assert result["SLPM86034"] == ("Parasite Eve (Japan)", "PS1")
 
     def test_saturn_archive_lookup_classifies_results(self, client, auth_headers):
         r = client.post(
@@ -290,7 +289,28 @@ class TestTitlesEndpoint:
         assert result["matches_current_title"] is True
         assert [c["title_id"] for c in result["candidates"]] == ["SAT_T-9527G"]
 
-    def test_titles_can_filter_by_console_type(self, client, auth_headers, monkeypatch):
+    def test_titles_list_prefers_local_db_name_over_stale_metadata(
+        self, client, auth_headers, monkeypatch
+    ):
+        monkeypatch.setitem(game_names._psx_names, "SLUS01324", "Breath of Fire IV (USA)")
+
+        bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01324")
+        client.post(
+            "/api/v1/saves/SLUS01324",
+            content=bundle_ps1,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        storage.update_metadata_name("SLUS01324", "Breath of Fire 4", "PS1")
+
+        r = client.get("/api/v1/titles", headers=auth_headers)
+        assert r.status_code == 200
+        titles = {t["title_id"]: t for t in r.json()["titles"]}
+        assert titles["SLUS01324"]["name"] == "Breath of Fire IV (USA)"
+        assert titles["SLUS01324"]["game_name"] == "Breath of Fire IV (USA)"
+        assert titles["SLUS01324"]["console_type"] == "PS1"
+
+    def test_titles_can_filter_by_console_type(self, client, auth_headers):
         bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
         client.post(
             "/api/v1/saves/SLUS01279",
@@ -305,25 +325,13 @@ class TestTitlesEndpoint:
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
 
-        async def fake_lookup_batch(codes):
-            result = {}
-            if "SLUS01279" in codes:
-                result["SLUS01279"] = ("Dino Crisis 2", "PS1")
-            if "ULUS10272" in codes:
-                result["ULUS10272"] = ("God of War", "PSP")
-            return result
-
-        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
-
         r = client.get("/api/v1/titles?console_type=PS1", headers=auth_headers)
         assert r.status_code == 200
         titles = r.json()["titles"]
         assert [t["title_id"] for t in titles] == ["SLUS01279"]
         assert titles[0]["console_type"] == "PS1"
 
-    def test_titles_can_filter_by_multiple_console_types(
-        self, client, auth_headers, monkeypatch
-    ):
+    def test_titles_can_filter_by_multiple_console_types(self, client, auth_headers):
         bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
         client.post(
             "/api/v1/saves/SLUS01279",
@@ -347,19 +355,6 @@ class TestTitlesEndpoint:
             content=bundle_psp,
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
-
-        async def fake_lookup_batch(codes):
-            result = {}
-            if "SLUS01279" in codes:
-                result["SLUS01279"] = ("Dino Crisis 2", "PS1")
-            if "NPUB30096" in codes or "NPUB30096-SAVEGAME" in codes:
-                result["NPUB30096"] = ("Ridge Racer 7", "PS3")
-                result["NPUB30096-SAVEGAME"] = ("Ridge Racer 7", "PS3")
-            if "ULUS10272" in codes:
-                result["ULUS10272"] = ("God of War", "PSP")
-            return result
-
-        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
 
         r = client.get(
             "/api/v1/titles?console_type=PS1&console_type=PS3",
@@ -809,6 +804,16 @@ class TestPs1Lookup:
 
         assert game_names.lookup_psx_serial("Dino Crisis 2 (USA)") == "SLUS01279"
         assert game_names.lookup_psx_serial("Dino Crisis 2 (Europe)") == "SCES02220"
+
+    def test_lookup_psx_serial_falls_back_to_roman_arabic_variants(self, monkeypatch):
+        monkeypatch.setattr(game_names, "_psx_by_slug", {})
+        monkeypatch.setattr(
+            game_names,
+            "_psx_serials_by_slug",
+            {"breath_of_fire_4": ["SLUS01324"]},
+        )
+
+        assert game_names.lookup_psx_serial("Breath of Fire IV (USA)") == "SLUS01324"
 
     def test_normalize_endpoint_uses_region_aware_ps1_serial_lookup(
         self, client, auth_headers, monkeypatch
