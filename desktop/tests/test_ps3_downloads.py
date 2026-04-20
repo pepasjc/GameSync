@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,6 +20,20 @@ from tabs.sync_tab import (
     SyncTab,
     _resolve_retroarch_download_path,
     _resolve_retroarch_saturn_download_path,
+)
+
+
+# conftest.py stubs PyQt6 with MagicMock when the real package isn't
+# installed so that import-time references in tabs/*.py succeed.  That makes
+# pytest.importorskip above a no-op (the stub is already in sys.modules), so
+# tests that actually instantiate Qt widgets like SyncTab have to self-skip.
+_HAS_REAL_PYQT6 = (
+    type(sys.modules.get("PyQt6.QtWidgets", None)).__name__ != "MagicMock"
+)
+
+requires_real_qt = pytest.mark.skipif(
+    not _HAS_REAL_PYQT6,
+    reason="Needs real PyQt6 — conftest stubs it when the package isn't installed",
 )
 
 
@@ -67,6 +82,7 @@ def test_download_ps3_save_extracts_bundle(monkeypatch, tmp_path):
     assert (dest / "GAME.DAT").read_bytes() == b"game"
 
 
+@requires_real_qt
 def test_sync_tab_resolves_emudeck_ps3_downloads_to_rpcs3_save_dirs(qt_app, tmp_path):
     saves_root = tmp_path / "Emulation" / "saves"
     saves_root.mkdir(parents=True)
@@ -175,6 +191,7 @@ def test_sync_tab_resolves_retroarch_saturn_downloads_to_yabasanshiro_backup(
     assert resolved == saves_root / "yabasanshiro" / "backup.bin"
 
 
+@requires_real_qt
 def test_sync_tab_do_sync_finalizes_saroo_server_downloads(monkeypatch, qt_app, tmp_path):
     saroo_root = tmp_path / "saroo"
     mednafen_root = tmp_path / "mednafen"
@@ -379,6 +396,7 @@ def test_sync_tab_resolve_download_path_uses_selected_shared_retroarch_core_fold
     assert resolved == Path(r"E:\saves") / "Sonic CD (USA).srm"
 
 
+@requires_real_qt
 def test_sync_tab_download_to_paths_copies_ps3_directories(monkeypatch, qt_app, tmp_path):
     tab = SyncTab(DummyProfilesTab([]))
     primary = tmp_path / "primary"
