@@ -129,6 +129,39 @@ def _fill_save_metadata(entry: GameEntry, path: Path) -> None:
         pass
 
 
+def _collect_best_cards(memcards_dir: Optional[Path]) -> dict[str, Path]:
+    """Walk ``memcards_dir`` and return ``{stem_no_slot: card_path}`` with one
+    best card per logical game (``_1`` wins over ``_2``; mtime breaks ties)."""
+    best_by_stem: dict[str, Path] = {}
+    if memcards_dir is None or not memcards_dir.exists():
+        return best_by_stem
+
+    all_cards: list[Path] = []
+    for ext in (".mcd", ".mcr"):
+        all_cards.extend(memcards_dir.rglob(f"*{ext}"))
+    for card in sorted(all_cards):
+        if not card.is_file():
+            continue
+        stem_no_slot = _SLOT_SUFFIX_RE.sub("", card.stem)
+        if stem_no_slot.lower() in SHARED_CARD_NAMES:
+            continue
+        current = best_by_stem.get(stem_no_slot)
+        if current is None:
+            best_by_stem[stem_no_slot] = card
+            continue
+        cur_is_2 = current.stem.endswith("_2")
+        new_is_2 = card.stem.endswith("_2")
+        if cur_is_2 and not new_is_2:
+            best_by_stem[stem_no_slot] = card
+        elif cur_is_2 == new_is_2:
+            try:
+                if card.stat().st_mtime > current.stat().st_mtime:
+                    best_by_stem[stem_no_slot] = card
+            except Exception:
+                pass
+    return best_by_stem
+
+
 def scan(
     emulation_path: Path,
     rom_scan_dir: Optional[str] = None,
@@ -136,150 +169,154 @@ def scan(
     """
     Scan DuckStation PS1 saves and ROMs.
 
-    Yields GameEntry objects for every memory card found AND every ROM found,
-    so the user sees a complete picture even when cards and ROMs don't
-    line up one-to-one.
+    The scan is structured so ROMs establish game identity first and cards
+    simply *attach* to whichever ROM entry they describe — this avoids the
+    duplicate-row class of bug we hit when both a card-named-by-title and a
+    ROM-with-real-serial referenced the same game but produced different
+    title IDs under different passes.
+
+    Flow:
+      1. Walk ROMs → one entry per game, keyed by ISO serial when available
+         and by a slug fallback otherwise.  Record a normalised label so
+         cards can find the entry by name later.
+      2. Walk cards → for each best-per-game card:
+           a) If the filename already *is* a serial (DuckStation's default
+              naming), attach to the matching serial entry if present.
+           b) Otherwise, normalise the stem and try to match any existing
+              entry's ROM-derived normalised label.  If found, attach.
+           c) If still unmatched, emit a card-only entry with a slug ID so
+              the save is still visible / syncable.
     """
     memcards_dir = _memcards_dir(emulation_path)
 
-    # Build ROM search paths
     rom_bases: list[Path] = [emulation_path / "roms"]
     if rom_scan_dir:
         rom_bases.append(Path(rom_scan_dir))
     rom_dirs = find_rom_dirs(rom_bases, PS1_ROM_DIRS)
 
-    # ------------------------------------------------------------------
-    # Pass A — walk memcards, yield one entry per card file
-    # ------------------------------------------------------------------
     yielded: dict[str, GameEntry] = {}
-    card_labels_by_id: dict[str, str] = {}  # title_id -> original card stem
+    # {normalised_display_name: title_id} — used by the card pass to attach
+    # a card to the ROM entry that already exists for the same game.
+    norm_to_title: dict[str, str] = {}
 
-    if memcards_dir and memcards_dir.exists():
-        card_exts = (".mcd", ".mcr")
-        all_cards: list[Path] = []
-        for ext in card_exts:
-            all_cards.extend(memcards_dir.rglob(f"*{ext}"))
-
-        # Group by (stem_no_slot) so we pick just one slot per game
-        best_by_stem: dict[str, Path] = {}
-        for card in sorted(all_cards):
-            if not card.is_file():
-                continue
-            stem_no_slot = _SLOT_SUFFIX_RE.sub("", card.stem)
-            if stem_no_slot.lower() in SHARED_CARD_NAMES:
-                continue
-            current = best_by_stem.get(stem_no_slot)
-            if current is None:
-                best_by_stem[stem_no_slot] = card
-                continue
-            # Prefer slot _1 over _2; otherwise the most-recently-modified file.
-            cur_is_2 = current.stem.endswith("_2")
-            new_is_2 = card.stem.endswith("_2")
-            if cur_is_2 and not new_is_2:
-                best_by_stem[stem_no_slot] = card
-            elif cur_is_2 == new_is_2:
-                try:
-                    if card.stat().st_mtime > current.stat().st_mtime:
-                        best_by_stem[stem_no_slot] = card
-                except Exception:
-                    pass
-
-        for stem_no_slot, card in best_by_stem.items():
-            title_id = normalize_serial(stem_no_slot) or to_ps1_title_id(stem_no_slot)
-            if title_id in yielded:
-                continue
-            entry = GameEntry(
-                title_id=title_id,
-                display_name=stem_no_slot,
-                system="PS1",
-                emulator="DuckStation",
-                save_path=card,
-            )
-            _fill_save_metadata(entry, card)
-            yielded[title_id] = entry
-            card_labels_by_id[title_id] = stem_no_slot
+    def _record(title_id: str, entry: GameEntry) -> None:
+        yielded[title_id] = entry
+        key = normalize_rom_name(entry.display_name)
+        if key and key != "unknown":
+            # Serial-backed entries win over slug entries with the same
+            # normalised name — they're the authoritative identity.
+            if _is_serial_title_id(title_id) or key not in norm_to_title:
+                norm_to_title[key] = title_id
 
     # ------------------------------------------------------------------
-    # Pass B — walk ROMs, yield one entry per ROM
+    # Pass A — walk ROMs, one entry per game
     # ------------------------------------------------------------------
     if rom_dirs:
         for rom_dir in rom_dirs:
             for rom_file in scan_rom_files([rom_dir], PS1_ROM_EXTENSIONS):
                 label = _rom_label_for(rom_dir, rom_file)
-                # Prefer real serial from ISO; fall back to filename-looking-like-serial;
-                # finally fall back to a deterministic slug so CHD/PBP still appear.
                 serial = (
                     read_ps1_serial(rom_file)
                     or normalize_serial(rom_file.stem)
                     or normalize_serial(label)
                 )
                 title_id = serial or to_ps1_title_id(label)
-
-                # If we already have an entry under a different (weaker) ID but
-                # the same display-name/label, drop the weaker one in favour of
-                # this serial-backed entry.  Pass A stores the raw card stem as
-                # display_name (e.g. "Final Fantasy VII (USA)"), so we must
-                # normalise both sides of the comparison or cards with region
-                # or serial tags never match the cleaned ROM label.
-                inherited_save_path: Optional[Path] = None
-                if serial and _is_serial_title_id(title_id):
-                    clean_target = _clean_card_label(label).lower()
-                    stale_ids = [
-                        tid
-                        for tid, existing in yielded.items()
-                        if not _is_serial_title_id(tid)
-                        and _clean_card_label(existing.display_name).lower()
-                        == clean_target
-                    ]
-                    for tid in stale_ids:
-                        stale = yielded.pop(tid)
-                        # Preserve any memcard the stale entry had already
-                        # located so the new serial-backed entry still points
-                        # at the user's existing save.
-                        if inherited_save_path is None and stale.save_path is not None:
-                            inherited_save_path = stale.save_path
+                clean_label = _clean_card_label(label) or label
 
                 if title_id in yielded:
-                    # Already have an entry — enrich missing ROM info and maybe
-                    # a save_path if we can match a card name.
                     existing = yielded[title_id]
                     if existing.rom_path is None:
                         existing.rom_path = rom_file
                         existing.rom_filename = rom_file.name
-                    # Try to attach a card we might have missed by predicted name
-                    if existing.save_path is None and memcards_dir:
-                        predicted = _predict_card(memcards_dir, label)
-                        if predicted is not None:
-                            existing.save_path = predicted
-                            _fill_save_metadata(existing, predicted)
                     continue
-
-                clean_label = _clean_card_label(label)
-                save_path: Optional[Path] = inherited_save_path
-                if save_path is None and memcards_dir:
-                    save_path = _predict_card(memcards_dir, label)
-                    if save_path is None:
-                        # Predict where DuckStation would put the card.  Only
-                        # set as save_path if the file actually exists; a
-                        # non-existent path confuses sync_client.download_save
-                        # which falls back to the write location.
-                        predicted = memcards_dir / f"{clean_label}_1.mcd"
-                        save_path = predicted if predicted.exists() else None
 
                 entry = GameEntry(
                     title_id=title_id,
-                    display_name=clean_label or label,
+                    display_name=clean_label,
                     system="PS1",
                     emulator="DuckStation",
-                    save_path=save_path,
                     rom_path=rom_file,
                     rom_filename=rom_file.name,
                 )
-                if save_path is not None:
-                    _fill_save_metadata(entry, save_path)
-                yielded[title_id] = entry
+                _record(title_id, entry)
+
+    # ------------------------------------------------------------------
+    # Pass B — attach cards to existing ROM entries, else create card-only
+    # ------------------------------------------------------------------
+    best_cards = _collect_best_cards(memcards_dir)
+    for stem_no_slot, card in best_cards.items():
+        serial = normalize_serial(stem_no_slot)
+        if serial and serial in yielded:
+            _attach_card(yielded[serial], card)
+            continue
+
+        # Try to match against a ROM entry by normalised display name so
+        # cards like "Final Fantasy VII (USA)_1.mcd" find the serial-keyed
+        # entry built from "Final Fantasy VII (USA) (Disc 1).bin".  The
+        # normalisation strips ALL tags so multi-disc names and extra
+        # parentheticals don't block the match.
+        card_norm = normalize_rom_name(stem_no_slot)
+        attached_tid = norm_to_title.get(card_norm)
+        if attached_tid:
+            _attach_card(yielded[attached_tid], card)
+            continue
+
+        # No ROM match — emit a card-only entry so the save is still shown.
+        fallback_tid = serial or to_ps1_title_id(stem_no_slot)
+        if fallback_tid in yielded:
+            _attach_card(yielded[fallback_tid], card)
+            continue
+        entry = GameEntry(
+            title_id=fallback_tid,
+            display_name=stem_no_slot,
+            system="PS1",
+            emulator="DuckStation",
+            save_path=card,
+        )
+        _fill_save_metadata(entry, card)
+        _record(fallback_tid, entry)
+
+    # ------------------------------------------------------------------
+    # Pass C — for ROM entries that still lack a card, attach an existing
+    # one by predicted name, OR set the DuckStation-expected write path so
+    # a server Download Save has somewhere to land.  Matches Android's
+    # DuckStationEmulator.buildRomEntry(), which always points saveFile at
+    # "<clean label>_1.mcd" whether the file exists yet or not.
+    # ------------------------------------------------------------------
+    if memcards_dir:
+        for entry in yielded.values():
+            if entry.save_path is not None:
+                continue
+            label = entry.display_name
+            predicted = _predict_card(memcards_dir, label)
+            if predicted is not None:
+                entry.save_path = predicted
+                _fill_save_metadata(entry, predicted)
+                continue
+            # No card exists yet — point save_path at the path DuckStation
+            # will create on first launch (or where a server Download Save
+            # should write).  We do NOT call _fill_save_metadata because the
+            # file has no content; save_hash stays None and compute_status
+            # correctly reports SERVER_ONLY / NO_SAVE.
+            clean_label = _clean_card_label(label) or label
+            entry.save_path = memcards_dir / f"{clean_label}_1.mcd"
 
     yield from yielded.values()
+
+
+def _attach_card(entry: GameEntry, card: Path) -> None:
+    """Attach ``card`` to ``entry`` if the entry doesn't already have a save
+    file — picks the most-recently-modified when both are present."""
+    if entry.save_path is None:
+        entry.save_path = card
+        _fill_save_metadata(entry, card)
+        return
+    try:
+        if card.stat().st_mtime > entry.save_path.stat().st_mtime:
+            entry.save_path = card
+            _fill_save_metadata(entry, card)
+    except Exception:
+        pass
 
 
 def _predict_card(memcards_dir: Path, label: str) -> Optional[Path]:

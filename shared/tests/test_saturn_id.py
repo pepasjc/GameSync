@@ -196,3 +196,32 @@ def test_resolve_returns_none_when_both_fail(monkeypatch, tmp_path):
     _patch_dat(monkeypatch, {})
 
     assert resolve_saturn_title_id(rom_path=chd, rom_name=chd.stem) is None
+
+
+# ---------------------------------------------------------------------------
+# Multi-disc behaviour — per-disc ``-N`` suffix must be stripped
+# ---------------------------------------------------------------------------
+
+
+def test_ip_bin_strips_disc_index_suffix(tmp_path):
+    """Grandia disc 2 stamps "T-4507G-1" on the disc itself, but it is the
+    same save game as disc 1 — so the scanner must return SAT_T-4507G for
+    both discs, not SAT_T-4507G-1."""
+    iso_disc1 = tmp_path / "Grandia (Japan) (Disc 1).iso"
+    iso_disc1.write_bytes(_build_saturn_iso_sector("T-4507G   "))
+
+    iso_disc2 = tmp_path / "Grandia (Japan) (Disc 2).iso"
+    # Disc 2 uses the "-1" per-disc variant at byte 0x20 of IP.BIN.
+    iso_disc2.write_bytes(_build_saturn_iso_sector("T-4507G-1 "))
+
+    assert read_saturn_product_code(iso_disc1) == "SAT_T-4507G"
+    assert read_saturn_product_code(iso_disc2) == "SAT_T-4507G"
+
+
+def test_ip_bin_strips_disc_index_for_numeric_codes(tmp_path):
+    """Panzer Dragoon Saga's 4 discs use "81307", "81307-1", "81307-2",
+    "81307-3"; they must all collapse to SAT_81307."""
+    for i, raw_code in enumerate(("81307     ", "81307-1   ", "81307-2   ", "81307-3   ")):
+        iso = tmp_path / f"PDS Disc {i + 1}.iso"
+        iso.write_bytes(_build_saturn_iso_sector(raw_code))
+        assert read_saturn_product_code(iso) == "SAT_81307"
