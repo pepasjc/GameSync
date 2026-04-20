@@ -30,10 +30,19 @@ _ISO_EXTS = {".iso"}
 _RAW_EXTS = {".bin", ".img"}
 _CUE_EXT = ".cue"
 
-# Single letter + hyphen + single digit at the end of a serial (e.g. "T-4507G-0",
-# "GS-9076-2") = per-disc variant of a canonical product code. Skip during DAT
-# ingestion so the canonical serial (without the suffix) is what gets stored.
+# Per-disc variant suffix appended to a canonical Saturn product code on
+# subsequent discs (e.g. "T-4507G-0" / "T-4507G-1" for Grandia, "81307-2" for
+# Panzer Dragoon Saga disc 3).  ``_DISC_INDEX_RE`` matches the trailing letter
+# + hyphen + digit as a single unit so we can *detect* a disc-indexed serial,
+# while ``_DISC_INDEX_STRIP_RE`` only eats the ``-N`` tail so ``_strip_disc_index``
+# returns the canonical base code ("T-4507G") instead of truncating the letter.
 _DISC_INDEX_RE = re.compile(r"[A-Za-z]-\d$")
+_DISC_INDEX_STRIP_RE = re.compile(r"(?<=[A-Za-z0-9])-\d$")
+
+
+def _strip_disc_index(product_code: str) -> str:
+    """Remove a trailing ``-N`` disc-variant suffix from a Saturn serial."""
+    return _DISC_INDEX_STRIP_RE.sub("", product_code).strip()
 
 # Strip [bracket] tags (fan-translation / hack markers).
 _BRACKET_TAG_RE = re.compile(r"\s*\[[^\]]*\]")
@@ -70,7 +79,11 @@ def _safe_saturn_id(product_code: str) -> Optional[str]:
 
 
 def _format_title_id(product_code: str) -> Optional[str]:
-    safe = _safe_saturn_id(product_code)
+    # Always strip ``-N`` disc-index suffixes at the title-id boundary so that
+    # IP.BIN-read codes and DAT-looked-up codes converge on the same canonical
+    # base.  The DAT parser skips ``-N`` entries already, but defending the
+    # boundary here keeps us correct if a caller hands us a raw serial.
+    safe = _safe_saturn_id(_strip_disc_index(product_code))
     return f"SAT_{safe}" if safe else None
 
 
@@ -139,6 +152,12 @@ def read_saturn_product_code(rom_file: Path) -> Optional[str]:
     # 2+ spaces or a "Vn" suffix.  Drop that so the title ID is stable across
     # firmware revisions of the same game.
     product_code = re.split(r"\s{2,}|(?<=\w)\s*V\d", raw)[0].strip()
+    # Multi-disc games physically stamp a per-disc index onto subsequent discs
+    # (e.g. "T-4507G-1" on Grandia disc 2, "81307-2" on PDS disc 3).  The DAT
+    # treats those as variants of the canonical game-level serial — without
+    # the same stripping here, disc 2+ discs would get a different title ID
+    # than disc 1, so a user's single save ends up split across rows per disc.
+    product_code = _strip_disc_index(product_code)
     return _format_title_id(product_code)
 
 

@@ -47,7 +47,7 @@ from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
-from scanner import scan_all, rpcs3, dolphin
+from scanner import scan_all, rpcs3, dolphin, server_only
 from sync_client import SyncClient, _find_server_save
 from config import load_config, save_config
 from . import theme
@@ -251,6 +251,15 @@ class ServerWorker(QObject):
         seen_ids = {entry.title_id for entry in updated}
         updated.extend(
             dolphin.build_server_only_entries(server_saves, seen_ids, self._emulation_path)
+        )
+        # Generic placeholders for every other system — lets the user see
+        # (and Download-ROM for) server saves on systems without a dedicated
+        # scanner-level builder (PS1, PS2, PSP, GBA, SNES, NES, ...).
+        seen_ids = {entry.title_id for entry in updated}
+        updated.extend(
+            server_only.build_server_only_entries(
+                server_saves, seen_ids, self._emulation_path
+            )
         )
 
         self.finished.emit(updated)

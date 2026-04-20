@@ -270,14 +270,16 @@ QLabel#detailLabel {{
             self._download_btn.clicked.connect(self._do_download)
             btn_layout.addWidget(self._download_btn)
 
-        # Download-ROM is only offered when the user is missing the ROM
-        # locally.  The actual catalog check happens on click so we don't
-        # block the dialog open on an HTTP round trip; if the server has no
-        # ROM for this title the handler shows a "not available" result.
+        # Download-ROM is offered whenever the user is missing the ROM
+        # locally — either on explicit SERVER_ONLY entries (generic server-
+        # only placeholder rows) or on any scanner-produced row whose
+        # rom_path either was never set or points somewhere that no longer
+        # exists on disk.  The actual catalog check happens on click so we
+        # don't block the dialog open on an HTTP round trip; if the server
+        # has no ROM for this title the handler reports that to the user.
+        needs_rom = entry.rom_path is None or not entry.rom_path.exists()
         self._rom_download_btn = None
-        if self._emulation_path is not None and (
-            entry.rom_path is None or not entry.rom_path.exists()
-        ):
+        if needs_rom:
             self._rom_download_btn = QPushButton("Download ROM  [Y]")
             self._rom_download_btn.setStyleSheet(
                 f"QPushButton {{ background:{theme.STATUS_DOWNLOAD}; color:#fff;"
@@ -362,11 +364,11 @@ QLabel#detailLabel {{
         window to rescan so the save status flips to SYNCED.
         """
         entry = self._entry
-        if self._emulation_path is None:
+        if self._emulation_path is None and not self._rom_scan_dir:
             ResultDialog(
                 False,
-                "Emulation path not configured — set it in Settings to enable"
-                " ROM downloads.",
+                "No ROM destination is configured.  Set the emulation path or"
+                " ROM scan directory in Settings and try again.",
                 parent=self,
             ).exec()
             return
