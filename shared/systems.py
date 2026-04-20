@@ -175,6 +175,95 @@ SYSTEM_CODES: frozenset[str] = frozenset(SYSTEM_CHOICES) | frozenset(
     }
 )
 
+
+# ---------------------------------------------------------------------------
+# Free-form system identifier → canonical code
+# ---------------------------------------------------------------------------
+
+# Extra synonyms the server (or other clients) may send as ``console_type``
+# /``platform`` strings.  These are full names or capitalised variants that
+# don't fit SYSTEM_ALIASES (which is restricted to alias *codes*).
+_SYSTEM_NAME_ALIASES: dict[str, str] = {
+    "PSX":             "PS1",
+    "PLAYSTATION":     "PS1",
+    "PLAYSTATION1":    "PS1",
+    "PLAYSTATION2":    "PS2",
+    "PLAYSTATION3":    "PS3",
+    "PLAYSTATIONPORTABLE": "PSP",
+    "PLAYSTATIONVITA": "VITA",
+    "PSVITA":          "VITA",
+    "GENESIS":         "MD",
+    "MEGADRIVE":       "MD",
+    "MEGADRIVEJP":     "MD",
+    "SEGAGENESIS":     "MD",
+    "SEGAMEGADRIVE":   "MD",
+    "MEGACD":          "SEGACD",
+    "SEGAMEGACD":      "SEGACD",
+    "MASTERSYSTEM":    "SMS",
+    "SEGAMASTERSYSTEM":"SMS",
+    "GAMEGEAR":        "GG",
+    "SEGA32X":         "32X",
+    "SEGASATURN":      "SAT",
+    "SATURN":          "SAT",
+    "DREAMCAST":       "DC",
+    "SEGADREAMCAST":   "DC",
+    "GAMEBOY":         "GB",
+    "GAMEBOYCOLOR":    "GBC",
+    "GAMEBOYADVANCE":  "GBA",
+    "NINTENDO64":      "N64",
+    "NINTENDODS":      "NDS",
+    "NINTENDO3DS":     "3DS",
+    "GAMECUBE":        "GC",
+    "NINTENDOSWITCH":  "NSW",
+    "VIRTUALBOY":      "VB",
+    "PCENGINE":        "PCE",
+    "PCENGINECD":      "PCECD",
+    "TURBOGRAFX":      "TG16",
+    "TURBOGRAFX16":    "TG16",
+    "WONDERSWAN":      "WSWAN",
+    "WONDERSWANCOLOR": "WSWANC",
+    "NEOGEOPOCKET":    "NGP",
+    "NEOGEOPOCKETCOLOR": "NGPC",
+    "NEOGEOCD":        "NEOCD",
+}
+
+
+def normalize_system_code(value: object) -> str:
+    """Resolve any free-form system identifier to its canonical code.
+
+    Handles canonical codes, alias codes (``GEN`` → ``MD``), folder names
+    (``genesis``, ``megadrive``), and common full-name variants
+    (``Genesis``, ``Mega Drive``).  Returns ``""`` for empty/unknown input.
+
+    Used by clients that consume ``console_type`` / ``platform`` strings from
+    the server, where legacy saves may carry non-canonical labels.
+    """
+    if not value:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+
+    # Strip common separators so "Mega Drive" / "mega-drive" / "Mega_Drive"
+    # all collapse to the same key.
+    compact = "".join(ch for ch in text if ch.isalnum())
+    upper = compact.upper()
+
+    if upper in SYSTEM_ALIASES:
+        return SYSTEM_ALIASES[upper]
+    if upper in _SYSTEM_NAME_ALIASES:
+        return _SYSTEM_NAME_ALIASES[upper]
+    if upper in SYSTEM_CODES:
+        return upper
+
+    lower = compact.lower()
+    if lower in FOLDER_TO_SYSTEM:
+        canonical = FOLDER_TO_SYSTEM[lower]
+        return SYSTEM_ALIASES.get(canonical, canonical)
+
+    return upper
+
+
 # ---------------------------------------------------------------------------
 # ROM file extensions
 # ---------------------------------------------------------------------------

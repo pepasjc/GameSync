@@ -77,3 +77,7 @@ class GameEntry:
     server_timestamp: Optional[float] = None
     server_size: Optional[int] = None
     last_synced_hash: Optional[str] = None
+    # Server ROM catalog matches for this title (rom dicts as returned by
+    # /api/v1/roms).  Populated by ``ServerWorker`` so the UI can hide the
+    # Download-ROM button when the server has nothing to offer.
+    available_roms: list[dict] = field(default_factory=list)

@@ -48,6 +48,12 @@ from PyQt6.QtGui import QFont, QKeyEvent
 
 from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
 from scanner import scan_all, rpcs3, dolphin, server_only
+from scanner.rom_match import (
+    DISC_SLUG_SYSTEMS as _DISC_SLUG_SYSTEMS,
+    RomIndex as _RomIndex,
+    dedup_disc_slug_entries as _dedup_disc_slug_entries,
+    is_disc_slug_title_id as _is_disc_slug_title_id,
+)
 from sync_client import SyncClient, _find_server_save
 from config import load_config, save_config
 from . import theme
@@ -100,27 +106,37 @@ class ServerWorker(QObject):
 
     def _enrich_title_ids(self):
         """
-        For slug-based entries with a known ROM filename, ask the server to
-        resolve translated ROM names to the canonical server title ID.
+        For slug-based entries, ask the server's /normalize/batch endpoint
+        to resolve translated/CHD ROM filenames (and card-only display
+        names for disc systems) to the canonical server title_id.
 
-        This keeps translated ROM dumps aligned with the same save slot as the
-        original DAT title without forcing users to rename files on disk.
+        Disc-system entries (PS1, PS2, SAT) that only carry a memory-card
+        with no ROM on disk still need this step — the user's policy is
+        that we never sync PS1 saves under ``PS1_<slug>``, so we treat
+        the card's display_name as a stand-in filename when there is no
+        rom_filename available.
         """
-        skip_systems = {"GC", "SAT", "PS3", "PSP", "3DS", "WII", "NSW", "?"}
-        needs_lookup: list[GameEntry] = []
+        skip_systems = {"GC", "PS3", "PSP", "3DS", "WII", "NSW", "?"}
+        disc_systems = _DISC_SLUG_SYSTEMS
+        needs_lookup: list[tuple[GameEntry, str]] = []
         rom_entries: list[dict[str, str]] = []
         for entry in self._entries:
             system = entry.system.upper().strip()
+            if system in skip_systems:
+                continue
+            if not entry.title_id.startswith(f"{system}_"):
+                continue
             lookup_filename = entry.rom_filename or (
                 entry.rom_path.name if entry.rom_path else None
             )
-            if (
-                lookup_filename
-                and system not in skip_systems
-                and entry.title_id.startswith(f"{system}_")
-            ):
-                needs_lookup.append(entry)
-                rom_entries.append({"system": system, "filename": lookup_filename})
+            if not lookup_filename and system in disc_systems:
+                # Card-only PS1/PS2/SAT row — feed the display_name in so
+                # the server's PSX/Saturn slug index can still resolve it.
+                lookup_filename = entry.display_name
+            if not lookup_filename:
+                continue
+            needs_lookup.append((entry, lookup_filename))
+            rom_entries.append({"system": system, "filename": lookup_filename})
 
         if not rom_entries:
             return
@@ -131,13 +147,8 @@ class ServerWorker(QObject):
             return
 
         # Apply resolved serial title_ids
-        for entry in needs_lookup:
+        for entry, lookup_filename in needs_lookup:
             system = entry.system.upper().strip()
-            lookup_filename = entry.rom_filename or (
-                entry.rom_path.name if entry.rom_path else None
-            )
-            if not lookup_filename:
-                continue
             new_tid = resolved.get((system, lookup_filename))
             if new_tid and new_tid != entry.title_id:
                 old_tid = entry.title_id
@@ -223,7 +234,19 @@ class ServerWorker(QObject):
                     entry.system = mapped
 
     def run(self):
-        # ── Enrich slug-based PS1/PS2 title_ids with server serial lookup ──
+        # ── Pre-fetch the server's ROM catalog so we can (a) re-key local
+        # slug entries to whatever title_id the server uses for the same
+        # ROM, and (b) flag each entry with the ROMs the server can hand
+        # back, so the UI can hide Download-ROM when nothing's available.
+        catalog = self._client.list_roms() or []
+        rom_index = _RomIndex.build(catalog)
+
+        # ── Enrich local slug title_ids by looking the ROM up in the
+        # server's catalog (filename match wins, then fuzzy name match).
+        # Falls back to /normalize/batch for filenames the catalog doesn't
+        # know.  We never want PS1 entries living under PS1_<slug> when
+        # the server already knows them as SLUS01324.
+        self._enrich_title_ids_from_catalog(rom_index)
         self._enrich_title_ids()
 
         # ── Enrich display names (product codes -> real game names) ──
@@ -262,7 +285,55 @@ class ServerWorker(QObject):
             )
         )
 
+        # ── Collapse duplicate rows for the same game.  Disc-system slug
+        # entries (PS1_/PS2_/SAT_<slug>) only exist when the local scanner
+        # couldn't extract a serial; if a serial-keyed sibling is also
+        # present (because the server returned a save under SLUS01324),
+        # merge them so the user sees a single row keyed by the serial.
+        updated = _dedup_disc_slug_entries(updated)
+
+        # Status for any merged winner now reflects both local and server
+        # data — recompute so a SERVER_ONLY placeholder that just absorbed
+        # a local save flips to SYNCED / LOCAL_NEWER / CONFLICT correctly.
+        for entry in updated:
+            entry.status = self._client.compute_status(entry, server_saves)
+
+        # ── Annotate each entry with the ROM catalog rows it can pull
+        # down.  Empty list => Download-ROM button stays hidden.
+        for entry in updated:
+            entry.available_roms = rom_index.matches_for(entry)
+
         self.finished.emit(updated)
+
+    def _enrich_title_ids_from_catalog(self, rom_index: "_RomIndex") -> None:
+        """Re-key local entries to whatever title_id the server's ROM
+        catalog uses for the same ROM/save.
+
+        Filename match is exact and trustworthy: if the user has
+        ``Breath of Fire IV (USA).chd`` and the server's catalog lists
+        the same filename under ``SLUS01324``, the local entry gets
+        re-keyed without needing the (less reliable) /normalize lookup.
+        Card-only PS1 rows with no local ROM still get re-keyed via the
+        display-name fallback so the slug doesn't survive into the UI.
+        """
+        for entry in self._entries:
+            # Only re-key slug-style title_ids; serial-format IDs are
+            # already canonical.
+            if not _is_disc_slug_title_id(entry.title_id, entry.system) and \
+                    not entry.title_id.startswith(f"{entry.system}_"):
+                continue
+            filename = entry.rom_filename or (
+                entry.rom_path.name if entry.rom_path else None
+            )
+            new_tid = None
+            if filename:
+                new_tid = rom_index.title_id_for_filename(entry.system, filename)
+            if not new_tid and filename:
+                new_tid = rom_index.title_id_for_name(entry.system, filename)
+            if not new_tid:
+                new_tid = rom_index.title_id_for_name(entry.system, entry.display_name)
+            if new_tid and new_tid != entry.title_id:
+                entry.title_id = new_tid
 
 
 def _infer_system(title_id: str) -> str:
