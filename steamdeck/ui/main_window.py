@@ -47,7 +47,7 @@ from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
-from scanner import scan_all, rpcs3
+from scanner import scan_all, rpcs3, dolphin
 from sync_client import SyncClient, _find_server_save
 from config import load_config, save_config
 from . import theme
@@ -247,6 +247,10 @@ class ServerWorker(QObject):
         seen_ids = {entry.title_id for entry in updated}
         updated.extend(
             rpcs3.build_server_only_entries(server_saves, seen_ids, self._emulation_path)
+        )
+        seen_ids = {entry.title_id for entry in updated}
+        updated.extend(
+            dolphin.build_server_only_entries(server_saves, seen_ids, self._emulation_path)
         )
 
         self.finished.emit(updated)

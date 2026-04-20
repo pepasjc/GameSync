@@ -71,6 +71,49 @@ CORE_SYSTEM_MAP = {
     "finalburn neo": "NEOGEO",
     "mame": "ARCADE",
     "game boy": "GB",
+    # Dreamcast
+    "dreamcast": "DC",
+    "flycast": "DC",
+    "reicast": "DC",
+    "redream": "DC",
+    # 3DO
+    "3do": "3DO",
+    "opera": "3DO",
+    # Virtual Boy
+    "virtual boy": "VB",
+    "beetle vb": "VB",
+    "vecx": "VB",
+    # Atari 800 / 5200
+    "atari800": "A800",
+    "atari 800": "A800",
+    "atari - 5200": "A5200",
+    "atari 5200": "A5200",
+    # Atari Jaguar
+    "atari - jaguar": "JAGUAR",
+    "virtual jaguar": "JAGUAR",
+    # Pokemon Mini
+    "pokemini": "POKEMINI",
+    "pokémon mini": "POKEMINI",
+    # Home computer / arcade-ish systems (grouped under ARCADE for now)
+    "commodore - 64": "ARCADE",
+    "vice x64": "ARCADE",
+    "amiga": "ARCADE",
+    "puae": "ARCADE",
+    "fs-uae": "ARCADE",
+    "msx": "ARCADE",
+    "bluemsx": "ARCADE",
+    "fmsx": "ARCADE",
+    "colecovision": "ARCADE",
+    "bluemsx coleco": "ARCADE",
+    "intellivision": "ARCADE",
+    "freeintv": "ARCADE",
+    "amstrad": "ARCADE",
+    "cap32": "ARCADE",
+    "zx spectrum": "ARCADE",
+    "fuse": "ARCADE",
+    # Neo Geo CD
+    "neogeo cd": "NEOCD",
+    "neocd": "NEOCD",
 }
 
 # Map: ROM folder name → (system_code, [core_save_subdirs], [save_exts])
@@ -114,6 +157,39 @@ ROM_FOLDER_MAP = {
     "neogeo": ("NEOGEO", ["FinalBurn Neo", "MAME 2003-Plus", "MAME"], [".srm"]),
     "arcade": ("ARCADE", ["FinalBurn Neo", "MAME 2003-Plus", "MAME"], [".srm"]),
     "fba": ("ARCADE", ["FinalBurn Neo"], [".srm"]),
+    # --- Dreamcast (Flycast stores VMU saves per-game as .bin/.vmu) ---
+    "dreamcast": ("DC", ["Flycast", "Redream"], [".srm", ".bin", ".vmu"]),
+    "dc": ("DC", ["Flycast", "Redream"], [".srm", ".bin", ".vmu"]),
+    # --- 3DO ---
+    "3do": ("3DO", ["Opera"], [".srm", ".sav"]),
+    # --- Virtual Boy ---
+    "virtualboy": ("VB", ["Beetle VB"], [".srm"]),
+    "vb": ("VB", ["Beetle VB"], [".srm"]),
+    # --- Pokémon Mini ---
+    "pokemini": ("POKEMINI", ["PokeMini"], [".eep", ".srm"]),
+    # --- Atari computers / consoles beyond 2600/7800 ---
+    "atari800": ("A800", ["Atari800"], [".srm", ".sav"]),
+    "atari5200": ("A5200", ["Atari800"], [".srm", ".sav"]),
+    "atarijaguar": ("JAGUAR", ["Virtual Jaguar"], [".srm"]),
+    "jaguar": ("JAGUAR", ["Virtual Jaguar"], [".srm"]),
+    # --- Home computers (grouped under ARCADE as the server bucket for now) ---
+    "c64": ("ARCADE", ["VICE x64", "VICE x64sc", "Frodo"], [".srm", ".sav"]),
+    "commodore64": ("ARCADE", ["VICE x64", "VICE x64sc"], [".srm", ".sav"]),
+    "amiga": ("ARCADE", ["PUAE", "PUAE 2021", "FS-UAE"], [".srm", ".sav"]),
+    "amiga500": ("ARCADE", ["PUAE", "PUAE 2021"], [".srm", ".sav"]),
+    "amigacd32": ("ARCADE", ["PUAE", "PUAE 2021"], [".srm", ".sav"]),
+    "msx": ("ARCADE", ["blueMSX", "fMSX"], [".srm", ".sav"]),
+    "msx2": ("ARCADE", ["blueMSX", "fMSX"], [".srm", ".sav"]),
+    "colecovision": ("ARCADE", ["blueMSX", "Gearcoleco"], [".srm", ".sav"]),
+    "coleco": ("ARCADE", ["blueMSX", "Gearcoleco"], [".srm", ".sav"]),
+    "intellivision": ("ARCADE", ["FreeIntv"], [".srm", ".sav"]),
+    "amstradcpc": ("ARCADE", ["Caprice32", "CrocoDS"], [".srm", ".sav"]),
+    "amstrad": ("ARCADE", ["Caprice32", "CrocoDS"], [".srm", ".sav"]),
+    "zxspectrum": ("ARCADE", ["Fuse", "FBNeo"], [".srm", ".sav"]),
+    "spectrum": ("ARCADE", ["Fuse"], [".srm", ".sav"]),
+    # --- Neo Geo CD ---
+    "neogeocd": ("NEOCD", ["NeoCD"], [".srm"]),
+    "ngcd": ("NEOCD", ["NeoCD"], [".srm"]),
 }
 
 # ROM file extensions to recognize
@@ -149,6 +225,45 @@ ROM_EXTENSIONS = {
     ".wsc",
     ".zip",
     ".7z",
+    # Dreamcast
+    ".cdi",
+    ".gdi",
+    # Virtual Boy
+    ".vb",
+    # Pokémon Mini
+    ".min",
+    # Atari 800 / 5200
+    ".atr",
+    ".xex",
+    ".a52",
+    # Atari Jaguar
+    ".j64",
+    ".jag",
+    # C64
+    ".d64",
+    ".t64",
+    ".prg",
+    ".crt",
+    # Amiga
+    ".adf",
+    ".ipf",
+    ".hdf",
+    ".adz",
+    # MSX / Amstrad / CPC
+    ".dsk",
+    ".cas",
+    ".rom",
+    # ColecoVision
+    ".col",
+    # Intellivision
+    ".int",
+    # Amstrad CPC
+    ".cpc",
+    # ZX Spectrum
+    ".tzx",
+    ".tap",
+    ".sna",
+    ".z80",
 }
 
 
@@ -245,16 +360,27 @@ def _find_save_for_rom(
             return saves_dir / "Beetle Saturn" / f"{rom_stem}.bkr"
         return saves_dir / f"{rom_stem}.srm"
 
-    folder_info = None
-    for folder_key, info in ROM_FOLDER_MAP.items():
-        if info[0] == system:
-            folder_info = info
-            break
+    # Collect every ROM_FOLDER_MAP entry that targets this system, so we
+    # search all relevant core-specific save subdirs.  Many systems share the
+    # same system code (e.g. ARCADE covers MAME, FBNeo, VICE, PUAE, blueMSX…),
+    # and each core writes to its own subdirectory.
+    core_dirs: list[str] = []
+    save_exts: list[str] = []
+    seen_dirs: set[str] = set()
+    seen_exts: set[str] = set()
+    for _folder_key, info in ROM_FOLDER_MAP.items():
+        if info[0] != system:
+            continue
+        for c in info[1]:
+            if c not in seen_dirs:
+                seen_dirs.add(c)
+                core_dirs.append(c)
+        for ext in info[2]:
+            if ext not in seen_exts:
+                seen_exts.add(ext)
+                save_exts.append(ext)
 
-    if folder_info:
-        core_dirs, save_exts = folder_info[1], folder_info[2]
-    else:
-        core_dirs = []
+    if not save_exts:
         save_exts = [".srm", ".sav"]
 
     # Search in core-specific subdirs and in root saves dir

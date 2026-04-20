@@ -53,9 +53,9 @@ def format_build_confirmation_message(
     )
 
     zip_line = (
-        "Zipped ROMs will be extracted."
+        "ZIP/7z ROM archives will be extracted."
         if unzip_archives
-        else "Zipped ROMs will be copied as .zip files."
+        else "ZIP ROMs stay .zip and 7z ROMs will be converted to .zip."
     )
     mode_line = (
         "Mode: 1G1R preferred set."
@@ -236,9 +236,12 @@ class RomCollectionTab(QWidget):
         self.system_combo.addItems([""] + SYSTEM_CHOICES)
         self.system_combo.currentTextChanged.connect(self._on_system_changed)
         source_layout.addWidget(self.system_combo, 1, 1)
-        self.unzip_check = QCheckBox("Unzip zipped ROMs when building collection")
+        self.unzip_check = QCheckBox(
+            "Extract .zip/.7z ROM archives when building collection"
+        )
         self.unzip_check.setToolTip(
-            "When checked, .zip sources are extracted to their ROM file. Otherwise the .zip is copied and renamed."
+            "When checked, .zip and .7z sources are extracted to their ROM file. "
+            "Otherwise .zip files stay zipped and .7z files are converted to .zip."
         )
         source_layout.addWidget(self.unzip_check, 1, 2, 1, 2)
         self.one_game_one_rom_check = QCheckBox(

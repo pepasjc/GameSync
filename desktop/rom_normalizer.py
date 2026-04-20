@@ -33,6 +33,7 @@ Save files (.sav, .srm, .mcr, .frz) with the same stem as the ROM are renamed al
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import struct
 import sys
@@ -453,6 +454,37 @@ def _load_cloneof_clrmamepro(dat_path: Path) -> dict[str, str]:
 _SYSTEM_DAT_KEYWORDS = SYSTEM_DAT_KEYWORDS
 
 DATS_DIR = Path(__file__).parent.parent / "server" / "data" / "dats"
+
+
+def normalize_alias_lookup_name(filename: str) -> str:
+    """Normalize translated ROM names while ignoring patch-style [] tags."""
+    return normalize_name(_BRACKET_RE.sub("", filename).strip())
+
+
+def load_alias_index(system: str, no_intro: dict[str, str]) -> dict[str, str]:
+    """Load the alias map for one system, filtered to valid DAT targets only."""
+    aliases_path = DATS_DIR / "EN-Dats" / "aliases.json"
+    if not aliases_path.is_file():
+        return {}
+
+    try:
+        payload = json.loads(aliases_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return {}
+
+    system_aliases = payload.get(system.upper().strip(), {})
+    if not isinstance(system_aliases, dict):
+        return {}
+
+    valid_canonicals = set(no_intro.values())
+    alias_index: dict[str, str] = {}
+    for alias_name, canonical_name in system_aliases.items():
+        alias = str(alias_name or "").strip()
+        canonical = str(canonical_name or "").strip()
+        if not alias or not canonical or canonical not in valid_canonicals:
+            continue
+        alias_index[normalize_alias_lookup_name(alias)] = canonical
+    return alias_index
 
 
 def load_redump_dat(dat_path: Path) -> tuple[dict[str, str], dict[str, str]]:

@@ -19,6 +19,7 @@ def test_build_confirmation_message_excludes_unmatched_from_total_when_disabled(
     assert "Mode: 1G1R preferred set." in message
     assert "Matched games: 1609 file(s), copied flat into the output folder." in message
     assert "Unmatched files: 329 found, 0 will be copied." in message
+    assert "ZIP/7z ROM archives will be extracted." in message
 
 
 def test_build_confirmation_message_includes_unmatched_in_total_when_enabled():
@@ -40,4 +41,4 @@ def test_build_confirmation_message_includes_unmatched_in_total_when_enabled():
         "Unmatched files: 329 found, 329 will be copied into the 'unmatched files' subfolder."
         in message
     )
-    assert "Zipped ROMs will be copied as .zip files." in message
+    assert "ZIP ROMs stay .zip and 7z ROMs will be converted to .zip." in message

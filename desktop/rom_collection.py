@@ -3,19 +3,28 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
+import tempfile
 import zipfile
 import zlib
 
 import rom_normalizer as rn
 
+try:
+    import py7zr
+except ImportError:  # pragma: no cover - exercised when desktop deps are stale
+    py7zr = None
+
 
 ZIP_EXTENSIONS = {".zip"}
+SEVEN_Z_EXTENSIONS = {".7z"}
+ARCHIVE_EXTENSIONS = ZIP_EXTENSIONS | SEVEN_Z_EXTENSIONS
 MATCH_PRIORITY = {
     "crc": 0,
     "header": 1,
-    "fuzzy": 2,
-    "folder": 3,
-    "filename": 4,
+    "alias": 2,
+    "fuzzy": 3,
+    "folder": 4,
+    "filename": 5,
 }
 REGION_PRIORITY = {
     "USA": 0,
@@ -174,7 +183,7 @@ def _iter_source_files(folder: Path) -> list[Path]:
         and not _is_bios_name(path.name)
         and (
             path.suffix.lower() in rn.ROM_EXTENSIONS
-            or path.suffix.lower() in ZIP_EXTENSIONS
+            or path.suffix.lower() in ARCHIVE_EXTENSIONS
         )
     )
 
@@ -203,6 +212,37 @@ def _is_bios_zip(path: Path) -> bool:
     return bool(rom_members) and all(
         _is_bios_name(info.filename) for info in rom_members
     )
+
+
+def _require_py7zr() -> None:
+    if py7zr is None:
+        raise RuntimeError(
+            "7z archive support requires the optional 'py7zr' dependency. "
+            "Install or refresh the desktop requirements first."
+        )
+
+
+def _is_bios_7z(path: Path) -> bool:
+    _require_py7zr()
+    with py7zr.SevenZipFile(path, "r") as archive:
+        rom_members = [
+            info
+            for info in archive.list()
+            if not info.is_directory
+            and Path(info.filename).suffix.lower() in rn.ROM_EXTENSIONS
+        ]
+    return bool(rom_members) and all(
+        _is_bios_name(info.filename) for info in rom_members
+    )
+
+
+def _is_bios_archive(path: Path) -> bool:
+    suffix = path.suffix.lower()
+    if suffix in ZIP_EXTENSIONS:
+        return _is_bios_zip(path)
+    if suffix in SEVEN_Z_EXTENSIONS:
+        return _is_bios_7z(path)
+    return False
 
 
 def _read_member_header_title(
@@ -257,6 +297,7 @@ def _resolve_canonical_name_for_file(
     system: str,
     no_intro: dict[str, str],
     name_index: dict[str, str],
+    alias_index: dict[str, str],
     skip_crc: bool = False,
 ) -> tuple[str | None, str]:
     canonical = None
@@ -271,6 +312,12 @@ def _resolve_canonical_name_for_file(
                 canonical = no_intro.get(crc)
                 if canonical:
                     return canonical, "crc"
+
+        canonical = _resolve_alias_canonical_name(
+            alias_index, path.name, path.parent.name
+        )
+        if canonical:
+            return canonical, "alias"
 
         header_title = rn.read_rom_header_title(path, system)
         if header_title:
@@ -314,6 +361,7 @@ def _resolve_canonical_name_for_zip(
     system: str,
     no_intro: dict[str, str],
     name_index: dict[str, str],
+    alias_index: dict[str, str],
     skip_crc: bool = False,
 ) -> list[CollectionCandidate]:
     candidates: list[CollectionCandidate] = []
@@ -357,6 +405,16 @@ def _resolve_canonical_name_for_zip(
                                 pass
                         if canonical:
                             match_source = "crc"
+                    if canonical is None:
+                        canonical = _resolve_alias_canonical_name(
+                            alias_index,
+                            member_path.name,
+                            member_path.parent.name,
+                            path.stem,
+                            path.parent.name,
+                        )
+                        if canonical:
+                            match_source = "alias"
                     if canonical is None:
                         header_title = _read_member_header_title(zf, info, system)
                         if header_title:
@@ -415,6 +473,141 @@ def _resolve_canonical_name_for_zip(
     return candidates
 
 
+def _extract_7z_member(
+    archive: "py7zr.SevenZipFile",
+    member_name: str,
+    temp_root: Path,
+) -> Path:
+    archive.reset()
+    archive.extract(path=temp_root, targets=[member_name])
+    return temp_root / member_name
+
+
+def _resolve_canonical_name_for_archive_label(
+    archive_name: str,
+    parent_name: str,
+    no_intro: dict[str, str],
+    name_index: dict[str, str],
+    alias_index: dict[str, str],
+    *extra_labels: str,
+) -> tuple[str | None, str]:
+    if not no_intro:
+        return None, "filename"
+
+    canonical = _resolve_alias_canonical_name(
+        alias_index,
+        archive_name,
+        Path(archive_name).stem,
+        *extra_labels,
+        parent_name,
+    )
+    if canonical:
+        return canonical, "alias"
+
+    labels: list[tuple[str, str]] = [
+        (archive_name, "fuzzy"),
+        (Path(archive_name).stem, "fuzzy"),
+    ]
+    for label in extra_labels:
+        labels.append((label, "fuzzy"))
+    labels.append((parent_name, "folder"))
+
+    for label, match_source in labels:
+        if not label:
+            continue
+        canonical = rn.fuzzy_filename_search(label, name_index)
+        if canonical:
+            region_hint = rn.extract_region_hint(archive_name) or rn.extract_region_hint(
+                parent_name
+            )
+            if region_hint:
+                canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
+            return canonical, match_source
+
+    return None, "filename"
+
+
+def _pick_7z_member(
+    path: Path,
+    infos: list["py7zr.py7zr.FileInfo"],
+) -> "py7zr.py7zr.FileInfo | None":
+    if not infos:
+        return None
+
+    archive_name = path.stem.lower()
+    archive_inner_suffix = Path(path.stem).suffix.lower()
+    archive_base = Path(path.stem).stem.lower()
+
+    for info in infos:
+        member_path = Path(info.filename)
+        member_name = member_path.name.lower()
+        member_base = member_path.stem.lower()
+        if member_name == archive_name or member_base == archive_base:
+            return info
+
+    if archive_inner_suffix in rn.ROM_EXTENSIONS:
+        for info in infos:
+            if Path(info.filename).suffix.lower() == archive_inner_suffix:
+                return info
+
+    return infos[0]
+
+
+def _resolve_canonical_name_for_7z(
+    path: Path,
+    system: str,
+    no_intro: dict[str, str],
+    name_index: dict[str, str],
+    alias_index: dict[str, str],
+    skip_crc: bool = False,
+) -> list[CollectionCandidate]:
+    _require_py7zr()
+    del system, skip_crc
+
+    with py7zr.SevenZipFile(path, "r") as archive:
+        infos = sorted(
+            (
+                info
+                for info in archive.list()
+                if not info.is_directory
+                and Path(info.filename).suffix.lower() in rn.ROM_EXTENSIONS
+                and not _is_bios_name(info.filename)
+            ),
+            key=lambda info: info.filename.lower(),
+        )
+    member = _pick_7z_member(path, infos)
+    if member is None:
+        return []
+
+    member_path = Path(member.filename)
+    canonical, match_source = _resolve_canonical_name_for_archive_label(
+        path.stem,
+        path.parent.name,
+        no_intro,
+        name_index,
+        alias_index,
+        member_path.name,
+        member_path.parent.name,
+    )
+    if canonical is None or _is_bios_candidate(canonical, path.name):
+        return []
+
+    extension = Path(path.stem).suffix.lower()
+    if extension not in rn.ROM_EXTENSIONS:
+        extension = member_path.suffix.lower()
+
+    return [
+        CollectionCandidate(
+            source_path=path,
+            canonical_name=canonical,
+            source_kind="7z",
+            extension=extension,
+            match_source=match_source,
+            archive_member=member.filename,
+        )
+    ]
+
+
 def scan_collection(
     folder: Path,
     system: str,
@@ -425,6 +618,7 @@ def scan_collection(
     one_game_one_rom: bool = True,
 ) -> tuple[list[CollectionCandidate], list[CollectionCandidate], list[Path]]:
     name_index = rn.build_name_index(no_intro) if no_intro else {}
+    alias_index = rn.load_alias_index(system, no_intro) if no_intro else {}
     selected: dict[str, CollectionCandidate] = {}
     duplicates: list[CollectionCandidate] = []
     unmatched: list[Path] = []
@@ -437,16 +631,41 @@ def scan_collection(
         candidates: list[CollectionCandidate] = []
         if path.suffix.lower() in ZIP_EXTENSIONS:
             candidates = _resolve_canonical_name_for_zip(
-                path, system, no_intro, name_index, skip_crc=skip_crc
+                path,
+                system,
+                no_intro,
+                name_index,
+                alias_index,
+                skip_crc=skip_crc,
             )
+            archive_kind = "zip"
+        elif path.suffix.lower() in SEVEN_Z_EXTENSIONS:
+            candidates = _resolve_canonical_name_for_7z(
+                path,
+                system,
+                no_intro,
+                name_index,
+                alias_index,
+                skip_crc=skip_crc,
+            )
+            archive_kind = "7z"
+        else:
+            archive_kind = ""
+
+        if archive_kind:
             if not candidates:
-                if _is_bios_zip(path):
+                if _is_bios_archive(path):
                     continue
                 unmatched.append(path)
                 continue
         else:
             canonical_name, match_source = _resolve_canonical_name_for_file(
-                path, system, no_intro, name_index, skip_crc=skip_crc
+                path,
+                system,
+                no_intro,
+                name_index,
+                alias_index,
+                skip_crc=skip_crc,
             )
             if canonical_name is None:
                 unmatched.append(path)
@@ -495,6 +714,20 @@ def _dedup_key(candidate: CollectionCandidate, clone_map: dict[str, str]) -> str
     if leader:
         return rn.normalize_name(leader)
     return candidate.base_key
+
+
+def _resolve_alias_canonical_name(
+    alias_index: dict[str, str], *labels: str | None
+) -> str | None:
+    if not alias_index:
+        return None
+    for label in labels:
+        if not label:
+            continue
+        canonical = alias_index.get(rn.normalize_alias_lookup_name(label))
+        if canonical:
+            return canonical
+    return None
 
 
 def _selection_key(
@@ -790,6 +1023,24 @@ def build_collection(
             else:
                 target = target_dir / f"{entry.canonical_name}.zip"
                 shutil.copy2(entry.source_path, target)
+        elif entry.source_kind == "7z" and entry.archive_member:
+            _require_py7zr()
+            if unzip_archives:
+                target = target_dir / entry.output_name
+                with py7zr.SevenZipFile(entry.source_path, "r") as archive, tempfile.TemporaryDirectory() as tmpdir:
+                    extracted = _extract_7z_member(archive, entry.archive_member, Path(tmpdir))
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(extracted, target)
+            else:
+                target = target_dir / f"{entry.canonical_name}.zip"
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    temp_root = Path(tmpdir)
+                    with py7zr.SevenZipFile(entry.source_path, "r") as archive:
+                        archive.extractall(path=temp_root)
+                    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for extracted in sorted(temp_root.rglob("*")):
+                            if extracted.is_file():
+                                zf.write(extracted, extracted.relative_to(temp_root).as_posix())
         else:
             target = target_dir / entry.output_name
             shutil.copy2(entry.source_path, target)

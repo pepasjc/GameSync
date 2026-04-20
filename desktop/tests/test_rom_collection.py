@@ -1,5 +1,8 @@
 from pathlib import Path
+import json
 import zipfile
+
+import pytest
 
 import rom_collection as rc
 import rom_normalizer as rn
@@ -67,6 +70,90 @@ def test_scan_collection_can_match_zip_member_by_filename(tmp_path):
     assert entries[0].source_kind == "zip"
     assert entries[0].canonical_name == "Super Dodge Ball Advance (USA)"
     assert entries[0].archive_member == "Super Dodgeball Advance.gba"
+    assert not duplicates
+    assert not unmatched
+
+
+def test_scan_collection_uses_aliases_for_translated_zip_members(
+    monkeypatch, tmp_path
+):
+    dats_dir = tmp_path / "dats"
+    aliases_dir = dats_dir / "EN-Dats"
+    aliases_dir.mkdir(parents=True)
+    (aliases_dir / "aliases.json").write_text(
+        json.dumps(
+            {
+                "NDS": {
+                    "Ace Attorney Investigations - Miles Edgeworth - Prosecutor's Path (Japan)": "Gyakuten Kenji 2 (Japan)"
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rn, "DATS_DIR", dats_dir)
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "translated-pack.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr(
+            "Ace Attorney Investigations - Miles Edgeworth - Prosecutor's Path (Japan) [T-En by Auryn v20220215].nds",
+            b"rom",
+        )
+
+    no_intro = {
+        "A": "Ace Attorney Investigations - Miles Edgeworth (USA)",
+        "B": "Gyakuten Kenji 2 (Japan)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms,
+        "NDS",
+        no_intro,
+        skip_crc=True,
+    )
+
+    assert len(entries) == 1
+    assert entries[0].source_kind == "zip"
+    assert entries[0].canonical_name == "Gyakuten Kenji 2 (Japan)"
+    assert entries[0].match_source == "alias"
+    assert entries[0].region == "Translated"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_uses_7z_archive_name_without_extracting_members(
+    monkeypatch, tmp_path
+):
+    py7zr = pytest.importorskip("py7zr")
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "Super Dodge Ball Advance (USA).7z"
+    source = roms / "totally different.gba"
+    source.write_bytes(b"rom")
+    with py7zr.SevenZipFile(archive, "w") as zf:
+        zf.write(source, "totally different.gba")
+    source.unlink()
+
+    monkeypatch.setattr(
+        rc,
+        "_extract_7z_member",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("scan should not extract 7z members")
+        ),
+    )
+
+    no_intro = {
+        "A": "Super Dodge Ball Advance (USA)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(roms, "GBA", no_intro)
+
+    assert len(entries) == 1
+    assert entries[0].source_kind == "7z"
+    assert entries[0].canonical_name == "Super Dodge Ball Advance (USA)"
+    assert entries[0].archive_member == "totally different.gba"
     assert not duplicates
     assert not unmatched
 
@@ -594,6 +681,63 @@ def test_build_collection_keeps_zip_when_unzip_disabled(tmp_path):
         source_path=archive,
         canonical_name="Advance Wars (USA)",
         source_kind="zip",
+        extension=".gba",
+        match_source="fuzzy",
+        archive_member="Advance Wars.gba",
+    )
+
+    output = tmp_path / "output"
+    written = rc.build_collection([entry], output, unzip_archives=False)
+
+    assert written == [output / "Advance Wars (USA).zip"]
+    with zipfile.ZipFile(written[0]) as zf:
+        assert zf.read("Advance Wars.gba") == b"rom-data"
+
+
+def test_build_collection_unpacks_7z_entries(tmp_path):
+    py7zr = pytest.importorskip("py7zr")
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "pack.7z"
+    source = roms / "Advance Wars.gba"
+    source.write_bytes(b"rom-data")
+    with py7zr.SevenZipFile(archive, "w") as zf:
+        zf.write(source, "Advance Wars.gba")
+    source.unlink()
+
+    entry = rc.CollectionCandidate(
+        source_path=archive,
+        canonical_name="Advance Wars (USA)",
+        source_kind="7z",
+        extension=".gba",
+        match_source="fuzzy",
+        archive_member="Advance Wars.gba",
+    )
+
+    output = tmp_path / "output"
+    written = rc.build_collection([entry], output, unzip_archives=True)
+
+    assert written == [output / "Advance Wars (USA).gba"]
+    assert written[0].read_bytes() == b"rom-data"
+
+
+def test_build_collection_converts_7z_to_zip_when_unzip_disabled(tmp_path):
+    py7zr = pytest.importorskip("py7zr")
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "pack.7z"
+    source = roms / "Advance Wars.gba"
+    source.write_bytes(b"rom-data")
+    with py7zr.SevenZipFile(archive, "w") as zf:
+        zf.write(source, "Advance Wars.gba")
+    source.unlink()
+
+    entry = rc.CollectionCandidate(
+        source_path=archive,
+        canonical_name="Advance Wars (USA)",
+        source_kind="7z",
         extension=".gba",
         match_source="fuzzy",
         archive_member="Advance Wars.gba",
