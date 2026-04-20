@@ -143,6 +143,68 @@ def test_download_rom_returns_false_on_http_error(monkeypatch, tmp_path):
     assert not target.with_suffix(target.suffix + ".part").exists()
 
 
+def test_download_rom_uses_long_read_timeout_for_chd_extraction(monkeypatch, tmp_path):
+    """Server-side CHD/RVZ extraction can run for minutes before the first
+    byte arrives, so the client must not apply the tight 10-second timeout
+    it uses for the rest of the API."""
+    captured = {}
+
+    def fake_get(url, params=None, headers=None, stream=None, timeout=None):
+        captured["timeout"] = timeout
+        return _FakeResponse(200, b"payload", content_length=7)
+
+    monkeypatch.setattr(sync_client_mod.requests, "get", fake_get)
+    client = SyncClient("localhost", 8000, "key")
+    target = tmp_path / "PS1" / "dino.chd"
+
+    assert client.download_rom("SLUS00922", target) is True
+    # Tuple form (connect, read): connect stays tight for fast-fail on
+    # unreachable servers, read is large enough to survive chdman.
+    assert isinstance(captured["timeout"], tuple) and len(captured["timeout"]) == 2
+    connect_to, read_to = captured["timeout"]
+    assert connect_to >= 10 and read_to >= 300
+
+
+def test_download_rom_records_http_error_body_for_the_ui(monkeypatch, tmp_path):
+    """When the server returns 503 ('chdman not installed'), the user
+    should see that message in the failure dialog, not a bare
+    'Download failed.'"""
+
+    class _WithText(_FakeResponse):
+        def __init__(self):
+            super().__init__(503, b"")
+            self.text = "chdman not installed. Run: sudo apt install mame-tools"
+
+    monkeypatch.setattr(sync_client_mod.requests, "get", lambda *a, **kw: _WithText())
+    client = SyncClient("localhost", 8000, "key")
+    assert client.download_rom("SLUS00922", tmp_path / "a.chd") is False
+    assert "chdman" in client.last_download_error
+    assert "503" in client.last_download_error
+
+
+def test_download_rom_records_timeout_as_actionable_message(monkeypatch, tmp_path):
+    import requests as _requests
+
+    def fake_get(*a, **kw):
+        raise _requests.exceptions.Timeout("took too long")
+
+    monkeypatch.setattr(sync_client_mod.requests, "get", fake_get)
+    client = SyncClient("localhost", 8000, "key")
+    assert client.download_rom("SLUS00922", tmp_path / "a.chd") is False
+    # The message should explain the CHD extraction wait, not just echo
+    # "took too long".
+    assert "extract" in client.last_download_error.lower() or \
+        "several minutes" in client.last_download_error.lower()
+
+
+def test_download_rom_resets_last_error_on_success(monkeypatch, tmp_path):
+    _install_fake_get(monkeypatch, lambda: _FakeResponse(200, b"ok", content_length=2))
+    client = SyncClient("localhost", 8000, "key")
+    client.last_download_error = "stale from a prior failure"
+    assert client.download_rom("SLUS00922", tmp_path / "a.chd") is True
+    assert client.last_download_error == ""
+
+
 def test_download_rom_cleans_up_partial_on_write_error(monkeypatch, tmp_path):
     class _ExplodingResponse:
         status_code = 200

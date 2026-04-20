@@ -216,6 +216,34 @@ class TestTitlesEndpoint:
         assert game_names.detect_platform("SLUS01279") == "PS1"
         assert game_names.detect_platform("SLUS20002") == "PS2"
 
+    def test_lookup_names_typed_resolves_ps2_serials_from_local_db(self, monkeypatch):
+        """PS2 serials (SCUS97203 = Wild Arms 3) must resolve to a name
+        from the local PS2 DAT.  Before routing "Sony - PlayStation 2.dat"
+        into its own dict and giving lookup_names_typed a PS2 branch,
+        these codes fell through every conditional and came back empty —
+        so the UI listed raw serials like SCUS97203 / PBPX95503 instead
+        of real game names."""
+        monkeypatch.setitem(game_names._ps2_names, "SCUS97203", "Wild Arms 3 (USA)")
+        monkeypatch.setitem(game_names._ps2_names, "SCES51920", "Gran Turismo 4 (Europe)")
+
+        result = game_names.lookup_names_typed(["SCUS97203", "SCES51920"])
+        assert result["SCUS97203"] == ("Wild Arms 3 (USA)", "PS2")
+        assert result["SCES51920"] == ("Gran Turismo 4 (Europe)", "PS2")
+
+    def test_lookup_names_typed_falls_back_to_psx_dict_for_legacy_ps2_entries(
+        self, monkeypatch
+    ):
+        """Data loaded before the PS2 DAT got its own dict lives in
+        _psx_names.  The PS2 branch must still find those names so
+        redeployment doesn't wipe out existing lookups."""
+        # Simulate legacy state: PS2 DAT was loaded into _psx_names.
+        monkeypatch.setitem(game_names._psx_names, "SLUS20002", "Armored Core 2 (USA)")
+
+        result = game_names.lookup_names_typed(["SLUS20002"])
+        # Heuristic identifies SLUS20002 as PS2 (serial ≥ 20000); the
+        # fallback lookup finds the legacy name and tags it PS2.
+        assert result["SLUS20002"] == ("Armored Core 2 (USA)", "PS2")
+
     def test_saturn_archive_lookup_classifies_results(self, client, auth_headers):
         r = client.post(
             "/api/v1/titles/saturn-archives",
