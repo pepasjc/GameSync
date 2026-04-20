@@ -20,8 +20,15 @@ data, and the Save / Download buttons come alive.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Iterable
+
+_REPO_ROOT = str(Path(__file__).parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from shared.systems import normalize_system_code  # noqa: E402
 
 from .models import GameEntry, SyncStatus
 
@@ -101,17 +108,19 @@ def _system_from_title_id(title_id: str) -> str:
 
 
 def _resolve_system(title_id: str, info: dict) -> str:
-    """Pick a system for an arbitrary server save record."""
+    """Pick a system for an arbitrary server save record.
+
+    Server metadata may carry non-canonical labels for the same console
+    (``"Genesis"`` vs ``"MD"``, ``"PSX"`` vs ``"PS1"``).  Normalising here
+    keeps the system filter from showing duplicate entries for one console.
+    """
     for key in ("console_type", "system", "platform"):
         value = info.get(key)
         if value:
-            mapped = str(value).upper()
-            # Server sometimes reports "PSX" for PlayStation 1 saves.
-            if mapped == "PSX":
-                return "PS1"
-            if mapped:
-                return mapped
-    return _system_from_title_id(title_id)
+            normalized = normalize_system_code(value)
+            if normalized:
+                return normalized
+    return normalize_system_code(_system_from_title_id(title_id))
 
 
 def build_server_only_entries(

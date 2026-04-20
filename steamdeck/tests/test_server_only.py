@@ -89,6 +89,36 @@ def test_builder_maps_psx_console_type_to_ps1(tmp_path):
     assert entries[0].system == "PS1"
 
 
+def test_builder_collapses_genesis_and_md_to_single_system(tmp_path):
+    """Server may report Mega Drive saves as "Genesis", "GEN", or "MD".
+    All three must share one canonical system code so the system filter
+    doesn't list duplicates."""
+    server = {
+        "MD_sonic_the_hedgehog_usa": {
+            "console_type": "MD",
+            "save_hash": "h1",
+            "name": "Sonic",
+        },
+        "MD_streets_of_rage_usa": {
+            "console_type": "Genesis",
+            "save_hash": "h2",
+            "name": "Streets of Rage",
+        },
+        "GEN_gunstar_heroes_usa": {
+            "console_type": "GEN",
+            "save_hash": "h3",
+            "name": "Gunstar Heroes",
+        },
+        "MD_phantasy_star_iv_usa": {
+            "platform": "Mega Drive",
+            "save_hash": "h4",
+            "name": "Phantasy Star IV",
+        },
+    }
+    entries = server_only.build_server_only_entries(server, set(), tmp_path)
+    assert {e.system for e in entries} == {"MD"}
+
+
 def test_builder_drops_saves_with_no_derivable_system(tmp_path):
     # Weird title_id and no platform info — we can't classify it, so skip.
     server = {"abc": {"save_hash": "h"}}
