@@ -38,6 +38,26 @@ def test_retroarch_scan_detects_saturn_yabause_root_save(tmp_path):
     assert results[0].save_path == expected_save
 
 
+def test_retroarch_scan_uses_shared_saturn_resolver_for_title_id(tmp_path):
+    """Saturn ROMs with disc filenames that appear in the libretro DAT must
+    resolve to SAT_<product-code> (matching what the Android client produces
+    and what the server's saturn_archive_names.json keys on), not the
+    filename-slug fallback `SAT_grandia_japan_disc_1`."""
+    emulation = tmp_path / "Emulation"
+    saves_dir = emulation / "saves" / "retroarch" / "saves"
+    roms_dir = emulation / "roms" / "saturn"
+    saves_dir.mkdir(parents=True)
+    roms_dir.mkdir(parents=True)
+
+    (roms_dir / "Grandia (Japan) (Disc 1) (4M).chd").write_bytes(b"")
+
+    results = list(retroarch.scan(emulation))
+
+    assert len(results) == 1
+    assert results[0].system == "SAT"
+    assert results[0].title_id == "SAT_T-4507G"
+
+
 def test_retroarch_scan_prefers_saturn_shared_backup_bin(tmp_path):
     emulation = tmp_path / "Emulation"
     saves_dir = emulation / "saves" / "retroarch" / "saves" / "yabasanshiro"

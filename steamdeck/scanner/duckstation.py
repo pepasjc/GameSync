@@ -217,17 +217,27 @@ def scan(
 
                 # If we already have an entry under a different (weaker) ID but
                 # the same display-name/label, drop the weaker one in favour of
-                # this serial-backed entry.
+                # this serial-backed entry.  Pass A stores the raw card stem as
+                # display_name (e.g. "Final Fantasy VII (USA)"), so we must
+                # normalise both sides of the comparison or cards with region
+                # or serial tags never match the cleaned ROM label.
+                inherited_save_path: Optional[Path] = None
                 if serial and _is_serial_title_id(title_id):
+                    clean_target = _clean_card_label(label).lower()
                     stale_ids = [
                         tid
                         for tid, existing in yielded.items()
                         if not _is_serial_title_id(tid)
-                        and existing.display_name.lower()
-                        == _clean_card_label(label).lower()
+                        and _clean_card_label(existing.display_name).lower()
+                        == clean_target
                     ]
                     for tid in stale_ids:
-                        yielded.pop(tid, None)
+                        stale = yielded.pop(tid)
+                        # Preserve any memcard the stale entry had already
+                        # located so the new serial-backed entry still points
+                        # at the user's existing save.
+                        if inherited_save_path is None and stale.save_path is not None:
+                            inherited_save_path = stale.save_path
 
                 if title_id in yielded:
                     # Already have an entry — enrich missing ROM info and maybe
@@ -245,8 +255,8 @@ def scan(
                     continue
 
                 clean_label = _clean_card_label(label)
-                save_path: Optional[Path] = None
-                if memcards_dir:
+                save_path: Optional[Path] = inherited_save_path
+                if save_path is None and memcards_dir:
                     save_path = _predict_card(memcards_dir, label)
                     if save_path is None:
                         # Predict where DuckStation would put the card.  Only

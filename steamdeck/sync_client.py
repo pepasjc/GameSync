@@ -9,7 +9,7 @@ import time
 import zipfile
 import zlib
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 # Matches PS3/PSP/PS1/PS2 product codes: 4 uppercase letters + 5 digits (+ optional suffix)
 _PS3_CODE_RE = re.compile(r"^([A-Z]{4}\d{5})")
@@ -391,6 +391,115 @@ class SyncClient:
         except Exception:
             pass
         return {}
+
+    # ------------------------------------------------------------------
+    # ROM catalog (server-hosted ROMs available for download)
+    # ------------------------------------------------------------------
+
+    def list_roms(self, system: Optional[str] = None) -> list[dict]:
+        """
+        Return the server's ROM catalog.  Each entry is a dict with at least
+        ``rom_id``, ``title_id``, ``system``, ``name``, ``filename``, ``size``
+        and may carry an ``extract_format`` hint for CHD/RVZ discs.
+
+        Passing ``system`` narrows the server-side filter so we aren't paging
+        through unrelated catalogs when the caller only cares about one
+        console.
+        """
+        params: dict[str, str] = {}
+        if system:
+            params["system"] = system.upper()
+        try:
+            r = requests.get(
+                f"{self.base_url}/roms",
+                params=params,
+                headers=self.headers,
+                timeout=self._timeout,
+            )
+            if r.status_code == 200:
+                return list(r.json().get("roms", []))
+        except Exception as exc:
+            print(f"[ROMs] list failed: {exc}")
+        return []
+
+    def find_roms_for_title(self, title_id: str, system: str) -> list[dict]:
+        """
+        Return ROM catalog entries whose ``title_id`` matches ``title_id``.
+
+        Multi-disc games yield multiple rows (same ``title_id``, distinct
+        ``rom_id``); the UI can surface them individually so the user can
+        pick a specific disc.
+        """
+        if not title_id:
+            return []
+        return [r for r in self.list_roms(system) if r.get("title_id") == title_id]
+
+    def download_rom(
+        self,
+        rom_id: str,
+        target_path: Path,
+        extract_format: Optional[str] = None,
+        progress_cb: Optional[Callable[[int, int], None]] = None,
+    ) -> bool:
+        """
+        Stream a ROM to ``target_path``.
+
+        If the catalog entry carries an ``extract_format`` hint (e.g. ``cue``
+        for CHD→CUE/BIN, ``gdi``, ``iso`` / ``cso`` for PSP, ``rvz`` for
+        Dolphin), pass it through so the server returns the extracted payload.
+        ``progress_cb(downloaded, total)`` is invoked after each chunk; total
+        is 0 when the server did not advertise ``Content-Length``.
+        """
+        if not rom_id:
+            return False
+
+        params: dict[str, str] = {}
+        if extract_format:
+            params["extract"] = extract_format
+
+        try:
+            with requests.get(
+                f"{self.base_url}/roms/{rom_id}",
+                params=params,
+                headers=self.headers,
+                stream=True,
+                # ROMs can be multi-GB; use a generous timeout for the
+                # connect/headers phase but rely on the streaming loop for
+                # the body rather than a wall-clock deadline.
+                timeout=self._timeout,
+            ) as r:
+                if r.status_code != 200:
+                    print(f"[ROMs] download HTTP {r.status_code} for {rom_id}")
+                    return False
+                total = int(r.headers.get("Content-Length", "0") or 0)
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = target_path.with_suffix(target_path.suffix + ".part")
+                downloaded = 0
+                try:
+                    with open(tmp_path, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=65536):
+                            if not chunk:
+                                continue
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if progress_cb is not None:
+                                try:
+                                    progress_cb(downloaded, total)
+                                except Exception:
+                                    pass
+                    # Atomic rename so a cancelled/partial download never
+                    # leaves a half-written ROM the scanner would pick up.
+                    tmp_path.replace(target_path)
+                except Exception:
+                    try:
+                        tmp_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                    raise
+            return True
+        except Exception as exc:
+            print(f"[ROMs] download failed for {rom_id}: {exc}")
+            return False
 
     # ------------------------------------------------------------------
     # ROM normalization / serial lookup

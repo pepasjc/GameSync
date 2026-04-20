@@ -187,12 +187,16 @@ def scan(
 
         # If we're about to add a serial-backed entry and we already have a
         # weaker slug entry with the same display name, drop the stale one.
+        # Use normalize_rom_name on both sides so card stems like
+        # "Final Fantasy X (USA)" match ROM stems like "Final Fantasy X" —
+        # a raw lowercase compare misses this and leaves duplicates behind.
         if serial and _is_serial_title_id(title_id):
+            target_norm = normalize_rom_name(stem)
             for tid in [
                 tid
                 for tid, existing in yielded.items()
                 if not _is_serial_title_id(tid)
-                and existing.display_name.lower() == stem.lower()
+                and normalize_rom_name(existing.display_name) == target_norm
             ]:
                 yielded.pop(tid, None)
 

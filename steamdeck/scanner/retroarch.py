@@ -15,6 +15,25 @@ from typing import Generator, Optional
 from .base import sha256_file, find_paths, to_title_id
 from .models import GameEntry
 
+try:
+    # Shared Saturn resolver (IP.BIN + libretro DAT) — matches Android's
+    # SAT_<product-code> title IDs so the server's archive map and the Android
+    # client agree with us on what "Grandia (Japan)" is called.
+    from shared.rom_id.saturn import resolve_saturn_title_id as _resolve_sat
+except ImportError:  # pragma: no cover — keeps the scanner usable if the
+    # repo is imported without the shared package on sys.path.
+    _resolve_sat = None
+
+
+def _saturn_title_id(rom_path: Optional[Path], rom_stem: str) -> str:
+    """Return a SAT_<product-code> title ID when we can resolve one, else the
+    filename-slug fallback so unidentified discs still get a stable key."""
+    if _resolve_sat is not None:
+        serial_id = _resolve_sat(rom_path=rom_path, rom_name=rom_stem)
+        if serial_id:
+            return serial_id
+    return to_title_id(rom_stem, "SAT")
+
 # RetroArch Flatpak paths
 FLATPAK_RA_DATA = Path.home() / ".var/app/org.libretro.RetroArch/config/retroarch"
 
@@ -430,7 +449,10 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
         if not rom_path.exists():
             continue
         rom_stem = rom_path.stem
-        title_id = to_title_id(rom_stem, system)
+        if system == "SAT":
+            title_id = _saturn_title_id(rom_path, rom_stem)
+        else:
+            title_id = to_title_id(rom_stem, system)
         if title_id in seen_title_ids:
             continue
         seen_title_ids.add(title_id)
@@ -471,7 +493,10 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
             if rom_file.suffix.lower() not in ROM_EXTENSIONS:
                 continue
             rom_stem = rom_file.stem
-            title_id = to_title_id(rom_stem, system)
+            if system == "SAT":
+                title_id = _saturn_title_id(rom_file, rom_stem)
+            else:
+                title_id = to_title_id(rom_stem, system)
             if title_id in seen_title_ids:
                 continue
             seen_title_ids.add(title_id)
