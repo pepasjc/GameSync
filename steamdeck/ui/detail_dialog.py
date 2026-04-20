@@ -270,16 +270,18 @@ QLabel#detailLabel {{
             self._download_btn.clicked.connect(self._do_download)
             btn_layout.addWidget(self._download_btn)
 
-        # Download-ROM is offered whenever the user is missing the ROM
-        # locally — either on explicit SERVER_ONLY entries (generic server-
-        # only placeholder rows) or on any scanner-produced row whose
-        # rom_path either was never set or points somewhere that no longer
-        # exists on disk.  The actual catalog check happens on click so we
-        # don't block the dialog open on an HTTP round trip; if the server
-        # has no ROM for this title the handler reports that to the user.
+        # Download-ROM is offered only when both:
+        #   - the user is missing the ROM locally, AND
+        #   - the server's catalog actually has a ROM for this title
+        #     (``entry.available_roms`` is populated up-front by
+        #     ``ServerWorker``).
+        # Hiding the button when the server has nothing avoids the
+        # confusing "Download ROM → No server ROM available" round trip
+        # the old code triggered on every click.
         needs_rom = entry.rom_path is None or not entry.rom_path.exists()
+        has_server_rom = bool(entry.available_roms)
         self._rom_download_btn = None
-        if needs_rom:
+        if needs_rom and has_server_rom:
             self._rom_download_btn = QPushButton("Download ROM  [Y]")
             self._rom_download_btn.setStyleSheet(
                 f"QPushButton {{ background:{theme.STATUS_DOWNLOAD}; color:#fff;"
@@ -373,7 +375,13 @@ QLabel#detailLabel {{
             ).exec()
             return
 
-        roms = self._client.find_roms_for_title(entry.title_id, entry.system)
+        # ``available_roms`` is pre-populated by ``ServerWorker`` (using
+        # title_id + filename + normalised-name lookups against the
+        # server catalog) so single-click download stays snappy.  Re-fetch
+        # only as a fallback for entries created outside the worker flow.
+        roms = list(entry.available_roms) or self._client.find_roms_for_title(
+            entry.title_id, entry.system
+        )
         if not roms:
             ResultDialog(
                 False,
