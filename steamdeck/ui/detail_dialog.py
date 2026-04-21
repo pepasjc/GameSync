@@ -32,6 +32,36 @@ from .confirm_dialog import ConfirmDialog, ResultDialog
 from .download_dialog import DownloadProgressDialog
 from .gamepad_modal import GamepadModalMixin
 
+# Every system the server would otherwise extract (CHD→CUE/GDI/ISO or
+# RVZ→ISO) has an emulator on the Deck that reads the compressed format
+# directly: DuckStation / PCSX2 / BeetleSaturn / Genesis Plus GX /
+# Flycast / PPSSPP all consume CHD, and Dolphin consumes RVZ.  Skipping
+# the ``extract`` query parameter across the board lets every ROM stream
+# as-is with a proper Content-Length so the progress bar starts moving
+# immediately instead of stalling on a minutes-long chdman / DolphinTool
+# subprocess.
+_NATIVE_COMPRESSED_FORMAT_SYSTEMS = frozenset(
+    {
+        # CHD (CD-ROM) systems
+        "PS1", "PSX",
+        "PS2",
+        "SAT",
+        "SCD", "MEGACD",
+        "PCECD", "PCENGINECD", "TG16CD",
+        "3DO",
+        "PCFX",
+        "NGCD",
+        "AMIGACD32",
+        "JAGCD",
+        # CHD (GD-ROM) Dreamcast
+        "DC", "DREAMCAST",
+        # CHD PSP (PPSSPP reads CHD directly)
+        "PSP",
+        # RVZ GC / Wii (Dolphin reads RVZ natively)
+        "GC", "WII",
+    }
+)
+
 
 class DetailDialog(QDialog, GamepadModalMixin):
     """
@@ -422,11 +452,22 @@ QLabel#detailLabel {{
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
 
+        # DuckStation / PCSX2 / Flycast / Dolphin all read their compressed
+        # disc formats natively, so forcing the server to extract CHD→CUE or
+        # RVZ→ISO just stalls the download on a multi-minute chdman /
+        # DolphinTool subprocess before a single byte flows.  Skip the
+        # extract hint on those systems and stream the raw file — PPSSPP
+        # still needs its ISO/CSO output so PSP stays on the extraction
+        # path.
+        extract_format = rom.get("extract_format")
+        if entry.system in _NATIVE_COMPRESSED_FORMAT_SYSTEMS:
+            extract_format = None
+
         progress_dlg = DownloadProgressDialog(
             client=self._client,
             rom_id=str(rom.get("rom_id") or entry.title_id),
             target_path=target_path,
-            extract_format=rom.get("extract_format"),
+            extract_format=extract_format,
             display_name=entry.display_name,
             parent=self,
         )
