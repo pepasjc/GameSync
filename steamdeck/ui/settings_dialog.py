@@ -1,6 +1,7 @@
 """Settings dialog — server config + emulation path."""
 
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -13,6 +14,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
+
+from config import SATURN_SYNC_FORMATS, normalize_saturn_sync_format
+from saturn_format import SATURN_DOWNLOAD_FORMATS
 
 from . import theme
 from .gamepad_modal import GamepadModalMixin
@@ -95,6 +99,36 @@ class SettingsDialog(QDialog, GamepadModalMixin):
         layout.addLayout(rom_row)
 
         layout.addWidget(_separator())
+
+        # ── Saves ────────────────────────────────────────────────
+        layout.addWidget(_section_label("Saves"))
+
+        saturn_row = QHBoxLayout()
+        saturn_lbl = QLabel("Saturn format")
+        self._saturn_format = QComboBox()
+        self._saturn_format.setStyleSheet(
+            f"background:{theme.BG_CARD}; color:{theme.TEXT_PRIMARY}; "
+            f"border:1px solid {theme.TEXT_DIM}; border-radius:4px; padding:4px;"
+        )
+        current_format = normalize_saturn_sync_format(config.get("saturn_sync_format"))
+        for wire_value in SATURN_SYNC_FORMATS:
+            label = SATURN_DOWNLOAD_FORMATS.get(wire_value, (wire_value, ""))[0]
+            self._saturn_format.addItem(label, wire_value)
+            if wire_value == current_format:
+                self._saturn_format.setCurrentIndex(self._saturn_format.count() - 1)
+        saturn_row.addWidget(saturn_lbl)
+        saturn_row.addWidget(self._saturn_format, 1)
+        layout.addLayout(saturn_row)
+
+        saturn_hint = QLabel(
+            "Server stays on Beetle/Mednafen canonical; this controls which "
+            "emulator's Saturn saves get read and written locally."
+        )
+        saturn_hint.setWordWrap(True)
+        saturn_hint.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        layout.addWidget(saturn_hint)
+
+        layout.addWidget(_separator())
         layout.addStretch()
 
         # ── Buttons ───────────────────────────────────────────────
@@ -129,12 +163,14 @@ class SettingsDialog(QDialog, GamepadModalMixin):
             self._rom_path.setText(path)
 
     def get_config(self) -> dict:
+        saturn_format = self._saturn_format.currentData()
         return {
             "host": self._host["edit"].text().strip(),
             "port": self._port_spin.value(),
             "api_key": self._api_key["edit"].text().strip(),
             "emulation_path": self._emu_path.text().strip(),
             "rom_scan_dir": self._rom_path.text().strip(),
+            "saturn_sync_format": normalize_saturn_sync_format(saturn_format),
         }
 
     def keyPressEvent(self, event):
@@ -145,7 +181,7 @@ class SettingsDialog(QDialog, GamepadModalMixin):
     def handle_gamepad_key(self, key: int) -> bool:
         # Let text inputs handle their own keys (Backspace, Enter, etc.)
         focused = self.focusWidget()
-        is_editing = isinstance(focused, (QLineEdit, QSpinBox))
+        is_editing = isinstance(focused, (QLineEdit, QSpinBox, QComboBox))
 
         if key in (Qt.Key.Key_Escape, Qt.Key.Key_B) and not is_editing:
             self.reject()

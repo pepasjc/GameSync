@@ -10,6 +10,7 @@ if str(DESKTOP_ROOT) not in sys.path:
     sys.path.insert(0, str(DESKTOP_ROOT))
 
 from saroo_format import (  # noqa: E402
+    SATURN_DOWNLOAD_FORMATS,
     convert_saturn_save_format,
     extract_saturn_save_set,
     list_saturn_archive_names,
@@ -18,6 +19,7 @@ from saroo_format import (  # noqa: E402
 )
 
 __all__ = [
+    "SATURN_DOWNLOAD_FORMATS",
     "convert_saturn_save_format",
     "extract_saturn_save_set",
     "list_saturn_archive_names",

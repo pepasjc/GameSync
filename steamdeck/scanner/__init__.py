@@ -11,6 +11,7 @@ def scan_all(
     emulation_path: str,
     rom_scan_dir: str = "",
     progress_cb: Optional[Callable[[str], None]] = None,
+    saturn_sync_format: str = "mednafen",
 ) -> list[GameEntry]:
     """
     Scan all supported emulators under the given EmuDeck base path.
@@ -18,6 +19,9 @@ def scan_all(
 
     rom_scan_dir: optional additional directory to scan for ROMs
                   (e.g. external drive, separate from emulation saves).
+    saturn_sync_format: user-selected Saturn emulator format — controls
+                       which Saturn save location the RetroArch scanner
+                       prefers.
     """
     base = Path(emulation_path)
     results: list[GameEntry] = []
@@ -33,7 +37,10 @@ def scan_all(
 
     # Scanners that don't need rom_scan_dir
     scanners_basic = [
-        ("RetroArch", retroarch.scan),
+        (
+            "RetroArch",
+            lambda b: retroarch.scan(b, saturn_sync_format=saturn_sync_format),
+        ),
         ("RPCS3", rpcs3.scan),
         ("melonDS", melonds.scan),
     ]

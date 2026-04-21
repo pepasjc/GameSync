@@ -61,25 +61,54 @@ class ButtonHint(QLabel):
 class ControlsBar(QWidget):
     """Bottom bar with button hints. Updates based on context."""
 
+    MODE_SAVES = "saves"
+    MODE_CATALOG = "catalog"
+
+    _HINTS_SAVES: list[tuple[str, str, str]] = [
+        ("A", "BTN_A", "Info"),
+        ("B", "BTN_B", "Exit"),
+        ("X", "BTN_X", "Sync"),
+        ("Y", "BTN_Y", "Refresh"),
+        ("L1/R1", "BTN_L", "Tab"),
+        ("☰", "BTN_S", "Settings"),
+    ]
+
+    _HINTS_CATALOG: list[tuple[str, str, str]] = [
+        ("A", "BTN_A", "Download"),
+        ("B", "BTN_B", "Exit"),
+        ("Y", "BTN_Y", "Refresh"),
+        ("L1/R1", "BTN_L", "Tab"),
+        ("☰", "BTN_S", "Settings"),
+    ]
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(theme.CONTROLS_H)
         self.setObjectName("controlsBar")
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 0, 12, 0)
-        layout.setSpacing(16)
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(12, 0, 12, 0)
+        self._layout.setSpacing(16)
+        self._hint_widgets: list[ButtonHint] = []
+        self._stretch_added = False
 
-        self._hints = [
-            ButtonHint("A", theme.BTN_A, "Info"),
-            ButtonHint("B", theme.BTN_B, "Exit"),
-            ButtonHint("X", theme.BTN_X, "Sync"),
-            ButtonHint("Y", theme.BTN_Y, "Refresh"),
-            ButtonHint("L1", theme.BTN_L, "System"),
-            ButtonHint("R1", theme.BTN_L, "Status"),
-            ButtonHint("☰", theme.BTN_S, "Settings"),
-        ]
+        self.set_mode(self.MODE_SAVES)
 
-        for h in self._hints:
-            layout.addWidget(h)
-        layout.addStretch()
+    def set_mode(self, mode: str) -> None:
+        """Swap the visible hints for *mode* (saves / catalog)."""
+        hints = self._HINTS_CATALOG if mode == self.MODE_CATALOG else self._HINTS_SAVES
+        # Tear down the previous pills and stretch so the new set lays out
+        # left-aligned with a trailing stretch (matches the original look).
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self._hint_widgets = []
+
+        for button, color_attr, label in hints:
+            color = getattr(theme, color_attr, theme.TEXT_DIM)
+            pill = ButtonHint(button, color, label)
+            self._hint_widgets.append(pill)
+            self._layout.addWidget(pill)
+        self._layout.addStretch()

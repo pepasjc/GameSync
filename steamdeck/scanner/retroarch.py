@@ -349,34 +349,69 @@ def _parse_playlists(playlists_dir: Path) -> list[tuple[Path, str]]:
     return results
 
 
+def _saturn_save_candidates_for_format(
+    rom_stem: str, saves_dir: Path, saturn_format: str
+) -> list[Path]:
+    """Return Saturn save paths to check in order of preference for *saturn_format*.
+
+    The first entry is the expected-write path for that emulator (used as
+    the fallback when nothing exists yet), matching Android's
+    ``expectedRetroArchSaturnSaveFile``.
+    """
+    if saturn_format == "mednafen":
+        return [
+            saves_dir / "Beetle Saturn" / f"{rom_stem}.bkr",
+            saves_dir / "Kronos" / f"{rom_stem}.bkr",
+            saves_dir / f"{rom_stem}.bkr",
+        ]
+    if saturn_format == "yabause":
+        return [
+            saves_dir / f"{rom_stem}.srm",
+            saves_dir / "yabause" / f"{rom_stem}.srm",
+        ]
+    if saturn_format == "yabasanshiro":
+        return [
+            saves_dir / "yabasanshiro" / "backup.bin",
+            saves_dir / "backup.bin",
+        ]
+    return []
+
+
 def _find_save_for_rom(
     rom_stem: str,
     system: str,
     saves_dir: Path,
+    saturn_format: str = "mednafen",
 ) -> Optional[Path]:
     """Find a RetroArch save file matching the ROM stem."""
     if system == "SAT":
-        candidates = [
-            saves_dir / f"{rom_stem}.srm",
-            saves_dir / "Beetle Saturn" / f"{rom_stem}.bkr",
-            saves_dir / "Kronos" / f"{rom_stem}.bkr",
-        ]
-        for candidate in candidates:
+        # Prefer the user's configured emulator format.  If none of those
+        # paths exist yet, fall back to any other Saturn save we can find
+        # (users switching emulators mid-library shouldn't lose sight of
+        # existing saves); finally, construct the expected write path
+        # for the configured format so new downloads land where the
+        # chosen emulator will read them.
+        preferred = _saturn_save_candidates_for_format(
+            rom_stem, saves_dir, saturn_format
+        )
+        for candidate in preferred:
             if candidate.exists():
                 return candidate
 
-        shared_candidates = [
-            saves_dir / "yabasanshiro" / "backup.bin",
-            saves_dir / "backup.bin",
+        other_formats = [
+            fmt
+            for fmt in ("mednafen", "yabause", "yabasanshiro")
+            if fmt != saturn_format
         ]
-        for candidate in shared_candidates:
-            if candidate.exists():
-                return candidate
+        for fmt in other_formats:
+            for candidate in _saturn_save_candidates_for_format(
+                rom_stem, saves_dir, fmt
+            ):
+                if candidate.exists():
+                    return candidate
 
-        if (saves_dir / "yabasanshiro").exists():
-            return saves_dir / "yabasanshiro" / "backup.bin"
-        if (saves_dir / "Beetle Saturn").exists() or (saves_dir / "Kronos").exists():
-            return saves_dir / "Beetle Saturn" / f"{rom_stem}.bkr"
+        if preferred:
+            return preferred[0]
         return saves_dir / f"{rom_stem}.srm"
 
     # Collect every ROM_FOLDER_MAP entry that targets this system, so we
@@ -414,11 +449,20 @@ def _find_save_for_rom(
     return None
 
 
-def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
+def scan(
+    emulation_path: Path,
+    saturn_sync_format: str = "mednafen",
+) -> Generator[GameEntry, None, None]:
     """
     Scan RetroArch saves, yielding GameEntry objects.
     Uses playlist-first strategy, falls back to ROM directory scan.
+
+    ``saturn_sync_format`` selects which Saturn emulator's save path to
+    prefer (matches Android's SettingsStore.saturnSyncFormat).
     """
+    saturn_sync_format = (saturn_sync_format or "mednafen").strip().lower()
+    if saturn_sync_format not in ("mednafen", "yabause", "yabasanshiro"):
+        saturn_sync_format = "mednafen"
     # Locate RetroArch config and saves — prefer user-configured emulation_path
     emu_ra = emulation_path / "saves" / "retroarch"
     ra_config_dir = find_paths(
@@ -457,7 +501,9 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
             continue
         seen_title_ids.add(title_id)
 
-        save_path = _find_save_for_rom(rom_stem, system, saves_dir)
+        save_path = _find_save_for_rom(
+            rom_stem, system, saves_dir, saturn_sync_format
+        )
         entry = GameEntry(
             title_id=title_id,
             display_name=rom_stem,
@@ -501,7 +547,9 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
                 continue
             seen_title_ids.add(title_id)
 
-            save_path = _find_save_for_rom(rom_stem, system, saves_dir)
+            save_path = _find_save_for_rom(
+                rom_stem, system, saves_dir, saturn_sync_format
+            )
             entry = GameEntry(
                 title_id=title_id,
                 display_name=rom_stem,

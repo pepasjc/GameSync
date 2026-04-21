@@ -93,6 +93,22 @@ def _saturn_format_for_path(path: Path | None) -> str:
     return "mednafen"
 
 
+def _saturn_download_format(path: Path | None, configured: str | None) -> str:
+    """Pick which on-disk Saturn format to write for a download.
+
+    Shared ``backup.bin`` containers always go through the yabasanshiro merge
+    path so we never clobber other games sitting in the same file.  Otherwise
+    respect the user's configured emulator choice; fall back to path-based
+    detection only if no valid format is configured.
+    """
+    if _is_shared_saturn_backup(path):
+        return "yabasanshiro"
+    configured = (configured or "").strip().lower()
+    if configured in ("mednafen", "yabause", "yabasanshiro"):
+        return configured
+    return _saturn_format_for_path(path)
+
+
 def _get_saturn_archive_names(title_id: str) -> list[str]:
     state = load_saturn_archive_state()
     values = state.get((title_id or "").upper(), [])
@@ -354,9 +370,18 @@ def _parse_dir_bundle(data: bytes) -> list[tuple[str, bytes]]:
 
 
 class SyncClient:
-    def __init__(self, host: str, port: int, api_key: str):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        api_key: str,
+        saturn_sync_format: str = "mednafen",
+    ):
         self.base_url = f"http://{host}:{port}/api/v1"
         self.headers = {"X-API-Key": api_key}
+        self.saturn_sync_format = (saturn_sync_format or "mednafen").strip().lower()
+        if self.saturn_sync_format not in ("mednafen", "yabause", "yabasanshiro"):
+            self.saturn_sync_format = "mednafen"
         self._timeout = 10
         # ROM downloads need a much longer read timeout than the generic
         # API calls: CHD/RVZ extraction runs server-side (chdman /
@@ -814,7 +839,9 @@ class SyncClient:
                     archive_names = [
                         name.upper() for name in list_saturn_archive_names(r.content)
                     ]
-                    saturn_format = _saturn_format_for_path(save_path)
+                    saturn_format = _saturn_download_format(
+                        save_path, self.saturn_sync_format
+                    )
                     if saturn_format == "yabasanshiro":
                         existing_data = save_path.read_bytes() if save_path.exists() else None
                         data = merge_saturn_save_set(
