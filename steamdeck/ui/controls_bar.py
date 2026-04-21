@@ -70,14 +70,16 @@ class ControlsBar(QWidget):
         ("X", "BTN_X", "Sync"),
         ("Y", "BTN_Y", "Refresh"),
         ("L1/R1", "BTN_L", "Tab"),
+        ("L2/R2", "BTN_L", "Page"),
         ("☰", "BTN_S", "Settings"),
     ]
 
     _HINTS_CATALOG: list[tuple[str, str, str]] = [
         ("A", "BTN_A", "Download"),
         ("B", "BTN_B", "Exit"),
-        ("Y", "BTN_Y", "Refresh"),
+        ("Y", "BTN_Y", "Search"),
         ("L1/R1", "BTN_L", "Tab"),
+        ("L2/R2", "BTN_L", "Page"),
         ("☰", "BTN_S", "Settings"),
     ]
 

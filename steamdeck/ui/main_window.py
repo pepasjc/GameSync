@@ -1142,10 +1142,23 @@ class MainWindow(QMainWindow):
             self._apply_filters()
 
     def _action_refresh(self):
+        self._start_scan()
+
+    def _action_y(self):
+        """Y button — tab-specific.
+
+        Saves tab rescans the local emulator folders (server + local
+        state can drift between launches).  The catalog doesn't need a
+        refresh button — the server's ROM list is fetched on tab entry
+        and restarting the app re-fetches — so Y drops you straight
+        into search on that tab, which is the far more common action.
+        """
         if self._active_tab == 1:
-            self._fetch_catalog()
+            if not self._search_visible:
+                self._toggle_search()
+            self._search_edit.setFocus()
         else:
-            self._start_scan()
+            self._action_refresh()
 
     def _action_primary(self):
         """Route A/Enter to the right action for the active tab."""
@@ -1213,7 +1226,7 @@ class MainWindow(QMainWindow):
             if self._active_tab == 0:
                 self._action_sync()
         elif key == Qt.Key.Key_Y:
-            self._action_refresh()
+            self._action_y()
         elif key == Qt.Key.Key_Tab:
             self._cycle_tab(1)
         elif key == Qt.Key.Key_Backtab:
@@ -1426,7 +1439,7 @@ class MainWindow(QMainWindow):
             if self._active_tab == 0:
                 self._action_sync()
         if btn_pressed(3):
-            self._action_refresh()  # Y — saves rescan / catalog refresh
+            self._action_y()  # Y — saves rescan / catalog search
         if btn_pressed(4):
             if dialog_target is None:
                 self._cycle_tab(-1)  # L1 — previous tab
@@ -1450,7 +1463,10 @@ class MainWindow(QMainWindow):
         # ── L2 / R2 for status filter ─────────────────────────────
         if btn_pressed(8):
             pass  # Steam button — ignore
-        # L2/R2 pressed detection via axis crossing threshold
+        # L2/R2 pressed detection via axis crossing threshold.  Both
+        # triggers drive page-wise list scrolling so navigating the
+        # catalog (and large synced-save lists) doesn't require holding
+        # the d-pad for minutes.
         l2_prev = self._btn_state.get("l2", False)
         r2_prev = self._btn_state.get("r2", False)
         l2_cur = l2 > 0.5
@@ -1458,9 +1474,9 @@ class MainWindow(QMainWindow):
         self._btn_state["l2"] = l2_cur
         self._btn_state["r2"] = r2_cur
         if dialog_target is None and l2_cur and not l2_prev:
-            self._cycle_status(-1)
+            self._active_view_page(-1)
         if dialog_target is None and r2_cur and not r2_prev:
-            self._cycle_status(1)
+            self._active_view_page(1)
 
         # ── Navigation with repeat ────────────────────────────────
         DEADZONE = 0.4
@@ -1485,7 +1501,7 @@ class MainWindow(QMainWindow):
             if now - self._axis_nav_time >= REPEAT_DELAY:
                 self._axis_nav_time = now
                 if nav_y != 0:
-                    self._list_view.move_selection(nav_y)
+                    self._active_view_move(nav_y)
                 if nav_x != 0:
                     self._cycle_system(nav_x)
         elif nav_y == 0 and nav_x == 0:
