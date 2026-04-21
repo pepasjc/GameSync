@@ -175,7 +175,9 @@ def test_scan_dino_crisis_duplicate_collapses_to_serial_and_duckstation_path(
 def test_scan_rom_without_card_gets_duckstation_write_path(monkeypatch, tmp_path):
     """If the user has the ROM but no memory card yet, the entry must still
     carry the DuckStation-expected write path so a server Download Save can
-    land there without pulling in a region tag."""
+    land there.  DuckStation's per-game cards inherit the ROM's redump
+    title (which includes region tags), so the predicted path preserves
+    ``(USA)`` / ``(Europe)`` / ``(Japan)`` from the ROM filename."""
     emulation = tmp_path / "Emulation"
     memcards = emulation / "saves" / "duckstation" / "memcards"
     roms_dir = emulation / "roms" / "PS1"
@@ -191,13 +193,46 @@ def test_scan_rom_without_card_gets_duckstation_write_path(monkeypatch, tmp_path
     assert len(results) == 1
     entry = results[0]
     assert entry.title_id == "SLUS01279"
+    # User sees the full ROM title in the UI — same as the server-only
+    # rows, so the two stay consistent when the user has the ROM locally.
+    assert entry.display_name == "Dino Crisis 2 (USA)"
     # save_path points at the exact file DuckStation would create on first
-    # launch — no region tag, `_1.mcd` slot suffix.
-    assert entry.save_path == memcards / "Dino Crisis 2_1.mcd"
+    # launch: ROM-title-based card name with region preserved.
+    assert entry.save_path == memcards / "Dino Crisis 2 (USA)_1.mcd"
     assert not entry.save_path.exists()
     # No content yet -> no hash; status logic will treat this as SERVER_ONLY
     # when the server has a save for SLUS01279.
     assert entry.save_hash is None
+
+
+def test_scan_local_rom_preserves_region_in_display_name_and_card_path(
+    monkeypatch, tmp_path
+):
+    """Regression: a local ROM named ``Tekken 3 (USA).chd`` used to render
+    as ``Tekken 3`` in the UI (region stripped) and the predicted save
+    location pointed at ``Tekken 3_1.mcd`` — but DuckStation actually
+    writes per-game cards as ``Tekken 3 (USA)_1.mcd`` (the redump DB title
+    is what drives the card name).  A server-downloaded save therefore
+    landed at the wrong filename and the user's next boot saw no save."""
+    emulation = tmp_path / "Emulation"
+    memcards = emulation / "saves" / "duckstation" / "memcards"
+    roms_dir = emulation / "roms" / "PS1"
+    memcards.mkdir(parents=True)
+    roms_dir.mkdir(parents=True)
+
+    # CHD can't be parsed by our lightweight ISO reader, so the title_id
+    # falls back to to_ps1_title_id(label) — this is exactly the path the
+    # user reported the bug on.
+    _write(roms_dir / "Tekken 3 (USA).chd", b"rom-bytes")
+
+    results = list(duckstation.scan(emulation))
+    assert len(results) == 1
+    entry = results[0]
+    assert entry.display_name == "Tekken 3 (USA)"
+    assert entry.save_path == memcards / "Tekken 3 (USA)_1.mcd"
+    # The title_id slug itself already preserved the region (to_ps1_title_id)
+    # so this stays stable under the fix.
+    assert entry.title_id.endswith("_usa")
 
 
 def test_scan_serial_filename_card_matches_rom_serial(monkeypatch, tmp_path):

@@ -54,18 +54,22 @@ _SERIAL_TAG_RE = re.compile(
     r"""\s*[\(\[][A-Z]{4}[-_ ]?\d{5}.*?[\)\]]""",
     re.IGNORECASE,
 )
-_REGION_TAG_RE = re.compile(
-    r"""\s*[\(\[]\s*(?:U|E|J|USA|EUROPE|JAPAN)\s*[\)\]]""",
-    re.IGNORECASE,
-)
 
 
 def _clean_card_label(label: str) -> str:
-    """Clean a ROM/folder label for use as a DuckStation card name."""
+    """Clean a ROM/folder label for use as a DuckStation card name.
+
+    Strips disc markers (``(Disc 1)``) and dump serials (``[SLUS-01234]``)
+    so multi-disc games share one card, but KEEPS region tags
+    (``(USA)``, ``(Europe)``, ``(Japan)``) — DuckStation's per-game cards
+    inherit the ROM title, which includes the region in the redump DB
+    defaults.  Dropping it here caused the save Info dialog to render
+    "Tekken 3" for a local ROM named "Tekken 3 (USA).chd" and predicted
+    the wrong save-card path for server downloads.
+    """
     result = label
     result = _DISC_TAG_RE.sub("", result)
     result = _SERIAL_TAG_RE.sub("", result)
-    result = _REGION_TAG_RE.sub("", result)
     result = re.sub(r"\s+", " ", result).strip()
     return result or label
 

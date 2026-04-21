@@ -29,6 +29,7 @@ from scanner.models import (
 from scanner.rom_target import resolve_rom_target_dir
 from . import theme
 from .confirm_dialog import ConfirmDialog, ResultDialog
+from .download_dialog import DownloadProgressDialog
 from .gamepad_modal import GamepadModalMixin
 
 
@@ -421,20 +422,27 @@ QLabel#detailLabel {{
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
 
-        ok = self._client.download_rom(
+        progress_dlg = DownloadProgressDialog(
+            client=self._client,
             rom_id=str(rom.get("rom_id") or entry.title_id),
             target_path=target_path,
             extract_format=rom.get("extract_format"),
+            display_name=entry.display_name,
+            parent=self,
         )
+        progress_dlg.exec()
+        ok = progress_dlg.success
 
         if ok:
             result_msg = f"ROM for '{entry.display_name}' downloaded to {target_path}."
         else:
-            # Surface whatever the client captured (HTTP status + server
-            # error body, timeout explanation, exception message) so the
-            # user isn't left guessing why a bare "Download failed"
-            # appeared.
-            detail = getattr(self._client, "last_download_error", "") or ""
+            # Surface whatever the worker captured (cancel message, HTTP
+            # status + server error body, timeout explanation, exception
+            # message) so the user isn't left guessing why a bare
+            # "Download failed" appeared.
+            detail = progress_dlg.error_detail or getattr(
+                self._client, "last_download_error", ""
+            ) or ""
             result_msg = f"Download failed for '{entry.display_name}'."
             if detail:
                 result_msg += f"\n\n{detail}"
