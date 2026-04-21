@@ -32,11 +32,35 @@ from .confirm_dialog import ConfirmDialog, ResultDialog
 from .download_dialog import DownloadProgressDialog
 from .gamepad_modal import GamepadModalMixin
 
-# Systems whose emulators read CHD / RVZ natively — we tell the server NOT
-# to extract those so the user doesn't wait minutes for a chdman subprocess
-# before the stream starts.  PSP is deliberately excluded: PPSSPP cannot
-# load CHD, so PSP downloads still flow through the server's CHD→ISO pipe.
-_NATIVE_COMPRESSED_FORMAT_SYSTEMS = frozenset({"PS1", "PS2", "DC", "GC", "WII"})
+# Every system the server would otherwise extract (CHD→CUE/GDI/ISO or
+# RVZ→ISO) has an emulator on the Deck that reads the compressed format
+# directly: DuckStation / PCSX2 / BeetleSaturn / Genesis Plus GX /
+# Flycast / PPSSPP all consume CHD, and Dolphin consumes RVZ.  Skipping
+# the ``extract`` query parameter across the board lets every ROM stream
+# as-is with a proper Content-Length so the progress bar starts moving
+# immediately instead of stalling on a minutes-long chdman / DolphinTool
+# subprocess.
+_NATIVE_COMPRESSED_FORMAT_SYSTEMS = frozenset(
+    {
+        # CHD (CD-ROM) systems
+        "PS1", "PSX",
+        "PS2",
+        "SAT",
+        "SCD", "MEGACD",
+        "PCECD", "PCENGINECD", "TG16CD",
+        "3DO",
+        "PCFX",
+        "NGCD",
+        "AMIGACD32",
+        "JAGCD",
+        # CHD (GD-ROM) Dreamcast
+        "DC", "DREAMCAST",
+        # CHD PSP (PPSSPP reads CHD directly)
+        "PSP",
+        # RVZ GC / Wii (Dolphin reads RVZ natively)
+        "GC", "WII",
+    }
+)
 
 
 class DetailDialog(QDialog, GamepadModalMixin):
