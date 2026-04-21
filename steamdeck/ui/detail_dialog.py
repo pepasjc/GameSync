@@ -32,6 +32,12 @@ from .confirm_dialog import ConfirmDialog, ResultDialog
 from .download_dialog import DownloadProgressDialog
 from .gamepad_modal import GamepadModalMixin
 
+# Systems whose emulators read CHD / RVZ natively — we tell the server NOT
+# to extract those so the user doesn't wait minutes for a chdman subprocess
+# before the stream starts.  PSP is deliberately excluded: PPSSPP cannot
+# load CHD, so PSP downloads still flow through the server's CHD→ISO pipe.
+_NATIVE_COMPRESSED_FORMAT_SYSTEMS = frozenset({"PS1", "PS2", "DC", "GC", "WII"})
+
 
 class DetailDialog(QDialog, GamepadModalMixin):
     """
@@ -422,11 +428,22 @@ QLabel#detailLabel {{
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
 
+        # DuckStation / PCSX2 / Flycast / Dolphin all read their compressed
+        # disc formats natively, so forcing the server to extract CHD→CUE or
+        # RVZ→ISO just stalls the download on a multi-minute chdman /
+        # DolphinTool subprocess before a single byte flows.  Skip the
+        # extract hint on those systems and stream the raw file — PPSSPP
+        # still needs its ISO/CSO output so PSP stays on the extraction
+        # path.
+        extract_format = rom.get("extract_format")
+        if entry.system in _NATIVE_COMPRESSED_FORMAT_SYSTEMS:
+            extract_format = None
+
         progress_dlg = DownloadProgressDialog(
             client=self._client,
             rom_id=str(rom.get("rom_id") or entry.title_id),
             target_path=target_path,
-            extract_format=rom.get("extract_format"),
+            extract_format=extract_format,
             display_name=entry.display_name,
             parent=self,
         )

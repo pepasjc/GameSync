@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QProgressBar,
 )
-from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QObject, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from . import theme
@@ -109,9 +109,11 @@ class DownloadProgressDialog(QDialog, GamepadModalMixin):
         self._success = False
         self._error_detail = ""
         self._finished = False
-        self._last_update = time.monotonic()
+        self._start_time = time.monotonic()
+        self._last_update = self._start_time
         self._last_downloaded = 0
         self._speed_bps = 0.0
+        self._any_progress = False
         # Before the first Content-Length-bearing progress tick, the bar is
         # indeterminate (0,0) so the user sees motion even when the server
         # is still extracting a CHD/RVZ before any bytes flow.
@@ -152,12 +154,24 @@ class DownloadProgressDialog(QDialog, GamepadModalMixin):
         )
         layout.addWidget(self._bar)
 
-        self._status_lbl = QLabel("Starting…")
+        self._status_lbl = QLabel(
+            "Waiting for server to prepare file — "
+            "CHD / RVZ extractions can take a few minutes…"
+        )
         self._status_lbl.setStyleSheet(
             f"color:{theme.TEXT_SECONDARY}; font-size:11pt;"
         )
         self._status_lbl.setWordWrap(True)
         layout.addWidget(self._status_lbl)
+
+        # Tick an elapsed-time counter while we're still waiting for the
+        # first byte.  Without this the status label froze at "Starting…"
+        # for minutes during CHD extraction and users thought the app had
+        # hung.  Stops on the first real progress callback.
+        self._waiting_timer = QTimer(self)
+        self._waiting_timer.setInterval(1000)
+        self._waiting_timer.timeout.connect(self._tick_waiting)
+        self._waiting_timer.start()
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
@@ -181,7 +195,29 @@ class DownloadProgressDialog(QDialog, GamepadModalMixin):
     # Worker signal handlers (main thread)
     # ──────────────────────────────────────────────────────────────
 
+    def _tick_waiting(self) -> None:
+        """Update the 'waiting for server' label every second with elapsed time.
+
+        Stops firing once the first progress callback arrives — after that the
+        regular status formatter owns the label.
+        """
+        if self._any_progress or self._finished:
+            self._waiting_timer.stop()
+            return
+        elapsed = int(time.monotonic() - self._start_time)
+        self._status_lbl.setText(
+            f"Waiting for server to prepare file ({_fmt_eta(elapsed)} elapsed) — "
+            f"CHD / RVZ extractions can take a few minutes…"
+        )
+
     def _on_progress(self, downloaded: int, total: int) -> None:
+        if not self._any_progress:
+            self._any_progress = True
+            self._waiting_timer.stop()
+            # Reset the speed baseline so the first post-wait sample measures
+            # actual stream throughput, not "X MB since dialog opened".
+            self._last_update = time.monotonic()
+            self._last_downloaded = downloaded
         now = time.monotonic()
         dt = now - self._last_update
         # Recompute speed at most 4× per second so the label doesn't jitter.
@@ -217,6 +253,7 @@ class DownloadProgressDialog(QDialog, GamepadModalMixin):
         self._success = success
         self._error_detail = detail
         self._finished = True
+        self._waiting_timer.stop()
         if success:
             if self._known_total:
                 self._bar.setValue(self._bar.maximum())

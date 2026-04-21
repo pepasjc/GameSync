@@ -770,6 +770,14 @@ class SyncClient:
 
                 server_hash = r.headers.get("X-Save-Hash", "")
                 _update_state(title_id, server_hash)
+                if server_hash:
+                    entry.server_hash = server_hash
+                server_size_hdr = r.headers.get("X-Save-Size", "")
+                if server_size_hdr:
+                    try:
+                        entry.server_size = int(server_size_hdr)
+                    except ValueError:
+                        pass
                 return True
 
             elif entry.is_multi_file:
@@ -829,6 +837,23 @@ class SyncClient:
             # Get server hash from header
             server_hash = r.headers.get("X-Save-Hash", "")
             _update_state(title_id, server_hash)
+            # Sync the entry's view of the server save to what we just
+            # downloaded.  The /titles listing returns the VMP/blob hash
+            # the server stores on disk, while the per-format download
+            # endpoints (/ps1-card, /ps2-card, /gc-card) return the hash
+            # of the extracted single-slot file — the exact bytes we
+            # wrote locally.  Without this refresh the Save Info dialog
+            # kept showing "Hashes differ" after a successful download
+            # because it compared the extracted-format local hash to
+            # the blob-format server_hash from the listing.
+            if server_hash:
+                entry.server_hash = server_hash
+            server_size_hdr = r.headers.get("X-Save-Size", "")
+            if server_size_hdr:
+                try:
+                    entry.server_size = int(server_size_hdr)
+                except ValueError:
+                    pass
             return True
 
         except Exception as exc:
