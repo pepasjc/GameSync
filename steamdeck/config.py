@@ -9,13 +9,24 @@ SATURN_ARCHIVE_STATE_PATH = (
     Path.home() / ".config" / "savesync" / "steamdeck_saturn_archives.json"
 )
 
+SATURN_SYNC_FORMATS = ("mednafen", "yabause", "yabasanshiro")
+
 DEFAULT_CONFIG = {
     "host": "192.168.1.100",
     "port": 8000,
     "api_key": "",
     "emulation_path": "",  # auto-detected if empty
     "rom_scan_dir": "",  # additional ROM scan directory (e.g. external drive)
+    # Saturn emulator format for local saves.  Server storage stays on
+    # Beetle/Mednafen canonical; this just controls how the Steam Deck
+    # writes Saturn saves out locally, matching Android's SettingsStore.
+    "saturn_sync_format": "mednafen",
 }
+
+
+def normalize_saturn_sync_format(value: str | None) -> str:
+    fmt = (str(value or "").strip().lower())
+    return fmt if fmt in SATURN_SYNC_FORMATS else "mednafen"
 
 
 def find_emulation_path() -> str:
@@ -73,6 +84,10 @@ def load_config() -> dict:
 
     if not config.get("emulation_path"):
         config["emulation_path"] = find_emulation_path()
+
+    config["saturn_sync_format"] = normalize_saturn_sync_format(
+        config.get("saturn_sync_format")
+    )
 
     return config
 

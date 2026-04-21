@@ -253,6 +253,88 @@ def test_resolve_saturn_archive_selection_prefers_exact_current_when_unknown_exi
     assert stored == ["DRACULAX_01"]
 
 
+def test_retroarch_scan_honors_configured_saturn_format_for_new_save(tmp_path):
+    """When no Saturn save exists yet, the scanner should put the expected
+    write path in the emulator the user picked — same as Android's
+    RetroArchEmulator.expectedRetroArchSaturnSaveFile."""
+    emulation = tmp_path / "Emulation"
+    saves_dir = emulation / "saves" / "retroarch" / "saves"
+    roms_dir = emulation / "roms" / "saturn"
+    saves_dir.mkdir(parents=True)
+    roms_dir.mkdir(parents=True)
+
+    (roms_dir / "Panzer Dragoon Saga (USA).chd").write_bytes(b"")
+
+    results_mednafen = list(retroarch.scan(emulation, saturn_sync_format="mednafen"))
+    assert len(results_mednafen) == 1
+    assert results_mednafen[0].save_path == (
+        saves_dir / "Beetle Saturn" / "Panzer Dragoon Saga (USA).bkr"
+    )
+
+    results_yabause = list(retroarch.scan(emulation, saturn_sync_format="yabause"))
+    assert len(results_yabause) == 1
+    assert results_yabause[0].save_path == (
+        saves_dir / "Panzer Dragoon Saga (USA).srm"
+    )
+
+    results_yaba = list(retroarch.scan(emulation, saturn_sync_format="yabasanshiro"))
+    assert len(results_yaba) == 1
+    assert results_yaba[0].save_path == (saves_dir / "yabasanshiro" / "backup.bin")
+
+
+def test_sync_client_downloads_saturn_in_configured_format(monkeypatch, tmp_path):
+    """Downloaded Saturn saves should be written in the user's configured
+    emulator format — matching Android's SaturnSaveFormatConverter.fromCanonical."""
+    canonical = _build_native_saturn(
+        [
+            _NativeSave(
+                name="GRANDIA_001",
+                language_code=0,
+                comment="Grandia",
+                date_code=1,
+                raw_data=b"grandia",
+            )
+        ]
+    )
+
+    class _Resp:
+        status_code = 200
+        content = canonical
+        headers = {"X-Save-Hash": hashlib.sha256(canonical).hexdigest()}
+
+    monkeypatch.setattr(sync_client.requests, "get", lambda *args, **kwargs: _Resp())
+    monkeypatch.setattr(sync_client, "_update_state", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        sync_client, "_set_saturn_archive_names", lambda *args, **kwargs: None
+    )
+
+    # ── yabause: .srm should contain byte-expanded canonical data
+    srm_path = tmp_path / "Grandia.srm"
+    client = SyncClient("example", 8000, "key", saturn_sync_format="yabause")
+    entry = GameEntry(
+        title_id="SAT_T-4507G",
+        display_name="Grandia",
+        system="SAT",
+        emulator="RetroArch",
+        save_path=srm_path,
+    )
+    assert client.download_save(entry, force=True) is True
+    assert srm_path.read_bytes() == convert_saturn_save_format(canonical, "yabause")
+
+    # ── mednafen: .bkr should be the canonical bytes
+    bkr_path = tmp_path / "Beetle Saturn" / "Grandia.bkr"
+    client = SyncClient("example", 8000, "key", saturn_sync_format="mednafen")
+    entry = GameEntry(
+        title_id="SAT_T-4507G",
+        display_name="Grandia",
+        system="SAT",
+        emulator="RetroArch",
+        save_path=bkr_path,
+    )
+    assert client.download_save(entry, force=True) is True
+    assert bkr_path.read_bytes() == canonical
+
+
 def test_compute_status_uses_canonical_saturn_metadata_for_shared_backup(
     monkeypatch, tmp_path
 ):

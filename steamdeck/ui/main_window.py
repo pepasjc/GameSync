@@ -79,16 +79,23 @@ class ScanWorker(QObject):
     progress = pyqtSignal(str)
     finished = pyqtSignal(list)  # list[GameEntry]
 
-    def __init__(self, emulation_path: str, rom_scan_dir: str = ""):
+    def __init__(
+        self,
+        emulation_path: str,
+        rom_scan_dir: str = "",
+        saturn_sync_format: str = "mednafen",
+    ):
         super().__init__()
         self._path = emulation_path
         self._rom_scan_dir = rom_scan_dir
+        self._saturn_sync_format = saturn_sync_format
 
     def run(self):
         results = scan_all(
             self._path,
             rom_scan_dir=self._rom_scan_dir,
             progress_cb=self.progress.emit,
+            saturn_sync_format=self._saturn_sync_format,
         )
         self.finished.emit(results)
 
@@ -422,6 +429,7 @@ class MainWindow(QMainWindow):
             self._config["host"],
             self._config["port"],
             self._config["api_key"],
+            saturn_sync_format=self._config.get("saturn_sync_format", "mednafen"),
         )
 
         self._all_entries: list[GameEntry] = []
@@ -589,6 +597,7 @@ class MainWindow(QMainWindow):
         self._scan_worker = ScanWorker(
             self._config["emulation_path"],
             self._config.get("rom_scan_dir", ""),
+            saturn_sync_format=self._config.get("saturn_sync_format", "mednafen"),
         )
         self._scan_worker.moveToThread(self._scan_thread)
         self._scan_thread.started.connect(self._scan_worker.run)
@@ -868,6 +877,7 @@ class MainWindow(QMainWindow):
                 self._config["host"],
                 self._config["port"],
                 self._config["api_key"],
+                saturn_sync_format=self._config.get("saturn_sync_format", "mednafen"),
             )
             self._start_scan()
 
