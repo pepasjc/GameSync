@@ -8,8 +8,10 @@ if str(STEAMDECK_ROOT) not in sys.path:
     sys.path.insert(0, str(STEAMDECK_ROOT))
 
 from scanner.installed_roms import (  # noqa: E402
+    DeleteResult,
     delete_installed,
     scan_installed,
+    would_remove_whole_folder,
 )
 
 
@@ -54,7 +56,10 @@ def test_scan_groups_cue_and_bin_pair(tmp_path):
     assert rom.size == 5000 + len(cue.read_text())
 
 
-def test_delete_installed_removes_primary_and_companions(tmp_path):
+def test_delete_installed_removes_primary_and_companions_from_system_root(tmp_path):
+    """When cue + bin live directly in the system folder (not a
+    dedicated subfolder) we delete the files individually and leave
+    the system folder intact."""
     emu = _mk_emu(tmp_path)
     (emu / "roms" / "psx").mkdir()
     cue = emu / "roms" / "psx" / "Wild Arms.cue"
@@ -64,12 +69,124 @@ def test_delete_installed_removes_primary_and_companions(tmp_path):
 
     roms = scan_installed(str(emu))
     assert len(roms) == 1
-    deleted, errors = delete_installed(roms[0])
+    assert not would_remove_whole_folder(roms[0])
 
-    assert deleted == 2
-    assert errors == []
+    result = delete_installed(roms[0])
+
+    assert isinstance(result, DeleteResult)
+    assert result.deleted_count == 2
+    assert result.errors == []
+    assert result.removed_dir is None
     assert not cue.exists()
     assert not bin_file.exists()
+    # System folder stays — users expect `psx/` to persist even if
+    # empty so the next download lands in a familiar place.
+    assert (emu / "roms" / "psx").is_dir()
+
+
+def test_delete_installed_removes_dedicated_subfolder(tmp_path):
+    """Cue/bin set in its own per-game subfolder ⇒ rmtree the folder."""
+    emu = _mk_emu(tmp_path)
+    game_dir = emu / "roms" / "psx" / "Final Fantasy VII"
+    game_dir.mkdir(parents=True)
+    cue = game_dir / "FF7.cue"
+    cue.write_text(
+        'FILE "FF7 (Track 01).bin" BINARY\nFILE "FF7 (Track 02).bin" BINARY\n'
+    )
+    (game_dir / "FF7 (Track 01).bin").write_bytes(b"x" * 1000)
+    (game_dir / "FF7 (Track 02).bin").write_bytes(b"x" * 500)
+
+    roms = scan_installed(str(emu))
+    assert len(roms) == 1
+    # Grouping is by (parent, stem) so the cue-referenced track files
+    # don't share a stem with the cue — only the primary is picked up.
+    # The delete helper should still collapse the whole folder because
+    # every file in it gets removed.
+    assert would_remove_whole_folder(roms[0])
+
+    result = delete_installed(roms[0])
+
+    assert result.removed_dir == game_dir
+    assert result.deleted_count == 3  # cue + 2 bin tracks
+    assert result.errors == []
+    assert not game_dir.exists()
+    # Parent (psx/) is untouched
+    assert (emu / "roms" / "psx").is_dir()
+
+
+def test_delete_installed_preserves_folder_when_shared_with_another_game(tmp_path):
+    """If a folder holds multiple games, never rmtree it."""
+    emu = _mk_emu(tmp_path)
+    shared = emu / "roms" / "psx" / "Discs"
+    shared.mkdir(parents=True)
+    a_cue = shared / "Game A.cue"
+    a_cue.write_text('FILE "Game A.bin" BINARY\n')
+    a_bin = shared / "Game A.bin"
+    a_bin.write_bytes(b"x" * 100)
+    b_cue = shared / "Game B.cue"
+    b_cue.write_text('FILE "Game B.bin" BINARY\n')
+    b_bin = shared / "Game B.bin"
+    b_bin.write_bytes(b"x" * 100)
+
+    roms = scan_installed(str(emu))
+    assert len(roms) == 2
+    rom_a = next(r for r in roms if r.display_name == "Game A")
+    assert not would_remove_whole_folder(rom_a)
+
+    result = delete_installed(rom_a)
+
+    assert result.removed_dir is None
+    assert result.deleted_count == 2  # Game A cue + bin
+    assert not a_cue.exists()
+    assert not a_bin.exists()
+    # Game B files are untouched
+    assert b_cue.exists()
+    assert b_bin.exists()
+    assert shared.is_dir()
+
+
+def test_delete_installed_never_removes_system_root(tmp_path):
+    """Even if the system folder holds only one game, don't rmtree it."""
+    emu = _mk_emu(tmp_path)
+    (emu / "roms" / "gba").mkdir()
+    rom = emu / "roms" / "gba" / "Kirby.gba"
+    rom.write_bytes(b"x" * 50)
+
+    roms = scan_installed(str(emu))
+    assert not would_remove_whole_folder(roms[0])
+
+    result = delete_installed(roms[0])
+
+    assert result.removed_dir is None
+    assert not rom.exists()
+    assert (emu / "roms" / "gba").is_dir()
+
+
+def test_delete_whole_folder_cleans_non_rom_companions_too(tmp_path):
+    """A dedicated per-game subfolder full of readmes / box art / save
+    directories gets removed wholesale — the point of the subfolder
+    delete is to leave *nothing* behind."""
+    emu = _mk_emu(tmp_path)
+    game_dir = emu / "roms" / "dreamcast" / "Shenmue"
+    game_dir.mkdir(parents=True)
+    (game_dir / "Shenmue.gdi").write_text("1\n1 0 4 2352 Shenmue.bin\n")
+    (game_dir / "Shenmue.bin").write_bytes(b"x" * 500)
+    (game_dir / "readme.txt").write_text("Don't forget to insert disc 2")
+    # A nested metadata folder too
+    meta = game_dir / ".thumbs"
+    meta.mkdir()
+    (meta / "cover.jpg").write_bytes(b"\xff\xd8\xff\xe0")
+
+    roms = scan_installed(str(emu))
+    assert len(roms) == 1
+    assert would_remove_whole_folder(roms[0])
+
+    result = delete_installed(roms[0])
+
+    assert result.removed_dir == game_dir
+    # All four files — gdi, bin, readme, cover — go in one rmtree call.
+    assert result.deleted_count == 4
+    assert not game_dir.exists()
 
 
 def test_scan_honors_rom_scan_dir(tmp_path):
@@ -128,15 +245,20 @@ def test_scan_gdi_groups_tracks(tmp_path):
     emu = _mk_emu(tmp_path)
     (emu / "roms" / "dreamcast").mkdir()
     gdi = emu / "roms" / "dreamcast" / "Shenmue.gdi"
-    gdi.write_text("3\n1 0 4 2352 track01.bin\n2 600 0 2352 track02.bin\n")
-    t1 = emu / "roms" / "dreamcast" / "Shenmue.bin"
+    gdi.write_text(
+        '2\n1 0 4 2352 "Shenmue (Track 01).bin" 0\n'
+        '2 600 4 2352 "Shenmue (Track 02).bin" 0\n'
+    )
+    t1 = emu / "roms" / "dreamcast" / "Shenmue (Track 01).bin"
     t1.write_bytes(b"x" * 1000)
+    t2 = emu / "roms" / "dreamcast" / "Shenmue (Track 02).bin"
+    t2.write_bytes(b"x" * 2000)
 
     roms = scan_installed(str(emu))
 
     assert len(roms) == 1
-    assert roms[0].path == gdi  # .gdi wins over .bin
-    assert t1 in roms[0].companion_files
+    assert roms[0].path == gdi  # .gdi owns the group via sheet parsing
+    assert set(roms[0].companion_files) == {t1, t2}
 
 
 def test_scan_returns_sorted_by_system_then_name(tmp_path):

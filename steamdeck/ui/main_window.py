@@ -60,6 +60,7 @@ from scanner.installed_roms import (
     InstalledRom,
     delete_installed,
     scan_installed,
+    would_remove_whole_folder,
 )
 from scanner.rom_target import resolve_rom_target_dir
 from sync_client import SyncClient, _find_server_save
@@ -1112,20 +1113,30 @@ class MainWindow(QMainWindow):
         if rom is None:
             return
         size_txt = _fmt_catalog_size(rom.size)
-        companions_txt = (
-            f"\nAlso deletes {len(rom.companion_files)} companion file(s) "
-            "(disc tracks, bin/cue pairs)."
-            if rom.companion_files
-            else ""
-        )
+        whole_folder = _whole_folder_delete_target(rom)
+
+        if whole_folder is not None:
+            detail = (
+                f"Removes the whole folder (and every file inside it):\n"
+                f"{whole_folder}"
+            )
+        else:
+            companions_txt = (
+                f" + {len(rom.companion_files)} companion file(s)"
+                if rom.companion_files
+                else ""
+            )
+            detail = (
+                f"File: {rom.filename}{companions_txt}\n"
+                f"Location: {rom.path.parent}"
+            )
+
         msg = (
             f"Delete '{rom.display_name}' from disk?\n"
             f"System: {rom.system}\n"
-            f"File: {rom.filename}\n"
-            f"Location: {rom.path.parent}\n"
-            f"Frees: {size_txt}"
-            f"{companions_txt}\n\n"
-            "This removes the file permanently and cannot be undone."
+            f"{detail}\n"
+            f"Frees: {size_txt}\n\n"
+            "This removes the data permanently and cannot be undone."
         )
         dlg = ConfirmDialog(
             title="Delete ROM",
@@ -1137,19 +1148,28 @@ class MainWindow(QMainWindow):
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
 
-        deleted, errors = delete_installed(rom)
-        if errors:
+        result = delete_installed(rom)
+        if result.errors:
             result_msg = (
-                f"Deleted {deleted} file(s), but {len(errors)} failed:\n\n"
-                + "\n".join(errors)
+                f"Deleted {result.deleted_count} file(s), but "
+                f"{len(result.errors)} failed:\n\n"
+                + "\n".join(result.errors)
             )
-            ResultDialog(deleted > 0, result_msg, parent=self).exec()
-        else:
             ResultDialog(
-                True,
-                f"Deleted '{rom.display_name}' ({deleted} file(s)).",
-                parent=self,
+                result.deleted_count > 0, result_msg, parent=self
             ).exec()
+        else:
+            if result.removed_dir is not None:
+                done_msg = (
+                    f"Deleted '{rom.display_name}' and its folder "
+                    f"({result.deleted_count} file(s))."
+                )
+            else:
+                done_msg = (
+                    f"Deleted '{rom.display_name}' "
+                    f"({result.deleted_count} file(s))."
+                )
+            ResultDialog(True, done_msg, parent=self).exec()
 
         # Refresh both the installed list and the save-sync list — a
         # deleted ROM may flip a synced entry back to "server only".
@@ -1686,3 +1706,17 @@ def _fmt_catalog_size(num_bytes: int) -> str:
         if num_bytes >= factor:
             return f"{num_bytes / factor:.2f} {unit}"
     return f"{num_bytes} B"
+
+
+def _whole_folder_delete_target(rom: "InstalledRom") -> "Optional[Path]":
+    """Return the folder that ``delete_installed`` would rmtree, or None.
+
+    Used by the confirm dialog so the message can tell the user up
+    front that a whole folder is about to disappear, not just the
+    tracked files.
+    """
+    return (
+        rom.path.parent
+        if would_remove_whole_folder(rom)
+        else None
+    )
