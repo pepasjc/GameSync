@@ -878,44 +878,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Maps legacy/server-side system codes → canonical codes.
-     * Used to normalise system names for display and for deduplication.
-     * Legacy saves on the server may use older codes from previous client versions.
-     */
-    private val serverToAndroidSystem = mapOf(
-        // Sega — GENESIS, MEGADRIVE, and GEN are all aliases for MD
-        "GENESIS"   to "MD",
-        "MEGADRIVE" to "MD",
-        "GEN"       to "MD",
-        // SCD is a legacy alias for SEGACD (older Android uploads used SCD)
-        "SCD"       to "SEGACD",
-        // WS is a legacy alias for WSWAN (older Android uploads used WS)
-        "WS"        to "WSWAN",
-        // ATARI2600/ATARI7800 are legacy aliases (older desktop uploads used these)
-        "ATARI2600" to "A2600",
-        "ATARI7800" to "A7800",
-        // PPSSPP was the old Android system name for PSP; normalise to PSP
-        "PPSSPP"    to "PSP",
-    )
-
-    /**
-     * Maps each Android-side system code to ALL possible server-side system codes.
-     *
-     * Multiple server codes can map to the same Android code (e.g. "GENESIS" and
-     * "MEGADRIVE" both → "MD"), so a simple [associate] reverse would silently drop all but
-     * the last entry.  This one-to-many map avoids that by grouping all variants together,
-     * so we try every possible server prefix when remapping a local titleId.
+     * Maps each Android-side canonical code to every server alias that
+     * points at it (e.g. ``MD`` ← ``GENESIS`` / ``MEGADRIVE`` / ``GEN``).
+     * Used when remapping a local titleId to probe every possible server
+     * prefix.  Delegates to [com.savesync.android.systems.SystemAliases] so
+     * the alias table lives in exactly one place.
      */
     private val androidToServerSystems: Map<String, List<String>> =
-        serverToAndroidSystem.entries.groupBy({ it.value }, { it.key })
+        com.savesync.android.systems.SystemAliases.CANONICAL_TO_SERVER
 
     /**
      * Normalises a system code to Android's canonical form for display.
-     * "SCD" → "SEGACD", "WS" → "WSWAN", etc.
-     * Codes already in Android form are returned unchanged.
+     * "SCD" → "SEGACD", "WS" → "WSWAN", etc.  Codes already in Android
+     * form are returned unchanged (case preserved) so equality checks
+     * like ``prefix == normalizeSystemCode(prefix)`` still work as a
+     * "is this already canonical?" probe.
      */
     private fun normalizeSystemCode(system: String) =
-        serverToAndroidSystem[system.uppercase()] ?: system
+        com.savesync.android.systems.SystemAliases.canonicalOrSelf(system)
 
     private fun buildPs2ServerOnlyEntry(
         titleInfo: com.savesync.android.api.TitleInfo

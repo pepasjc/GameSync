@@ -1,5 +1,6 @@
 package com.savesync.android.installed
 
+import com.savesync.android.systems.SystemAliases
 import java.io.File
 
 /**
@@ -125,6 +126,51 @@ object InstalledRomsScanner {
     private val GDI_LINE_RE = Regex("""^\s*\d+\s+\d+\s+\d+\s+\d+\s+(?:"([^"]+)"|(\S+))""")
 
     /**
+     * Pick the on-disk folder a newly downloaded ROM for [system] should
+     * land in, mirroring the Steam Deck's ``resolve_rom_target_dir``.
+     *
+     * Resolution order:
+     *  1. If [romDirOverrides] has a non-blank entry under the canonical
+     *     system code, use it verbatim.  Absolute paths are returned as-is;
+     *     relative ones resolve under [scanRoot].
+     *  2. Otherwise, prefer an existing folder matching any alias from
+     *     [SYSTEM_ROM_DIRS] under [scanRoot] (so ``roms/segacd`` wins over
+     *     creating a new ``roms/Sega CD``).
+     *  3. Otherwise, fall back to the first candidate — which is also the
+     *     primary display name — under [scanRoot].  Caller is responsible
+     *     for ``mkdirs()`` on the returned file.
+     *
+     * Always canonicalises [system] first via [SystemAliases.normalizeSystemCode]
+     * so alias codes (``SCD``, ``GEN``, ``WS``) share a folder with their
+     * canonical siblings (``SEGACD``, ``MD``, ``WSWAN``).
+     */
+    fun resolveRomTargetDir(
+        scanRoot: File,
+        system: String,
+        romDirOverrides: Map<String, String> = emptyMap(),
+    ): File {
+        val canonical = SystemAliases.normalizeSystemCode(system)
+            .ifBlank { system }.uppercase()
+
+        // Canonicalise override keys so a settings file carrying a legacy
+        // alias like ``SCD`` still applies to a SEGACD download.
+        val override = romDirOverrides.entries
+            .firstOrNull { (k, _) ->
+                SystemAliases.normalizeSystemCode(k).uppercase() == canonical
+            }
+            ?.value?.trim()?.takeIf { it.isNotEmpty() }
+        if (override != null) {
+            val overrideFile = File(override)
+            return if (overrideFile.isAbsolute) overrideFile else File(scanRoot, override)
+        }
+
+        val candidates = SYSTEM_ROM_DIRS[canonical]
+            ?: listOf(canonical, canonical.lowercase())
+        val existing = candidates.firstOrNull { File(scanRoot, it).isDirectory }
+        return File(scanRoot, existing ?: candidates.first())
+    }
+
+    /**
      * Return every installed ROM found under the configured roots.
      *
      * ``romScanDir`` is treated as the parent directory that contains
@@ -140,8 +186,14 @@ object InstalledRomsScanner {
         val results = mutableListOf<InstalledRom>()
         val seenRoots = HashSet<String>()
 
+        // Canonicalise override keys too — a settings file carrying a
+        // legacy alias like ``SCD`` should still win over the default
+        // ``roms/segacd`` candidate search.
+        val normalizedOverrides = romDirOverrides
+            .mapKeys { (k, _) -> SystemAliases.normalizeSystemCode(k).uppercase() }
+
         for ((system, candidates) in SYSTEM_ROM_DIRS) {
-            val override = romDirOverrides[system]?.trim()?.takeIf { it.isNotEmpty() }
+            val override = normalizedOverrides[system]?.trim()?.takeIf { it.isNotEmpty() }
             val folder: File = when {
                 override != null -> File(override).takeIf { it.isDirectory }
                 scanRoot?.isDirectory == true -> candidates
