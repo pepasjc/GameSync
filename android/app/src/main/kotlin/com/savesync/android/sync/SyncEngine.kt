@@ -9,6 +9,7 @@ import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SyncRequest
 import com.savesync.android.api.SyncTitle
 import com.savesync.android.emulators.SaveEntry
+import com.savesync.android.installed.InstalledRomsScanner
 import com.savesync.android.storage.AppDatabase
 import com.savesync.android.storage.SyncStateEntity
 import okhttp3.MediaType.Companion.toMediaType
@@ -532,42 +533,18 @@ class SyncEngine(
                     }
                 ?: "$romId.rom"
 
-            // If the user has set an override for this system, use it directly.
-            // Otherwise pick the best candidate subfolder under romScanDir.
-            val outDir = romDirOverrides[system.uppercase()]?.let { File(it) }
-                ?: run {
-                    // Candidate folder names for each system, in preference order.
-                    // The first existing folder wins; otherwise the first candidate is created.
-                    val candidates = when (system.uppercase()) {
-                        "SAT"     -> listOf("Saturn", "Sega Saturn", "Sega - Saturn", "SAT", "sat")
-                        "DC"      -> listOf("Dreamcast", "Sega Dreamcast", "DC", "dc")
-                        "SEGACD"  -> listOf("Sega CD", "Mega CD", "SegaCD", "MegaCD", "segacd")
-                        "MD"      -> listOf("Mega Drive", "Genesis", "MegaDrive", "MD", "md")
-                        "SMS"     -> listOf("Master System", "Sega Master System", "SMS", "sms")
-                        "GG"      -> listOf("Game Gear", "GameGear", "GG", "gg")
-                        "WSWAN"   -> listOf("WonderSwan", "wonderswan", "WSWAN")
-                        "WSWANC"  -> listOf("WonderSwan Color", "WonderSwanColor", "WSWANC")
-                        "NEOCD"   -> listOf("Neo Geo CD", "NeoGeoCD", "NEOCD", "neocd")
-                        "PCE"     -> listOf("PC Engine", "TurboGrafx", "PCEngine", "PCE", "pce")
-                        "NGP"     -> listOf("Neo Geo Pocket", "NeoGeoPocket", "NGP", "ngp")
-                        "PS1"     -> listOf("PS1", "PlayStation", "PSX", "PlayStation 1")
-                        "PS2"     -> listOf("PS2", "PlayStation 2", "PlayStation2")
-                        "PSP"     -> listOf("PSP", "PlayStation Portable")
-                        "GBA"     -> listOf("GBA", "Game Boy Advance", "GameBoyAdvance")
-                        "SNES"    -> listOf("SNES", "Super Nintendo", "SuperNintendo")
-                        "NES"     -> listOf("NES", "Nintendo", "Famicom")
-                        "GB"      -> listOf("GB", "Game Boy", "GameBoy")
-                        "GBC"     -> listOf("GBC", "Game Boy Color", "GameBoyColor")
-                        "N64"     -> listOf("N64", "Nintendo 64", "Nintendo64")
-                        "NDS"     -> listOf("NDS", "DS", "Nintendo DS")
-                        "GC"      -> listOf("GC", "GameCube", "Nintendo GameCube")
-                        else      -> listOf(system, system.lowercase())
-                    }
-                    val scanRoot = File(romScanDir)
-                    val folder = candidates.firstOrNull { File(scanRoot, it).isDirectory }
-                        ?: candidates.first()
-                    File(romScanDir, folder)
-                }
+            // Delegate folder selection to the shared helper so the download
+            // path, the installed-ROMs scanner, and the Steam Deck client all
+            // agree on where an incoming ROM lands.  The helper canonicalises
+            // alias codes (``SCD`` → ``SEGACD``, ``GEN`` → ``MD``, …) before
+            // picking a candidate, which fixes the regression where catalog
+            // downloads for Sega CD landed in ``roms/SCD/`` instead of the
+            // user's existing ``roms/segacd/``.
+            val outDir = InstalledRomsScanner.resolveRomTargetDir(
+                scanRoot = File(romScanDir),
+                system = system,
+                romDirOverrides = romDirOverrides,
+            )
             outDir.mkdirs()
             val outFile = File(outDir, filename)
 

@@ -1,5 +1,6 @@
 package com.savesync.android.installed
 
+import com.savesync.android.systems.SystemAliases
 import java.io.File
 
 /**
@@ -23,7 +24,7 @@ object InstalledRomsScanner {
         "PS2"    to listOf("PS2", "PlayStation 2", "PlayStation2", "ps2"),
         "PS3"    to listOf("PS3", "PlayStation 3", "PlayStation3", "ps3"),
         "PSP"    to listOf("PSP", "PlayStation Portable", "psp"),
-        "PSVITA" to listOf("PSVITA", "Vita", "PS Vita", "psvita"),
+        "VITA"   to listOf("psvita", "PSVITA", "Vita", "PS Vita"),
         // Nintendo
         "GBA"    to listOf("GBA", "Game Boy Advance", "GameBoyAdvance", "gba"),
         "GB"     to listOf("GB", "Game Boy", "GameBoy", "gb"),
@@ -125,6 +126,105 @@ object InstalledRomsScanner {
     private val GDI_LINE_RE = Regex("""^\s*\d+\s+\d+\s+\d+\s+\d+\s+(?:"([^"]+)"|(\S+))""")
 
     /**
+     * Pick the on-disk folder a newly downloaded ROM for [system] should
+     * land in, mirroring the Steam Deck's ``resolve_rom_target_dir``.
+     *
+     * Resolution order:
+     *  1. If [romDirOverrides] has a non-blank entry under the canonical
+     *     system code, use it verbatim.  Absolute paths are returned as-is;
+     *     relative ones resolve under [scanRoot].
+     *  2. Otherwise, prefer an existing folder matching any alias from
+     *     [SYSTEM_ROM_DIRS] under [scanRoot] (so ``roms/segacd`` wins over
+     *     creating a new ``roms/Sega CD``).
+     *  3. Otherwise, fall back to the first candidate — which is also the
+     *     primary display name — under [scanRoot].  Caller is responsible
+     *     for ``mkdirs()`` on the returned file.
+     *
+     * Always canonicalises [system] first via [SystemAliases.normalizeSystemCode]
+     * so alias codes (``SCD``, ``GEN``, ``WS``) share a folder with their
+     * canonical siblings (``SEGACD``, ``MD``, ``WSWAN``).
+     */
+    fun resolveRomTargetDir(
+        scanRoot: File,
+        system: String,
+        romDirOverrides: Map<String, String> = emptyMap(),
+    ): File {
+        val canonical = SystemAliases.normalizeSystemCode(system)
+            .ifBlank { system }.uppercase()
+
+        // Canonicalise override keys so a settings file carrying a legacy
+        // alias like ``SCD`` still applies to a SEGACD download.
+        val override = romDirOverrides.entries
+            .firstOrNull { (k, _) ->
+                SystemAliases.normalizeSystemCode(k).uppercase() == canonical
+            }
+            ?.value?.trim()?.takeIf { it.isNotEmpty() }
+        if (override != null) {
+            val overrideFile = File(override)
+            return if (overrideFile.isAbsolute) overrideFile else File(scanRoot, override)
+        }
+
+        val candidates = SYSTEM_ROM_DIRS[canonical]
+            ?: listOf(canonical, canonical.lowercase())
+        val existing = candidates.firstOrNull { File(scanRoot, it).isDirectory }
+        return File(scanRoot, existing ?: candidates.first())
+    }
+
+    /**
+     * Summary of a [prepareRomFolders] run, returned so the UI can show a
+     * "created N folders" confirmation with a sensible failure list.
+     */
+    data class PrepareReport(
+        val created: List<Pair<String, File>>,
+        val existing: List<Pair<String, File>>,
+        val errors: List<Pair<String, String>>,
+    ) {
+        val createdCount: Int get() = created.size
+    }
+
+    /**
+     * Create the canonical per-system ROM folders under [scanRoot].
+     *
+     * For every system in [SYSTEM_ROM_DIRS] (union'd with any system with
+     * an explicit override), resolve the target folder via
+     * [resolveRomTargetDir] and ``mkdirs()`` it if missing.  Never
+     * touches an existing alias folder — we fill in the layout around
+     * whatever the user already has so catalog downloads stop inventing
+     * stray folder names.
+     */
+    fun prepareRomFolders(
+        scanRoot: File,
+        romDirOverrides: Map<String, String> = emptyMap(),
+    ): PrepareReport {
+        val created = mutableListOf<Pair<String, File>>()
+        val existing = mutableListOf<Pair<String, File>>()
+        val errors = mutableListOf<Pair<String, String>>()
+
+        val overrideSystems = romDirOverrides.keys
+            .map { SystemAliases.normalizeSystemCode(it).ifBlank { it }.uppercase() }
+            .filter { it.isNotEmpty() }
+        val systems = (SYSTEM_ROM_DIRS.keys + overrideSystems).toSortedSet()
+
+        for (system in systems) {
+            val target = resolveRomTargetDir(scanRoot, system, romDirOverrides)
+            if (target.isDirectory) {
+                existing += system to target
+                continue
+            }
+            try {
+                if (target.mkdirs() || target.isDirectory) {
+                    created += system to target
+                } else {
+                    errors += system to "mkdirs returned false"
+                }
+            } catch (e: SecurityException) {
+                errors += system to (e.message ?: "SecurityException")
+            }
+        }
+        return PrepareReport(created, existing, errors)
+    }
+
+    /**
      * Return every installed ROM found under the configured roots.
      *
      * ``romScanDir`` is treated as the parent directory that contains
@@ -140,8 +240,14 @@ object InstalledRomsScanner {
         val results = mutableListOf<InstalledRom>()
         val seenRoots = HashSet<String>()
 
+        // Canonicalise override keys too — a settings file carrying a
+        // legacy alias like ``SCD`` should still win over the default
+        // ``roms/segacd`` candidate search.
+        val normalizedOverrides = romDirOverrides
+            .mapKeys { (k, _) -> SystemAliases.normalizeSystemCode(k).uppercase() }
+
         for ((system, candidates) in SYSTEM_ROM_DIRS) {
-            val override = romDirOverrides[system]?.trim()?.takeIf { it.isNotEmpty() }
+            val override = normalizedOverrides[system]?.trim()?.takeIf { it.isNotEmpty() }
             val folder: File = when {
                 override != null -> File(override).takeIf { it.isDirectory }
                 scanRoot?.isDirectory == true -> candidates

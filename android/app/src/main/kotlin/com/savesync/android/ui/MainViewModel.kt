@@ -36,6 +36,7 @@ import com.savesync.android.sync.SaturnSaveFormatConverter
 import com.savesync.android.sync.SyncEngine
 import com.savesync.android.sync.SyncResult
 import com.savesync.android.workers.SyncWorker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +45,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
@@ -878,44 +880,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Maps legacy/server-side system codes → canonical codes.
-     * Used to normalise system names for display and for deduplication.
-     * Legacy saves on the server may use older codes from previous client versions.
-     */
-    private val serverToAndroidSystem = mapOf(
-        // Sega — GENESIS, MEGADRIVE, and GEN are all aliases for MD
-        "GENESIS"   to "MD",
-        "MEGADRIVE" to "MD",
-        "GEN"       to "MD",
-        // SCD is a legacy alias for SEGACD (older Android uploads used SCD)
-        "SCD"       to "SEGACD",
-        // WS is a legacy alias for WSWAN (older Android uploads used WS)
-        "WS"        to "WSWAN",
-        // ATARI2600/ATARI7800 are legacy aliases (older desktop uploads used these)
-        "ATARI2600" to "A2600",
-        "ATARI7800" to "A7800",
-        // PPSSPP was the old Android system name for PSP; normalise to PSP
-        "PPSSPP"    to "PSP",
-    )
-
-    /**
-     * Maps each Android-side system code to ALL possible server-side system codes.
-     *
-     * Multiple server codes can map to the same Android code (e.g. "GENESIS" and
-     * "MEGADRIVE" both → "MD"), so a simple [associate] reverse would silently drop all but
-     * the last entry.  This one-to-many map avoids that by grouping all variants together,
-     * so we try every possible server prefix when remapping a local titleId.
+     * Maps each Android-side canonical code to every server alias that
+     * points at it (e.g. ``MD`` ← ``GENESIS`` / ``MEGADRIVE`` / ``GEN``).
+     * Used when remapping a local titleId to probe every possible server
+     * prefix.  Delegates to [com.savesync.android.systems.SystemAliases] so
+     * the alias table lives in exactly one place.
      */
     private val androidToServerSystems: Map<String, List<String>> =
-        serverToAndroidSystem.entries.groupBy({ it.value }, { it.key })
+        com.savesync.android.systems.SystemAliases.CANONICAL_TO_SERVER
 
     /**
      * Normalises a system code to Android's canonical form for display.
-     * "SCD" → "SEGACD", "WS" → "WSWAN", etc.
-     * Codes already in Android form are returned unchanged.
+     * "SCD" → "SEGACD", "WS" → "WSWAN", etc.  Codes already in Android
+     * form are returned unchanged (case preserved) so equality checks
+     * like ``prefix == normalizeSystemCode(prefix)`` still work as a
+     * "is this already canonical?" probe.
      */
     private fun normalizeSystemCode(system: String) =
-        serverToAndroidSystem[system.uppercase()] ?: system
+        com.savesync.android.systems.SystemAliases.canonicalOrSelf(system)
 
     private fun buildPs2ServerOnlyEntry(
         titleInfo: com.savesync.android.api.TitleInfo
@@ -1591,6 +1573,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetDetailState() {
         _saveDetailState.value = SaveDetailState.Idle
+    }
+
+    // ``prepareRomFolders`` surface for the Settings screen — creates the
+    // canonical per-system folders under the user's ROM directory so
+    // catalog downloads land in predictable places.  Result flows back
+    // through ``_prepareFoldersMessage`` as a snackbar-ready summary.
+    private val _prepareFoldersMessage = MutableStateFlow<String?>(null)
+    val prepareFoldersMessage: StateFlow<String?> = _prepareFoldersMessage
+
+    fun prepareRomFolders(dir: String = "") {
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            val effectiveDir = dir.ifBlank { currentSettings.romScanDir }
+            if (effectiveDir.isBlank()) {
+                _prepareFoldersMessage.value =
+                    "Set a ROM directory first, then try again."
+                return@launch
+            }
+            val report = withContext(Dispatchers.IO) {
+                InstalledRomsScanner.prepareRomFolders(
+                    scanRoot = File(effectiveDir),
+                    romDirOverrides = currentSettings.romDirOverrides,
+                )
+            }
+            _prepareFoldersMessage.value = when {
+                report.errors.isNotEmpty() -> {
+                    val first = report.errors.first().let { "${it.first}: ${it.second}" }
+                    "Created ${report.createdCount} folder(s); " +
+                        "${report.errors.size} failed (e.g. $first)"
+                }
+                report.createdCount == 0 ->
+                    "All ${report.existing.size} system folders already exist."
+                else ->
+                    "Created ${report.createdCount} folder(s) under $effectiveDir."
+            }
+        }
+    }
+
+    fun consumePrepareFoldersMessage() {
+        _prepareFoldersMessage.value = null
     }
 
     private fun isSharedYabaSanshiroEntry(entry: SaveEntry, settings: Settings): Boolean {

@@ -401,6 +401,32 @@ fun SettingsScreen(
             ) {
                 Text("Test ROM Scan")
             }
+
+            // Prepare canonical per-system folders so catalog downloads
+            // land in predictable places instead of inventing stray
+            // folder names.  Existing files/folders are never touched.
+            val prepareMessage by viewModel.prepareFoldersMessage.collectAsState()
+            OutlinedButton(
+                onClick = { viewModel.prepareRomFolders(romScanDir) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = romScanDir.isNotBlank(),
+            ) {
+                Text("Prepare ROM Folders")
+            }
+            Text(
+                text = "Creates the standard per-system folders " +
+                    "(PS1, GBA, SEGACD, …) under your ROM directory. " +
+                    "Existing folders are left alone.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            prepareMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF4CAF50),
+                )
+            }
             if (romScanResults.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(

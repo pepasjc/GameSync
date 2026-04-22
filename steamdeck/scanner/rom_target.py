@@ -14,6 +14,7 @@ systems (configured from Settings → "Per-system ROM folders").
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Optional
 
@@ -34,7 +35,7 @@ SYSTEM_ROM_DIRS: dict[str, list[str]] = {
     "PS2":    ["ps2", "PS2", "PlayStation 2", "PlayStation2"],
     "PS3":    ["ps3", "PS3", "PlayStation 3", "PlayStation3"],
     "PSP":    ["psp", "PSP", "PlayStation Portable"],
-    "PSVITA": ["psvita", "PSVITA", "Vita", "PS Vita"],
+    "VITA":   ["psvita", "PSVITA", "Vita", "PS Vita"],
     # Nintendo
     "GBA":    ["gba", "GBA", "Game Boy Advance", "GameBoyAdvance"],
     "GB":     ["gb", "GB", "Game Boy", "GameBoy"],
@@ -106,7 +107,14 @@ def resolve_rom_target_dir(
     canonical = normalize_system_code(system) or system
     sys_up = canonical.upper()
     if overrides:
-        override_raw = overrides.get(sys_up)
+        # Canonicalise override keys too so a settings file with a legacy
+        # alias like ``SCD`` still applies to a SEGACD download.
+        override_raw = None
+        for k, v in overrides.items():
+            canon_k = (normalize_system_code(k) or k).upper()
+            if canon_k == sys_up:
+                override_raw = v
+                break
         if override_raw:
             override = str(override_raw).strip()
             if override:
@@ -121,3 +129,61 @@ def resolve_rom_target_dir(
         if candidate.is_dir():
             return candidate
     return roms_base / candidates[0]
+
+
+@dataclass
+class PrepareReport:
+    """Result of a ``prepare_rom_folders`` run.
+
+    Attributes:
+        created:   Folders newly created (``(system, path)`` tuples).
+        existing:  Systems that already had an alias folder on disk — left
+                   alone so existing libraries aren't disturbed.
+        errors:    Systems whose folder could not be created, paired with
+                   the exception message.
+    """
+    created: list[tuple[str, Path]] = field(default_factory=list)
+    existing: list[tuple[str, Path]] = field(default_factory=list)
+    errors: list[tuple[str, str]] = field(default_factory=list)
+
+    @property
+    def created_count(self) -> int:
+        return len(self.created)
+
+
+def prepare_rom_folders(
+    roms_base: Path,
+    overrides: Optional[Mapping[str, str]] = None,
+) -> PrepareReport:
+    """Create the canonical per-system ROM folders under ``roms_base``.
+
+    For every system in [SYSTEM_ROM_DIRS] (or any system with an explicit
+    override), resolve the target folder via [resolve_rom_target_dir] and
+    create it if missing.  Never touches an existing alias folder — the
+    idea is to fill in the layout *around* whatever the user already has
+    so catalog downloads stop inventing stray folder names.
+
+    Returns a [PrepareReport] summarising what was created, what already
+    existed, and any mkdir errors (permissions on an SD card, ...).
+    """
+    report = PrepareReport()
+    # Union of built-in systems + anything the user pinned via overrides,
+    # so a custom system code in the overrides map still gets a folder.
+    systems = set(SYSTEM_ROM_DIRS.keys())
+    if overrides:
+        for k in overrides.keys():
+            canonical = (normalize_system_code(k) or k).upper()
+            if canonical:
+                systems.add(canonical)
+
+    for system in sorted(systems):
+        target = resolve_rom_target_dir(roms_base, system, overrides)
+        if target.is_dir():
+            report.existing.append((system, target))
+            continue
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            report.created.append((system, target))
+        except OSError as exc:
+            report.errors.append((system, str(exc)))
+    return report

@@ -14,7 +14,11 @@ if str(STEAMDECK_ROOT) not in sys.path:
     sys.path.insert(0, str(STEAMDECK_ROOT))
 
 from config import normalize_rom_dir_overrides  # noqa: E402
-from scanner.rom_target import SYSTEM_ROM_DIRS, resolve_rom_target_dir  # noqa: E402
+from scanner.rom_target import (  # noqa: E402
+    SYSTEM_ROM_DIRS,
+    prepare_rom_folders,
+    resolve_rom_target_dir,
+)
 import sync_client as sync_client_mod  # noqa: E402
 from sync_client import SyncClient  # noqa: E402
 
@@ -148,6 +152,99 @@ def test_normalize_overrides_rejects_non_dict_inputs():
 
 def test_normalize_overrides_skips_non_string_keys():
     assert normalize_rom_dir_overrides({42: "/x", "PS1": "/y"}) == {"PS1": "/y"}
+
+
+# ---------------------------------------------------------------------------
+# prepare_rom_folders
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_creates_missing_folders_for_every_system(tmp_path):
+    report = prepare_rom_folders(tmp_path)
+    # Every built-in system gets a folder created.
+    assert report.created_count == len(SYSTEM_ROM_DIRS)
+    assert report.existing == []
+    assert report.errors == []
+    # Specifically: the first candidate (lowercase, EmuDeck convention)
+    # is the one created.
+    for system, candidates in SYSTEM_ROM_DIRS.items():
+        assert (tmp_path / candidates[0]).is_dir(), system
+
+
+def test_prepare_leaves_existing_alias_folders_alone(tmp_path):
+    # User's existing ``psx`` folder for PS1 should be left untouched —
+    # we don't create a second ``psx`` and don't pick a different alias.
+    (tmp_path / "psx").mkdir()
+    # Also a Title-Case alias for another system.
+    (tmp_path / "PlayStation 2").mkdir()
+    report = prepare_rom_folders(tmp_path)
+
+    # PS1 counted as existing, PS2 counted as existing.
+    existing_systems = {s for s, _ in report.existing}
+    assert "PS1" in existing_systems
+    assert "PS2" in existing_systems
+    # No duplicate folder got created under another PS1 alias.
+    assert not (tmp_path / "PS1").exists()
+    assert not (tmp_path / "PlayStation").exists()
+    assert not (tmp_path / "ps2").exists()
+    # And the created list excludes the existing ones.
+    created_systems = {s for s, _ in report.created}
+    assert "PS1" not in created_systems
+    assert "PS2" not in created_systems
+
+
+def test_prepare_respects_per_system_overrides(tmp_path):
+    custom = tmp_path / "external" / "sega-saturn"
+    overrides = {"SAT": str(custom)}
+    report = prepare_rom_folders(tmp_path, overrides)
+
+    # The override target is created instead of the default ``saturn``.
+    assert custom.is_dir()
+    assert not (tmp_path / "saturn").exists()
+    created_targets = {p for _, p in report.created}
+    assert custom in created_targets
+
+
+def test_prepare_canonicalises_alias_override_keys(tmp_path):
+    # Legacy-keyed overrides (``SCD``) should land on the canonical
+    # system folder after canonicalisation, not on a separate "SCD"
+    # entry.
+    custom = tmp_path / "external" / "segacd"
+    report = prepare_rom_folders(tmp_path, {"SCD": str(custom)})
+    assert custom.is_dir()
+    created_systems = {s for s, _ in report.created}
+    assert "SEGACD" in created_systems
+
+
+def test_prepare_reports_existing_and_created_exclusively(tmp_path):
+    # One existing alias + one missing.
+    (tmp_path / "gba").mkdir()
+    report = prepare_rom_folders(tmp_path)
+    created_systems = {s for s, _ in report.created}
+    existing_systems = {s for s, _ in report.existing}
+    assert created_systems & existing_systems == set()
+    # GBA is the existing one; PS1 (missing) is in created.
+    assert "GBA" in existing_systems
+    assert "PS1" in created_systems
+
+
+def test_prepare_is_idempotent(tmp_path):
+    first = prepare_rom_folders(tmp_path)
+    second = prepare_rom_folders(tmp_path)
+    # Re-running after a successful prepare should create nothing new.
+    assert first.created_count > 0
+    assert second.created_count == 0
+    assert len(second.existing) == first.created_count
+
+
+def test_prepare_records_errors_when_target_is_a_file(tmp_path):
+    # Simulate a permission / FS error by putting a regular file where
+    # a system folder should go.  mkdir(parents=True, exist_ok=True)
+    # raises FileExistsError because the path exists but isn't a dir.
+    (tmp_path / "psx").write_text("not a folder")
+    report = prepare_rom_folders(tmp_path)
+    err_systems = {s for s, _ in report.errors}
+    assert "PS1" in err_systems
 
 
 # ---------------------------------------------------------------------------
