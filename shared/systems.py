@@ -20,6 +20,7 @@ from __future__ import annotations
 SYSTEM_CHOICES: list[str] = sorted(
     [
         "32X",
+        "3DS",
         "A2600",
         "A7800",
         "ARCADE",
@@ -292,6 +293,7 @@ ROM_EXTENSIONS: frozenset[str] = frozenset(
         # Nintendo DS / 3DS
         ".nds",
         ".3ds",
+        ".cci",
         ".cia",
         # GameCube / Wii
         ".gcm",    # GameCube disc image
@@ -453,6 +455,7 @@ SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
     "N64":    ["Nintendo 64"],
     "N64DD":  ["Nintendo 64DD"],
     "NDS":    ["Nintendo DS"],
+    "3DS":    ["Nintendo 3DS"],
     "GC":     ["GameCube", "Gamecube"],
     "VB":     ["Nintendo - Virtual Boy", "Virtual Boy"],
     "MD":     ["Mega Drive", "Genesis"],

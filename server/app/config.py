@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # Available placeholders: {input}, {output}, {output_dir}, {stem}
     rom_3ds_cia_command: str = ""
     rom_3ds_decrypted_cia_command: str = ""
+    rom_3ds_decrypted_cci_command: str = ""
     api_key: str = "anything"
     host: str = "0.0.0.0"
     port: int = 8000

@@ -50,6 +50,7 @@ def rom_client_3ds_zip(rom_dir, client, auth_headers):
     original_interval = settings.rom_scan_interval
     original_cia_cmd = settings.rom_3ds_cia_command
     original_decrypted_cmd = settings.rom_3ds_decrypted_cia_command
+    original_decrypted_cci_cmd = settings.rom_3ds_decrypted_cci_command
 
     settings.rom_dir = rom_dir
     settings.rom_scan_interval = 0
@@ -77,6 +78,18 @@ def rom_client_3ds_zip(rom_dir, client, auth_headers):
             "{output}",
         ]
     )
+    settings.rom_3ds_decrypted_cci_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'DCCI:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
 
     rom_db.init_db(settings.save_dir)
 
@@ -93,6 +106,75 @@ def rom_client_3ds_zip(rom_dir, client, auth_headers):
     settings.rom_scan_interval = original_interval
     settings.rom_3ds_cia_command = original_cia_cmd
     settings.rom_3ds_decrypted_cia_command = original_decrypted_cmd
+    settings.rom_3ds_decrypted_cci_command = original_decrypted_cci_cmd
+    rom_scanner._catalog = None
+
+
+@pytest.fixture()
+def rom_client_cci_zip(rom_dir, client, auth_headers):
+    from app.services import rom_db, rom_scanner
+
+    original_rom_dir = settings.rom_dir
+    original_interval = settings.rom_scan_interval
+    original_cia_cmd = settings.rom_3ds_cia_command
+    original_decrypted_cmd = settings.rom_3ds_decrypted_cia_command
+    original_decrypted_cci_cmd = settings.rom_3ds_decrypted_cci_command
+
+    settings.rom_dir = rom_dir
+    settings.rom_scan_interval = 0
+    settings.rom_3ds_cia_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'CIA:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
+    settings.rom_3ds_decrypted_cia_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'DEC:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
+    settings.rom_3ds_decrypted_cci_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'DCCI:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
+
+    rom_db.init_db(settings.save_dir)
+
+    (rom_dir / "n3ds").mkdir()
+    archive_path = rom_dir / "n3ds" / "Pilotwings Resort (USA).cci.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("Pilotwings Resort (USA).cci", b"CCICART")
+
+    rom_scanner.init(rom_dir)
+
+    yield client
+
+    settings.rom_dir = original_rom_dir
+    settings.rom_scan_interval = original_interval
+    settings.rom_3ds_cia_command = original_cia_cmd
+    settings.rom_3ds_decrypted_cia_command = original_decrypted_cmd
+    settings.rom_3ds_decrypted_cci_command = original_decrypted_cci_cmd
     rom_scanner._catalog = None
 
 
@@ -187,7 +269,20 @@ class TestRomCatalog:
         rom = body["roms"][0]
         assert rom["title_id"] == "3DS_super_mario_3d_land_usa"
         assert rom["extract_format"] == "3ds"
-        assert rom["extract_formats"] == ["cia", "decrypted_cia"]
+        assert rom["extract_formats"] == ["cia", "decrypted_cia", "decrypted_cci"]
+
+    def test_list_roms_exposes_cci_zip_conversion_options(
+        self, rom_client_cci_zip, auth_headers
+    ):
+        resp = rom_client_cci_zip.get("/api/v1/roms?system=3DS", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+
+        rom = body["roms"][0]
+        assert rom["title_id"] == "3DS_pilotwings_resort_usa"
+        assert rom["extract_format"] == "3ds"
+        assert rom["extract_formats"] == ["cia", "decrypted_cia", "decrypted_cci"]
 
 
 class TestRomDownload:
@@ -272,6 +367,34 @@ class TestRomDownload:
         assert resp.content == b"DEC:CARTROM"
         assert resp.headers["content-disposition"].endswith(
             'filename="Super Mario 3D Land (USA)_decrypted.cia"'
+        )
+
+    def test_download_3ds_zip_as_decrypted_cci(self, rom_client_3ds_zip, auth_headers):
+        roms = rom_client_3ds_zip.get("/api/v1/roms?system=3DS", headers=auth_headers).json()
+        rom_id = roms["roms"][0]["rom_id"]
+
+        resp = rom_client_3ds_zip.get(
+            f"/api/v1/roms/{rom_id}?extract=decrypted_cci",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.content == b"DCCI:CARTROM"
+        assert resp.headers["content-disposition"].endswith(
+            'filename="Super Mario 3D Land (USA)_decrypted.cci"'
+        )
+
+    def test_download_cci_zip_as_decrypted_cci(self, rom_client_cci_zip, auth_headers):
+        roms = rom_client_cci_zip.get("/api/v1/roms?system=3DS", headers=auth_headers).json()
+        rom_id = roms["roms"][0]["rom_id"]
+
+        resp = rom_client_cci_zip.get(
+            f"/api/v1/roms/{rom_id}?extract=decrypted_cci",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.content == b"DCCI:CCICART"
+        assert resp.headers["content-disposition"].endswith(
+            'filename="Pilotwings Resort (USA)_decrypted.cci"'
         )
 
 

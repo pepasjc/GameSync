@@ -149,8 +149,8 @@ def _identify_rom_crc32(
     system: str, file_path: Path, norm: Optional[object]
 ) -> tuple[str, str, str, str]:
     filename = _lookup_filename(file_path)
-    # Archive-wrapped ROMs like *.3ds.zip should still match on name, but CRC32
-    # of the archive container is not useful for DAT lookups.
+    # Archive-wrapped ROMs like *.3ds.zip / *.cci.zip should still match on
+    # name, but CRC32 of the archive container is not useful for DAT lookups.
     if filename != file_path.name:
         title_id, canonical_name, source = _identify_rom_slug(system, file_path, norm)
         return title_id, canonical_name, source, ""
@@ -178,8 +178,9 @@ def _identify_rom_crc32(
 def _lookup_filename(file_path: Path) -> str:
     """Return the best filename to use for DAT/title-id matching.
 
-    For archive uploads like ``Game.3ds.zip`` we strip the outer archive layer
-    so the normalizer sees ``Game.3ds`` and derives the correct stem.
+    For archive uploads like ``Game.3ds.zip`` / ``Game.cci.zip`` we strip the
+    outer archive layer so the normalizer sees the inner cart image name and
+    derives the correct stem.
     """
     suffixes = [suffix.lower() for suffix in file_path.suffixes]
     if len(suffixes) >= 2 and suffixes[-1] in _ARCHIVE_EXTENSIONS:

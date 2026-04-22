@@ -10,6 +10,8 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                   ?extract=cia  — 3DS cart image → installable CIA
                                   ?extract=decrypted_cia
                                                  3DS cart image → decrypted CIA for emulators
+                                  ?extract=decrypted_cci
+                                                 3DS cart image → decrypted CCI for emulators
 POST /api/v1/roms/scan         — Trigger rescan of ROM directory
 GET  /api/v1/roms/systems      — List systems with ROMs and counts
 """
@@ -60,6 +62,31 @@ _GC_SYSTEMS = frozenset({'GC', 'WII'})
 
 # 3DS cartridge images can be converted to CIA variants
 _3DS_SYSTEMS = frozenset({'3DS'})
+_3DS_CART_EXTENSIONS = frozenset({'.3ds', '.cci'})
+_3DS_EXTRACT_SPECS = {
+    'cia': {
+        'setting': 'rom_3ds_cia_command',
+        'env': 'SYNC_ROM_3DS_CIA_COMMAND',
+        'label': 'CIA',
+        'output_ext': '.cia',
+        'filename_suffix': '',
+    },
+    'decrypted_cia': {
+        'setting': 'rom_3ds_decrypted_cia_command',
+        'env': 'SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND',
+        'label': 'decrypted CIA',
+        'output_ext': '.cia',
+        'filename_suffix': '_decrypted',
+    },
+    'decrypted_cci': {
+        'setting': 'rom_3ds_decrypted_cci_command',
+        'env': 'SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND',
+        'label': 'decrypted CCI',
+        'output_ext': '.cci',
+        'filename_suffix': '_decrypted',
+    },
+}
+_3DS_EXTRACT_FORMATS = list(_3DS_EXTRACT_SPECS.keys())
 
 # All systems that support any CHD extraction
 _CD_SYSTEMS   = _CUE_SYSTEMS | _GDI_SYSTEMS
@@ -144,7 +171,8 @@ async def download_rom(
         description=(
             "Extract format: 'cue' (CUE/BIN zip), 'gdi' (GDI zip), "
             "'iso' (PSP ISO), 'cso' (PSP compressed ISO), "
-            "'cia' (3DS installable CIA), 'decrypted_cia' (3DS emulator CIA)"
+            "'cia' (3DS installable CIA), 'decrypted_cia' (3DS emulator CIA), "
+            "'decrypted_cci' (3DS emulator CCI)"
         ),
     ),
     range_header: Optional[str] = Header(None, alias="Range"),
@@ -168,7 +196,7 @@ async def download_rom(
     if extract:
         fmt = extract.lower()
         sys_up = (entry.system or '').upper()
-        if fmt in ('cia', 'decrypted_cia'):
+        if fmt in _3DS_EXTRACT_SPECS:
             return await _extract_3ds(file_path, sys_up, fmt)
         elif fmt == 'rvz' or (fmt == 'iso' and file_path.suffix.lower() == '.rvz'):
             return await _extract_rvz(file_path, file_path.stem)
@@ -236,33 +264,27 @@ async def _extract_rvz(rvz_path: Path, stem: str) -> Response:
     )
 
 
-# ── Nintendo 3DS cart image → CIA variants ──────────────────────────────────
+# ── Nintendo 3DS cart image → CIA / CCI variants ────────────────────────────
 
 async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
-    """Convert a 3DS cart image (optionally wrapped in ZIP) to CIA."""
+    """Convert a 3DS cart image (optionally wrapped in ZIP) to another format."""
     if system not in _3DS_SYSTEMS:
         return Response(
             status_code=400,
             content=f"{fmt} extraction is only supported for Nintendo 3DS ROMs (got {system})",
         )
 
-    command_template = (
-        settings.rom_3ds_cia_command
-        if fmt == 'cia'
-        else settings.rom_3ds_decrypted_cia_command
-    )
+    spec = _3DS_EXTRACT_SPECS.get(fmt)
+    if spec is None:
+        return Response(status_code=400, content=f"Unsupported 3DS extract format: {fmt}")
+
+    command_template = getattr(settings, spec['setting'])
     if not command_template:
-        env_name = (
-            'SYNC_ROM_3DS_CIA_COMMAND'
-            if fmt == 'cia'
-            else 'SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND'
-        )
-        label = 'CIA' if fmt == 'cia' else 'decrypted CIA'
         return Response(
             status_code=503,
             content=(
-                f"3DS {label} conversion is not configured. "
-                f"Set {env_name} to a command template that writes the output CIA file."
+                f"3DS {spec['label']} conversion is not configured. "
+                f"Set {spec['env']} to a command template that writes the output {spec['output_ext']} file."
             ),
         )
 
@@ -270,7 +292,7 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             input_path, stem = _materialize_3ds_source(source_path, tmp)
-            output_name = f"{stem}{'_decrypted' if fmt == 'decrypted_cia' else ''}.cia"
+            output_name = f"{stem}{spec['filename_suffix']}{spec['output_ext']}"
             output_path = tmp / output_name
 
             cmd = _expand_command_template(
@@ -289,9 +311,11 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
             if result.returncode != 0:
                 raise RuntimeError(result.stderr.strip() or result.stdout.strip() or '3DS conversion failed')
 
-            final_path = output_path if output_path.is_file() else _find_single_output(tmp)
+            final_path = output_path if output_path.is_file() else _find_single_output(tmp, spec['output_ext'])
             if final_path is None or not final_path.is_file():
-                raise RuntimeError("converter completed but did not produce a .cia file")
+                raise RuntimeError(
+                    f"converter completed but did not produce a {spec['output_ext']} file"
+                )
 
             return final_path.name, final_path.read_bytes()
 
@@ -516,31 +540,31 @@ def _extract_formats_for_entry(system: str, filename: str) -> tuple[str | None, 
             return 'cue', ['cue']
     elif suffix == '.rvz' and sys_up in _GC_SYSTEMS:
         return 'rvz', ['iso']
-    elif sys_up in _3DS_SYSTEMS and suffix in {'.3ds', '.zip'}:
-        return '3ds', ['cia', 'decrypted_cia']
+    elif sys_up in _3DS_SYSTEMS and suffix in _3DS_CART_EXTENSIONS.union({'.zip'}):
+        return '3ds', list(_3DS_EXTRACT_FORMATS)
 
     return None, []
 
 
 def _materialize_3ds_source(source_path: Path, tmp_dir: Path) -> tuple[Path, str]:
     suffix = source_path.suffix.lower()
-    if suffix == '.3ds':
+    if suffix in _3DS_CART_EXTENSIONS:
         return source_path, source_path.stem
 
     if suffix != '.zip':
         raise ValueError(
-            "3DS conversion currently supports raw .3ds files or .zip archives containing one .3ds file"
+            "3DS conversion currently supports raw .3ds/.cci files or .zip archives containing one .3ds/.cci file"
         )
 
     with zipfile.ZipFile(source_path) as zf:
         members = [
             info for info in zf.infolist()
-            if not info.is_dir() and Path(info.filename).suffix.lower() == '.3ds'
+            if not info.is_dir() and Path(info.filename).suffix.lower() in _3DS_CART_EXTENSIONS
         ]
         if not members:
-            raise ValueError("ZIP archive does not contain a .3ds file")
+            raise ValueError("ZIP archive does not contain a .3ds or .cci file")
         if len(members) > 1:
-            raise ValueError("ZIP archive must contain exactly one .3ds file")
+            raise ValueError("ZIP archive must contain exactly one .3ds or .cci file")
 
         member = members[0]
         member_name = Path(member.filename).name
@@ -572,8 +596,10 @@ def _expand_command_template(template: str, **values: str) -> list[str]:
     return expanded
 
 
-def _find_single_output(tmp_dir: Path) -> Path | None:
-    outputs = sorted(p for p in tmp_dir.rglob('*.cia') if p.is_file())
+def _find_single_output(tmp_dir: Path, extension: str) -> Path | None:
+    outputs = sorted(
+        p for p in tmp_dir.rglob(f'*{extension}') if p.is_file() and p.suffix.lower() == extension
+    )
     if len(outputs) == 1:
         return outputs[0]
     return None
@@ -589,6 +615,7 @@ _CONTENT_TYPES = {
     '.smc': 'application/x-snes-rom',
     '.nds': 'application/x-nds-rom',
     '.3ds': 'application/x-3ds-rom',
+    '.cci': 'application/x-3ds-rom',
     '.cia': 'application/x-3ds-rom',
     '.n64': 'application/x-n64-rom',
     '.z64': 'application/x-n64-rom',

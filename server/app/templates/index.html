@@ -654,6 +654,12 @@ const STAGES = {
     'Building decrypted CIA…',
     'Writing CIA file…',
   ],
+  decrypted_cci: [
+    'Starting conversion…',
+    'Opening 3DS cart image…',
+    'Building decrypted CCI…',
+    'Writing CCI file…',
+  ],
 };
 
 // Labels and filename suffixes per format
@@ -663,8 +669,9 @@ const FMT_META = {
   iso: { badge:'ISO',           source:'CHD',     suffix:'',                    ext:'.iso',  errHint:'Check that chdman is installed on the server.' },
   cso: { badge:'CSO',           source:'CHD',     suffix:' · compressing',      ext:'.cso',  errHint:'Check that chdman and ciso/maxcso are installed on the server.' },
   rvz: { badge:'ISO',           source:'RVZ',     suffix:'',                    ext:'.iso',  errHint:'Check that DolphinTool is installed on the server.' },
-  cia: { badge:'CIA',           source:'3DS ZIP', suffix:'',                    ext:'.cia',  errHint:'Check that SYNC_ROM_3DS_CIA_COMMAND is configured on the server.' },
-  decrypted_cia: { badge:'DEC CIA', source:'3DS ZIP', suffix:' · decrypted',    ext:'.cia',  errHint:'Check that SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND is configured on the server.' },
+  cia: { badge:'CIA',           source:'3DS CART', suffix:'',                    ext:'.cia',  errHint:'Check that SYNC_ROM_3DS_CIA_COMMAND is configured on the server.' },
+  decrypted_cia: { badge:'DEC CIA', source:'3DS CART', suffix:' · decrypted',    ext:'.cia',  errHint:'Check that SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND is configured on the server.' },
+  decrypted_cci: { badge:'DEC CCI', source:'3DS CART', suffix:' · decrypted',    ext:'.cci',  errHint:'Check that SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND is configured on the server.' },
 };
 
 function queueKey(titleId, fmt) {
@@ -681,6 +688,7 @@ function buildExtractFilename(titleId, gameName, fmt) {
   return fmt === 'cue' ? `${stem}_cue.zip`
        : fmt === 'gdi' ? `${stem}_gdi.zip`
        : fmt === 'decrypted_cia' ? `${stem}_decrypted.cia`
+       : fmt === 'decrypted_cci' ? `${stem}_decrypted.cci`
        : `${stem}${meta.ext}`;
 }
 
@@ -1084,18 +1092,27 @@ function renderRoms() {
             data-url="${rawUrl}" data-fn="${fn}"
             title="Download original ${rawLabel}">${rawLabel}</button>
         </div>`;
-      } else if (extractFormats.includes('cia') && extractFormats.includes('decrypted_cia')) {
-        btnHtml = `<div class="rom-btns">
-          <button class="dl-btn extract" data-action="extract"
+      } else if (extractFormats.some(f => ['cia', 'decrypted_cia', 'decrypted_cci'].includes(f))) {
+        const cartButtons = [];
+        if (extractFormats.includes('cia')) {
+          cartButtons.push(`<button class="dl-btn extract" data-action="extract"
             data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cia"
-            title="Convert to installable CIA">CIA</button>
-          <button class="dl-btn extract" data-action="extract"
+            title="Convert to installable CIA">CIA</button>`);
+        }
+        if (extractFormats.includes('decrypted_cia')) {
+          cartButtons.push(`<button class="dl-btn extract" data-action="extract"
             data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cia"
-            title="Convert to decrypted CIA for emulators">DEC CIA</button>
-          <button class="dl-btn" data-action="dl"
+            title="Convert to decrypted CIA for emulators">DEC CIA</button>`);
+        }
+        if (extractFormats.includes('decrypted_cci')) {
+          cartButtons.push(`<button class="dl-btn extract" data-action="extract"
+            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cci"
+            title="Convert to decrypted CCI for emulators">DEC CCI</button>`);
+        }
+        cartButtons.push(`<button class="dl-btn" data-action="dl"
             data-url="${rawUrl}" data-fn="${fn}"
-            title="Download original ${rawLabel}">${rawLabel}</button>
-        </div>`;
+            title="Download original ${rawLabel}">${rawLabel}</button>`);
+        btnHtml = `<div class="rom-btns">${cartButtons.join('')}</div>`;
       } else {
         btnHtml = `<button class="dl-btn" data-action="dl"
           data-url="${rawUrl}" data-fn="${fn}">↓</button>`;
