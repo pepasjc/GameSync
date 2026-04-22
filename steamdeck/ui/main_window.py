@@ -1017,7 +1017,11 @@ class MainWindow(QMainWindow):
             return
 
         roms_base = self._rom_roots_base(emulation_path, rom_scan_dir)
-        target_dir = resolve_rom_target_dir(roms_base, system or "?")
+        target_dir = resolve_rom_target_dir(
+            roms_base,
+            system or "?",
+            self._config.get("rom_dir_overrides") or {},
+        )
         target_path = target_dir / filename
 
         msg = (
@@ -1302,6 +1306,7 @@ class MainWindow(QMainWindow):
             self,
             emulation_path=self._config.get("emulation_path"),
             rom_scan_dir=self._config.get("rom_scan_dir", ""),
+            rom_dir_overrides=self._config.get("rom_dir_overrides") or {},
         )
         dlg.exec()
         # A freshly downloaded ROM doesn't show up in the current scan result,

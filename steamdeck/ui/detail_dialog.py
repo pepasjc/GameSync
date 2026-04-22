@@ -76,6 +76,7 @@ class DetailDialog(QDialog, GamepadModalMixin):
         parent=None,
         emulation_path: Optional[Path] = None,
         rom_scan_dir: Optional[str] = None,
+        rom_dir_overrides: Optional[dict] = None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Save Info")
@@ -89,6 +90,7 @@ class DetailDialog(QDialog, GamepadModalMixin):
         self._client = sync_client
         self._emulation_path = Path(emulation_path) if emulation_path else None
         self._rom_scan_dir = rom_scan_dir or ""
+        self._rom_dir_overrides = dict(rom_dir_overrides or {})
         # Caller checks this after exec() to decide whether to trigger a full
         # rescan — a downloaded ROM changes the SERVER_ONLY → SYNCED status
         # for its save entry, but only after the scanner re-runs.
@@ -431,7 +433,9 @@ QLabel#detailLabel {{
         size_txt = f" ({_fmt_size(size)})" if size else ""
 
         roms_base = self._rom_roots_base()
-        target_dir = resolve_rom_target_dir(roms_base, entry.system)
+        target_dir = resolve_rom_target_dir(
+            roms_base, entry.system, self._rom_dir_overrides
+        )
         target_path = target_dir / filename
 
         msg = (
