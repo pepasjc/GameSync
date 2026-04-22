@@ -36,6 +36,7 @@ import com.savesync.android.sync.SaturnSaveFormatConverter
 import com.savesync.android.sync.SyncEngine
 import com.savesync.android.sync.SyncResult
 import com.savesync.android.workers.SyncWorker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +45,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
@@ -1571,6 +1573,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetDetailState() {
         _saveDetailState.value = SaveDetailState.Idle
+    }
+
+    // ``prepareRomFolders`` surface for the Settings screen — creates the
+    // canonical per-system folders under the user's ROM directory so
+    // catalog downloads land in predictable places.  Result flows back
+    // through ``_prepareFoldersMessage`` as a snackbar-ready summary.
+    private val _prepareFoldersMessage = MutableStateFlow<String?>(null)
+    val prepareFoldersMessage: StateFlow<String?> = _prepareFoldersMessage
+
+    fun prepareRomFolders(dir: String = "") {
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            val effectiveDir = dir.ifBlank { currentSettings.romScanDir }
+            if (effectiveDir.isBlank()) {
+                _prepareFoldersMessage.value =
+                    "Set a ROM directory first, then try again."
+                return@launch
+            }
+            val report = withContext(Dispatchers.IO) {
+                InstalledRomsScanner.prepareRomFolders(
+                    scanRoot = File(effectiveDir),
+                    romDirOverrides = currentSettings.romDirOverrides,
+                )
+            }
+            _prepareFoldersMessage.value = when {
+                report.errors.isNotEmpty() -> {
+                    val first = report.errors.first().let { "${it.first}: ${it.second}" }
+                    "Created ${report.createdCount} folder(s); " +
+                        "${report.errors.size} failed (e.g. $first)"
+                }
+                report.createdCount == 0 ->
+                    "All ${report.existing.size} system folders already exist."
+                else ->
+                    "Created ${report.createdCount} folder(s) under $effectiveDir."
+            }
+        }
+    }
+
+    fun consumePrepareFoldersMessage() {
+        _prepareFoldersMessage.value = null
     }
 
     private fun isSharedYabaSanshiroEntry(entry: SaveEntry, settings: Settings): Boolean {

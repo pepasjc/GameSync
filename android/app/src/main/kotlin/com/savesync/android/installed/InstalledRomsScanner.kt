@@ -24,7 +24,7 @@ object InstalledRomsScanner {
         "PS2"    to listOf("PS2", "PlayStation 2", "PlayStation2", "ps2"),
         "PS3"    to listOf("PS3", "PlayStation 3", "PlayStation3", "ps3"),
         "PSP"    to listOf("PSP", "PlayStation Portable", "psp"),
-        "PSVITA" to listOf("PSVITA", "Vita", "PS Vita", "psvita"),
+        "VITA"   to listOf("psvita", "PSVITA", "Vita", "PS Vita"),
         // Nintendo
         "GBA"    to listOf("GBA", "Game Boy Advance", "GameBoyAdvance", "gba"),
         "GB"     to listOf("GB", "Game Boy", "GameBoy", "gb"),
@@ -168,6 +168,60 @@ object InstalledRomsScanner {
             ?: listOf(canonical, canonical.lowercase())
         val existing = candidates.firstOrNull { File(scanRoot, it).isDirectory }
         return File(scanRoot, existing ?: candidates.first())
+    }
+
+    /**
+     * Summary of a [prepareRomFolders] run, returned so the UI can show a
+     * "created N folders" confirmation with a sensible failure list.
+     */
+    data class PrepareReport(
+        val created: List<Pair<String, File>>,
+        val existing: List<Pair<String, File>>,
+        val errors: List<Pair<String, String>>,
+    ) {
+        val createdCount: Int get() = created.size
+    }
+
+    /**
+     * Create the canonical per-system ROM folders under [scanRoot].
+     *
+     * For every system in [SYSTEM_ROM_DIRS] (union'd with any system with
+     * an explicit override), resolve the target folder via
+     * [resolveRomTargetDir] and ``mkdirs()`` it if missing.  Never
+     * touches an existing alias folder — we fill in the layout around
+     * whatever the user already has so catalog downloads stop inventing
+     * stray folder names.
+     */
+    fun prepareRomFolders(
+        scanRoot: File,
+        romDirOverrides: Map<String, String> = emptyMap(),
+    ): PrepareReport {
+        val created = mutableListOf<Pair<String, File>>()
+        val existing = mutableListOf<Pair<String, File>>()
+        val errors = mutableListOf<Pair<String, String>>()
+
+        val overrideSystems = romDirOverrides.keys
+            .map { SystemAliases.normalizeSystemCode(it).ifBlank { it }.uppercase() }
+            .filter { it.isNotEmpty() }
+        val systems = (SYSTEM_ROM_DIRS.keys + overrideSystems).toSortedSet()
+
+        for (system in systems) {
+            val target = resolveRomTargetDir(scanRoot, system, romDirOverrides)
+            if (target.isDirectory) {
+                existing += system to target
+                continue
+            }
+            try {
+                if (target.mkdirs() || target.isDirectory) {
+                    created += system to target
+                } else {
+                    errors += system to "mkdirs returned false"
+                }
+            } catch (e: SecurityException) {
+                errors += system to (e.message ?: "SecurityException")
+            }
+        }
+        return PrepareReport(created, existing, errors)
     }
 
     /**

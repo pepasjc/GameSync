@@ -61,7 +61,6 @@ object SystemAliases {
         "PLAYSTATION3" to "PS3",
         "PLAYSTATIONPORTABLE" to "PSP",
         "PSVITA"     to "VITA",
-        "PS VITA"    to "VITA",
         // Nintendo spelling variants
         "NINTENDO64" to "N64",
         "NINTENDODS" to "NDS",

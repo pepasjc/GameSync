@@ -25,9 +25,10 @@ from config import (
     normalize_saturn_sync_format,
 )
 from saturn_format import SATURN_DOWNLOAD_FORMATS
-from scanner.rom_target import SYSTEM_ROM_DIRS
+from scanner.rom_target import SYSTEM_ROM_DIRS, prepare_rom_folders
 
 from . import theme
+from .confirm_dialog import ConfirmDialog, ResultDialog
 from .gamepad_modal import GamepadModalMixin
 
 
@@ -156,6 +157,24 @@ class SettingsDialog(QDialog, GamepadModalMixin):
 
         self._rebuild_override_rows()
 
+        # "Prepare ROM folders" — fill in the canonical layout around
+        # whatever the user already has, so catalog downloads stop
+        # inventing stray folder names.  Respects per-system overrides.
+        prepare_row = QHBoxLayout()
+        prepare_btn = QPushButton("Prepare ROM folders")
+        prepare_btn.setFixedWidth(200)
+        prepare_btn.clicked.connect(self._on_prepare_folders)
+        prepare_hint = QLabel(
+            "Create the standard per-system folders so every future "
+            "download lands in the right place.  Existing folders and "
+            "files are never touched."
+        )
+        prepare_hint.setWordWrap(True)
+        prepare_hint.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        prepare_row.addWidget(prepare_btn)
+        prepare_row.addWidget(prepare_hint, 1)
+        layout.addLayout(prepare_row)
+
         layout.addWidget(_separator())
 
         # ── Saves ────────────────────────────────────────────────
@@ -219,6 +238,100 @@ class SettingsDialog(QDialog, GamepadModalMixin):
         )
         if path:
             self._rom_path.setText(path)
+
+    def _current_roms_base(self) -> Path | None:
+        """Resolve the current ROMs root from the live field values.
+
+        Mirrors ``MainWindow._rom_roots_base`` so the prepared folders
+        land in exactly the directory downloads would target — even when
+        the user has edited paths but hasn't saved yet.  Returns ``None``
+        if neither field is filled in.
+        """
+        rom_scan = self._rom_path.text().strip()
+        emu = self._emu_path.text().strip()
+        if rom_scan:
+            return Path(rom_scan).expanduser()
+        if emu:
+            return Path(emu).expanduser() / "roms"
+        return None
+
+    def _on_prepare_folders(self) -> None:
+        """Create the canonical per-system ROM folders under the current base."""
+        base = self._current_roms_base()
+        if base is None:
+            ResultDialog(
+                False,
+                "Set an Emulation folder or ROM scan directory first, "
+                "then try again.",
+                parent=self,
+            ).exec()
+            return
+
+        # Honour whatever the user is about to save — not what's on disk.
+        # Reuse ``normalize_rom_dir_overrides`` so empty / malformed
+        # entries behave exactly like they do in the download path.
+        overrides = normalize_rom_dir_overrides(self._overrides)
+
+        # Dry-run first: count what *would* be created so the confirm
+        # dialog can show the real blast radius before touching disk.
+        from scanner.rom_target import resolve_rom_target_dir
+
+        systems = set(SYSTEM_ROM_DIRS.keys()) | set(overrides.keys())
+        planned_create = []
+        planned_skip = 0
+        for system in sorted(systems):
+            target = resolve_rom_target_dir(base, system, overrides)
+            if target.is_dir():
+                planned_skip += 1
+            else:
+                planned_create.append(target)
+
+        if not planned_create:
+            ResultDialog(
+                True,
+                f"All {planned_skip} system folders already exist under "
+                f"{base}.\nNothing to do.",
+                parent=self,
+            ).exec()
+            return
+
+        preview = "\n".join(f"  • {p}" for p in planned_create[:10])
+        if len(planned_create) > 10:
+            preview += f"\n  … and {len(planned_create) - 10} more"
+        msg = (
+            f"Create {len(planned_create)} system folder(s) under\n"
+            f"{base}?\n\n"
+            f"{preview}\n\n"
+            f"{planned_skip} folder(s) already exist and will be left alone.\n"
+            "Existing files are never touched."
+        )
+        confirm = ConfirmDialog(
+            title="Prepare ROM folders",
+            message=msg,
+            confirm_label="Create",
+            confirm_color=theme.STATUS_DOWNLOAD,
+            parent=self,
+        )
+        if confirm.exec() != confirm.DialogCode.Accepted:
+            return
+
+        report = prepare_rom_folders(base, overrides)
+        if report.errors:
+            err_txt = "\n".join(
+                f"  • {sys}: {msg}" for sys, msg in report.errors[:5]
+            )
+            ResultDialog(
+                report.created_count > 0,
+                f"Created {report.created_count} folder(s); "
+                f"{len(report.errors)} failed:\n{err_txt}",
+                parent=self,
+            ).exec()
+        else:
+            ResultDialog(
+                True,
+                f"Created {report.created_count} folder(s) under {base}.",
+                parent=self,
+            ).exec()
 
     def _override_picker_start(self, system: str) -> str:
         """Reasonable starting folder for a per-system browse dialog."""

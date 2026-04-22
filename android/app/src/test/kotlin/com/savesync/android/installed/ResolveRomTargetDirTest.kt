@@ -135,4 +135,84 @@ class ResolveRomTargetDirTest {
         )
         assertEquals(File(scanRoot(), "PSX"), dir)
     }
+
+    // --- prepareRomFolders ----------------------------------------------
+
+    @Test
+    fun `prepare creates every system folder under an empty root`() {
+        val report = InstalledRomsScanner.prepareRomFolders(scanRoot())
+        // Every entry in SYSTEM_ROM_DIRS gets a new folder — no
+        // pre-existing aliases, no errors.
+        assertEquals(
+            InstalledRomsScanner.SYSTEM_ROM_DIRS.size,
+            report.createdCount,
+        )
+        assertEquals(0, report.existing.size)
+        assertEquals(0, report.errors.size)
+        // And the first candidate in each system's list is the one
+        // created (matches resolveRomTargetDir's fallback).
+        for ((system, candidates) in InstalledRomsScanner.SYSTEM_ROM_DIRS) {
+            val expected = File(scanRoot(), candidates.first())
+            org.junit.Assert.assertTrue(
+                "$system should have created ${expected.absolutePath}",
+                expected.isDirectory,
+            )
+        }
+    }
+
+    @Test
+    fun `prepare leaves existing alias folders untouched`() {
+        File(scanRoot(), "PSX").mkdirs()  // PS1 alias
+        File(scanRoot(), "Mega Drive").mkdirs()  // MD alias
+        val report = InstalledRomsScanner.prepareRomFolders(scanRoot())
+
+        val existing = report.existing.map { it.first }.toSet()
+        org.junit.Assert.assertTrue("PS1" in existing)
+        org.junit.Assert.assertTrue("MD" in existing)
+        // No duplicate PS1 folder got created.
+        org.junit.Assert.assertFalse(File(scanRoot(), "PS1").exists())
+        org.junit.Assert.assertFalse(File(scanRoot(), "PlayStation").exists())
+    }
+
+    @Test
+    fun `prepare honours per-system overrides`() {
+        val custom = tmp.newFolder("external", "my-saturn")
+        // Remove the folder so prepare has something to create.
+        custom.delete()
+        val report = InstalledRomsScanner.prepareRomFolders(
+            scanRoot(),
+            mapOf("SAT" to custom.absolutePath),
+        )
+        org.junit.Assert.assertTrue(custom.isDirectory)
+        // And the default ``Saturn`` folder was NOT created under the
+        // scan root — the override won.
+        org.junit.Assert.assertFalse(File(scanRoot(), "Saturn").exists())
+        val createdTargets = report.created.map { it.second }
+        org.junit.Assert.assertTrue(custom in createdTargets)
+    }
+
+    @Test
+    fun `prepare canonicalises alias override keys`() {
+        // Legacy-keyed override under "SCD" should route to the SEGACD
+        // iteration (not create a separate "SCD" folder).
+        val custom = tmp.newFolder("external", "segacd-alt")
+        custom.delete()
+        val report = InstalledRomsScanner.prepareRomFolders(
+            scanRoot(),
+            mapOf("SCD" to custom.absolutePath),
+        )
+        org.junit.Assert.assertTrue(custom.isDirectory)
+        val createdSystems = report.created.map { it.first }
+        org.junit.Assert.assertTrue("SEGACD" in createdSystems)
+    }
+
+    @Test
+    fun `prepare is idempotent`() {
+        val first = InstalledRomsScanner.prepareRomFolders(scanRoot())
+        val second = InstalledRomsScanner.prepareRomFolders(scanRoot())
+        org.junit.Assert.assertTrue(first.createdCount > 0)
+        assertEquals(0, second.createdCount)
+        // Every system is now in the "existing" column.
+        assertEquals(first.createdCount, second.existing.size)
+    }
 }
