@@ -63,6 +63,7 @@ class ControlsBar(QWidget):
 
     MODE_SAVES = "saves"
     MODE_CATALOG = "catalog"
+    MODE_INSTALLED = "installed"
 
     _HINTS_SAVES: list[tuple[str, str, str]] = [
         ("A", "BTN_A", "Info"),
@@ -76,6 +77,15 @@ class ControlsBar(QWidget):
 
     _HINTS_CATALOG: list[tuple[str, str, str]] = [
         ("A", "BTN_A", "Download"),
+        ("B", "BTN_B", "Exit"),
+        ("Y", "BTN_Y", "Search"),
+        ("L1/R1", "BTN_L", "Tab"),
+        ("L2/R2", "BTN_L", "Page"),
+        ("☰", "BTN_S", "Settings"),
+    ]
+
+    _HINTS_INSTALLED: list[tuple[str, str, str]] = [
+        ("A", "BTN_B", "Delete"),
         ("B", "BTN_B", "Exit"),
         ("Y", "BTN_Y", "Search"),
         ("L1/R1", "BTN_L", "Tab"),
@@ -97,8 +107,13 @@ class ControlsBar(QWidget):
         self.set_mode(self.MODE_SAVES)
 
     def set_mode(self, mode: str) -> None:
-        """Swap the visible hints for *mode* (saves / catalog)."""
-        hints = self._HINTS_CATALOG if mode == self.MODE_CATALOG else self._HINTS_SAVES
+        """Swap the visible hints for *mode* (saves / catalog / installed)."""
+        if mode == self.MODE_CATALOG:
+            hints = self._HINTS_CATALOG
+        elif mode == self.MODE_INSTALLED:
+            hints = self._HINTS_INSTALLED
+        else:
+            hints = self._HINTS_SAVES
         # Tear down the previous pills and stretch so the new set lays out
         # left-aligned with a trailing stretch (matches the original look).
         while self._layout.count():
