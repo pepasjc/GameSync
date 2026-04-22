@@ -13,8 +13,15 @@ systems (configured from Settings → "Per-system ROM folders").
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Mapping, Optional
+
+_REPO_ROOT = str(Path(__file__).parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from shared.systems import normalize_system_code  # noqa: E402
 
 
 # Preferred ROM sub-folder names per system.  First existing entry wins; if
@@ -91,7 +98,13 @@ def resolve_rom_target_dir(
        convention) under ``roms_base``.  The caller is responsible for
        ``mkdir`` on the returned path.
     """
-    sys_up = system.upper()
+    # Canonicalise first so alias codes (SCD→SEGACD, GEN→MD, WS→WSWAN,
+    # folder-style names like ``megadrive``, ...) land in the same folder
+    # as their primary code.  This fixes the catalog download bug where the
+    # server emitted ``SCD`` and the client happily created ``roms/SCD``
+    # alongside the user's existing ``roms/segacd``.
+    canonical = normalize_system_code(system) or system
+    sys_up = canonical.upper()
     if overrides:
         override_raw = overrides.get(sys_up)
         if override_raw:
@@ -102,7 +115,7 @@ def resolve_rom_target_dir(
                     override_path = roms_base / override_path
                 return override_path
 
-    candidates = SYSTEM_ROM_DIRS.get(sys_up, [system, system.lower()])
+    candidates = SYSTEM_ROM_DIRS.get(sys_up, [canonical, canonical.lower()])
     for name in candidates:
         candidate = roms_base / name
         if candidate.is_dir():

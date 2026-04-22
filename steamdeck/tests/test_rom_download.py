@@ -49,6 +49,38 @@ def test_rom_target_handles_unknown_system(tmp_path):
     assert target == tmp_path / "NOPE"
 
 
+def test_rom_target_canonicalises_alias_codes(tmp_path):
+    # Regression: the server emitted ``SCD`` for Sega CD ROMs; the client
+    # used to drop them into ``roms/SCD`` next to the user's existing
+    # ``roms/segacd`` folder.  After canonicalisation via
+    # ``normalize_system_code``, ``SCD`` resolves exactly like ``SEGACD``.
+    assert (
+        resolve_rom_target_dir(tmp_path, "SCD")
+        == tmp_path / SYSTEM_ROM_DIRS["SEGACD"][0]
+    )
+    # And if the user already has ``segacd/`` on disk, the existing folder
+    # wins for both spellings.
+    (tmp_path / "segacd").mkdir()
+    assert resolve_rom_target_dir(tmp_path, "SCD") == tmp_path / "segacd"
+    assert resolve_rom_target_dir(tmp_path, "SEGACD") == tmp_path / "segacd"
+
+
+def test_rom_target_canonicalises_folder_style_system_names(tmp_path):
+    # Folder-style names (``megadrive``, ``Genesis``) also collapse to the
+    # canonical code so downloads don't fragment into a second folder.
+    (tmp_path / "megadrive").mkdir()
+    assert resolve_rom_target_dir(tmp_path, "genesis") == tmp_path / "megadrive"
+    assert resolve_rom_target_dir(tmp_path, "Mega Drive") == tmp_path / "megadrive"
+
+
+def test_rom_target_override_uses_canonical_key(tmp_path):
+    # An override configured under the canonical code should apply even if
+    # the server emits the alias spelling.
+    custom = tmp_path / "sd2" / "segacd"
+    overrides = {"SEGACD": str(custom)}
+    assert resolve_rom_target_dir(tmp_path, "SCD", overrides) == custom
+
+
 def test_rom_target_override_wins_over_existing_candidate(tmp_path):
     # Even when the default ``psx`` folder exists, a user-provided override
     # for PS1 takes priority so downloads land on a custom SD card / drive.
