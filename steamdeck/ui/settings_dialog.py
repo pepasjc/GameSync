@@ -1,5 +1,7 @@
 """Settings dialog — server config + emulation path."""
 
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -11,12 +13,19 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QSpinBox,
     QFrame,
+    QScrollArea,
+    QWidget,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
-from config import SATURN_SYNC_FORMATS, normalize_saturn_sync_format
+from config import (
+    SATURN_SYNC_FORMATS,
+    normalize_rom_dir_overrides,
+    normalize_saturn_sync_format,
+)
 from saturn_format import SATURN_DOWNLOAD_FORMATS
+from scanner.rom_target import SYSTEM_ROM_DIRS
 
 from . import theme
 from .gamepad_modal import GamepadModalMixin
@@ -100,6 +109,55 @@ class SettingsDialog(QDialog, GamepadModalMixin):
 
         layout.addWidget(_separator())
 
+        # ── Per-system ROM folder overrides ───────────────────────
+        layout.addWidget(_section_label("Per-system ROM folders"))
+
+        override_hint = QLabel(
+            "Downloads default to the EmuDeck layout "
+            "(<Emulation>/roms/<system>/).  Override individual systems "
+            "below to pin them to a custom folder — e.g. a separate SD card."
+        )
+        override_hint.setWordWrap(True)
+        override_hint.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        layout.addWidget(override_hint)
+
+        self._overrides: dict[str, str] = dict(
+            normalize_rom_dir_overrides(config.get("rom_dir_overrides"))
+        )
+        self._overrides_container = QWidget()
+        self._overrides_layout = QVBoxLayout(self._overrides_container)
+        self._overrides_layout.setContentsMargins(0, 0, 0, 0)
+        self._overrides_layout.setSpacing(4)
+
+        overrides_scroll = QScrollArea()
+        overrides_scroll.setWidgetResizable(True)
+        overrides_scroll.setWidget(self._overrides_container)
+        overrides_scroll.setMinimumHeight(140)
+        overrides_scroll.setMaximumHeight(220)
+        overrides_scroll.setStyleSheet(
+            f"background:{theme.BG_CARD}; border:1px solid {theme.TEXT_DIM}; "
+            "border-radius:4px;"
+        )
+        layout.addWidget(overrides_scroll)
+
+        add_row = QHBoxLayout()
+        self._add_system_combo = QComboBox()
+        self._add_system_combo.setStyleSheet(
+            f"background:{theme.BG_CARD}; color:{theme.TEXT_PRIMARY}; "
+            f"border:1px solid {theme.TEXT_DIM}; border-radius:4px; padding:4px;"
+        )
+        add_btn = QPushButton("Add override…")
+        add_btn.setFixedWidth(140)
+        add_btn.clicked.connect(self._add_override)
+        add_row.addWidget(QLabel("System"))
+        add_row.addWidget(self._add_system_combo, 1)
+        add_row.addWidget(add_btn)
+        layout.addLayout(add_row)
+
+        self._rebuild_override_rows()
+
+        layout.addWidget(_separator())
+
         # ── Saves ────────────────────────────────────────────────
         layout.addWidget(_section_label("Saves"))
 
@@ -146,7 +204,7 @@ class SettingsDialog(QDialog, GamepadModalMixin):
         path = QFileDialog.getExistingDirectory(
             self,
             "Select Emulation Folder",
-            self._emu_path.text() or str(__import__("pathlib").Path.home()),
+            self._emu_path.text() or str(Path.home()),
         )
         if path:
             self._emu_path.setText(path)
@@ -157,10 +215,121 @@ class SettingsDialog(QDialog, GamepadModalMixin):
             "Select ROM Directory",
             self._rom_path.text()
             or self._emu_path.text()
-            or str(__import__("pathlib").Path.home()),
+            or str(Path.home()),
         )
         if path:
             self._rom_path.setText(path)
+
+    def _override_picker_start(self, system: str) -> str:
+        """Reasonable starting folder for a per-system browse dialog."""
+        current = self._overrides.get(system, "").strip()
+        if current:
+            return current
+        rom_base = self._rom_path.text().strip() or (
+            f"{self._emu_path.text().strip()}/roms"
+            if self._emu_path.text().strip()
+            else ""
+        )
+        if rom_base:
+            candidates = SYSTEM_ROM_DIRS.get(system, [system.lower()])
+            existing = next(
+                (c for c in candidates if (Path(rom_base) / c).is_dir()),
+                None,
+            )
+            if existing:
+                return str(Path(rom_base) / existing)
+            return rom_base
+        return str(Path.home())
+
+    def _refresh_add_combo(self) -> None:
+        self._add_system_combo.blockSignals(True)
+        self._add_system_combo.clear()
+        for system in sorted(SYSTEM_ROM_DIRS.keys()):
+            if system in self._overrides:
+                continue
+            self._add_system_combo.addItem(system, system)
+        self._add_system_combo.blockSignals(False)
+
+    def _rebuild_override_rows(self) -> None:
+        while self._overrides_layout.count():
+            item = self._overrides_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+
+        if not self._overrides:
+            empty = QLabel("No overrides — all systems use the default EmuDeck layout.")
+            empty.setStyleSheet(f"color:{theme.TEXT_DIM}; padding:8px;")
+            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._overrides_layout.addWidget(empty)
+        else:
+            for system in sorted(self._overrides.keys()):
+                self._overrides_layout.addWidget(self._build_override_row(system))
+            self._overrides_layout.addStretch()
+
+        self._refresh_add_combo()
+
+    def _build_override_row(self, system: str) -> QWidget:
+        row_widget = QWidget()
+        row = QHBoxLayout(row_widget)
+        row.setContentsMargins(4, 2, 4, 2)
+
+        sys_lbl = QLabel(system)
+        sys_lbl.setFixedWidth(80)
+        sys_f = QFont()
+        sys_f.setBold(True)
+        sys_lbl.setFont(sys_f)
+        sys_lbl.setStyleSheet(f"color:{theme.ACCENT};")
+
+        path_edit = QLineEdit(self._overrides.get(system, ""))
+        path_edit.setObjectName("searchBox")
+        path_edit.textChanged.connect(
+            lambda text, s=system: self._overrides.__setitem__(s, text.strip())
+        )
+
+        browse_btn = QPushButton("Browse…")
+        browse_btn.setFixedWidth(90)
+        browse_btn.clicked.connect(
+            lambda _checked=False, s=system, e=path_edit: self._browse_override(s, e)
+        )
+
+        clear_btn = QPushButton("Remove")
+        clear_btn.setFixedWidth(90)
+        clear_btn.clicked.connect(lambda _checked=False, s=system: self._remove_override(s))
+
+        row.addWidget(sys_lbl)
+        row.addWidget(path_edit, 1)
+        row.addWidget(browse_btn)
+        row.addWidget(clear_btn)
+        return row_widget
+
+    def _browse_override(self, system: str, edit: QLineEdit) -> None:
+        path = QFileDialog.getExistingDirectory(
+            self,
+            f"Select ROM folder for {system}",
+            self._override_picker_start(system),
+        )
+        if path:
+            edit.setText(path)
+            self._overrides[system] = path
+
+    def _add_override(self) -> None:
+        system = self._add_system_combo.currentData()
+        if not system or system in self._overrides:
+            return
+        path = QFileDialog.getExistingDirectory(
+            self,
+            f"Select ROM folder for {system}",
+            self._override_picker_start(system),
+        )
+        if not path:
+            return
+        self._overrides[system] = path
+        self._rebuild_override_rows()
+
+    def _remove_override(self, system: str) -> None:
+        self._overrides.pop(system, None)
+        self._rebuild_override_rows()
 
     def get_config(self) -> dict:
         saturn_format = self._saturn_format.currentData()
@@ -170,6 +339,7 @@ class SettingsDialog(QDialog, GamepadModalMixin):
             "api_key": self._api_key["edit"].text().strip(),
             "emulation_path": self._emu_path.text().strip(),
             "rom_scan_dir": self._rom_path.text().strip(),
+            "rom_dir_overrides": normalize_rom_dir_overrides(self._overrides),
             "saturn_sync_format": normalize_saturn_sync_format(saturn_format),
         }
 

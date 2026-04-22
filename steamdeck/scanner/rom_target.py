@@ -5,11 +5,16 @@ ROMs downloaded from the server land under the same EmuDeck-style
 ``~/Emulation/roms/<system>/`` layout the scanner already reads from.  If an
 existing folder matches any candidate it wins; otherwise we create the first
 candidate (lowercase, EmuDeck convention).
+
+The caller may pass ``overrides``, a mapping of upper-case system code to an
+absolute folder path, to short-circuit the candidate search for individual
+systems (configured from Settings → "Per-system ROM folders").
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Mapping, Optional
 
 
 # Preferred ROM sub-folder names per system.  First existing entry wins; if
@@ -65,14 +70,38 @@ SYSTEM_ROM_DIRS: dict[str, list[str]] = {
 }
 
 
-def resolve_rom_target_dir(roms_base: Path, system: str) -> Path:
+def resolve_rom_target_dir(
+    roms_base: Path,
+    system: str,
+    overrides: Optional[Mapping[str, str]] = None,
+) -> Path:
     """
-    Return the folder under ``roms_base`` where a ROM for ``system`` should
-    land.  Prefers an existing folder matching any known alias; otherwise
-    falls back to the first candidate (creating nothing — the caller is
-    responsible for ``mkdir``).
+    Return the folder where a ROM for ``system`` should land.
+
+    Resolution order:
+    1. If ``overrides[system.upper()]`` is set to a non-empty path, use it
+       verbatim (absolute paths are returned as-is; relative paths resolve
+       under ``roms_base``).  This mirrors the Android client's
+       ``romDirOverrides`` so users can pin individual systems to a custom
+       folder (e.g. a separate SD card or an external drive) without
+       moving the rest of the library.
+    2. Otherwise, prefer an existing folder matching any known EmuDeck /
+       RetroDeck / Batocera alias.
+    3. Otherwise, fall back to the first candidate (lowercase, EmuDeck
+       convention) under ``roms_base``.  The caller is responsible for
+       ``mkdir`` on the returned path.
     """
     sys_up = system.upper()
+    if overrides:
+        override_raw = overrides.get(sys_up)
+        if override_raw:
+            override = str(override_raw).strip()
+            if override:
+                override_path = Path(override).expanduser()
+                if not override_path.is_absolute():
+                    override_path = roms_base / override_path
+                return override_path
+
     candidates = SYSTEM_ROM_DIRS.get(sys_up, [system, system.lower()])
     for name in candidates:
         candidate = roms_base / name

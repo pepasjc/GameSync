@@ -17,6 +17,12 @@ DEFAULT_CONFIG = {
     "api_key": "",
     "emulation_path": "",  # auto-detected if empty
     "rom_scan_dir": "",  # additional ROM scan directory (e.g. external drive)
+    # Per-system ROM folder overrides, keyed by upper-case system code
+    # (e.g. "PS1", "SAT").  Values are absolute folder paths; any system
+    # without an entry falls back to the EmuDeck-style candidate search
+    # inside ``scanner/rom_target.py``.  Mirrors Android's
+    # ``romDirOverrides`` in SettingsStore.
+    "rom_dir_overrides": {},
     # Saturn emulator format for local saves.  Server storage stays on
     # Beetle/Mednafen canonical; this just controls how the Steam Deck
     # writes Saturn saves out locally, matching Android's SettingsStore.
@@ -27,6 +33,26 @@ DEFAULT_CONFIG = {
 def normalize_saturn_sync_format(value: str | None) -> str:
     fmt = (str(value or "").strip().lower())
     return fmt if fmt in SATURN_SYNC_FORMATS else "mednafen"
+
+
+def normalize_rom_dir_overrides(value) -> dict:
+    """Coerce ``rom_dir_overrides`` to ``{upper-case system: stripped path}``.
+
+    Drops entries with empty values so ``resolve_rom_target_dir`` can short-
+    circuit on truthiness alone.  Non-dict or malformed inputs become ``{}``
+    so a corrupt config file never breaks downloads.
+    """
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, str] = {}
+    for k, v in value.items():
+        if not isinstance(k, str):
+            continue
+        path = str(v or "").strip()
+        if not path:
+            continue
+        result[k.strip().upper()] = path
+    return result
 
 
 def find_emulation_path() -> str:
@@ -87,6 +113,9 @@ def load_config() -> dict:
 
     config["saturn_sync_format"] = normalize_saturn_sync_format(
         config.get("saturn_sync_format")
+    )
+    config["rom_dir_overrides"] = normalize_rom_dir_overrides(
+        config.get("rom_dir_overrides")
     )
 
     return config

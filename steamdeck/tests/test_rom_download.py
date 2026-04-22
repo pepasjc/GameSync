@@ -13,6 +13,7 @@ STEAMDECK_ROOT = ROOT / "steamdeck"
 if str(STEAMDECK_ROOT) not in sys.path:
     sys.path.insert(0, str(STEAMDECK_ROOT))
 
+from config import normalize_rom_dir_overrides  # noqa: E402
 from scanner.rom_target import SYSTEM_ROM_DIRS, resolve_rom_target_dir  # noqa: E402
 import sync_client as sync_client_mod  # noqa: E402
 from sync_client import SyncClient  # noqa: E402
@@ -46,6 +47,75 @@ def test_rom_target_falls_back_to_first_candidate_when_none_exist(tmp_path):
 def test_rom_target_handles_unknown_system(tmp_path):
     target = resolve_rom_target_dir(tmp_path, "NOPE")
     assert target == tmp_path / "NOPE"
+
+
+def test_rom_target_override_wins_over_existing_candidate(tmp_path):
+    # Even when the default ``psx`` folder exists, a user-provided override
+    # for PS1 takes priority so downloads land on a custom SD card / drive.
+    (tmp_path / "psx").mkdir()
+    custom = tmp_path / "sd2" / "games" / "playstation"
+    overrides = {"PS1": str(custom)}
+    assert resolve_rom_target_dir(tmp_path, "PS1", overrides) == custom
+
+
+def test_rom_target_override_is_case_insensitive_on_system_key(tmp_path):
+    # Overrides from config are normalized to upper-case, but we still
+    # look them up safely regardless of how the caller passes the system.
+    custom = tmp_path / "custom"
+    overrides = {"PS1": str(custom)}
+    assert resolve_rom_target_dir(tmp_path, "ps1", overrides) == custom
+
+
+def test_rom_target_empty_override_value_falls_back_to_candidates(tmp_path):
+    # An empty string (or whitespace) shouldn't be treated as "the root of
+    # the filesystem" — we fall back to the normal candidate search.
+    (tmp_path / "psx").mkdir()
+    assert resolve_rom_target_dir(tmp_path, "PS1", {"PS1": "   "}) == tmp_path / "psx"
+
+
+def test_rom_target_override_with_relative_path_resolves_under_roms_base(tmp_path):
+    # Relative override paths (rare, but possible if someone hand-edits the
+    # JSON) resolve under the rom base instead of Path.cwd().
+    overrides = {"PS1": "my-ps1-games"}
+    assert (
+        resolve_rom_target_dir(tmp_path, "PS1", overrides)
+        == tmp_path / "my-ps1-games"
+    )
+
+
+def test_rom_target_override_missing_system_uses_candidates(tmp_path):
+    # An override for *another* system doesn't affect PS1.
+    (tmp_path / "psx").mkdir()
+    assert (
+        resolve_rom_target_dir(tmp_path, "PS1", {"GBA": "/tmp/gba"})
+        == tmp_path / "psx"
+    )
+
+
+# ---------------------------------------------------------------------------
+# normalize_rom_dir_overrides
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_overrides_uppercases_keys_and_strips_paths():
+    src = {"ps1": "  /mnt/sd2/ps1  ", "GBA": "/mnt/gba"}
+    out = normalize_rom_dir_overrides(src)
+    assert out == {"PS1": "/mnt/sd2/ps1", "GBA": "/mnt/gba"}
+
+
+def test_normalize_overrides_drops_empty_values():
+    src = {"PS1": "", "GBA": "   ", "SAT": "/mnt/saturn"}
+    assert normalize_rom_dir_overrides(src) == {"SAT": "/mnt/saturn"}
+
+
+def test_normalize_overrides_rejects_non_dict_inputs():
+    assert normalize_rom_dir_overrides(None) == {}
+    assert normalize_rom_dir_overrides("not a dict") == {}
+    assert normalize_rom_dir_overrides([("PS1", "/x")]) == {}
+
+
+def test_normalize_overrides_skips_non_string_keys():
+    assert normalize_rom_dir_overrides({42: "/x", "PS1": "/y"}) == {"PS1": "/y"}
 
 
 # ---------------------------------------------------------------------------
