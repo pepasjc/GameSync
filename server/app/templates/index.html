@@ -642,15 +642,29 @@ const STAGES = {
     'Decompressing disc image…',
     'Writing ISO file…',
   ],
+  cia: [
+    'Starting conversion…',
+    'Opening 3DS cart image…',
+    'Building installable CIA…',
+    'Writing CIA file…',
+  ],
+  decrypted_cia: [
+    'Starting conversion…',
+    'Opening 3DS cart image…',
+    'Building decrypted CIA…',
+    'Writing CIA file…',
+  ],
 };
 
 // Labels and filename suffixes per format
 const FMT_META = {
-  cue: { badge:'CUE/BIN', suffix:' · packaging as ZIP', ext:'.zip',  errHint:'Check that chdman is installed on the server.' },
-  gdi: { badge:'GDI',     suffix:' · packaging as ZIP', ext:'.zip',  errHint:'Check that chdman is installed on the server.' },
-  iso: { badge:'ISO',     suffix:'',                    ext:'.iso',  errHint:'Check that chdman is installed on the server.' },
-  cso: { badge:'CSO',     suffix:' · compressing',      ext:'.cso',  errHint:'Check that chdman and ciso/maxcso are installed on the server.' },
-  rvz: { badge:'ISO',     suffix:'',                    ext:'.iso',  errHint:'Check that DolphinTool is installed on the server.' },
+  cue: { badge:'CUE/BIN',       source:'CHD',     suffix:' · packaging as ZIP', ext:'.zip',  errHint:'Check that chdman is installed on the server.' },
+  gdi: { badge:'GDI',           source:'CHD',     suffix:' · packaging as ZIP', ext:'.zip',  errHint:'Check that chdman is installed on the server.' },
+  iso: { badge:'ISO',           source:'CHD',     suffix:'',                    ext:'.iso',  errHint:'Check that chdman is installed on the server.' },
+  cso: { badge:'CSO',           source:'CHD',     suffix:' · compressing',      ext:'.cso',  errHint:'Check that chdman and ciso/maxcso are installed on the server.' },
+  rvz: { badge:'ISO',           source:'RVZ',     suffix:'',                    ext:'.iso',  errHint:'Check that DolphinTool is installed on the server.' },
+  cia: { badge:'CIA',           source:'3DS ZIP', suffix:'',                    ext:'.cia',  errHint:'Check that SYNC_ROM_3DS_CIA_COMMAND is configured on the server.' },
+  decrypted_cia: { badge:'DEC CIA', source:'3DS ZIP', suffix:' · decrypted',    ext:'.cia',  errHint:'Check that SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND is configured on the server.' },
 };
 
 function queueKey(titleId, fmt) {
@@ -666,6 +680,7 @@ function buildExtractFilename(titleId, gameName, fmt) {
   const stem = gameName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || titleId;
   return fmt === 'cue' ? `${stem}_cue.zip`
        : fmt === 'gdi' ? `${stem}_gdi.zip`
+       : fmt === 'decrypted_cia' ? `${stem}_decrypted.cia`
        : `${stem}${meta.ext}`;
 }
 
@@ -736,7 +751,7 @@ function renderQueue() {
               <div class="queue-item-title">${esc(active.gameName)}</div>
               <div class="queue-item-meta">
                 <span class="conv-fmt-badge">${meta.badge}</span>
-                <span>CHD${meta.suffix}</span>
+                <span>${meta.source}${meta.suffix}</span>
               </div>
             </div>
             <div class="queue-item-actions">
@@ -818,7 +833,7 @@ function renderQueue() {
 
   qs('#queue-body').innerHTML = sections.length
     ? sections.join('')
-    : `<div class="queue-empty">CHD conversions run here in the background so you can keep browsing and queue more games.</div>`;
+    : `<div class="queue-empty">ROM conversions run here in the background so you can keep browsing and queue more games.</div>`;
 }
 
 function enqueueExtract(titleId, gameName, fmt) {
@@ -1026,12 +1041,14 @@ function renderRoms() {
     for (const rom of groups[sys]) {
       const tid  = esc(rom.title_id);
       const fn   = esc(rom.filename || rom.title_id);
-      const fmt  = rom.extract_format; // 'cue', 'gdi', 'psp', or undefined
+      const fmt  = rom.extract_format; // legacy single-format hint
+      const extractFormats = Array.isArray(rom.extract_formats) ? rom.extract_formats : [];
       const rawUrl = `/api/v1/roms/${encodeURIComponent(rom.title_id)}`;
+      const rawLabel = (rom.filename?.split('.').pop() || 'ROM').toUpperCase();
 
       // Button group — varies by extract_format
       let btnHtml;
-      if (fmt === 'psp') {
+      if (extractFormats.length && extractFormats.includes('iso') && extractFormats.includes('cso')) {
         // PSP: three options — ISO, CSO, CHD
         btnHtml = `<div class="rom-btns">
           <button class="dl-btn extract" data-action="extract"
@@ -1042,21 +1059,22 @@ function renderRoms() {
             title="Extract and compress to CSO">CSO</button>
           <button class="dl-btn" data-action="dl"
             data-url="${rawUrl}" data-fn="${fn}"
-            title="Download original CHD">CHD</button>
+            title="Download original ${rawLabel}">${rawLabel}</button>
         </div>`;
-      } else if (fmt === 'gdi' || fmt === 'cue') {
+      } else if (extractFormats.length === 1 && (extractFormats[0] === 'gdi' || extractFormats[0] === 'cue')) {
         // CD-ROM: two options — CUE/BIN zip or GDI zip, plus CHD
-        const label = fmt === 'gdi' ? 'GDI' : 'CUE/BIN';
-        const tip   = fmt === 'gdi' ? 'GDI (Dreamcast) ZIP' : 'CUE/BIN ZIP';
+        const singleFmt = extractFormats[0];
+        const label = singleFmt === 'gdi' ? 'GDI' : 'CUE/BIN';
+        const tip   = singleFmt === 'gdi' ? 'GDI (Dreamcast) ZIP' : 'CUE/BIN ZIP';
         btnHtml = `<div class="rom-btns">
           <button class="dl-btn extract" data-action="extract"
-            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="${fmt}"
+            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="${singleFmt}"
             title="Convert to ${tip}">${label}</button>
           <button class="dl-btn" data-action="dl"
             data-url="${rawUrl}" data-fn="${fn}"
-            title="Download original CHD">CHD</button>
+            title="Download original ${rawLabel}">${rawLabel}</button>
         </div>`;
-      } else if (fmt === 'rvz') {
+      } else if (extractFormats.length === 1 && extractFormats[0] === 'iso' && fmt === 'rvz') {
         // GameCube / Wii: ISO conversion + original RVZ download
         btnHtml = `<div class="rom-btns">
           <button class="dl-btn extract" data-action="extract"
@@ -1064,7 +1082,19 @@ function renderRoms() {
             title="Convert RVZ to ISO">ISO</button>
           <button class="dl-btn" data-action="dl"
             data-url="${rawUrl}" data-fn="${fn}"
-            title="Download original RVZ">RVZ</button>
+            title="Download original ${rawLabel}">${rawLabel}</button>
+        </div>`;
+      } else if (extractFormats.includes('cia') && extractFormats.includes('decrypted_cia')) {
+        btnHtml = `<div class="rom-btns">
+          <button class="dl-btn extract" data-action="extract"
+            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cia"
+            title="Convert to installable CIA">CIA</button>
+          <button class="dl-btn extract" data-action="extract"
+            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cia"
+            title="Convert to decrypted CIA for emulators">DEC CIA</button>
+          <button class="dl-btn" data-action="dl"
+            data-url="${rawUrl}" data-fn="${fn}"
+            title="Download original ${rawLabel}">${rawLabel}</button>
         </div>`;
       } else {
         btnHtml = `<button class="dl-btn" data-action="dl"

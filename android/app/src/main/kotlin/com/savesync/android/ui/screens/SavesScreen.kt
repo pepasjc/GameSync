@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,6 +79,8 @@ import com.savesync.android.storage.SyncStateEntity
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.SaveSyncStatus
 import com.savesync.android.ui.SyncState
+import com.savesync.android.ui.components.SystemFilterChip
+import com.savesync.android.ui.components.TabSwitchBar
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.net.URI
@@ -90,7 +93,8 @@ fun SavesScreen(
     viewModel: MainViewModel,
     syncStateEntities: List<SyncStateEntity>,
     onNavigateToSettings: () -> Unit,
-    onNavigateToDetail: (String) -> Unit = {}
+    onNavigateToDetail: (String) -> Unit = {},
+    onNavigateToTab: (Int) -> Unit = {},
 ) {
     val context = LocalContext.current
     val saves by viewModel.saves.collectAsState()
@@ -108,19 +112,16 @@ fun SavesScreen(
     var showSyncConfirmDialog by remember { mutableStateOf(false) }
 
     // ── Manual D-pad selection state ─────────────────────────────────────
-    // Instead of relying on Compose's focus system (which leaks to toolbar),
-    // we track the selected index ourselves and scroll the list manually.
+    // We track the selected index ourselves and scroll the list manually so
+    // the gamepad cursor doesn't leak to the toolbar actions above it.
     var selectedIndex by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val searchFocusRequester = remember { FocusRequester() }
+    // Parent container steals focus on entry so the search TextField below
+    // doesn't auto-focus and pop the keyboard when this tab opens.
+    val listFocusRequester = remember { FocusRequester() }
 
-    // ── Toolbar focus mode ───────────────────────────────────────────────
-    // Y button cycles between game list and toolbar. In toolbar mode,
-    // D-pad left/right selects toolbar items, A activates, Y/B returns.
-    var toolbarMode by remember { mutableStateOf(false) }
-    var toolbarSelectedIndex by remember { mutableIntStateOf(0) }
-    val toolbarItemCount = 5 // Sync, Search, Filter, Web, Settings
     val webLibraryUrl = remember(settings.serverUrl) { buildWebLibraryUrl(settings.serverUrl) }
 
     // Clamp selection when list size changes (e.g. filter applied)
@@ -135,6 +136,13 @@ fun SavesScreen(
         if (searchVisible) {
             searchFocusRequester.requestFocus()
         }
+    }
+
+    // On entry, claim focus for the list container so the search TextField
+    // doesn't auto-focus. Matches the Steam Deck "land on the game list, not
+    // the search" behaviour.
+    LaunchedEffect(Unit) {
+        runCatching { listFocusRequester.requestFocus() }
     }
 
     // Show sync result in snackbar
@@ -163,33 +171,23 @@ fun SavesScreen(
         else -> "Sync ${saves.size} $selectedFilter saves?"
     }
 
-    val filterLabel = buildString {
-        if (selectedFilter != "All") append(selectedFilter)
-        if (statusFilter != null) {
-            if (isNotEmpty()) append(" · ")
-            append(statusFilter!!.label)
-        }
-        if (searchQuery.isNotBlank()) {
-            if (isNotEmpty()) append(" · ")
-            append("\"$searchQuery\"")
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("GameSync", style = MaterialTheme.typography.titleMedium)
-                        if (filterLabel.isNotEmpty()) {
-                            Text(
-                                text = filterLabel,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        TabSwitchBar(
+                            activeTabIndex = 0,
+                            onTabClick = onNavigateToTab,
+                        )
+                        SystemFilterChip(
+                            label = selectedFilter,
+                            options = availableFilters,
+                            onSelect = { viewModel.setFilter(it) },
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -206,86 +204,38 @@ fun SavesScreen(
                             modifier = Modifier.padding(end = 4.dp)
                         )
                     }
-                    // Toolbar item 0: Sync
-                    val syncHighlight = toolbarMode && toolbarSelectedIndex == 0
-                    Box(
-                        modifier = if (syncHighlight) Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f))
-                        else Modifier
-                    ) {
-                        if (isSyncing) {
-                            Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            }
-                        } else {
-                            IconButton(onClick = { showSyncConfirmDialog = true }) {
-                                Icon(Icons.Default.Sync, contentDescription = "Sync (X)")
-                            }
-                        }
-                    }
-                    // Toolbar item 1: Search
-                    val searchHighlight = toolbarMode && toolbarSelectedIndex == 1
-                    Box(
-                        modifier = if (searchHighlight) Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f))
-                        else Modifier
-                    ) {
-                        IconButton(onClick = {
-                            searchVisible = !searchVisible
-                            if (!searchVisible) viewModel.setSearchQuery("")
-                            toolbarMode = false
-                        }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search (Y)")
-                        }
-                    }
-                    // Toolbar item 2: Filter
-                    val filterHighlight = toolbarMode && toolbarSelectedIndex == 2
-                    Box(
-                        modifier = if (filterHighlight) Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f))
-                        else Modifier
-                    ) {
-                        IconButton(onClick = {
-                            filterMenuExpanded = true
-                            toolbarMode = false
-                        }) {
-                            Icon(Icons.Default.FilterList, contentDescription = "Filters (L1/R1)")
-                        }
-                        DropdownMenu(
-                            expanded = filterMenuExpanded,
-                            onDismissRequest = { filterMenuExpanded = false }
-                        ) {
-                            Text(
-                                "System",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    // Sync (X button)
+                    if (isSyncing) {
+                        Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
-                            availableFilters.forEach { filter ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = filter,
-                                            fontWeight = if (filter == selectedFilter) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    },
-                                    onClick = {
-                                        viewModel.setFilter(filter)
-                                        filterMenuExpanded = false
-                                    },
-                                    leadingIcon = if (filter == selectedFilter) {
-                                        { Text("✓", fontWeight = FontWeight.Bold) }
-                                    } else null
-                                )
+                        }
+                    } else {
+                        IconButton(onClick = { showSyncConfirmDialog = true }) {
+                            Icon(Icons.Default.Sync, contentDescription = "Sync (X)")
+                        }
+                    }
+                    // Search (Y button)
+                    IconButton(onClick = {
+                        searchVisible = !searchVisible
+                        if (!searchVisible) viewModel.setSearchQuery("")
+                    }) {
+                        Icon(Icons.Default.Search, contentDescription = "Search (Y)")
+                    }
+                    // Status filter dropdown. System is in the toolbar chip
+                    // now, so this button only filters by sync status.
+                    if (availableStatusFilters.isNotEmpty()) {
+                        Box {
+                            IconButton(onClick = { filterMenuExpanded = true }) {
+                                Icon(Icons.Default.FilterList, contentDescription = "Status filter")
                             }
-                            if (availableStatusFilters.isNotEmpty()) {
+                            DropdownMenu(
+                                expanded = filterMenuExpanded,
+                                onDismissRequest = { filterMenuExpanded = false }
+                            ) {
                                 Text(
                                     "Status",
                                     style = MaterialTheme.typography.labelSmall,
@@ -328,175 +278,141 @@ fun SavesScreen(
                             }
                         }
                     }
-                    // Toolbar item 3: Web ROM library
-                    val webHighlight = toolbarMode && toolbarSelectedIndex == 3
-                    Box(
-                        modifier = if (webHighlight) Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f))
-                        else Modifier
+                    // Web ROM library (touch only)
+                    IconButton(
+                        onClick = {
+                            webLibraryUrl?.let { url ->
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                        },
+                        enabled = webLibraryUrl != null
                     ) {
-                        IconButton(
-                            onClick = {
-                                webLibraryUrl?.let { url ->
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                }
-                                toolbarMode = false
-                            },
-                            enabled = webLibraryUrl != null
-                        ) {
-                            Icon(Icons.Default.Language, contentDescription = "Web ROM Library")
-                        }
+                        Icon(Icons.Default.Language, contentDescription = "Web ROM Library")
                     }
-                    // Toolbar item 4: Settings
-                    val settingsHighlight = toolbarMode && toolbarSelectedIndex == 4
-                    Box(
-                        modifier = if (settingsHighlight) Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f))
-                        else Modifier
-                    ) {
-                        IconButton(onClick = {
-                            onNavigateToSettings()
-                            toolbarMode = false
-                        }) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings (Start)")
-                        }
+                    // Settings (Start button)
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings (Start)")
                     }
                 }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        // ── Master key handler ───────────────────────────────────────────
-        // Intercept ALL D-pad / gamepad keys at the top level.
-        // D-pad up/down changes selectedIndex, A confirms, shoulder buttons
-        // cycle filters. This completely bypasses Compose's focus traversal.
+        // ── Master gamepad handler ───────────────────────────────────────
+        // D-pad up/down scrolls the list, left/right cycles the status
+        // filter, L1/R1 cycles the system filter, and the face/start
+        // buttons mirror the TopAppBar actions. L2/R2 tab-switching is
+        // handled at the Activity level, not here, so we don't consume
+        // them below.
         SwipeRefresh(
             state = rememberSwipeRefreshState(isRefreshing = isSyncing),
             onRefresh = { viewModel.scanSaves() },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .focusRequester(listFocusRequester)
+                .focusable()
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-
-                    // ── Toolbar mode: D-pad navigates toolbar items ──────
-                    if (toolbarMode) {
-                        when (event.key) {
-                            Key.DirectionLeft -> {
-                                toolbarSelectedIndex = (toolbarSelectedIndex - 1 + toolbarItemCount) % toolbarItemCount
-                                true
-                            }
-                            Key.DirectionRight -> {
-                                toolbarSelectedIndex = (toolbarSelectedIndex + 1) % toolbarItemCount
-                                true
-                            }
-                            // A / Enter → activate selected toolbar item
-                            Key.ButtonA, Key.Enter -> {
-                                when (toolbarSelectedIndex) {
-                                    0 -> { // Sync
-                                        if (!isSyncing) showSyncConfirmDialog = true
-                                    }
-                                    1 -> { // Search
-                                        searchVisible = !searchVisible
-                                        if (!searchVisible) viewModel.setSearchQuery("")
-                                    }
-                                    2 -> filterMenuExpanded = true  // Filter
-                                    3 -> {
-                                        webLibraryUrl?.let { url ->
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                        }
-                                    }
-                                    4 -> onNavigateToSettings()     // Settings
+                    when (event.key) {
+                        // D-pad / analog stick — vertical: scroll list
+                        Key.DirectionDown -> {
+                            if (saves.isNotEmpty()) {
+                                selectedIndex = (selectedIndex + 1).coerceAtMost(saves.size - 1)
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(selectedIndex)
                                 }
-                                toolbarMode = false
-                                true
                             }
-                            // Y or B → return to list mode
-                            Key.ButtonY, Key.ButtonB, Key.Escape -> {
-                                toolbarMode = false
-                                true
-                            }
-                            // Consume everything else in toolbar mode
-                            Key.DirectionUp, Key.DirectionDown -> true
-                            else -> false
+                            true
                         }
-                    } else {
-                        // ── List mode: normal D-pad + gamepad shortcuts ──
-                        when (event.key) {
-                            // D-pad / analog stick navigation
-                            Key.DirectionDown -> {
-                                if (saves.isNotEmpty()) {
-                                    selectedIndex = (selectedIndex + 1).coerceAtMost(saves.size - 1)
-                                    coroutineScope.launch {
-                                        listState.animateScrollToItem(selectedIndex)
-                                    }
+                        Key.DirectionUp -> {
+                            if (saves.isNotEmpty()) {
+                                selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(selectedIndex)
                                 }
-                                true
                             }
-                            Key.DirectionUp -> {
-                                if (saves.isNotEmpty()) {
-                                    selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
-                                    coroutineScope.launch {
-                                        listState.animateScrollToItem(selectedIndex)
-                                    }
-                                }
-                                true
-                            }
-                            // A / Enter → open selected game
-                            Key.ButtonA, Key.Enter -> {
-                                if (saves.isNotEmpty()) {
-                                    onNavigateToDetail(saves[selectedIndex].titleId)
-                                }
-                                true
-                            }
-                            // Y → cycle to toolbar mode
-                            Key.ButtonY -> {
-                                toolbarMode = true
-                                toolbarSelectedIndex = 0
-                                true
-                            }
-                            // X → sync (with confirmation)
-                            Key.ButtonX -> {
-                                if (!isSyncing) showSyncConfirmDialog = true
-                                true
-                            }
-                            // Start → settings
-                            Key.ButtonStart -> {
-                                onNavigateToSettings()
-                                true
-                            }
-                            // L1 → previous system filter
-                            Key.ButtonL1 -> {
-                                val idx = availableFilters.indexOf(selectedFilter)
-                                viewModel.setFilter(availableFilters.getOrElse(idx - 1) { availableFilters.last() })
-                                true
-                            }
-                            // R1 → next system filter
-                            Key.ButtonR1 -> {
-                                val idx = availableFilters.indexOf(selectedFilter)
-                                viewModel.setFilter(availableFilters.getOrElse(idx + 1) { availableFilters.first() })
-                                true
-                            }
-                            // L2 → previous status filter
-                            Key.ButtonL2 -> {
-                                val all = listOf(null) + availableStatusFilters
-                                val idx = all.indexOf(statusFilter)
-                                viewModel.setStatusFilter(all.getOrElse(idx - 1) { all.last() })
-                                true
-                            }
-                            // R2 → next status filter
-                            Key.ButtonR2 -> {
-                                val all = listOf(null) + availableStatusFilters
-                                val idx = all.indexOf(statusFilter)
-                                viewModel.setStatusFilter(all.getOrElse(idx + 1) { all.first() })
-                                true
-                            }
-                            // Consume left/right so they don't escape to system navigation
-                            Key.DirectionLeft, Key.DirectionRight -> true
-                            else -> false
+                            true
                         }
+                        // D-pad / stick left/right → cycle system filter
+                        // (unified behaviour across all three tabs)
+                        Key.DirectionLeft -> {
+                            if (availableFilters.isNotEmpty()) {
+                                val idx = availableFilters.indexOf(selectedFilter)
+                                    .let { if (it < 0) 0 else it }
+                                val next = (idx - 1 + availableFilters.size) % availableFilters.size
+                                viewModel.setFilter(availableFilters[next])
+                            }
+                            true
+                        }
+                        Key.DirectionRight -> {
+                            if (availableFilters.isNotEmpty()) {
+                                val idx = availableFilters.indexOf(selectedFilter)
+                                    .let { if (it < 0) 0 else it }
+                                val next = (idx + 1) % availableFilters.size
+                                viewModel.setFilter(availableFilters[next])
+                            }
+                            true
+                        }
+                        // A / Enter → open selected game
+                        Key.ButtonA, Key.Enter -> {
+                            if (saves.isNotEmpty()) {
+                                onNavigateToDetail(saves[selectedIndex].titleId)
+                            }
+                            true
+                        }
+                        // B / Escape → close search if open
+                        Key.ButtonB, Key.Escape, Key.Back -> {
+                            if (searchVisible) {
+                                searchVisible = false
+                                viewModel.setSearchQuery("")
+                                true
+                            } else false
+                        }
+                        // Y → toggle search
+                        Key.ButtonY -> {
+                            searchVisible = !searchVisible
+                            if (!searchVisible) viewModel.setSearchQuery("")
+                            true
+                        }
+                        // X → sync (with confirmation)
+                        Key.ButtonX -> {
+                            if (!isSyncing) showSyncConfirmDialog = true
+                            true
+                        }
+                        // Start → settings
+                        Key.ButtonStart -> {
+                            onNavigateToSettings()
+                            true
+                        }
+                        // L1 / R1 → page scroll (Steam Deck parity).
+                        // Page size = currently-visible items count, so
+                        // each tap jumps roughly one viewport.
+                        Key.ButtonL1 -> {
+                            if (saves.isNotEmpty()) {
+                                val page = listState.layoutInfo.visibleItemsInfo.size
+                                    .coerceAtLeast(1)
+                                selectedIndex = (selectedIndex - page).coerceAtLeast(0)
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(selectedIndex)
+                                }
+                            }
+                            true
+                        }
+                        Key.ButtonR1 -> {
+                            if (saves.isNotEmpty()) {
+                                val page = listState.layoutInfo.visibleItemsInfo.size
+                                    .coerceAtLeast(1)
+                                selectedIndex = (selectedIndex + page)
+                                    .coerceAtMost(saves.size - 1)
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(selectedIndex)
+                                }
+                            }
+                            true
+                        }
+                        // L2 / R2 are Activity-level tab switches — let them bubble up.
+                        else -> false
                     }
                 }
         ) {
@@ -530,41 +446,6 @@ fun SavesScreen(
                         onSelectIndex = { selectedIndex = it },
                         modifier = Modifier.weight(1f)
                     )
-                }
-
-                // Toolbar mode indicator at bottom of list area
-                if (toolbarMode) {
-                    val toolbarItems = listOf("Sync", "Search", "Filter", "Web", "Settings")
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        toolbarItems.forEachIndexed { idx, label ->
-                            val isActive = idx == toolbarSelectedIndex
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(
-                                        if (isActive) MaterialTheme.colorScheme.primary
-                                        else Color.Transparent
-                                    )
-                                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isActive) MaterialTheme.colorScheme.onPrimary
-                                            else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (idx < toolbarItems.size - 1) Spacer(Modifier.width(8.dp))
-                        }
-                    }
                 }
             }
         }

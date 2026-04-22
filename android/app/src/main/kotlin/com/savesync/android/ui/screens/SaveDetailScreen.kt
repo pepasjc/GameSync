@@ -1,5 +1,7 @@
 package com.savesync.android.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +18,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -51,11 +55,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
@@ -77,7 +84,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SaveDetailScreen(
     titleId: String,
@@ -268,19 +275,6 @@ fun SaveDetailScreen(
     }
 
     Scaffold(
-        modifier = Modifier
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when (event.key) {
-                    // Gamepad B / Escape → navigate back
-                    Key.ButtonB, Key.Escape, Key.Back -> {
-                        onNavigateBack()
-                        true
-                    }
-                    else -> false
-                }
-            }
-            .focusable(),
         topBar = {
             TopAppBar(
                 title = { Text(entry?.displayName ?: titleId, maxLines = 1) },
@@ -325,12 +319,170 @@ fun SaveDetailScreen(
             viewModel.detailLocalSize(entry)
         }
 
+        // ── ROM availability (needed before we build the action list) ──
+        val romAvailable by viewModel.romAvailable.collectAsState()
+        val romsByTitle by viewModel.romsByTitle.collectAsState()
+        val romDownloadState by viewModel.romDownloadState.collectAsState()
+        val romBusy = romDownloadState is MainViewModel.RomDownloadState.Downloading
+        val hasRom = entry.titleId in romAvailable
+        val roms = if (hasRom) romsByTitle[entry.titleId].orEmpty() else emptyList()
+
+        // ── Gamepad navigation state ───────────────────────────────────
+        val focusRequester = remember { FocusRequester() }
+        var selectedActionIndex by remember { mutableIntStateOf(0) }
+
+        // Hoist theme colors out of Composable scope so they're usable
+        // inside the plain-Kotlin buildList below.
+        val primaryColor = MaterialTheme.colorScheme.primary
+        val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+        val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+        // Derive the ordered list of gamepad-selectable action buttons.
+        // The list order dictates D-pad up/down traversal.
+        val actions: List<DetailAction> = buildList {
+            add(DetailAction(
+                label = if (isBusy && detailState.isSync) "Syncing…" else "Smart Sync",
+                icon = Icons.Default.Sync,
+                enabled = !isBusy && (!entry.isServerOnly || canDownloadSave),
+                containerColor = primaryColor,
+                isBusy = isBusy && detailState.isSync,
+                onClick = { viewModel.syncSave(entry) }
+            ))
+            add(DetailAction(
+                label = if (isBusy && detailState.isUpload) "Uploading…" else "Force Upload ↑",
+                icon = Icons.Default.CloudUpload,
+                enabled = !isBusy && canUploadSave,
+                containerColor = Color(0xFF1565C0),
+                isBusy = isBusy && detailState.isUpload,
+                onClick = { viewModel.uploadSave(entry) }
+            ))
+            add(DetailAction(
+                label = if (isBusy && detailState.isDownload) "Downloading…" else "Force Download ↓",
+                icon = Icons.Default.CloudDownload,
+                enabled = !isBusy && canDownloadSave,
+                containerColor = Color(0xFF2E7D32),
+                isBusy = isBusy && detailState.isDownload,
+                onClick = { viewModel.downloadSave(entry) }
+            ))
+            if (hasRom) {
+                if (roms.size <= 1) {
+                    val rom = roms.firstOrNull()
+                    add(DetailAction(
+                        label = when (romDownloadState) {
+                            is MainViewModel.RomDownloadState.Downloading -> "Downloading ROM…"
+                            is MainViewModel.RomDownloadState.Success -> "✓ ROM Downloaded"
+                            else -> "Download ROM"
+                        },
+                        icon = Icons.Default.CloudDownload,
+                        enabled = !isBusy && !romBusy && rom != null,
+                        containerColor = Color(0xFF6A1B9A),
+                        isBusy = romBusy,
+                        onClick = {
+                            if (rom != null) {
+                                viewModel.downloadRom(
+                                    rom.rom_id ?: rom.title_id, rom.system, rom.filename
+                                )
+                            }
+                        }
+                    ))
+                } else {
+                    roms.forEachIndexed { index, rom ->
+                        add(DetailAction(
+                            label = when (romDownloadState) {
+                                is MainViewModel.RomDownloadState.Downloading -> "Downloading ${rom.filename}…"
+                                is MainViewModel.RomDownloadState.Success -> "✓ ${rom.filename} downloaded"
+                                else -> "Download ${rom.filename}"
+                            },
+                            icon = Icons.Default.CloudDownload,
+                            enabled = !isBusy && !romBusy,
+                            containerColor = Color(0xFF6A1B9A),
+                            isBusy = romBusy,
+                            headerAbove = if (index == 0) "Available ROMs" else null,
+                            onClick = {
+                                viewModel.downloadRom(
+                                    rom.rom_id ?: rom.title_id, rom.system, rom.filename
+                                )
+                            }
+                        ))
+                    }
+                }
+            }
+            if (!entry.isServerOnly && entry.systemName != "PSP") {
+                add(DetailAction(
+                    label = if (isBusy && detailState.isNormalize) "Normalizing…" else
+                        entry.canonicalName?.let { "Normalize (→ $it)" } ?: "Normalize Name",
+                    icon = Icons.Default.Edit,
+                    enabled = !isBusy,
+                    containerColor = surfaceVariantColor,
+                    contentColor = onSurfaceVariantColor,
+                    isBusy = isBusy && detailState.isNormalize,
+                    dividerAbove = true,
+                    onClick = { viewModel.normalizeRomAndSave(entry) }
+                ))
+            }
+        }
+
+        // Clamp selection when the list size changes (e.g. ROM availability
+        // resolves, or Normalize becomes applicable).
+        LaunchedEffect(actions.size) {
+            if (actions.isNotEmpty()) {
+                selectedActionIndex = selectedActionIndex.coerceIn(0, actions.size - 1)
+            } else {
+                selectedActionIndex = 0
+            }
+        }
+
+        // Per-action requesters so D-pad/stick scrolls the selected button
+        // into the visible window on smaller screens (verticalScroll).
+        val bringRequesters = remember(actions.size) {
+            List(actions.size) { BringIntoViewRequester() }
+        }
+        LaunchedEffect(selectedActionIndex, actions.size) {
+            bringRequesters.getOrNull(selectedActionIndex)?.bringIntoView()
+        }
+
+        // Claim focus on entry so the D-pad/stick immediately drive nav.
+        LaunchedEffect(Unit) {
+            runCatching { focusRequester.requestFocus() }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 20.dp, vertical = 12.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .focusRequester(focusRequester)
+                .focusable()
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.DirectionDown -> {
+                            if (actions.isNotEmpty()) {
+                                selectedActionIndex = (selectedActionIndex + 1)
+                                    .coerceAtMost(actions.size - 1)
+                            }
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            if (actions.isNotEmpty()) {
+                                selectedActionIndex = (selectedActionIndex - 1)
+                                    .coerceAtLeast(0)
+                            }
+                            true
+                        }
+                        Key.ButtonA, Key.Enter -> {
+                            actions.getOrNull(selectedActionIndex)
+                                ?.takeIf { it.enabled }?.onClick?.invoke()
+                            true
+                        }
+                        Key.ButtonB, Key.Escape, Key.Back -> {
+                            onNavigateBack()
+                            true
+                        }
+                        else -> false
+                    }
+                },
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // System badge + sync status badge + picker for RETRO
@@ -397,89 +549,32 @@ fun SaveDetailScreen(
 
             HorizontalDivider()
 
-            // ── Action buttons ────────────────────────────────────────────
-            ActionButton(
-                label = if (isBusy && detailState.isSync) "Syncing…" else "Smart Sync",
-                icon = Icons.Default.Sync,
-                enabled = !isBusy && (!entry.isServerOnly || canDownloadSave),
-                containerColor = MaterialTheme.colorScheme.primary,
-                isBusy = isBusy && detailState.isSync,
-                onClick = { viewModel.syncSave(entry) }
-            )
-            ActionButton(
-                label = if (isBusy && detailState.isUpload) "Uploading…" else "Force Upload ↑",
-                icon = Icons.Default.CloudUpload,
-                enabled = !isBusy && canUploadSave,
-                containerColor = Color(0xFF1565C0),
-                isBusy = isBusy && detailState.isUpload,
-                onClick = { viewModel.uploadSave(entry) }
-            )
-            ActionButton(
-                label = if (isBusy && detailState.isDownload) "Downloading…" else "Force Download ↓",
-                icon = Icons.Default.CloudDownload,
-                enabled = !isBusy && canDownloadSave,
-                containerColor = Color(0xFF2E7D32),
-                isBusy = isBusy && detailState.isDownload,
-                onClick = { viewModel.downloadSave(entry) }
-            )
-
-            // ROM download button — shown when server has a ROM for this title
-            val romAvailable by viewModel.romAvailable.collectAsState()
-            val romsByTitle by viewModel.romsByTitle.collectAsState()
-            val romDownloadState by viewModel.romDownloadState.collectAsState()
-            if (entry.titleId in romAvailable) {
-                val romBusy = romDownloadState is MainViewModel.RomDownloadState.Downloading
-                val roms = romsByTitle[entry.titleId].orEmpty()
-                if (roms.size <= 1) {
-                    val rom = roms.firstOrNull()
-                    ActionButton(
-                        label = when (romDownloadState) {
-                            is MainViewModel.RomDownloadState.Downloading -> "Downloading ROM…"
-                            is MainViewModel.RomDownloadState.Success -> "✓ ROM Downloaded"
-                            else -> "Download ROM"
-                        },
-                        icon = Icons.Default.CloudDownload,
-                        enabled = !isBusy && !romBusy && rom != null,
-                        containerColor = Color(0xFF6A1B9A),
-                        isBusy = romBusy,
-                        onClick = {
-                            if (rom != null) {
-                                viewModel.downloadRom(
-                                    rom.rom_id ?: rom.title_id,
-                                    rom.system,
-                                    rom.filename
-                                )
-                            }
-                        }
-                    )
-                } else {
+            // ── Gamepad-navigable action buttons ────────────────────────
+            actions.forEachIndexed { index, action ->
+                if (action.dividerAbove) {
+                    HorizontalDivider()
+                }
+                action.headerAbove?.let { header ->
                     Text(
-                        "Available ROMs",
+                        header,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
-                    roms.forEach { rom ->
-                        ActionButton(
-                            label = when (romDownloadState) {
-                                is MainViewModel.RomDownloadState.Downloading -> "Downloading ${rom.filename}…"
-                                is MainViewModel.RomDownloadState.Success -> "✓ ${rom.filename} downloaded"
-                                else -> "Download ${rom.filename}"
-                            },
-                            icon = Icons.Default.CloudDownload,
-                            enabled = !isBusy && !romBusy,
-                            containerColor = Color(0xFF6A1B9A),
-                            isBusy = romBusy,
-                            onClick = {
-                                viewModel.downloadRom(
-                                    rom.rom_id ?: rom.title_id,
-                                    rom.system,
-                                    rom.filename
-                                )
-                            }
-                        )
-                    }
                 }
+                ActionButton(
+                    label = action.label,
+                    icon = action.icon,
+                    enabled = action.enabled,
+                    containerColor = action.containerColor,
+                    contentColor = action.contentColor,
+                    isBusy = action.isBusy,
+                    isSelected = index == selectedActionIndex,
+                    onClick = action.onClick,
+                    modifier = Modifier.bringIntoViewRequester(bringRequesters[index]),
+                )
             }
+
+            // ROM download result banner (not a gamepad-selectable item).
             when (val s = romDownloadState) {
                 is MainViewModel.RomDownloadState.Success ->
                     Text(
@@ -502,22 +597,29 @@ fun SaveDetailScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (!entry.isServerOnly && entry.systemName != "PSP") {
-                HorizontalDivider()
-                ActionButton(
-                    label = if (isBusy && detailState.isNormalize) "Normalizing…" else
-                        entry.canonicalName?.let { "Normalize (→ $it)" } ?: "Normalize Name",
-                    icon = Icons.Default.Edit,
-                    enabled = !isBusy,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    isBusy = isBusy && detailState.isNormalize,
-                    onClick = { viewModel.normalizeRomAndSave(entry) }
-                )
-            }
         }
     }
 }
+
+/**
+ * One gamepad-selectable action on the detail screen.
+ *
+ * `dividerAbove` / `headerAbove` control the non-selectable separators
+ * that precede the button (e.g. the "Available ROMs" header, or the
+ * divider before "Normalize Name") so the visual grouping survives the
+ * move from hand-rolled Composables to a list-driven render.
+ */
+private data class DetailAction(
+    val label: String,
+    val icon: ImageVector,
+    val enabled: Boolean,
+    val containerColor: Color,
+    val contentColor: Color = Color.White,
+    val isBusy: Boolean,
+    val dividerAbove: Boolean = false,
+    val headerAbove: String? = null,
+    val onClick: () -> Unit,
+)
 
 private val knownSystems = listOf(
     "GBA", "SNES", "NES", "GB", "GBC", "N64",
@@ -590,16 +692,26 @@ private fun ActionButton(
     containerColor: Color,
     isBusy: Boolean,
     onClick: () -> Unit,
-    contentColor: Color = Color.White
+    contentColor: Color = Color.White,
+    isSelected: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(modifier),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor
-        )
+        ),
+        // 3dp onSurface border when gamepad cursor is on this button, so
+        // it's visible against both the dark primary + purple ROM buttons
+        // and the neutral Normalize button.
+        border = if (isSelected) {
+            BorderStroke(3.dp, MaterialTheme.colorScheme.onSurface)
+        } else null,
     ) {
         if (isBusy) {
             CircularProgressIndicator(

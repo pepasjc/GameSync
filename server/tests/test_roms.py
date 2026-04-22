@@ -1,3 +1,6 @@
+import json
+import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -36,6 +39,60 @@ def rom_client(rom_dir, client, auth_headers):
 
     settings.rom_dir = original
     settings.rom_scan_interval = original_interval
+    rom_scanner._catalog = None
+
+
+@pytest.fixture()
+def rom_client_3ds_zip(rom_dir, client, auth_headers):
+    from app.services import rom_db, rom_scanner
+
+    original_rom_dir = settings.rom_dir
+    original_interval = settings.rom_scan_interval
+    original_cia_cmd = settings.rom_3ds_cia_command
+    original_decrypted_cmd = settings.rom_3ds_decrypted_cia_command
+
+    settings.rom_dir = rom_dir
+    settings.rom_scan_interval = 0
+    settings.rom_3ds_cia_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'CIA:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
+    settings.rom_3ds_decrypted_cia_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'DEC:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
+
+    rom_db.init_db(settings.save_dir)
+
+    (rom_dir / "n3ds").mkdir()
+    archive_path = rom_dir / "n3ds" / "Super Mario 3D Land (USA).3ds.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("Super Mario 3D Land (USA).3ds", b"CARTROM")
+
+    rom_scanner.init(rom_dir)
+
+    yield client
+
+    settings.rom_dir = original_rom_dir
+    settings.rom_scan_interval = original_interval
+    settings.rom_3ds_cia_command = original_cia_cmd
+    settings.rom_3ds_decrypted_cia_command = original_decrypted_cmd
     rom_scanner._catalog = None
 
 
@@ -119,6 +176,19 @@ class TestRomCatalog:
         assert resp.status_code == 200
         assert resp.json()["total"] == 0
 
+    def test_list_roms_exposes_3ds_zip_conversion_options(
+        self, rom_client_3ds_zip, auth_headers
+    ):
+        resp = rom_client_3ds_zip.get("/api/v1/roms?system=3DS", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+
+        rom = body["roms"][0]
+        assert rom["title_id"] == "3DS_super_mario_3d_land_usa"
+        assert rom["extract_format"] == "3ds"
+        assert rom["extract_formats"] == ["cia", "decrypted_cia"]
+
 
 class TestRomDownload:
     def test_download_rom(self, rom_client, auth_headers):
@@ -177,6 +247,32 @@ class TestRomDownload:
             headers={**auth_headers, "Range": "bytes=200-300"},
         )
         assert resp.status_code == 416
+
+    def test_download_3ds_zip_as_cia(self, rom_client_3ds_zip, auth_headers):
+        roms = rom_client_3ds_zip.get("/api/v1/roms?system=3DS", headers=auth_headers).json()
+        rom_id = roms["roms"][0]["rom_id"]
+
+        resp = rom_client_3ds_zip.get(
+            f"/api/v1/roms/{rom_id}?extract=cia",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.content == b"CIA:CARTROM"
+        assert resp.headers["content-disposition"].endswith('filename="Super Mario 3D Land (USA).cia"')
+
+    def test_download_3ds_zip_as_decrypted_cia(self, rom_client_3ds_zip, auth_headers):
+        roms = rom_client_3ds_zip.get("/api/v1/roms?system=3DS", headers=auth_headers).json()
+        rom_id = roms["roms"][0]["rom_id"]
+
+        resp = rom_client_3ds_zip.get(
+            f"/api/v1/roms/{rom_id}?extract=decrypted_cia",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.content == b"DEC:CARTROM"
+        assert resp.headers["content-disposition"].endswith(
+            'filename="Super Mario 3D Land (USA)_decrypted.cia"'
+        )
 
 
 class TestRomRescan:
@@ -305,6 +401,27 @@ class TestRomDbCache:
         assert count == 2
         rows = rom_db.list_all()
         assert [row["system"] for row in rows] == ["3DO", "VB"]
+
+    def test_scan_strips_inner_rom_extension_from_archived_rom_name(self, rom_dir, tmp_path):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path / "saves")
+
+        (rom_dir / "n3ds").mkdir()
+        with zipfile.ZipFile(
+            rom_dir / "n3ds" / "Super Mario 3D Land (USA).3ds.zip",
+            "w",
+            zipfile.ZIP_DEFLATED,
+        ) as zf:
+            zf.writestr("Super Mario 3D Land (USA).3ds", b"CARTROM")
+
+        catalog = rom_scanner.RomCatalog()
+        count = catalog.scan(rom_dir, use_crc32=False)
+
+        assert count == 1
+        rows = rom_db.list_all()
+        assert rows[0]["title_id"] == "3DS_super_mario_3d_land_usa"
+        assert rows[0]["name"] == "Super Mario 3D Land (USA)"
 
 
 class TestSyncRomAvailable:

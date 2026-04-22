@@ -8,6 +8,8 @@ FastAPI server that stores save files, manages history, coordinates sync across 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - `chdman` (for CHD extraction) — `sudo apt install mame-tools`
 - `ciso` (for PSP CSO conversion) — `sudo apt install ciso`
+- Optional: a 3DS conversion toolchain wired through command templates if you
+  want `3ds.zip -> .cia` / decrypted `.cia` downloads from the ROM library
 
 ## Quick Start
 
@@ -33,6 +35,8 @@ All settings are via environment variables with the `SYNC_` prefix, or in a `ser
 | `SYNC_SAVE_DIR` | `./saves` | Directory where save files and history are stored |
 | `SYNC_ROM_DIR` | *(unset)* | ROM root directory for the web library (see [ROM Library](#rom-library)) |
 | `SYNC_ROM_SCAN_INTERVAL` | `300` | Background ROM rescan interval in seconds (`0` disables it) |
+| `SYNC_ROM_3DS_CIA_COMMAND` | `""` | Optional command template that converts a `.3ds` cart image into an installable `.cia` |
+| `SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND` | `""` | Optional command template that converts a `.3ds` cart image into a decrypted `.cia` for emulators |
 | `SYNC_HOST` | `0.0.0.0` | Bind address |
 | `SYNC_PORT` | `8000` | Port |
 | `SYNC_MAX_HISTORY_VERSIONS` | `10` | Previous save versions to keep per title |
@@ -45,9 +49,18 @@ Example `server/.env`:
 SYNC_API_KEY=your-secret-key
 SYNC_SAVE_DIR=/home/pi/Documents/3ds_sync/server/saves
 SYNC_ROM_DIR=/mnt/roms
+SYNC_ROM_3DS_CIA_COMMAND=["/usr/local/bin/your-3ds-tool","{input}","{output}"]
+SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND=["/usr/local/bin/your-3ds-tool","--decrypted","{input}","{output}"]
 SYNC_SITE_TITLE=My Game Library
 SYNC_ADMIN_USERS=pepas
 ```
+
+For the 3DS command templates, the server replaces these placeholders:
+`{input}`, `{output}`, `{output_dir}`, `{stem}`.
+
+`Game.3ds.zip` uploads are cataloged as 3DS ROMs by stripping the outer
+archive layer for name matching, and the conversion endpoint will unpack the
+single `.3ds` file from the ZIP before running your configured command.
 
 ---
 
@@ -362,6 +375,8 @@ All endpoints except `GET /` and `GET /api/v1/status` require `X-API-Key` header
 | `GET` | `/api/v1/roms/{title_id}?extract=gdi` | CHD → GDI ZIP (Dreamcast) |
 | `GET` | `/api/v1/roms/{title_id}?extract=iso` | CHD → ISO (PSP) |
 | `GET` | `/api/v1/roms/{title_id}?extract=cso` | CHD → CSO (PSP, requires `ciso`) |
+| `GET` | `/api/v1/roms/{title_id}?extract=cia` | 3DS cart image / `*.3ds.zip` → installable CIA |
+| `GET` | `/api/v1/roms/{title_id}?extract=decrypted_cia` | 3DS cart image / `*.3ds.zip` → decrypted CIA for emulators |
 
 ### Web UI
 

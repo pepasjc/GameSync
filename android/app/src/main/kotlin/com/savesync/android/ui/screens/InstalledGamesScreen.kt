@@ -1,6 +1,8 @@
 package com.savesync.android.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,17 +15,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,18 +39,35 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.savesync.android.installed.InstalledRom
 import com.savesync.android.installed.InstalledRomsScanner
 import com.savesync.android.ui.MainViewModel
+import com.savesync.android.ui.components.SystemFilterChip
+import com.savesync.android.ui.components.TabSwitchBar
 import kotlinx.coroutines.launch
+
+/**
+ * Label the [SystemFilterChip] shows when no specific system is
+ * selected. The screen stores `null` internally; this sentinel only
+ * exists at the UI boundary.
+ */
+private const val ALL_SYSTEMS_LABEL = "All Systems"
 
 /**
  * Manage locally-installed ROMs: browse, search, and delete (with
@@ -61,6 +78,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun InstalledGamesScreen(
     viewModel: MainViewModel,
+    onNavigateToTab: (Int) -> Unit = {},
 ) {
     val roms by viewModel.installedRoms.collectAsState()
     val loading by viewModel.installedRomsLoading.collectAsState()
@@ -73,9 +91,26 @@ fun InstalledGamesScreen(
     var query by remember { mutableStateOf("") }
     var systemFilter by remember { mutableStateOf<String?>(null) }
     var confirmTarget by remember { mutableStateOf<InstalledRom?>(null) }
+    var searchVisible by remember { mutableStateOf(false) }
+
+    // ── Gamepad navigation state ────────────────────────────────────────
+    var selectedIndex by remember { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
+    val listFocusRequester = remember { FocusRequester() }
+    val searchFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         if (!loaded && !loading) viewModel.scanInstalledRoms()
+    }
+
+    // Claim focus for the rom list on entry so the search field doesn't
+    // auto-grab focus. Search is only focused on explicit Y / tap.
+    LaunchedEffect(Unit) {
+        runCatching { listFocusRequester.requestFocus() }
+    }
+
+    LaunchedEffect(searchVisible) {
+        if (searchVisible) runCatching { searchFocusRequester.requestFocus() }
     }
 
     LaunchedEffect(deleteState) {
@@ -106,11 +141,50 @@ fun InstalledGamesScreen(
     }
     val systems = remember(roms) { roms.map { it.system }.distinct().sorted() }
 
+    LaunchedEffect(filtered.size) {
+        if (filtered.isNotEmpty()) {
+            selectedIndex = selectedIndex.coerceIn(0, filtered.size - 1)
+        } else {
+            selectedIndex = 0
+        }
+    }
+
+    fun cycleSystem(delta: Int) {
+        if (systems.isEmpty()) return
+        val all = listOf<String?>(null) + systems
+        val idx = all.indexOf(systemFilter).let { if (it < 0) 0 else it }
+        val next = (idx + delta + all.size) % all.size
+        systemFilter = all[next]
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Installed Games") },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        TabSwitchBar(
+                            activeTabIndex = 2,
+                            onTabClick = onNavigateToTab,
+                        )
+                        SystemFilterChip(
+                            label = systemFilter ?: ALL_SYSTEMS_LABEL,
+                            options = listOf(ALL_SYSTEMS_LABEL) + systems,
+                            onSelect = { choice ->
+                                systemFilter = choice.takeIf { it != ALL_SYSTEMS_LABEL }
+                            },
+                        )
+                    }
+                },
                 actions = {
+                    IconButton(onClick = {
+                        searchVisible = !searchVisible
+                        if (!searchVisible) query = ""
+                    }) {
+                        Icon(Icons.Filled.Search, contentDescription = "Search (Y)")
+                    }
                     IconButton(onClick = { viewModel.scanInstalledRoms(force = true) }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Rescan")
                     }
@@ -123,29 +197,98 @@ fun InstalledGamesScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .focusRequester(listFocusRequester)
+                .focusable()
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.DirectionDown -> {
+                            if (filtered.isNotEmpty()) {
+                                selectedIndex = (selectedIndex + 1).coerceAtMost(filtered.size - 1)
+                                scope.launch { listState.animateScrollToItem(selectedIndex) }
+                            }
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            if (filtered.isNotEmpty()) {
+                                selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                                scope.launch { listState.animateScrollToItem(selectedIndex) }
+                            }
+                            true
+                        }
+                        // D-pad / stick left/right → cycle system filter
+                        Key.DirectionLeft -> { cycleSystem(-1); true }
+                        Key.DirectionRight -> { cycleSystem(1); true }
+                        // L1 / R1 → page-scroll the list (Steam Deck parity).
+                        Key.ButtonL1 -> {
+                            if (filtered.isNotEmpty()) {
+                                val page = listState.layoutInfo.visibleItemsInfo.size
+                                    .coerceAtLeast(1)
+                                selectedIndex = (selectedIndex - page).coerceAtLeast(0)
+                                scope.launch { listState.animateScrollToItem(selectedIndex) }
+                            }
+                            true
+                        }
+                        Key.ButtonR1 -> {
+                            if (filtered.isNotEmpty()) {
+                                val page = listState.layoutInfo.visibleItemsInfo.size
+                                    .coerceAtLeast(1)
+                                selectedIndex = (selectedIndex + page)
+                                    .coerceAtMost(filtered.size - 1)
+                                scope.launch { listState.animateScrollToItem(selectedIndex) }
+                            }
+                            true
+                        }
+                        Key.ButtonA, Key.Enter -> {
+                            filtered.getOrNull(selectedIndex)?.let { confirmTarget = it }
+                            true
+                        }
+                        Key.ButtonY -> {
+                            searchVisible = !searchVisible
+                            if (!searchVisible) query = ""
+                            true
+                        }
+                        Key.ButtonB, Key.Escape, Key.Back -> {
+                            when {
+                                confirmTarget != null -> { confirmTarget = null; true }
+                                searchVisible -> {
+                                    searchVisible = false
+                                    query = ""
+                                    runCatching { listFocusRequester.requestFocus() }
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
+                        Key.ButtonStart -> {
+                            viewModel.scanInstalledRoms(force = true)
+                            true
+                        }
+                        // L2 / R2 are Activity-level tab switches — let them bubble up.
+                        else -> false
+                    }
+                }
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    singleLine = true,
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                    placeholder = { Text("Search installed ROMs…") },
-                    modifier = Modifier.weight(1f)
-                )
+            if (searchVisible) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        placeholder = { Text("Search installed ROMs…") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(searchFocusRequester)
+                    )
+                }
             }
-
-            SystemFilterRow(
-                systems = systems,
-                selected = systemFilter,
-                onSelect = { systemFilter = it }
-            )
 
             Spacer(Modifier.height(4.dp))
 
@@ -166,11 +309,22 @@ fun InstalledGamesScreen(
                     }
                     else -> {
                         LazyColumn(
+                            state = listState,
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(filtered, key = { rom -> rom.path.absolutePath }) { rom ->
-                                InstalledRomCard(rom = rom, onClick = { confirmTarget = rom })
+                            itemsIndexed(
+                                filtered,
+                                key = { _, rom -> rom.path.absolutePath }
+                            ) { index, rom ->
+                                InstalledRomCard(
+                                    rom = rom,
+                                    isSelected = index == selectedIndex,
+                                    onClick = {
+                                        selectedIndex = index
+                                        confirmTarget = rom
+                                    }
+                                )
                             }
                         }
                     }
@@ -235,52 +389,22 @@ fun InstalledGamesScreen(
 }
 
 @Composable
-private fun SystemFilterRow(
-    systems: List<String>,
-    selected: String?,
-    onSelect: (String?) -> Unit,
-) {
-    if (systems.isEmpty()) return
-    var expanded by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text("System:", style = MaterialTheme.typography.labelLarge)
-        Box {
-            AssistChip(
-                onClick = { expanded = true },
-                label = { Text(selected ?: "All Systems") }
-            )
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                DropdownMenuItem(
-                    text = { Text("All Systems") },
-                    onClick = { onSelect(null); expanded = false }
-                )
-                systems.forEach { system ->
-                    DropdownMenuItem(
-                        text = { Text(system) },
-                        onClick = { onSelect(system); expanded = false }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun InstalledRomCard(
     rom: InstalledRom,
+    isSelected: Boolean,
     onClick: () -> Unit,
 ) {
+    val border = if (isSelected) {
+        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    } else null
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 6.dp else 2.dp
+        ),
+        border = border,
     ) {
         Row(
             modifier = Modifier

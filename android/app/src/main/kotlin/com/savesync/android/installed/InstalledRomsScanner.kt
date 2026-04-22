@@ -142,7 +142,7 @@ object InstalledRomsScanner {
 
         for ((system, candidates) in SYSTEM_ROM_DIRS) {
             val override = romDirOverrides[system]?.trim()?.takeIf { it.isNotEmpty() }
-            val folder: File? = when {
+            val folder: File = when {
                 override != null -> File(override).takeIf { it.isDirectory }
                 scanRoot?.isDirectory == true -> candidates
                     .map { File(scanRoot, it) }

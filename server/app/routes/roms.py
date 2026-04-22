@@ -7,12 +7,18 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                   ?extract=iso  — CHD → ISO (PSP)
                                   ?extract=cso  — CHD → CSO compressed image (PSP)
                                   ?extract=rvz  — RVZ → ISO (GameCube / Wii via DolphinTool)
+                                  ?extract=cia  — 3DS cart image → installable CIA
+                                  ?extract=decrypted_cia
+                                                 3DS cart image → decrypted CIA for emulators
 POST /api/v1/roms/scan         — Trigger rescan of ROM directory
 GET  /api/v1/roms/systems      — List systems with ROMs and counts
 """
 
 import asyncio
 import io
+import json
+import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -52,6 +58,9 @@ _PSP_SYSTEMS = frozenset({'PSP'})
 # GameCube / Wii use RVZ (Dolphin compressed) — convert with DolphinTool
 _GC_SYSTEMS = frozenset({'GC', 'WII'})
 
+# 3DS cartridge images can be converted to CIA variants
+_3DS_SYSTEMS = frozenset({'3DS'})
+
 # All systems that support any CHD extraction
 _CD_SYSTEMS   = _CUE_SYSTEMS | _GDI_SYSTEMS
 _ALL_EXTRACT  = _CD_SYSTEMS | _PSP_SYSTEMS
@@ -89,17 +98,11 @@ async def list_roms(
     result = []
     for e in entries:
         d = e.to_dict()
-        sys_up = (e.system or '').upper()
-        suffix = Path(e.filename).suffix.lower()
-        if suffix == '.chd':
-            if sys_up in _PSP_SYSTEMS:
-                d['extract_format'] = 'psp'
-            elif sys_up in _GDI_SYSTEMS:
-                d['extract_format'] = 'gdi'
-            elif sys_up in _CUE_SYSTEMS:
-                d['extract_format'] = 'cue'
-        elif suffix == '.rvz' and sys_up in _GC_SYSTEMS:
-            d['extract_format'] = 'rvz'
+        extract_format, extract_formats = _extract_formats_for_entry(e.system or '', e.filename)
+        if extract_format:
+            d['extract_format'] = extract_format
+        if extract_formats:
+            d['extract_formats'] = extract_formats
         result.append(d)
 
     return {"roms": result, "total": len(result)}
@@ -140,7 +143,8 @@ async def download_rom(
         None,
         description=(
             "Extract format: 'cue' (CUE/BIN zip), 'gdi' (GDI zip), "
-            "'iso' (PSP ISO), 'cso' (PSP compressed ISO)"
+            "'iso' (PSP ISO), 'cso' (PSP compressed ISO), "
+            "'cia' (3DS installable CIA), 'decrypted_cia' (3DS emulator CIA)"
         ),
     ),
     range_header: Optional[str] = Header(None, alias="Range"),
@@ -164,7 +168,9 @@ async def download_rom(
     if extract:
         fmt = extract.lower()
         sys_up = (entry.system or '').upper()
-        if fmt == 'rvz' or (fmt == 'iso' and file_path.suffix.lower() == '.rvz'):
+        if fmt in ('cia', 'decrypted_cia'):
+            return await _extract_3ds(file_path, sys_up, fmt)
+        elif fmt == 'rvz' or (fmt == 'iso' and file_path.suffix.lower() == '.rvz'):
             return await _extract_rvz(file_path, file_path.stem)
         elif fmt in ('iso', 'cso'):
             return await _extract_psp(file_path, sys_up, file_path.stem, fmt)
@@ -223,6 +229,86 @@ async def _extract_rvz(rvz_path: Path, stem: str) -> Response:
     return Response(
         content=data,
         media_type='application/x-iso9660-image',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Length': str(len(data)),
+        },
+    )
+
+
+# ── Nintendo 3DS cart image → CIA variants ──────────────────────────────────
+
+async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
+    """Convert a 3DS cart image (optionally wrapped in ZIP) to CIA."""
+    if system not in _3DS_SYSTEMS:
+        return Response(
+            status_code=400,
+            content=f"{fmt} extraction is only supported for Nintendo 3DS ROMs (got {system})",
+        )
+
+    command_template = (
+        settings.rom_3ds_cia_command
+        if fmt == 'cia'
+        else settings.rom_3ds_decrypted_cia_command
+    )
+    if not command_template:
+        env_name = (
+            'SYNC_ROM_3DS_CIA_COMMAND'
+            if fmt == 'cia'
+            else 'SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND'
+        )
+        label = 'CIA' if fmt == 'cia' else 'decrypted CIA'
+        return Response(
+            status_code=503,
+            content=(
+                f"3DS {label} conversion is not configured. "
+                f"Set {env_name} to a command template that writes the output CIA file."
+            ),
+        )
+
+    def _run() -> tuple[str, bytes]:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            input_path, stem = _materialize_3ds_source(source_path, tmp)
+            output_name = f"{stem}{'_decrypted' if fmt == 'decrypted_cia' else ''}.cia"
+            output_path = tmp / output_name
+
+            cmd = _expand_command_template(
+                command_template,
+                input=str(input_path),
+                output=str(output_path),
+                output_dir=str(tmp),
+                stem=stem,
+            )
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=1800,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr.strip() or result.stdout.strip() or '3DS conversion failed')
+
+            final_path = output_path if output_path.is_file() else _find_single_output(tmp)
+            if final_path is None or not final_path.is_file():
+                raise RuntimeError("converter completed but did not produce a .cia file")
+
+            return final_path.name, final_path.read_bytes()
+
+    try:
+        filename, data = await asyncio.get_event_loop().run_in_executor(None, _run)
+    except RuntimeError as exc:
+        return Response(status_code=500, content=f"Conversion failed: {exc}")
+    except subprocess.TimeoutExpired:
+        return Response(status_code=504, content="Conversion timed out (>30 min)")
+    except zipfile.BadZipFile:
+        return Response(status_code=400, content="Invalid ZIP archive")
+    except ValueError as exc:
+        return Response(status_code=400, content=str(exc))
+
+    return Response(
+        content=data,
+        media_type='application/x-3ds-rom',
         headers={
             'Content-Disposition': f'attachment; filename="{filename}"',
             'Content-Length': str(len(data)),
@@ -415,6 +501,82 @@ def _parse_range(range_header: str, file_size: int) -> tuple[int | None, int | N
             return start, min(end, file_size - 1)
     except (ValueError, IndexError):
         return None, None
+
+
+def _extract_formats_for_entry(system: str, filename: str) -> tuple[str | None, list[str]]:
+    sys_up = system.upper()
+    suffix = Path(filename).suffix.lower()
+
+    if suffix == '.chd':
+        if sys_up in _PSP_SYSTEMS:
+            return 'psp', ['iso', 'cso']
+        if sys_up in _GDI_SYSTEMS:
+            return 'gdi', ['gdi']
+        if sys_up in _CUE_SYSTEMS:
+            return 'cue', ['cue']
+    elif suffix == '.rvz' and sys_up in _GC_SYSTEMS:
+        return 'rvz', ['iso']
+    elif sys_up in _3DS_SYSTEMS and suffix in {'.3ds', '.zip'}:
+        return '3ds', ['cia', 'decrypted_cia']
+
+    return None, []
+
+
+def _materialize_3ds_source(source_path: Path, tmp_dir: Path) -> tuple[Path, str]:
+    suffix = source_path.suffix.lower()
+    if suffix == '.3ds':
+        return source_path, source_path.stem
+
+    if suffix != '.zip':
+        raise ValueError(
+            "3DS conversion currently supports raw .3ds files or .zip archives containing one .3ds file"
+        )
+
+    with zipfile.ZipFile(source_path) as zf:
+        members = [
+            info for info in zf.infolist()
+            if not info.is_dir() and Path(info.filename).suffix.lower() == '.3ds'
+        ]
+        if not members:
+            raise ValueError("ZIP archive does not contain a .3ds file")
+        if len(members) > 1:
+            raise ValueError("ZIP archive must contain exactly one .3ds file")
+
+        member = members[0]
+        member_name = Path(member.filename).name
+        extracted = tmp_dir / member_name
+        with zf.open(member) as src, open(extracted, 'wb') as dst:
+            shutil.copyfileobj(src, dst)
+        return extracted, extracted.stem
+
+
+def _expand_command_template(template: str, **values: str) -> list[str]:
+    payload = template.strip()
+    if not payload:
+        raise RuntimeError("empty command template")
+
+    if payload.startswith('['):
+        parsed = json.loads(payload)
+        if not isinstance(parsed, list) or not all(isinstance(part, str) for part in parsed):
+            raise RuntimeError("command template JSON must be an array of strings")
+        parts = parsed
+    else:
+        parts = shlex.split(payload, posix=os.name != 'nt')
+
+    expanded: list[str] = []
+    for part in parts:
+        updated = part
+        for key, value in values.items():
+            updated = updated.replace(f'{{{key}}}', value)
+        expanded.append(updated)
+    return expanded
+
+
+def _find_single_output(tmp_dir: Path) -> Path | None:
+    outputs = sorted(p for p in tmp_dir.rglob('*.cia') if p.is_file())
+    if len(outputs) == 1:
+        return outputs[0]
+    return None
 
 
 _CONTENT_TYPES = {

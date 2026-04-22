@@ -34,6 +34,7 @@ from app.services.rom_id import (
 logger = logging.getLogger(__name__)
 
 SKIP_NAMES = frozenset({"metadata.txt", "systeminfo.txt"})
+_ARCHIVE_EXTENSIONS = frozenset({".zip", ".7z", ".rar"})
 
 
 class RomEntry:
@@ -123,8 +124,8 @@ def _system_for_folder(folder_name: str) -> str | None:
 def _identify_rom_slug(
     system: str, file_path: Path, norm: Optional[object]
 ) -> tuple[str, str, str]:
-    filename = file_path.name
-    stem = file_path.stem
+    filename = _lookup_filename(file_path)
+    stem = Path(filename).stem
 
     if norm is not None:
         info = norm.normalize(system, filename)
@@ -147,7 +148,13 @@ def _identify_rom_slug(
 def _identify_rom_crc32(
     system: str, file_path: Path, norm: Optional[object]
 ) -> tuple[str, str, str, str]:
-    filename = file_path.name
+    filename = _lookup_filename(file_path)
+    # Archive-wrapped ROMs like *.3ds.zip should still match on name, but CRC32
+    # of the archive container is not useful for DAT lookups.
+    if filename != file_path.name:
+        title_id, canonical_name, source = _identify_rom_slug(system, file_path, norm)
+        return title_id, canonical_name, source, ""
+
     crc32 = _compute_crc32(file_path)
 
     if norm is not None:
@@ -166,6 +173,20 @@ def _identify_rom_crc32(
     if serial:
         return serial, Path(filename).stem, "filename", crc32
     return f"{system}_{slug}", Path(filename).stem, "filename", crc32
+
+
+def _lookup_filename(file_path: Path) -> str:
+    """Return the best filename to use for DAT/title-id matching.
+
+    For archive uploads like ``Game.3ds.zip`` we strip the outer archive layer
+    so the normalizer sees ``Game.3ds`` and derives the correct stem.
+    """
+    suffixes = [suffix.lower() for suffix in file_path.suffixes]
+    if len(suffixes) >= 2 and suffixes[-1] in _ARCHIVE_EXTENSIONS:
+        inner_suffix = suffixes[-2]
+        if inner_suffix in ROM_EXTENSIONS and inner_suffix not in _ARCHIVE_EXTENSIONS:
+            return file_path.name[: -len(suffixes[-1])]
+    return file_path.name
 
 
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
