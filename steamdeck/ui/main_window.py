@@ -56,12 +56,19 @@ from scanner.rom_match import (
     dedup_disc_slug_entries as _dedup_disc_slug_entries,
     is_disc_slug_title_id as _is_disc_slug_title_id,
 )
+from scanner.installed_roms import (
+    InstalledRom,
+    delete_installed,
+    scan_installed,
+    would_remove_whole_folder,
+)
 from scanner.rom_target import resolve_rom_target_dir
 from sync_client import SyncClient, _find_server_save
 from config import load_config, save_config
 from . import theme
 from .catalog_view import CatalogView
 from .game_list import GameListView
+from .installed_view import InstalledView
 from .controls_bar import ControlsBar
 from .settings_dialog import SettingsDialog
 from .detail_dialog import DetailDialog
@@ -122,6 +129,30 @@ class CatalogWorker(QObject):
             self.finished.emit([], str(exc) or exc.__class__.__name__)
             return
         self.finished.emit(roms, "")
+
+
+class InstalledWorker(QObject):
+    """Walks the local ROM directories off the main thread.
+
+    rglob on a large EmuDeck library over an SD card blocks for a
+    couple of seconds on first run, so we push it to a worker so the
+    UI can keep rendering the "Scanning…" placeholder.
+    """
+
+    finished = pyqtSignal(list)  # list[InstalledRom]
+
+    def __init__(self, emulation_path: str, rom_scan_dir: str):
+        super().__init__()
+        self._emulation_path = emulation_path
+        self._rom_scan_dir = rom_scan_dir
+
+    def run(self) -> None:
+        try:
+            roms = scan_installed(self._emulation_path, self._rom_scan_dir)
+        except Exception as exc:
+            print(f"[Installed] scan failed: {exc}")
+            roms = []
+        self.finished.emit(roms)
 
 
 class ServerWorker(QObject):
@@ -463,10 +494,12 @@ class MainWindow(QMainWindow):
         self._search_visible = False
         self._search_text = ""
         self._systems: list[str] = [ALL_SYSTEMS]
-        # Catalog tab filter state is kept on the CatalogView itself; we
-        # mirror the system list here so the top bar can show it.
+        # Tab filter state lives on each per-tab view.  We mirror the
+        # system list here so the top bar can cycle through the
+        # systems the active tab actually has entries for.
         self._catalog_systems: list[str] = [CatalogView.ALL_SYSTEMS]
-        self._active_tab = 0  # 0 = saves, 1 = catalog
+        self._installed_systems: list[str] = [InstalledView.ALL_SYSTEMS]
+        self._active_tab = 0  # 0 = saves, 1 = catalog, 2 = installed
 
         # Build UI
         central = QWidget()
@@ -489,9 +522,15 @@ class MainWindow(QMainWindow):
         self._catalog_view.status_changed.connect(self._on_catalog_status_changed)
         self._catalog_view.systems_changed.connect(self._on_catalog_systems)
 
+        self._installed_view = InstalledView()
+        self._installed_view.delete_requested.connect(self._on_installed_delete)
+        self._installed_view.status_changed.connect(self._on_installed_status_changed)
+        self._installed_view.systems_changed.connect(self._on_installed_systems)
+
         self._stack = QStackedWidget()
-        self._stack.addWidget(self._list_view)     # idx 0 — saves
-        self._stack.addWidget(self._catalog_view)  # idx 1 — catalog
+        self._stack.addWidget(self._list_view)       # idx 0 — saves
+        self._stack.addWidget(self._catalog_view)    # idx 1 — catalog
+        self._stack.addWidget(self._installed_view)  # idx 2 — installed
         root.addWidget(self._stack, 1)
 
         self._controls = ControlsBar()
@@ -584,7 +623,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(8)
 
         self._tab_buttons: list[QPushButton] = []
-        for idx, label in enumerate(("My Games", "ROM Catalog")):
+        for idx, label in enumerate(("My Games", "ROM Catalog", "Installed")):
             btn = QPushButton(label)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setCheckable(True)
@@ -783,6 +822,10 @@ class MainWindow(QMainWindow):
             self._catalog_view.cycle_system(delta, self._catalog_systems)
             self._system_label.setText(self._catalog_view.system_filter())
             return
+        if self._active_tab == 2:
+            self._installed_view.cycle_system(delta, self._installed_systems)
+            self._system_label.setText(self._installed_view.system_filter())
+            return
         if not self._systems:
             return
         try:
@@ -795,9 +838,9 @@ class MainWindow(QMainWindow):
         self._apply_filters()
 
     def _cycle_status(self, delta: int):
-        # Status filter only applies to the My Games tab — catalog entries
-        # don't carry a sync status, so L2/R2 is a no-op there.
-        if self._active_tab == 1:
+        # Status filter only applies to the My Games tab — catalog /
+        # installed rows don't carry a sync status.
+        if self._active_tab != 0:
             return
         try:
             idx = STATUS_FILTER_CYCLE.index(self._status_filter)
@@ -827,6 +870,8 @@ class MainWindow(QMainWindow):
         self._search_edit.clear()
         if self._active_tab == 1:
             self._catalog_view.set_search_text("")
+        elif self._active_tab == 2:
+            self._installed_view.set_search_text("")
         else:
             self._apply_filters()
 
@@ -834,6 +879,8 @@ class MainWindow(QMainWindow):
         self._search_text = text
         if self._active_tab == 1:
             self._catalog_view.set_search_text(text)
+        elif self._active_tab == 2:
+            self._installed_view.set_search_text(text)
         else:
             self._apply_filters()
 
@@ -841,8 +888,10 @@ class MainWindow(QMainWindow):
     # Tab switching
     # ──────────────────────────────────────────────────────────────
 
+    TAB_COUNT = 3
+
     def _set_active_tab(self, idx: int) -> None:
-        idx = 0 if idx < 0 else (1 if idx > 1 else idx)
+        idx = max(0, min(self.TAB_COUNT - 1, idx))
         if idx == self._active_tab:
             return
         # Close the search overlay when switching: each tab maintains its
@@ -855,9 +904,11 @@ class MainWindow(QMainWindow):
         self._refresh_tab_ui()
         if idx == 1 and not self._catalog_view.is_loaded and not self._catalog_view.is_loading:
             self._fetch_catalog()
+        if idx == 2 and not self._installed_view.is_loaded and not self._installed_view.is_loading:
+            self._fetch_installed()
 
     def _cycle_tab(self, delta: int) -> None:
-        self._set_active_tab((self._active_tab + delta) % 2)
+        self._set_active_tab((self._active_tab + delta) % self.TAB_COUNT)
 
     def _refresh_tab_ui(self) -> None:
         for i, btn in enumerate(self._tab_buttons):
@@ -878,6 +929,18 @@ class MainWindow(QMainWindow):
             )
             self._search_edit.setPlaceholderText(
                 "Search ROMs (name, system, filename)…"
+            )
+        elif self._active_tab == 2:
+            self._controls.set_mode(ControlsBar.MODE_INSTALLED)
+            self._status_filter_label.setText("—")
+            self._system_label.setText(self._installed_view.system_filter())
+            self._count_label.setText(
+                f"{self._installed_view.visible_count()} ROMs"
+                if self._installed_view.is_loaded
+                else "Scanning…"
+            )
+            self._search_edit.setPlaceholderText(
+                "Search installed ROMs (name, system, filename)…"
             )
         else:
             self._controls.set_mode(ControlsBar.MODE_SAVES)
@@ -1005,6 +1068,113 @@ class MainWindow(QMainWindow):
             # Mirror the detail-dialog flow so a freshly downloaded ROM
             # shows up in the scanner list (and flips its save status).
             self._start_scan()
+            # And invalidate the Installed tab cache — the freshly
+            # downloaded ROM belongs in there too.
+            self._installed_view.mark_loading(True)
+            self._installed_view.set_roms([])
+            self._fetch_installed()
+
+    # ──────────────────────────────────────────────────────────────
+    # Installed tab wiring
+    # ──────────────────────────────────────────────────────────────
+
+    def _fetch_installed(self) -> None:
+        emulation_path = self._config.get("emulation_path") or ""
+        rom_scan_dir = self._config.get("rom_scan_dir", "") or ""
+        self._installed_view.mark_loading(True)
+        if self._active_tab == 2:
+            self._count_label.setText("Scanning…")
+        self._installed_thread = QThread()
+        self._installed_worker = InstalledWorker(emulation_path, rom_scan_dir)
+        self._installed_worker.moveToThread(self._installed_thread)
+        self._installed_thread.started.connect(self._installed_worker.run)
+        self._installed_worker.finished.connect(self._on_installed_loaded)
+        self._installed_worker.finished.connect(self._installed_thread.quit)
+        self._installed_thread.finished.connect(self._installed_worker.deleteLater)
+        self._installed_thread.finished.connect(self._installed_thread.deleteLater)
+        self._installed_thread.start()
+
+    def _on_installed_loaded(self, roms: list) -> None:
+        self._installed_view.set_roms(roms)
+        if self._active_tab == 2:
+            self._refresh_tab_ui()
+
+    def _on_installed_systems(self, systems: list) -> None:
+        self._installed_systems = [InstalledView.ALL_SYSTEMS] + list(systems)
+
+    def _on_installed_status_changed(self, text: str) -> None:
+        if self._active_tab == 2:
+            self._count_label.setText(text or "0 ROMs")
+
+    def _on_installed_delete(self, rom) -> None:
+        self._delete_installed_rom(rom)
+
+    def _delete_installed_rom(self, rom: "Optional[InstalledRom]") -> None:
+        if rom is None:
+            return
+        size_txt = _fmt_catalog_size(rom.size)
+        whole_folder = _whole_folder_delete_target(rom)
+
+        if whole_folder is not None:
+            detail = (
+                f"Removes the whole folder (and every file inside it):\n"
+                f"{whole_folder}"
+            )
+        else:
+            companions_txt = (
+                f" + {len(rom.companion_files)} companion file(s)"
+                if rom.companion_files
+                else ""
+            )
+            detail = (
+                f"File: {rom.filename}{companions_txt}\n"
+                f"Location: {rom.path.parent}"
+            )
+
+        msg = (
+            f"Delete '{rom.display_name}' from disk?\n"
+            f"System: {rom.system}\n"
+            f"{detail}\n"
+            f"Frees: {size_txt}\n\n"
+            "This removes the data permanently and cannot be undone."
+        )
+        dlg = ConfirmDialog(
+            title="Delete ROM",
+            message=msg,
+            confirm_label="Delete",
+            confirm_color=theme.STATUS_CONFLICT,
+            parent=self,
+        )
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+
+        result = delete_installed(rom)
+        if result.errors:
+            result_msg = (
+                f"Deleted {result.deleted_count} file(s), but "
+                f"{len(result.errors)} failed:\n\n"
+                + "\n".join(result.errors)
+            )
+            ResultDialog(
+                result.deleted_count > 0, result_msg, parent=self
+            ).exec()
+        else:
+            if result.removed_dir is not None:
+                done_msg = (
+                    f"Deleted '{rom.display_name}' and its folder "
+                    f"({result.deleted_count} file(s))."
+                )
+            else:
+                done_msg = (
+                    f"Deleted '{rom.display_name}' "
+                    f"({result.deleted_count} file(s))."
+                )
+            ResultDialog(True, done_msg, parent=self).exec()
+
+        # Refresh both the installed list and the save-sync list — a
+        # deleted ROM may flip a synced entry back to "server only".
+        self._fetch_installed()
+        self._start_scan()
 
     def _rom_roots_base(self, emulation_path: str, rom_scan_dir: str) -> Path:
         """Mirror DetailDialog._rom_roots_base so destinations match."""
@@ -1148,12 +1318,10 @@ class MainWindow(QMainWindow):
         """Y button — tab-specific.
 
         Saves tab rescans the local emulator folders (server + local
-        state can drift between launches).  The catalog doesn't need a
-        refresh button — the server's ROM list is fetched on tab entry
-        and restarting the app re-fetches — so Y drops you straight
-        into search on that tab, which is the far more common action.
+        state can drift between launches).  Catalog and Installed tabs
+        pop up the search field since their data is already loaded.
         """
-        if self._active_tab == 1:
+        if self._active_tab in (1, 2):
             if not self._search_visible:
                 self._toggle_search()
             self._search_edit.setFocus()
@@ -1164,6 +1332,8 @@ class MainWindow(QMainWindow):
         """Route A/Enter to the right action for the active tab."""
         if self._active_tab == 1:
             self._download_catalog_rom(self._catalog_view.selected_rom())
+        elif self._active_tab == 2:
+            self._delete_installed_rom(self._installed_view.selected_rom())
         else:
             self._action_detail()
 
@@ -1261,16 +1431,22 @@ class MainWindow(QMainWindow):
             self._active_view_move(1)
 
     def _active_view_move(self, delta: int) -> None:
-        if self._active_tab == 1:
-            self._catalog_view.move_selection(delta)
-        else:
-            self._list_view.move_selection(delta)
+        view = self._current_list_view()
+        view.move_selection(delta)
 
     def _active_view_page(self, direction: int) -> None:
-        if self._active_tab == 1:
-            self._catalog_view.page_down() if direction > 0 else self._catalog_view.page_up()
+        view = self._current_list_view()
+        if direction > 0:
+            view.page_down()
         else:
-            self._list_view.page_down() if direction > 0 else self._list_view.page_up()
+            view.page_up()
+
+    def _current_list_view(self):
+        if self._active_tab == 1:
+            return self._catalog_view
+        if self._active_tab == 2:
+            return self._installed_view
+        return self._list_view
 
     # ──────────────────────────────────────────────────────────────
     # Pygame gamepad polling
@@ -1530,3 +1706,17 @@ def _fmt_catalog_size(num_bytes: int) -> str:
         if num_bytes >= factor:
             return f"{num_bytes / factor:.2f} {unit}"
     return f"{num_bytes} B"
+
+
+def _whole_folder_delete_target(rom: "InstalledRom") -> "Optional[Path]":
+    """Return the folder that ``delete_installed`` would rmtree, or None.
+
+    Used by the confirm dialog so the message can tell the user up
+    front that a whole folder is about to disappear, not just the
+    tracked files.
+    """
+    return (
+        rom.path.parent
+        if would_remove_whole_folder(rom)
+        else None
+    )

@@ -1,16 +1,13 @@
-"""Server ROM catalog browser tab.
+"""Installed Games tab body.
 
-Runs alongside the existing save-sync list.  Presents the full
-``GET /api/v1/roms`` catalog with a smart tokenised search (roman numerals,
-region-tag stripping, fuzzy word order) and a per-system filter, and
-downloads each selected ROM straight into the matching
-``~/Emulation/roms/<system>/`` folder via ``resolve_rom_target_dir``.
+Lists every ROM the scanner finds under ``<emulation>/roms`` /
+``<rom_scan_dir>``, grouped by system, with a delete action so the user
+can free up disk space without dropping to the shell.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 from PyQt6.QtCore import (
     QAbstractListModel,
@@ -31,7 +28,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from scanner.catalog_search import filter_catalog, unique_systems
+from scanner.installed_roms import InstalledRom
 from shared.systems import DEFAULT_SYSTEM_COLOR, SYSTEM_COLOR
 
 from . import theme
@@ -40,12 +37,12 @@ from . import theme
 _RomRole = Qt.ItemDataRole.UserRole + 1
 
 
-class CatalogModel(QAbstractListModel):
+class InstalledModel(QAbstractListModel):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._roms: list[dict] = []
+        self._roms: list[InstalledRom] = []
 
-    def set_roms(self, roms: list[dict]) -> None:
+    def set_roms(self, roms: list[InstalledRom]) -> None:
         self.beginResetModel()
         self._roms = list(roms)
         self.endResetModel()
@@ -60,18 +57,16 @@ class CatalogModel(QAbstractListModel):
         if role == _RomRole:
             return rom
         if role == Qt.ItemDataRole.DisplayRole:
-            return rom.get("name") or rom.get("filename") or rom.get("title_id") or ""
+            return rom.display_name
         return None
 
-    def rom_at(self, row: int) -> Optional[dict]:
+    def rom_at(self, row: int) -> Optional[InstalledRom]:
         if 0 <= row < len(self._roms):
             return self._roms[row]
         return None
 
 
-class CatalogDelegate(QStyledItemDelegate):
-    """Mirrors ``GameDelegate`` visually so the two tabs feel consistent."""
-
+class InstalledDelegate(QStyledItemDelegate):
     SYSTEM_BADGE_W = 52
     SYSTEM_BADGE_H = 22
     H_PAD = 14
@@ -96,7 +91,7 @@ class CatalogDelegate(QStyledItemDelegate):
     def paint(
         self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex
     ) -> None:
-        rom = index.data(_RomRole)
+        rom: Optional[InstalledRom] = index.data(_RomRole)
         if rom is None:
             return
 
@@ -120,7 +115,7 @@ class CatalogDelegate(QStyledItemDelegate):
                 2,
             )
 
-        system = (rom.get("system") or "?").upper()
+        system = (rom.system or "?").upper()
         sys_color = QColor(SYSTEM_COLOR.get(system, DEFAULT_SYSTEM_COLOR))
         badge_x = card_rect.left() + self.H_PAD
         badge_y = card_rect.top() + (card_rect.height() - self.SYSTEM_BADGE_H) // 2
@@ -133,8 +128,7 @@ class CatalogDelegate(QStyledItemDelegate):
         painter.setPen(QColor("#ffffff"))
         painter.drawText(sys_badge, Qt.AlignmentFlag.AlignCenter, system)
 
-        # Size badge on the right (only if the server advertised one).
-        size_text = _fmt_size(int(rom.get("size") or 0))
+        size_text = _fmt_size(rom.size)
         fm_badge = QFontMetrics(self._badge_font)
         size_w = fm_badge.horizontalAdvance(size_text) + 16 if size_text else 0
         size_x = card_rect.right() - self.H_PAD - size_w if size_w else card_rect.right()
@@ -146,7 +140,7 @@ class CatalogDelegate(QStyledItemDelegate):
                 self.SYSTEM_BADGE_H,
             )
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(theme.STATUS_DOWNLOAD)))
+            painter.setBrush(QBrush(QColor(theme.TEXT_DIM)))
             painter.drawRoundedRect(size_rect, theme.BADGE_RADIUS, theme.BADGE_RADIUS)
             painter.setFont(self._badge_font)
             painter.setPen(QColor("#ffffff"))
@@ -157,7 +151,6 @@ class CatalogDelegate(QStyledItemDelegate):
         text_w = max(0, text_right - text_x)
         name_h = card_rect.height() // 2
 
-        name = rom.get("name") or rom.get("filename") or rom.get("title_id") or ""
         painter.setFont(self._name_font)
         painter.setPen(QColor(theme.TEXT_PRIMARY))
         fm_name = QFontMetrics(self._name_font)
@@ -165,22 +158,15 @@ class CatalogDelegate(QStyledItemDelegate):
         painter.drawText(
             name_rect,
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-            fm_name.elidedText(name, Qt.TextElideMode.ElideRight, text_w),
+            fm_name.elidedText(rom.display_name, Qt.TextElideMode.ElideRight, text_w),
         )
 
-        sub_parts: list[str] = []
-        filename = rom.get("filename")
-        if filename and filename != name:
-            sub_parts.append(filename)
-        title_id = rom.get("title_id")
-        if title_id:
-            sub_parts.append(title_id)
+        sub_parts = [rom.filename]
+        if rom.companion_files:
+            sub_parts.append(f"+{len(rom.companion_files)} file(s)")
         sub_text = "  ·  ".join(sub_parts)
         sub_rect = QRect(
-            text_x,
-            card_rect.top() + name_h,
-            text_w,
-            name_h - self.V_PAD + 2,
+            text_x, card_rect.top() + name_h, text_w, name_h - self.V_PAD + 2
         )
         painter.setFont(self._sub_font)
         painter.setPen(QColor(theme.TEXT_SECONDARY))
@@ -194,13 +180,13 @@ class CatalogDelegate(QStyledItemDelegate):
         painter.restore()
 
 
-class RomListView(QListView):
-    rom_activated = pyqtSignal(dict)
+class InstalledListView(QListView):
+    rom_activated = pyqtSignal(object)  # InstalledRom
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._model = CatalogModel(self)
-        self._delegate = CatalogDelegate(self)
+        self._model = InstalledModel(self)
+        self._delegate = InstalledDelegate(self)
         self.setModel(self._model)
         self.setItemDelegate(self._delegate)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -210,7 +196,7 @@ class RomListView(QListView):
         self.setMouseTracking(True)
         self.doubleClicked.connect(self._on_double_click)
 
-    def set_roms(self, roms: list[dict]) -> None:
+    def set_roms(self, roms: list[InstalledRom]) -> None:
         prev_key = self._selected_key()
         self._model.set_roms(roms)
         if not roms:
@@ -218,14 +204,14 @@ class RomListView(QListView):
         target_row = 0
         if prev_key is not None:
             for row, rom in enumerate(roms):
-                if _rom_key(rom) == prev_key:
+                if (str(rom.path), rom.system) == prev_key:
                     target_row = row
                     break
         idx = self._model.index(target_row, 0)
         self.setCurrentIndex(idx)
         self.scrollTo(idx, QAbstractItemView.ScrollHint.EnsureVisible)
 
-    def selected_rom(self) -> Optional[dict]:
+    def selected_rom(self) -> Optional[InstalledRom]:
         idx = self.currentIndex()
         return self._model.rom_at(idx.row()) if idx.isValid() else None
 
@@ -242,33 +228,23 @@ class RomListView(QListView):
         self.scrollTo(new_idx, hint)
 
     def _viewport_rows(self) -> int:
-        """How many rows fit in the visible viewport.
-
-        Used by page-up / page-down so L2 / R2 scroll by the user's
-        actual screen size instead of a hard-coded 8.  On a tall list
-        the old 8-row step often just moved the selection inside the
-        already-visible viewport — no scroll happened and L2 felt
-        broken.
-        """
         row_h = max(theme.CARD_H, 1)
         return max(1, self.viewport().height() // row_h)
 
     def page_up(self) -> None:
-        step = self._viewport_rows()
-        # ``PositionAtTop`` forces the viewport to actually move even
-        # when the new selection is still on screen.
-        self.move_selection(-step, QAbstractItemView.ScrollHint.PositionAtTop)
+        self.move_selection(-self._viewport_rows(),
+                            QAbstractItemView.ScrollHint.PositionAtTop)
 
     def page_down(self) -> None:
-        step = self._viewport_rows()
-        self.move_selection(step, QAbstractItemView.ScrollHint.PositionAtBottom)
+        self.move_selection(self._viewport_rows(),
+                            QAbstractItemView.ScrollHint.PositionAtBottom)
 
     def row_count(self) -> int:
         return self._model.rowCount()
 
     def _selected_key(self) -> Optional[tuple]:
         rom = self.selected_rom()
-        return _rom_key(rom) if rom else None
+        return (str(rom.path), rom.system) if rom else None
 
     def _on_double_click(self, index: QModelIndex) -> None:
         rom = self._model.rom_at(index.row())
@@ -276,18 +252,18 @@ class RomListView(QListView):
             self.rom_activated.emit(rom)
 
 
-class CatalogView(QWidget):
-    """The ROM-catalog tab body.  Owns the list + the full/filtered data."""
+class InstalledView(QWidget):
+    """Installed Games tab body — list + delete request signal."""
 
-    download_requested = pyqtSignal(dict)
+    delete_requested = pyqtSignal(object)  # InstalledRom
     status_changed = pyqtSignal(str)
-    systems_changed = pyqtSignal(list)  # list[str] of system codes (excluding ALL)
+    systems_changed = pyqtSignal(list)
 
     ALL_SYSTEMS = "All Systems"
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._all_roms: list[dict] = []
+        self._all_roms: list[InstalledRom] = []
         self._search_text = ""
         self._system_filter = self.ALL_SYSTEMS
         self._loaded = False
@@ -297,14 +273,14 @@ class CatalogView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self._empty_label = QLabel("Loading catalog…")
+        self._empty_label = QLabel("Scanning installed ROMs…")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_label.setStyleSheet(
             f"color:{theme.TEXT_SECONDARY}; font-size:13pt; padding:32px;"
         )
 
-        self._list = RomListView(self)
-        self._list.rom_activated.connect(self.download_requested.emit)
+        self._list = InstalledListView(self)
+        self._list.rom_activated.connect(self.delete_requested.emit)
 
         layout.addWidget(self._empty_label)
         layout.addWidget(self._list, 1)
@@ -323,16 +299,16 @@ class CatalogView(QWidget):
     def mark_loading(self, loading: bool) -> None:
         self._loading = loading
         if loading:
-            self._empty_label.setText("Loading catalog…")
+            self._empty_label.setText("Scanning installed ROMs…")
             self._empty_label.show()
             self._list.hide()
-        self._refresh_empty_state()
 
-    def set_catalog(self, roms: list[dict]) -> None:
+    def set_roms(self, roms: list[InstalledRom]) -> None:
         self._all_roms = list(roms)
         self._loaded = True
         self._loading = False
-        self.systems_changed.emit(unique_systems(self._all_roms))
+        systems = sorted({r.system for r in self._all_roms if r.system})
+        self.systems_changed.emit(systems)
         self._apply_filters()
 
     def set_system_filter(self, system: str) -> None:
@@ -366,7 +342,7 @@ class CatalogView(QWidget):
 
     # ── Selection / navigation delegates ────────────────────────
 
-    def selected_rom(self) -> Optional[dict]:
+    def selected_rom(self) -> Optional[InstalledRom]:
         return self._list.selected_rom()
 
     def move_selection(self, delta: int) -> None:
@@ -384,8 +360,21 @@ class CatalogView(QWidget):
     # ── Internal ─────────────────────────────────────────────────
 
     def _apply_filters(self) -> None:
-        system = None if self._system_filter == self.ALL_SYSTEMS else self._system_filter
-        filtered = filter_catalog(self._all_roms, self._search_text, system)
+        system = (
+            None if self._system_filter == self.ALL_SYSTEMS else self._system_filter
+        )
+        query = self._search_text.lower()
+        filtered: list[InstalledRom] = []
+        for rom in self._all_roms:
+            if system and rom.system.upper() != system.upper():
+                continue
+            if query:
+                haystack = (
+                    f"{rom.display_name} {rom.filename} {rom.system}".lower()
+                )
+                if query not in haystack:
+                    continue
+            filtered.append(rom)
         self._list.set_roms(filtered)
         self._refresh_empty_state(count=len(filtered))
         self.status_changed.emit(self._status_text(len(filtered)))
@@ -394,17 +383,15 @@ class CatalogView(QWidget):
         if self._loading and not self._all_roms:
             return
         if not self._loaded:
-            self._empty_label.setText("Loading catalog…")
-            self._empty_label.show()
-            self._list.hide()
             return
         if count is None:
             count = self._list.row_count()
         if count == 0:
             if not self._all_roms:
                 self._empty_label.setText(
-                    "The server's ROM catalog is empty.\n"
-                    "Add ROMs via the server and press Y to refresh."
+                    "No installed ROMs found.\n"
+                    "Download ROMs from the Catalog tab or point the "
+                    "Emulation path / ROM scan dir at your library in Settings."
                 )
             else:
                 self._empty_label.setText("No ROMs match this search.")
@@ -418,22 +405,11 @@ class CatalogView(QWidget):
         if not self._loaded:
             return ""
         total = len(self._all_roms)
+        total_size = sum(r.size for r in self._all_roms)
+        total_txt = _fmt_size(total_size)
         if count == total:
-            return f"{total} ROMs"
+            return f"{total} ROMs · {total_txt}" if total_txt else f"{total} ROMs"
         return f"{count} / {total} ROMs"
-
-
-# ── Helpers ──────────────────────────────────────────────────────
-
-
-def _rom_key(rom: Optional[dict]) -> Optional[tuple]:
-    if not rom:
-        return None
-    return (
-        (rom.get("system") or "").upper(),
-        rom.get("rom_id") or "",
-        rom.get("filename") or "",
-    )
 
 
 def _fmt_size(num_bytes: int) -> str:
