@@ -15,6 +15,10 @@ import com.savesync.android.api.GameNameRequest
 import com.savesync.android.api.NormalizeRequest
 import com.savesync.android.api.NormalizeRomEntry
 import com.savesync.android.api.RomEntry
+import com.savesync.android.catalog.RomCatalogFilter
+import com.savesync.android.installed.DeleteResult
+import com.savesync.android.installed.InstalledRom
+import com.savesync.android.installed.InstalledRomsScanner
 import com.savesync.android.api.SaturnArchiveLookupRequest
 import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SaveSyncApi
@@ -323,6 +327,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _romDownloadState = MutableStateFlow<RomDownloadState>(RomDownloadState.Idle)
     val romDownloadState: StateFlow<RomDownloadState> = _romDownloadState
+
+    // ── ROM Catalog tab ─────────────────────────────────────────────
+    /** Full server ROM catalog, fetched lazily on first tab entry and
+     *  refreshable on demand.  Null while loading the first time. */
+    private val _romCatalog = MutableStateFlow<List<RomEntry>>(emptyList())
+    val romCatalog: StateFlow<List<RomEntry>> = _romCatalog
+
+    private val _romCatalogLoading = MutableStateFlow(false)
+    val romCatalogLoading: StateFlow<Boolean> = _romCatalogLoading
+
+    private val _romCatalogLoaded = MutableStateFlow(false)
+    val romCatalogLoaded: StateFlow<Boolean> = _romCatalogLoaded
+
+    private val _romCatalogError = MutableStateFlow<String?>(null)
+    val romCatalogError: StateFlow<String?> = _romCatalogError
+
+    // ── Installed Games tab ─────────────────────────────────────────
+    private val _installedRoms = MutableStateFlow<List<InstalledRom>>(emptyList())
+    val installedRoms: StateFlow<List<InstalledRom>> = _installedRoms
+
+    private val _installedRomsLoading = MutableStateFlow(false)
+    val installedRomsLoading: StateFlow<Boolean> = _installedRomsLoading
+
+    private val _installedRomsLoaded = MutableStateFlow(false)
+    val installedRomsLoaded: StateFlow<Boolean> = _installedRomsLoaded
+
+    sealed class DeleteInstalledState {
+        object Idle : DeleteInstalledState()
+        data class Success(val rom: InstalledRom, val result: DeleteResult) : DeleteInstalledState()
+        data class Error(val rom: InstalledRom, val result: DeleteResult) : DeleteInstalledState()
+    }
+
+    private val _deleteInstalledState =
+        MutableStateFlow<DeleteInstalledState>(DeleteInstalledState.Idle)
+    val deleteInstalledState: StateFlow<DeleteInstalledState> = _deleteInstalledState
 
     // Server metadata for the currently open detail screen
     private val _serverMeta = MutableStateFlow<ServerMetaState>(ServerMetaState.Idle)
@@ -2003,6 +2042,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // title will get a real saveFile/saveDir and isServerOnly becomes false,
                     // which re-enables the Sync / Upload / Download buttons immediately.
                     scanSaves()
+                    // Also invalidate the Installed Games tab so the new
+                    // ROM shows up there on the next peek.
+                    scanInstalledRoms(force = true)
                 } else {
                     _romDownloadState.value = RomDownloadState.Error("ROM not found on server")
                 }
@@ -2014,6 +2056,96 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetRomDownloadState() {
         _romDownloadState.value = RomDownloadState.Idle
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // ROM Catalog tab
+    // ──────────────────────────────────────────────────────────────
+
+    /** Fetch the full server ROM catalog for the browse tab.  Called
+     *  lazily on first tab entry and again when the user hits refresh. */
+    fun fetchRomCatalog(force: Boolean = false) {
+        if (_romCatalogLoading.value) return
+        if (_romCatalogLoaded.value && !force && _romCatalog.value.isNotEmpty()) return
+        viewModelScope.launch {
+            val current = settingsStore.settingsFlow.first()
+            if (current.serverUrl.isBlank()) {
+                _romCatalogError.value = "Server URL not configured."
+                _romCatalogLoaded.value = true
+                return@launch
+            }
+            _romCatalogLoading.value = true
+            _romCatalogError.value = null
+            try {
+                val api = ApiClient.create(current.serverUrl, current.apiKey)
+                val response = api.getRoms()
+                _romCatalog.value = response.roms
+                _romCatalogLoaded.value = true
+            } catch (e: Exception) {
+                _romCatalogError.value = e.message ?: e.javaClass.simpleName
+                _romCatalogLoaded.value = true
+            } finally {
+                _romCatalogLoading.value = false
+            }
+        }
+    }
+
+    /** Smart-filtered view over [romCatalog]: every query token must
+     *  match, roman↔arabic variants expand automatically. */
+    fun filteredCatalog(query: String, system: String? = null): List<RomEntry> =
+        RomCatalogFilter.filter(_romCatalog.value, query, system)
+
+    // ──────────────────────────────────────────────────────────────
+    // Installed Games tab
+    // ──────────────────────────────────────────────────────────────
+
+    fun scanInstalledRoms(force: Boolean = false) {
+        if (_installedRomsLoading.value) return
+        if (_installedRomsLoaded.value && !force && _installedRoms.value.isNotEmpty()) return
+        viewModelScope.launch {
+            val current = settingsStore.settingsFlow.first()
+            _installedRomsLoading.value = true
+            try {
+                // The scanner is pure Kotlin + File I/O so it's safe
+                // to run straight on the IO dispatcher.  Fine-grained
+                // dispatch switch would be nice but this matches the
+                // other scanners in the app.
+                val roms = InstalledRomsScanner.scanInstalled(
+                    current.romScanDir,
+                    current.romDirOverrides,
+                )
+                _installedRoms.value = roms
+                _installedRomsLoaded.value = true
+            } catch (e: Exception) {
+                // Best-effort scan — missing permission or broken
+                // paths shouldn't crash the tab; show an empty list.
+                _installedRoms.value = emptyList()
+                _installedRomsLoaded.value = true
+            } finally {
+                _installedRomsLoading.value = false
+            }
+        }
+    }
+
+    /** Delete an installed ROM (whole-folder where applicable) and
+     *  refresh both the installed list and the saves list. */
+    fun deleteInstalledRom(rom: InstalledRom) {
+        viewModelScope.launch {
+            val result = InstalledRomsScanner.deleteInstalled(rom)
+            _deleteInstalledState.value = if (result.errors.isEmpty()) {
+                DeleteInstalledState.Success(rom, result)
+            } else {
+                DeleteInstalledState.Error(rom, result)
+            }
+            // Refresh installed list and saves — a deleted ROM may
+            // flip a synced save entry back to "server only".
+            scanInstalledRoms(force = true)
+            scanSaves()
+        }
+    }
+
+    fun resetDeleteInstalledState() {
+        _deleteInstalledState.value = DeleteInstalledState.Idle
     }
 
     private fun hasLocalSaveTarget(entry: SaveEntry): Boolean {
