@@ -25,6 +25,7 @@ import com.savesync.android.api.SaveSyncApi
 import com.savesync.android.emulators.EmulatorRegistry
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.emulators.impl.AzaharEmulator
+import com.savesync.android.emulators.impl.PpssppEmulator
 import com.savesync.android.emulators.impl.RetroArchEmulator
 import com.savesync.android.emulators.impl.DuckStationEmulator
 import com.savesync.android.storage.Settings
@@ -1009,16 +1010,108 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             preferredRom.name
         ).firstOrNull { !it.isNullOrBlank() && it != displayName }
 
+        // Predict a save path so the Download button is usable even without
+        // a local ROM.  Without this the user would hit "No local save
+        // location is known for this title yet" every time.
+        val (predictedFile, predictedDir, isMulti) = predictDefaultSaveTarget(
+            resolvedSystem, titleInfo.title_id, displayName
+        )
+
         return SaveEntry(
             titleId = titleInfo.title_id,
             displayName = displayName,
             systemName = resolvedSystem,
-            saveFile = null,
-            saveDir = null,
+            saveFile = predictedFile,
+            saveDir = predictedDir,
+            isMultiFile = isMulti,
             isServerOnly = true,
             canonicalName = canonicalName
         )
     }
+
+    /**
+     * Predicts where on disk a SERVER_ONLY save for [system] should land when
+     * the user doesn't have a local ROM / save yet.  Mirrors the Steam Deck
+     * client's generic server-only builder so both clients converge on the
+     * same paths, which matters when users sync across devices.
+     *
+     * Returns ``(saveFile, saveDir, isMultiFile)``.  Returns ``(null, null,
+     * false)`` for unsupported systems — the Download button stays disabled
+     * and the UI shows "Download the ROM first" instead.
+     */
+    private fun predictDefaultSaveTarget(
+        system: String,
+        titleId: String,
+        displayName: String
+    ): Triple<File?, File?, Boolean> {
+        val base = Environment.getExternalStorageDirectory()
+        return when (system.uppercase()) {
+            "PSP" -> {
+                // PPSSPP stores per-title saves in PSP/SAVEDATA/<title_id>/.
+                // Server hands us the full slot name as title_id, so use it
+                // verbatim.  isMultiFile=false so isPspSlot kicks in and the
+                // sync engine takes the PSP-bundle path.
+                val slotDir = PpssppEmulator.defaultSlotDir(base, titleId)
+                Triple(null, slotDir, false)
+            }
+            "NDS" -> {
+                // melonDS is the common Android NDS target.  Its scanner
+                // reads <stem>.sav from the melonDS/ folder — mirror that so
+                // a Download lands where the emulator will look.  SyncEngine
+                // creates parent dirs on write, so we don't mkdirs() here.
+                val melonDir = listOf("melonDS", "melonDS Android", "melonds")
+                    .map { File(base, it) }
+                    .firstOrNull { it.exists() && it.isDirectory }
+                    ?: File(base, "melonDS")
+                val file = File(melonDir, "${sanitizeFilesystemStem(displayName)}.sav")
+                Triple(file, null, false)
+            }
+            "VITA" -> {
+                // Vita3K: per-title savedata under ux0/user/00/savedata/<id>/.
+                val candidates = listOf(
+                    "Vita3K/ux0/user/00/savedata",
+                    "vita3k/ux0/user/00/savedata",
+                    "Android/data/org.vita3k.emulator/files/ux0/user/00/savedata",
+                )
+                val root = candidates
+                    .map { File(base, it) }
+                    .firstOrNull { it.exists() && it.isDirectory }
+                    ?: File(base, candidates.first())
+                Triple(null, File(root, titleId), true)
+            }
+            in retroarchSystems -> {
+                val saturnFormat = settings.value.saturnSyncFormat
+                val file = RetroArchEmulator.defaultSaveFile(
+                    externalStorage = base,
+                    system = system,
+                    label = displayName,
+                    saturnSyncFormat = saturnFormat,
+                )
+                Triple(file, null, false)
+            }
+            else -> Triple(null, null, false)
+        }
+    }
+
+    /** Strip disc/bracket tags and filesystem-unsafe chars from a display name. */
+    private fun sanitizeFilesystemStem(label: String): String {
+        return label
+            .replace(Regex("""\s*[\(\[]\s*(disc|cd|side)\s*\d+(?:\s*of\s*\d+)?\s*[\)\]]""",
+                RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""[\\/:*?"<>|]"""), "")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+            .ifBlank { "game" }
+    }
+
+    /** Systems whose server-only saves land as a single .srm/.bkr under the
+     *  RetroArch saves directory. */
+    private val retroarchSystems = setOf(
+        "GBA", "GB", "GBC", "NES", "SNES", "N64",
+        "MD", "SEGACD", "SMS", "GG", "32X",
+        "DC", "PCE", "LYNX", "NGP", "NGPC", "WSWAN", "WSWANC",
+        "NEOGEO", "SAT"
+    )
 
     /**
      * Builds a best-effort DuckStation card path for a server-only PS1 title when no

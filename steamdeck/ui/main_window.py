@@ -1244,6 +1244,16 @@ class MainWindow(QMainWindow):
         if not entry or not entry.server_hash:
             return
         if entry.save_path is None:
+            # Server-only saves on systems without a predicted save_path
+            # (unrecognised platform, missing emulation config) fall through
+            # here.  Tell the user instead of silently ignoring the click.
+            ResultDialog(
+                False,
+                f"No local save destination for '{entry.display_name}' on"
+                f" {entry.system}.  Install the ROM and rescan, or configure"
+                " the emulation path in Settings.",
+                parent=self,
+            ).exec()
             return
 
         # Build confirmation message
@@ -1255,7 +1265,7 @@ class MainWindow(QMainWindow):
             f"Download server save for '{entry.display_name}'?\n"
             f"Title ID: {entry.title_id}{size_str}"
         )
-        if entry.save_path and entry.save_path.exists():
+        if entry.save_path.exists():
             msg += "\n\nThis will overwrite your local save file."
 
         dlg = ConfirmDialog(
