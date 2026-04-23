@@ -963,6 +963,85 @@ class Test3dsLookup:
             == "0004000000030800"
         )
 
+    def test_load_3ds_dat_with_title_ids_supports_ktr_serials(
+        self, tmp_path, monkeypatch
+    ):
+        dat_path = tmp_path / "Nintendo - Nintendo 3DS.dat"
+        dat_path.write_text(
+            "\n".join(
+                [
+                    "game (",
+                    '\tname "Fire Emblem Warriors (USA)"',
+                    '\tserial "KTR-P-CFME"',
+                    '\ttitle_id "000400000F70CC00"',
+                    ")",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(game_names, "_3ds_names", {})
+        monkeypatch.setattr(game_names, "_3ds_priority", {})
+        monkeypatch.setattr(game_names, "_3ds_title_ids", {})
+        monkeypatch.setattr(game_names, "_3ds_title_id_priority", {})
+        monkeypatch.setattr(game_names, "_3ds_serial_to_title_id", {})
+        monkeypatch.setattr(game_names, "_3ds_by_slug", {})
+        monkeypatch.setattr(game_names, "_3ds_title_ids_by_slug", {})
+        monkeypatch.setattr(game_names, "_3ds_title_priority", {})
+
+        added = game_names.load_libretro_dat_to_dicts(dat_path)
+
+        assert added == 1
+        assert game_names.lookup_names_typed(["000400000F70CC00"]) == {
+            "000400000F70CC00": ("Fire Emblem Warriors (USA)", "3DS")
+        }
+        assert game_names.lookup_names_typed(["KTR-P-CFME"]) == {
+            "KTR-P-CFME": ("Fire Emblem Warriors (USA)", "3DS")
+        }
+        assert game_names._3ds_serial_to_title_id["KTR-P-CFME"] == "000400000F70CC00"
+        assert (
+            game_names.lookup_disc_serial("3DS", "Fire Emblem Warriors (USA).3ds")
+            == "000400000F70CC00"
+        )
+
+    def test_load_3ds_digital_dat_supports_title_id_only_blocks(
+        self, tmp_path, monkeypatch
+    ):
+        dat_path = tmp_path / "Nintendo - Nintendo 3DS (Digital).dat"
+        dat_path.write_text(
+            "\n".join(
+                [
+                    "game (",
+                    '\tname "BlockForm (USA)"',
+                    '\tdescription "BlockForm (USA)"',
+                    '\tregion "USA"',
+                    '\trom ( name "000400000f707000tmd" size 4708 crc 71162761 md5 B653B088048B47C1EF5D0209000F5803 sha1 78F8AA94D50360371257A2089768BDB625517C99 )',
+                    '\ttitle_id "000400000F707000"',
+                    ")",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(game_names, "_3ds_names", {})
+        monkeypatch.setattr(game_names, "_3ds_priority", {})
+        monkeypatch.setattr(game_names, "_3ds_title_ids", {})
+        monkeypatch.setattr(game_names, "_3ds_title_id_priority", {})
+        monkeypatch.setattr(game_names, "_3ds_serial_to_title_id", {})
+        monkeypatch.setattr(game_names, "_3ds_by_slug", {})
+        monkeypatch.setattr(game_names, "_3ds_title_ids_by_slug", {})
+        monkeypatch.setattr(game_names, "_3ds_title_priority", {})
+
+        added = game_names.load_libretro_dat_to_dicts(dat_path)
+
+        assert added == 1
+        assert game_names.lookup_names_typed(["000400000F707000"]) == {
+            "000400000F707000": ("BlockForm (USA)", "3DS")
+        }
+        assert game_names.lookup_disc_serial("3DS", "BlockForm (USA).cia") == "000400000F707000"
+
     def test_normalize_endpoint_uses_3ds_title_id_lookup(
         self, client, auth_headers, monkeypatch
     ):

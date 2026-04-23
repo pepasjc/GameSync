@@ -407,7 +407,7 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
       - Sony - PlayStation*.dat           → strip hyphens → _psx_names  (SLPS01204)
       - Sony - PlayStation Portable*.dat  → strip hyphens → _psp_names  (ULJM06272)
       - Sony - PlayStation Vita*.dat      → strip hyphens → _vita_names (PCSE00844)
-      - Nintendo - Nintendo 3DS*.dat      → extract 4-char code from CTR-P-XXXX → _3ds_names
+      - Nintendo - Nintendo 3DS*.dat      → extract 4-char code from CTR/KTR product codes → _3ds_names
       - Nintendo - Nintendo DS*.dat       → serial is already 4-char → _ds_names
       - Nintendo - Nintendo DSi*.dat      → serial is already 4-char → _ds_names
       - Nintendo - GameCube*.dat          → extract 4-char code from DL-DOL-XXXX-RGN → _wii_names
@@ -476,7 +476,7 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
     elif "nintendo 3ds" in fname:
         target = _3ds_names
         priority = _3ds_priority
-        mode = "3ds_code"  # extract 4-char code from CTR-P-XXXX
+        mode = "3ds_code"  # extract 4-char code from CTR/KTR-P-XXXX
     elif "nintendo ds" in fname or "nintendo dsi" in fname:
         target = _ds_names
         priority = _ds_priority
@@ -497,9 +497,12 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
     #   game (
     #       name "Title (Region).ext"
     #       serial "XXXX-YYYYY"
+    #       title_id "0004..."
     #       rom ( ... )
     #   )
     # A game block can have multiple serial lines; we use the first.
+    # Some 3DS digital/New 3DS sources only provide a title_id, so for
+    # Nintendo 3DS DATs we also accept title_id-only blocks.
     # We collect (serial, name) pairs and use region-priority to avoid
     # overwriting a preferred region entry with a less-preferred one.
 
@@ -536,9 +539,9 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
             key = serial.upper().strip()
             return key or None
         if mode == "3ds_code":
-            # CTR-P-XXXX or CTR-N-XXXX → XXXX (4-char)
+            # CTR/KTR-P-XXXX or CTR/KTR-N-XXXX → XXXX (4-char)
             parts = serial.upper().split("-")
-            if len(parts) == 3 and parts[0] == "CTR" and len(parts[2]) == 4:
+            if len(parts) == 3 and parts[0] in {"CTR", "KTR"} and len(parts[2]) == 4:
                 return parts[2]
             return None
         if mode == "ds_code":
@@ -585,50 +588,60 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
                 continue
 
             # End of block — ")" alone on a line at top level
-            if line.strip() == ")" and current_name and current_serial:
-                key = _extract_key(current_serial)
-                if key:
-                    rank = (_source_tier, _region_rank(current_name))
-                    existing_rank = priority.get(
-                        key, (len(_REGION_PRIORITY) + 1, len(_REGION_PRIORITY) + 1)
+            has_3ds_title_only = mode == "3ds_code" and bool(current_title_id)
+            if line.strip() == ")" and current_name and (current_serial or has_3ds_title_only):
+                rank = (_source_tier, _region_rank(current_name))
+                entry_added = False
+
+                if current_serial:
+                    key = _extract_key(current_serial)
+                    if key:
+                        existing_rank = priority.get(
+                            key, (len(_REGION_PRIORITY) + 1, len(_REGION_PRIORITY) + 1)
+                        )
+                        if rank < existing_rank or key not in target:
+                            target[key] = current_name
+                            priority[key] = rank
+                            entry_added = True
+
+                if mode == "3ds_code" and current_title_id:
+                    serial_key = current_serial.upper().strip() if current_serial else ""
+                    if serial_key:
+                        _3ds_serial_to_title_id[serial_key] = current_title_id
+                    existing_title_id_rank = _3ds_title_id_priority.get(
+                        current_title_id,
+                        (
+                            len(_REGION_PRIORITY) + 1,
+                            len(_REGION_PRIORITY) + 1,
+                        ),
                     )
-                    if rank < existing_rank or key not in target:
-                        target[key] = current_name
-                        priority[key] = rank
-                        added += 1
-                    if mode == "3ds_code" and current_title_id:
-                        serial_key = current_serial.upper().strip()
-                        if serial_key:
-                            _3ds_serial_to_title_id[serial_key] = current_title_id
-                        existing_title_id_rank = _3ds_title_id_priority.get(
-                            current_title_id,
+                    if (
+                        rank < existing_title_id_rank
+                        or current_title_id not in _3ds_title_ids
+                    ):
+                        _3ds_title_ids[current_title_id] = current_name
+                        _3ds_title_id_priority[current_title_id] = rank
+                        entry_added = True
+
+                    slug = normalize_rom_name(current_name)
+                    if slug and slug != "unknown":
+                        existing_title_rank = _3ds_title_priority.get(
+                            slug,
                             (
                                 len(_REGION_PRIORITY) + 1,
                                 len(_REGION_PRIORITY) + 1,
                             ),
                         )
-                        if (
-                            rank < existing_title_id_rank
-                            or current_title_id not in _3ds_title_ids
-                        ):
-                            _3ds_title_ids[current_title_id] = current_name
-                            _3ds_title_id_priority[current_title_id] = rank
+                        if rank < existing_title_rank or slug not in _3ds_by_slug:
+                            _3ds_by_slug[slug] = current_title_id
+                            _3ds_title_priority[slug] = rank
+                            entry_added = True
+                        candidates = _3ds_title_ids_by_slug.setdefault(slug, [])
+                        if current_title_id not in candidates:
+                            candidates.append(current_title_id)
 
-                        slug = normalize_rom_name(current_name)
-                        if slug and slug != "unknown":
-                            existing_title_rank = _3ds_title_priority.get(
-                                slug,
-                                (
-                                    len(_REGION_PRIORITY) + 1,
-                                    len(_REGION_PRIORITY) + 1,
-                                ),
-                            )
-                            if rank < existing_title_rank or slug not in _3ds_by_slug:
-                                _3ds_by_slug[slug] = current_title_id
-                                _3ds_title_priority[slug] = rank
-                            candidates = _3ds_title_ids_by_slug.setdefault(slug, [])
-                            if current_title_id not in candidates:
-                                candidates.append(current_title_id)
+                if entry_added:
+                    added += 1
                 current_name = None
                 current_serial = None
                 current_title_id = None
@@ -727,7 +740,7 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             continue
 
         # 3DS/DS: full 16-char hex TitleID
-        is_3ds_format = code_upper.startswith("CTR-")
+        is_3ds_format = code_upper.startswith(("CTR-", "KTR-"))
 
         if len(code_upper) == 16 and all(c in "0123456789ABCDEF" for c in code_upper):
             # 1. Direct TitleID lookup populated from 3DS DAT title_id lines.

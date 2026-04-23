@@ -22,8 +22,20 @@ from __future__ import annotations
 
 import re
 
+from shared.systems import normalize_system_code
+
 from .base import normalize_rom_name
 from .models import GameEntry, SyncStatus
+
+
+def _canon_system(system: str | None) -> str:
+    """Resolve a system label to its canonical code (e.g. ``SCD`` → ``SEGACD``,
+    ``GEN`` → ``MD``, ``megacd`` → ``SEGACD``).  Keeps the index and lookup
+    paths agreeing on one key even when the server and local scanner emit
+    different variants for the same system."""
+    if not system:
+        return ""
+    return (normalize_system_code(system) or system).upper()
 
 
 # Disc-based systems where the local scanner falls back to a slug
@@ -129,7 +141,12 @@ class RomIndex:
         idx = cls()
         for rom in catalog:
             title_id = rom.get("title_id")
-            system = (rom.get("system") or "").upper()
+            # Canonicalise so catalog rows emitted under alias codes
+            # (``SCD`` from the server's folder-based scanner) land under
+            # the same key the local scanner uses (``SEGACD``).  Without
+            # this, Sega CD / Mega CD rows never matched their local
+            # entries and the ``Download ROM`` affordance stayed hidden.
+            system = _canon_system(rom.get("system"))
             if not title_id or not system:
                 continue
             idx._by_title.setdefault(title_id, []).append(rom)
@@ -148,10 +165,10 @@ class RomIndex:
         return idx
 
     def title_id_for_filename(self, system: str, filename: str) -> str | None:
-        return self._by_filename.get((system.upper(), filename))
+        return self._by_filename.get((_canon_system(system), filename))
 
     def title_id_for_name(self, system: str, name: str) -> str | None:
-        sys_up = system.upper()
+        sys_up = _canon_system(system)
         slug = normalize_rom_name(name) if name else ""
         if slug and slug != "unknown":
             tid = self._by_norm.get((sys_up, slug))

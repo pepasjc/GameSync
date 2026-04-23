@@ -168,6 +168,68 @@ def test_rom_index_matches_for_entry_uses_all_strategies(tmp_path):
     assert idx.matches_for(missing) == []
 
 
+def test_rom_index_resolves_sega_cd_across_system_aliases():
+    """Regression: the server's folder-based scanner tags Sega CD ROMs with
+    the alias ``SCD`` (``FOLDER_TO_SYSTEM["segacd"] = "SCD"``), but the Steam
+    Deck's RetroArch scanner emits the canonical ``SEGACD``.  Before
+    ``RomIndex`` canonicalised system codes, the ``(system, …)`` keys never
+    lined up, so the ``Download ROM`` affordance stayed hidden on every
+    Sega CD row even when the server had the ROM.
+
+    Assert that catalog row system=``SCD`` + local entry system=``SEGACD``
+    (and vice versa) resolve to each other."""
+    catalog = [
+        {
+            "rom_id": "r1",
+            "title_id": "SEGACD_sonic_cd_usa",
+            "system": "SCD",  # server-side alias
+            "name": "Sonic CD (USA)",
+            "filename": "Sonic CD (USA).chd",
+        }
+    ]
+    idx = RomIndex.build(catalog)
+
+    # Lookup by the canonical code still resolves even though the catalog
+    # row was indexed under the alias.
+    assert idx.title_id_for_filename(
+        "SEGACD", "Sonic CD (USA).chd"
+    ) == "SEGACD_sonic_cd_usa"
+    assert idx.title_id_for_name(
+        "SEGACD", "Sonic CD (USA)"
+    ) == "SEGACD_sonic_cd_usa"
+
+    # And the end-to-end path the UI relies on: a local SEGACD entry
+    # finds the SCD-keyed catalog row.
+    local = GameEntry(
+        title_id="SEGACD_sonic_cd_usa",
+        display_name="Sonic CD (USA)",
+        system="SEGACD",
+        emulator="RetroArch",
+        rom_filename="Sonic CD (USA).chd",
+    )
+    matches = idx.matches_for(local)
+    assert len(matches) == 1
+    assert matches[0]["title_id"] == "SEGACD_sonic_cd_usa"
+
+    # Reverse direction — catalog tagged SEGACD, local scanner reports SCD
+    # (hypothetical, but we want the index symmetric to avoid future
+    # regressions if the canonical label ever flips).
+    idx2 = RomIndex.build(
+        [
+            {
+                "rom_id": "r2",
+                "title_id": "SEGACD_lunar_ssh_usa",
+                "system": "SEGACD",
+                "name": "Lunar - Silver Star Story Complete (USA)",
+                "filename": "Lunar - Silver Star Story Complete (USA).chd",
+            }
+        ]
+    )
+    assert idx2.title_id_for_filename(
+        "SCD", "Lunar - Silver Star Story Complete (USA).chd"
+    ) == "SEGACD_lunar_ssh_usa"
+
+
 # ---------------------------------------------------------------------------
 # dedup_disc_slug_entries
 # ---------------------------------------------------------------------------

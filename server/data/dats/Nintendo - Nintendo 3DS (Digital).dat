@@ -8576,3 +8576,290 @@ game (
 	rom ( name "peakvox - Mew Mew Train (Japan) (eShop).3ds" size 134217728 crc DE6A6808 md5 FAAD311DFFC756ECABE3C75826618568 sha1 CC994EB1DFFB46761310C1C312807DD498A37831 serial "CTR-N-JMYJ" )
 	title_id "00040000000C9500"
 )
+
+game (
+	name "Binding of Isaac - Rebirth, The (Europe) (eShop)"
+	cloneof "Binding of Isaac - Rebirth, The (USA) (eShop)"
+	description "Binding of Isaac - Rebirth, The (Europe) (eShop)"
+	region "Europe"
+	rom ( name "000400000f700900tmd" size 4708 crc 9CEA0CEE md5 06CCBEECF0E84F4EAC0FED0D4AE19046 sha1 9E076F038661762D232564D7329B9885F3F0AEA2 )
+	title_id "000400000F700900"
+)
+
+game (
+	name "Binding of Isaac - Rebirth, The (Japan) (eShop)"
+	cloneof "Binding of Isaac - Rebirth, The (USA) (eShop)"
+	description "Binding of Isaac - Rebirth, The (Japan) (eShop)"
+	region "Japan"
+	rom ( name "000400000f701700tmd" size 4708 crc 15DB7EFC md5 B66766D9F05BE58AAFAFF34FEB07061A sha1 1748B5CCB80D1B93A039F15A40466AE3E1300583 )
+	title_id "000400000F701700"
+)
+
+game (
+	name "Binding of Isaac - Rebirth, The (USA) (eShop)"
+	description "Binding of Isaac - Rebirth, The (USA) (eShop)"
+	region "USA"
+	rom ( name "000400000f700800tmd" size 4708 crc 5D8B29CD md5 18877D2942D086E4F27F209843072432 sha1 C7C417E14A0B968D96EA0DEB30FAF8CD19C64382 )
+	title_id "000400000F700800"
+)
+
+game (
+	name "Binding of Isaac - Rebirth, The (USA) (v1040) (eShop)"
+	description "Binding of Isaac - Rebirth, The (USA) (v1040) (eShop)"
+	region "USA"
+	rom ( name "000400000f700800tmd" size 4708 crc E015AE33 md5 F807A6A9135F035FC7B789257D5AFA6A sha1 372A37EA1DC1B92A02839FD2CCD89E875C059B8F )
+	title_id "000400000F700800"
+)
+
+game (
+	name "Binding of Isaac - Rebirth, The (USA) (v2080) (eShop)"
+	description "Binding of Isaac - Rebirth, The (USA) (v2080) (eShop)"
+	region "USA"
+	rom ( name "000400000f700800tmd" size 4708 crc 9F10FEB4 md5 632BADF0318995586A4B5EBFA84FCD52 sha1 CD98BAB1166924AD60DB55BE1722A8A78A93711F )
+	title_id "000400000F700800"
+)
+
+game (
+	name "Binding of Isaac - Rebirth, The (USA) (v3120) (eShop)"
+	description "Binding of Isaac - Rebirth, The (USA) (v3120) (eShop)"
+	region "USA"
+	rom ( name "000400000f700800tmd" size 4708 crc D7CE9032 md5 25E864A5B3A9948F00491DC2B0823587 sha1 95CAFB54E50D4A3389A0038C77D309CD27D3466C )
+	title_id "000400000F700800"
+)
+
+game (
+	name "Binding of Isaac, The - Rebirth (Korea)"
+	cloneof "Binding of Isaac - Rebirth, The (USA) (eShop)"
+	description "Binding of Isaac, The - Rebirth (Korea)"
+	region "Korea"
+	rom ( name "000400000f703900tmd" size 4708 crc 57BC6BF3 md5 78262E9DFC9364AC21D1B348DBC20A16 sha1 543750C135FD554F1035F98AE995B50FE143C7FC )
+	title_id "000400000F703900"
+)
+
+game (
+	name "BlockForm (Europe)"
+	cloneof "BlockForm (USA)"
+	description "BlockForm (Europe)"
+	region "Europe"
+	rom ( name "000400000f707100tmd" size 4708 crc 070AC567 md5 5F1C8E0DA20A5281575FFBA7409EFD8F sha1 62431EF1005B0770321491698C61A9EC9AB2992B )
+	title_id "000400000F707100"
+)
+
+game (
+	name "BlockForm (USA)"
+	description "BlockForm (USA)"
+	region "USA"
+	rom ( name "000400000f707000tmd" size 4708 crc 71162761 md5 B653B088048B47C1EF5D0209000F5803 sha1 78F8AA94D50360371257A2089768BDB625517C99 )
+	title_id "000400000F707000"
+)
+
+game (
+	name "Box Up (Europe)"
+	cloneof "Box Up (USA)"
+	description "Box Up (Europe)"
+	region "Europe"
+	rom ( name "000400000f708a00tmd" size 4708 crc 333D6DE0 md5 F6B3FC8CC0299473A6EB0A32291759E3 sha1 4F85AA91BA02AD1E48FBEE9FA51C36043BCD459D )
+	title_id "000400000F708A00"
+)
+
+game (
+	name "Box Up (USA)"
+	description "Box Up (USA)"
+	region "USA"
+	rom ( name "000400000f708900tmd" size 4708 crc 01697FFB md5 8B5A44A768AE982FE168E13B14DE4C1F sha1 5C8A6E6B366E499DC67BE76097FDFC676918F960 )
+	title_id "000400000F708900"
+)
+
+game (
+	name "Brick Race (Europe)"
+	cloneof "Brick Race (USA)"
+	description "Brick Race (Europe)"
+	region "Europe"
+	rom ( name "000400000f707300tmd" size 4708 crc 93E6F425 md5 76C0C40FEA5D9257223DF8C2BD9C1666 sha1 4CC5563114CD1BCD6AAAAF3661215BB45B88C8CB )
+	title_id "000400000F707300"
+)
+
+game (
+	name "Brick Race (USA)"
+	description "Brick Race (USA)"
+	region "USA"
+	rom ( name "000400000f707200tmd" size 4708 crc 17C5EE7F md5 E82E8EAAA4A6FBEDBD7B55A51B8BAE45 sha1 1D85C047828E3AAEFB8250EB85262F13FB995F2E )
+	title_id "000400000F707200"
+)
+
+game (
+	name "Cup Critters (Europe)"
+	cloneof "Cup Critters (USA)"
+	description "Cup Critters (Europe)"
+	region "Europe"
+	rom ( name "000400000f708e00tmd" size 4708 crc 3474768C md5 17623CD77768519986D47325B392FB7F sha1 1542292C26486E0804FA2CA8E4DECD381149CF6C )
+	title_id "000400000F708E00"
+)
+
+game (
+	name "Cup Critters (USA)"
+	description "Cup Critters (USA)"
+	region "USA"
+	rom ( name "000400000f709000tmd" size 4708 crc 4E88FD20 md5 D016D61A1DA1805DD56D371F1815E828 sha1 577561E4574C8EF1B6A39BC09D469276652EA7F2 )
+	title_id "000400000F709000"
+)
+
+game (
+	name "DragonFang - The Doran and Dungeon of Time (Japan)"
+	description "DragonFang - The Doran and Dungeon of Time (Japan)"
+	region "Japan"
+	rom ( name "000400000f705900tmd" size 4708 crc 3D5DCF9C md5 C773062104A45C8F606E61D1A63ECFE9 sha1 900ADD86D21F2179389D9055D1E047E91206ECD2 )
+	title_id "000400000F705900"
+)
+
+game (
+	name "Futuridium EP Deluxe (Europe)"
+	cloneof "Futuridium EP Deluxe (USA)"
+	description "Futuridium EP Deluxe (Europe)"
+	region "Europe"
+	rom ( name "000400000f705e00tmd" size 4708 crc 192E2FA3 md5 0763117FDF476454012CBA70B46BEF62 sha1 98AEDBAB13D1A676C119B0D5790C9E47D11A5309 )
+	title_id "000400000F705E00"
+)
+
+game (
+	name "Futuridium EP Deluxe (USA)"
+	description "Futuridium EP Deluxe (USA)"
+	region "USA"
+	rom ( name "000400000f705c00tmd" size 4708 crc 6B02BBC2 md5 34295824F299E2403E03F255F0873C0A sha1 509F70B1C038E83B3E2D47F64711FC44CC65D7C4 )
+	title_id "000400000F705C00"
+)
+
+game (
+	name "Galaxy Blaster (Europe)"
+	cloneof "Galaxy Blaster (USA)"
+	description "Galaxy Blaster (Europe)"
+	region "Europe"
+	rom ( name "000400000f709300tmd" size 4708 crc 2509D45D md5 0811ABBE61B0B074964D5D080C5AEAB0 sha1 84407AA427709C2B6D34A7D368AD194A4C156A94 )
+	title_id "000400000F709300"
+)
+
+game (
+	name "Galaxy Blaster (USA)"
+	description "Galaxy Blaster (USA)"
+	region "USA"
+	rom ( name "000400000f709400tmd" size 4708 crc D1AA59C6 md5 28D6FD760C984A52FFF1FFC35AD910A2 sha1 363E7D2DBB3EA1238ECD5C7A8E4597A643A3ACD9 )
+	title_id "000400000F709400"
+)
+
+game (
+	name "Hit Ninja (USA)"
+	description "Hit Ninja (USA)"
+	region "USA"
+	rom ( name "000400000f709500tmd" size 4708 crc 6A81729E md5 735D667AB0B3A6164531AD015AAF1931 sha1 F84FFB76A4E222114EB8F5D6E51622E940DF8F8F )
+	title_id "000400000F709500"
+)
+
+game (
+	name "Hyperlight EX (Europe)"
+	cloneof "Hyperlight EX (USA)"
+	description "Hyperlight EX (Europe)"
+	region "Europe"
+	rom ( name "000400000f708100tmd" size 4708 crc B9282CC0 md5 B20625E29C2C3ECEA661F798E0DBA9E8 sha1 CF4BD620D2339F91D606BA1925355BE73C656A14 )
+	title_id "000400000F708100"
+)
+
+game (
+	name "Hyperlight EX (USA)"
+	description "Hyperlight EX (USA)"
+	region "USA"
+	rom ( name "000400000f707f00tmd" size 4708 crc FF2BF533 md5 D4C36E60DBEA86E20014E46C73EDAD48 sha1 8085070ED55AE5F3850793126418C6CD72B94CFA )
+	title_id "000400000F707F00"
+)
+
+game (
+	name "Minecraft - New Nintendo 3DS Edition (Japan) (eShop) (Encrypted CIA)"
+	description "Minecraft - New Nintendo 3DS Edition (Japan) (eShop) (Encrypted CIA)"
+	region "Japan"
+	rom ( name "Minecraft - New Nintendo 3DS Edition (Japan) (eShop) (Encrypted CIA).cia" size 489126208 crc 4698C0E3 md5 BDE48252924D02004129E9CEB4D2D06A sha1 0140E03A65A4F4E2E2B81FC1A2324F28B4C6A5A5 )
+	title_id "000400000017FD00"
+)
+
+game (
+	name "Pirate Pop Plus (Europe)"
+	cloneof "Pirate Pop Plus (USA)"
+	description "Pirate Pop Plus (Europe)"
+	region "Europe"
+	rom ( name "000400000f708500tmd" size 4708 crc DE769CDC md5 565EA6FCDB1FF5A4DFC1C17FE9B7908D sha1 8D06882C69F892DFF10812BEE19BE789BD883747 )
+	title_id "000400000F708500"
+)
+
+game (
+	name "Pirate Pop Plus (USA)"
+	description "Pirate Pop Plus (USA)"
+	region "USA"
+	rom ( name "000400000f708600tmd" size 4708 crc C9BDAB28 md5 A44B62F7B203ACDD4FCCAE7B8DE9E5AD sha1 7A609447283BB28E082E692AF74A7A61049456A7 )
+	title_id "000400000F708600"
+)
+
+game (
+	name "Pixel Hunter (USA)"
+	description "Pixel Hunter (USA)"
+	region "USA"
+	rom ( name "000400000f707800tmd" size 4708 crc 703A43F3 md5 FDDCA2788D2BCA1EDAD4C03593B4F023 sha1 F0AB4DA64A0B4F764BA7FCF4DFEC7BB713AD927D )
+	title_id "000400000F707800"
+)
+
+game (
+	name "Shoot the Ball (Europe)"
+	cloneof "Shoot the Ball (USA)"
+	description "Shoot the Ball (Europe)"
+	region "Europe"
+	rom ( name "000400000f708b00tmd" size 4708 crc 15CD3021 md5 C9F9AE02DEBE38CA8799BAB41EE4E97D sha1 E378EBEF71D4508042E775D5555C8089A39B4DDE )
+	title_id "000400000F708B00"
+)
+
+game (
+	name "Shoot the Ball (USA)"
+	description "Shoot the Ball (USA)"
+	region "USA"
+	rom ( name "000400000f708800tmd" size 4708 crc E8DC016B md5 9AA8C8D42B5037BFC6CBADDB4C0100C2 sha1 7DF99D40D0DD78BBD4D7D6B2D80258CED3327D26 )
+	title_id "000400000F708800"
+)
+
+game (
+	name "Wind-up Knight 2 (Europe)"
+	cloneof "Wind-up Knight 2 (USA)"
+	description "Wind-up Knight 2 (Europe)"
+	region "Europe"
+	rom ( name "000400000f704500tmd" size 4708 crc CFBA63B9 md5 B7D8B4B3C2FD8F52E147FCEA21C411AD sha1 C822F5640F57B72D123DC24B968808EC932BF497 )
+	title_id "000400000F704500"
+)
+
+game (
+	name "Wind-up Knight 2 (USA)"
+	description "Wind-up Knight 2 (USA)"
+	region "USA"
+	rom ( name "000400000f702d00tmd" size 4708 crc 243D6CE8 md5 5815E48ED8AAE875306C606D00C637A3 sha1 61DB8912942E5A1D1F5D7DDF5044105047F93EFD )
+	title_id "000400000F702D00"
+)
+
+game (
+	name "Xenoblade (Japan) (v2080)"
+	cloneof "Xenoblade Chronicles 3D (USA) (En,Fr,Es) (v2080)"
+	description "Xenoblade (Japan) (v2080)"
+	region "Japan"
+	rom ( name "000400000f700000tmd" size 4708 crc D7CC4A52 md5 B322C79869A29EFA588C7134A977AF62 sha1 5E66EE33E3AF20E263EA311672BDF94034AB58BA )
+	title_id "000400000F700000"
+)
+
+game (
+	name "Xenoblade Chronicles 3D (Europe) (En,Fr,De,Es,It) (v2096)"
+	cloneof "Xenoblade Chronicles 3D (USA) (En,Fr,Es) (v2080)"
+	description "Xenoblade Chronicles 3D (Europe) (En,Fr,De,Es,It) (v2096)"
+	region "Europe"
+	rom ( name "000400000f700200tmd" size 4708 crc 31C8CE51 md5 6538DFF93A547EFC181AC9042ADE8015 sha1 A88FFF6CC6BBC288D559F6DF11D1EA89E7E01EB1 )
+	title_id "000400000F700200"
+)
+
+game (
+	name "Xenoblade Chronicles 3D (USA) (En,Fr,Es) (v2080)"
+	description "Xenoblade Chronicles 3D (USA) (En,Fr,Es) (v2080)"
+	region "USA"
+	rom ( name "000400000f700100tmd" size 4708 crc 26CDCD28 md5 163DE912A3A83B071E2A0D0D66E5FA71 sha1 B2DFFB63CBC16D9AEB456DAE66A43E16FA28302C )
+	title_id "000400000F700100"
+)
