@@ -1,11 +1,13 @@
 """
 PCSX2 PS2 scanner for EmuDeck on Steam Deck.
 
-Ported from Android's AetherSX2Emulator.kt:
-  - Scans PS2 ROMs and extracts serials via ISO 9660 SYSTEM.CNF parsing
-  - Matches memory card files (.ps2/.mc2/.bin) to ROMs
-  - Only shows saves that have matching ROMs on disk
-  - Filters out shared/default memory cards (Mcd001, Mcd002, etc.)
+Ported from Android's AetherSX2Emulator.kt with the same "discover-then-enrich"
+strategy as DuckStation:
+  - Every memory card file (.ps2/.mc2/.bin/.mc) is yielded, regardless of
+    whether a matching ROM exists on disk
+  - Every PS2 ROM is yielded with a predicted card path, even if its ISO
+    serial cannot be parsed (CHDs etc.)
+  - Shared / default memory cards (Mcd001, Mcd002, …) are filtered out
 """
 
 import re
@@ -13,10 +15,10 @@ from pathlib import Path
 from typing import Generator, Optional
 
 from .base import (
+    make_title_id,
     normalize_rom_name,
     sha256_file,
     find_paths,
-    to_title_id,
     normalize_serial,
     read_ps2_serial,
     find_rom_dirs,
@@ -24,6 +26,7 @@ from .base import (
     PS2_ROM_EXTENSIONS,
     PS2_ROM_DIRS,
     PS2_SHARED_CARD_RE,
+    PS1_SERIAL_RE,
 )
 from .models import GameEntry
 
@@ -49,21 +52,23 @@ def _extract_embedded_serial(stem: str) -> Optional[str]:
     return None
 
 
-def scan(
-    emulation_path: Path,
-    rom_scan_dir: Optional[str] = None,
-) -> Generator[GameEntry, None, None]:
-    """
-    Scan PCSX2 PS2 saves, yielding only saves that match ROMs.
+def _is_serial_title_id(title_id: str) -> bool:
+    return bool(PS1_SERIAL_RE.match(title_id))
 
-    Strategy (mirrors Android's AetherSX2Emulator):
-    1. Build a ROM serial map by scanning PS2 ISOs
-    2. For each memory card, match to a ROM by serial or name
-    3. Skip shared/default memory cards
-    """
-    # Find memcards directories — prefer user-configured emulation_path
+
+def _fill_save_metadata(entry: GameEntry, path: Path) -> None:
+    try:
+        entry.save_hash = sha256_file(path)
+        stat = path.stat()
+        entry.save_mtime = stat.st_mtime
+        entry.save_size = stat.st_size
+    except Exception:
+        pass
+
+
+def _find_memcards_dirs(emulation_path: Path) -> list[Path]:
     emu_saves = emulation_path / "saves" / "pcsx2"
-    memcards_dirs = [
+    return [
         emu_saves / "memcards",
         emu_saves / "saves",
         emu_saves,
@@ -73,14 +78,28 @@ def scan(
         FLATPAK_PCSX2_DATA / "memcards",
     ]
 
+
+def scan(
+    emulation_path: Path,
+    rom_scan_dir: Optional[str] = None,
+) -> Generator[GameEntry, None, None]:
+    """
+    Scan PCSX2 PS2 saves and ROMs.
+
+    Yields an entry for every memory card file AND every ROM, so users see
+    a complete picture even when cards and ROMs don't line up.
+    """
+    memcards_dirs = _find_memcards_dirs(emulation_path)
+    existing_memcards_dirs = [d for d in memcards_dirs if d.exists()]
+    primary_memcards_dir = existing_memcards_dirs[0] if existing_memcards_dirs else None
+
     # Build ROM search paths
     rom_bases: list[Path] = [emulation_path / "roms", emulation_path]
     if rom_scan_dir:
         rom_bases.append(Path(rom_scan_dir))
-
     rom_dirs = find_rom_dirs(rom_bases, PS2_ROM_DIRS)
 
-    # Build ROM serial map: stem -> serial, and serial -> (rom, stem)
+    # Build ROM serial map: stem -> serial, and serial/name -> (rom, stem)
     rom_serial_by_stem: dict[str, str] = {}
     rom_by_serial: dict[str, tuple[Path, str]] = {}
     rom_by_name: dict[str, tuple[Path, str]] = {}
@@ -99,59 +118,52 @@ def scan(
         if norm not in rom_by_name:
             rom_by_name[norm] = (rom_file, stem)
 
-    seen: set[str] = set()
+    yielded: dict[str, GameEntry] = {}
 
-    # Scan memory cards and match to ROMs
-    for saves_dir in memcards_dirs:
-        if not saves_dir.exists():
+    # ------------------------------------------------------------------
+    # Pass A — memory cards
+    # ------------------------------------------------------------------
+    for saves_dir in existing_memcards_dirs:
+        try:
+            card_files = [
+                f
+                for f in saves_dir.iterdir()
+                if f.is_file() and f.suffix.lower() in _MCD_EXTENSIONS
+            ]
+        except Exception:
             continue
-        for card_file in sorted(saves_dir.iterdir()):
-            if not card_file.is_file():
-                continue
-            if card_file.suffix.lower() not in _MCD_EXTENSIONS:
-                continue
-
+        for card_file in sorted(card_files):
             stem = card_file.stem
 
             # Skip shared default cards
             if PS2_SHARED_CARD_RE.match(stem):
                 continue
 
-            # Try to find the serial for this card
-            # 1. From ROM serial map by filename match
-            serial = rom_serial_by_stem.get(stem)
+            # Figure out the best title_id for this card.
+            serial = rom_serial_by_stem.get(stem) or rom_serial_by_stem.get(
+                normalize_rom_name(stem)
+            )
             matched_rom: Optional[Path] = None
-
-            # 2. From embedded serial in filename
             if not serial:
                 serial = _extract_embedded_serial(stem)
-
-            # 3. From normalized name match to ROM
             if not serial:
                 norm = normalize_rom_name(stem)
                 if norm in rom_by_name:
                     rom_file, _ = rom_by_name[norm]
                     matched_rom = rom_file
                     serial = read_ps2_serial(rom_file)
+            if serial and serial in rom_by_serial:
+                matched_rom = rom_by_serial[serial][0]
 
-            # Determine title_id
             if serial:
                 title_id = serial
-                # Verify this serial maps to a known ROM
-                if serial in rom_by_serial:
-                    matched_rom = rom_by_serial[serial][0]
             else:
-                # No serial found - check if we have a ROM with matching name
-                norm = normalize_rom_name(stem)
-                if norm not in rom_by_name:
-                    # No matching ROM found — skip this card
-                    continue
-                matched_rom = rom_by_name[norm][0]
-                title_id = to_title_id(matched_rom.stem, "PS2")
+                # Fall back to a slug derived from the card filename so the
+                # entry is still visible / syncable.
+                title_id = normalize_serial(stem) or make_title_id("PS2", stem)
 
-            if title_id in seen:
+            if title_id in yielded:
                 continue
-            seen.add(title_id)
 
             entry = GameEntry(
                 title_id=title_id,
@@ -162,41 +174,59 @@ def scan(
                 rom_path=matched_rom,
                 rom_filename=matched_rom.name if matched_rom else None,
             )
-            try:
-                entry.save_hash = sha256_file(card_file)
-                stat = card_file.stat()
-                entry.save_mtime = stat.st_mtime
-                entry.save_size = stat.st_size
-            except Exception:
-                pass
-            yield entry
+            _fill_save_metadata(entry, card_file)
+            yielded[title_id] = entry
 
-    # Also create entries from ROMs that have serials but no card yet
-    # (so server-only downloads can find a save path)
-    for serial, (rom_file, rom_stem) in rom_by_serial.items():
-        if serial in seen:
+    # ------------------------------------------------------------------
+    # Pass B — ROMs (create entries even without parseable serial)
+    # ------------------------------------------------------------------
+    for rom_file in scan_rom_files(rom_dirs, PS2_ROM_EXTENSIONS):
+        stem = rom_file.stem
+        serial = read_ps2_serial(rom_file) or normalize_serial(stem)
+        title_id = serial or make_title_id("PS2", stem)
+
+        # If we're about to add a serial-backed entry and we already have a
+        # weaker slug entry with the same display name, drop the stale one.
+        # Use normalize_rom_name on both sides so card stems like
+        # "Final Fantasy X (USA)" match ROM stems like "Final Fantasy X" —
+        # a raw lowercase compare misses this and leaves duplicates behind.
+        if serial and _is_serial_title_id(title_id):
+            target_norm = normalize_rom_name(stem)
+            for tid in [
+                tid
+                for tid, existing in yielded.items()
+                if not _is_serial_title_id(tid)
+                and normalize_rom_name(existing.display_name) == target_norm
+            ]:
+                yielded.pop(tid, None)
+
+        if title_id in yielded:
+            existing = yielded[title_id]
+            if existing.rom_path is None:
+                existing.rom_path = rom_file
+                existing.rom_filename = rom_file.name
             continue
-        seen.add(serial)
 
-        # Predict where PCSX2 would write the card
-        best_memcards_dir = None
-        for d in memcards_dirs:
-            if d.exists():
-                best_memcards_dir = d
-                break
-
-        save_path = None
-        if best_memcards_dir:
-            save_path = best_memcards_dir / f"{rom_stem}.ps2"
+        # Predict the card path so a later server download has somewhere to
+        # land; only set save_path if the file actually exists on disk so
+        # we don't falsely show "synced" or tamper with hashes.
+        save_path: Optional[Path] = None
+        if primary_memcards_dir:
+            predicted = primary_memcards_dir / f"{stem}.ps2"
+            if predicted.exists():
+                save_path = predicted
 
         entry = GameEntry(
-            title_id=serial,
-            display_name=rom_stem,
+            title_id=title_id,
+            display_name=stem,
             system="PS2",
             emulator="PCSX2",
             save_path=save_path,
             rom_path=rom_file,
             rom_filename=rom_file.name,
         )
-        # No local save hash since the card doesn't exist yet
-        yield entry
+        if save_path is not None:
+            _fill_save_metadata(entry, save_path)
+        yielded[title_id] = entry
+
+    yield from yielded.values()

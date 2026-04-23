@@ -1,9 +1,17 @@
 """Data models for the Steam Deck scanner."""
 
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+
+# Make the repo root importable so 'shared' can be found.
+_REPO_ROOT = str(Path(__file__).parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from shared.systems import SYSTEM_COLOR, DEFAULT_SYSTEM_COLOR  # noqa: E402
 
 
 class SyncStatus(Enum):
@@ -40,44 +48,7 @@ STATUS_COLOR = {
     SyncStatus.NO_SAVE: "#555555",
 }
 
-# Colors for system badges
-SYSTEM_COLOR = {
-    "GBA": "#7b1fa2",
-    "GB": "#388e3c",
-    "GBC": "#2e7d32",
-    "SNES": "#5d4037",
-    "NES": "#c62828",
-    "N64": "#1565c0",
-    "MD": "#0d47a1",
-    "SMS": "#1976d2",
-    "GG": "#00838f",
-    "32X": "#0277bd",
-    "SEGACD": "#006064",
-    "PCE": "#558b2f",
-    "PCECD": "#558b2f",
-    "TG16": "#33691e",
-    "TGCD": "#33691e",
-    "A2600": "#e65100",
-    "A7800": "#bf360c",
-    "LYNX": "#4e342e",
-    "NGP": "#37474f",
-    "NGPC": "#263238",
-    "WSWAN": "#4527a0",
-    "WSWANC": "#311b92",
-    "NEOGEO": "#b71c1c",
-    "ARCADE": "#880e4f",
-    "PS1": "#37474f",
-    "PS2": "#1a237e",
-    "PS3": "#212121",
-    "PSP": "#004d40",
-    "NDS": "#1b5e20",
-    "3DS": "#b71c1c",
-    "GC": "#4a148c",
-    "WII": "#880e4f",
-    "NSW": "#e53935",
-}
-
-DEFAULT_SYSTEM_COLOR = "#424242"
+# SYSTEM_COLOR and DEFAULT_SYSTEM_COLOR imported from shared.systems above.
 
 
 @dataclass
@@ -106,3 +77,7 @@ class GameEntry:
     server_timestamp: Optional[float] = None
     server_size: Optional[int] = None
     last_synced_hash: Optional[str] = None
+    # Server ROM catalog matches for this title (rom dicts as returned by
+    # /api/v1/roms).  Populated by ``ServerWorker`` so the UI can hide the
+    # Download-ROM button when the server has nothing to offer.
+    available_roms: list[dict] = field(default_factory=list)

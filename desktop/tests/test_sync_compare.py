@@ -1,7 +1,15 @@
 import hashlib
+import os
 from pathlib import Path
 
 import sync_engine as se
+from saroo_format import (
+    ArchiveEntry,
+    GameSlot,
+    SLOT_SIZE,
+    build_ss_save_bin,
+    saroo_slot_to_mednafen,
+)
 
 
 class DummyResponse:
@@ -491,6 +499,144 @@ def test_upload_save_uses_raw_endpoint_for_ps2_titles(monkeypatch, tmp_path):
     ]
 
 
+def test_upload_save_uses_saroo_per_game_payload_not_full_container(monkeypatch, tmp_path):
+    ss_save = tmp_path / "SS_SAVE.BIN"
+    ss_save.write_bytes(b"x" * (8 * 1024 * 1024))
+    calls = []
+
+    class PostResponse:
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, headers=None, params=None, data=None, timeout=None):
+        calls.append((url, params, data))
+        return PostResponse()
+
+    monkeypatch.setattr(se.requests, "post", fake_post)
+    monkeypatch.setattr(se, "_update_state", lambda title_id, hash_val: None)
+    monkeypatch.setattr(
+        se,
+        "_SAROO_META",
+        {
+            "SAT_T12705H": {
+                "game_id": "T-12705H",
+                "slot_index": 0x10000,
+                "native_bytes": b"per-game-save",
+                "bkr_path": "",
+            }
+        },
+    )
+
+    se.upload_save(
+        "SAT_T12705H",
+        ss_save,
+        "http://example",
+        {"X-API-Key": "x"},
+        system="SAT",
+    )
+
+    assert calls == [
+        ("http://example/api/v1/saves/SAT_T12705H/raw", {}, b"per-game-save")
+    ]
+
+
+def test_upload_save_prefers_newer_saroo_bkr_over_container(monkeypatch, tmp_path):
+    ss_save = tmp_path / "SS_SAVE.BIN"
+    ss_save.write_bytes(b"x" * (8 * 1024 * 1024))
+    bkr = tmp_path / "T12705H.bkr"
+    bkr.write_bytes(b"newer-bkr")
+    os.utime(ss_save, (1000, 1000))
+    os.utime(bkr, (2000, 2000))
+    calls = []
+
+    class PostResponse:
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, headers=None, params=None, data=None, timeout=None):
+        calls.append((url, params, data))
+        return PostResponse()
+
+    monkeypatch.setattr(se.requests, "post", fake_post)
+    monkeypatch.setattr(se, "_update_state", lambda title_id, hash_val: None)
+    monkeypatch.setattr(
+        se,
+        "_SAROO_META",
+        {
+            "SAT_T12705H": {
+                "game_id": "T-12705H",
+                "slot_index": 0x10000,
+                "native_bytes": b"older-slot",
+                "bkr_path": str(bkr),
+            }
+        },
+    )
+
+    se.upload_save(
+        "SAT_T12705H",
+        ss_save,
+        "http://example",
+        {"X-API-Key": "x"},
+        system="SAT",
+    )
+
+    assert calls == [
+        ("http://example/api/v1/saves/SAT_T12705H/raw", {}, b"newer-bkr")
+    ]
+
+
+def test_scan_saroo_preserves_physical_slot_offsets_when_invalid_slots_are_skipped(
+    monkeypatch, tmp_path
+):
+    saroo_root = tmp_path / "saroo"
+    saroo_root.mkdir()
+
+    def make_slot(game_id, save_name, payload, comment="SAVE"):
+        return GameSlot(
+            game_id=game_id,
+            saves=[
+                ArchiveEntry(
+                    name=save_name,
+                    comment=comment,
+                    language_code=0,
+                    date_code=1,
+                    raw_data=payload,
+                )
+            ],
+        )
+
+    first_slot = make_slot("T-0001G   V1.000", "FIRSTSAVE_1", b"A" * 256)
+    invalid_reserved_slot = make_slot("T-0002G   V1.000", "BROKEN___01", b"B" * 256)
+    dracula_slot = make_slot("T-9527G   V1.400", "DRACULAX_01", b"D" * 4388)
+    grandia_slot = make_slot("T-4507G   V1.002", "GRANDIA_001", b"G" * 3040)
+
+    ss_data = bytearray(
+        build_ss_save_bin(
+            [first_slot, invalid_reserved_slot, dracula_slot, grandia_slot]
+        )
+    )
+    ss_data[2 * SLOT_SIZE : 3 * SLOT_SIZE] = b"\x00" * SLOT_SIZE
+    ss_save = saroo_root / "SS_SAVE.BIN"
+    ss_save.write_bytes(ss_data)
+
+    monkeypatch.setattr(se, "_SAROO_META", {})
+
+    results = se._scan_saroo(saroo_root, None)
+
+    grandia_result = next(result for result in results if result.title_id == "SAT_T-4507G")
+    grandia_meta = se._SAROO_META["SAT_T-4507G"]
+
+    expected_grandia = saroo_slot_to_mednafen(
+        bytes(ss_data[4 * SLOT_SIZE : 5 * SLOT_SIZE])
+    )
+    wrong_dracula = saroo_slot_to_mednafen(bytes(ss_data[3 * SLOT_SIZE : 4 * SLOT_SIZE]))
+
+    assert grandia_result.hash == hashlib.sha256(expected_grandia).hexdigest()
+    assert grandia_meta["slot_index"] == 4 * SLOT_SIZE
+    assert grandia_meta["native_bytes"] == expected_grandia
+    assert grandia_meta["native_bytes"] != wrong_dracula
+
+
 def test_download_save_uses_raw_endpoint_for_ps2_titles(monkeypatch, tmp_path):
     dest = tmp_path / "SLUS-20002-1.mc2"
     calls = []
@@ -566,6 +712,63 @@ def test_compare_with_server_uses_ps1_card_meta_for_ps1_titles(monkeypatch, tmp_
     assert statuses[0].status == "up_to_date"
     assert statuses[0].server_hash == local_hash
     assert ("http://example/api/v1/saves/SLUS00594/ps1-card/meta", {"slot": 0}) in calls
+
+
+def test_compare_with_server_remaps_saturn_slug_title_id_by_unique_hash_match(
+    monkeypatch, tmp_path
+):
+    save_path = tmp_path / "Grandia (Japan).bkr"
+    save_path.write_bytes(b"grandia")
+    local_hash = se._hash_file(save_path)
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        if url.endswith("/api/v1/titles"):
+            return DummyResponse(
+                {
+                    "titles": [
+                        {
+                            "title_id": "SAT_T-4507G",
+                            "name": "Grandia (Japan) (Disc 1) (4M)",
+                            "system": "SAT",
+                            "save_hash": local_hash,
+                            "server_timestamp": "2026-04-13T00:00:00Z",
+                        }
+                    ]
+                }
+            )
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(se.requests, "get", fake_get)
+    monkeypatch.setattr(se, "_load_state", lambda: {})
+    monkeypatch.setattr(se, "SLOT_MAPPING_FILE", tmp_path / ".slot_mappings.json")
+    monkeypatch.setattr(se, "_SLOT_MAPPINGS", None)
+    monkeypatch.setattr(se, "_SLOT_MAPPINGS_DIRTY", False)
+    monkeypatch.setattr(
+        se,
+        "_canonical_saturn_payload",
+        lambda *args, **kwargs: (save_path.read_bytes(), []),
+    )
+
+    statuses = se.compare_with_server(
+        [
+            se.SaveFile(
+                title_id="SAT_grandia_japan",
+                path=save_path,
+                hash=local_hash,
+                mtime=save_path.stat().st_mtime,
+                system="SAT",
+                game_name="Grandia (Japan)",
+                save_exists=True,
+            )
+        ],
+        "http://example",
+        {"X-API-Key": "x"},
+    )
+
+    assert len(statuses) == 1
+    assert statuses[0].save.title_id == "SAT_T-4507G"
+    assert statuses[0].status == "up_to_date"
+    assert statuses[0].server_hash == local_hash
 
 
 def test_scan_emudeck_rpcs3_uses_full_folder_name_as_title_id(tmp_path):

@@ -36,7 +36,12 @@ class SyncWorker(
             val api = ApiClient.create(settings.serverUrl, settings.apiKey)
 
             // Discover saves
-            val saves = EmulatorRegistry.discoverAllSaves()
+            val saves = EmulatorRegistry.discoverAllSaves(
+                romScanDir = settings.romScanDir,
+                dolphinMemCardDir = settings.dolphinMemCardDir,
+                romDirOverrides = settings.romDirOverrides,
+                saturnSyncFormat = settings.saturnSyncFormat
+            )
             if (saves.isEmpty()) {
                 postNotification("Sync complete", "No save files found.")
                 return Result.success()
@@ -44,7 +49,7 @@ class SyncWorker(
 
             // Run sync
             val db = SaveSyncApp.instance.database
-            val engine = SyncEngine(api, db, consoleId)
+            val engine = SyncEngine(api, db, consoleId, settings.saturnSyncFormat)
             val result = engine.sync(saves)
 
             // Post notification

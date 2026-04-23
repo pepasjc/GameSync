@@ -2,6 +2,7 @@ package com.savesync.android.emulators.impl
 
 import com.savesync.android.emulators.EmulatorBase
 import com.savesync.android.emulators.SaveEntry
+import com.savesync.android.sync.SaturnSyncFormat
 import org.json.JSONObject
 import java.io.File
 
@@ -12,16 +13,72 @@ import java.io.File
  *   E.g. "/storage/sdcard1/Isos" with subfolders GBA/, MegaDrive/, PS1/, …
  */
 class RetroArchEmulator(
-    private val romScanDir: String = ""
+    private val romScanDir: String = "",
+    private val romDirOverrides: Map<String, String> = emptyMap(),
+    private val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
 ) : EmulatorBase() {
 
     override val name: String = "RetroArch"
     override val systemPrefix: String = "RETRO"
 
-    private val saveExtensions = setOf("srm", "sav", "savestate", "state", "saveram")
+    private val saveExtensions = setOf("srm", "sav", "savestate", "state", "saveram", "bkr")
 
     // PS1 disc image extensions that readPs1Serial() can handle
     private val ps1RomExtensions = setOf("iso", "bin", "cue", "img", "mdf")
+
+    // Saturn disc image extensions recognised for ROM path mapping and product-code lookup
+    private val satRomExtensions = setOf("iso", "bin", "cue", "img", "chd")
+
+    internal fun defaultSaveExtension(system: String): String {
+        return when (system.uppercase()) {
+            "SAT" -> when (saturnSyncFormat) {
+                SaturnSyncFormat.MEDNAFEN -> "bkr"
+                SaturnSyncFormat.YABAUSE -> "srm"
+                SaturnSyncFormat.YABASANSHIRO -> "bin"
+            }
+            else -> "srm"
+        }
+    }
+
+    internal fun expectedRetroArchSaturnSaveFile(savesDir: File, romName: String): File {
+        val direct = when (saturnSyncFormat) {
+            SaturnSyncFormat.MEDNAFEN -> File(savesDir, "$romName.bkr")
+            SaturnSyncFormat.YABAUSE -> File(savesDir, "$romName.srm")
+            SaturnSyncFormat.YABASANSHIRO -> File(savesDir, "backup.bin")
+        }
+
+        val coreSpecific = when (saturnSyncFormat) {
+            SaturnSyncFormat.MEDNAFEN -> File(File(savesDir, "Beetle Saturn"), "$romName.bkr")
+            SaturnSyncFormat.YABAUSE -> File(File(savesDir, "yabause"), "$romName.srm")
+            SaturnSyncFormat.YABASANSHIRO -> File(File(savesDir, "yabasanshiro"), "backup.bin")
+        }
+
+        return when {
+            coreSpecific.exists() -> coreSpecific
+            direct.exists() -> direct
+            saturnSyncFormat == SaturnSyncFormat.MEDNAFEN -> coreSpecific
+            saturnSyncFormat == SaturnSyncFormat.YABAUSE -> direct
+            else -> coreSpecific
+        }
+    }
+
+    internal fun shouldTrackRetroArchSaveFile(file: File, system: String): Boolean {
+        val ext = file.extension.lowercase()
+        if (ext !in saveExtensions) return false
+        if (system != "SAT") return true
+
+        return when (saturnSyncFormat) {
+            SaturnSyncFormat.MEDNAFEN -> ext == "bkr"
+            SaturnSyncFormat.YABAUSE -> ext == "srm"
+            SaturnSyncFormat.YABASANSHIRO -> file.name.equals("backup.bin", ignoreCase = true)
+        }
+    }
+
+    private fun isSharedYabaSanshiroBackup(file: File, system: String): Boolean {
+        return system == "SAT" &&
+            saturnSyncFormat == SaturnSyncFormat.YABASANSHIRO &&
+            file.name.equals("backup.bin", ignoreCase = true)
+    }
 
     // Playlist filename keyword → system prefix
     // RetroArch playlist names follow the No-Intro / Redump naming convention
@@ -73,7 +130,9 @@ class RetroArchEmulator(
         "PS1" to "PS1", "PSX" to "PS1", "PSP" to "PSP",
         "GEN" to "MD", "GENESIS" to "MD", "MEGADRIVE" to "MD", "MD" to "MD",
         "SMS" to "SMS", "GG" to "GG", "PCE" to "PCE",
-        "SATURN" to "SAT", "SAT" to "SAT", "DC" to "DC",
+        "SATURN" to "SAT", "SAT" to "SAT", "BEETLE SATURN" to "SAT",
+        "KRONOS" to "SAT", "YABAUSE" to "SAT", "YABASANSHIRO" to "SAT",
+        "YABASANSHIRO 2" to "SAT", "DC" to "DC",
         "ATARI" to "A2600", "LYNX" to "LYNX", "NGP" to "NGP",
         "WS" to "WSWAN", "WSWAN" to "WSWAN", "WSWANC" to "WSWANC",
         "WONDERSWAN" to "WSWAN", "WONDERSWANCOLOR" to "WSWANC",
@@ -205,6 +264,45 @@ class RetroArchEmulator(
             }
         }
 
+        // Build a map of lowercase-rom-name → ROM File path for Saturn games.
+        // Used to read the product code from the IP.BIN header so title IDs match
+        // the server's SAT_<product_code> format (e.g. SAT_T-12705H).
+        val satRomPathMap: Map<String, File> = bases.fold(mutableMapOf<String, File>()) { acc, base ->
+            acc.putAll(buildSaturnRomPathMapFromPlaylists(File(base, "playlists")))
+            acc
+        }.also { map ->
+            val satDirs = mutableListOf<File>()
+            if (romScanDir.isNotBlank()) {
+                val scanRoot = File(romScanDir)
+                listOf("Saturn", "Sega Saturn", "Sega - Saturn", "SAT", "sat").forEach { subName ->
+                    val dir = File(scanRoot, subName)
+                    if (dir.exists() && dir.isDirectory) satDirs.add(dir)
+                }
+            }
+            romDirOverrides["SAT"]?.let { File(it) }?.takeIf { it.isDirectory }?.let { satDirs.add(it) }
+            satDirs.forEach { dir ->
+                dir.listFiles()?.forEach { f ->
+                    when {
+                        f.isFile && f.extension.lowercase() in satRomExtensions ->
+                            map.putIfAbsent(f.nameWithoutExtension.lowercase(), f)
+                        // Per-game subfolder: use CUE file inside (preferred) or first BIN/ISO
+                        f.isDirectory -> {
+                            val disc = f.listFiles()?.firstOrNull {
+                                it.isFile && it.extension.lowercase() == "cue"
+                            } ?: f.listFiles()?.firstOrNull {
+                                it.isFile && it.extension.lowercase() in satRomExtensions
+                            }
+                            // Key by CUE filename (matches RetroArch save name) and by folder name
+                            if (disc != null) {
+                                map.putIfAbsent(disc.nameWithoutExtension.lowercase(), disc)
+                                map.putIfAbsent(f.name.lowercase(), disc)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Prefer the save dir declared in retroarch.cfg; fall back to the standard path.
         val savesDir: File = resolveSavesDir(bases) ?: return emptyList()
 
@@ -212,22 +310,27 @@ class RetroArchEmulator(
 
         savesDir.listFiles()?.forEach { entry ->
             if (entry.isFile) {
-                if (entry.extension.lowercase() in saveExtensions) {
-                    val romName = entry.nameWithoutExtension
-                    val lc = romName.lowercase()
-                    // Resolution priority: playlist → ROM scan dir → RETRO
-                    val system = romSystemMap[lc]
-                        ?: romSystemMap[romName]
-                        ?: romScanSystemMap[lc]
-                        ?: systemPrefix
+                val romName = entry.nameWithoutExtension
+                val lc = romName.lowercase()
+                val system = romSystemMap[lc]
+                    ?: romSystemMap[romName]
+                    ?: romScanSystemMap[lc]
+                    ?: systemPrefix
+                if (shouldTrackRetroArchSaveFile(entry, system)) {
+                    if (isSharedYabaSanshiroBackup(entry, system)) {
+                        return@forEach
+                    }
                     // For NDS saves, derive the title ID from the ROM gamecode (offset 0x0C).
-                    // For PS1 saves, read the disc serial from SYSTEM.CNF inside the disc image
-                    // so the title ID matches the product-code format used by PPSSPP/PSP/Vita.
+                    // For PS1/SAT saves, read the product code from the disc image header so
+                    // title IDs match the server's format (SAT_T-12705H, SLUS01234, etc.).
                     // When no ROM is found, fall back to a region/disc-stripped slug so that
                     // multi-disc games share the same ID (Disc 1 and Disc 2 → same entry).
                     val titleId = when (system) {
                         "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: toTitleId(romName, system)
                         "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
+                        "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) }
+                            ?: lookupSaturnSerial(romName)
+                            ?: toTitleId(romName, system)
                         else  -> toTitleId(romName, system)
                     }
                     result.add(
@@ -244,13 +347,19 @@ class RetroArchEmulator(
                 // System subfolder inside saves/ (e.g. saves/GBA/romname.srm)
                 val system = systemFolderMap[entry.name.uppercase()] ?: return@forEach
                 entry.listFiles()?.forEach { file ->
-                    if (file.isFile && file.extension.lowercase() in saveExtensions) {
+                    if (file.isFile && shouldTrackRetroArchSaveFile(file, system)) {
+                        if (isSharedYabaSanshiroBackup(file, system)) {
+                            return@forEach
+                        }
                         val romName = file.nameWithoutExtension
                         val lc = romName.lowercase()
                         // Apply gamecode/serial lookup for saves inside system subfolders too
                         val titleId = when (system) {
                             "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: toTitleId(romName, system)
                             "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
+                            "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) }
+                                ?: lookupSaturnSerial(romName)
+                                ?: toTitleId(romName, system)
                             else  -> toTitleId(romName, system)
                         }
                         result.add(
@@ -331,6 +440,37 @@ class RetroArchEmulator(
     }
 
     /**
+     * Scans all *.lpl playlist files in [playlistsDir] for Saturn ROM entries and returns
+     * a map of lowercase-rom-name → ROM File path. Used for product-code title ID lookup.
+     * CUE/BIN/ISO/CHD are all included for path mapping.
+     */
+    private fun buildSaturnRomPathMapFromPlaylists(playlistsDir: File): Map<String, File> {
+        if (!playlistsDir.exists()) return emptyMap()
+        val map = mutableMapOf<String, File>()
+        playlistsDir.listFiles()
+            ?.filter { it.isFile && it.extension.lowercase() == "lpl" }
+            ?.forEach { lpl ->
+                try {
+                    val json = JSONObject(lpl.readText())
+                    val items = json.optJSONArray("items") ?: return@forEach
+                    for (i in 0 until items.length()) {
+                        val item = items.optJSONObject(i) ?: continue
+                        val path = item.optString("path").takeIf { it.isNotBlank() } ?: continue
+                        val coreName = item.optString("core_name").orEmpty()
+                        val romFile = File(path)
+                        val system = resolveSystemFromCoreName(coreName)
+                            ?: resolveSystemFromFolderName(romFile.parentFile?.name.orEmpty())
+                            ?: continue
+                        if (system == "SAT" && romFile.extension.lowercase() in satRomExtensions && romFile.exists()) {
+                            map.putIfAbsent(romFile.nameWithoutExtension.lowercase(), romFile)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        return map
+    }
+
+    /**
      * Builds a map of  lowercase-rom-name → system  by scanning the user's ROM directory.
      * Used as a fallback when a save file isn't covered by any RetroArch playlist.
      */
@@ -340,16 +480,38 @@ class RetroArchEmulator(
         if (!scanRoot.exists() || !scanRoot.isDirectory) return emptyMap()
 
         val map = mutableMapOf<String, String>()
-        scanRoot.listFiles()?.filter { it.isDirectory }?.forEach { systemDir ->
-            val system = resolveSystemFromFolderName(systemDir.name) ?: return@forEach
-            systemDir.listFiles()?.forEach { file ->
+
+        fun scanSystemDir(dir: File, system: String) {
+            dir.listFiles()?.forEach { file ->
                 when {
                     file.isFile -> map[file.nameWithoutExtension.lowercase()] = system
-                    // CD games in per-game subfolders — use the folder name as the ROM name
-                    file.isDirectory -> map[file.name.lowercase()] = system
+                    // CD games in per-game subfolders.
+                    // RetroArch names saves after the CUE/CHD *file* it loaded, NOT the folder.
+                    // e.g. Saturn/Nights into Dreams/Nights into Dreams (USA).cue
+                    //   → save = "Nights into Dreams (USA).bkr"
+                    // So we add both the folder name (fallback) AND all CUE/CHD names inside.
+                    file.isDirectory -> {
+                        map.putIfAbsent(file.name.lowercase(), system)
+                        file.listFiles()
+                            ?.filter { it.isFile && it.extension.lowercase() in setOf("cue", "chd") }
+                            ?.forEach { disc -> map[disc.nameWithoutExtension.lowercase()] = system }
+                    }
                 }
             }
         }
+
+        // Scan romScanDir subfolders (auto-detected system layout)
+        scanRoot.listFiles()?.filter { it.isDirectory }?.forEach { systemDir ->
+            val system = resolveSystemFromFolderName(systemDir.name) ?: return@forEach
+            scanSystemDir(systemDir, system)
+        }
+
+        // Also scan user-specified override directories
+        romDirOverrides.forEach { (system, overridePath) ->
+            val dir = File(overridePath)
+            if (dir.exists() && dir.isDirectory) scanSystemDir(dir, system)
+        }
+
         return map
     }
 
@@ -495,15 +657,32 @@ class RetroArchEmulator(
                                 val name = entry.nameWithoutExtension
                                 romInfo.putIfAbsent(name.lowercase(), Pair(system, name))
                             }
-                            // Level 2: per-game subfolder (pick the first matching ROM inside)
+                            // Level 2: per-game subfolder (CUE/BIN or CHD layout).
+                            // Use the CUE filename as the primary key — RetroArch saves use
+                            // the loaded file's name, not the folder name. Also add the folder
+                            // name as a fallback so older uploads still match.
                             entry.isDirectory -> {
-                                val romFile = entry.listFiles()
-                                    ?.firstOrNull { it.isFile && it.extension.lowercase() in romExtensions }
-                                if (romFile != null) {
-                                    // Use the folder name as the game name (more reliable than the
-                                    // disc filename like "disc1.bin" or "track01.bin")
-                                    val name = entry.name
-                                    romInfo.putIfAbsent(name.lowercase(), Pair(system, name))
+                                val innerFiles = entry.listFiles() ?: return@forEach
+                                val cueFiles = innerFiles.filter {
+                                    it.isFile && it.extension.lowercase() == "cue"
+                                }
+                                val chdFiles = innerFiles.filter {
+                                    it.isFile && it.extension.lowercase() == "chd"
+                                }
+                                val discFiles = (cueFiles + chdFiles).ifEmpty {
+                                    // Fallback: any recognised ROM format (e.g. iso, bin)
+                                    innerFiles.filter {
+                                        it.isFile && it.extension.lowercase() in romExtensions
+                                    }.take(1)
+                                }
+                                if (discFiles.isNotEmpty()) {
+                                    // Primary entries: one per CUE/CHD file (matches save names)
+                                    discFiles.forEach { disc ->
+                                        val name = disc.nameWithoutExtension
+                                        romInfo.putIfAbsent(name.lowercase(), Pair(system, name))
+                                    }
+                                    // Folder-name fallback (matches saves from older app versions)
+                                    romInfo.putIfAbsent(entry.name.lowercase(), Pair(system, entry.name))
                                 }
                             }
                         }
@@ -512,16 +691,90 @@ class RetroArchEmulator(
             }
         }
 
-        return romInfo.values.associate { (system, romName) ->
-            val titleId = toTitleId(romName, system)
+        // Tier 5: scan user-specified per-system override directories.
+        // Same two-level logic as Tier 4: files directly inside OR per-game subfolders with CUE/CHD.
+        romDirOverrides.forEach { (system, overridePath) ->
+            val overrideDir = File(overridePath)
+            if (!overrideDir.exists() || !overrideDir.isDirectory) return@forEach
+            overrideDir.listFiles()?.forEach { entry ->
+                when {
+                    entry.isFile && entry.extension.lowercase() in romExtensions -> {
+                        val name = entry.nameWithoutExtension
+                        romInfo.putIfAbsent(name.lowercase(), Pair(system, name))
+                    }
+                    entry.isDirectory -> {
+                        val innerFiles = entry.listFiles() ?: return@forEach
+                        val cueFiles = innerFiles.filter { it.isFile && it.extension.lowercase() == "cue" }
+                        val chdFiles = innerFiles.filter { it.isFile && it.extension.lowercase() == "chd" }
+                        val discFiles = (cueFiles + chdFiles).ifEmpty {
+                            innerFiles.filter { it.isFile && it.extension.lowercase() in romExtensions }.take(1)
+                        }
+                        if (discFiles.isNotEmpty()) {
+                            discFiles.forEach { disc ->
+                                val name = disc.nameWithoutExtension
+                                romInfo.putIfAbsent(name.lowercase(), Pair(system, name))
+                            }
+                            romInfo.putIfAbsent(entry.name.lowercase(), Pair(system, entry.name))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Build a saturn product-code map for this emulator's ROM entries too,
+        // so discoverRomEntries anchors server-only SAT saves by product code.
+        val satRomPathForEntries: Map<String, File> = run {
+            val map = mutableMapOf<String, File>()
+            bases.forEach { base ->
+                map.putAll(buildSaturnRomPathMapFromPlaylists(File(base, "playlists")))
+            }
+            val satDirs = mutableListOf<File>()
+            if (romScanDir.isNotBlank()) {
+                val scanRoot = File(romScanDir)
+                listOf("Saturn", "Sega Saturn", "Sega - Saturn", "SAT", "sat").forEach { sub ->
+                    val d = File(scanRoot, sub)
+                    if (d.exists() && d.isDirectory) satDirs.add(d)
+                }
+            }
+            romDirOverrides["SAT"]?.let { File(it) }?.takeIf { it.isDirectory }?.let { satDirs.add(it) }
+            satDirs.forEach { dir ->
+                dir.listFiles()?.forEach { f ->
+                    when {
+                        f.isFile && f.extension.lowercase() in satRomExtensions ->
+                            map.putIfAbsent(f.nameWithoutExtension.lowercase(), f)
+                        f.isDirectory -> {
+                            val disc = f.listFiles()?.firstOrNull { it.isFile && it.extension.lowercase() == "cue" }
+                                ?: f.listFiles()?.firstOrNull { it.isFile && it.extension.lowercase() in satRomExtensions }
+                            if (disc != null) {
+                                map.putIfAbsent(disc.nameWithoutExtension.lowercase(), disc)
+                                map.putIfAbsent(f.name.lowercase(), disc)
+                            }
+                        }
+                    }
+                }
+            }
+            map
+        }
+
+        return romInfo.values.mapNotNull { (system, romName) ->
+            val titleId = when (system) {
+                "SAT" -> satRomPathForEntries[romName.lowercase()]
+                    ?.let { readSaturnProductCode(it) }
+                    ?: lookupSaturnSerial(romName)
+                    ?: toTitleId(romName, system)
+                else -> toTitleId(romName, system)
+            }
             titleId to SaveEntry(
                 titleId = titleId,
                 displayName = romName,
                 systemName = system,
-                saveFile = File(savesDir, "$romName.srm"),  // expected path — may not exist
+                saveFile = when (system) {
+                    "SAT" -> expectedRetroArchSaturnSaveFile(savesDir, romName)
+                    else -> File(savesDir, "$romName.${defaultSaveExtension(system)}")
+                },
                 saveDir = null
             )
-        }
+        }.toMap()
     }
 
     /**
@@ -613,7 +866,7 @@ class RetroArchEmulator(
      * Handles all the common naming conventions users put on their SD cards,
      * e.g. "GBA", "GameBoyAdvance", "MegaDrive", "Mega Drive", "NeoGeoCD", etc.
      */
-    private fun resolveSystemFromFolderName(folder: String): String? {
+    internal fun resolveSystemFromFolderName(folder: String): String? {
         val upper = folder.uppercase().replace(" ", "").replace("_", "").replace("-", "")
         return when {
             // ── Nintendo handhelds ──────────────────────────────────────

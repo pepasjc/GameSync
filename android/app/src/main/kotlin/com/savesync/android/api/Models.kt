@@ -21,7 +21,8 @@ data class SyncResponse(
     val download: List<String>,
     val conflict: List<String>,
     val up_to_date: List<String>,
-    val server_only: List<String>
+    val server_only: List<String>,
+    val rom_available: List<String> = emptyList()
 )
 
 data class SaveMeta(
@@ -83,7 +84,72 @@ data class NormalizeResponse(val results: List<NormalizeResult>)
 // ── PSP/game name lookup ──────────────────────────────────────────────────
 data class GameNameRequest(val codes: List<String>)
 data class GameNameResponse(
-    val names: Map<String, String>,  // product_code -> game_name
-    val types: Map<String, String>,  // product_code -> platform_type
-    val retail_serials: Map<String, String>? = null  // PSN code -> retail disc serial (e.g. "NPUJ00662" -> "SLPM86034")
+    val names: Map<String, String>,
+    val types: Map<String, String>,
+    val retail_serials: Map<String, String>? = null
 )
+
+data class SaturnArchiveLookupRequest(
+    val title_id: String,
+    val archive_names: List<String>
+)
+
+data class SaturnArchiveCandidate(
+    val title_id: String,
+    val game_name: String
+)
+
+data class SaturnArchiveLookupResult(
+    val archive_family: String,
+    val archive_names: List<String>,
+    val status: String,
+    val matches_current_title: Boolean,
+    val candidates: List<SaturnArchiveCandidate>
+)
+
+data class SaturnArchiveLookupResponse(
+    val title_id: String,
+    val results: List<SaturnArchiveLookupResult>
+)
+
+// ── ROM catalog ────────────────────────────────────────────────────────────
+
+data class RomEntry(
+    val rom_id: String? = null,
+    val title_id: String,
+    val system: String,
+    val name: String,
+    val filename: String,
+    val path: String,
+    val size: Long,
+    val crc32: String? = null,
+    val source: String? = null,
+    @SerializedName("extract_format")
+    val extractFormat: String? = null,
+    @SerializedName("extract_formats")
+    val extractFormats: List<String> = emptyList()
+)
+
+data class RomsResponse(
+    val roms: List<RomEntry>,
+    val total: Int
+)
+
+data class RomsSystemsResponse(
+    val systems: List<String>,
+    val stats: Map<String, Int>
+)
+
+private const val REQUIRED_3DS_EXTRACT_FORMAT = "decrypted_cci"
+
+fun RomEntry.preferredDownloadExtractFormat(): String? {
+    if (!system.equals("3DS", ignoreCase = true)) return null
+
+    val advertised = extractFormats
+        .map { it.trim().lowercase() }
+        .filter { it.isNotEmpty() }
+    if (REQUIRED_3DS_EXTRACT_FORMAT in advertised) return REQUIRED_3DS_EXTRACT_FORMAT
+
+    val legacy = extractFormat?.trim()?.lowercase().orEmpty()
+    return legacy.takeIf { it == REQUIRED_3DS_EXTRACT_FORMAT }
+}

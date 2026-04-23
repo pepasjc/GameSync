@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Bandai - WonderSwan Color [T-En] Collection</name>
+		<description>Bandai - WonderSwan Color [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>06-10-2022</version>
+		<date>06-10-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Bandai WonderSwan Color [T-En] Docs">
+		<description>_Bandai WonderSwan Color [T-En] Docs</description>
+		<rom name="Dicing Knight. (Japan) [T-En by Aeon Genesis v1.00] [Manual].pdf" size="483666" crc="d9d7f235" md5="5f079de6c5a1c9b5cef2be5be773f080" sha1="1421bac31d59667d3ef478e63de2e6864cf58ecc"/>
+		<rom name="Dicing Knight. (Japan) [T-En by Aeon Genesis v1.00].txt" size="2303" crc="766645db" md5="8888e5fe10af0aef016877c1bf4521b3" sha1="851560da711980e521e961eb075f711baa1d6e1b"/>
+		<rom name="Digimon 02 - D1 Tamers (Japan) [T-En by NikcDC v0.97] [n] [DigiCode Chart].png" size="17724" crc="41a769e0" md5="ab45440a9481880f109451c2a41b3911" sha1="07ccc5cba3e4936a1dd25a42a835164a4902bda7"/>
+		<rom name="Digimon 02 - D1 Tamers (Japan) [T-En by NikcDC v0.97] [n] [Full Credits].txt" size="1124" crc="2b2314e6" md5="a244ae0396345acec4da4ab5fc53a80d" sha1="0fe568342fd8af437506b112c35d32c0329aad42"/>
+		<rom name="Digimon 02 - D1 Tamers (Japan) [T-En by NikcDC v0.97] [n] [Notes].txt" size="1995" crc="bac936e5" md5="fee662f64fc99e6b48be8effb1c5ef3e" sha1="222c168d5003c3147a4b5710829e7d23e9d96a8b"/>
+		<rom name="Digimon 02 - D1 Tamers (Japan) [T-En by NikcDC v0.97] [n].txt" size="6974" crc="7d9c1107" md5="2e63236081dbbd7aabdca5068321a6c1" sha1="fc8e0c0aaa1e7f7cb41b39f058b64fe6cdbd5248"/>
+		<rom name="Digimon Adventure 02 - D1 Tamers (Japan) [T-En by PmHacks v0.05] [i].txt" size="3952" crc="2a114f8f" md5="8c51e7386d441edb80fc7e02110618f6" sha1="b9de8ca555944545a56ba0038e71864cf2f7fdef"/>
+		<rom name="Final Fantasy (Japan) [T-En by Kalas v0.91] [i].txt" size="6573" crc="080cba41" md5="f173c3224376e088bafdf0670401524f" sha1="c6af0de3fc097e9b6dcaafb509770fc0186bba45"/>
+		<rom name="Final Fantasy II (Japan) [T-En by RPGOne v0.97].txt" size="8030" crc="914cf20e" md5="b5d51c9fd05da632e3f8103154c1a9e3" sha1="50f365aa1ce7b52972aff8bdff97f3faf71f09f9"/>
+		<rom name="Final Fantasy IV (Japan) [T-En by MottZilla v0.5] [i].txt" size="927" crc="3a9c2f0d" md5="2a9189ed9669de7cb4e0f49db5f0df26" sha1="6f64bceb52203bb183b34eab17c283b1885c671c"/>
+		<rom name="Mega Man Battle Network WS (Japan) [T-En by Boco &amp; Greiga Master &amp; Megarockexe v1.0] [n].txt" size="1390" crc="cf094eda" md5="4ed10e1847d823c8f9141cfe3fbfa63c" sha1="fe71cded43bca3fa846151f87bc37e6d79a5615f"/>
+		<rom name="Spirit World Tower Warrior Sa-Ga (Japan) [T-En by Tower Reversed v1.3] [n].txt" size="378" crc="cde35cf7" md5="4dbe217d3e058bdedb27d6b236ad1143" sha1="737b5c77c398287ed111fb4cd7e137bcaa8ac216"/>
+		<rom name="Wizardry Scenario 1 - Proving Grounds of the Mad Overlord (Japan) [T-En by Hengki Kusuma Adi v1.1].txt" size="4321" crc="dea5ebd7" md5="b6aa4b68fa903437f243148ae66ff5e3" sha1="4e1f3b5e7da9c16a216c4068e0442a6ea409d615"/>
+		<rom name="Working Chocobo (Japan) [T-En by Higsby &amp; SpecialAgentApe &amp; Sliter v1.01] [n].txt" size="517" crc="94a53fd7" md5="13540511ace1b7fac08c42915c2089c3" sha1="d2f20dd37faf7464ec2f9f955d835121050c77f8"/>
+	</machine>
+	<machine name="Dicing Knight. (Japan) [T-En by Aeon Genesis v1.00]">
+		<description>Dicing Knight. (Japan) [T-En by Aeon Genesis v1.00]</description>
+		<rom name="Dicing Knight. (Japan) [T-En by Aeon Genesis v1.00].wsc" size="524288" crc="0c7ebc6f" md5="bbaea4f2dfd80120001ed351fee18588" sha1="17fa529fdfceaad4ea501542c6e250f6b11ada93"/>
+	</machine>
+	<machine name="Digimon 02 - D1 Tamers (Japan) [T-En by NikcDC v0.97] [n]">
+		<description>Digimon 02 - D1 Tamers (Japan) [T-En by NikcDC v0.97] [n]</description>
+		<rom name="Digimon 02 - D1 Tamers (Japan) [T-En by NikcDC v0.97] [n].wsc" size="4194304" crc="ed5f9d6b" md5="74aa3dea8cce3379caacc8f65ab850f9" sha1="acc636fbd17eb14278ee959b514d8fc8fb2b843d"/>
+	</machine>
+	<machine name="Digimon Adventure 02 - D1 Tamers (Japan) [T-En by PmHacks v0.05] [i]">
+		<description>Digimon Adventure 02 - D1 Tamers (Japan) [T-En by PmHacks v0.05] [i]</description>
+		<rom name="Digimon Adventure 02 - D1 Tamers (Japan) [T-En by PmHacks v0.05] [i].wsc" size="4194304" crc="d934ae66" md5="4c545493d8053d40edb69cb62dd4a625" sha1="6ef3d8fda5398bbaf1a4012f600123e848c419ea"/>
+	</machine>
+	<machine name="Digimon Tamers - Battle Spirit Ver. 1.5 (Japan) [T-En by Ashley &amp; Buckwheat v1.0] [i]">
+		<description>Digimon Tamers - Battle Spirit Ver. 1.5 (Japan) [T-En by Ashley &amp; Buckwheat v1.0] [i]</description>
+		<rom name="Digimon Tamers - Battle Spirit Ver. 1.5 (Japan) [T-En by Ashley &amp; Buckwheat v1.0] [i].wsc" size="8388608" crc="d3d0c04c" md5="6c18571b76b293c5f4d21ec291c03075" sha1="ee605cc455ee8c36f4d320ff4e3d1e7810715a22"/>
+	</machine>
+	<machine name="Digital Monster Card Game - Ver. WonderSwan Color (Japan) [T-En by Kaiisen &amp; Wazzpinator v1.1] [i]">
+		<description>Digital Monster Card Game - Ver. WonderSwan Color (Japan) [T-En by Kaiisen &amp; Wazzpinator v1.1] [i]</description>
+		<rom name="Digital Monster Card Game - Ver. WonderSwan Color (Japan) [T-En by Kaiisen &amp; Wazzpinator v1.1] [i].wsc" size="4194304" crc="3d1fde74" md5="f620bbf6fbe5a8db22282bf29ca1ca38" sha1="c1acd20d73b4eed51bd5c976915c5ad3bcc9aba1"/>
+	</machine>
+	<machine name="Final Fantasy (Japan) [T-En by Kalas v0.91] [i]">
+		<description>Final Fantasy (Japan) [T-En by Kalas v0.91] [i]</description>
+		<rom name="Final Fantasy (Japan) [T-En by Kalas v0.91] [i].wsc" size="4194304" crc="df94a149" md5="0d5c239eb1b99b4ab756acda11992ce3" sha1="08e70b98918df5e5cf2fe057908ce5e8a69e05fe"/>
+	</machine>
+	<machine name="Final Fantasy II (Japan) [T-En by RPGOne v0.97]">
+		<description>Final Fantasy II (Japan) [T-En by RPGOne v0.97]</description>
+		<rom name="Final Fantasy II (Japan) [T-En by RPGOne v0.97].wsc" size="4194304" crc="08db7026" md5="31e9621d6e1e349e1efc58148256868d" sha1="b232085dc3710e3bd01391bc4c7fe2904fff1725"/>
+	</machine>
+	<machine name="Final Fantasy IV (Japan) [T-En by MottZilla v0.5] [i]">
+		<description>Final Fantasy IV (Japan) [T-En by MottZilla v0.5] [i]</description>
+		<rom name="Final Fantasy IV (Japan) [T-En by MottZilla v0.5] [i].wsc" size="4194304" crc="24f9e90b" md5="4d1d70e80f65fbee1600971abc168671" sha1="66b755a8e75404b81a7b85fb58b6ce698ac4ebb9"/>
+	</machine>
+	<machine name="Mega Man Battle Network WS (Japan) [T-En by Boco &amp; Greiga Master &amp; Megarockexe v1.0] [n]">
+		<description>Mega Man Battle Network WS (Japan) [T-En by Boco &amp; Greiga Master &amp; Megarockexe v1.0] [n]</description>
+		<rom name="Mega Man Battle Network WS (Japan) [T-En by Boco &amp; Greiga Master &amp; Megarockexe v1.0] [n].wsc" size="4194304" crc="829e6b6e" md5="79ba09c6584dd19898e395272d505e96" sha1="3134856bcd572c2d89e4736c89368d6c22fd6bb8"/>
+	</machine>
+	<machine name="Mr. Driller (Japan) [T-En by PmHacks v0.70] [i]">
+		<description>Mr. Driller (Japan) [T-En by PmHacks v0.70] [i]</description>
+		<rom name="Mr. Driller (Japan) [T-En by PmHacks v0.70] [i].wsc" size="2097152" crc="8526989d" md5="fa183d512984090adb3b3996e44f4a99" sha1="5e4d9b002fb7a7b15f87dec27a66b6753c0361e3"/>
+	</machine>
+	<machine name="Spirit World Tower Warrior Sa-Ga (Japan) [T-En by Tower Reversed v1.3] [n]">
+		<description>Spirit World Tower Warrior Sa-Ga (Japan) [T-En by Tower Reversed v1.3] [n]</description>
+		<rom name="Spirit World Tower Warrior Sa-Ga (Japan) [T-En by Tower Reversed v1.3] [n].wsc" size="4194304" crc="3c39180d" md5="06383d5e049f92f3e645201bc17e7b14" sha1="eb6dfdbcf5b4092f038b0be428022d71382a27c9"/>
+	</machine>
+	<machine name="Wizardry Scenario 1 - Proving Grounds of the Mad Overlord (Japan) [T-En by Hengki Kusuma Adi v1.1]">
+		<description>Wizardry Scenario 1 - Proving Grounds of the Mad Overlord (Japan) [T-En by Hengki Kusuma Adi v1.1]</description>
+		<rom name="Wizardry Scenario 1 - Proving Grounds of the Mad Overlord (Japan) [T-En by Hengki Kusuma Adi v1.1].wsc" size="2097152" crc="5870ef48" md5="2c1f02b9178a45fa2e3373e0b78f11cb" sha1="563ff95519837156a1e8bba583032e1d69bef661"/>
+	</machine>
+	<machine name="Working Chocobo (Japan) [T-En by Higsby &amp; SpecialAgentApe &amp; Sliter v1.01] [n]">
+		<description>Working Chocobo (Japan) [T-En by Higsby &amp; SpecialAgentApe &amp; Sliter v1.01] [n]</description>
+		<rom name="Working Chocobo (Japan) [T-En by Higsby &amp; SpecialAgentApe &amp; Sliter v1.01] [n].wsc" size="1048576" crc="11257c88" md5="4732be85b6eab4fd21cdb78d82c04897" sha1="fe927109700598bc07e9209cd3e259d1fc8569f0"/>
+	</machine>
+</datafile>

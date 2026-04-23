@@ -15,6 +15,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -47,12 +49,15 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.savesync.android.BuildConfig
 import com.savesync.android.api.ApiClient
+import com.savesync.android.sync.SaturnSyncFormat
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.components.FolderPickerDialog
 import kotlinx.coroutines.launch
@@ -77,9 +82,16 @@ fun SettingsScreen(
     var intervalMinutes by remember { mutableStateOf(15) }
     var romScanDir by remember { mutableStateOf("") }
     var dolphinMemCardDir by remember { mutableStateOf("") }
+    var saturnSyncFormat by remember { mutableStateOf(SaturnSyncFormat.MEDNAFEN) }
     var showFolderPicker by remember { mutableStateOf(false) }
     var showDolphinFolderPicker by remember { mutableStateOf(false) }
     var settingsLoaded by remember { mutableStateOf(false) }
+
+    // System folder overrides
+    val detectedFolders by viewModel.detectedSystemFolders.collectAsState()
+    var folderPickerForSystem by remember { mutableStateOf<String?>(null) }
+    var addSystemExpanded by remember { mutableStateOf(false) }
+    var addSystemSelected by remember { mutableStateOf("") }
 
     LaunchedEffect(settings) {
         if (!settingsLoaded) {
@@ -89,7 +101,10 @@ fun SettingsScreen(
             intervalMinutes = settings.autoSyncIntervalMinutes
             romScanDir = settings.romScanDir
             dolphinMemCardDir = settings.dolphinMemCardDir
+            saturnSyncFormat = settings.saturnSyncFormat
             settingsLoaded = true
+            // Auto-detect system folders once settings are loaded
+            if (settings.romScanDir.isNotBlank()) viewModel.detectSystemFolders()
         }
     }
     var connectionStatus by remember { mutableStateOf<String?>(null) }
@@ -185,7 +200,15 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
-                        viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, romScanDir, dolphinMemCardDir)
+                        viewModel.saveSettings(
+                            serverUrl,
+                            apiKey,
+                            autoSync,
+                            intervalMinutes,
+                            romScanDir,
+                            dolphinMemCardDir,
+                            saturnSyncFormat
+                        )
                         savedConfirmation = true
                     },
                     modifier = Modifier.weight(1f),
@@ -280,6 +303,42 @@ fun SettingsScreen(
                 Text("Scan for Save Files")
             }
 
+            var saturnFormatExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = saturnFormatExpanded,
+                onExpandedChange = { saturnFormatExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = saturnSyncFormat.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Saturn Download Format") },
+                    supportingText = {
+                        Text("Server stays on Beetle/Mednafen format; this controls how Saturn saves are written locally.")
+                    },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(saturnFormatExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = saturnFormatExpanded,
+                    onDismissRequest = { saturnFormatExpanded = false }
+                ) {
+                    SaturnSyncFormat.values().forEach { format ->
+                        DropdownMenuItem(
+                            text = { Text(format.label) },
+                            onClick = {
+                                saturnSyncFormat = format
+                                saturnFormatExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
             HorizontalDivider()
 
             // --- ROM Scan Directory ---
@@ -287,7 +346,7 @@ fun SettingsScreen(
 
             Text(
                 text = "Select the folder where your ROMs are organized by system subfolder " +
-                       "(e.g. GBA/, MegaDrive/, PS1/, SNES/, …). Save Sync uses this to detect " +
+                       "(e.g. GBA/, MegaDrive/, PS1/, SNES/, …). GameSync uses this to detect " +
                        "which games you have installed so it can show server saves for them.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -342,6 +401,32 @@ fun SettingsScreen(
             ) {
                 Text("Test ROM Scan")
             }
+
+            // Prepare canonical per-system folders so catalog downloads
+            // land in predictable places instead of inventing stray
+            // folder names.  Existing files/folders are never touched.
+            val prepareMessage by viewModel.prepareFoldersMessage.collectAsState()
+            OutlinedButton(
+                onClick = { viewModel.prepareRomFolders(romScanDir) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = romScanDir.isNotBlank(),
+            ) {
+                Text("Prepare ROM Folders")
+            }
+            Text(
+                text = "Creates the standard per-system folders " +
+                    "(PS1, GBA, SEGACD, …) under your ROM directory. " +
+                    "Existing folders are left alone.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            prepareMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF4CAF50),
+                )
+            }
             if (romScanResults.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -356,6 +441,151 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = if (ok) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            // --- Per-system folder overrides ---
+            HorizontalDivider()
+            Text("System Folders", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "GameSync auto-detects which subfolder of your ROM directory belongs " +
+                       "to each system. Override any folder here — useful when a folder has " +
+                       "a non-standard name (e.g. \"Saturn\" instead of \"SAT\").",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val overrides = settings.romDirOverrides
+                val allSystems = (detectedFolders.keys + overrides.keys).toSortedSet()
+                Text(
+                    text = "${allSystems.size} system${if (allSystems.size != 1) "s" else ""} detected",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(onClick = { viewModel.detectSystemFolders() }) {
+                    Text("Detect", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+
+            val overrides = settings.romDirOverrides
+            val allSystems = (detectedFolders.keys + overrides.keys).toSortedSet()
+
+            if (allSystems.isEmpty() && romScanDir.isNotBlank()) {
+                Text(
+                    text = "No system folders detected yet — press Detect.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            allSystems.forEach { system ->
+                val effectivePath = overrides[system] ?: detectedFolders[system] ?: return@forEach
+                val isOverridden = system in overrides
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // System badge
+                    SystemChip(system)
+                    Spacer(Modifier.width(8.dp))
+                    // Folder path (shrinks to fill remaining space)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = effectivePath.substringAfterLast('/'),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = if (isOverridden) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (isOverridden) {
+                            Text(
+                                text = effectivePath,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    // Browse button
+                    IconButton(onClick = { folderPickerForSystem = system }) {
+                        Icon(
+                            Icons.Default.FolderOpen,
+                            contentDescription = "Change folder",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    // Clear override button (only shown when user has set an override)
+                    if (isOverridden) {
+                        IconButton(onClick = { viewModel.clearRomDirOverride(system) }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Reset to auto-detected",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Add a custom system folder not yet auto-detected
+            val knownAddSystems = listOf(
+                "SAT", "DC", "PS1", "PS2", "PSP", "GBA", "GBC", "GB", "SNES", "NES",
+                "N64", "NDS", "3DS", "GC", "WII", "MD", "SMS", "GG", "SEGACD", "PCE", "NEOCD",
+                "NGP", "WSWAN", "WSWANC", "A2600", "A7800", "LYNX", "MAME", "ARCADE"
+            ).filter { it !in allSystems }
+
+            if (knownAddSystems.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ExposedDropdownMenuBox(
+                        expanded = addSystemExpanded,
+                        onExpandedChange = { addSystemExpanded = it },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        OutlinedTextField(
+                            value = addSystemSelected.ifBlank { "Add system…" },
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(addSystemExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                        ExposedDropdownMenu(
+                            expanded = addSystemExpanded,
+                            onDismissRequest = { addSystemExpanded = false }
+                        ) {
+                            knownAddSystems.forEach { sys ->
+                                DropdownMenuItem(
+                                    text = { Text(sys, style = MaterialTheme.typography.bodySmall) },
+                                    onClick = {
+                                        addSystemSelected = sys
+                                        addSystemExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = { folderPickerForSystem = addSystemSelected },
+                        enabled = addSystemSelected.isNotBlank()
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Browse")
+                    }
                 }
             }
 
@@ -441,7 +671,7 @@ fun SettingsScreen(
             // --- App info ---
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Save Sync v${BuildConfig.VERSION_NAME}",
+                text = "GameSync v${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -463,7 +693,15 @@ fun SettingsScreen(
                 showFolderPicker = false
                 // Auto-save immediately so the setting persists even without
                 // pressing "Save", and so the ROM scan diagnostic picks it up.
-                viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, path, dolphinMemCardDir)
+                viewModel.saveSettings(
+                    serverUrl,
+                    apiKey,
+                    autoSync,
+                    intervalMinutes,
+                    path,
+                    dolphinMemCardDir,
+                    saturnSyncFormat
+                )
             }
         )
     }
@@ -475,7 +713,31 @@ fun SettingsScreen(
             onFolderSelected = { path ->
                 dolphinMemCardDir = path
                 showDolphinFolderPicker = false
-                viewModel.saveSettings(serverUrl, apiKey, autoSync, intervalMinutes, romScanDir, path)
+                viewModel.saveSettings(
+                    serverUrl,
+                    apiKey,
+                    autoSync,
+                    intervalMinutes,
+                    romScanDir,
+                    path,
+                    saturnSyncFormat
+                )
+            }
+        )
+    }
+
+    // Per-system folder picker
+    val pickerSystem = folderPickerForSystem
+    if (pickerSystem != null) {
+        val currentOverride = settings.romDirOverrides[pickerSystem]
+        val detectedPath = detectedFolders[pickerSystem]
+        FolderPickerDialog(
+            initialPath = currentOverride ?: detectedPath ?: romScanDir,
+            onDismiss = { folderPickerForSystem = null },
+            onFolderSelected = { path ->
+                viewModel.setRomDirOverride(pickerSystem, path)
+                folderPickerForSystem = null
+                addSystemSelected = ""
             }
         )
     }

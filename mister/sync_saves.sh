@@ -3,6 +3,8 @@
 #
 # Place in /media/fat/Scripts/ on MiSTer and run from the Scripts menu.
 # Requires: curl, sha256sum (both available on stock MiSTer Linux)
+# Copy systems.json alongside this script. It is generated from the repo's
+# shared definitions so MiSTer folder mappings stay in sync with desktop/server.
 #
 # Configuration file: /media/fat/3dssync.cfg
 # Required keys:
@@ -17,6 +19,8 @@ set -euo pipefail
 CONFIG_FILE="/media/fat/3dssync.cfg"
 STATE_FILE="/media/fat/3dssync_state.json"
 SAVES_DIR="/media/fat/saves"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SYSTEMS_JSON="${SYSTEMS_JSON:-$SCRIPT_DIR/systems.json}"
 
 # ---------------------------------------------------------------------------
 # Load configuration
@@ -42,31 +46,26 @@ done < "$CONFIG_FILE"
 LOG_FILE="${LOG_FILE:-/tmp/3dssync.log}"
 SYSTEMS_FILTER="${SYSTEMS:-}"
 
+if [ ! -f "$SYSTEMS_JSON" ]; then
+    echo "ERROR: systems.json not found: $SYSTEMS_JSON"
+    echo "Copy the generated systems.json next to sync_saves.sh, or set SYSTEMS_JSON."
+    exit 1
+fi
+
 # ---------------------------------------------------------------------------
 # MiSTer folder → system code mapping
 # ---------------------------------------------------------------------------
 
 mister_folder_to_system() {
-    case "$1" in
-        GBA)            echo "GBA" ;;
-        SNES)           echo "SNES" ;;
-        NES)            echo "NES" ;;
-        Genesis|MegaDrive) echo "MD" ;;
-        N64)            echo "N64" ;;
-        Gameboy)        echo "GB" ;;
-        GBC)            echo "GBC" ;;
-        GameGear)       echo "GG" ;;
-        SMS)            echo "SMS" ;;
-        PCEngine|TurboGrafx16) echo "PCE" ;;
-        Atari2600)      echo "ATARI2600" ;;
-        Atari7800)      echo "ATARI7800" ;;
-        Lynx)           echo "LYNX" ;;
-        NeoGeo)         echo "NEOGEO" ;;
-        32X)            echo "32X" ;;
-        MegaCD)         echo "SEGACD" ;;
-        PSX)            echo "PS1" ;;
-        *)              echo "" ;;
-    esac
+    python3 - "$SYSTEMS_JSON" "$1" <<'PY'
+import json
+import sys
+
+path, folder = sys.argv[1], sys.argv[2]
+with open(path, encoding="utf-8") as fh:
+    data = json.load(fh)
+print(data.get("mister_folder_to_system", {}).get(folder, ""))
+PY
 }
 
 # ---------------------------------------------------------------------------

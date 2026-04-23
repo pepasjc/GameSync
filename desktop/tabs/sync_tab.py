@@ -30,9 +30,30 @@ from config import (
     get_api_headers,
     get_base_url,
 )
+from systems import MEGA_EVERDRIVE_CD_SYSTEMS
 
 
 _PS_TITLE_ID_RE = re.compile(r"^[A-Z]{4}\d{5}$")
+
+
+def sync_row_matches_filters(
+    *,
+    system: str,
+    game: str,
+    title_id: str,
+    status: str,
+    system_filter: str,
+    status_filter: str,
+    search: str,
+    skip_server_only: bool,
+) -> bool:
+    if skip_server_only and status == STATUS_LABELS.get("server_only", "Server only"):
+        return False
+    match_system = system_filter == "All" or system == system_filter
+    match_status = status_filter == "All" or status == status_filter
+    search = search.strip().lower()
+    match_search = not search or search in game.lower() or search in title_id.lower()
+    return match_system and match_status and match_search
 
 
 def _copy_save_payload(source: Path, dest: Path) -> None:
@@ -48,6 +69,63 @@ def _copy_save_payload(source: Path, dest: Path) -> None:
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, dest)
+
+
+def _resolve_retroarch_saturn_download_path(
+    profile: dict,
+    save_root: Path,
+    filename_stem: str,
+) -> Path:
+    from sync_engine import (
+        _retroarch_saturn_format,
+        _retroarch_saturn_mednafen_save_root,
+    )
+
+    saturn_sys_info = {}
+    if "systems" in profile:
+        saturn_sys_info = next(
+            (s for s in profile["systems"] if s.get("system") == "SAT"),
+            {},
+        )
+
+    saturn_format = _retroarch_saturn_format(
+        saturn_sys_info.get("save_ext", ""),
+        saturn_sys_info.get("save_folder", ""),
+    )
+    if saturn_format == "yabause":
+        return save_root / f"{filename_stem}.srm"
+    if saturn_format == "yabasanshiro":
+        override = saturn_sys_info.get("save_folder", "")
+        target_root = Path(override) if override else save_root / "yabasanshiro"
+        if target_root.suffix.lower() == ".bin":
+            return target_root
+        return target_root / "backup.bin"
+    return _retroarch_saturn_mednafen_save_root(save_root) / f"{filename_stem}.bkr"
+
+
+def _resolve_retroarch_download_path(
+    profile: dict,
+    save_root: Path,
+    system: str,
+    filename_stem: str,
+    filename: str,
+    has_system_override: bool,
+    core_name: str = "",
+) -> Path:
+    if system == "SAT":
+        return _resolve_retroarch_saturn_download_path(
+            profile, save_root, filename_stem
+        )
+    return save_root / filename
+
+
+def _system_profile_info(profile: dict, system: str) -> dict:
+    if "systems" not in profile:
+        return {}
+    return next(
+        (s for s in profile["systems"] if s.get("system") == system),
+        {},
+    )
 
 
 class ScanWorker(QThread):
@@ -78,7 +156,18 @@ class ScanWorker(QThread):
 
     def run(self):
         try:
-            from sync_engine import scan_profile, compare_with_server
+            from sync_engine import (
+                _debug_scan,
+                _reset_debug_scan_log,
+                _scan_debug_enabled,
+                _scan_debug_log_path,
+                compare_with_server,
+                scan_profile,
+            )
+
+            if _scan_debug_enabled():
+                _reset_debug_scan_log()
+                _debug_scan(f"Desktop scan started. Log file: {_scan_debug_log_path()}")
 
             systems_filter: set[str] = set()
             for profile in self.profiles:
@@ -228,6 +317,12 @@ class SyncTab(QWidget):
         )
         self.status_filter_combo.currentTextChanged.connect(self._apply_filter)
         filter_row.addWidget(self.status_filter_combo)
+        self.skip_server_only_check = QCheckBox("Skip Server Only")
+        self.skip_server_only_check.setToolTip(
+            "Hide saves that exist on the server but have no matching ROM/profile entry locally."
+        )
+        self.skip_server_only_check.stateChanged.connect(self._apply_filter)
+        filter_row.addWidget(self.skip_server_only_check)
         filter_row.addWidget(QLabel("Search:"))
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("Filter by game name or title ID…")
@@ -615,6 +710,7 @@ class SyncTab(QWidget):
         system_filter = self.system_filter_combo.currentText()
         status_filter = self.status_filter_combo.currentText()
         search = self.search_edit.text().strip().lower()
+        skip_server_only = self.skip_server_only_check.isChecked()
         for row in range(self.table.rowCount()):
             system_item = self.table.item(row, 0)
             game_item = self.table.item(row, 1)
@@ -624,11 +720,18 @@ class SyncTab(QWidget):
             game = game_item.text() if game_item else ""
             tid = tid_item.text() if tid_item else ""
             status = status_item.text() if status_item else ""
-            match_system = system_filter == "All" or system == system_filter
-            match_status = status_filter == "All" or status == status_filter
-            match_search = not search or search in game.lower() or search in tid.lower()
             self.table.setRowHidden(
-                row, not (match_system and match_status and match_search)
+                row,
+                not sync_row_matches_filters(
+                    system=system,
+                    game=game,
+                    title_id=tid,
+                    status=status,
+                    system_filter=system_filter,
+                    status_filter=status_filter,
+                    search=search,
+                    skip_server_only=skip_server_only,
+                ),
             )
 
     def _selected_status_indices(self) -> list[int]:
@@ -707,6 +810,8 @@ class SyncTab(QWidget):
                 break
             st = self._statuses[idx]
             try:
+                profile = self.profile_combo.currentData() or {}
+                is_saroo = profile.get("device_type") == "SAROO"
                 save_exists = getattr(st.save, "save_exists", True)
                 if (
                     st.status in ("local_newer", "not_on_server")
@@ -723,20 +828,50 @@ class SyncTab(QWidget):
                     self._update_row_status(idx, "up_to_date")
                     synced += 1
                 elif st.status == "server_newer" and st.save.path:
-                    self._download_to_paths(
-                        st.save.title_id,
-                        [st.save.path, *getattr(st.save, "alternate_paths", [])],
-                        base_url,
-                        headers,
-                    )
-                    self._update_row_status(idx, "up_to_date", new_path=st.save.path)
+                    if is_saroo:
+                        dest_path = self._resolve_download_path(st)
+                        if dest_path is None:
+                            skipped += 1
+                            continue
+                        self._download_to_paths(
+                            st.save.title_id,
+                            [dest_path],
+                            base_url,
+                            headers,
+                            system=st.save.system,
+                        )
+                        self._finalize_saroo_download(
+                            st.save.title_id, dest_path, profile
+                        )
+                        self._update_row_status(
+                            idx, "up_to_date", new_path=dest_path
+                        )
+                    else:
+                        self._download_to_paths(
+                            st.save.title_id,
+                            [st.save.path, *getattr(st.save, "alternate_paths", [])],
+                            base_url,
+                            headers,
+                            system=st.save.system,
+                        )
+                        self._update_row_status(
+                            idx, "up_to_date", new_path=st.save.path
+                        )
                     synced += 1
                 elif st.status == "server_only":
                     dest_path = self._resolve_download_path(st)
                     if dest_path:
                         self._download_to_paths(
-                            st.save.title_id, [dest_path], base_url, headers
+                            st.save.title_id,
+                            [dest_path],
+                            base_url,
+                            headers,
+                            system=st.save.system,
                         )
+                        if is_saroo:
+                            self._finalize_saroo_download(
+                                st.save.title_id, dest_path, profile
+                            )
                         self._update_row_status(idx, "up_to_date", new_path=dest_path)
                         synced += 1
                     else:
@@ -838,7 +973,7 @@ class SyncTab(QWidget):
         return server_hash
 
     def _keep_local(self, status_idx: int):
-        from sync_engine import _SAROO_META, upload_save
+        from sync_engine import upload_save
 
         st = self._statuses[status_idx]
         if not st.save.path:
@@ -847,36 +982,14 @@ class SyncTab(QWidget):
             )
             return
         try:
-            profile = self.profile_combo.currentData() or {}
-            if profile.get("device_type") == "SAROO":
-                # Upload the pre-converted mednafen bytes, not the raw SS_SAVE.BIN
-                meta = _SAROO_META.get(st.save.title_id)
-                if not meta or not meta.get("native_bytes"):
-                    raise ValueError(
-                        "Saroo metadata not found — re-scan the profile first."
-                    )
-                native_bytes = meta["native_bytes"]
-                params = {"force": "true"}
-                resp = requests.post(
-                    f"{get_base_url()}/api/v1/saves/{st.save.title_id}/raw",
-                    headers={
-                        **get_api_headers(),
-                        "Content-Type": "application/octet-stream",
-                    },
-                    params=params,
-                    data=native_bytes,
-                    timeout=30,
-                )
-                resp.raise_for_status()
-            else:
-                upload_save(
-                    st.save.title_id,
-                    st.save.path,
-                    get_base_url(),
-                    get_api_headers(),
-                    system=st.save.system,
-                    force=True,
-                )
+            upload_save(
+                st.save.title_id,
+                st.save.path,
+                get_base_url(),
+                get_api_headers(),
+                system=st.save.system,
+                force=True,
+            )
             self._update_row_status(status_idx, "up_to_date")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -999,6 +1112,7 @@ class SyncTab(QWidget):
             POCKET_OPENFPGA_FOLDER_MAP,
             RETROARCH_CORE_MAP,
             _make_title_id_with_region,
+            resolve_save_ext,
         )
 
         profile = self.profile_combo.currentData()
@@ -1014,10 +1128,8 @@ class SyncTab(QWidget):
         system = (st.save.system or "").upper()
 
         # Check per-system save folder override (new multi-system format)
+        sys_info = _system_profile_info(profile, system)
         if "systems" in profile:
-            sys_info = next(
-                (s for s in profile["systems"] if s.get("system") == system), {}
-            )
             override = sys_info.get("save_folder", "")
             if override:
                 save_root = Path(override)
@@ -1035,12 +1147,20 @@ class SyncTab(QWidget):
         save_ext = ".sav"
         has_system_override = False
         if "systems" in profile:
-            sys_info = next(
-                (s for s in profile["systems"] if s.get("system") == system), {}
-            )
             has_system_override = bool(sys_info.get("save_folder", ""))
             save_ext = sys_info.get("save_ext", ".sav") or ".sav"
+        save_ext = resolve_save_ext(system, save_ext)
         filename = filename_stem + save_ext
+        rom_root = Path(profile.get("path", "")) if profile.get("path", "") else None
+        rom_override = sys_info.get("rom_folder", "")
+        if rom_override:
+            rom_root = Path(rom_override)
+        matched_rom = None
+        if device_type == "RetroArch" and rom_root and rom_root.exists():
+            matched_rom = self._find_rom_file(rom_root, raw_name)
+            if matched_rom is not None:
+                filename_stem = matched_rom.stem
+                filename = filename_stem + save_ext
 
         if system == "PS3":
             if device_type == "EmuDeck" and not has_system_override:
@@ -1110,8 +1230,7 @@ class SyncTab(QWidget):
         elif device_type == "MEGA EverDrive":
             # Sega CD: gamedata/<Game Name (Region).cue>/cd-bram.brm
             # Cartridge: gamedata/<Game Name (Region).ext>/bram.srm
-            _CD_SYSTEMS = {"SEGACD"}
-            is_cd = system in _CD_SYSTEMS
+            is_cd = system in MEGA_EVERDRIVE_CD_SYSTEMS
             save_name = "cd-bram.brm" if is_cd else "bram.srm"
 
             # Try to recover the exact .cue / ROM filename so the gamedata
@@ -1235,10 +1354,15 @@ class SyncTab(QWidget):
             return save_root / sys_folder / filename
 
         elif device_type == "RetroArch":
-            core = next(
-                (k for k, v in RETROARCH_CORE_MAP.items() if v == system), system
+            return _resolve_retroarch_download_path(
+                profile,
+                save_root,
+                system,
+                filename_stem,
+                filename,
+                has_system_override,
+                core_name=str(sys_info.get("core", "") or ""),
             )
-            return save_root / core / filename
 
         else:
             return save_root / filename
@@ -1289,7 +1413,10 @@ class SyncTab(QWidget):
             dest_path = self._resolve_download_path(st)
             if dest_path is None:
                 # Fall back to file dialog if resolution failed
-                suggested = f"{st.save.title_id}.sav"
+                suggested_ext = ".sav"
+                if (st.save.system or "").upper() == "SAT":
+                    suggested_ext = ".bkr"
+                suggested = f"{st.save.title_id}{suggested_ext}"
                 if self._last_download_folder:
                     suggested_path = self._last_download_folder / suggested
                 else:
@@ -1298,7 +1425,7 @@ class SyncTab(QWidget):
                     self,
                     f"Download {st.save.title_id}",
                     str(suggested_path),
-                    "Save Files (*.sav *.srm *.bin);;All Files (*)",
+                    "Save Files (*.sav *.srm *.bkr *.bin);;All Files (*)",
                 )
                 if not dest_str:
                     return
@@ -1402,6 +1529,7 @@ class SyncTab(QWidget):
     def save_ui_state(self) -> dict:
         return {
             "auto_normalize_sync": self.auto_normalize_check.isChecked(),
+            "skip_server_only_sync": self.skip_server_only_check.isChecked(),
             "selected_profile": self.profile_combo.currentText(),
             "last_download_folder": str(self._last_download_folder)
             if self._last_download_folder
@@ -1411,6 +1539,8 @@ class SyncTab(QWidget):
     def load_ui_state(self, state: dict):
         if "auto_normalize_sync" in state:
             self.auto_normalize_check.setChecked(bool(state["auto_normalize_sync"]))
+        if "skip_server_only_sync" in state:
+            self.skip_server_only_check.setChecked(bool(state["skip_server_only_sync"]))
         self._saved_profile_name = state.get("selected_profile", "")
         last_folder = state.get("last_download_folder", "")
         self._last_download_folder = Path(last_folder) if last_folder else None

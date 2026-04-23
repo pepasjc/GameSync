@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>NEC - PC-6001 [T-En] Collection</name>
+		<description>NEC - PC-6001 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>27-06-2022</version>
+		<date>27-06-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="3D Golf Simulation Super Version (Japan) [T-En by Umbrella Terms v1.0] [Mode 5, Page 3]">
+		<description>3D Golf Simulation Super Version (Japan) [T-En by Umbrella Terms v1.0] [Mode 5, Page 3]</description>
+		<rom name="3D Golf Simulation Super Version (Japan) [T-En by Umbrella Terms v1.0] [Mode 5, Page 3].cas" size="51682" crc="96c0eb43" md5="6495a0a80a99929ba5fb7569387b8a53" sha1="d54ef11890436bc78314664af11e49df18b21b4d"/>
+	</machine>
+	<machine name="_NEC PC-6001 [T-En] Docs">
+		<description>_NEC PC-6001 [T-En] Docs</description>
+		<rom name="3D Golf Simulation Super Version (Japan) [T-En by Umbrella Terms v1.0] [Mode 5, Page 3].txt" size="1595" crc="f181bf17" md5="71a715bb1cb094f41359fe67273fd477" sha1="21ed9463a2b3ccbac3e14b7af617ede6014258ce"/>
+		<rom name="Cheat, The (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2] [n].txt" size="888" crc="5bc36b6a" md5="ddaeb2dee5a0c35feff2b5f6c88dc6f7" sha1="e28739e28235d05050e7c696f1c65b292dbaa6d4"/>
+		<rom name="Chrith - Journey of Love (Japan) [T-En by Umbrella Terms v1.0] [Mode 5, Page 3] [n].txt" size="474" crc="7a143f96" md5="ef74bd24064b57dab94e219ab28ef33f" sha1="9d9f3ffc8e14168f73b0a669511d979be689f661"/>
+		<rom name="Earth Bound (Japan) [T-En by Umbrella Terms v1.0] [Mode 2, Page 2].txt" size="5580" crc="16c1cb68" md5="7f351431d87d6bc4562de1146274b7c4" sha1="fb7d76a0c62d1d9c832c52b0fc153fb1bd5ba0e6"/>
+		<rom name="Hamburger Shop (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2].txt" size="2539" crc="6c5f2371" md5="59b28948c6d78a209876fdd36e9d8d19" sha1="fa76b19bd510733d6574816b423a1d9768cfdae3"/>
+		<rom name="Hydlide (Japan) [T-En by JPN Translations v1.0] [Mode 5, Page 2].txt" size="4072" crc="5968aecb" md5="76f01e341534599b4bb116c595511cfd" sha1="68b19c6bfee651d1bf52b8c86e583fb0d4dabb3a"/>
+		<rom name="Magic (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2].txt" size="919" crc="a006a2d8" md5="9cfb49fa64fd39b1f7fd71e6a9dc143d" sha1="ad4aceb2e0612ad3606f0a9ac578220ae3e5d88f"/>
+		<rom name="Mystery House (Japan) [T-En by Umbrella Terms v1.0] [Mode 2, Page 2].txt" size="1392" crc="cfd2aabf" md5="a0d7a06f196c8632589f05eb50f14998" sha1="4b231a3a5713a6df8447fba3f8a4793939752994"/>
+		<rom name="Slayer (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2] [Map 1].png" size="9848" crc="f0cab3c5" md5="a1056a4460b215178c9bb6bfba84b4e0" sha1="53c77ce9a2fc44bc82a062b2bd0265a41bdbb501"/>
+		<rom name="Slayer (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2] [Map 2].png" size="61606" crc="c6784ada" md5="ada247f544cf85a3403b2356c30aef11" sha1="0f0492fcf7d1c984c576b26261c8be73778c7335"/>
+		<rom name="Slayer (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2] [Map 3].png" size="40930" crc="9bda3881" md5="c3ae999603e58ee9e54fd334297993b0" sha1="61dee93a3078140c1397fbcf29ba9baa67ef8877"/>
+		<rom name="Slayer (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2] [Maps].txt" size="433" crc="3299e715" md5="94a19b33b4217f87f9450d5b3cfdaf18" sha1="348d8088fabe43d3d8c2e7eb0d0ff6ae9dfa36e6"/>
+		<rom name="Slayer (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2].txt" size="2837" crc="2e3634a4" md5="5cdf3696b39d444389abab2ea43d5a29" sha1="a13b73ff9cc17224197b8f5c46ad4a37bbcb353f"/>
+		<rom name="Tiny Golf (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2].txt" size="1901" crc="61382dd9" md5="1d88c674b548ef9db6d71f008b3af7b0" sha1="94ad7727d39f1c3a6f8554cde8e77afd5021e7fc"/>
+	</machine>
+	<machine name="Cheat, The (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2] [n]">
+		<description>Cheat, The (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2] [n]</description>
+		<rom name="Cheat, The (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2] [n].p6" size="3383" crc="46fd4f81" md5="c842be768306c3eb9605b527c5212293" sha1="ec22a8974a0ed434eb6a50c520c129d9ff63d71d"/>
+	</machine>
+	<machine name="Chrith - Journey of Love (Japan) [T-En by Umbrella Terms v1.0] [Mode 5, Page 3] [n]">
+		<description>Chrith - Journey of Love (Japan) [T-En by Umbrella Terms v1.0] [Mode 5, Page 3] [n]</description>
+		<rom name="Chrith - Journey of Love (Japan) [T-En by Umbrella Terms v1.0] [Mode 5, Page 3] [n].cas" size="26017" crc="52f71645" md5="3a7b58cda032a420ab9db00e4a609d5c" sha1="180e9e6e0b08cb68d44cd96e069e7717224414be"/>
+	</machine>
+	<machine name="Earth Bound (Japan) [T-En by Umbrella Terms v1.0] [Mode 2, Page 2]">
+		<description>Earth Bound (Japan) [T-En by Umbrella Terms v1.0] [Mode 2, Page 2]</description>
+		<rom name="Earth Bound (Japan) [T-En by Umbrella Terms v1.0] [Mode 2, Page 2].cas" size="41241" crc="b36b9af8" md5="6a025985932b1ee203f4ad5cfb0b0e64" sha1="b9ce808ec120ad7eadd874b5e4b7003d2d07163b"/>
+	</machine>
+	<machine name="Hamburger Shop (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2]">
+		<description>Hamburger Shop (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2]</description>
+		<rom name="Hamburger Shop (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2].cas" size="3627" crc="ac1b7bd2" md5="a71a997e701897a5b49b8347bca64f9d" sha1="06da798234554f30f69a0e3ffe6584562ba89e84"/>
+	</machine>
+	<machine name="Hydlide (Japan) [T-En by JPN Translations v1.0] [Mode 5, Page 2]">
+		<description>Hydlide (Japan) [T-En by JPN Translations v1.0] [Mode 5, Page 2]</description>
+		<rom name="Hydlide (Japan) [T-En by JPN Translations v1.0] [Mode 5, Page 2].cas" size="44791" crc="bb834e47" md5="ccc8b98f2a32dcabc19bd6c23ebf233e" sha1="66b309e5f9704079448471caa41094c3f39f1b08"/>
+	</machine>
+	<machine name="Magic (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2]">
+		<description>Magic (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2]</description>
+		<rom name="Magic (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2].p6" size="6407" crc="3f10aee3" md5="fa2e613fb860a15e1574d52d419bdab8" sha1="599004d48522cdaaa2db7593f1b15d8936c3b1d0"/>
+	</machine>
+	<machine name="Mystery House (Japan) [T-En by Umbrella Terms v1.0] [Mode 2, Page 2]">
+		<description>Mystery House (Japan) [T-En by Umbrella Terms v1.0] [Mode 2, Page 2]</description>
+		<rom name="Mystery House (Japan) [T-En by Umbrella Terms v1.0] [Mode 2, Page 2].cas" size="20271" crc="d70d5250" md5="4754f86a67888fd835ade55148b1af4f" sha1="47d9b098d90968413d0b29a420380b55dd564910"/>
+	</machine>
+	<machine name="Slayer (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2]">
+		<description>Slayer (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2]</description>
+		<rom name="Slayer (Part 1) (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2].p6t" size="2081" crc="26a6397a" md5="16fc64dea499e0d407c64a2f7c85ba8c" sha1="1c664d34aadcdeb4879cdcb5e95437ccbea59d20"/>
+		<rom name="Slayer (Part 2) (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2].p6t" size="4823" crc="20e0b387" md5="6d97097c3a44f90b14cef0a743125545" sha1="03e5626149b27ea80d17d94ec72b7b6d9b59027b"/>
+	</machine>
+	<machine name="Tiny Golf (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2]">
+		<description>Tiny Golf (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2]</description>
+		<rom name="Tiny Golf (Japan) [T-En by Umbrella Terms v1.0] [Mode 1, Page 2].cas" size="441" crc="e27677cd" md5="17e1997c9073fbcce63c9807fedc23a5" sha1="230d55464f3b82eccefaaac3e17cbb944a27fa26"/>
+	</machine>
+</datafile>

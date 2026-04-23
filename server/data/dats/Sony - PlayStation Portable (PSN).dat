@@ -6637,6 +6637,7 @@ game (
 )
 game (
 	name "King of Fighters Portable '94-'98, The - Chapter of Orochi (Japan) (v1.01) (PSP) (PSN)"
+	cloneof "King of Fighters Collection, The - The Orochi Saga (USA) (PSP) (PSN)"
 	description "King of Fighters Portable '94-'98, The - Chapter of Orochi (Japan) (v1.01) (PSP) (PSN)"
 	region "Japan"
 	serial "NPJH-50258"
@@ -10042,6 +10043,7 @@ game (
 )
 game (
 	name "Ratchet & Clank - Size Matters (Europe) (PSN)"
+	cloneof "Ratchet & Clank - Size Matters (USA) (En,Fr,De,Es,It) (PSP) (PSN)"
 	description "Ratchet & Clank - Size Matters (Europe) (PSN)"
 	region "Europe"
 	serial "UCES-00420"
@@ -10056,6 +10058,7 @@ game (
 )
 game (
 	name "Ratchet & Clank 5 - Gekitotsu! Dodeka Ginga no MiriMiri Gundan (Japan) (PSP) (PSN)"
+	cloneof "Ratchet & Clank - Size Matters (USA) (En,Fr,De,Es,It) (PSP) (PSN)"
 	description "Ratchet & Clank 5 - Gekitotsu! Dodeka Ginga no MiriMiri Gundan (Japan) (PSP) (PSN)"
 	region "Japan"
 	serial "UCJS-10052"

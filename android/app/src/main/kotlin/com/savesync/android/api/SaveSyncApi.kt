@@ -142,4 +142,28 @@ interface SaveSyncApi {
     suspend fun lookupGameNames(
         @Body request: GameNameRequest
     ): GameNameResponse
+
+    @POST("api/v1/titles/saturn-archives")
+    suspend fun lookupSaturnArchives(
+        @Body request: SaturnArchiveLookupRequest
+    ): SaturnArchiveLookupResponse
+
+    // ── ROM catalog ──────────────────────────────────────────────────────
+
+    @GET("api/v1/roms")
+    suspend fun getRoms(
+        @Query("system") system: String? = null,
+        @Query("search") search: String? = null,
+        @Query("has_save") hasSave: Boolean? = null
+    ): RomsResponse
+
+    @GET("api/v1/roms/systems")
+    suspend fun getRomsSystems(): RomsSystemsResponse
+
+    @Streaming
+    @GET("api/v1/roms/{rom_id}")
+    suspend fun downloadRom(
+        @Path("rom_id") romId: String,
+        @Query("extract") extract: String? = null,
+    ): Response<ResponseBody>
 }

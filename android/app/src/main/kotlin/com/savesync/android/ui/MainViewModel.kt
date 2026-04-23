@@ -14,17 +14,30 @@ import com.savesync.android.api.ApiClient
 import com.savesync.android.api.GameNameRequest
 import com.savesync.android.api.NormalizeRequest
 import com.savesync.android.api.NormalizeRomEntry
+import com.savesync.android.api.RomEntry
+import com.savesync.android.catalog.RomCatalogFilter
+import com.savesync.android.installed.DeleteResult
+import com.savesync.android.installed.InstalledRom
+import com.savesync.android.installed.InstalledRomsScanner
+import com.savesync.android.api.SaturnArchiveLookupRequest
+import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SaveSyncApi
 import com.savesync.android.emulators.EmulatorRegistry
 import com.savesync.android.emulators.SaveEntry
+import com.savesync.android.emulators.impl.AzaharEmulator
 import com.savesync.android.emulators.impl.RetroArchEmulator
 import com.savesync.android.emulators.impl.DuckStationEmulator
 import com.savesync.android.storage.Settings
 import com.savesync.android.storage.SettingsStore
 import com.savesync.android.storage.SyncStateEntity
+import com.savesync.android.sync.HashUtils
+import com.savesync.android.sync.SaturnArchiveStateStore
+import com.savesync.android.sync.SaturnSyncFormat
+import com.savesync.android.sync.SaturnSaveFormatConverter
 import com.savesync.android.sync.SyncEngine
 import com.savesync.android.sync.SyncResult
 import com.savesync.android.workers.SyncWorker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +46,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
@@ -83,6 +97,28 @@ sealed class NormalizePickerState {
     ) : NormalizePickerState()
 }
 
+enum class SaturnArchiveAction {
+    SYNC,
+    UPLOAD,
+}
+
+data class SaturnArchivePickerOption(
+    val archiveFamily: String,
+    val archiveNames: List<String>,
+    val detail: String,
+    val preselected: Boolean,
+)
+
+sealed class SaturnArchivePickerState {
+    object Hidden : SaturnArchivePickerState()
+    data class Visible(
+        val entry: SaveEntry,
+        val action: SaturnArchiveAction,
+        val hiddenSelectedArchives: List<String>,
+        val options: List<SaturnArchivePickerOption>,
+    ) : SaturnArchivePickerState()
+}
+
 sealed class ServerMetaState {
     object Idle : ServerMetaState()
     object Loading : ServerMetaState()
@@ -98,6 +134,7 @@ sealed class ServerMetaState {
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val compactPsCodeRegex = Regex("""^[A-Z]{4}\d{5}$""")
+    private val hex16TitleIdRegex = Regex("""^[0-9A-Fa-f]{16}$""")
 
     private val settingsStore = SettingsStore(application)
     private val db = SaveSyncApp.instance.database
@@ -116,6 +153,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Status filter ("All" means no status filter)
     private val _statusFilter = MutableStateFlow<SaveSyncStatus?>(null)
     val statusFilter: StateFlow<SaveSyncStatus?> = _statusFilter
+
+    private val _saturnArchiveSelectionVersion = MutableStateFlow(0)
+    val saturnArchiveSelectionVersion: StateFlow<Int> = _saturnArchiveSelectionVersion
 
     /** Room-backed sync state for all titles. Eagerly collected so it's populated
      *  before the first compose frame, eliminating the "?" flash on startup. */
@@ -136,6 +176,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         syncState: SyncStateEntity?,
         cheapOnly: Boolean = false
     ): SaveSyncStatus {
+        val isSharedYabaSanshiroEntry =
+            entry.systemName == "SAT" &&
+                entry.isServerOnly &&
+                entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+
+        if (isSharedYabaSanshiroEntry && entry.saveFile?.exists() == true) {
+            if (syncState?.lastSyncedHash == null) {
+                return SaveSyncStatus.LOCAL_ONLY
+            }
+            if (cheapOnly) return SaveSyncStatus.SYNCED
+
+            val localHash = try {
+                val archiveNames = SaturnArchiveStateStore.get(entry.titleId)
+                if (archiveNames.isEmpty() || entry.saveFile?.exists() != true) {
+                    ""
+                } else {
+                    val canonical = SaturnSaveFormatConverter.extractCanonical(
+                        entry.saveFile.readBytes(),
+                        archiveNames
+                    )
+                    HashUtils.sha256Bytes(canonical)
+                }
+            } catch (_: Exception) {
+                ""
+            }
+
+            return if (localHash.isNotEmpty() && localHash != syncState.lastSyncedHash) {
+                SaveSyncStatus.LOCAL_NEWER
+            } else {
+                SaveSyncStatus.SYNCED
+            }
+        }
         if (entry.isServerOnly) return SaveSyncStatus.SERVER_ONLY
 
         val lastSyncedHash = syncState?.lastSyncedHash
@@ -169,7 +241,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedFilter,
         _searchQuery,
         _statusFilter,
-        syncStateEntities
+        syncStateEntities,
+        _saturnArchiveSelectionVersion
     ) { args: Array<*> ->
         @Suppress("UNCHECKED_CAST")
         val all = args[0] as List<SaveEntry>
@@ -178,6 +251,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val statusFilter = args[3] as SaveSyncStatus?
         @Suppress("UNCHECKED_CAST")
         val syncEntities = args[4] as List<SyncStateEntity>
+        args[5] as Int
 
         var result = all
 
@@ -214,8 +288,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Status filter options that have at least one matching entry
     val availableStatusFilters: StateFlow<List<SaveSyncStatus>> = combine(
-        _allSaves, syncStateEntities
-    ) { allSaves, syncEntities ->
+        _allSaves, syncStateEntities, _saturnArchiveSelectionVersion
+    ) { allSaves, syncEntities, _ ->
         val syncMap = syncEntities.associateBy { it.titleId }
         allSaves.map { computeSyncStatus(it, syncMap[it.titleId]) }
             .distinct()
@@ -231,12 +305,67 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _normalizePicker = MutableStateFlow<NormalizePickerState>(NormalizePickerState.Hidden)
     val normalizePicker: StateFlow<NormalizePickerState> = _normalizePicker
 
+    private val _saturnArchivePicker =
+        MutableStateFlow<SaturnArchivePickerState>(SaturnArchivePickerState.Hidden)
+    val saturnArchivePicker: StateFlow<SaturnArchivePickerState> = _saturnArchivePicker
+
     private val _retroArchPaths = MutableStateFlow<List<Pair<String, Boolean>>>(emptyList())
     val retroArchPaths: StateFlow<List<Pair<String, Boolean>>> = _retroArchPaths
 
     /** Map of system name → ROM count found in the ROM scan directory */
     private val _romScanResults = MutableStateFlow<Map<String, Int>>(emptyMap())
     val romScanResults: StateFlow<Map<String, Int>> = _romScanResults
+
+    private val _romAvailable = MutableStateFlow<Set<String>>(emptySet())
+    val romAvailable: StateFlow<Set<String>> = _romAvailable
+
+    private val _romsByTitle = MutableStateFlow<Map<String, List<RomEntry>>>(emptyMap())
+    val romsByTitle: StateFlow<Map<String, List<RomEntry>>> = _romsByTitle
+
+    sealed class RomDownloadState {
+        object Idle : RomDownloadState()
+        data class Downloading(val name: String) : RomDownloadState()
+        data class Success(val file: java.io.File) : RomDownloadState()
+        data class Error(val message: String) : RomDownloadState()
+    }
+
+    private val _romDownloadState = MutableStateFlow<RomDownloadState>(RomDownloadState.Idle)
+    val romDownloadState: StateFlow<RomDownloadState> = _romDownloadState
+
+    // ── ROM Catalog tab ─────────────────────────────────────────────
+    /** Full server ROM catalog, fetched lazily on first tab entry and
+     *  refreshable on demand.  Null while loading the first time. */
+    private val _romCatalog = MutableStateFlow<List<RomEntry>>(emptyList())
+    val romCatalog: StateFlow<List<RomEntry>> = _romCatalog
+
+    private val _romCatalogLoading = MutableStateFlow(false)
+    val romCatalogLoading: StateFlow<Boolean> = _romCatalogLoading
+
+    private val _romCatalogLoaded = MutableStateFlow(false)
+    val romCatalogLoaded: StateFlow<Boolean> = _romCatalogLoaded
+
+    private val _romCatalogError = MutableStateFlow<String?>(null)
+    val romCatalogError: StateFlow<String?> = _romCatalogError
+
+    // ── Installed Games tab ─────────────────────────────────────────
+    private val _installedRoms = MutableStateFlow<List<InstalledRom>>(emptyList())
+    val installedRoms: StateFlow<List<InstalledRom>> = _installedRoms
+
+    private val _installedRomsLoading = MutableStateFlow(false)
+    val installedRomsLoading: StateFlow<Boolean> = _installedRomsLoading
+
+    private val _installedRomsLoaded = MutableStateFlow(false)
+    val installedRomsLoaded: StateFlow<Boolean> = _installedRomsLoaded
+
+    sealed class DeleteInstalledState {
+        object Idle : DeleteInstalledState()
+        data class Success(val rom: InstalledRom, val result: DeleteResult) : DeleteInstalledState()
+        data class Error(val rom: InstalledRom, val result: DeleteResult) : DeleteInstalledState()
+    }
+
+    private val _deleteInstalledState =
+        MutableStateFlow<DeleteInstalledState>(DeleteInstalledState.Idle)
+    val deleteInstalledState: StateFlow<DeleteInstalledState> = _deleteInstalledState
 
     // Server metadata for the currently open detail screen
     private val _serverMeta = MutableStateFlow<ServerMetaState>(ServerMetaState.Idle)
@@ -248,6 +377,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = Settings()
         )
+
+    /**
+     * Auto-detected system → folder path, derived by scanning the romScanDir subfolders.
+     * Not persisted — refreshed on demand via [detectSystemFolders].
+     */
+    private val _detectedSystemFolders = MutableStateFlow<Map<String, String>>(emptyMap())
+    val detectedSystemFolders: StateFlow<Map<String, String>> = _detectedSystemFolders
 
     init {
         // Restore persisted filter preferences before scanning
@@ -292,10 +428,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     .associate { it.filePath to it.system }
                 val romScanDir = currentSettings.romScanDir
                 val dolphinMemCardDir = currentSettings.dolphinMemCardDir
-                val rawLocalSaves = EmulatorRegistry.discoverAllSaves(overrides, romScanDir, dolphinMemCardDir)
+                val romDirOverrides = currentSettings.romDirOverrides
+                val rawLocalSaves = EmulatorRegistry.discoverAllSaves(
+                    overrides,
+                    romScanDir,
+                    dolphinMemCardDir,
+                    romDirOverrides,
+                    currentSettings.saturnSyncFormat
+                )
 
                 // Discover all ROMs the emulators know about (with expected save paths)
-                val allRomEntries = EmulatorRegistry.discoverAllRomEntries(romScanDir, dolphinMemCardDir)
+                val allRomEntries = EmulatorRegistry.discoverAllRomEntries(
+                    romScanDir,
+                    dolphinMemCardDir,
+                    romDirOverrides,
+                    currentSettings.saturnSyncFormat
+                )
 
                 val serverOnlySaves: List<SaveEntry>
                 val localSaves: List<SaveEntry>
@@ -308,19 +456,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
 
-                    // For PS1 saves with slug-based title IDs (e.g. from DuckStation with
-                    // game-title-named memory cards, or RetroArch without a ROM scan dir),
-                    // call the normalize endpoint to resolve the disc serial from psxdb.
-                    // The server now returns a bare product code (e.g. "SCUS94163") for PS1
-                    // when a matching entry is found in its psxdb reverse index.
-                    val ps1SlugSaves = rawLocalSaves.filter { it.systemName == "PS1" && it.titleId.contains('_') }
-                    val resolvedRawSaves = if (ps1SlugSaves.isNotEmpty()) {
+                    // Some systems have canonical server IDs that are not the default
+                    // SYS_slug format we derive locally:
+                    // - PS1 uses retail serials like SCUS94163
+                    // - 3DS uses 16-char title IDs like 0004000000030800
+                    // Ask the normalize endpoint to bridge those slug entries to the
+                    // server's canonical ID before we do any matching or syncing.
+                    val canonicalSlugSaves = rawLocalSaves.filter {
+                        it.titleId.contains('_') &&
+                            (it.systemName == "PS1" || it.systemName == "3DS")
+                    }
+                    val resolvedRawSaves = if (canonicalSlugSaves.isNotEmpty()) {
                         try {
                             val response = api.normalizeRoms(NormalizeRequest(
-                                roms = ps1SlugSaves.map { NormalizeRomEntry(system = "PS1", filename = it.displayName) }
+                                roms = canonicalSlugSaves.map {
+                                    NormalizeRomEntry(system = it.systemName, filename = it.displayName)
+                                }
                             ))
-                            val serialMap = ps1SlugSaves.indices.associate { i ->
-                                val oldId = ps1SlugSaves[i].titleId
+                            val serialMap = canonicalSlugSaves.indices.associate { i ->
+                                val oldId = canonicalSlugSaves[i].titleId
                                 val newId = response.results.getOrNull(i)?.title_id ?: oldId
                                 oldId to newId
                             }.filter { (old, new) -> old != new && !new.contains('_') }
@@ -333,13 +487,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     } else rawLocalSaves
 
                     // Enrich product-code entries with proper game names from server.
-                    // PSP slots, PS1 saves resolved via SYSTEM.CNF, and PS2 saves resolved from
-                    // installed disc images all carry compact product-code title IDs
-                    // (e.g. SLUS01234 / SLUS20002), so they can all share the same lookup flow.
+                    // PSP, PS1, PS2, SAT, and GC saves resolved via disc headers all carry
+                    // compact product-code title IDs (e.g. SLUS01234, SAT_T-12705H).
                     // Slug-based PS1/PS2 IDs (PS1_slug / PS2_slug) are skipped here.
                     val productCodeEntries = resolvedRawSaves.filter { entry ->
-                        entry.systemName == "PPSSPP" ||
+                        entry.systemName == "PSP" ||
+                        (entry.systemName == "3DS" && hex16TitleIdRegex.matches(entry.titleId)) ||
                         ((entry.systemName == "PS1" || entry.systemName == "PS2") && !entry.titleId.contains('_')) ||
+                        (entry.systemName == "SAT" && entry.titleId.startsWith("SAT_")) ||
                         (entry.systemName == "GC" && entry.titleId.startsWith("GC_"))
                     }
                     val gameNameTriple =
@@ -381,7 +536,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 displayName = gameName ?: entry.displayName,
                                 canonicalName = gameName?.takeIf { it != entry.displayName }
                             )
-                            entry.systemName == "PPSSPP" && lookedUpType == "PS1" -> entry.copy(
+                            entry.systemName == "PSP" && lookedUpType == "PS1" -> entry.copy(
                                 systemName = "PS1",
                                 displayName = gameName ?: entry.displayName,
                                 canonicalName = gameName?.takeIf { it != entry.displayName }
@@ -401,6 +556,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _allSaves.value = sortSaves(rawLocalSaves)
                         return@launch
                     }
+                    val romCatalogByTitle: Map<String, List<RomEntry>> = try {
+                        api.getRoms(hasSave = true).roms.groupBy { it.title_id }
+                    } catch (_: Exception) {
+                        emptyMap()
+                    }
 
                     val ps1ServerIds: Set<String> = try {
                         api.getTitles(consoleType = "PS1").titles.map { it.title_id }.toSet()
@@ -414,6 +574,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     val pspServerIds: Set<String> = try {
                         api.getTitles(consoleType = "PSP").titles.map { it.title_id }.toSet()
+                    } catch (_: Exception) {
+                        emptySet()
+                    }
+                    val satServerIds: Set<String> = try {
+                        api.getTitles(consoleType = "SAT").titles.map { it.title_id }.toSet()
                     } catch (_: Exception) {
                         emptySet()
                     }
@@ -455,6 +620,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 in ps1ServerIds -> "PS1"
                                 in ps2ServerIds -> "PS2"
                                 in pspServerIds -> "PSP"
+                                in satServerIds -> "SAT"
                                 else -> lookedUpType
                             }
                             titleInfo.copy(
@@ -484,7 +650,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             },
                             effectiveRomEntries + aliasMatches
                         )
-                        val fullyEffectiveRomEntries = effectiveRomEntries + aliasMatches + ps1Matches
+                        val pspMatches = buildPspServerOnlyMatches(
+                            normalizedUnmatchedTitles.filter {
+                                !effectiveRomEntries.containsKey(it.title_id) &&
+                                !aliasMatches.containsKey(it.title_id) &&
+                                !ps1Matches.containsKey(it.title_id)
+                            },
+                            effectiveRomEntries + aliasMatches + ps1Matches
+                        )
+                        val fullyEffectiveRomEntries = effectiveRomEntries + aliasMatches + ps1Matches + pspMatches
 
                         val matchedServerOnly = normalizedUnmatchedTitles
                             .filter { fullyEffectiveRomEntries.containsKey(it.title_id) }
@@ -527,24 +701,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 )
                             }
 
+                        val stillUnanchoredTitles = normalizedUnmatchedTitles
+                            .filter { !fullyEffectiveRomEntries.containsKey(it.title_id) }
+
                         // Some PS1 titles still cannot be anchored to a scanned ROM entry
                         // (missing serial, odd image format, etc.). In that case we still
                         // surface them using a DuckStation-style predicted card filename so
                         // the user can download them and, in many cases, DuckStation will
                         // already pick them up.
-                        val ps1ServerOnly = normalizedUnmatchedTitles
-                            .filter { !fullyEffectiveRomEntries.containsKey(it.title_id) }
+                        val ps1ServerOnly = stillUnanchoredTitles
                             .mapNotNull { titleInfo -> buildPs1ServerOnlyEntry(titleInfo) }
 
                         // PS2 is a special case: AetherSX2 often uses shared default cards
                         // instead of per-game saves, so there may be no local ROM/save-derived
                         // entry to anchor a server-only title. We still surface those saves so
                         // the user can download a per-game card and configure it manually.
-                        val ps2ServerOnly = normalizedUnmatchedTitles
-                            .filter { !fullyEffectiveRomEntries.containsKey(it.title_id) }
+                        val ps2ServerOnly = stillUnanchoredTitles
                             .mapNotNull { titleInfo -> buildPs2ServerOnlyEntry(titleInfo) }
 
-                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly
+                        val threedssServerOnly = stillUnanchoredTitles
+                            .mapNotNull { titleInfo -> build3dsServerOnlyEntry(titleInfo) }
+
+                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly + threedssServerOnly)
+                            .mapTo(mutableSetOf()) { it.titleId }
+
+                        // If a save has no local ROM/save anchor yet, still surface it when the
+                        // server can provide the ROM. That lets the user discover the save,
+                        // download the ROM, and then rescan to get a concrete save target path.
+                        val romCatalogServerOnly = stillUnanchoredTitles
+                            .filter { it.title_id !in specialFallbackIds }
+                            .mapNotNull { titleInfo ->
+                                buildRomCatalogServerOnlyEntry(
+                                    titleInfo = titleInfo,
+                                    roms = romCatalogByTitle[titleInfo.title_id].orEmpty()
+                                )
+                            }
+
+                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + threedssServerOnly + romCatalogServerOnly
                     } catch (e: Exception) {
                         emptyList()
                     }
@@ -699,42 +892,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Maps legacy/server-side system codes → canonical codes.
-     * Used to normalise system names for display and for deduplication.
-     * Legacy saves on the server may use older codes from previous client versions.
-     */
-    private val serverToAndroidSystem = mapOf(
-        // Sega — GENESIS, MEGADRIVE, and GEN are all aliases for MD
-        "GENESIS"   to "MD",
-        "MEGADRIVE" to "MD",
-        "GEN"       to "MD",
-        // SCD is a legacy alias for SEGACD (older Android uploads used SCD)
-        "SCD"       to "SEGACD",
-        // WS is a legacy alias for WSWAN (older Android uploads used WS)
-        "WS"        to "WSWAN",
-        // ATARI2600/ATARI7800 are legacy aliases (older desktop uploads used these)
-        "ATARI2600" to "A2600",
-        "ATARI7800" to "A7800",
-    )
-
-    /**
-     * Maps each Android-side system code to ALL possible server-side system codes.
-     *
-     * Multiple server codes can map to the same Android code (e.g. "GENESIS" and
-     * "MEGADRIVE" both → "MD"), so a simple [associate] reverse would silently drop all but
-     * the last entry.  This one-to-many map avoids that by grouping all variants together,
-     * so we try every possible server prefix when remapping a local titleId.
+     * Maps each Android-side canonical code to every server alias that
+     * points at it (e.g. ``MD`` ← ``GENESIS`` / ``MEGADRIVE`` / ``GEN``).
+     * Used when remapping a local titleId to probe every possible server
+     * prefix.  Delegates to [com.savesync.android.systems.SystemAliases] so
+     * the alias table lives in exactly one place.
      */
     private val androidToServerSystems: Map<String, List<String>> =
-        serverToAndroidSystem.entries.groupBy({ it.value }, { it.key })
+        com.savesync.android.systems.SystemAliases.CANONICAL_TO_SERVER
 
     /**
      * Normalises a system code to Android's canonical form for display.
-     * "SCD" → "SEGACD", "WS" → "WSWAN", etc.
-     * Codes already in Android form are returned unchanged.
+     * "SCD" → "SEGACD", "WS" → "WSWAN", etc.  Codes already in Android
+     * form are returned unchanged (case preserved) so equality checks
+     * like ``prefix == normalizeSystemCode(prefix)`` still work as a
+     * "is this already canonical?" probe.
      */
     private fun normalizeSystemCode(system: String) =
-        serverToAndroidSystem[system.uppercase()] ?: system
+        com.savesync.android.systems.SystemAliases.canonicalOrSelf(system)
 
     private fun buildPs2ServerOnlyEntry(
         titleInfo: com.savesync.android.api.TitleInfo
@@ -767,6 +942,81 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isServerOnly = true,
             canonicalName = titleInfo.name?.takeIf { it != displayName }
                 ?: titleInfo.game_name?.takeIf { it != displayName }
+        )
+    }
+
+    private fun build3dsServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo
+    ): SaveEntry? {
+        val system = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: ""
+        )
+        if (system != "3DS") return null
+        if (!hex16TitleIdRegex.matches(titleInfo.title_id)) return null
+
+        val saveDir = AzaharEmulator.defaultSaveDir(
+            storageBaseDir = Environment.getExternalStorageDirectory(),
+            titleId = titleInfo.title_id
+        ) ?: return null
+
+        val displayName = titleInfo.game_name
+            ?: titleInfo.name
+            ?: titleInfo.title_id
+
+        return SaveEntry(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            systemName = "3DS",
+            saveFile = null,
+            saveDir = saveDir,
+            isMultiFile = true,
+            isServerOnly = true,
+            canonicalName = titleInfo.game_name?.takeIf { it != displayName }
+                ?: titleInfo.name?.takeIf { it != displayName }
+        )
+    }
+
+    private fun buildRomCatalogServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo,
+        roms: List<RomEntry>
+    ): SaveEntry? {
+        if (roms.isEmpty()) return null
+
+        val preferredRom = roms.minWithOrNull(
+            compareBy<RomEntry>(
+                { it.filename.length },
+                { it.filename.lowercase() }
+            )
+        ) ?: return null
+
+        val resolvedSystem = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: preferredRom.system
+        )
+
+        val displayName = titleInfo.game_name
+            ?: titleInfo.name
+            ?: preferredRom.name
+            ?: preferredRom.filename.substringBeforeLast('.')
+        val canonicalName = sequenceOf(
+            titleInfo.game_name,
+            titleInfo.name,
+            preferredRom.name
+        ).firstOrNull { !it.isNullOrBlank() && it != displayName }
+
+        return SaveEntry(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            systemName = resolvedSystem,
+            saveFile = null,
+            saveDir = null,
+            isServerOnly = true,
+            canonicalName = canonicalName
         )
     }
 
@@ -876,6 +1126,69 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return result
     }
 
+    /**
+     * Match PSP server-only saves against installed PPSSPP ROMs.
+     *
+     * ROM-derived PSP entries give us a save root (PSP/SAVEDATA) before any local save
+     * exists. When we find a matching server title, rewrite that anchor to the exact
+     * server slot directory name so bundle downloads land where PPSSPP expects them.
+     */
+    private fun buildPspServerOnlyMatches(
+        stillUnmatched: List<com.savesync.android.api.TitleInfo>,
+        romEntries: Map<String, SaveEntry>
+    ): Map<String, SaveEntry> {
+        if (stillUnmatched.isEmpty()) return emptyMap()
+
+        val pspRomEntries = romEntries.values
+            .filter { it.saveDir != null && it.systemName == "PSP" }
+            .distinctBy { it.saveDir?.absolutePath ?: it.titleId }
+        if (pspRomEntries.isEmpty()) return emptyMap()
+
+        val byCode = pspRomEntries
+            .mapNotNull { entry -> pspProductCodePrefix(entry.titleId)?.let { it to entry } }
+            .groupBy({ it.first }, { it.second })
+        val byAnchor = pspRomEntries.groupBy { normalizePspAnchor(it.displayName) }
+
+        val result = mutableMapOf<String, SaveEntry>()
+        for (titleInfo in stillUnmatched) {
+            val system = normalizeSystemCode(
+                titleInfo.platform
+                    ?: titleInfo.system
+                    ?: titleInfo.consoleType
+                    ?: ""
+            )
+            if (system != "PSP") continue
+
+            val serverId = titleInfo.title_id
+            val code = pspProductCodePrefix(serverId)
+            val serverName = titleInfo.name ?: titleInfo.game_name ?: serverId
+
+            val anchorEntry = when {
+                code != null && !byCode[code].isNullOrEmpty() -> {
+                    byCode[code]!!.minWithOrNull(
+                        compareBy<SaveEntry>(
+                            { if (it.titleId == code) 0 else 1 },
+                            { it.displayName.length },
+                            { it.displayName.lowercase() }
+                        )
+                    )
+                }
+                else -> byAnchor[normalizePspAnchor(serverName)]?.singleOrNull()
+            } ?: continue
+
+            val saveRoot = anchorEntry.saveDir?.parentFile ?: continue
+            result[serverId] = anchorEntry.copy(
+                titleId = serverId,
+                saveDir = File(saveRoot, serverId),
+                canonicalName = anchorEntry.canonicalName
+                    ?: titleInfo.name?.takeIf { it != anchorEntry.displayName }
+                    ?: titleInfo.game_name?.takeIf { it != anchorEntry.displayName }
+            )
+        }
+
+        return result
+    }
+
     private fun ps1ServerTitlePreference(
         titleInfo: com.savesync.android.api.TitleInfo,
         localLabel: String
@@ -923,6 +1236,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .lowercase()
             .replace(Regex("[^a-z0-9]+"), " ")
             .trim()
+    }
+
+    private fun normalizePspAnchor(name: String): String {
+        return name
+            .replace(Regex("""\s*[\(\[][^\)\]]*[\)\]]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .lowercase()
+            .replace(Regex("[^a-z0-9]+"), " ")
+            .trim()
+    }
+
+    private fun pspProductCodePrefix(titleId: String): String? {
+        if (titleId.length < 9) return null
+        val prefix = titleId.take(9).uppercase()
+        return prefix.takeIf { compactPsCodeRegex.matches(it) }
     }
 
     private fun ps1AnchorsEquivalent(left: String, right: String): Boolean {
@@ -1006,7 +1334,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val serverId  = serverTitle.title_id
             val serverSys = serverId.substringBefore('_')
             val slug      = serverId.substringAfter('_')
-            val androidSys = serverToAndroidSystem[serverSys] ?: continue
+            val androidSys = normalizeSystemCode(serverSys)
             val localEntry = romEntries["${androidSys}_$slug"] ?: continue
             // Re-key the entry under the server's titleId so the look-up succeeds
             result[serverId] = localEntry.copy(titleId = serverId)
@@ -1096,12 +1424,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val consoleId = settingsStore.ensureConsoleId()
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(api, db, consoleId)
+                val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 // Only sync local saves (exclude server-only entries)
                 val romScanDir = currentSettings.romScanDir
                 val dolphinMemCardDir = currentSettings.dolphinMemCardDir
+                val romDirOverrides = currentSettings.romDirOverrides
                 val allLocalSaves = _allSaves.value.filter { !it.isServerOnly }.ifEmpty {
-                    EmulatorRegistry.discoverAllSaves(romScanDir = romScanDir, dolphinMemCardDir = dolphinMemCardDir).also { found ->
+                    EmulatorRegistry.discoverAllSaves(
+                        romScanDir = romScanDir,
+                        dolphinMemCardDir = dolphinMemCardDir,
+                        romDirOverrides = romDirOverrides,
+                        saturnSyncFormat = currentSettings.saturnSyncFormat
+                    ).also { found ->
                         _allSaves.value = found
                     }
                 }
@@ -1121,13 +1455,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Scans romScanDir subfolders and populates [detectedSystemFolders]. */
+    fun detectSystemFolders() {
+        viewModelScope.launch {
+            val romScanDir = settingsStore.settingsFlow.first().romScanDir
+            _detectedSystemFolders.value = EmulatorRegistry.detectSystemFolders(romScanDir)
+        }
+    }
+
+    /** Persists a per-system ROM folder override and triggers a rescan. */
+    fun setRomDirOverride(system: String, path: String) {
+        viewModelScope.launch {
+            settingsStore.setRomDirOverride(system, path)
+            scanSaves()
+        }
+    }
+
+    /** Removes a per-system override (reverts to auto-detected folder) and triggers a rescan. */
+    fun clearRomDirOverride(system: String) {
+        viewModelScope.launch {
+            settingsStore.clearRomDirOverride(system)
+            scanSaves()
+        }
+    }
+
     fun saveSettings(
         serverUrl: String,
         apiKey: String,
         autoSync: Boolean,
         intervalMinutes: Int,
         romScanDir: String = "",
-        dolphinMemCardDir: String = ""
+        dolphinMemCardDir: String = "",
+        saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
     ) {
         viewModelScope.launch {
             settingsStore.updateSettings(
@@ -1136,10 +1495,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 autoSyncEnabled = autoSync,
                 autoSyncIntervalMinutes = intervalMinutes,
                 romScanDir = romScanDir,
-                dolphinMemCardDir = dolphinMemCardDir
+                dolphinMemCardDir = dolphinMemCardDir,
+                saturnSyncFormat = saturnSyncFormat
             )
             ApiClient.invalidate()
             scheduleOrCancelAutoSync(autoSync, intervalMinutes)
+            scanSaves()
         }
     }
 
@@ -1233,12 +1594,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun runRomScanDiagnostic(dir: String = "") {
         viewModelScope.launch {
-            val effectiveDir = dir.ifBlank { settingsStore.settingsFlow.first().romScanDir }
+            val currentSettings = settingsStore.settingsFlow.first()
+            val effectiveDir = dir.ifBlank { currentSettings.romScanDir }
             if (effectiveDir.isBlank()) {
                 _romScanResults.value = mapOf("(no ROM directory set)" to 0)
                 return@launch
             }
-            val allRoms = EmulatorRegistry.discoverAllRomEntries(romScanDir = effectiveDir)
+            val allRoms = EmulatorRegistry.discoverAllRomEntries(
+                romScanDir = effectiveDir,
+                romDirOverrides = currentSettings.romDirOverrides,
+                saturnSyncFormat = currentSettings.saturnSyncFormat
+            )
             // Group by system and count
             _romScanResults.value = if (allRoms.isEmpty()) {
                 mapOf("(no ROMs found)" to 0)
@@ -1255,6 +1621,333 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _saveDetailState.value = SaveDetailState.Idle
     }
 
+    // ``prepareRomFolders`` surface for the Settings screen — creates the
+    // canonical per-system folders under the user's ROM directory so
+    // catalog downloads land in predictable places.  Result flows back
+    // through ``_prepareFoldersMessage`` as a snackbar-ready summary.
+    private val _prepareFoldersMessage = MutableStateFlow<String?>(null)
+    val prepareFoldersMessage: StateFlow<String?> = _prepareFoldersMessage
+
+    fun prepareRomFolders(dir: String = "") {
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            val effectiveDir = dir.ifBlank { currentSettings.romScanDir }
+            if (effectiveDir.isBlank()) {
+                _prepareFoldersMessage.value =
+                    "Set a ROM directory first, then try again."
+                return@launch
+            }
+            val report = withContext(Dispatchers.IO) {
+                InstalledRomsScanner.prepareRomFolders(
+                    scanRoot = File(effectiveDir),
+                    romDirOverrides = currentSettings.romDirOverrides,
+                )
+            }
+            _prepareFoldersMessage.value = when {
+                report.errors.isNotEmpty() -> {
+                    val first = report.errors.first().let { "${it.first}: ${it.second}" }
+                    "Created ${report.createdCount} folder(s); " +
+                        "${report.errors.size} failed (e.g. $first)"
+                }
+                report.createdCount == 0 ->
+                    "All ${report.existing.size} system folders already exist."
+                else ->
+                    "Created ${report.createdCount} folder(s) under $effectiveDir."
+            }
+        }
+    }
+
+    fun consumePrepareFoldersMessage() {
+        _prepareFoldersMessage.value = null
+    }
+
+    private fun isSharedYabaSanshiroEntry(entry: SaveEntry, settings: Settings): Boolean {
+        return settings.saturnSyncFormat == SaturnSyncFormat.YABASANSHIRO &&
+            entry.systemName == "SAT" &&
+            entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+    }
+
+    private fun rememberSaturnArchiveSelection(titleId: String, archiveNames: List<String>) {
+        val normalized = archiveNames
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+        if (normalized.isEmpty()) return
+        SaturnArchiveStateStore.put(titleId, normalized)
+        _saturnArchiveSelectionVersion.value += 1
+    }
+
+    fun prepareSaveDetail(entry: SaveEntry?) {
+        if (entry == null) return
+
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            if (!isSharedYabaSanshiroEntry(entry, currentSettings)) return@launch
+
+            if (SaturnArchiveStateStore.get(entry.titleId).isNotEmpty()) {
+                _saturnArchiveSelectionVersion.value += 1
+                return@launch
+            }
+
+            val saveFile = entry.saveFile
+            if (saveFile?.exists() != true || currentSettings.serverUrl.isBlank()) return@launch
+
+            val archiveNames = try {
+                SaturnSaveFormatConverter.archiveNames(saveFile.readBytes())
+            } catch (_: Exception) {
+                return@launch
+            }
+            if (archiveNames.isEmpty()) return@launch
+
+            val lookupResults = try {
+                val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
+                api.lookupSaturnArchives(
+                    SaturnArchiveLookupRequest(
+                        title_id = entry.titleId,
+                        archive_names = archiveNames
+                    )
+                ).results
+            } catch (_: Exception) {
+                return@launch
+            }
+
+            val (hiddenSelected, visibleOptions) = buildSaturnArchiveOptions(lookupResults)
+            when {
+                hiddenSelected.isNotEmpty() && visibleOptions.none { it.preselected } ->
+                    rememberSaturnArchiveSelection(entry.titleId, hiddenSelected)
+                visibleOptions.isEmpty() && hiddenSelected.isNotEmpty() ->
+                    rememberSaturnArchiveSelection(entry.titleId, hiddenSelected)
+                visibleOptions.all { it.preselected } -> {
+                    rememberSaturnArchiveSelection(
+                        entry.titleId,
+                        hiddenSelected + visibleOptions.flatMap { it.archiveNames }
+                    )
+                }
+            }
+        }
+    }
+
+    fun canUploadFromDetail(entry: SaveEntry): Boolean {
+        if (entry.exists()) return true
+        return entry.systemName == "SAT" &&
+            entry.saveFile?.name.equals("backup.bin", ignoreCase = true) &&
+            entry.saveFile?.exists() == true
+    }
+
+    fun detailLocalHash(entry: SaveEntry): String? {
+        val isSharedYabaSanshiroEntry =
+            entry.systemName == "SAT" &&
+                entry.isServerOnly &&
+                entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+
+        if (!isSharedYabaSanshiroEntry) {
+            return try { entry.computeHash().ifBlank { null } } catch (_: Exception) { null }
+        }
+
+        if (entry.saveFile?.exists() != true) return null
+        return try {
+            val archiveNames = SaturnArchiveStateStore.get(entry.titleId)
+            if (archiveNames.isEmpty()) {
+                null
+            } else {
+                val canonical = SaturnSaveFormatConverter.extractCanonical(
+                    entry.saveFile.readBytes(),
+                    archiveNames
+                )
+                HashUtils.sha256Bytes(canonical)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun detailLocalSize(entry: SaveEntry): Long {
+        val isSharedYabaSanshiroEntry =
+            entry.systemName == "SAT" &&
+                entry.isServerOnly &&
+                entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+
+        if (!isSharedYabaSanshiroEntry) {
+            return when {
+                entry.saveFile != null && entry.extraFiles.isNotEmpty() ->
+                    (listOf(entry.saveFile) + entry.extraFiles).filter { it.exists() }.sumOf { it.length() }
+                entry.isMultiFile && entry.saveDir != null ->
+                    entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                entry.saveFile != null ->
+                    entry.saveFile.length()
+                entry.saveDir != null ->
+                    entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                else -> 0L
+            }
+        }
+
+        if (entry.saveFile?.exists() != true) return 0L
+        return try {
+            val archiveNames = SaturnArchiveStateStore.get(entry.titleId)
+            if (archiveNames.isEmpty()) {
+                entry.saveFile.length()
+            } else {
+                SaturnSaveFormatConverter.extractCanonical(
+                    entry.saveFile.readBytes(),
+                    archiveNames
+                ).size.toLong()
+            }
+        } catch (_: Exception) {
+            entry.saveFile.length()
+        }
+    }
+
+    private fun buildSaturnArchiveOptions(
+        lookupResults: List<SaturnArchiveLookupResult>,
+    ): Pair<List<String>, List<SaturnArchivePickerOption>> {
+        val hiddenSelected = mutableListOf<String>()
+        val visibleOptions = mutableListOf<SaturnArchivePickerOption>()
+
+        for (result in lookupResults) {
+            when (result.status) {
+                "exact_current" -> hiddenSelected += result.archive_names
+                "includes_current" -> {
+                    val detail = result.candidates.joinToString(", ") { it.game_name }
+                    visibleOptions += SaturnArchivePickerOption(
+                        archiveFamily = result.archive_family,
+                        archiveNames = result.archive_names,
+                        detail = if (detail.isBlank()) "Likely matches this title" else detail,
+                        preselected = true
+                    )
+                }
+                "unknown" -> visibleOptions += SaturnArchivePickerOption(
+                    archiveFamily = result.archive_family,
+                    archiveNames = result.archive_names,
+                    detail = "Unknown archive",
+                    preselected = false
+                )
+                else -> Unit
+            }
+        }
+
+        return hiddenSelected to visibleOptions
+    }
+
+    private suspend fun ensureSaturnArchiveSelection(
+        entry: SaveEntry,
+        settings: Settings,
+        api: SaveSyncApi,
+        action: SaturnArchiveAction
+    ): Boolean {
+        if (!isSharedYabaSanshiroEntry(entry, settings)) return true
+        if (SaturnArchiveStateStore.get(entry.titleId).isNotEmpty()) return true
+
+        val saveFile = entry.saveFile
+        if (saveFile?.exists() != true) return true
+
+        val archiveNames = try {
+            SaturnSaveFormatConverter.archiveNames(saveFile.readBytes())
+        } catch (e: Exception) {
+            _saveDetailState.value = SaveDetailState.Error(
+                e.message ?: "Could not parse Saturn backup.bin"
+            )
+            return false
+        }
+
+        if (archiveNames.isEmpty()) {
+            _saveDetailState.value = SaveDetailState.Error("No Saturn save archives found in backup.bin")
+            return false
+        }
+
+        val lookupResults = try {
+            api.lookupSaturnArchives(
+                SaturnArchiveLookupRequest(
+                    title_id = entry.titleId,
+                    archive_names = archiveNames
+                )
+            ).results
+        } catch (_: Exception) {
+            archiveNames.map { archiveName ->
+                SaturnArchiveLookupResult(
+                    archive_family = archiveName,
+                    archive_names = listOf(archiveName),
+                    status = "unknown",
+                    matches_current_title = false,
+                    candidates = emptyList()
+                )
+            }
+        }
+
+        val (hiddenSelected, visibleOptions) = buildSaturnArchiveOptions(lookupResults)
+        if (visibleOptions.isEmpty()) {
+            if (hiddenSelected.isEmpty()) {
+                _saveDetailState.value = SaveDetailState.Error(
+                    "Could not identify which YabaSanshiro archives belong to this game."
+                )
+                return false
+            }
+            rememberSaturnArchiveSelection(entry.titleId, hiddenSelected)
+            return true
+        }
+
+        if (hiddenSelected.isNotEmpty() && visibleOptions.none { it.preselected }) {
+            rememberSaturnArchiveSelection(entry.titleId, hiddenSelected)
+            return true
+        }
+
+        if (visibleOptions.all { it.preselected }) {
+            val finalSelection = (
+                hiddenSelected + visibleOptions.flatMap { it.archiveNames }
+            )
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+            if (finalSelection.isNotEmpty()) {
+                rememberSaturnArchiveSelection(entry.titleId, finalSelection)
+                return true
+            }
+        }
+
+        _saturnArchivePicker.value = SaturnArchivePickerState.Visible(
+            entry = entry,
+            action = action,
+            hiddenSelectedArchives = hiddenSelected,
+            options = visibleOptions
+        )
+        return false
+    }
+
+    fun dismissSaturnArchivePicker() {
+        _saturnArchivePicker.value = SaturnArchivePickerState.Hidden
+    }
+
+    fun applySaturnArchiveSelection(selectedArchives: Set<String>) {
+        val pickerState = _saturnArchivePicker.value
+        if (pickerState !is SaturnArchivePickerState.Visible) return
+
+        _saturnArchivePicker.value = SaturnArchivePickerState.Hidden
+        val selectedFamilies = selectedArchives
+        val finalSelection = (
+            pickerState.hiddenSelectedArchives +
+                pickerState.options
+                    .filter { it.archiveFamily in selectedFamilies }
+                    .flatMap { it.archiveNames }
+        )
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+        viewModelScope.launch {
+            if (finalSelection.isEmpty()) {
+                _saveDetailState.value = SaveDetailState.Error(
+                    "Choose at least one Saturn archive for this game."
+                )
+                return@launch
+            }
+
+            rememberSaturnArchiveSelection(pickerState.entry.titleId, finalSelection)
+            when (pickerState.action) {
+                SaturnArchiveAction.SYNC -> syncSave(pickerState.entry)
+                SaturnArchiveAction.UPLOAD -> uploadSave(pickerState.entry)
+            }
+        }
+    }
+
     fun syncSave(entry: SaveEntry) {
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
@@ -1262,11 +1955,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _saveDetailState.value = SaveDetailState.Error("Server URL not configured")
                 return@launch
             }
+            if (entry.isServerOnly && !hasLocalSaveTarget(entry)) {
+                _saveDetailState.value = SaveDetailState.Error(
+                    "No local save location is known for this title yet. Download the ROM first, then rescan and download the save."
+                )
+                return@launch
+            }
             _saveDetailState.value = SaveDetailState.Working("sync")
             try {
                 val consoleId = settingsStore.ensureConsoleId()
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(api, db, consoleId)
+                if (!ensureSaturnArchiveSelection(entry, currentSettings, api, SaturnArchiveAction.SYNC)) {
+                    if (_saturnArchivePicker.value is SaturnArchivePickerState.Visible) {
+                        _saveDetailState.value = SaveDetailState.Idle
+                    }
+                    return@launch
+                }
+                val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 val result = engine.sync(listOf(entry))
                 val msg = buildString {
                     if (result.uploaded > 0) append("↑ Uploaded to server. ")
@@ -1298,7 +2003,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val consoleId = settingsStore.ensureConsoleId()
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(api, db, consoleId)
+                if (!ensureSaturnArchiveSelection(entry, currentSettings, api, SaturnArchiveAction.UPLOAD)) {
+                    if (_saturnArchivePicker.value is SaturnArchivePickerState.Visible) {
+                        _saveDetailState.value = SaveDetailState.Idle
+                    }
+                    return@launch
+                }
+                val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 val ok = engine.uploadSave(entry)
                 if (ok) {
                     engine.recordSyncedState(entry)
@@ -1322,16 +2033,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _saveDetailState.value = SaveDetailState.Error("Server URL not configured")
                 return@launch
             }
+            if (!hasLocalSaveTarget(entry)) {
+                _saveDetailState.value = SaveDetailState.Error(
+                    "No local save location is known for this title yet. Download the ROM first, then rescan and download the save."
+                )
+                return@launch
+            }
             _saveDetailState.value = SaveDetailState.Working("download")
             try {
                 val consoleId = settingsStore.ensureConsoleId()
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(api, db, consoleId)
+                val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 val ok = engine.downloadSave(entry, entry.titleId)
                 if (ok) {
                     engine.recordSyncedStateFromFile(entry)
                     fetchServerMeta(entry.titleId, entry.systemName)
-                    // Re-scan so the entry moves from "server only" to "local save"
                     scanSaves()
                 }
                 _saveDetailState.value = if (ok)
@@ -1348,6 +2064,174 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _saveDetailState.value = SaveDetailState.Error(e.message ?: "Download failed")
             }
         }
+    }
+
+    fun fetchRomAvailable() {
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            if (currentSettings.serverUrl.isBlank()) return@launch
+            try {
+                val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
+                val titles = _allSaves.value.map { it.titleId }.toSet()
+                if (titles.isEmpty()) return@launch
+                val response = api.getRoms()
+                val matchingRoms = response.roms
+                    .filter { it.title_id in titles }
+                _romsByTitle.value = matchingRoms.groupBy { it.title_id }
+                _romAvailable.value = matchingRoms.map { it.title_id }.toSet()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun downloadRom(
+        romId: String,
+        system: String,
+        filename: String? = null,
+        extractFormat: String? = null,
+    ) {
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            if (currentSettings.serverUrl.isBlank()) {
+                _romDownloadState.value = RomDownloadState.Error("Server URL not configured")
+                return@launch
+            }
+            if (currentSettings.romScanDir.isBlank()) {
+                _romDownloadState.value = RomDownloadState.Error("ROM directory not configured. Set it in Settings.")
+                return@launch
+            }
+            _romDownloadState.value = RomDownloadState.Downloading(filename ?: romId)
+            try {
+                val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
+                val engine = SyncEngine(
+                    api,
+                    db,
+                    settingsStore.ensureConsoleId(),
+                    currentSettings.saturnSyncFormat
+                )
+                val expectedFilename =
+                    if (extractFormat.isNullOrBlank()) filename else null
+                val file = engine.downloadRom(
+                    romId = romId,
+                    system = system,
+                    romScanDir = currentSettings.romScanDir,
+                    expectedFilename = expectedFilename,
+                    romDirOverrides = currentSettings.romDirOverrides,
+                    extractFormat = extractFormat,
+                )
+                if (file != null) {
+                    _romDownloadState.value = RomDownloadState.Success(file)
+                    // Rescan so the newly downloaded ROM is picked up: the SaveEntry for this
+                    // title will get a real saveFile/saveDir and isServerOnly becomes false,
+                    // which re-enables the Sync / Upload / Download buttons immediately.
+                    scanSaves()
+                    // Also invalidate the Installed Games tab so the new
+                    // ROM shows up there on the next peek.
+                    scanInstalledRoms(force = true)
+                } else {
+                    _romDownloadState.value = RomDownloadState.Error("ROM not found on server")
+                }
+            } catch (e: Exception) {
+                _romDownloadState.value = RomDownloadState.Error(e.message ?: "Download failed")
+            }
+        }
+    }
+
+    fun resetRomDownloadState() {
+        _romDownloadState.value = RomDownloadState.Idle
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // ROM Catalog tab
+    // ──────────────────────────────────────────────────────────────
+
+    /** Fetch the full server ROM catalog for the browse tab.  Called
+     *  lazily on first tab entry and again when the user hits refresh. */
+    fun fetchRomCatalog(force: Boolean = false) {
+        if (_romCatalogLoading.value) return
+        if (_romCatalogLoaded.value && !force && _romCatalog.value.isNotEmpty()) return
+        viewModelScope.launch {
+            val current = settingsStore.settingsFlow.first()
+            if (current.serverUrl.isBlank()) {
+                _romCatalogError.value = "Server URL not configured."
+                _romCatalogLoaded.value = true
+                return@launch
+            }
+            _romCatalogLoading.value = true
+            _romCatalogError.value = null
+            try {
+                val api = ApiClient.create(current.serverUrl, current.apiKey)
+                val response = api.getRoms()
+                _romCatalog.value = response.roms
+                _romCatalogLoaded.value = true
+            } catch (e: Exception) {
+                _romCatalogError.value = e.message ?: e.javaClass.simpleName
+                _romCatalogLoaded.value = true
+            } finally {
+                _romCatalogLoading.value = false
+            }
+        }
+    }
+
+    /** Smart-filtered view over [romCatalog]: every query token must
+     *  match, roman↔arabic variants expand automatically. */
+    fun filteredCatalog(query: String, system: String? = null): List<RomEntry> =
+        RomCatalogFilter.filter(_romCatalog.value, query, system)
+
+    // ──────────────────────────────────────────────────────────────
+    // Installed Games tab
+    // ──────────────────────────────────────────────────────────────
+
+    fun scanInstalledRoms(force: Boolean = false) {
+        if (_installedRomsLoading.value) return
+        if (_installedRomsLoaded.value && !force && _installedRoms.value.isNotEmpty()) return
+        viewModelScope.launch {
+            val current = settingsStore.settingsFlow.first()
+            _installedRomsLoading.value = true
+            try {
+                // The scanner is pure Kotlin + File I/O so it's safe
+                // to run straight on the IO dispatcher.  Fine-grained
+                // dispatch switch would be nice but this matches the
+                // other scanners in the app.
+                val roms = InstalledRomsScanner.scanInstalled(
+                    current.romScanDir,
+                    current.romDirOverrides,
+                )
+                _installedRoms.value = roms
+                _installedRomsLoaded.value = true
+            } catch (e: Exception) {
+                // Best-effort scan — missing permission or broken
+                // paths shouldn't crash the tab; show an empty list.
+                _installedRoms.value = emptyList()
+                _installedRomsLoaded.value = true
+            } finally {
+                _installedRomsLoading.value = false
+            }
+        }
+    }
+
+    /** Delete an installed ROM (whole-folder where applicable) and
+     *  refresh both the installed list and the saves list. */
+    fun deleteInstalledRom(rom: InstalledRom) {
+        viewModelScope.launch {
+            val result = InstalledRomsScanner.deleteInstalled(rom)
+            _deleteInstalledState.value = if (result.errors.isEmpty()) {
+                DeleteInstalledState.Success(rom, result)
+            } else {
+                DeleteInstalledState.Error(rom, result)
+            }
+            // Refresh installed list and saves — a deleted ROM may
+            // flip a synced save entry back to "server only".
+            scanInstalledRoms(force = true)
+            scanSaves()
+        }
+    }
+
+    fun resetDeleteInstalledState() {
+        _deleteInstalledState.value = DeleteInstalledState.Idle
+    }
+
+    private fun hasLocalSaveTarget(entry: SaveEntry): Boolean {
+        return entry.saveFile != null || entry.saveDir != null
     }
 
     fun normalizeRomAndSave(entry: SaveEntry) {

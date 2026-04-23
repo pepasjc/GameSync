@@ -1,8 +1,27 @@
 from pathlib import Path
+import json
 import zipfile
+
+import pytest
 
 import rom_collection as rc
 import rom_normalizer as rn
+from systems import SYSTEM_CHOICES
+
+
+def test_system_choices_include_3ds():
+    assert "3DS" in SYSTEM_CHOICES
+
+
+def test_find_dat_for_3ds_uses_shared_keyword_map(monkeypatch, tmp_path):
+    dats_dir = tmp_path / "dats"
+    dats_dir.mkdir()
+    expected = dats_dir / "Nintendo - Nintendo 3DS.dat"
+    expected.write_text("<datafile />", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats_dir)
+
+    assert rn.find_dat_for_system("3DS") == expected
 
 
 def test_scan_collection_prefers_usa_over_other_regions(tmp_path):
@@ -24,6 +43,32 @@ def test_scan_collection_prefers_usa_over_other_regions(tmp_path):
     assert not unmatched
 
 
+def test_scan_collection_can_include_all_variants_when_1g1r_disabled(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Advance Wars (Europe).gba").write_bytes(b"")
+    (roms / "Advance Wars (USA).gba").write_bytes(b"")
+
+    no_intro = {
+        "A": "Advance Wars (USA)",
+        "B": "Advance Wars (Europe)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=False,
+    )
+
+    assert [entry.canonical_name for entry in entries] == [
+        "Advance Wars (Europe)",
+        "Advance Wars (USA)",
+    ]
+    assert duplicates == []
+    assert unmatched == []
+
+
 def test_scan_collection_can_match_zip_member_by_filename(tmp_path):
     roms = tmp_path / "roms"
     roms.mkdir()
@@ -41,6 +86,90 @@ def test_scan_collection_can_match_zip_member_by_filename(tmp_path):
     assert entries[0].source_kind == "zip"
     assert entries[0].canonical_name == "Super Dodge Ball Advance (USA)"
     assert entries[0].archive_member == "Super Dodgeball Advance.gba"
+    assert not duplicates
+    assert not unmatched
+
+
+def test_scan_collection_uses_aliases_for_translated_zip_members(
+    monkeypatch, tmp_path
+):
+    dats_dir = tmp_path / "dats"
+    aliases_dir = dats_dir / "EN-Dats"
+    aliases_dir.mkdir(parents=True)
+    (aliases_dir / "aliases.json").write_text(
+        json.dumps(
+            {
+                "NDS": {
+                    "Ace Attorney Investigations - Miles Edgeworth - Prosecutor's Path (Japan)": "Gyakuten Kenji 2 (Japan)"
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rn, "DATS_DIR", dats_dir)
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "translated-pack.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr(
+            "Ace Attorney Investigations - Miles Edgeworth - Prosecutor's Path (Japan) [T-En by Auryn v20220215].nds",
+            b"rom",
+        )
+
+    no_intro = {
+        "A": "Ace Attorney Investigations - Miles Edgeworth (USA)",
+        "B": "Gyakuten Kenji 2 (Japan)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms,
+        "NDS",
+        no_intro,
+        skip_crc=True,
+    )
+
+    assert len(entries) == 1
+    assert entries[0].source_kind == "zip"
+    assert entries[0].canonical_name == "Gyakuten Kenji 2 (Japan)"
+    assert entries[0].match_source == "alias"
+    assert entries[0].region == "Translated"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_uses_7z_archive_name_without_extracting_members(
+    monkeypatch, tmp_path
+):
+    py7zr = pytest.importorskip("py7zr")
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "Super Dodge Ball Advance (USA).7z"
+    source = roms / "totally different.gba"
+    source.write_bytes(b"rom")
+    with py7zr.SevenZipFile(archive, "w") as zf:
+        zf.write(source, "totally different.gba")
+    source.unlink()
+
+    monkeypatch.setattr(
+        rc,
+        "_extract_7z_member",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("scan should not extract 7z members")
+        ),
+    )
+
+    no_intro = {
+        "A": "Super Dodge Ball Advance (USA)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(roms, "GBA", no_intro)
+
+    assert len(entries) == 1
+    assert entries[0].source_kind == "7z"
+    assert entries[0].canonical_name == "Super Dodge Ball Advance (USA)"
+    assert entries[0].archive_member == "totally different.gba"
     assert not duplicates
     assert not unmatched
 
@@ -107,6 +236,131 @@ def test_scan_collection_prefers_translation_over_non_usa_official_dump(tmp_path
     assert entries[0].is_english_translation is True
     assert len(duplicates) == 1
     assert not unmatched
+
+
+def test_validate_collection_flags_wrong_region_and_missing_for_1g1r(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Advance Wars (Europe).gba").write_bytes(b"eu")
+
+    no_intro = {
+        "A": "Advance Wars (USA)",
+        "B": "Advance Wars (Europe)",
+        "C": "Metroid Fusion (USA)",
+    }
+
+    report = rc.validate_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=True,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+
+    assert report.expected_total == 2
+    # Having the Europe copy counts as "covering" the Advance Wars slot —
+    # wrong_region records it but it should NOT appear in missing too.
+    assert report.present == []
+    assert len(report.wrong_region) == 1
+    assert report.wrong_region[0].entry.canonical_name == "Advance Wars (Europe)"
+    assert report.wrong_region[0].expected_name == "Advance Wars (USA)"
+    # Advance Wars is covered (wrong region) so only the truly absent game is missing.
+    assert report.missing == ["Metroid Fusion (USA)"]
+
+
+def test_validate_collection_version_tag_counts_as_present(tmp_path):
+    """A ROM whose CRC matches a versioned DAT entry (e.g. (v1.03)) should count
+    as present for the 1G1R slot even when the preferred entry has no version tag."""
+    import zlib
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    data = b"v103_rom_data"
+    crc = f"{zlib.crc32(data) & 0xFFFFFFFF:08X}"
+    (roms / "Advance Wars (USA) (v1.03).gba").write_bytes(data)
+
+    no_intro = {
+        "AABBCCDD": "Advance Wars (USA)",       # preferred (no version)
+        crc: "Advance Wars (USA) (v1.03)",       # what the user actually has
+        "EEFF0011": "Metroid Fusion (USA)",
+    }
+
+    report = rc.validate_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=True,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+
+    # 1G1R expected: "Advance Wars (USA)" (preferred) + Metroid Fusion = 2 total
+    assert report.expected_total == 2
+    # The (v1.03) copy covers the Advance Wars slot → present, not wrong_region
+    assert len(report.present) == 1
+    assert report.present[0].canonical_name == "Advance Wars (USA) (v1.03)"
+    assert report.wrong_region == []
+    assert report.missing == ["Metroid Fusion (USA)"]
+
+
+def test_validate_collection_complete_mode_accepts_all_expected_regions(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Advance Wars (Europe).gba").write_bytes(b"eu")
+
+    no_intro = {
+        "A": "Advance Wars (USA)",
+        "B": "Advance Wars (Europe)",
+        "C": "Metroid Fusion (USA)",
+    }
+
+    report = rc.validate_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=False,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+
+    assert report.expected_total == 3
+    assert [entry.canonical_name for entry in report.present] == [
+        "Advance Wars (Europe)"
+    ]
+    assert report.wrong_region == []
+    assert report.missing == ["Advance Wars (USA)", "Metroid Fusion (USA)"]
+
+
+def test_format_validation_report_includes_summary_and_expected_region(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Advance Wars (Europe).gba").write_bytes(b"eu")
+
+    no_intro = {
+        "A": "Advance Wars (USA)",
+        "B": "Advance Wars (Europe)",
+    }
+
+    report = rc.validate_collection(
+        roms,
+        "GBA",
+        no_intro,
+        one_game_one_rom=True,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+    text = rc.format_validation_report(
+        report,
+        roms,
+        "GBA",
+        one_game_one_rom=True,
+        enabled_regions={"USA", "Europe", "Japan", "Other"},
+    )
+
+    assert "ROM Collection Validation Report" in text
+    assert "Mode: 1G1R" in text
+    assert "Incorrect region / not in target set: 1" in text
+    assert (
+        "Advance Wars (Europe) <- Advance Wars (Europe).gba; expected: Advance Wars (USA)"
+        in text
+    )
 
 
 def test_scan_collection_prefers_retail_over_beta(tmp_path):
@@ -242,6 +496,173 @@ def test_scan_collection_prefers_fastrom_over_regular(tmp_path):
     assert "[FastROM" in entries[0].source_path.name
 
 
+def test_scan_collection_excludes_bios_zip(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "[BIOS] ST010 (Japan, USA).zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("[BIOS] ST010 (Japan, USA).bin", b"bios")
+
+    no_intro = {
+        "A": "ST010 (Japan, USA) (Enhancement Chip)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(roms, "SNES", no_intro)
+
+    assert entries == []
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_excludes_enhancement_chip_raw_file(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "ST010 (Japan, USA) (Enhancement Chip).bin").write_bytes(b"bios")
+
+    no_intro = {
+        "A": "ST010 (Japan, USA) (Enhancement Chip)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(roms, "SNES", no_intro)
+
+    assert entries == []
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_accepts_chd_files(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Final Fantasy VII (USA).chd").write_bytes(b"fake-chd")
+
+    no_intro = {
+        "A": "Final Fantasy VII (USA)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "PS1", no_intro, skip_crc=True
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "Final Fantasy VII (USA)"
+    assert entries[0].extension == ".chd"
+    assert entries[0].source_path.name == "Final Fantasy VII (USA).chd"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_accepts_ndd_files(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "F-Zero X - Expansion Kit (Japan).ndd").write_bytes(b"fake-ndd")
+
+    no_intro = {
+        "A": "F-Zero X - Expansion Kit (Japan)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "N64DD", no_intro, skip_crc=True
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "F-Zero X - Expansion Kit (Japan)"
+    assert entries[0].extension == ".ndd"
+    assert entries[0].source_path.name == "F-Zero X - Expansion Kit (Japan).ndd"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_accepts_32x_files(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "After Burner Complete (Japan, USA) (En).32x").write_bytes(b"fake-32x")
+
+    no_intro = {
+        "A": "After Burner Complete (Japan, USA) (En)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "32X", no_intro, skip_crc=True
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "After Burner Complete (Japan, USA) (En)"
+    assert entries[0].extension == ".32x"
+    assert entries[0].source_path.name == "After Burner Complete (Japan, USA) (En).32x"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_scan_collection_accepts_vb_files(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Mario Clash (Japan, USA) (En).vb").write_bytes(b"fake-vb")
+
+    no_intro = {
+        "A": "Mario Clash (Japan, USA) (En)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "VB", no_intro, skip_crc=True
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "Mario Clash (Japan, USA) (En)"
+    assert entries[0].extension == ".vb"
+    assert entries[0].source_path.name == "Mario Clash (Japan, USA) (En).vb"
+    assert duplicates == []
+    assert unmatched == []
+
+
+def test_extract_region_hint_prefers_usa_from_multi_region_tag():
+    assert rn.extract_region_hint("Super Metroid (Japan, USA) (En,Ja).sfc") == "USA"
+    assert rn.extract_region_hints("Super Metroid (Japan, USA) (En,Ja).sfc") == [
+        "Japan",
+        "USA",
+    ]
+
+
+def test_find_region_preferred_upgrades_europe_to_multi_region_usa_variant():
+    no_intro = {
+        "A": "Super Metroid (Europe) (En,Fr,De)",
+        "B": "Super Metroid (Japan, USA) (En,Ja)",
+    }
+
+    canonical = rn.find_region_preferred(
+        "Super Metroid (Europe) (En,Fr,De)",
+        no_intro,
+        "USA",
+    )
+
+    assert canonical == "Super Metroid (Japan, USA) (En,Ja)"
+
+
+def test_scan_collection_prefers_multi_region_usa_variant_over_europe(tmp_path):
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    (roms / "Super Metroid (Europe).sfc").write_bytes(b"eu")
+    (roms / "Super Metroid (USA).sfc").write_bytes(b"us")
+
+    no_intro = {
+        "A": "Super Metroid (Europe) (En,Fr,De)",
+        "B": "Super Metroid (Japan, USA) (En,Ja)",
+    }
+    clone_map = {
+        "Super Metroid (Europe) (En,Fr,De)": "Super Metroid (Japan, USA) (En,Ja)",
+    }
+
+    entries, duplicates, unmatched = rc.scan_collection(
+        roms, "SNES", no_intro, clone_map=clone_map
+    )
+
+    assert len(entries) == 1
+    assert entries[0].canonical_name == "Super Metroid (Japan, USA) (En,Ja)"
+    assert entries[0].source_path.name == "Super Metroid (USA).sfc"
+    assert len(duplicates) == 1
+    assert duplicates[0].canonical_name == "Super Metroid (Europe) (En,Fr,De)"
+    assert not unmatched
+
+
 def test_build_collection_unzips_zip_entries(tmp_path):
     roms = tmp_path / "roms"
     roms.mkdir()
@@ -289,6 +710,63 @@ def test_build_collection_keeps_zip_when_unzip_disabled(tmp_path):
         assert zf.read("Advance Wars.gba") == b"rom-data"
 
 
+def test_build_collection_unpacks_7z_entries(tmp_path):
+    py7zr = pytest.importorskip("py7zr")
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "pack.7z"
+    source = roms / "Advance Wars.gba"
+    source.write_bytes(b"rom-data")
+    with py7zr.SevenZipFile(archive, "w") as zf:
+        zf.write(source, "Advance Wars.gba")
+    source.unlink()
+
+    entry = rc.CollectionCandidate(
+        source_path=archive,
+        canonical_name="Advance Wars (USA)",
+        source_kind="7z",
+        extension=".gba",
+        match_source="fuzzy",
+        archive_member="Advance Wars.gba",
+    )
+
+    output = tmp_path / "output"
+    written = rc.build_collection([entry], output, unzip_archives=True)
+
+    assert written == [output / "Advance Wars (USA).gba"]
+    assert written[0].read_bytes() == b"rom-data"
+
+
+def test_build_collection_converts_7z_to_zip_when_unzip_disabled(tmp_path):
+    py7zr = pytest.importorskip("py7zr")
+
+    roms = tmp_path / "roms"
+    roms.mkdir()
+    archive = roms / "pack.7z"
+    source = roms / "Advance Wars.gba"
+    source.write_bytes(b"rom-data")
+    with py7zr.SevenZipFile(archive, "w") as zf:
+        zf.write(source, "Advance Wars.gba")
+    source.unlink()
+
+    entry = rc.CollectionCandidate(
+        source_path=archive,
+        canonical_name="Advance Wars (USA)",
+        source_kind="7z",
+        extension=".gba",
+        match_source="fuzzy",
+        archive_member="Advance Wars.gba",
+    )
+
+    output = tmp_path / "output"
+    written = rc.build_collection([entry], output, unzip_archives=False)
+
+    assert written == [output / "Advance Wars (USA).zip"]
+    with zipfile.ZipFile(written[0]) as zf:
+        assert zf.read("Advance Wars.gba") == b"rom-data"
+
+
 def test_build_collection_copies_unmatched_files_to_subfolder(tmp_path):
     matched_source = tmp_path / "Advance Wars (USA).gba"
     unmatched_source = tmp_path / "Unknown Game.zip"
@@ -317,6 +795,36 @@ def test_build_collection_copies_unmatched_files_to_subfolder(tmp_path):
     assert unmatched_copy in written
     with zipfile.ZipFile(unmatched_copy) as zf:
         assert zf.read("Unknown Game.gba") == b"unknown"
+
+
+def test_build_collection_removes_stale_unmatched_folder_when_not_including_unmatched(
+    tmp_path,
+):
+    matched_source = tmp_path / "Advance Wars (USA).gba"
+    matched_source.write_bytes(b"matched")
+
+    entry = rc.CollectionCandidate(
+        source_path=matched_source,
+        canonical_name="Advance Wars (USA)",
+        source_kind="file",
+        extension=".gba",
+        match_source="fuzzy",
+    )
+
+    output = tmp_path / "output"
+    stale_unmatched = output / "unmatched files"
+    stale_unmatched.mkdir(parents=True)
+    (stale_unmatched / "Unknown Game.zip").write_bytes(b"stale")
+
+    written = rc.build_collection(
+        [entry],
+        output,
+        unzip_archives=False,
+        unmatched_files=[],
+    )
+
+    assert written == [output / "Advance Wars (USA).gba"]
+    assert not stale_unmatched.exists()
 
 
 def test_build_letter_buckets_for_four_folders():

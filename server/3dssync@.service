@@ -1,0 +1,37 @@
+[Unit]
+Description=3DSSync FastAPI server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Copy this unit to /etc/systemd/system/3dssync@.service and set the
+# machine-specific values in /etc/default/3dssync.
+# Enable it as: systemctl enable --now 3dssync@<user>
+# Required there:
+#   APP_DIR=/absolute/path/to/3dssync/server
+# Optional there:
+#   UV_BIN=/absolute/path/to/uv   (defaults to "uv" from PATH)
+#   SYNC_HOST=0.0.0.0
+#   SYNC_PORT=8000
+#   SYNC_API_KEY=...
+#   SYNC_SAVE_DIR=...
+#   SYNC_MAX_HISTORY_VERSIONS=...
+EnvironmentFile=-/etc/default/3dssync
+Environment=UV_BIN=uv
+Environment=SYNC_HOST=0.0.0.0
+Environment=SYNC_PORT=8000
+
+User=%i
+Group=%i
+
+# Use uvicorn directly for systemd instead of run.py because run.py enables reload mode.
+ExecStart=/bin/sh -lc 'cd "$APP_DIR" && exec "$UV_BIN" run uvicorn app.main:app --host "$SYNC_HOST" --port "$SYNC_PORT"'
+Restart=always
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

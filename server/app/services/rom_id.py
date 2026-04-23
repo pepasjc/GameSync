@@ -1,139 +1,25 @@
-"""ROM-based game ID utilities for emulator devices (MiSTer, RetroArch, Analogue Pocket, etc.).
+"""Compatibility shim for shared ROM/title-id helpers.
 
-Title ID format for ROM-based games: SYSTEM_slug
-Examples:
-    GBA_zelda_the_minish_cap
-    SNES_super_mario_world
-    MD_sonic_the_hedgehog
+Authoritative implementations now live in ``shared.rom_id`` so desktop, server,
+and other Python tools use the same normalization rules.
 """
 
-import re
+import sys
+from pathlib import Path
 
-SYSTEM_CODES = frozenset(
-    {
-        # Nintendo handhelds
-        "GBA",
-        "GBC",
-        "GB",
-        "NDS",
-        "3DS",
-        # Nintendo home
-        "NES",
-        "SNES",
-        "N64",
-        "GC",
-        "WII",
-        "FDS",
-        "N64DD",
-        # Sony
-        "PS1",
-        "PS2",
-        "PSP",
-        # Sega
-        "GEN",
-        "MD",  # Mega Drive / Genesis (both accepted; MD is canonical)
-        "SCD",
-        "SEGACD",  # Sega CD (both accepted; SEGACD is canonical)
-        "32X",
-        "SMS",  # Master System
-        "GG",  # Game Gear
-        "SAT",  # Saturn
-        "DC",  # Dreamcast
-        # SNK
-        "NGP",
-        "NEOGEO",
-        "NEOCD",
-        # NEC
-        "PCE",
-        "PCECD",
-        "TG16",
-        # Bandai
-        "WS",
-        "WSWAN",  # WonderSwan (WSWAN canonical; WS is legacy)
-        "WSWANC",
-        # Atari
-        "A2600",  # Atari 2600 (A2600 canonical; ATARI2600 is legacy)
-        "ATARI2600",
-        "A7800",  # Atari 7800 (A7800 canonical; ATARI7800 is legacy)
-        "ATARI7800",
-        "LYNX",
-        # Arcade
-        "ARCADE",
-        "MAME",
-        "FBA",
-        "CPS1",
-        "CPS2",
-        "CPS3",
-    }
-)
+# Make the repo root importable so 'shared' can be found.
+_REPO_ROOT = str(Path(__file__).parent.parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
-# Regex for emulator title_id format: SYSTEM_slug
-_EMULATOR_TITLE_ID_RE = re.compile(r"^([A-Z0-9]{2,8})_([a-z0-9][a-z0-9_]{0,99})$")
+from shared.rom_id import make_title_id, normalize_rom_name, parse_title_id  # noqa: E402
+from shared.systems import FOLDER_TO_SYSTEM, ROM_EXTENSIONS, SYSTEM_CODES  # noqa: E402
 
-# Tags to strip from ROM filenames
-_REGION_RE = re.compile(
-    r"\s*\("
-    r"(?:USA|Europe|Japan|World|Germany|France|Italy|Spain|Australia|"
-    r"Brazil|Korea|China|Netherlands|Sweden|Denmark|Norway|Finland|Asia|"
-    r"En|Ja|Fr|De|Es|It|Nl|Pt|Sv|No|Da|Fi|Ko|Zh|[A-Z][a-z,\s]+)"
-    r"\)",
-    re.IGNORECASE,
-)
-_REV_RE = re.compile(
-    r"\s*\((?:Rev\s*\w+|v\d[\d.]*|Version\s*\w+|Beta\s*\d*|Proto\s*\d*|Demo|Sample|Unl)\)",
-    re.IGNORECASE,
-)
-_DISC_RE = re.compile(r"\s*\((?:Disc|Disk|CD)\s*\d+\)", re.IGNORECASE)
-_EXTRA_RE = re.compile(r"\s*\([^)]+\)")
-_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
-_MULTI_UNDERSCORE_RE = re.compile(r"_+")
-
-
-def normalize_rom_name(filename: str) -> str:
-    """Strip extension, region/revision tags, normalize to lowercase slug.
-
-    Examples:
-        "Legend of Zelda, The - The Minish Cap (USA).gba" -> "legend_of_zelda_the_the_minish_cap"
-        "Super Mario World (USA).sfc" -> "super_mario_world"
-        "Sonic the Hedgehog (USA, Europe).md" -> "sonic_the_hedgehog"
-    """
-    # Strip extension(s)
-    name = filename
-    for _ in range(3):
-        dot_idx = name.rfind(".")
-        if dot_idx <= 0:
-            break
-        suffix = name[dot_idx + 1 :]
-        if 1 <= len(suffix) <= 5 and suffix.isalnum():
-            name = name[:dot_idx]
-        else:
-            break
-
-    # Strip region, revision, disc, and any remaining parenthetical tags
-    name = _REGION_RE.sub("", name)
-    name = _REV_RE.sub("", name)
-    name = _DISC_RE.sub("", name)
-    name = _EXTRA_RE.sub("", name)
-
-    name = name.lower()
-    name = _NON_ALNUM_RE.sub("_", name)
-    name = _MULTI_UNDERSCORE_RE.sub("_", name).strip("_")
-    return name or "unknown"
-
-
-def make_title_id(system: str, rom_filename: str) -> str:
-    """Return canonical title_id e.g. GBA_zelda_the_minish_cap."""
-    system = system.upper().strip()
-    if system not in SYSTEM_CODES:
-        raise ValueError(
-            f"Unknown system code: {system!r}. Valid codes: {sorted(SYSTEM_CODES)}"
-        )
-    return f"{system}_{normalize_rom_name(rom_filename)}"
-
-
-def parse_title_id(title_id: str) -> tuple[str, str] | None:
-    """Return (system, slug) if this is an emulator-format title_id, else None."""
-    m = _EMULATOR_TITLE_ID_RE.match(title_id)
-    if m and m.group(1) in SYSTEM_CODES:
-        return (m.group(1), m.group(2))
-    return None
+__all__ = [
+    "FOLDER_TO_SYSTEM",
+    "ROM_EXTENSIONS",
+    "SYSTEM_CODES",
+    "make_title_id",
+    "normalize_rom_name",
+    "parse_title_id",
+]

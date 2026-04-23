@@ -1,10 +1,15 @@
 package com.savesync.android.sync
 
 import android.util.Log
+import com.savesync.android.api.NormalizeRequest
+import com.savesync.android.api.NormalizeRomEntry
 import com.savesync.android.api.SaveSyncApi
+import com.savesync.android.api.SaturnArchiveLookupRequest
+import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SyncRequest
 import com.savesync.android.api.SyncTitle
 import com.savesync.android.emulators.SaveEntry
+import com.savesync.android.installed.InstalledRomsScanner
 import com.savesync.android.storage.AppDatabase
 import com.savesync.android.storage.SyncStateEntity
 import okhttp3.MediaType.Companion.toMediaType
@@ -13,6 +18,11 @@ import java.io.File
 import java.io.IOException
 
 private const val TAG = "SyncEngine"
+
+private data class SaturnCanonicalSnapshot(
+    val bytes: ByteArray,
+    val archiveNames: List<String>
+)
 
 data class SyncResult(
     val uploaded: Int,
@@ -24,20 +34,64 @@ data class SyncResult(
 class SyncEngine(
     private val api: SaveSyncApi,
     private val db: AppDatabase,
-    private val consoleId: String
+    private val consoleId: String,
+    private val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
 ) {
     private val dao = db.syncStateDao()
 
+    private suspend fun autoResolveSharedSaturnArchives(entry: SaveEntry): List<String> {
+        if (!isSharedYabaSanshiroContainer(entry)) return emptyList()
+
+        val stored = SaturnArchiveStateStore.get(entry.titleId)
+        if (stored.isNotEmpty()) return stored
+
+        val saveFile = entry.saveFile ?: return emptyList()
+        if (!saveFile.exists()) return emptyList()
+
+        val archiveNames = try {
+            SaturnSaveFormatConverter.archiveNames(saveFile.readBytes())
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not parse YabaSanshiro backup for ${entry.titleId}", e)
+            return emptyList()
+        }
+        if (archiveNames.isEmpty()) return emptyList()
+
+        val lookupResults = try {
+            api.lookupSaturnArchives(
+                SaturnArchiveLookupRequest(
+                    title_id = entry.titleId,
+                    archive_names = archiveNames
+                )
+            ).results
+        } catch (e: Exception) {
+            Log.w(TAG, "Saturn archive lookup failed for ${entry.titleId}", e)
+            return emptyList()
+        }
+
+        val selected = lookupResults
+            .filter { it.matches_current_title || it.status == "exact_current" || it.status == "includes_current" }
+            .flatMap { it.archive_names }
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+        if (selected.isNotEmpty()) {
+            SaturnArchiveStateStore.put(entry.titleId, selected)
+        }
+        return selected
+    }
+
     suspend fun sync(saves: List<SaveEntry>): SyncResult {
+        val resolvedSaves = normalizeCanonicalSlugEntries(saves)
         val errors = mutableListOf<String>()
         var uploaded = 0
         var downloaded = 0
         val conflicts = mutableListOf<String>()
 
         // Build a map for quick lookup
-        val saveMap = saves.associateBy { it.titleId }
+        val saveMap = resolvedSaves.associateBy { it.titleId }
 
-        val (rawCardEntries, otherEntries) = saves.partition {
+        val (rawCardEntries, otherEntries) = resolvedSaves.partition {
             isPs1RawEntry(it) || isPs2RawEntry(it) || isGcRawEntry(it)
         }
         for (entry in rawCardEntries) {
@@ -54,10 +108,26 @@ class SyncEngine(
             }
         }
 
-        // Server-only entries have no local file yet — download them directly without
-        // going through the sync negotiation (the server doesn't know our state for these).
-        val (serverOnlyEntries, localEntries) = otherEntries.partition { it.isServerOnly }
+        resolvedSaves.forEach { entry ->
+            if (isSharedYabaSanshiroContainer(entry)) {
+                autoResolveSharedSaturnArchives(entry)
+            }
+        }
+
+        val syncStateByTitle = resolvedSaves.associate { entry ->
+            entry.titleId to dao.getById(entry.titleId)
+        }
+
+        // Server-only entries normally have no local file yet, but shared Saturn
+        // containers like YabaSanshiro can still have a usable local sync source.
+        val (serverOnlyEntries, localEntries) = otherEntries.partition { entry ->
+            entry.isServerOnly && !hasLocalSyncSource(entry, syncStateByTitle[entry.titleId])
+        }
         for (entry in serverOnlyEntries) {
+            if (!hasLocalSaveTarget(entry)) {
+                Log.i(TAG, "Skipping server-only entry without local target: ${entry.titleId}")
+                continue
+            }
             try {
                 val success = downloadSave(entry, entry.titleId)
                 if (success) {
@@ -76,19 +146,12 @@ class SyncEngine(
 
         // Build sync request titles for entries that have a local save file
         val syncTitles = localEntries.mapNotNull { entry ->
-            if (!entry.exists()) return@mapNotNull null
+            val lastSyncState = syncStateByTitle[entry.titleId]
+            if (!hasLocalSyncSource(entry, lastSyncState)) return@mapNotNull null
             try {
-                val hash = entry.computeHash()
-                val timestamp = entry.getTimestamp() / 1000L  // convert ms to seconds
-                val size = when {
-                    entry.isPspSlot ->
-                        entry.saveDir!!.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                    entry.isMultiFile && entry.saveDir != null ->
-                        entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                    entry.saveFile != null -> entry.saveFile.length()
-                    else -> 0L
-                }
-                val lastSyncState = dao.getById(entry.titleId)
+                val hash = canonicalHash(entry, lastSyncState)
+                val timestamp = localTimestamp(entry) / 1000L  // convert ms to seconds
+                val size = canonicalSize(entry, lastSyncState)
                 SyncTitle(
                     title_id = entry.titleId,
                     save_hash = hash,
@@ -180,9 +243,156 @@ class SyncEngine(
         )
     }
 
+    private suspend fun normalizeCanonicalSlugEntries(saves: List<SaveEntry>): List<SaveEntry> {
+        val canonicalSlugSaves = saves.filter {
+            it.titleId.contains('_') && (it.systemName == "PS1" || it.systemName == "3DS")
+        }
+        if (canonicalSlugSaves.isEmpty()) return saves
+
+        return try {
+            val response = api.normalizeRoms(
+                NormalizeRequest(
+                    roms = canonicalSlugSaves.map {
+                        NormalizeRomEntry(system = it.systemName, filename = it.displayName)
+                    }
+                )
+            )
+            val serialMap = canonicalSlugSaves.indices.associate { i ->
+                val oldId = canonicalSlugSaves[i].titleId
+                val newId = response.results.getOrNull(i)?.title_id ?: oldId
+                oldId to newId
+            }.filter { (old, new) -> old != new && !new.contains('_') }
+
+            if (serialMap.isEmpty()) saves
+            else saves.map { entry ->
+                val resolved = serialMap[entry.titleId]
+                if (resolved != null) entry.copy(titleId = resolved) else entry
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "normalizeCanonicalSlugEntries failed", e)
+            saves
+        }
+    }
+
+    private fun isSaturnEntry(entry: SaveEntry): Boolean {
+        return entry.systemName == "SAT" && entry.saveFile != null && !entry.isMultiFile && !entry.isPspSlot
+    }
+
+    private fun isSharedYabaSanshiroContainer(entry: SaveEntry): Boolean {
+        return isSaturnEntry(entry) &&
+            saturnSyncFormat == SaturnSyncFormat.YABASANSHIRO &&
+            entry.saveFile?.name.equals("backup.bin", ignoreCase = true)
+    }
+
+    private fun saturnCanonicalSnapshot(
+        entry: SaveEntry,
+        @Suppress("UNUSED_PARAMETER") syncState: SyncStateEntity? = null
+    ): SaturnCanonicalSnapshot? {
+        if (!isSaturnEntry(entry)) return null
+
+        val saveFile = entry.saveFile ?: return null
+        val canonicalBytes = if (isSharedYabaSanshiroContainer(entry)) {
+            val archiveNames = SaturnArchiveStateStore.get(entry.titleId)
+            if (archiveNames.isEmpty()) {
+                throw UnsupportedOperationException(
+                    "This YabaSanshiro save still needs Saturn archive selection metadata."
+                )
+            }
+            SaturnSaveFormatConverter.extractCanonical(saveFile.readBytes(), archiveNames)
+        } else {
+            SaturnSaveFormatConverter.toCanonical(saveFile.readBytes())
+        }
+
+        return SaturnCanonicalSnapshot(
+            bytes = canonicalBytes,
+            archiveNames = SaturnSaveFormatConverter.archiveNames(canonicalBytes)
+        )
+    }
+
+    private fun hasLocalSyncSource(
+        entry: SaveEntry,
+        @Suppress("UNUSED_PARAMETER") syncState: SyncStateEntity? = null
+    ): Boolean {
+        if (entry.exists()) return true
+        return isSharedYabaSanshiroContainer(entry) &&
+            entry.saveFile?.exists() == true &&
+            SaturnArchiveStateStore.get(entry.titleId).isNotEmpty()
+    }
+
+    private fun canonicalBytes(
+        entry: SaveEntry,
+        syncState: SyncStateEntity? = null
+    ): ByteArray {
+        return saturnCanonicalSnapshot(entry, syncState)?.bytes ?: entry.readBytes()
+    }
+
+    private fun canonicalHash(
+        entry: SaveEntry,
+        syncState: SyncStateEntity? = null
+    ): String {
+        return saturnCanonicalSnapshot(entry, syncState)?.let { HashUtils.sha256Bytes(it.bytes) }
+            ?: entry.computeHash()
+    }
+
+    private fun canonicalSize(
+        entry: SaveEntry,
+        syncState: SyncStateEntity? = null
+    ): Long {
+        return when {
+            isSaturnEntry(entry) -> canonicalBytes(entry, syncState).size.toLong()
+            entry.isPspSlot ->
+                entry.saveDir!!.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+            entry.isMultiFile && entry.saveDir != null ->
+                entry.saveDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+            entry.saveFile != null -> entry.saveFile.length()
+            else -> 0L
+        }
+    }
+
+    private fun localTimestamp(entry: SaveEntry): Long {
+        return when {
+            isSharedYabaSanshiroContainer(entry) && entry.saveFile?.exists() == true ->
+                entry.saveFile.lastModified()
+            else -> entry.getTimestamp()
+        }
+    }
+
+    private fun writeDownloadedBytes(entry: SaveEntry, canonicalBytes: ByteArray): Boolean {
+        return when {
+            entry.isMultiFile && entry.saveDir != null -> {
+                entry.saveDir.mkdirs()
+                unzipBytesToDirectory(canonicalBytes, entry.saveDir)
+                true
+            }
+            entry.saveFile != null -> {
+                entry.saveFile.parentFile?.mkdirs()
+                val bytesToWrite = if (isSharedYabaSanshiroContainer(entry)) {
+                    val existing = entry.saveFile.takeIf { it.exists() }?.readBytes()
+                    SaturnSaveFormatConverter.mergeCanonicalIntoYabaSanshiro(existing, canonicalBytes)
+                } else if (isSaturnEntry(entry)) {
+                    SaturnSaveFormatConverter.fromCanonical(canonicalBytes, saturnSyncFormat)
+                } else {
+                    canonicalBytes
+                }
+                entry.saveFile.writeBytes(bytesToWrite)
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun is3dsBundleEntry(entry: SaveEntry): Boolean {
+        return entry.systemName == "3DS" && entry.isMultiFile && entry.saveDir != null
+    }
+
     suspend fun uploadSave(entry: SaveEntry): Boolean {
+        if (isSharedYabaSanshiroContainer(entry)) {
+            autoResolveSharedSaturnArchives(entry)
+        }
         return if (entry.isPspSlot) {
             uploadPspBundle(entry)
+        } else if (is3dsBundleEntry(entry)) {
+            upload3dsBundle(entry)
         } else if (isPs1RawEntry(entry)) {
             uploadPs1Card(entry)
         } else if (isPs2RawEntry(entry)) {
@@ -191,6 +401,25 @@ class SyncEngine(
             uploadGcCard(entry)
         } else {
             uploadSaveRaw(entry)
+        }
+    }
+
+    private suspend fun upload3dsBundle(entry: SaveEntry): Boolean {
+        val saveDir = entry.saveDir ?: return false
+        return try {
+            val bundleBytes = BundleUtils.createTreeBundle(entry.titleId, saveDir)
+            val requestBody = bundleBytes.toRequestBody("application/octet-stream".toMediaType())
+            val response = api.uploadSaveBundle(
+                titleId = entry.titleId,
+                source = "3ds_emu",
+                force = true,
+                consoleId = consoleId,
+                body = requestBody
+            )
+            response.status == "ok"
+        } catch (e: Exception) {
+            Log.e(TAG, "upload3dsBundle failed for ${entry.titleId}", e)
+            false
         }
     }
 
@@ -228,7 +457,8 @@ class SyncEngine(
 
     private suspend fun uploadSaveRaw(entry: SaveEntry): Boolean {
         return try {
-            val bytes = entry.readBytes()
+            val syncState = dao.getById(entry.titleId)
+            val bytes = canonicalBytes(entry, syncState)
             val requestBody = bytes.toRequestBody("application/octet-stream".toMediaType())
             val response = api.uploadSaveRaw(
                 titleId = entry.titleId,
@@ -247,7 +477,7 @@ class SyncEngine(
      * Uploads a PSP/PSX slot directory as a bundle v4.
      * Includes ALL files in the slot dir (DATA.BIN, ICON0.PNG, PARAM.SFO, etc.)
      * so the server hash matches the PSP homebrew client's algorithm.
-     * Used for both PPSSPP (PSP games) and PSX (PSone Classics under PPSSPP).
+     * Used for both PSP games and PS1 PSone Classics running under PPSSPP.
      */
     private suspend fun uploadPspBundle(entry: SaveEntry): Boolean {
         val slotDir = entry.saveDir ?: return false
@@ -271,17 +501,100 @@ class SyncEngine(
     suspend fun downloadSave(entry: SaveEntry, titleId: String): Boolean {
         return if (entry.isPspSlot) {
             downloadPspBundle(entry, titleId)
+        } else if (is3dsBundleEntry(entry)) {
+            download3dsBundle(entry, titleId)
         } else if (entry.systemName == "PS1" && entry.saveFile != null) {
             downloadPs1Card(entry, titleId)
         } else if (entry.systemName == "PS2" && entry.saveFile != null) {
             downloadPs2Card(entry, titleId)
         } else if (entry.systemName == "GC") {
-            // Always route GC through the /gc-card endpoint (format=gci).
-            // If saveFile is null (server-only, Dolphin not configured) this
-            // returns false rather than falling through to /raw and writing 8 MB.
             downloadGcCard(entry, titleId)
         } else {
             downloadSaveRaw(entry, titleId)
+        }
+    }
+
+    private fun hasLocalSaveTarget(entry: SaveEntry): Boolean {
+        return entry.saveFile != null || entry.saveDir != null
+    }
+
+    private suspend fun upsertKnownSyncState(
+        entry: SaveEntry,
+        hash: String,
+        saturnArchiveNames: List<String>? = null
+    ) {
+        val now = System.currentTimeMillis()
+        saturnArchiveNames?.let { SaturnArchiveStateStore.put(entry.titleId, it) }
+        dao.upsert(
+            SyncStateEntity(
+                titleId = entry.titleId,
+                lastSyncedHash = hash,
+                lastSyncedAt = now,
+                displayName = entry.displayName,
+                systemName = entry.systemName
+            )
+        )
+    }
+
+    /**
+     * Download a ROM from the server's ROM catalog.
+     * Saves to the ROM scan directory under the appropriate system subfolder.
+     * Returns the downloaded File on success, null on failure.
+     */
+    suspend fun downloadRom(
+        romId: String,
+        system: String,
+        romScanDir: String,
+        expectedFilename: String? = null,
+        romDirOverrides: Map<String, String> = emptyMap(),
+        extractFormat: String? = null,
+    ): File? {
+        return try {
+            val response = api.downloadRom(romId, extract = extractFormat)
+            if (!response.isSuccessful) {
+                Log.e(TAG, "ROM download HTTP error for $romId: ${response.code()}")
+                return null
+            }
+            val body = response.body() ?: return null
+
+            val filename = expectedFilename
+                ?: response.headers()["Content-Disposition"]
+                    ?.let { cd ->
+                        val match = Regex("filename=\"?([^\"]+)\"?").find(cd)
+                        match?.groupValues?.get(1)
+                    }
+                ?: "$romId.rom"
+
+            // Delegate folder selection to the shared helper so the download
+            // path, the installed-ROMs scanner, and the Steam Deck client all
+            // agree on where an incoming ROM lands.  The helper canonicalises
+            // alias codes (``SCD`` → ``SEGACD``, ``GEN`` → ``MD``, …) before
+            // picking a candidate, which fixes the regression where catalog
+            // downloads for Sega CD landed in ``roms/SCD/`` instead of the
+            // user's existing ``roms/segacd/``.
+            val outDir = InstalledRomsScanner.resolveRomTargetDir(
+                scanRoot = File(romScanDir),
+                system = system,
+                romDirOverrides = romDirOverrides,
+            )
+            outDir.mkdirs()
+            val outFile = File(outDir, filename)
+
+            body.byteStream().use { input ->
+                outFile.outputStream().use { output ->
+                    val buffer = ByteArray(ROM_BUFFER_SIZE)
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                    }
+                }
+            }
+
+            Log.i(TAG, "ROM downloaded: ${outFile.absolutePath} (${outFile.length()} bytes)")
+            outFile
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadRom failed for $romId", e)
+            null
         }
     }
 
@@ -338,19 +651,14 @@ class SyncEngine(
         return try {
             val body = response.body() ?: return false
             val bytes = body.bytes()
-
-            when {
-                entry.isMultiFile && entry.saveDir != null -> {
-                    entry.saveDir.mkdirs()
-                    unzipBytesToDirectory(bytes, entry.saveDir)
-                }
-                entry.saveFile != null -> {
-                    entry.saveFile.parentFile?.mkdirs()
-                    entry.saveFile.writeBytes(bytes)
-                }
-                else -> return false
+            val wrote = writeDownloadedBytes(entry, bytes)
+            if (wrote && isSaturnEntry(entry)) {
+                val serverHash = response.headers()["X-Save-Hash"]
+                    ?: HashUtils.sha256Bytes(bytes)
+                val archiveNames = SaturnSaveFormatConverter.archiveNames(bytes)
+                upsertKnownSyncState(entry, serverHash, archiveNames)
             }
-            true
+            wrote
         } catch (e: Exception) {
             Log.e(TAG, "downloadSaveRaw failed for $titleId", e)
             false
@@ -385,6 +693,35 @@ class SyncEngine(
         }
     }
 
+    private suspend fun download3dsBundle(entry: SaveEntry, titleId: String): Boolean {
+        val saveDir = entry.saveDir ?: return false
+        val response = api.downloadSaveBundle(titleId)
+        if (!response.isSuccessful) {
+            val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                ?: "Download failed (${response.code()})"
+            Log.e(TAG, "Download 3DS bundle HTTP error for $titleId: $message")
+            throw IOException(message)
+        }
+        return try {
+            val bytes = response.body()?.bytes() ?: return false
+            val files = BundleUtils.parseBundle(bytes)
+            if (files.isEmpty()) return false
+            if (saveDir.exists()) {
+                saveDir.deleteRecursively()
+            }
+            saveDir.mkdirs()
+            for ((name, data) in files) {
+                val target = File(saveDir, name)
+                target.parentFile?.mkdirs()
+                target.writeBytes(data)
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "download3dsBundle failed for $titleId", e)
+            false
+        }
+    }
+
     suspend fun recordSyncedState(entry: SaveEntry) {
         updateSyncState(entry)
     }
@@ -395,7 +732,9 @@ class SyncEngine(
 
     private suspend fun updateSyncState(entry: SaveEntry) {
         try {
-            val hash = entry.computeHash()
+            val saturnSnapshot = saturnCanonicalSnapshot(entry)
+            val hash = saturnSnapshot?.let { HashUtils.sha256Bytes(it.bytes) } ?: entry.computeHash()
+            saturnSnapshot?.archiveNames?.let { SaturnArchiveStateStore.put(entry.titleId, it) }
             val now = System.currentTimeMillis()
             dao.upsert(
                 SyncStateEntity(
@@ -418,14 +757,20 @@ class SyncEngine(
      */
     private suspend fun updateSyncStateFromFile(entry: SaveEntry) {
         try {
+            val saturnSnapshot = saturnCanonicalSnapshot(entry)
             val hash = when {
                 // PSP/PSX slot: hash = sha256(all files sorted by name, data only, no paths)
                 entry.isPspSlot && entry.saveDir?.exists() == true ->
                     HashUtils.sha256DirFiles(entry.saveDir)
+                is3dsBundleEntry(entry) && entry.saveDir?.exists() == true ->
+                    HashUtils.sha256DirTreeFiles(entry.saveDir)
+                saturnSnapshot != null ->
+                    HashUtils.sha256Bytes(saturnSnapshot.bytes)
                 entry.saveFile?.exists() == true -> HashUtils.sha256File(entry.saveFile)
                 entry.saveDir?.exists() == true  -> HashUtils.sha256Dir(entry.saveDir)
                 else -> return  // nothing to record
             }
+            saturnSnapshot?.archiveNames?.let { SaturnArchiveStateStore.put(entry.titleId, it) }
             val now = System.currentTimeMillis()
             dao.upsert(
                 SyncStateEntity(
@@ -522,7 +867,7 @@ class SyncEngine(
 
     private suspend fun syncRawCardEntry(entry: SaveEntry): RawCardSyncOutcome {
         val localExists = entry.exists()
-        val localHash = if (localExists) entry.computeHash() else ""
+        val localHash = if (localExists) canonicalHash(entry) else ""
         val lastSyncHash = dao.getById(entry.titleId)?.lastSyncedHash
 
         val serverMeta = try {
@@ -611,3 +956,5 @@ private enum class RawCardSyncOutcome {
     UP_TO_DATE,
     SKIPPED,
 }
+
+private const val ROM_BUFFER_SIZE = 8192

@@ -294,6 +294,7 @@ game (
 )
 game (
 	name "CD Denjin - Rockabilly Tengoku (Japan)"
+	cloneof "Super Air Zonk - Rockabilly-Paradise (USA)"
 	region "Japan"
 	serial "HCD-3049"
 	rom ( name "CD Denjin - Rockabilly Tengoku (Japan) (Track 02).bin" size 6456240 crc 0792DF30 md5 5182CED54403348DA2F6C1A595AD8301 sha1 AFE7B04CACE42EAFDA165C3DF3D3784D29EFD4C7 serial "HCD-3049" )
@@ -342,6 +343,7 @@ game (
 )
 game (
 	name "Chou Eiyuu Densetsu - Dynastic Hero (Japan)"
+	cloneof "Dynastic Hero, The (USA)"
 	region "Japan"
 	serial "HCD4032"
 	rom ( name "Chou Eiyuu Densetsu - Dynastic Hero (Japan) (Track 02).bin" size 10539312 crc 9AA3B149 md5 62E10639B2160C19D1B633B5A4857000 sha1 8B7132EF950B569B971CDC955CDD7D0A2EA374A3 serial "HCD4032" )
@@ -378,6 +380,7 @@ game (
 )
 game (
 	name "Cosmic Fantasy 2 - Bouken Shounen Ban (Japan)"
+	cloneof "Cosmic Fantasy 2 (USA)"
 	region "Japan"
 	serial "TJCD1015"
 	rom ( name "Cosmic Fantasy 2 - Bouken Shounen Ban (Japan) (Track 02).bin" size 8199072 crc 1ED96C0A md5 32E0AF94D8279B60E60C2E5EE05C734F sha1 488E6ABD37E46E3480DE35C55BDFDA8A908E4B9D serial "TJCD1015" )
@@ -636,6 +639,7 @@ game (
 )
 game (
 	name "Exile - Toki no Hasama e (Japan)"
+	cloneof "Exile (USA)"
 	region "Japan"
 	serial "TJCD1014"
 	rom ( name "Exile - Toki no Hasama e (Japan) (Track 02).bin" size 13959120 crc 15BE61DC md5 6458A904F66D06872A00ACD97EEB9A61 sha1 38DBDDB2DD1A1572E7E712794730AD74BF697E56 serial "TJCD1014" )
@@ -648,6 +652,7 @@ game (
 )
 game (
 	name "Exile II - Janen no Jishou (Japan)"
+	cloneof "Exile - Wicked Phenomenon (USA)"
 	region "Japan"
 	serial "TJCD2028"
 	rom ( name "Exile II - Janen no Jishou (Japan) (Track 02).bin" size 24975888 crc 3A797D26 md5 563A653AC01F01E142B1B5453CBE691A sha1 626EDDF7B7C093CB6F2E27AD242A8833CED579A8 serial "TJCD2028" )
@@ -917,6 +922,7 @@ game (
 )
 game (
 	name "Godzilla Bakutou Retsuden (Japan)"
+	cloneof "Godzilla (USA)"
 	region "Japan"
 	serial "TCCD4001"
 	rom ( name "Godzilla Bakutou Retsuden (Japan) (Track 02).bin" size 20151936 crc E28FF3AC md5 5A4D1010ABFD2B32CD83119EB17A302B sha1 1C6A486F5145E6ACF18BB45C66106BFF43DE6BC6 serial "TCCD4001" )
@@ -1118,6 +1124,7 @@ game (
 )
 game (
 	name "J. B. Harold Series 1 - Murder Club (Japan)"
+	cloneof "J. B. Harold Murder Club (USA) (En,Ja)"
 	region "Japan"
 	serial "HCD0013"
 	rom ( name "J. B. Harold Series 1 - Murder Club (Japan) (Track 02).bin" size 160509888 crc CF416A01 md5 1C789459F48DBFDE0B852268F7F29677 sha1 344E3087216495CCE2013AE791A5FAA2F453AD9B serial "HCD0013" )
@@ -1136,6 +1143,7 @@ game (
 )
 game (
 	name "Jack Nicklaus' World Tour Golf - 162 Holes (Japan)"
+	cloneof "Jack Nicklaus Turbo Golf (USA)"
 	region "Japan"
 	serial "JCCD0003"
 	rom ( name "Jack Nicklaus' World Tour Golf - 162 Holes (Japan) (Track 02).bin" size 22943760 crc 707461CA md5 2AE84F32F0C4D72AD5AA5F5118A5D85F sha1 7670BA80E5DF0B48944617558E36B272E72A02EF serial "JCCD0003" )
@@ -1420,6 +1428,7 @@ game (
 )
 game (
 	name "Magical Saurus Tour (Japan)"
+	cloneof "Magical Dinosaur Tour (USA)"
 	region "Japan"
 	serial "JCCD0002"
 	rom ( name "Magical Saurus Tour (Japan) (Track 2).bin" size 149610720 crc 5B4BF392 md5 60343DAF42526C69C01609C88154694E sha1 ED41DFBD8784507C91FA3191EDFB99575930E503 serial "JCCD0002" )
@@ -1462,6 +1471,7 @@ game (
 )
 game (
 	name "Makai Eiyuuden - Shape Shifter (Japan)"
+	cloneof "Shape Shifter (USA)"
 	region "Japan"
 	serial "JCCD2011"
 	rom ( name "Makai Eiyuuden - Shape Shifter (Japan) (Track 01).bin" size 6806688 crc 2BAE28DF md5 859E5C9432F7EBBBD557799F74F00967 sha1 E579D36285309640984E3796715282ADA464F54D serial "JCCD2011" )
@@ -1702,6 +1712,7 @@ game (
 )
 game (
 	name "Ookami-teki Monshou - Crest of Wolf (Japan)"
+	cloneof "Riot Zone (USA)"
 	region "Japan"
 	serial "HCD3044"
 	rom ( name "Ookami-teki Monshou - Crest of Wolf (Japan) (Track 02).bin" size 5557776 crc 9DA54464 md5 92193F69A78C6D48800A7D8740F5CEE6 sha1 F66276DB5CBE2E002FC76E9AE2FD0C72071D2918 serial "HCD3044" )
@@ -1810,6 +1821,7 @@ game (
 )
 game (
 	name "Pomping World (Japan)"
+	cloneof "Buster Bros. (USA)"
 	region "Japan"
 	serial "HCD1019"
 	rom ( name "Pomping World (Japan) (Track 02).bin" size 5896464 crc 2CC0F6A3 md5 E9C1D297D5C0FCB9EF0ED5DE3DEF4D22 sha1 E5A0B1D9EE7211FA2C0E88BE633270514B1DF1D1 serial "HCD1019" )
@@ -2122,6 +2134,7 @@ game (
 )
 game (
 	name "Red Alert (Japan)"
+	cloneof "Last Alert (USA)"
 	region "Japan"
 	serial "TJCD9004"
 	rom ( name "Red Alert (Japan) (Track 02).bin" size 8671824 crc E454316B md5 F7CE8B991C079321A156E8C0F372786A sha1 98DC36AE93473898585A27FDB5B955DF183E88A0 serial "TJCD9004" )
@@ -2146,6 +2159,7 @@ game (
 )
 game (
 	name "Rising Sun (Japan)"
+	cloneof "Lords of the Rising Sun (USA)"
 	region "Japan"
 	serial "JCCD2006"
 	rom ( name "Rising Sun (Japan) (Track 02).bin" size 20405952 crc A41F586E md5 B2D98A535EBF2F6008BAA251BA24B3D9 sha1 E9FAD30FB01A084B7E03111CF153E892CF39F574 serial "JCCD2006" )
@@ -2242,6 +2256,7 @@ game (
 )
 game (
 	name "Shadow of the Beast - Mashou no Okite (Japan)"
+	cloneof "Shadow of the Beast (USA)"
 	region "Japan"
 	serial "JCCD2008"
 	rom ( name "Shadow of the Beast - Mashou no Okite (Japan) (Track 02).bin" size 7065408 crc 8ADB820B md5 9544F3F0C4894E5EC41C2CBD69EF84B3 sha1 8071EB81E268CB08DB147B6097830E9E985C7BBE serial "JCCD2008" )
@@ -2441,6 +2456,7 @@ game (
 )
 game (
 	name "Splash Lake - Ostrich Daibouken (Japan)"
+	cloneof "Splash Lake (USA)"
 	region "Japan"
 	serial "NAPR-1020"
 	rom ( name "Splash Lake - Ostrich Daibouken (Japan) (Track 02).bin" size 9622032 crc 68D322DB md5 AC5E8600DCB58E7B82125D5986139CC5 sha1 B522E9AA5468E6FA256AB2EFA58655B45FACE592 serial "NAPR-1020" )
@@ -2680,6 +2696,7 @@ game (
 )
 game (
 	name "TerraForming (Japan)"
+	cloneof "SydMead's TerraForming (USA)"
 	region "Japan"
 	serial "RSCD-2001"
 	rom ( name "TerraForming (Japan) (Track 02).bin" size 3205776 crc 9EEDFBCC md5 80209675804C5BEF53026B5D480B7285 sha1 F0BF2F68721D6EB45EFCAB695B6D8B1D9EBE0F6B serial "RSCD-2001" )
@@ -2836,6 +2853,7 @@ game (
 )
 game (
 	name "Winds of Thunder (Japan)"
+	cloneof "Lords of Thunder (USA)"
 	region "Japan"
 	serial "HCD3039"
 	rom ( name "Winds of Thunder (Japan) (Track 02).bin" size 9320976 crc 99AE9DAC md5 9555E180A51094A2FECECDA476D5985C sha1 0D5C19A07C5BD47C5FEBF0EBB661EAC5500702C7 serial "HCD3039" )
@@ -2860,12 +2878,14 @@ game (
 )
 game (
 	name "Wonder Boy III - Monster Lair (Japan) (Rev 3)"
+	cloneof "Monster Lair (USA)"
 	region "Japan"
 	serial "HCD9006"
 	rom ( name "Wonder Boy III - Monster Lair (Japan) (Rev 3) (Track 02).bin" size 20163696 crc A99A8D51 md5 A65DC771F67AF7394C97830F68F86D37 sha1 A6DA4E70BED36D2482E05525A9E003A8AAB9D9DA serial "HCD9006" )
 )
 game (
 	name "Wonder Boy III - Monster Lair (Japan) (Rev 4)"
+	cloneof "Monster Lair (USA)"
 	region "Japan"
 	serial "HCD9006"
 	rom ( name "Wonder Boy III - Monster Lair (Japan) (Rev 4) (Track 02).bin" size 20163696 crc 6F9EFD6D md5 E2A8E54489804AB7AEE1C06893A102D3 sha1 4250E51173732E463FE60A68D99E5094491DDF95 serial "HCD9006" )
@@ -2938,24 +2958,28 @@ game (
 )
 game (
 	name "Ys Book I & II (USA) (Alt)"
+	cloneof "Ys Book I & II (USA)"
 	region "USA"
 	serial "8490072"
 	rom ( name "Ys Book I & II (USA) (Alt) (Track 02).bin" size 20309520 crc 7EADEB71 md5 F0B55A637CE6F1C73941B095F1F28706 sha1 A2019E45A4E35416FBBBDE16DDE3B8A9D35EABEE serial "8490072" )
 )
 game (
 	name "Ys I & II (Japan)"
+	cloneof "Ys Book I & II (USA)"
 	region "Japan"
 	serial "HCD9009"
 	rom ( name "Ys I & II (Japan) (Track 02).bin" size 20309520 crc 9FE63AA2 md5 D4B799C30A4E1939FD02686C4DEB8AB8 sha1 C19C6189FFC93A266D13B25E72368037B4A6AD1E serial "HCD9009" )
 )
 game (
 	name "Ys I & II (Japan) (Alt)"
+	cloneof "Ys Book I & II (USA)"
 	region "Japan"
 	serial "HCD4074"
 	rom ( name "Ys I & II (Japan) (Alt) (Track 02).bin" size 20311872 crc 8947E68D md5 6687AA586E9DFBFF0832F6AD0916D5D8 sha1 1D3AD650427B5CA98C080D5AD0195F760ECE7E34 serial "HCD4074" )
 )
 game (
 	name "Ys III (Japan)"
+	cloneof "Ys III - Wanderers from Ys (USA)"
 	region "Japan"
 	serial "HCD0015"
 	rom ( name "Ys III (Japan) (Track 02).bin" size 58701216 crc 1B03066D md5 8057622539D9358C822943B1EA219C3A sha1 EC7DED25EAF00A60CAEF194587FCA616420DBECD serial "HCD0015" )

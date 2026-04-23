@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Sega - Saturn [T-En] Collection</name>
+		<description>Sega - Saturn [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>25-07-2024</version>
+		<date>25-07-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Sega Saturn [T-En] Docs">
+		<description>_Sega Saturn [T-En] Docs</description>
+		<rom name="Baroque (Japan) [T-En by Plissken v1.0.0].txt" size="407" crc="207684ce" md5="2162ba9f684946fc6731bc7366013714" sha1="a50c81d9ae8f77af9cca641ebddbb22a9550873a"/>
+		<rom name="Blast Wind (Japan) [T-En by CF v1.0] [1CC Guide].txt" size="3369" crc="62b4bbef" md5="e5df8f21732bc7041754cdac70e96f3c" sha1="d62a3cea7eaebfa137437dd9ea268b845bea630f"/>
+		<rom name="Bulk Slash (Japan) [T-En by Bulk Slash English Localization Team v1.001] [Back boxart].pdf" size="24185670" crc="a74b378e" md5="eb6c955694a511baf96901bb435b4104" sha1="347682248eb26d88a8de9998c8029f413599be69"/>
+		<rom name="Bulk Slash (Japan) [T-En by Bulk Slash English Localization Team v1.001] [Foldout manual].pdf" size="10756144" crc="05549c2d" md5="17f3e75858048943d72cf0882c0871da" sha1="96d50dff5b4ea762c2fa0ee1fbe59e4ec5e6162d"/>
+		<rom name="Bulk Slash (Japan) [T-En by Bulk Slash English Localization Team v1.001] [Manual].pdf" size="14030918" crc="c02b918b" md5="d301d88ecfd5dbf8e993add40f311b42" sha1="ce52a285477253989fa2eb99fb4873219ade8bd2"/>
+		<rom name="Bulk Slash (Japan) [T-En by Bulk Slash English Localization Team v1.001].txt" size="10508" crc="8b9cbcd8" md5="c8e38be9c7704091710dd449c70d7402" sha1="acb212998ea5d333bfad2b9b904e2b0a8f5ea8fe"/>
+		<rom name="Castlevania - Symphony of the Night (Japan) [T-En by Knight0fDragon v1.021] [n].txt" size="5252" crc="b2a67209" md5="484660bf44aa17fc2520e77ca4b16eae" sha1="4d29e26d7cced5445aa602d308ff3ee17d4c6b3f"/>
+		<rom name="DeathMask (Japan) [T-En by A Murder of Crows &amp; ShadowMask v0.2j RC].txt" size="2296" crc="47d18be6" md5="29b2d466a54d706240515ca7a3183f8b" sha1="990e78bb02abe8e031568c09ef8da99b790cb70e"/>
+		<rom name="Dracula X - Nocturne in the Moonlight (Japan) [T-En by Paul_met v1.1] [Ultimate] [n].pdf" size="689261" crc="77524d02" md5="0fed77e39426eab9a4684d19ab56ee60" sha1="bf6210d8b4ad272602d244caf34b57fc331bca73"/>
+		<rom name="Dracula X - Nocturne in the Moonlight (Japan) [T-En by Paul_met v1.5] [Extended] [i] [n].pdf" size="697789" crc="0f952fb9" md5="bf831e0e63d5cb39b40ec1efbb743528" sha1="63bad736299fa552fa32f79530494e20b1028a08"/>
+		<rom name="Dragon Force II - The Godforsaken Land (Japan) [T-En by Verve Fanworks v1.04] [n] [LightScribe CD Label].png" size="2924015" crc="314bad46" md5="7a94178de3c8e83ba14c1512a68a0a71" sha1="3d2f1f49a26a294e413e66b6aa1f1dca9f1e827f"/>
+		<rom name="Dragon Force II - The Godforsaken Land (Japan) [T-En by Verve Fanworks v1.04] [n] [Troop Chart].png" size="46750" crc="3ad93303" md5="8bd32becda0b75c581816b7c9257773b" sha1="360fb45e1fdd2ad68b4314240bcf747a2d31d22b"/>
+		<rom name="Dragon Force II - The Godforsaken Land (Japan) [T-En by Verve Fanworks v1.04] [n].txt" size="14996" crc="1c500a24" md5="a37dbef4847952a02323bc1f9153fea1" sha1="58d17a64f5be8f5db41a7de5318a57a42758304c"/>
+		<rom name="Dungeon Master Nexus (Japan) [T-En by ChristopheF v2].htm" size="70164" crc="2ca7739f" md5="99a7d2674d9d2c1bfa0457edaa209943" sha1="71058d5a335e42f776caf7698da6b93a10bf3893"/>
+		<rom name="EGWord Ver 2.00 (Japan) [T-En by Retrodadandmodernlad v0.9].txt" size="5045" crc="ced9be2f" md5="7dbd7f80a9ba0787647270a6d4958735" sha1="fede598cb296cddee65789b59a0cfc2f47d6fc9e"/>
+		<rom name="Falcom Classics (Japan) [T-En by Murzik &amp; CrawdKenny v0.763] [Ancient Ys Vanished Omen] [i].txt" size="1022" crc="1f2e2c91" md5="61575b54a4b93292f363226d6b901575" sha1="7ac8c5da9d6f0ce962fc0b47664897face5d4c0f"/>
+		<rom name="Fire Pro Gaiden Blazing Tornado (Japan) [T-En by Malenko v0.91] [i].txt" size="440" crc="9f0e1266" md5="317f05a8e9f90dc8636d568a2ced9239" sha1="48c3192b5b26cf278c362881321eb4b63a3d2ecd"/>
+		<rom name="Fire Prowrestling S - 6Men Scramble (Japan) [T-En by Malenko v0.91] [i].txt" size="2372" crc="e7f97d43" md5="39a34dcfe745768aecf1a1069da967ce" sha1="d8ddf42d5aae3b877f3fe451b8a04b7801c51149"/>
+		<rom name="Grandia (Japan) [T-En by TrekkiesUnite118 v1.1.1].txt" size="16273" crc="dba186a9" md5="d982506b7df1f101ffb9d4dcf8429504" sha1="421a6b83ff79326a1a427fc56029325b57372470"/>
+		<rom name="Gungriffon II (Japan) [T-En by Gungriffon II Localization Team v0.97.5] [i].txt" size="3257" crc="01fcc879" md5="be404d4163123f41d4dfdd64c8915d1f" sha1="64c8e401886fb9dea004e10706f5e22f4c9660b4"/>
+		<rom name="J. B. Harold - Blue Chicago Blues (Japan) [T-En by Collin ''Arjak'' Pierce &amp; Kate ''MossstarMoon'' Pierce v1.00].txt" size="7429" crc="08b7ae8e" md5="b9c1e7fd68b335d6db49d8e34025fa2b" sha1="7b7ce55f42d527312f92cac8c80008f827a73f8f"/>
+		<rom name="Kingdom Grandprix (Japan) [T-En by Malenko v2024.02.04-01].txt" size="870" crc="269a9dc0" md5="31fd0227c59437b6bfdd03b595321650" sha1="0063911922931de302488b87cd8406f3d4857152"/>
+		<rom name="Langrisser III (Japan) [T-En by Cyber Warrior X v0.2] [i].txt" size="6521" crc="30de73f5" md5="2b6d6157b23364868e9a3c45df8e201b" sha1="453ba8f9700c0b849d8af9377ba5ae42713a19e8"/>
+		<rom name="Linkle Liver Story (Japan) [T-En by Aishsha v1.0] [Manual].cbr" size="40683268" crc="2717ac6b" md5="9df7c4aaed1af40f2b6b31807d309033" sha1="50bb2e60e2ed31308af7c38b712090b774d9259e"/>
+		<rom name="Linkle Liver Story (Japan) [T-En by Aishsha v1.0].txt" size="6068" crc="69c55e4f" md5="94a066405b701fd1ced3307d2534a76a" sha1="6fcffb72690a8c213333c0dead64feacce0fbca3"/>
+		<rom name="Liquid Kids (Japan) [T-En by cabbage v1.0] [n].txt" size="2213" crc="2daca029" md5="48c831a7ae9927746e99d4c489543a19" sha1="a0b387586e7bdce7a87378732a66576174365b31"/>
+		<rom name="Lunar - Silver Star Story (Japan) [T-En by TrekkiesUnite118 v1.5.1].txt" size="5021" crc="1bd12433" md5="68bf0e32f547d19f467a2f838d66d774" sha1="4b3b20eb5a8f02f77507c03318b4c3df7dc5acb9"/>
+		<rom name="Lunar - Silver Star Story Complete (Japan) [T-En by Mr Conan v0.75] [req Video CD Card].txt" size="4249" crc="da1aa080" md5="b3b02490a76c147a9145a9d7551d6f67" sha1="70a00cc3246f27b4d51aed4093830e2e50c444be"/>
+		<rom name="Lunar 2 - Eternal Blue (Japan) [T-En by Mr Conan v0.19b] [i].txt" size="3707" crc="3f3ea965" md5="3d010eb9fc06a52bcad017efb17df5d8" sha1="835698f1666949c144740ba9c3feb5cfd21e4744"/>
+		<rom name="Magic Knight Rayearth (USA) [Un-Worked Design by Supper v0 (15-03-2017)].txt" size="6867" crc="b9510e49" md5="73bf31d9b1f04ca0f57108d7b6b08c2a" sha1="ea95e530f3807a4529123da2637cdafde30bb876"/>
+		<rom name="Magical Night Dreams - Cotton 2 (Japan) [T-En by Nanashi v0.9].txt" size="1310" crc="902103f1" md5="b827015c5932028a8e382fbb84def504" sha1="e727181bad429dcdf0e32cb9fb25e1df47266e20"/>
+		<rom name="Ninja Penguin Manmaru (Japan) [T-En by Alex Kid &amp; Darkfalzx &amp; Simon Fang v2022-01-20b] [n].txt" size="746" crc="755bf8d1" md5="9ddcfb0e352b6bc72deab8f8b3932a82" sha1="3483a0168cdc3481c5674b0c0daf4d3606585c7d"/>
+		<rom name="Ogre Battle - The March of the Black Queen (Japan) [T-En by Aishsha &amp; Paul_met &amp; Stardust Crusaders v1.3.1] [n].txt" size="4889" crc="994f2a0c" md5="16552302ba1a2e0c8657479e35824d9b" sha1="81cc1d6ba8a6fca89b51f19e9ea7cae378687d9b"/>
+		<rom name="Policenauts (Japan) [T-En by JunkerHQ v1.0.1].txt" size="22725" crc="eb7a0537" md5="2e13d5a693aa5acee74bc3876545ab15" sha1="3814411dc4a3d2add6a2f833385e922719057bdb"/>
+		<rom name="Prisoner of Ice - Jashin Kourin (Japan) [T-En by Plissken v1.0.1].txt" size="349" crc="4361e530" md5="597ab6c9b833611c5384935d4abb3f56" sha1="e060d7152f8a636df664a1dcbfa1e21fbadf3746"/>
+		<rom name="Sakura Wars (Japan) [T-En by Sakura Wars Translation Project v2.01] [n] [Translation Notes].odt" size="424730" crc="aa530012" md5="8f592b3a63b79eef365b67f53a502981" sha1="65b5ffc13c229fd463508425fc31359dd873513a"/>
+		<rom name="Sakura Wars (Japan) [T-En by Sakura Wars Translation Project v2.01] [n].txt" size="7441" crc="daba027c" md5="6fc2d89b35a57b7980cd4f93efa3f0a4" sha1="3611a9d18feac4644a08be0b807383d53d958a57"/>
+		<rom name="Sega Ages - Castle of Illusion Starring Mickey Mouse &amp; QuackShot Starring Donald Duck (Japan) [T-En by TrekkiesUnite118 v0.9.1] [n].txt" size="4271" crc="94416ddc" md5="ba3068dc4d6c5a8c59d199adbf6cb8ff" sha1="4823db8df23400e8e38d2e36a89816c0aafeae4e"/>
+		<rom name="SegaSaturn FDD Operator (Japan) [T-En by TrekkiesUnite118 v1.0].txt" size="3042" crc="b3a451fe" md5="c07163980132cf8d9451c2ec63a0484e" sha1="2c5dca002e84113afa3097778f334997d37d8469"/>
+		<rom name="Shining Force III (USA, Japan) [T-En by Shining Force III Translation Project v25].pdf" size="439304" crc="1032fd56" md5="2f0b9427681464a08bf46e381848414b" sha1="32045c05a49c1abe7f663d489e062a1e9c131193"/>
+		<rom name="Shoujo Kakumei Utena - Itsuka Kakumei Sareru Monogatari (Japan) [T-En by In the Rose Garden v1.04] [Advanced Usage].txt" size="11604" crc="1ac57627" md5="97b9e64ef525ec0d6c47800b73ada281" sha1="d3aa884441840abdd92266a10c9aaa6300601439"/>
+		<rom name="Shoujo Kakumei Utena - Itsuka Kakumei Sareru Monogatari (Japan) [T-En by In the Rose Garden v1.04] [Instructions].txt" size="3498" crc="ab730cf3" md5="7f3e4d8c8806147579845a3822997b4d" sha1="fed7fd5890937a6d7641075334e44a90da91300f"/>
+		<rom name="Shoujo Kakumei Utena - Itsuka Kakumei Sareru Monogatari (Japan) [T-En by In the Rose Garden v1.04].txt" size="806" crc="56cb18dc" md5="ff5ac999ac7a268c6b618ee22a5abd7b" sha1="640026bc50d9b56e433ee19c196081dd12f60499"/>
+		<rom name="Silhouette Mirage (Japan) (Rev A) [T-En by Rasputin3000 v0.999] [TranslationNotes].pdf" size="4694899" crc="a31355f9" md5="c545d53bb725cbbc1a7a13f0d69b3ad9" sha1="9fdbc0532b66f4a8ed3b0370a9b9706796d37e96"/>
+		<rom name="Silhouette Mirage (Japan) (Rev A) [T-En by Rasputin3000 v0.999].txt" size="2947" crc="da6769f5" md5="d2690728630532fdb2a2780923969887" sha1="6ee6ecd95cc27d0d3a2043e428192b627cc15a8e"/>
+		<rom name="Stellar Assault SS (Japan) [T-En by Stellar Assault SS Localization Team v1.0] [All Stages QR Code].png" size="35612" crc="1d5728a3" md5="41e6c1586dc94065bdad76f60e601e09" sha1="29c2fb2e360b6848db933334195cbfb39e149a94"/>
+		<rom name="Stellar Assault SS (Japan) [T-En by Stellar Assault SS Localization Team v1.0] [Manual].pdf" size="15996394" crc="774a208e" md5="e3857dcc9fa0efef6d5b129c777e0a79" sha1="389afd1a4f5273837000c2ff680a8ff5d04201b5"/>
+		<rom name="Stellar Assault SS (Japan) [T-En by Stellar Assault SS Localization Team v1.0].txt" size="11536" crc="dead0c17" md5="97f954beb5e0bf67979526207288552a" sha1="70be698b22b218e22b02baefbd26d9bf7d3db58e"/>
+		<rom name="Tactics Ogre - Let Us Cling Together (Japan) [T-En by Aishsha &amp; Paul_met &amp; Pennywise v1.0.1].txt" size="5429" crc="c9f9d20c" md5="372f294a5692cb395130ec5e0bb78deb" sha1="7463e4cf4f1ebe0f518dff2a8d2f2d54be6696e2"/>
+		<rom name="Tokyo Highway Battle '97 (Japan) [T-En by Malenko v1.02] [n].txt" size="4683" crc="3d66e33b" md5="300db5845bf2e8fd4a4866e6120333f9" sha1="c29f5b7af87efd102cd8fcabda38058d0da2f6f3"/>
+		<rom name="Valhollian (Japan) [T-En by Paul_Met &amp; Aishsha &amp; Pennywise v1.3] [n] [Manual].cbr" size="52858013" crc="fe3dd93b" md5="baa364b5ef9c4ff56a485b66544dc4a7" sha1="4d44183ecbae79ae821a1f720a314c29500d6c67"/>
+		<rom name="Valhollian (Japan) [T-En by Paul_Met &amp; Aishsha &amp; Pennywise v1.3] [n].txt" size="8599" crc="958a8ddd" md5="0299f113692f8be82362112c83808c69" sha1="8215113b70f7987c2d36612abf59fd2a9b52bbac"/>
+		<rom name="Vandal Hearts - The Lost Civilization (Japan) [T-En by Paul_met &amp; Stardust Crusaders v1.5] [n] [Pseudo Saturn Kai Fix].txt" size="323" crc="2b29b694" md5="a5ee03ab9700ff0ee7d0d3d31b41a9dd" sha1="b1402969cc86fa98e184bc840b53ae8bb2370c79"/>
+		<rom name="Vandal Hearts - The Lost Civilization (Japan) [T-En by Paul_met &amp; Stardust Crusaders v1.5] [n].txt" size="3723" crc="d267193d" md5="4ff0a67448d6c15c0bd3e8c9d56908ea" sha1="392294a7bc2ee3e8406657a49610ec0cf4e9b12d"/>
+		<rom name="Wachenroeder (Japan) [T-En by Knight0fDragon v0.49] [i].txt" size="1347" crc="5437045e" md5="d3d88b9bd4e67cd5cda562e2ab2b19f9" sha1="a1fce96ae97e40a5c34451eda7ff2879ce5eec89"/>
+		<rom name="Yumimi Mix Remix (Japan) [T-En by Supper v1.0].txt" size="42685" crc="a957b40d" md5="3c831e6fca413e8f0078ee59aad7b0b5" sha1="6a08243861513d8c3d1d95ebfbd8f72b2e0ec530"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Baroque (Japan) [T-En by Plissken v1.0.0]" sha1="26a27ff8a77776f2b352d18ba30170010998ea5b"/>
+		<disk name="Blast Wind (Japan) [T-En by CF v1.0]" sha1="ad0413979aaa060aaa3f54cea41ebde0103392c3"/>
+		<disk name="Bulk Slash (Japan) [T-En by Bulk Slash English Localization Team v1.001] [Undub]" sha1="4635ddfcc94731899a8fe2dae3e063bfbb7d852c"/>
+		<disk name="Bulk Slash (Japan) [T-En by Bulk Slash English Localization Team v1.001]" sha1="04c608e08a087945a2dd7c4308f196556238fcea"/>
+		<disk name="Castlevania - Symphony of the Night (Japan) [T-En by Knight0fDragon v1.021+hotfix] [n]" sha1="3b569c984db231966b371ff757a0caa1e71aa4ce"/>
+		<disk name="DeathMask (Japan) (Disc 1) [T-En by A Murder of Crows &amp; ShadowMask v0.2j RC]" sha1="7a3f64b76d61e8f09656a632086487a205291ee8"/>
+		<disk name="DeathMask (Japan) (Disc 2) [T-En by A Murder of Crows &amp; ShadowMask v0.2j RC]" sha1="5054a002aca97f81bfade063b6c6685e46ae0b20"/>
+		<disk name="DeathMask (Japan) (Disc 3) [T-En by A Murder of Crows &amp; ShadowMask v0.2j RC]" sha1="8e1b1c4a8d667ff57d93584d7a289eda4b14f5c2"/>
+		<disk name="Dracula X - Nocturne in the Moonlight (Japan) [T-En by Paul_met v1.1] [Ultimate] [n]" sha1="0862c95029959f307795e8c039ea7516699aec21"/>
+		<disk name="Dracula X - Nocturne in the Moonlight (Japan) [T-En by Paul_met v1.5] [Extended] [i] [n]" sha1="d097fa7e27e1e32c8c1af4fc3e1c73571d09809a"/>
+		<disk name="Dragon Force II - The Godforsaken Land (Japan) [T-En by Verve Fanworks v1.04] [n]" sha1="eff939d68d42a3b89214abbbeacb113e227b4076"/>
+		<disk name="Dungeon Master Nexus (Japan) [T-En by ChristopheF v2]" sha1="1c5b9cfc4e932315e68be9287fb67f8fc0e772fc"/>
+		<disk name="EGWord Ver 2.00 (Japan) [T-En by Retrodadandmodernlad v0.9]" sha1="1a98acee75cc1ecb683969450f924212f10e014e"/>
+		<disk name="Falcom Classics (Japan) [T-En by Murzik &amp; CrawdKenny v0.763] [Ancient Ys Vanished Omen] [i]" sha1="c225c3d5e53efeee3115fc6512d5af2f0658f49a"/>
+		<disk name="Fire Pro Gaiden Blazing Tornado (Japan) [T-En by Malenko v0.91] [i]" sha1="5bfe6a0ad94ac4631232492505e3fac5b2131534"/>
+		<disk name="Fire Prowrestling S - 6Men Scramble (Japan) [T-En by Malenko v0.91] [i]" sha1="ecb4e956798b866eeb1e66e6312298de0c62bdcf"/>
+		<disk name="Grandia (Japan) (Disc 1) [T-En by TrekkiesUnite118 v1.1.1]" sha1="41ef20dd3c7e64f2bcdc070a8f6d8ad940d64c4e"/>
+		<disk name="Grandia (Japan) (Disc 2) [T-En by TrekkiesUnite118 v1.1.1]" sha1="393ab5c1ac181e2197cbfd38822fbab68ff4f7df"/>
+		<disk name="Gungriffon II (Japan) [T-En by Gungriffon II Localization Team v0.97.5] [i]" sha1="2f180d52be0ab0799a6e69249b2e2f7cd0764a3a"/>
+		<disk name="J. B. Harold - Blue Chicago Blues (Japan) (Disc 1) [T-En by Collin ''Arjak'' Pierce &amp; Kate ''MossstarMoon'' Pierce v1.00]" sha1="0003712eb23b8a42d4000a6bcb769f798c073dec"/>
+		<disk name="J. B. Harold - Blue Chicago Blues (Japan) (Disc 2) [T-En by Collin ''Arjak'' Pierce &amp; Kate ''MossstarMoon'' Pierce v1.00]" sha1="81d0abab42a33af753552d05832ab03a3d8ada22"/>
+		<disk name="Jung Rhythm (Japan) [T-En by Derek Pascarella v1.0]" sha1="cdb1c0451ae60a77601a5bc650c75b202cb0b471"/>
+		<disk name="Kingdom Grandprix (Japan) [T-En by Malenko v2024.02.04-01] [original] [n]" sha1="ce8f51f40729b1c03640de4e40502e592f13a2f4"/>
+		<disk name="Kingdom Grandprix (Japan) [T-En by Malenko v2024.02.04-01] [revised] [n]" sha1="8d05c590c14092ebc4c8ad030adf6afe9bdbe2e9"/>
+		<disk name="Langrisser III (Japan) [T-En by Cyber Warrior X v0.2] [i]" sha1="5cc645369fd079ae81c9fde4ac14c1c015e22ae8"/>
+		<disk name="Linkle Liver Story (Japan) [T-En by Aishsha v1.0]" sha1="acd59dff98d615518aa6d03d0384ccf8564b2c24"/>
+		<disk name="Liquid Kids (Japan) [T-En by cabbage v1.0] [n]" sha1="03c6ab35fde91415ab24fa2c6cc9b06b08b4be93"/>
+		<disk name="Lunar - Silver Star Story (Japan) [T-En by TrekkiesUnite118 v1.5.1] [Sub Edition]" sha1="3e06621f3f856a73f59e1386202b6ce4a95d5acb"/>
+		<disk name="Lunar - Silver Star Story (Japan) [T-En by TrekkiesUnite118 v1.5.1a] [Dub Edition]" sha1="91624eff729d4826e6dcb2d6a015b0630699b541"/>
+		<disk name="Lunar - Silver Star Story Complete (Japan) [T-En by Mr Conan v0.75] [req Video CD Card]" sha1="0e7e1eff42baf3957523254649e106539c29cff2"/>
+		<disk name="Lunar 2 - Eternal Blue (Japan) (Disc 1) [T-En by Mr Conan v0.19b] [i]" sha1="06bbb44ecdf7359044e350b1a84f0977d7750685"/>
+		<disk name="Lunar 2 - Eternal Blue (Japan) (Disc 2) [T-En by Mr Conan v0.19b] [i]" sha1="fa158c3f4689230b5afbbe704c5dc506ecda6ad0"/>
+		<disk name="Magic Knight Rayearth (USA) [Un-Worked Design by Supper v0 (15-03-2017)]" sha1="c30d14a00bc69552c51f61d74ea28d3dda497cf4"/>
+		<disk name="Magical Night Dreams - Cotton 2 (Japan) [T-En by Nanashi v0.9]" sha1="ff7d6ff9642d9ce7828ff39d1f3ef2ee0c442968"/>
+		<disk name="Mobile Suit Gundam (Japan) [T-En by ShadowMask v0.6] [i]" sha1="c974e951399259426ed270c0cbd4bb634a6bce6a"/>
+		<disk name="Ninja Penguin Manmaru (Japan) [T-En by Alex Kid &amp; Darkfalzx &amp; Simon Fang v2022-01-20b] [n]" sha1="0a5bc12797620250a250df2a5d342b1bfbbab91f"/>
+		<disk name="Ogre Battle - The March of the Black Queen (Japan) [T-En by Aishsha &amp; Paul_met &amp; Stardust Crusaders v1.3.1] [n]" sha1="11d5917f2f56a696a9685799669999cc8a510f1a"/>
+		<disk name="Phantasmagoria (Japan) (Disc 1) [T-En by Delta-Islands Team v1.50 final revu] [n]" sha1="b9620dbfd024f3c86b3eccfe0bcefe427a9af9ca"/>
+		<disk name="Phantasmagoria (Japan) (Disc 2) [T-En by Delta-Islands Team v1.50 final revu] [n]" sha1="6601a5ded4bbf39c4bde00ff4e7f1966fcae3381"/>
+		<disk name="Phantasmagoria (Japan) (Disc 3) [T-En by Delta-Islands Team v1.50 final revu] [n]" sha1="110816d15fe354bc58205f178c2f960ddb31e308"/>
+		<disk name="Phantasmagoria (Japan) (Disc 4) [T-En by Delta-Islands Team v1.50 final revu] [n]" sha1="5df67434c584e15ea0d9a892f87ddc14dc597b38"/>
+		<disk name="Phantasmagoria (Japan) (Disc 5) [T-En by Delta-Islands Team v1.50 final revu] [n]" sha1="20da2438edbb5eda6f6a64ac8b6aebedbc63d4c3"/>
+		<disk name="Phantasmagoria (Japan) (Disc 6) [T-En by Delta-Islands Team v1.50 final revu] [n]" sha1="d2379edd204729da0f2369abd4a62f7b99bbda3f"/>
+		<disk name="Phantasmagoria (Japan) (Disc 7) [T-En by Delta-Islands Team v1.50 final revu] [n]" sha1="97e6051f7972d3340262db9963e2c01662a6b4ab"/>
+		<disk name="Phantasmagoria (Japan) (Disc 8) [T-En by Delta-Islands Team v1.50 final revu] [n]" sha1="673cfd5d82c46f403a5cf3d9a291474eeddbf2a5"/>
+		<disk name="Policenauts (Disc 1) (Japan) [T-En by JunkerHQ v1.0.1]" sha1="ea01ed34451f22a0b828da25db7518eb169f9c59"/>
+		<disk name="Policenauts (Disc 2) (Japan) [T-En by JunkerHQ v1.0.1]" sha1="652586b09492bfc101bc8289c4a46dfe42479bc9"/>
+		<disk name="Policenauts (Disc 3) (Japan) [T-En by JunkerHQ v1.0.1]" sha1="112777723089fea3b2dd0dab8f69e202e64cd8a6"/>
+		<disk name="Prisoner of Ice - Jashin Kourin (Japan) [T-En by Plissken v1.0.1]" sha1="6cd59111319f0dac8a4fc6e247ffef08d2271f14"/>
+		<disk name="Rabbit (Japan) [T-En by Derek Pascarella v1.0]" sha1="2125f8246861e1a8ec7c53de3ff3f909f1f2256b"/>
+		<disk name="RMJ - The Mystery Hospital (Japan) [T-En by Kitchen34 v1.10] [i]" sha1="afaa50e51fbbcae59da993deb37023ca4b0a7151"/>
+		<disk name="Sakura Wars (Japan) (Disc 1) [T-En by Sakura Wars Translation Project v2.01] [n]" sha1="5e2538451af8c26134ddf808aaf0bbc75253453b"/>
+		<disk name="Sakura Wars (Japan) (Disc 2) [T-En by Sakura Wars Translation Project v2.01] [n]" sha1="769667d420eb781af92e2953e50eba00d50defd4"/>
+		<disk name="Sakura Wars 2 - Thou Shalt Not Die (Japan) (Demo) [T-En by TrekkiesUnite118 v1.1] [n]" sha1="3e13b828698c8ac7e876782638ca0e2278f90e61"/>
+		<disk name="Sega Ages - Castle of Illusion Starring Mickey Mouse &amp; QuackShot Starring Donald Duck (Japan) [T-En by TrekkiesUnite118 v0.9.1] [n]" sha1="e41f24d9f8442b64fbfbffd0d681171ca446f8b9"/>
+		<disk name="SegaSaturn FDD Operator (Japan) [T-En by TrekkiesUnite118 v1.0]" sha1="f040a245443b3c0422db25264cba9a404e2ba646"/>
+		<disk name="Shining Force III - Scenario 1 - The Titan of Aspia (USA) [T-En by Shining Force III Translation Project v25] [n]" sha1="45026bee9fd0ae695b9d840eee314222243e5280"/>
+		<disk name="Shining Force III - Scenario 2 - Target - Child of God (Japan) [T-En by Shining Force III Translation Project v25] [n]" sha1="fccbb1b04df81713f4f5fcf81b147159295d439b"/>
+		<disk name="Shining Force III - Scenario 3 - Bulzome Rising (Japan) [T-En by Shining Force III Translation Project v25] [n]" sha1="58900fe8f6922052e108cd94ea3b07769b868457"/>
+		<disk name="Shining Force III Premium Disc (Japan) [T-En by Shining Force III Translation Project v25]" sha1="b2e71e3ffc68a7049178fb10f8c098f45f4a6d54"/>
+		<disk name="Shoujo Kakumei Utena - Itsuka Kakumei Sareru Monogatari (Japan) (Disc 1) [T-En by In the Rose Garden v1.04]" sha1="c4d374fbcf100afcb5549fb27e0a8ae4ae07c1ed"/>
+		<disk name="Shoujo Kakumei Utena - Itsuka Kakumei Sareru Monogatari (Japan) (Disc 2) [T-En by In the Rose Garden v1.04]" sha1="8b4d480bfedf8d6d46bcb03f01ef4da98a15ac0b"/>
+		<disk name="Silhouette Mirage (Japan) (Rev A) [T-En by Rasputin3000 v0.999]" sha1="1b979b11c1e073696fca1ca0d1ac3d2039283148"/>
+		<disk name="Stellar Assault SS (Japan) (Demo) [T-En by Stellar Assault SS Localization Team v1.0]" sha1="d6bfc333d4482b5eb2cc51fc944ea19bc728c031"/>
+		<disk name="Stellar Assault SS (Japan) [T-En by Stellar Assault SS Localization Team v1.0]" sha1="62091a715af0d51bff8c1ca373c1e9dab013e738"/>
+		<disk name="Tactics Ogre - Let Us Cling Together (Japan) [T-En by Aishsha &amp; Paul_met &amp; Pennywise v1.0.1]" sha1="d06aef00f154a66c1dc1b0f432a94cc9b9e36c10"/>
+		<disk name="Tokyo Highway Battle '97 (Japan) [T-En by Malenko v1.02] [n]" sha1="5e18805727c5a20045f4ed4b8b6308e6bab5da08"/>
+		<disk name="Valhollian (Japan) [T-En by Paul_Met &amp; Aishsha &amp; Pennywise v1.3] [n]" sha1="c594e6269ffd07d0077540d0e2b60edd9fa2f1e8"/>
+		<disk name="Vampire Savior (Japan) [T-En by Paul_met v1.0]" sha1="c8f2015ce82e964a7d49c59c3d99d567d4c6539e"/>
+		<disk name="Vandal Hearts - The Lost Civilization (Japan) [T-En by Paul_met &amp; Stardust Crusaders v1.5] [n]" sha1="0376d81af8d09f2f32e6baa75d228be552497c53"/>
+		<disk name="Wachenroeder (Japan) [T-En by Knight0fDragon v0.49] [i]" sha1="8221958ea553cd78735cee240e6a5051dd940d0d"/>
+		<disk name="Yumimi Mix Remix (Japan) [T-En by Supper v1.0]" sha1="ff86f1d936f29837a8abc26aafdabca4015dbe76"/>
+	</machine>
+</datafile>

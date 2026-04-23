@@ -12,8 +12,27 @@ import re
 from pathlib import Path
 from typing import Generator, Optional
 
-from .base import sha256_file, find_paths, to_title_id
+from .base import sha256_file, find_paths, make_title_id
 from .models import GameEntry
+
+try:
+    # Shared Saturn resolver (IP.BIN + libretro DAT) — matches Android's
+    # SAT_<product-code> title IDs so the server's archive map and the Android
+    # client agree with us on what "Grandia (Japan)" is called.
+    from shared.rom_id.saturn import resolve_saturn_title_id as _resolve_sat
+except ImportError:  # pragma: no cover — keeps the scanner usable if the
+    # repo is imported without the shared package on sys.path.
+    _resolve_sat = None
+
+
+def _saturn_title_id(rom_path: Optional[Path], rom_stem: str) -> str:
+    """Return a SAT_<product-code> title ID when we can resolve one, else the
+    filename-slug fallback so unidentified discs still get a stable key."""
+    if _resolve_sat is not None:
+        serial_id = _resolve_sat(rom_path=rom_path, rom_name=rom_stem)
+        if serial_id:
+            return serial_id
+    return make_title_id("SAT", rom_stem)
 
 # RetroArch Flatpak paths
 FLATPAK_RA_DATA = Path.home() / ".var/app/org.libretro.RetroArch/config/retroarch"
@@ -45,6 +64,10 @@ CORE_SYSTEM_MAP = {
     "genesis plus gx": "MD",
     "picodrive": "MD",
     "blastem": "MD",
+    "beetle saturn": "SAT",
+    "kronos": "SAT",
+    "yabause": "SAT",
+    "yabasanshiro": "SAT",
     "sega - master system": "SMS",
     "sega - game gear": "GG",
     "sega - 32x": "32X",
@@ -67,6 +90,49 @@ CORE_SYSTEM_MAP = {
     "finalburn neo": "NEOGEO",
     "mame": "ARCADE",
     "game boy": "GB",
+    # Dreamcast
+    "dreamcast": "DC",
+    "flycast": "DC",
+    "reicast": "DC",
+    "redream": "DC",
+    # 3DO
+    "3do": "3DO",
+    "opera": "3DO",
+    # Virtual Boy
+    "virtual boy": "VB",
+    "beetle vb": "VB",
+    "vecx": "VB",
+    # Atari 800 / 5200
+    "atari800": "A800",
+    "atari 800": "A800",
+    "atari - 5200": "A5200",
+    "atari 5200": "A5200",
+    # Atari Jaguar
+    "atari - jaguar": "JAGUAR",
+    "virtual jaguar": "JAGUAR",
+    # Pokemon Mini
+    "pokemini": "POKEMINI",
+    "pokémon mini": "POKEMINI",
+    # Home computer / arcade-ish systems (grouped under ARCADE for now)
+    "commodore - 64": "ARCADE",
+    "vice x64": "ARCADE",
+    "amiga": "ARCADE",
+    "puae": "ARCADE",
+    "fs-uae": "ARCADE",
+    "msx": "ARCADE",
+    "bluemsx": "ARCADE",
+    "fmsx": "ARCADE",
+    "colecovision": "ARCADE",
+    "bluemsx coleco": "ARCADE",
+    "intellivision": "ARCADE",
+    "freeintv": "ARCADE",
+    "amstrad": "ARCADE",
+    "cap32": "ARCADE",
+    "zx spectrum": "ARCADE",
+    "fuse": "ARCADE",
+    # Neo Geo CD
+    "neogeo cd": "NEOCD",
+    "neocd": "NEOCD",
 }
 
 # Map: ROM folder name → (system_code, [core_save_subdirs], [save_exts])
@@ -95,6 +161,7 @@ ROM_FOLDER_MAP = {
     "gamegear": ("GG", ["Genesis Plus GX"], [".srm"]),
     "32x": ("32X", ["PicoDrive"], [".srm"]),
     "segacd": ("SEGACD", ["Genesis Plus GX", "PicoDrive"], [".srm", ".bak"]),
+    "saturn": ("SAT", ["Beetle Saturn", "Kronos"], [".bkr"]),
     "pce": ("PCE", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
     "pcecd": ("PCECD", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
     "tg16": ("TG16", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
@@ -109,6 +176,39 @@ ROM_FOLDER_MAP = {
     "neogeo": ("NEOGEO", ["FinalBurn Neo", "MAME 2003-Plus", "MAME"], [".srm"]),
     "arcade": ("ARCADE", ["FinalBurn Neo", "MAME 2003-Plus", "MAME"], [".srm"]),
     "fba": ("ARCADE", ["FinalBurn Neo"], [".srm"]),
+    # --- Dreamcast (Flycast stores VMU saves per-game as .bin/.vmu) ---
+    "dreamcast": ("DC", ["Flycast", "Redream"], [".srm", ".bin", ".vmu"]),
+    "dc": ("DC", ["Flycast", "Redream"], [".srm", ".bin", ".vmu"]),
+    # --- 3DO ---
+    "3do": ("3DO", ["Opera"], [".srm", ".sav"]),
+    # --- Virtual Boy ---
+    "virtualboy": ("VB", ["Beetle VB"], [".srm"]),
+    "vb": ("VB", ["Beetle VB"], [".srm"]),
+    # --- Pokémon Mini ---
+    "pokemini": ("POKEMINI", ["PokeMini"], [".eep", ".srm"]),
+    # --- Atari computers / consoles beyond 2600/7800 ---
+    "atari800": ("A800", ["Atari800"], [".srm", ".sav"]),
+    "atari5200": ("A5200", ["Atari800"], [".srm", ".sav"]),
+    "atarijaguar": ("JAGUAR", ["Virtual Jaguar"], [".srm"]),
+    "jaguar": ("JAGUAR", ["Virtual Jaguar"], [".srm"]),
+    # --- Home computers (grouped under ARCADE as the server bucket for now) ---
+    "c64": ("ARCADE", ["VICE x64", "VICE x64sc", "Frodo"], [".srm", ".sav"]),
+    "commodore64": ("ARCADE", ["VICE x64", "VICE x64sc"], [".srm", ".sav"]),
+    "amiga": ("ARCADE", ["PUAE", "PUAE 2021", "FS-UAE"], [".srm", ".sav"]),
+    "amiga500": ("ARCADE", ["PUAE", "PUAE 2021"], [".srm", ".sav"]),
+    "amigacd32": ("ARCADE", ["PUAE", "PUAE 2021"], [".srm", ".sav"]),
+    "msx": ("ARCADE", ["blueMSX", "fMSX"], [".srm", ".sav"]),
+    "msx2": ("ARCADE", ["blueMSX", "fMSX"], [".srm", ".sav"]),
+    "colecovision": ("ARCADE", ["blueMSX", "Gearcoleco"], [".srm", ".sav"]),
+    "coleco": ("ARCADE", ["blueMSX", "Gearcoleco"], [".srm", ".sav"]),
+    "intellivision": ("ARCADE", ["FreeIntv"], [".srm", ".sav"]),
+    "amstradcpc": ("ARCADE", ["Caprice32", "CrocoDS"], [".srm", ".sav"]),
+    "amstrad": ("ARCADE", ["Caprice32", "CrocoDS"], [".srm", ".sav"]),
+    "zxspectrum": ("ARCADE", ["Fuse", "FBNeo"], [".srm", ".sav"]),
+    "spectrum": ("ARCADE", ["Fuse"], [".srm", ".sav"]),
+    # --- Neo Geo CD ---
+    "neogeocd": ("NEOCD", ["NeoCD"], [".srm"]),
+    "ngcd": ("NEOCD", ["NeoCD"], [".srm"]),
 }
 
 # ROM file extensions to recognize
@@ -142,8 +242,50 @@ ROM_EXTENSIONS = {
     ".ngc",
     ".ws",
     ".wsc",
+    ".3ds",
+    ".cci",
+    ".cia",
     ".zip",
     ".7z",
+    # Dreamcast
+    ".cdi",
+    ".gdi",
+    # Virtual Boy
+    ".vb",
+    # Pokémon Mini
+    ".min",
+    # Atari 800 / 5200
+    ".atr",
+    ".xex",
+    ".a52",
+    # Atari Jaguar
+    ".j64",
+    ".jag",
+    # C64
+    ".d64",
+    ".t64",
+    ".prg",
+    ".crt",
+    # Amiga
+    ".adf",
+    ".ipf",
+    ".hdf",
+    ".adz",
+    # MSX / Amstrad / CPC
+    ".dsk",
+    ".cas",
+    ".rom",
+    # ColecoVision
+    ".col",
+    # Intellivision
+    ".int",
+    # Amstrad CPC
+    ".cpc",
+    # ZX Spectrum
+    ".tzx",
+    ".tap",
+    ".sna",
+    ".z80",
 }
 
 
@@ -210,22 +352,92 @@ def _parse_playlists(playlists_dir: Path) -> list[tuple[Path, str]]:
     return results
 
 
+def _saturn_save_candidates_for_format(
+    rom_stem: str, saves_dir: Path, saturn_format: str
+) -> list[Path]:
+    """Return Saturn save paths to check in order of preference for *saturn_format*.
+
+    The first entry is the expected-write path for that emulator (used as
+    the fallback when nothing exists yet), matching Android's
+    ``expectedRetroArchSaturnSaveFile``.
+    """
+    if saturn_format == "mednafen":
+        return [
+            saves_dir / "Beetle Saturn" / f"{rom_stem}.bkr",
+            saves_dir / "Kronos" / f"{rom_stem}.bkr",
+            saves_dir / f"{rom_stem}.bkr",
+        ]
+    if saturn_format == "yabause":
+        return [
+            saves_dir / f"{rom_stem}.srm",
+            saves_dir / "yabause" / f"{rom_stem}.srm",
+        ]
+    if saturn_format == "yabasanshiro":
+        return [
+            saves_dir / "yabasanshiro" / "backup.bin",
+            saves_dir / "backup.bin",
+        ]
+    return []
+
+
 def _find_save_for_rom(
     rom_stem: str,
     system: str,
     saves_dir: Path,
+    saturn_format: str = "mednafen",
 ) -> Optional[Path]:
     """Find a RetroArch save file matching the ROM stem."""
-    folder_info = None
-    for folder_key, info in ROM_FOLDER_MAP.items():
-        if info[0] == system:
-            folder_info = info
-            break
+    if system == "SAT":
+        # Prefer the user's configured emulator format.  If none of those
+        # paths exist yet, fall back to any other Saturn save we can find
+        # (users switching emulators mid-library shouldn't lose sight of
+        # existing saves); finally, construct the expected write path
+        # for the configured format so new downloads land where the
+        # chosen emulator will read them.
+        preferred = _saturn_save_candidates_for_format(
+            rom_stem, saves_dir, saturn_format
+        )
+        for candidate in preferred:
+            if candidate.exists():
+                return candidate
 
-    if folder_info:
-        core_dirs, save_exts = folder_info[1], folder_info[2]
-    else:
-        core_dirs = []
+        other_formats = [
+            fmt
+            for fmt in ("mednafen", "yabause", "yabasanshiro")
+            if fmt != saturn_format
+        ]
+        for fmt in other_formats:
+            for candidate in _saturn_save_candidates_for_format(
+                rom_stem, saves_dir, fmt
+            ):
+                if candidate.exists():
+                    return candidate
+
+        if preferred:
+            return preferred[0]
+        return saves_dir / f"{rom_stem}.srm"
+
+    # Collect every ROM_FOLDER_MAP entry that targets this system, so we
+    # search all relevant core-specific save subdirs.  Many systems share the
+    # same system code (e.g. ARCADE covers MAME, FBNeo, VICE, PUAE, blueMSX…),
+    # and each core writes to its own subdirectory.
+    core_dirs: list[str] = []
+    save_exts: list[str] = []
+    seen_dirs: set[str] = set()
+    seen_exts: set[str] = set()
+    for _folder_key, info in ROM_FOLDER_MAP.items():
+        if info[0] != system:
+            continue
+        for c in info[1]:
+            if c not in seen_dirs:
+                seen_dirs.add(c)
+                core_dirs.append(c)
+        for ext in info[2]:
+            if ext not in seen_exts:
+                seen_exts.add(ext)
+                save_exts.append(ext)
+
+    if not save_exts:
         save_exts = [".srm", ".sav"]
 
     # Search in core-specific subdirs and in root saves dir
@@ -240,11 +452,20 @@ def _find_save_for_rom(
     return None
 
 
-def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
+def scan(
+    emulation_path: Path,
+    saturn_sync_format: str = "mednafen",
+) -> Generator[GameEntry, None, None]:
     """
     Scan RetroArch saves, yielding GameEntry objects.
     Uses playlist-first strategy, falls back to ROM directory scan.
+
+    ``saturn_sync_format`` selects which Saturn emulator's save path to
+    prefer (matches Android's SettingsStore.saturnSyncFormat).
     """
+    saturn_sync_format = (saturn_sync_format or "mednafen").strip().lower()
+    if saturn_sync_format not in ("mednafen", "yabause", "yabasanshiro"):
+        saturn_sync_format = "mednafen"
     # Locate RetroArch config and saves — prefer user-configured emulation_path
     emu_ra = emulation_path / "saves" / "retroarch"
     ra_config_dir = find_paths(
@@ -275,12 +496,17 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
         if not rom_path.exists():
             continue
         rom_stem = rom_path.stem
-        title_id = to_title_id(rom_stem, system)
+        if system == "SAT":
+            title_id = _saturn_title_id(rom_path, rom_stem)
+        else:
+            title_id = make_title_id(system, rom_stem)
         if title_id in seen_title_ids:
             continue
         seen_title_ids.add(title_id)
 
-        save_path = _find_save_for_rom(rom_stem, system, saves_dir)
+        save_path = _find_save_for_rom(
+            rom_stem, system, saves_dir, saturn_sync_format
+        )
         entry = GameEntry(
             title_id=title_id,
             display_name=rom_stem,
@@ -288,13 +514,15 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
             emulator="RetroArch",
             save_path=save_path,
             rom_path=rom_path,
+            rom_filename=rom_path.name,
         )
         if save_path and save_path.exists():
             try:
-                entry.save_hash = sha256_file(save_path)
                 stat = save_path.stat()
                 entry.save_mtime = stat.st_mtime
                 entry.save_size = stat.st_size
+                if not (system == "SAT" and save_path.name.lower() == "backup.bin"):
+                    entry.save_hash = sha256_file(save_path)
             except Exception:
                 pass
         yield entry
@@ -314,12 +542,17 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
             if rom_file.suffix.lower() not in ROM_EXTENSIONS:
                 continue
             rom_stem = rom_file.stem
-            title_id = to_title_id(rom_stem, system)
+            if system == "SAT":
+                title_id = _saturn_title_id(rom_file, rom_stem)
+            else:
+                title_id = make_title_id(system, rom_stem)
             if title_id in seen_title_ids:
                 continue
             seen_title_ids.add(title_id)
 
-            save_path = _find_save_for_rom(rom_stem, system, saves_dir)
+            save_path = _find_save_for_rom(
+                rom_stem, system, saves_dir, saturn_sync_format
+            )
             entry = GameEntry(
                 title_id=title_id,
                 display_name=rom_stem,
@@ -327,13 +560,15 @@ def scan(emulation_path: Path) -> Generator[GameEntry, None, None]:
                 emulator="RetroArch",
                 save_path=save_path,
                 rom_path=rom_file,
+                rom_filename=rom_file.name,
             )
             if save_path and save_path.exists():
                 try:
-                    entry.save_hash = sha256_file(save_path)
                     stat = save_path.stat()
                     entry.save_mtime = stat.st_mtime
                     entry.save_size = stat.st_size
+                    if not (system == "SAT" and save_path.name.lower() == "backup.bin"):
+                        entry.save_hash = sha256_file(save_path)
                 except Exception:
                     pass
             yield entry

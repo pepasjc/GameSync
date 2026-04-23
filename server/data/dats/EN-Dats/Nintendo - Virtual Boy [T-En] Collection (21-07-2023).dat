@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Nintendo - Virtual Boy [T-En] Collection</name>
+		<description>Nintendo - Virtual Boy [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>21-07-2023</version>
+		<date>21-07-2023</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="Insmouth Mansion (Japan) [T-En by Thunderstruck v1.0] [n]">
+		<description>Insmouth Mansion (Japan) [T-En by Thunderstruck v1.0] [n]</description>
+		<rom name="Insmouth Mansion (Japan) [T-En by Thunderstruck v1.0] [n].vb" size="1048576" crc="04ccbe94" md5="4698a0b151d95bbbb833e2a523a12be7" sha1="37f0351b1711a9580a7346127bc54b3927bc7e1e"/>
+	</machine>
+	<machine name="SD Gundam - Dimension War (Japan) [T-En by Greg Stevens &amp; Benjamin Stevens v1.0]">
+		<description>SD Gundam - Dimension War (Japan) [T-En by Greg Stevens &amp; Benjamin Stevens v1.0]</description>
+		<rom name="SD Gundam - Dimension War (Japan) [T-En by Greg Stevens &amp; Benjamin Stevens v1.0].vb" size="1048576" crc="db4da3d9" md5="45825104799b74d36740d486f3f0cdf2" sha1="fc4c9d8b463ec493815fa7994d0179e1c26aebc2"/>
+	</machine>
+	<machine name="Space Invaders - Virtual Collection (Japan) [T-En by Thunderstruck v1.0]">
+		<description>Space Invaders - Virtual Collection (Japan) [T-En by Thunderstruck v1.0]</description>
+		<rom name="Space Invaders - Virtual Collection (Japan) [T-En by Thunderstruck v1.0].vb" size="2097152" crc="7eb3b932" md5="bb4aa9566437572802079c89452666e7" sha1="085cbe9de99f166341b3b7374f18195f25fa5330"/>
+	</machine>
+	<machine name="Space Squash (Japan) [T-En by Feel &amp; Greg Stevens &amp; Benjamin Stevens &amp; Thunderstruck v2.0]">
+		<description>Space Squash (Japan) [T-En by Feel &amp; Greg Stevens &amp; Benjamin Stevens &amp; Thunderstruck v2.0]</description>
+		<rom name="Space Squash (Japan) [T-En by Feel &amp; Greg Stevens &amp; Benjamin Stevens &amp; Thunderstruck v2.0].vb" size="2097152" crc="f17be1a2" md5="c257aa8e805afa40506b521e2d03458e" sha1="6737c0525239d84060c06169556218b7b8422518"/>
+	</machine>
+	<machine name="Virtual Fishing (Japan) [T-En by Benjamin Stevens &amp; Thunderstruck v1.0]">
+		<description>Virtual Fishing (Japan) [T-En by Benjamin Stevens &amp; Thunderstruck v1.0]</description>
+		<rom name="Virtual Fishing (Japan) [T-En by Benjamin Stevens &amp; Thunderstruck v1.0].vb" size="2097152" crc="9602cf06" md5="ef6e68d193dae7eb9f51face69e9dcf9" sha1="448f0bc30d2611aa970c2fdc25e462a6e17d3da5"/>
+	</machine>
+	<machine name="Virtual Lab (Japan) [T-En by Thunderstruck v1.0]">
+		<description>Virtual Lab (Japan) [T-En by Thunderstruck v1.0]</description>
+		<rom name="Virtual Lab (Japan) [T-En by Thunderstruck v1.0].vb" size="1048576" crc="1b1e5cb7" md5="bd6bc0cdb310969583c442f9c8509fc0" sha1="cd1305e86e1b5a3c7b49deba61196bc88fe7dd8f"/>
+	</machine>
+</datafile>

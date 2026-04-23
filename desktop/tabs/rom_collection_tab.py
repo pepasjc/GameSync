@@ -25,6 +25,55 @@ from PyQt6.QtWidgets import (
 from config import SYSTEM_CHOICES, load_config
 
 
+def format_build_confirmation_message(
+    output_folder: Path,
+    matched_count: int,
+    unmatched_found_count: int,
+    include_unmatched: bool,
+    split_into_ranges: bool,
+    bucket_count: int,
+    unzip_archives: bool,
+    one_game_one_rom: bool,
+) -> str:
+    unmatched_copied_count = unmatched_found_count if include_unmatched else 0
+    total_written = matched_count + unmatched_copied_count
+    if split_into_ranges:
+        matched_line = (
+            f"Matched games: {matched_count} file(s), split into {bucket_count} "
+            "letter-range folders."
+        )
+    else:
+        matched_line = f"Matched games: {matched_count} file(s), copied flat into the output folder."
+
+    unmatched_line = (
+        f"Unmatched files: {unmatched_found_count} found, "
+        f"{unmatched_copied_count} will be copied into the 'unmatched files' subfolder."
+        if include_unmatched
+        else f"Unmatched files: {unmatched_found_count} found, 0 will be copied."
+    )
+
+    zip_line = (
+        "ZIP/7z ROM archives will be extracted."
+        if unzip_archives
+        else "ZIP ROMs stay .zip and 7z ROMs will be converted to .zip."
+    )
+    mode_line = (
+        "Mode: 1G1R preferred set."
+        if one_game_one_rom
+        else "Mode: complete collection (all matched variants)."
+    )
+
+    return (
+        f"Build collection in:\n{output_folder}\n\n"
+        f"Total files to write: {total_written}\n"
+        f"{mode_line}\n"
+        f"{matched_line}\n"
+        f"{unmatched_line}\n"
+        f"{zip_line}\n"
+        "Proceed?"
+    )
+
+
 class CollectionScanWorker(QThread):
     finished = pyqtSignal(list, list, list)
     progress = pyqtSignal(str)
@@ -37,6 +86,7 @@ class CollectionScanWorker(QThread):
         no_intro: dict[str, str],
         clone_map: dict[str, str] | None = None,
         skip_crc: bool = False,
+        one_game_one_rom: bool = True,
     ):
         super().__init__()
         self.folder = folder
@@ -44,6 +94,7 @@ class CollectionScanWorker(QThread):
         self.no_intro = no_intro
         self.clone_map = clone_map or {}
         self.skip_crc = skip_crc
+        self.one_game_one_rom = one_game_one_rom
 
     def run(self):
         try:
@@ -56,6 +107,7 @@ class CollectionScanWorker(QThread):
                 progress_callback=self.progress.emit,
                 clone_map=self.clone_map,
                 skip_crc=self.skip_crc,
+                one_game_one_rom=self.one_game_one_rom,
             )
             self.finished.emit(entries, duplicates, unmatched)
         except Exception as exc:
@@ -103,6 +155,51 @@ class CollectionBuildWorker(QThread):
             self.error.emit(traceback.format_exc() or str(exc))
 
 
+class CollectionValidateWorker(QThread):
+    finished = pyqtSignal(object)
+    progress = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(
+        self,
+        folder: Path,
+        system: str,
+        no_intro: dict[str, str],
+        clone_map: dict[str, str] | None = None,
+        skip_crc: bool = False,
+        one_game_one_rom: bool = True,
+        enabled_regions: set[str] | None = None,
+    ):
+        super().__init__()
+        self.folder = folder
+        self.system = system
+        self.no_intro = no_intro
+        self.clone_map = clone_map or {}
+        self.skip_crc = skip_crc
+        self.one_game_one_rom = one_game_one_rom
+        self.enabled_regions = enabled_regions
+
+    def run(self):
+        try:
+            import rom_collection as rc
+
+            report = rc.validate_collection(
+                self.folder,
+                self.system,
+                self.no_intro,
+                progress_callback=self.progress.emit,
+                clone_map=self.clone_map,
+                skip_crc=self.skip_crc,
+                one_game_one_rom=self.one_game_one_rom,
+                enabled_regions=self.enabled_regions,
+            )
+            self.finished.emit(report)
+        except Exception as exc:
+            import traceback
+
+            self.error.emit(traceback.format_exc() or str(exc))
+
+
 class RomCollectionTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -139,11 +236,25 @@ class RomCollectionTab(QWidget):
         self.system_combo.addItems([""] + SYSTEM_CHOICES)
         self.system_combo.currentTextChanged.connect(self._on_system_changed)
         source_layout.addWidget(self.system_combo, 1, 1)
-        self.unzip_check = QCheckBox("Unzip zipped ROMs when building collection")
+        self.unzip_check = QCheckBox(
+            "Extract .zip/.7z ROM archives when building collection"
+        )
         self.unzip_check.setToolTip(
-            "When checked, .zip sources are extracted to their ROM file. Otherwise the .zip is copied and renamed."
+            "When checked, .zip and .7z sources are extracted to their ROM file. "
+            "Otherwise .zip files stay zipped and .7z files are converted to .zip."
         )
         source_layout.addWidget(self.unzip_check, 1, 2, 1, 2)
+        self.one_game_one_rom_check = QCheckBox(
+            "1G1R (keep one preferred copy per game)"
+        )
+        self.one_game_one_rom_check.setChecked(True)
+        self.one_game_one_rom_check.setToolTip(
+            "When checked, keeps one preferred variant per game using the collection priority rules. Disable to include all matched variants."
+        )
+        self.one_game_one_rom_check.stateChanged.connect(
+            self._on_collection_mode_changed
+        )
+        source_layout.addWidget(self.one_game_one_rom_check, 2, 1, 1, 3)
         self.include_unmatched_check = QCheckBox(
             "Include unmatched files in 'unmatched files' folder"
         )
@@ -151,7 +262,7 @@ class RomCollectionTab(QWidget):
             "When checked, unmatched ROMs/archives are copied as-is into an 'unmatched files' subfolder in the output."
         )
         self.include_unmatched_check.stateChanged.connect(self._refresh_build_button)
-        source_layout.addWidget(self.include_unmatched_check, 2, 1, 1, 3)
+        source_layout.addWidget(self.include_unmatched_check, 3, 1, 1, 3)
         self.bucket_folders_check = QCheckBox(
             "Split collection into letter-range folders"
         )
@@ -159,15 +270,15 @@ class RomCollectionTab(QWidget):
             "When checked, matched games are copied into auto-generated folders like A-G, H-N, O-T, U-Z."
         )
         self.bucket_folders_check.stateChanged.connect(self._on_bucket_toggle)
-        source_layout.addWidget(self.bucket_folders_check, 3, 1, 1, 2)
+        source_layout.addWidget(self.bucket_folders_check, 4, 1, 1, 2)
         self.bucket_count_spin = QSpinBox()
         self.bucket_count_spin.setRange(2, 26)
         self.bucket_count_spin.setValue(4)
         self.bucket_count_spin.setEnabled(False)
         self.bucket_count_spin.setToolTip("How many letter-range folders to create.")
-        source_layout.addWidget(self.bucket_count_spin, 3, 3)
+        source_layout.addWidget(self.bucket_count_spin, 4, 3)
 
-        source_layout.addWidget(QLabel("Regions:"), 4, 0)
+        source_layout.addWidget(QLabel("Regions:"), 5, 0)
         region_box = QHBoxLayout()
         self.region_usa_check = QCheckBox("USA")
         self.region_usa_check.setChecked(True)
@@ -191,7 +302,7 @@ class RomCollectionTab(QWidget):
         region_box.addStretch()
         region_widget = QWidget()
         region_widget.setLayout(region_box)
-        source_layout.addWidget(region_widget, 4, 1, 1, 3)
+        source_layout.addWidget(region_widget, 5, 1, 1, 3)
 
         self.crc_check = QCheckBox("CRC matching")
         self.crc_check.setChecked(True)
@@ -200,8 +311,8 @@ class RomCollectionTab(QWidget):
             "Accurate but slow for large collections. Disable to use only\n"
             "filename / header matching (much faster)."
         )
-        source_layout.addWidget(QLabel("Options:"), 5, 0)
-        source_layout.addWidget(self.crc_check, 5, 1, 1, 3)
+        source_layout.addWidget(QLabel("Options:"), 6, 0)
+        source_layout.addWidget(self.crc_check, 6, 1, 1, 3)
 
         layout.addLayout(source_layout)
 
@@ -220,8 +331,11 @@ class RomCollectionTab(QWidget):
         self.build_btn = QPushButton("Build Collection…")
         self.build_btn.clicked.connect(self._build)
         self.build_btn.setEnabled(False)
+        validate_btn = QPushButton("Validate Collection…")
+        validate_btn.clicked.connect(self._validate)
         btn_row.addWidget(scan_btn)
         btn_row.addWidget(self.build_btn)
+        btn_row.addWidget(validate_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
@@ -351,6 +465,7 @@ class RomCollectionTab(QWidget):
             self._no_intro,
             clone_map=self._clone_map,
             skip_crc=not self.crc_check.isChecked(),
+            one_game_one_rom=self.one_game_one_rom_check.isChecked(),
         )
         self._scan_worker.progress.connect(self.status_label.setText)
         self._scan_worker.finished.connect(self._on_scan_done)
@@ -413,6 +528,15 @@ class RomCollectionTab(QWidget):
         if getattr(self, "_all_entries", None):
             self._apply_region_filter()
 
+    def _on_collection_mode_changed(self):
+        self._entries = []
+        self._duplicates = []
+        self._unmatched = []
+        self._all_entries = []
+        self.table.setRowCount(0)
+        self._refresh_build_button()
+        self.status_label.setText("Collection mode changed. Scan again.")
+
     def _on_worker_error(self, msg: str):
         self._refresh_build_button()
         QMessageBox.critical(self, "ROM Collection Error", msg)
@@ -443,13 +567,16 @@ class RomCollectionTab(QWidget):
         reply = QMessageBox.question(
             self,
             "Build ROM Collection",
-            f"Copy {len(self._entries)} unique game(s) into:\n{output_folder}\n\n"
-            f"{len(self._unmatched) if include_unmatched else 0} unmatched file(s) will "
-            f"{'also be copied into' if include_unmatched else 'be skipped from'} "
-            f"the 'unmatched files' subfolder.\n"
-            f"Matched games will {'be split into ' + str(self.bucket_count_spin.value()) + ' letter-range folders' if self.bucket_folders_check.isChecked() else 'be copied flat into the output folder'}.\n"
-            f"Zipped ROMs will be {'extracted' if self.unzip_check.isChecked() else 'copied as .zip files'}.\n"
-            f"Proceed?",
+            format_build_confirmation_message(
+                output_folder=output_folder,
+                matched_count=len(self._entries),
+                unmatched_found_count=len(self._unmatched),
+                include_unmatched=include_unmatched,
+                split_into_ranges=self.bucket_folders_check.isChecked(),
+                bucket_count=self.bucket_count_spin.value(),
+                unzip_archives=self.unzip_check.isChecked(),
+                one_game_one_rom=self.one_game_one_rom_check.isChecked(),
+            ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -480,11 +607,80 @@ class RomCollectionTab(QWidget):
             self, "ROM Collection Complete", f"Created {len(written)} file(s)."
         )
 
+    def _validate(self):
+        system = self.system_combo.currentText().strip()
+        if not system:
+            QMessageBox.warning(self, "Error", "Select a system first.")
+            return
+        if not self._no_intro:
+            QMessageBox.warning(self, "Error", "Load a DAT first.")
+            return
+
+        folder = self.folder_edit.text().strip()
+        if not folder:
+            QMessageBox.warning(self, "Error", "Set a ROM folder first.")
+            return
+        if not Path(folder).exists():
+            QMessageBox.warning(self, "Error", f"ROM folder not found:\n{folder}")
+            return
+
+        self.status_label.setText("Validating collection...")
+        self.build_btn.setEnabled(False)
+        self._validate_worker = CollectionValidateWorker(
+            folder=Path(folder),
+            system=system,
+            no_intro=self._no_intro,
+            clone_map=self._clone_map,
+            skip_crc=not self.crc_check.isChecked(),
+            one_game_one_rom=self.one_game_one_rom_check.isChecked(),
+            enabled_regions=self._enabled_regions(),
+        )
+        self._validate_worker.progress.connect(self.status_label.setText)
+        self._validate_worker.finished.connect(
+            lambda report: self._on_validate_done(Path(folder), system, report)
+        )
+        self._validate_worker.error.connect(self._on_worker_error)
+        self._validate_worker.start()
+
+    def _on_validate_done(self, folder: Path, system: str, report):
+        import rom_collection as rc
+
+        self._refresh_build_button()
+        report_text = rc.format_validation_report(
+            report,
+            folder,
+            system,
+            self.one_game_one_rom_check.isChecked(),
+            self._enabled_regions(),
+        )
+        default_name = f"{system.lower()}_collection_validation.txt"
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Validation Report",
+            str((folder / default_name)),
+            "Text Files (*.txt)",
+        )
+        if save_path:
+            Path(save_path).write_text(report_text, encoding="utf-8")
+        self.status_label.setText(
+            f"Validation complete: {len(report.present)} present, {len(report.wrong_region)} incorrect region, {len(report.missing)} missing."
+        )
+        message = (
+            f"Present: {len(report.present)}\n"
+            f"Incorrect region: {len(report.wrong_region)}\n"
+            f"Missing: {len(report.missing)}\n"
+            f"Unmatched: {len(report.unmatched)}"
+        )
+        if save_path:
+            message += f"\n\nReport saved to:\n{save_path}"
+        QMessageBox.information(self, "Collection Validation Complete", message)
+
     def save_ui_state(self) -> dict:
         return {
             "folder": self.folder_edit.text(),
             "system": self.system_combo.currentText(),
             "unzip": self.unzip_check.isChecked(),
+            "one_game_one_rom": self.one_game_one_rom_check.isChecked(),
             "include_unmatched": self.include_unmatched_check.isChecked(),
             "bucket_folders": self.bucket_folders_check.isChecked(),
             "bucket_count": self.bucket_count_spin.value(),
@@ -507,6 +703,9 @@ class RomCollectionTab(QWidget):
     def load_ui_state(self, state: dict):
         self.folder_edit.setText(state.get("folder", ""))
         self.unzip_check.setChecked(bool(state.get("unzip", False)))
+        self.one_game_one_rom_check.setChecked(
+            bool(state.get("one_game_one_rom", True))
+        )
         self.include_unmatched_check.setChecked(
             bool(state.get("include_unmatched", False))
         )

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Microsoft - XBOX 360 [T-En] Collection</name>
+		<description>Microsoft - XBOX 360 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>17-11-2022</version>
+		<date>17-11-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Microsoft - XBOX 360 [T-En] Docs">
+		<description>_Microsoft - XBOX 360 [T-En] Docs</description>
+		<rom name="Mobile Suit Gundam - Operation - Troy (Japan) [T-En by Yuvi &amp; SnowyAria v1.0].txt" size="1250" crc="a55bf5b1" md5="b018d22fc4ddf63842dbe5a511d14165" sha1="e0e36431f60b4a0416c3cf77a12b9510b50f7fa0"/>
+		<rom name="Otomedius Gorgeous! (Japan) [T-En by GameStone v1.8].txt" size="25060" crc="e8cd8aeb" md5="851a9042cf1b2f6e5543611fe3bdfc94" sha1="2ad7e4d17cf9ee9ab334f3e085e505cbc19e474b"/>
+	</machine>
+	<machine name="Mobile Suit Gundam - Operation - Troy (Japan) [T-En by Yuvi &amp; SnowyAria v1.0]">
+		<description>Mobile Suit Gundam - Operation - Troy (Japan) [T-En by Yuvi &amp; SnowyAria v1.0]</description>
+		<rom name="Mobile Suit Gundam - Operation - Troy (Japan) [T-En by Yuvi &amp; SnowyAria v1.0].iso" size="1375404032" crc="512c62d2" md5="34bb6e2f8e376588a50c9534efbdd094" sha1="5848a08da2cdef6e5119ebc91936d4b9e55bdc9c"/>
+	</machine>
+	<machine name="Otomedius Gorgeous! (Japan) [T-En by GameStone v1.8]">
+		<description>Otomedius Gorgeous! (Japan) [T-En by GameStone v1.8]</description>
+		<rom name="Otomedius Gorgeous! (Japan) [T-En by GameStone v1.8].iso" size="3548905472" crc="fa392665" md5="6bf03317a4b52fcb32f3015ddc44a61b" sha1="84cb81fe5432b1390830c9941c59c59f77addcac"/>
+	</machine>
+	<machine name="Otomedius Gorgeous! (Japan) [T-En by GameStone v1.8] [DLC]">
+		<description>Otomedius Gorgeous! (Japan) [T-En by GameStone v1.8] [DLC]</description>
+		<rom name="4B4E07EE\00000001\replaydata_cs.bin\savegame.bin" size="149016" crc="9a017384" md5="b2d12f3ccb66bad5b1f508fd3c256e44" sha1="82cdf74aff7a21520e2184fa62104550216c7205"/>
+		<rom name="4B4E07EE\00000001\systemdata.bin\savegame.bin" size="139264" crc="775ee72a" md5="bc9bb425bd33c3f347ab467d5c1570be" sha1="b193a77a99f24d8cf24fff65e4c9071a25cc69a8"/>
+		<rom name="4B4E07EE\00000002\520F48E55F13F97CE378BAC1B7FC3FDC987D3F4F4B" size="220594176" crc="f22e4c3c" md5="81116d2fa9ffbdb4b468112f3c3c7f0c" sha1="d4b9dc10910e7860dfdde873097f83a1cf935d02"/>
+		<rom name="4B4E07EE\00000002\89B62745F6D7D43F947CC8F35899B1F6F540D8564B" size="216858624" crc="813d83ec" md5="faad90f39d16eadf21a7c4a240bbd24f" sha1="866c4a52cde00d5e8714f6b3be4d641927e4bd25"/>
+		<rom name="4B4E07EE\00000002\8A6429AD98555711B19F61A216D608A3181DFC794B" size="49238016" crc="cf73393b" md5="492958dfa84cbc25c3d7036f1481a730" sha1="2bf999e30744c5717e276310a41a856f56443b7a"/>
+		<rom name="4B4E07EE\00000002\970C4E11DE25B95FB4EF524BD769B1E7B790C8A24B" size="172752896" crc="4d97196a" md5="e12de210b4bd8ade9081c9debee353e7" sha1="9e30f5a3825bfba67d0b912c888f02d28e78f6fd"/>
+		<rom name="4B4E07EE\00000002\A949B78B51DA0604CFAFA2B1406D048DC64A9F084B" size="171556864" crc="449b381b" md5="157581e611c961ca5cffbf03a74bf1ae" sha1="dcad5193b06baae11977e4d348f2ec3e6e1794ba"/>
+		<rom name="4B4E07EE\00000002\AB798841C15E724E3040BD0DDC35A4A50C3B7F134B" size="246710272" crc="2e7d6067" md5="e2478e1f891c976a2a9300545727a6e5" sha1="cd8d8be6cfdf523e5e7b562fadc484a30dfcb377"/>
+		<rom name="4B4E07EE\00000002\C9E18A012735D40DA62372B3F5E55A6842F4A0D74B" size="55508992" crc="227c5e53" md5="bc207f38f9c7f6677a8a2b16229ba68e" sha1="ae72565397f0067c3413f0773e641ce87ac423b6"/>
+		<rom name="4B4E07EE\00000002\D7D0BA95DF057960B672D5CF0174BE461DF57D7F4B" size="226476032" crc="715ec8b3" md5="ad5cafd82e9f9f38c49fb878f07283ba" sha1="f94704abd31ba02f2a96599c26bbeabc40a514a1"/>
+		<rom name="4B4E07EE\00000002\E61385671F3F520EA37F50798EBC0F4C0E4EE52D4B" size="209928192" crc="62288465" md5="9c449bb37921dd2c765ba13db93372ed" sha1="cc6a7c3971db1c0b312e932452266e90ff138586"/>
+		<rom name="4B4E07EE\000B0000\TU_15KS1VE_0000004000000.0000000000081" size="2387968" crc="1996839a" md5="69f8c06c30458dcde615d68152d81c40" sha1="2dbac60298a29a62a4f09aeb2498f618e02c02ad"/>
+		<rom name="4B4E07EE\000B0000\TU_15KS1VE_0000008000000.0000000000082" size="2183168" crc="aa483511" md5="bee548181e63e5a0313e6c35960dffed" sha1="887526ee0b3b2b5d83e981b55fadb29d18020654"/>
+		<rom name="4B4E07EE\Headers\00000001\systemdata.bin.header" size="328" crc="6a58bbf3" md5="8b6a1fbdb21780116ff2f15612a60fb4" sha1="1a068659d0bbb2e43b80f9d53b5c6d0f1f0725ce"/>
+	</machine>
+</datafile>

@@ -1,8 +1,7 @@
 """Sync engine for ROM-based save syncing (RetroArch, MiSTer, Analogue Pocket, etc.).
 
-Standalone module — does not import from the server codebase.
-Uses dedicated server save endpoints when a platform needs format-aware
-conversion (for example PS1/PS2 memory cards), and `/raw` for simpler systems.
+Uses the shared package for cross-app ROM/title-id helpers while keeping the
+device sync workflow independent from the server package layout.
 """
 
 from __future__ import annotations
@@ -21,62 +20,29 @@ from typing import Optional
 
 import requests
 
+from systems import (
+    CD_ALL_EXTENSIONS,
+    MEGA_EVERDRIVE_CD_SYSTEMS,
+    MISTER_FOLDER_MAP,
+    ROM_EXTENSIONS,
+    SAVE_EXTENSIONS,
+    SYSTEM_CODES,
+    SYSTEM_DEFAULT_SAVE_EXT,
+)
+from shared.rom_id import make_title_id, normalize_rom_name
+
 # ---------------------------------------------------------------------------
-# ROM name normalization (mirrors server/app/services/rom_id.py)
+# ROM name normalization helpers layered on top of shared.rom_id
 # ---------------------------------------------------------------------------
 
-SYSTEM_CODES = frozenset(
-    {
-        "GBA",
-        "SNES",
-        "NES",
-        "MD",
-        "N64",
-        "GB",
-        "GBC",
-        "GG",
-        "NGP",
-        "PCE",
-        "PS1",
-        "PS2",
-        "SMS",
-        "A2600",
-        "A7800",
-        "LYNX",
-        "NEOGEO",
-        "32X",
-        "SEGACD",
-        "SAT",
-        "TG16",
-        "WSWAN",
-        "WSWANC",
-        "DC",
-        "NDS",
-        "GC",
-        "ARCADE",
-        "MAME",
-        "CPS1",
-        "CPS2",
-        "CPS3",
-        "FDS",
-    }
-)
-
-_REGION_RE = re.compile(
-    r"\s*\((?:USA|Europe|Japan|World|Germany|France|Italy|Spain|Australia|"
-    r"Brazil|Korea|China|Netherlands|Sweden|Denmark|Norway|Finland|Asia|"
-    r"En|Ja|Fr|De|Es|It|Nl|Pt|Sv|No|Da|Fi|Ko|Zh|[A-Z][a-z,\s]+)\)",
-    re.IGNORECASE,
-)
+# SYSTEM_CODES imported from systems
 _REV_RE = re.compile(
     r"\s*\((?:Rev\s*\w+|v\d[\d.]*|Version\s*\w+|Beta\s*\d*|Proto\s*\d*|Demo|Sample|Unl)\)",
     re.IGNORECASE,
 )
 _DISC_RE = re.compile(r"\s*\((?:Disc|Disk|CD)\s*\d+\)", re.IGNORECASE)
 _EXTRA_RE = re.compile(r"\s*\([^)]+\)")
-_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
-_MULTI_UNDERSCORE_RE = re.compile(r"_+")
-_EMULATOR_TITLE_ID_RE = re.compile(r"^([A-Z0-9]{2,8})_([a-z0-9][a-z0-9_]{0,99})$")
+_BRACKET_TAG_RE = re.compile(r"\s*\[[^\]]*\]")
 
 _REGION_NAMES = {
     "usa",
@@ -101,6 +67,41 @@ _REGION_NAMES = {
 _PAREN_GROUP_RE = re.compile(r"\(([^)]+)\)")
 
 
+def _scan_debug_enabled() -> bool:
+    return os.environ.get("SYNC_DEBUG_SCAN", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _scan_debug_log_path() -> Path:
+    override = os.environ.get("SYNC_DEBUG_SCAN_FILE", "").strip()
+    if override:
+        return Path(override)
+    return Path(__file__).resolve().parent / "scan_debug.log"
+
+
+def _reset_debug_scan_log() -> None:
+    if not _scan_debug_enabled():
+        return
+    path = _scan_debug_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("", encoding="utf-8")
+
+
+def _debug_scan(message: str) -> None:
+    if not _scan_debug_enabled():
+        return
+    line = f"[sync-debug] {message}"
+    print(line)
+    path = _scan_debug_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
+
+
 def _extract_regions(stem: str) -> list[str]:
     """Return ordered region tags from a name, e.g. ['usa', 'europe'].
 
@@ -117,34 +118,9 @@ def _extract_regions(stem: str) -> list[str]:
     return regions
 
 
-def normalize_rom_name(filename: str) -> str:
-    """Strip extension, region/revision tags, normalize to lowercase slug."""
-    name = filename
-    for _ in range(3):
-        dot_idx = name.rfind(".")
-        if dot_idx <= 0:
-            break
-        suffix = name[dot_idx + 1 :]
-        if 1 <= len(suffix) <= 5 and suffix.isalnum():
-            name = name[:dot_idx]
-        else:
-            break
-    name = _REGION_RE.sub("", name)
-    name = _REV_RE.sub("", name)
-    name = _DISC_RE.sub("", name)
-    name = _EXTRA_RE.sub("", name)
-    name = name.lower()
-    name = _NON_ALNUM_RE.sub("_", name)
-    name = _MULTI_UNDERSCORE_RE.sub("_", name).strip("_")
-    return name or "unknown"
-
-
-def make_title_id(system: str, rom_filename: str) -> str:
-    """Return canonical title_id e.g. GBA_zelda_the_minish_cap."""
-    system = system.upper().strip()
-    if system not in SYSTEM_CODES:
-        raise ValueError(f"Unknown system code: {system!r}")
-    return f"{system}_{normalize_rom_name(rom_filename)}"
+def _normalize_alias_lookup_name(filename: str) -> str:
+    """Normalize translated names while ignoring [patch] metadata."""
+    return normalize_rom_name(_BRACKET_TAG_RE.sub("", filename).strip())
 
 
 def slug_to_display_name(slug: str) -> str:
@@ -178,6 +154,21 @@ RETROARCH_CORE_MAP: dict[str, str] = {
     "Beetle GG": "GG",
     "Beetle PSX": "PS1",
     "PCSX-ReARMed": "PS1",
+    "PPSSPP": "PSP",
+    "LRPS2": "PS2",
+    "Play!": "PS2",
+    "Beetle Saturn": "SAT",
+    "Kronos": "SAT",
+    "YabaSanshiro": "SAT",
+    "YabaSanshiro 2": "SAT",
+    "Flycast": "DC",
+    "Dolphin": "GC",
+    "DeSmuME": "NDS",
+    "melonDS": "NDS",
+    "melonDS DS": "NDS",
+    "Beetle Cygne": "WSWAN",
+    "Beetle VB": "VB",
+    "Beetle SuperGrafx": "PCSG",
     "SMS Plus GX": "SMS",
     "Stella": "A2600",
     "ProSystem": "A7800",
@@ -186,27 +177,45 @@ RETROARCH_CORE_MAP: dict[str, str] = {
     "MAME": "MAME",
 }
 
-# MiSTer saves folder name -> system code
-MISTER_FOLDER_MAP: dict[str, str] = {
-    "GBA": "GBA",
-    "SNES": "SNES",
-    "NES": "NES",
-    "Genesis": "MD",
-    "MegaDrive": "MD",
-    "N64": "N64",
-    "Gameboy": "GB",
-    "GBC": "GBC",
-    "GameGear": "GG",
-    "SMS": "SMS",
-    "PCEngine": "PCE",
-    "TurboGrafx16": "PCE",
-    "Atari2600": "A2600",
-    "Atari7800": "A7800",
-    "Lynx": "LYNX",
-    "NeoGeo": "NEOGEO",
-    "32X": "32X",
-    "MegaCD": "SEGACD",
-    "PSX": "PS1",
+RETROARCH_SYSTEM_CORES: dict[str, list[str]] = {
+    "SNES": ["Snes9x", "bsnes", "bsnes-mercury"],
+    "GBA": ["mGBA", "VBA-M"],
+    "NES": ["Nestopia", "FCEUmm"],
+    "MD": ["Genesis Plus GX", "PicoDrive"],
+    "N64": ["Mupen64Plus-Next", "ParaLLEl N64"],
+    "N64DD": ["Mupen64Plus-Next", "ParaLLEl N64"],
+    "GB": ["Gambatte", "SameBoy", "TGB Dual", "Gearboy"],
+    "GBC": ["SameBoy", "Gambatte", "Gearboy"],
+    "GG": ["Genesis Plus GX", "Beetle GG"],
+    "NGP": ["Mednafen NGP"],
+    "NGPC": ["Mednafen NGP"],
+    "PCE": ["Beetle PCE"],
+    "TG16": ["Beetle PCE"],
+    "PCSG": ["Beetle SuperGrafx", "Beetle PCE"],
+    "PCECD": ["Beetle PCE"],
+    "PS1": ["Beetle PSX", "PCSX-ReARMed"],
+    "PS2": ["LRPS2", "Play!"],
+    "PSP": ["PPSSPP"],
+    "SMS": ["SMS Plus GX", "Genesis Plus GX", "PicoDrive"],
+    "A2600": ["Stella"],
+    "A7800": ["ProSystem"],
+    "LYNX": ["Beetle Lynx"],
+    "NEOGEO": ["FinalBurn Neo", "MAME"],
+    "32X": ["PicoDrive"],
+    "SEGACD": ["Genesis Plus GX", "PicoDrive"],
+    "SAT": ["Beetle Saturn", "Yabause", "YabaSanshiro"],
+    "WSWAN": ["Beetle Cygne"],
+    "WSWANC": ["Beetle Cygne"],
+    "VB": ["Beetle VB"],
+    "DC": ["Flycast"],
+    "NDS": ["melonDS DS", "DeSmuME", "melonDS"],
+    "GC": ["Dolphin"],
+    "ARCADE": ["FinalBurn Neo", "MAME"],
+    "MAME": ["MAME", "FinalBurn Neo"],
+    "CPS1": ["FinalBurn Neo", "MAME"],
+    "CPS2": ["FinalBurn Neo", "MAME"],
+    "CPS3": ["FinalBurn Neo", "MAME"],
+    "FDS": ["Nestopia", "FCEUmm"],
 }
 
 # Analogue Pocket platform folder -> system code (standard Memories/<Platform>/ layout)
@@ -220,7 +229,7 @@ POCKET_FOLDER_MAP: dict[str, str] = {
     "SNES": "SNES",
     "Genesis": "MD",
     "NGP": "NGP",
-    "NGPC": "NGP",
+    "NGPC": "NGPC",
     "TurboGrafx-16": "PCE",
     "Lynx": "LYNX",
     "WonderSwan": "WSWAN",
@@ -243,7 +252,7 @@ POCKET_OPENFPGA_FOLDER_MAP: dict[str, str] = {
     "megadrive": "MD",
     "md": "MD",
     "ngp": "NGP",
-    "ngpc": "NGP",
+    "ngpc": "NGPC",
     "pce": "PCE",
     "tg16": "PCE",
     "turbografx": "PCE",
@@ -261,59 +270,202 @@ POCKET_OPENFPGA_FOLDER_MAP: dict[str, str] = {
     "segasaturn": "SAT",
 }
 
-# Save file extensions to consider
-SAVE_EXTENSIONS = {
-    ".sav",
-    ".srm",
-    ".mcr",
-    ".frz",
-    ".fs",
-    ".mcd",
-    ".dsv",
-    ".ps2",
-    ".mc2",
-    ".raw",
-}
-
-# CD game image extensions — presence of any of these inside a subfolder marks it as a CD game
-CD_ROM_EXTENSIONS: frozenset[str] = frozenset(
-    {
-        ".cue",
-        ".iso",
-        ".bin",
-        ".img",
-        ".mdf",
-        ".chd",
-    }
-)
-
-# ROM file extensions used when scanning ROM folders (Pocket openFPGA etc.)
-ROM_EXTENSIONS = {
-    ".sfc",
-    ".smc",  # SNES
-    ".gba",  # GBA
-    ".gb",
-    ".gbc",  # GB/GBC
-    ".nes",  # NES
-    ".md",
-    ".smd",
-    ".gen",  # Genesis/MD
-    ".n64",
-    ".z64",
-    ".v64",  # N64
-    ".gg",  # Game Gear
-    ".sms",  # SMS
-    ".pce",  # PC Engine
-    ".lnx",  # Lynx
-    ".ws",
-    ".wsc",  # WonderSwan
-    ".ngp",
-    ".ngc",  # NGP
-    ".nds",  # NDS
-    ".fds",  # Famicom Disk System
-    ".qd",   # Famicom Disk System Quick Disk
-}
+# ROM_EXTENSIONS, SAVE_EXTENSIONS, SYSTEM_CODES, SYSTEM_DEFAULT_SAVE_EXT imported from systems
+# CD_ALL_EXTENSIONS replaces the old CD_ROM_EXTENSIONS (now also includes .cso/.pbp)
+CD_ROM_EXTENSIONS = CD_ALL_EXTENSIONS  # backwards-compat alias
 ZIP_ROM_EXTENSIONS = {".zip"}
+SYSTEM_DEFAULT_SAVE_EXTENSIONS = SYSTEM_DEFAULT_SAVE_EXT  # backwards-compat alias
+
+_LEGACY_GENERIC_SAVE_EXTENSIONS = {"", ".sav", ".srm"}
+
+
+def resolve_save_ext(system: str, save_ext: str | None, fallback: str = ".sav") -> str:
+    """Normalize a configured save extension for a given system.
+
+    Saturn emulator saves are typically stored as ``.bkr``. Older multi-system
+    profiles often inherited generic defaults like ``.sav`` or ``.srm``, so we
+    coerce only those legacy generic values to the Saturn-native extension.
+    """
+    system_code = (system or "").upper().strip()
+    ext = (save_ext or fallback or ".sav").strip()
+    if not ext.startswith("."):
+        ext = "." + ext
+
+    default_ext = SYSTEM_DEFAULT_SAVE_EXT.get(system_code)
+    if default_ext and ext.lower() in _LEGACY_GENERIC_SAVE_EXTENSIONS:
+        return default_ext
+    return ext
+
+
+def _retroarch_saturn_format(
+    save_ext: str | None = None,
+    save_folder: str | None = None,
+) -> str:
+    """Infer the Saturn RetroArch target format from the profile settings."""
+    ext = (save_ext or "").strip().lower()
+    folder_name = ""
+    if save_folder:
+        try:
+            folder_name = Path(save_folder).name.strip().lower()
+        except Exception:
+            folder_name = ""
+
+    if ext == ".bin" or folder_name == "yabasanshiro":
+        return "yabasanshiro"
+    if ext == ".srm":
+        return "yabause"
+    return "mednafen"
+
+
+def _retroarch_saturn_mednafen_save_root(save_root: Path) -> Path:
+    """Return the RetroArch Beetle Saturn save root.
+
+    We intentionally keep Beetle Saturn on the default RetroArch save root.
+    Only YabaSanshiro uses a dedicated subfolder/container by default.
+    """
+    return save_root
+
+
+def _retroarch_selected_core(sys_info: dict | None) -> str:
+    if not sys_info:
+        return ""
+    return str(sys_info.get("core", "")).strip()
+
+
+def _is_shared_saturn_backup(path: Path | None) -> bool:
+    if path is None:
+        return False
+    return path.name.strip().lower() == "backup.bin"
+
+
+def _saturn_format_for_path(path: Path | None) -> str:
+    if path is None:
+        return "mednafen"
+    if _is_shared_saturn_backup(path) or path.suffix.lower() == ".bin":
+        return "yabasanshiro"
+    if path.suffix.lower() == ".srm":
+        return "yabause"
+    return "mednafen"
+
+
+def _lookup_saturn_archive_candidates(
+    title_id: str,
+    archive_names: list[str],
+    base_url: str,
+    headers: dict,
+    timeout: int = 30,
+) -> list[dict]:
+    resp = requests.post(
+        f"{base_url}/api/v1/titles/saturn-archives",
+        headers={**headers, "Content-Type": "application/json"},
+        json={"title_id": title_id, "archive_names": archive_names},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    return body.get("results", []) if isinstance(body, dict) else []
+
+
+def _resolve_saturn_archive_selection(
+    title_id: str,
+    path: Path,
+    base_url: str,
+    headers: dict,
+    timeout: int = 30,
+) -> list[str]:
+    from saroo_format import list_saturn_archive_names
+
+    data = path.read_bytes()
+    archive_names = list_saturn_archive_names(data)
+    persisted = [
+        name
+        for name in _get_saturn_archive_names(title_id)
+        if name in {archive.upper() for archive in archive_names}
+    ]
+    if persisted:
+        return persisted
+
+    results = _lookup_saturn_archive_candidates(
+        title_id, archive_names, base_url, headers, timeout=timeout
+    )
+    selected: list[str] = []
+    for result in results:
+        if result.get("status") not in {"exact_current", "includes_current"}:
+            continue
+        for archive_name in result.get("archive_names", []):
+            normalized = str(archive_name).strip().upper()
+            if normalized and normalized not in selected:
+                selected.append(normalized)
+
+    if selected:
+        _set_saturn_archive_names(title_id, selected)
+    return selected
+
+
+def _canonical_saturn_payload(
+    title_id: str,
+    path: Path,
+    base_url: str | None = None,
+    headers: dict | None = None,
+    timeout: int = 30,
+) -> tuple[bytes, list[str] | None]:
+    from saroo_format import (
+        extract_saturn_save_set,
+        list_saturn_archive_names,
+        normalize_saturn_save,
+    )
+
+    data = path.read_bytes()
+    if _is_shared_saturn_backup(path):
+        archive_names = _get_saturn_archive_names(title_id)
+        if not archive_names and base_url and headers is not None:
+            archive_names = _resolve_saturn_archive_selection(
+                title_id, path, base_url, headers, timeout=timeout
+            )
+        if not archive_names:
+            return b"", None
+        return extract_saturn_save_set(data, archive_names), archive_names
+
+    canonical = normalize_saturn_save(data)
+    return canonical, [name.upper() for name in list_saturn_archive_names(canonical)]
+
+
+def _resolve_saroo_native_payload(
+    title_id: str, path: Path | None = None
+) -> tuple[bytes, float] | None:
+    """Return the canonical per-game Saroo payload when available.
+
+    Saroo stores all games inside a shared ``SS_SAVE.BIN`` container, but the
+    server should receive the individual mednafen-compatible 32 KB save image
+    for the selected title. If a matching ``.bkr`` exists and is newer than the
+    container file, prefer that for true bidirectional emulator <-> Saroo sync.
+    """
+    meta = _SAROO_META.get(title_id) or {}
+    if not meta:
+        return None
+
+    container_mtime = 0.0
+    if path is not None:
+        try:
+            container_mtime = path.stat().st_mtime
+        except OSError:
+            container_mtime = 0.0
+
+    bkr_path_str = str(meta.get("bkr_path") or "").strip()
+    if bkr_path_str:
+        bkr_path = Path(bkr_path_str)
+        try:
+            if bkr_path.exists():
+                bkr_mtime = bkr_path.stat().st_mtime
+                if bkr_mtime > container_mtime:
+                    return bkr_path.read_bytes(), bkr_mtime
+        except OSError:
+            pass
+
+    native_bytes = meta.get("native_bytes")
+    if isinstance(native_bytes, (bytes, bytearray)) and native_bytes:
+        return bytes(native_bytes), container_mtime
+    return None
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -360,15 +512,18 @@ class SyncStatus:
 STATE_FILE = Path(__file__).parent / ".sync_state.json"
 SCAN_CACHE_FILE = Path(__file__).parent / ".scan_cache.json"
 SLOT_MAPPING_FILE = Path(__file__).parent / ".slot_mappings.json"
+SATURN_ARCHIVE_STATE_FILE = Path(__file__).parent / ".saturn_archives.json"
 _SCAN_CACHE: dict[str, dict[str, object]] | None = None
 _SCAN_CACHE_DIRTY = False
 _SLOT_MAPPINGS: dict[str, dict[str, str]] | None = None
 _SLOT_MAPPINGS_DIRTY = False
+_SATURN_ARCHIVE_STATE: dict[str, list[str]] | None = None
+_SATURN_ARCHIVE_STATE_DIRTY = False
 
 # Per-title Saroo metadata populated by _scan_saroo().
 # Keys are title_id strings; values are dicts with:
 #   game_id:      original Saroo game ID string (16 chars, may have trailing spaces)
-#   slot_index:   1-based slot index within SS_SAVE.BIN
+#   slot_index:   byte offset of the physical slot within SS_SAVE.BIN
 #   native_bytes: mednafen-compatible 32KB image (bytes) — the payload to upload
 #   bkr_path:     path to mednafen .bkr file, if found (str, may be empty)
 _SAROO_META: dict[str, dict] = {}
@@ -391,6 +546,73 @@ def _update_state(title_id: str, hash_val: str) -> None:
     state = _load_state()
     state[title_id] = hash_val
     _save_state(state)
+
+
+def _load_saturn_archive_state() -> dict[str, list[str]]:
+    global _SATURN_ARCHIVE_STATE
+    if _SATURN_ARCHIVE_STATE is not None:
+        return _SATURN_ARCHIVE_STATE
+    if SATURN_ARCHIVE_STATE_FILE.exists():
+        try:
+            data = json.loads(SATURN_ARCHIVE_STATE_FILE.read_text(encoding="utf-8"))
+            entries = data.get("entries", {})
+            if isinstance(entries, dict):
+                normalized: dict[str, list[str]] = {}
+                for title_id, archive_names in entries.items():
+                    if not isinstance(archive_names, list):
+                        continue
+                    values = [
+                        str(name).strip().upper()
+                        for name in archive_names
+                        if str(name).strip()
+                    ]
+                    if values:
+                        normalized[str(title_id).strip().upper()] = sorted(set(values))
+                _SATURN_ARCHIVE_STATE = normalized
+                return _SATURN_ARCHIVE_STATE
+        except Exception:
+            pass
+    _SATURN_ARCHIVE_STATE = {}
+    return _SATURN_ARCHIVE_STATE
+
+
+def _mark_saturn_archive_state_dirty() -> None:
+    global _SATURN_ARCHIVE_STATE_DIRTY
+    _SATURN_ARCHIVE_STATE_DIRTY = True
+
+
+def _flush_saturn_archive_state() -> None:
+    global _SATURN_ARCHIVE_STATE_DIRTY
+    if not _SATURN_ARCHIVE_STATE_DIRTY:
+        return
+    state = _load_saturn_archive_state()
+    SATURN_ARCHIVE_STATE_FILE.write_text(
+        json.dumps({"entries": state}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    _SATURN_ARCHIVE_STATE_DIRTY = False
+
+
+def _get_saturn_archive_names(title_id: str) -> list[str]:
+    return list(_load_saturn_archive_state().get((title_id or "").upper(), []))
+
+
+def _set_saturn_archive_names(title_id: str, archive_names: list[str]) -> None:
+    normalized = sorted(
+        {
+            str(name).strip().upper()
+            for name in archive_names
+            if str(name).strip()
+        }
+    )
+    state = _load_saturn_archive_state()
+    key = (title_id or "").upper()
+    if normalized:
+        state[key] = normalized
+    else:
+        state.pop(key, None)
+    _mark_saturn_archive_state_dirty()
+    _flush_saturn_archive_state()
 
 
 def _load_scan_cache() -> dict[str, dict[str, object]]:
@@ -716,7 +938,7 @@ def _detect_duplicate_local_conflict(save: SaveFile) -> tuple[bool, str]:
 def _parse_systems_config(profile: dict) -> dict[str, dict]:
     """Return {system_code: info_dict} for enabled systems in new-format profiles.
 
-    New format:  profile["systems"] = [{system, enabled, save_ext, save_folder}, …]
+    New format:  profile["systems"] = [{system, enabled, save_ext, save_folder, rom_folder}, …]
     Old format:  profile["systems_filter"] = ["GBA", "SNES", …]  (empty = all)
 
     Returns an empty dict when there is no filter at all (old format with no list,
@@ -825,7 +1047,7 @@ def scan_profile(
         system      : str  — system code (Generic / Everdrive only)
         save_ext    : str  — save extension (Generic / Everdrive only)
         systems     : list — per-system config for multi-system devices:
-                             [{system, enabled, save_ext, save_folder}, …]
+                             [{system, enabled, save_ext, save_folder, rom_folder}, …]
     """
     device_type = profile.get("device_type", "Generic")
     rom_folder_str = profile.get("path", "")
@@ -834,6 +1056,7 @@ def scan_profile(
     save_ext = profile.get("save_ext", ".sav").strip()
     if not save_ext.startswith("."):
         save_ext = "." + save_ext
+    save_ext = resolve_save_ext(system_override, save_ext)
 
     # Per-system config map: {system_code: {save_ext, save_folder, …}}
     # Empty dict means "no filter / no overrides".
@@ -863,6 +1086,9 @@ def scan_profile(
         # RetroArch: saves are already organised per-core; ROMs scattered elsewhere.
         results = _scan_retroarch(
             folder,
+            rom_root=rom_folder if rom_folder and rom_folder.exists() else None,
+            saturn_config=systems_config.get("SAT", {}),
+            systems_config=systems_config,
             progress_callback=progress_callback,
             enable_auto_normalize=enable_auto_normalize,
             profile_scope=profile_scope,
@@ -881,7 +1107,7 @@ def scan_profile(
         # global Assets/ and Saves/ roots. Scan those as direct ROM/save trees.
         sys_code = enabled_systems[0]
         sys_info = systems_config.get(sys_code, {})
-        sys_ext = sys_info.get("save_ext", save_ext) or save_ext
+        sys_ext = resolve_save_ext(sys_code, sys_info.get("save_ext", save_ext) or save_ext)
         results = _scan_roms_match_saves(
             rom_folder,
             save_folder,
@@ -908,7 +1134,9 @@ def scan_profile(
                 if systems_config and sys_code not in systems_config:
                     continue
                 sys_info = systems_config.get(sys_code, {})
-                sys_ext = sys_info.get("save_ext", save_ext) or save_ext
+                sys_ext = resolve_save_ext(
+                    sys_code, sys_info.get("save_ext", save_ext) or save_ext
+                )
                 sys_sv_str = sys_info.get("save_folder", "")
                 sv_dir = Path(sys_sv_str) if sys_sv_str else save_folder / sys_dir.name
                 results.extend(
@@ -1037,7 +1265,10 @@ def scan_profile(
                 else None,
                 system=system_override if system_override in SYSTEM_CODES else "PS1",
                 redump_index=redump_index,
-                save_ext=save_ext,
+                save_ext=resolve_save_ext(
+                    system_override if system_override in SYSTEM_CODES else "PS1",
+                    save_ext,
+                ),
                 progress_callback=progress_callback,
                 profile_scope=profile_scope,
             )
@@ -1077,7 +1308,7 @@ def scan_profile(
         len(results),
         len(results),
     )
-    return results
+    return _dedup_saves(results)
 
 
 def _make_title_id_with_region(system: str, filename: str) -> str:
@@ -1090,8 +1321,12 @@ def _make_title_id_with_region(system: str, filename: str) -> str:
       "Yu Yu Hakusho (USA, Europe).sav" -> GBA_yu_yu_hakusho_usa_europe
       "Super Mario World.srm"          -> SNES_super_mario_world
     """
-    regions = _extract_regions(Path(filename).stem)
-    base = make_title_id(system, filename)  # region already stripped inside
+    stem = Path(filename).stem
+    regions = _extract_regions(stem)
+    base_name = _REV_RE.sub("", stem)
+    base_name = _DISC_RE.sub("", base_name)
+    base_name = _EXTRA_RE.sub("", base_name).strip()
+    base = make_title_id(system, base_name)
     return f"{base}_{'_'.join(regions)}" if regions else base
 
 
@@ -1204,6 +1439,25 @@ def _resolve_effective_title_id(
     return canonical, f"canonical_{save.title_id_source}", None
 
 
+def _resolve_saturn_server_hash_match(
+    save: SaveFile, server_titles: dict[str, dict]
+) -> tuple[str, str] | None:
+    if save.system != "SAT" or not save.hash:
+        return None
+    matches = [
+        title_id
+        for title_id, meta in server_titles.items()
+        if (meta.get("system") or meta.get("platform", "")).upper() == "SAT"
+        and meta.get("save_hash", "") == save.hash
+    ]
+    if len(matches) != 1:
+        return None
+    matched_id = matches[0]
+    if matched_id == save.title_id:
+        return None
+    return matched_id, f"Matched Saturn server hash: {matched_id}"
+
+
 def _scan_flat(
     folder: Path,
     system: str,
@@ -1283,11 +1537,13 @@ def _scan_roms_match_saves(
     system: str,
     save_ext: str = ".sav",
     recursive: bool = True,
+    save_recursive: bool = True,
     progress_callback=None,
     enable_auto_normalize: bool = True,
     mirror_relative_path: bool = False,
     profile_scope: str = "",
     saves_only: bool = False,
+    allow_fallback_exts: bool = True,
 ) -> list[SaveFile]:
     """Scan ROMs in rom_folder and find/expect saves in save_folder.
 
@@ -1305,7 +1561,7 @@ def _scan_roms_match_saves(
     # mirrored layouts like Pocket single-system sub-roots preserve relative paths.
     save_index: dict[object, Path] = {}
     if save_folder.exists():
-        save_candidates = _safe_walk(save_folder, recursive=True)
+        save_candidates = _safe_walk(save_folder, recursive=save_recursive)
         save_total = len(save_candidates)
         for idx, f in enumerate(save_candidates, start=1):
             if not f.is_file():
@@ -1319,13 +1575,19 @@ def _scan_roms_match_saves(
                 except ValueError:
                     rel_key = f.stem.lower()
                 if ext == save_ext.lower() or (
-                    ext in SAVE_EXTENSIONS and rel_key not in save_index
+                    allow_fallback_exts
+                    and ext in SAVE_EXTENSIONS
+                    and rel_key not in save_index
                 ):
                     save_index[rel_key] = f
             else:
                 if ext == save_ext.lower():
                     save_index[f.stem.lower()] = f  # exact extension wins
-                elif ext in SAVE_EXTENSIONS and f.stem.lower() not in save_index:
+                elif (
+                    allow_fallback_exts
+                    and ext in SAVE_EXTENSIONS
+                    and f.stem.lower() not in save_index
+                ):
                     save_index[f.stem.lower()] = f  # fallback if no exact match yet
             if idx == 1 or idx % 100 == 0 or idx == save_total:
                 _emit_progress(
@@ -1373,6 +1635,12 @@ def _scan_roms_match_saves(
     matched_save_paths: set[Path] = set()
     candidates = _safe_walk(rom_folder, recursive=recursive)
     total = len(candidates)
+    if system == "SAT":
+        _debug_scan(
+            "ROM/save match scan: "
+            f"system={system} rom_folder={rom_folder} save_folder={save_folder} "
+            f"save_ext={save_ext} recursive={recursive} candidates={total}"
+        )
     for idx, rom_file in enumerate(candidates, start=1):
         try:
             if not rom_file.is_file():
@@ -1434,6 +1702,12 @@ def _scan_roms_match_saves(
         sf.mtime = mtime
         sf.save_exists = save_exists
         results.append(sf)
+        if system == "SAT":
+            _debug_scan(
+                "ROM/save matched: "
+                f"rom={rom_file.name} expected_save={save_path} "
+                f"save_exists={save_exists} hash={file_hash[:12] if file_hash else ''}"
+            )
         if idx == 1 or idx % 25 == 0 or idx == total:
             _emit_progress(
                 progress_callback, f"Scanning {system} ROMs… {idx}/{total}", idx, total
@@ -1462,23 +1736,136 @@ def _scan_roms_match_saves(
             profile_scope=profile_scope,
         )
         results.append(sf)
+        if system == "SAT":
+            _debug_scan(
+                "ROM/save unmatched local save kept: "
+                f"save={save_path} hash={file_hash[:12] if file_hash else ''}"
+            )
 
     return _dedup_saves(results)
 
 
 def _scan_retroarch(
     root: Path,
+    rom_root: Path | None = None,
+    saturn_config: dict | None = None,
+    systems_config: dict[str, dict] | None = None,
     progress_callback=None,
     enable_auto_normalize: bool = True,
     profile_scope: str = "",
 ) -> list[SaveFile]:
     """Scan RetroArch saves/CoreName/game.srm structure."""
     results = []
+    systems_config = systems_config or {}
+
+    def _system_config(system_code: str) -> dict:
+        return systems_config.get(system_code, {}) or {}
+
+    def _system_save_override(system_code: str) -> Path | None:
+        folder_str = _system_config(system_code).get("save_folder", "")
+        if not folder_str:
+            return None
+        candidate = Path(folder_str)
+        return candidate if candidate.exists() else None
+
+    def _system_rom_root(system_code: str) -> Path | None:
+        candidate_root = rom_root
+        folder_str = _system_config(system_code).get("rom_folder", "")
+        if folder_str:
+            candidate = Path(folder_str)
+            if candidate.exists():
+                candidate_root = candidate
+        return candidate_root
+
+    saturn_format = _retroarch_saturn_format(
+        (saturn_config or {}).get("save_ext", ""),
+        (saturn_config or {}).get("save_folder", ""),
+    )
+    saturn_rom_root = _system_rom_root("SAT")
+    saturn_save_root = _system_save_override("SAT") or root
+    saturn_mednafen_save_root = _retroarch_saturn_mednafen_save_root(saturn_save_root)
+    _debug_scan(
+        "RetroArch scan start: "
+        f"root={root} rom_root={rom_root} systems={sorted(systems_config.keys())}"
+    )
+    _debug_scan(
+        "RetroArch SAT config: "
+        f"format={saturn_format} saturn_rom_root={saturn_rom_root} "
+        f"saturn_save_root={saturn_save_root} "
+        f"saturn_mednafen_save_root={saturn_mednafen_save_root}"
+    )
+
+    handled_override_systems: set[str] = set()
+    handled_configured_root_systems: set[str] = set()
+    for system_code, sys_info in sorted(systems_config.items()):
+        if system_code == "SAT":
+            continue
+        save_override_str = sys_info.get("save_folder", "")
+        if not save_override_str:
+            continue
+        save_override = Path(save_override_str)
+        if not save_override.exists():
+            continue
+        handled_override_systems.add(system_code)
+        selected_core = _retroarch_selected_core(sys_info)
+        _debug_scan(
+            "RetroArch override scan: "
+            f"system={system_code} core={selected_core or 'Auto'} "
+            f"save_root={save_override}"
+        )
+        results.extend(
+            _scan_flat(
+                save_override,
+                system_code,
+                progress_callback=progress_callback,
+                enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
+            )
+        )
+
+    for system_code, sys_info in sorted(systems_config.items()):
+        if system_code == "SAT" or system_code in handled_override_systems:
+            continue
+        sys_rom_root = _system_rom_root(system_code)
+        if not sys_rom_root or not sys_rom_root.exists():
+            continue
+        sys_ext = resolve_save_ext(
+            system_code,
+            sys_info.get("save_ext", ".srm") or ".srm",
+            fallback=".srm",
+        )
+        selected_core = _retroarch_selected_core(sys_info)
+        handled_configured_root_systems.add(system_code)
+        _debug_scan(
+            "RetroArch configured root scan: "
+            f"system={system_code} core={selected_core or 'Auto'} "
+            f"rom_root={sys_rom_root} save_root={root} save_ext={sys_ext}"
+        )
+        results.extend(
+            _scan_roms_match_saves(
+                sys_rom_root,
+                root,
+                system_code,
+                save_ext=sys_ext,
+                recursive=True,
+                save_recursive=False,
+                progress_callback=progress_callback,
+                enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
+            )
+        )
+
     for core_dir in sorted(root.iterdir()):
         if not core_dir.is_dir():
             continue
         system = RETROARCH_CORE_MAP.get(core_dir.name)
         if not system:
+            continue
+        if system in handled_override_systems:
+            continue
+        if system in handled_configured_root_systems:
+            continue
+        if system == "SAT":
             continue
         results.extend(
             _scan_flat(
@@ -1489,6 +1876,123 @@ def _scan_retroarch(
                 profile_scope=profile_scope,
             )
         )
+
+    if saturn_format == "mednafen":
+        _debug_scan(
+            "RetroArch SAT mednafen scan: "
+            f"rom_root={saturn_rom_root} save_root={saturn_mednafen_save_root}"
+        )
+        if saturn_rom_root and saturn_rom_root.exists():
+            results.extend(
+                _scan_roms_match_saves(
+                    saturn_rom_root,
+                    saturn_mednafen_save_root,
+                    "SAT",
+                    save_ext=".bkr",
+                    recursive=True,
+                    save_recursive=False,
+                    progress_callback=progress_callback,
+                    enable_auto_normalize=enable_auto_normalize,
+                    profile_scope=profile_scope,
+                    allow_fallback_exts=False,
+                )
+            )
+        else:
+            results.extend(
+                _scan_flat(
+                    saturn_mednafen_save_root,
+                    "SAT",
+                    progress_callback=progress_callback,
+                    enable_auto_normalize=enable_auto_normalize,
+                    profile_scope=profile_scope,
+                )
+            )
+    elif saturn_format == "yabause":
+        _debug_scan(
+            "RetroArch SAT yabause scan: "
+            f"rom_root={saturn_rom_root} save_root={saturn_save_root}"
+        )
+        if saturn_rom_root and saturn_rom_root.exists():
+            results.extend(
+                _scan_roms_match_saves(
+                    saturn_rom_root,
+                    saturn_save_root,
+                    "SAT",
+                    save_ext=".srm",
+                    recursive=True,
+                    save_recursive=False,
+                    progress_callback=progress_callback,
+                    enable_auto_normalize=enable_auto_normalize,
+                    profile_scope=profile_scope,
+                    allow_fallback_exts=False,
+                )
+            )
+        else:
+            results.extend(
+                _scan_flat(
+                    saturn_save_root,
+                    "SAT",
+                    progress_callback=progress_callback,
+                    enable_auto_normalize=enable_auto_normalize,
+                    profile_scope=profile_scope,
+                )
+            )
+    elif saturn_format == "yabasanshiro" and saturn_rom_root and saturn_rom_root.exists():
+        saturn_backup_root = saturn_save_root / "yabasanshiro"
+        if saturn_save_root != root:
+            saturn_backup_root = saturn_save_root
+        if not saturn_backup_root.suffix:
+            backup_path = saturn_backup_root / "backup.bin"
+        else:
+            backup_path = saturn_backup_root
+        candidates = _safe_walk(saturn_rom_root, recursive=True)
+        total = len(candidates)
+        _debug_scan(
+            "RetroArch SAT yabasanshiro scan: "
+            f"rom_root={saturn_rom_root} backup_path={backup_path} "
+            f"rom_candidates={total}"
+        )
+        for idx, rom_file in enumerate(candidates, start=1):
+            try:
+                if not rom_file.is_file():
+                    continue
+            except OSError:
+                continue
+            if (
+                rom_file.suffix.lower() not in ROM_EXTENSIONS
+                and rom_file.suffix.lower() not in ZIP_ROM_EXTENSIONS
+            ):
+                continue
+            sf = _build_save_file(
+                system="SAT",
+                game_name=rom_file.stem,
+                source_name=rom_file.name,
+                path=backup_path,
+                file_hash="",
+                mtime=backup_path.stat().st_mtime if backup_path.exists() else 0.0,
+                save_exists=backup_path.exists(),
+                enable_auto_normalize=enable_auto_normalize,
+                profile_scope=profile_scope,
+            )
+            sf.path = backup_path
+            sf.hash = ""
+            sf.save_exists = backup_path.exists()
+            results.append(sf)
+            if idx == 1 or idx % 25 == 0 or idx == total:
+                _emit_progress(
+                    progress_callback, f"Scanning SAT ROMs… {idx}/{total}", idx, total
+                )
+    sat_results = [r for r in results if r.system == "SAT"]
+    if sat_results:
+        _debug_scan(f"RetroArch SAT results: count={len(sat_results)}")
+        for save in sat_results:
+            _debug_scan(
+                "RetroArch SAT entry: "
+                f"title_id={save.title_id} game={save.game_name} path={save.path} "
+                f"save_exists={save.save_exists} hash={save.hash[:12] if save.hash else ''}"
+            )
+    else:
+        _debug_scan("RetroArch SAT results: none")
     return results
 
 
@@ -1513,9 +2017,8 @@ def _scan_mega_everdrive(
     subfolders that contain the appropriate save file are returned; folders
     without it have no battery save to sync.
     """
-    # Sega CD uses a different save filename
-    _CD_SYSTEMS = {"SEGACD"}
-    is_cd_system = system in _CD_SYSTEMS
+    # Sega CD uses a different save filename on the MEGA EverDrive
+    is_cd_system = system in MEGA_EVERDRIVE_CD_SYSTEMS
     save_filename = "cd-bram.brm" if is_cd_system else "bram.srm"
 
     results = []
@@ -1582,7 +2085,7 @@ def _scan_saroo(
         not inserted.
     """
     from saroo_format import (
-        parse_ss_save_bin,
+        parse_ss_save_bin_slots,
         saroo_slot_to_mednafen,
         slot_content_hash,
     )
@@ -1605,7 +2108,7 @@ def _scan_saroo(
 
     try:
         data = ss_save.read_bytes()
-        slots = parse_ss_save_bin(data)
+        slots = parse_ss_save_bin_slots(data)
     except Exception as exc:
         _emit_progress(progress_callback, f"Error reading SS_SAVE.BIN: {exc}", 0, 0)
         return []
@@ -1636,7 +2139,7 @@ def _scan_saroo(
     except Exception:
         pass
 
-    for idx, slot in enumerate(slots, start=1):
+    for idx, (slot_num, slot) in enumerate(slots, start=1):
         game_id = slot.game_id.strip()
         if not game_id:
             continue
@@ -1656,20 +2159,16 @@ def _scan_saroo(
 
         # Convert the Saroo slot bytes to a mednafen 32KB image for hashing
         # and for use as the canonical payload on the server.
-        # idx starts at 1 (slot 0 is reserved); parse_ss_save_bin breaks at the
-        # first empty entry so slots are always contiguous, making idx the correct
-        # file slot number.
-        slot_byte_offset = (
-            idx * 0x10000
-        )  # byte offset in SS_SAVE.BIN (0x10000 per slot)
+        # ``parse_ss_save_bin_slots`` preserves the physical slot number from the
+        # reserved-slot index. We must use that real slot location because the
+        # reserved table can point at invalid/unparseable slots that are skipped
+        # from the parsed results.
+        slot_byte_offset = slot_num * 0x10000
         slot_bytes = data[slot_byte_offset : slot_byte_offset + 0x10000]
         try:
             native_bytes = saroo_slot_to_mednafen(slot_bytes)
         except Exception:
             native_bytes = b"\x00" * 0x8000
-
-        file_hash = hashlib.sha256(native_bytes).hexdigest()
-        mtime = ss_save.stat().st_mtime
 
         # Resolve display name: prefer libretro DAT lookup by product code,
         # fall back to the raw game_id string.
@@ -1683,11 +2182,25 @@ def _scan_saroo(
             if candidate.exists():
                 bkr_path = candidate
 
+        selected_bytes = native_bytes
+        selected_mtime = ss_save.stat().st_mtime
+        if bkr_path is not None:
+            try:
+                bkr_mtime = bkr_path.stat().st_mtime
+                if bkr_mtime > selected_mtime:
+                    selected_bytes = bkr_path.read_bytes()
+                    selected_mtime = bkr_mtime
+            except OSError:
+                pass
+
+        file_hash = hashlib.sha256(selected_bytes).hexdigest()
+        mtime = selected_mtime
+
         # Store Saroo-specific metadata for use during upload/download
         _SAROO_META[title_id] = {
             "game_id": game_id,
             "slot_index": slot_byte_offset,
-            "native_bytes": native_bytes,
+            "native_bytes": selected_bytes,
             "bkr_path": str(bkr_path) if bkr_path else "",
         }
 
@@ -2311,24 +2824,51 @@ def _get_nointro_cache(system: str) -> dict[str, object]:
     try:
         import rom_normalizer as rn
     except Exception:
-        cached = {"no_intro": {}, "name_index": {}}
+        cached = {"no_intro": {}, "name_index": {}, "alias_index": {}}
         _NOINTRO_CACHE[system] = cached
         return cached
 
     dat_path = rn.find_dat_for_system(system)
     if dat_path is None:
-        cached = {"no_intro": {}, "name_index": {}, "cache_tag": f"{system}:none"}
+        cached = {
+            "no_intro": {},
+            "name_index": {},
+            "alias_index": {},
+            "cache_tag": f"{system}:none",
+        }
     else:
         no_intro = rn.load_no_intro_dat(dat_path)
+        alias_index: dict[str, str] = {}
         try:
             dat_stat = dat_path.stat()
             dat_sig = f"{dat_path.name}:{dat_stat.st_mtime_ns}:{dat_stat.st_size}"
         except OSError:
             dat_sig = dat_path.name
+        aliases_path = rn.DATS_DIR / "EN-Dats" / "aliases.json"
+        alias_sig = "aliases:none"
+        if aliases_path.is_file():
+            try:
+                aliases_payload = json.loads(aliases_path.read_text(encoding="utf-8"))
+                system_aliases = aliases_payload.get(system, {})
+                if isinstance(system_aliases, dict):
+                    valid_canonicals = set(no_intro.values())
+                    for alias_name, canonical_name in system_aliases.items():
+                        alias = str(alias_name or "").strip()
+                        canonical = str(canonical_name or "").strip()
+                        if not alias or not canonical or canonical not in valid_canonicals:
+                            continue
+                        alias_index[_normalize_alias_lookup_name(alias)] = canonical
+                alias_stat = aliases_path.stat()
+                alias_sig = (
+                    f"{aliases_path.name}:{alias_stat.st_mtime_ns}:{alias_stat.st_size}"
+                )
+            except (OSError, ValueError, TypeError):
+                alias_index = {}
         cached = {
             "no_intro": no_intro,
             "name_index": rn.build_name_index(no_intro) if no_intro else {},
-            "cache_tag": f"{system}:{dat_sig}",
+            "alias_index": alias_index,
+            "cache_tag": f"{system}:{dat_sig}:{alias_sig}",
         }
     _NOINTRO_CACHE[system] = cached
     return cached
@@ -2418,6 +2958,7 @@ def _resolve_canonical_sync_name(
     cache = _get_nointro_cache(system)
     no_intro = cache.get("no_intro", {})
     name_index = cache.get("name_index", {})
+    alias_index = cache.get("alias_index", {})
     if not no_intro or not name_index:
         return None, "legacy", "legacy"
     cache_tag = str(cache.get("cache_tag", f"{system}:none"))
@@ -2433,6 +2974,21 @@ def _resolve_canonical_sync_name(
     source = "legacy"
     confidence = "legacy"
     suffix = path.suffix.lower()
+
+    alias_canonical = alias_index.get(_normalize_alias_lookup_name(lookup_name))
+    if alias_canonical:
+        source, confidence = "alias", "high"
+        _set_cached_canonical_name(
+            profile_scope,
+            system,
+            path,
+            match_name,
+            cache_tag,
+            alias_canonical,
+            source,
+            confidence,
+        )
+        return alias_canonical, source, confidence
 
     # Fuzzy filename lookup (in-memory — no file I/O)
     canonical = rn.fuzzy_filename_search(lookup_name, name_index)
@@ -2458,6 +3014,22 @@ def _resolve_canonical_sync_name(
         infos = _iter_zip_rom_infos(path)
         for info in infos:
             member_path = Path(info.filename)
+            alias_canonical = alias_index.get(
+                _normalize_alias_lookup_name(member_path.name)
+            )
+            if alias_canonical:
+                source, confidence = "alias", "high"
+                _set_cached_canonical_name(
+                    profile_scope,
+                    system,
+                    path,
+                    match_name,
+                    cache_tag,
+                    alias_canonical,
+                    source,
+                    confidence,
+                )
+                return alias_canonical, source, confidence
             canonical = rn.fuzzy_filename_search(member_path.name, name_index)
             if canonical:
                 region_hint = (
@@ -2542,6 +3114,20 @@ def _resolve_canonical_sync_name(
 
     # 4. Parent-folder name lookup for shorthand ROM names / packs
     if path.parent.name:
+        alias_canonical = alias_index.get(_normalize_alias_lookup_name(path.parent.name))
+        if alias_canonical:
+            source, confidence = "alias", "high"
+            _set_cached_canonical_name(
+                profile_scope,
+                system,
+                path,
+                match_name,
+                cache_tag,
+                alias_canonical,
+                source,
+                confidence,
+            )
+            return alias_canonical, source, confidence
         canonical = rn.fuzzy_filename_search(path.parent.name, name_index)
         if canonical:
             region_hint = rn.extract_region_hint(lookup_name) or rn.extract_region_hint(
@@ -2997,6 +3583,35 @@ def compare_with_server(
             _resolve_effective_title_id(save, server_titles)
         )
         save.title_id = effective_title_id
+        if (
+            save.system == "SAT"
+            and save.path is not None
+            and save.path.exists()
+            and save.save_exists
+        ):
+            try:
+                canonical_saturn, archive_names = _canonical_saturn_payload(
+                    save.title_id,
+                    save.path,
+                    base_url=base_url,
+                    headers=headers,
+                    timeout=timeout,
+                )
+                if canonical_saturn:
+                    save.hash = hashlib.sha256(canonical_saturn).hexdigest()
+                if archive_names:
+                    _set_saturn_archive_names(save.title_id, archive_names)
+            except Exception:
+                pass
+        saturn_hash_match = _resolve_saturn_server_hash_match(save, server_titles)
+        if saturn_hash_match is not None:
+            matched_id, matched_note = saturn_hash_match
+            _debug_scan(
+                "Compare SAT remap by hash: "
+                f"from={save.title_id} to={matched_id} path={save.path}"
+            )
+            save.title_id = matched_id
+            mapping_note = matched_note
         seen_title_ids.add(save.title_id)
         if save.legacy_title_id:
             seen_title_ids.add(save.legacy_title_id)
@@ -3059,6 +3674,12 @@ def compare_with_server(
                             or f"Using {resolution_source}: {save.title_id}",
                         )
                     )
+                    if save.system == "SAT":
+                        _debug_scan(
+                            "Compare SAT local-only: "
+                            f"title_id={save.title_id} path={save.path} "
+                            f"save_exists={save.save_exists} local_hash={save.hash[:12] if save.hash else ''}"
+                        )
             elif save.save_exists:
                 results.append(
                     SyncStatus(
@@ -3068,6 +3689,11 @@ def compare_with_server(
                         or f"Using {resolution_source}: {save.title_id}",
                     )
                 )
+                if save.system == "SAT":
+                    _debug_scan(
+                        "Compare SAT error/no server index: "
+                        f"title_id={save.title_id} path={save.path}"
+                    )
             if idx == 1 or idx % 25 == 0 or idx == total:
                 _emit_progress(
                     progress_callback,
@@ -3114,6 +3740,13 @@ def compare_with_server(
                 or f"Using {resolution_source}: {save.title_id}",
             )
         )
+        if save.system == "SAT":
+            _debug_scan(
+                "Compare SAT status: "
+                f"title_id={save.title_id} path={save.path} save_exists={save.save_exists} "
+                f"local_hash={save.hash[:12] if save.hash else ''} "
+                f"server_hash={server_hash[:12] if server_hash else ''} status={status}"
+            )
         if idx == 1 or idx % 25 == 0 or idx == total:
             _emit_progress(
                 progress_callback, f"Comparing with server… {idx}/{total}", idx, total
@@ -3155,6 +3788,11 @@ def compare_with_server(
                 status="server_only",
             )
         )
+        if system.upper() == "SAT":
+            _debug_scan(
+                "Compare SAT server-only: "
+                f"title_id={tid} name={name} server_hash={server_hash[:12] if server_hash else ''}"
+            )
 
     _flush_slot_mappings()
     return results
@@ -3282,7 +3920,29 @@ def upload_save(
         )
         local_hash = _hash_ps3_dir_files(path)
     else:
-        data = path.read_bytes()
+        saroo_payload = (
+            _resolve_saroo_native_payload(title_id, path)
+            if (system or "").upper() == "SAT"
+            else None
+        )
+        if saroo_payload is not None:
+            data = saroo_payload[0]
+        elif (system or "").upper() == "SAT":
+            data, archive_names = _canonical_saturn_payload(
+                title_id,
+                path,
+                base_url=base_url,
+                headers=headers,
+                timeout=timeout,
+            )
+            if not data:
+                raise ValueError(
+                    f"Could not resolve Saturn save archives for {title_id} from {path}"
+                )
+            if archive_names:
+                _set_saturn_archive_names(title_id, archive_names)
+        else:
+            data = path.read_bytes()
         local_hash = hashlib.sha256(data).hexdigest()
         if _should_use_ps1_card_endpoint(title_id, system):
             resp = requests.post(
@@ -3372,7 +4032,33 @@ def download_save(
         server_hash = resp.headers.get("X-Save-Hash", _hash_ps3_dir_files(dest_path))
     else:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        dest_path.write_bytes(resp.content)
+        if (system or "").upper() == "SAT":
+            from saroo_format import (
+                convert_saturn_save_format,
+                list_saturn_archive_names,
+                merge_saturn_save_set,
+            )
+
+            archive_names = [name.upper() for name in list_saturn_archive_names(resp.content)]
+            if archive_names:
+                _set_saturn_archive_names(title_id, archive_names)
+
+            saturn_format = _saturn_format_for_path(dest_path)
+            if saturn_format == "yabasanshiro":
+                existing_data = dest_path.read_bytes() if dest_path.exists() else None
+                dest_path.write_bytes(
+                    merge_saturn_save_set(
+                        existing_data,
+                        resp.content,
+                        "yabasanshiro",
+                    )
+                )
+            else:
+                dest_path.write_bytes(
+                    convert_saturn_save_format(resp.content, saturn_format)
+                )
+        else:
+            dest_path.write_bytes(resp.content)
         server_hash = resp.headers.get(
             "X-Save-Hash", hashlib.sha256(resp.content).hexdigest()
         )

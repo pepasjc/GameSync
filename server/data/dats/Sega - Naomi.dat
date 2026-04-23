@@ -88,6 +88,7 @@ game (
 )
 game (
 	name "Melty Blood - Act Cadenza (Japan) (Rev C)"
+	cloneof "Melty Blood - Act Cadenza Ver. B (Japan)"
 	region "Japan"
 	serial "GDL-0028C"
 	rom ( name "Melty Blood - Act Cadenza (Japan) (Rev C) (Track 3).bin" size 1185760800 crc 60225B27 md5 5737AB7464581652DE0504551BEF39A1 sha1 BF166199F7FC82AB50EA0C92530F540952CBD0F1 serial "GDL-0028C" )
@@ -100,6 +101,7 @@ game (
 )
 game (
 	name "Melty Blood - Act Cadenza Ver. B (Japan) (Rev A)"
+	cloneof "Melty Blood - Act Cadenza Ver. B (Japan)"
 	region "Japan"
 	serial "GDL-0039A"
 	rom ( name "Melty Blood - Act Cadenza Ver. B (Japan) (Rev A) (Track 3).bin" size 1185760800 crc F4E4500D md5 E626C8D3A7772F2CD8EE366EBD3CD31E sha1 1E1BD4F86DA0A4EC09BC6DA4E33748A5356286F4 serial "GDL-0039A" )
@@ -123,6 +125,7 @@ game (
 )
 game (
 	name "Puyo Pop Fever (World)"
+	cloneof "Puyo Puyo Fever (Japan)"
 	serial "GDS-0034"
 	rom ( name "Puyo Pop Fever (World) (Track 3).bin" size 1185760800 crc E07684E4 md5 005DCFBFCA160510382FF1D3ECF24EB5 sha1 EA7D131570389FCC11F5D86B3D71823E049FB00B serial "GDS-0034" )
 )

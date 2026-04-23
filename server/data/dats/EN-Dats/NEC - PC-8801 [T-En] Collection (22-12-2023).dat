@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>NEC - PC-8801 [T-En] Collection</name>
+		<description>NEC - PC-8801 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>22-12-2023</version>
+		<date>22-12-2023</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_NEC PC-8801 [T-En] Docs">
+		<description>_NEC PC-8801 [T-En] Docs</description>
+		<rom name="Black Onyx, The (Japan) [T-En by LordKarnov42 v1.0 RC1].txt" size="4047" crc="69a4e15b" md5="fc342582cab2e84a2fa0c432690eff63" sha1="0a22ab2f3e2c77c7306dbc8d7cea2631b76ade4b"/>
+		<rom name="Dragon &amp; Princess, The (Japan) [T-En by NLeseul v1.01] [n].txt" size="2818" crc="075af4b7" md5="b7d845f13923155ea969a1a715c490ba" sha1="d3a60fda404315ccf0bad43e4e4c26552eb949a7"/>
+		<rom name="Genesis - Beyond the Revelation (Japan) [T-En by Mike Curious v0.1] [i].txt" size="1138" crc="5f73dc67" md5="fce34758b5497c60349eaaab037a26c7" sha1="3e815c47680d2a4f14da8cbe136a0709c7689585"/>
+		<rom name="Horror House (Japan) [T-En by Umbrella Terms v1.1] [Commands].txt" size="840" crc="4633a7e2" md5="d23fcfe10658141830c9f7635e782043" sha1="800f0cf2ee1fc0853d7231aa5140167fffcef59c"/>
+		<rom name="Horror House (Japan) [T-En by Umbrella Terms v1.1] [Solutions].txt" size="1005" crc="48bf7556" md5="81141f755283374e6a9997352845ec07" sha1="e65e007c4da84d574970ede39e29dacef8c57fd3"/>
+		<rom name="Horror House (Japan) [T-En by Umbrella Terms v1.1].txt" size="2992" crc="1f29a02f" md5="d6fa785d5a13df4c8f2f7c7fc501f02e" sha1="b548b002d8404c8471bef1768814d47b9c88cab6"/>
+		<rom name="Mirrors (Japan) [T-En by Nebulous Translations v1.0] [Quickstart].txt" size="414" crc="c17e8430" md5="8a4b67bc8555bf74f7af5c657b107323" sha1="ecd91d8f3e9a9e427b529a8e7e9f26096b09daab"/>
+		<rom name="Mirrors (Japan) [T-En by Nebulous Translations v1.0].txt" size="7567" crc="14b7e324" md5="34395bbb2d134bd3713444233dbf1262" sha1="c96e429a68c97b30a832e90944f592e36ae4618e"/>
+		<rom name="Nightlife (Japan) [T-En by Umbrella Terms v1.0].txt" size="1313" crc="b5910afd" md5="e02db4173bc5f0dadfe9b42b558d0a79" sha1="765a3c21373fad706b9bd1afad1fbac08df242e9"/>
+		<rom name="Seikochan SOS (Japan) [T-En by Tackechi v1.0].txt" size="797" crc="2c523563" md5="5b4891931050657a1a506129cd1dd75e" sha1="3aa2fd0ea1cc5612fde7c27f658b9adfe7bb1361"/>
+		<rom name="Shin Taketori Monogatari (Japan) [T-En by Divingkxt &amp; FCandChill v1.1] [Manual].txt" size="8924" crc="97fec2c2" md5="580ddc2b4b744fd2c05966fe90a8c7d6" sha1="3a20505f71d2e57847745c3eba00c110afd4daa3"/>
+		<rom name="Shin Taketori Monogatari (Japan) [T-En by Divingkxt &amp; FCandChill v1.1].md" size="11643" crc="2c1214b7" md5="4892cbc28f7ea477a31485b14e54cdb0" sha1="596a49f30efa849ad2cd5cb8fc65df0ad1fc084a"/>
+		<rom name="Super Jack (Japan) [T-En by JPN Translations v0.9.1].txt" size="3256" crc="7b228438" md5="bfec1e7acdb7b25d11b7b1688dbd4e65" sha1="2637d2ccd6dd26b941103361e47d8c136e8f59f4"/>
+	</machine>
+	<machine name="Black Onyx, The (Japan) [T-En by LordKarnov42 v1.0 RC1]">
+		<description>Black Onyx, The (Japan) [T-En by LordKarnov42 v1.0 RC1]</description>
+		<rom name="Black Onyx, The (Japan) (Character Disk) [T-En by LordKarnov42 v1.0 RC1].d88" size="348912" crc="940a252d" md5="2ccb1234d2debf879abb7f8a24a37476" sha1="1eb8a52b822fed9316597e0bf1badffab399a46a"/>
+		<rom name="Black Onyx, The (Japan) (Game Disk) [T-En by LordKarnov42 v1.0 RC1].d88" size="349600" crc="2b37833a" md5="907babb78b5bbbbebeef2b1b1f52212e" sha1="ab8c4f4d9774ca11b7df43de261190674558d29e"/>
+	</machine>
+	<machine name="Dragon &amp; Princess, The (Japan) [T-En by NLeseul v1.01] [n]">
+		<description>Dragon &amp; Princess, The (Japan) [T-En by NLeseul v1.01] [n]</description>
+		<rom name="Dragon &amp; Princess, The (Japan) [T-En by NLeseul v1.01] [n].d88" size="348848" crc="2a14dc5f" md5="4a70d47b026967ca8cfc93e261355565" sha1="3f5a2e3b1b822d22006be6f89206502c1dcfa1f1"/>
+	</machine>
+	<machine name="Genesis - Beyond the Revelation (Japan) (Alt 1) [T-En by Mike Curious v0.1] [i]">
+		<description>Genesis - Beyond the Revelation (Japan) (Alt 1) [T-En by Mike Curious v0.1] [i]</description>
+		<rom name="Genesis - Beyond the Revelation (Japan) (Alt 1) [T-En by Mike Curious v0.1] [i].d88" size="348848" crc="b44654fb" md5="e31e33109700fe6b6adb2d32f62c1bdb" sha1="cd1fcc5fb4967f9cb7fe52e830c0e3aa0ea35ed8"/>
+	</machine>
+	<machine name="Genesis - Beyond the Revelation (Japan) [T-En by Mike Curious v0.1] [i]">
+		<description>Genesis - Beyond the Revelation (Japan) [T-En by Mike Curious v0.1] [i]</description>
+		<rom name="Genesis - Beyond the Revelation (Japan) [T-En by Mike Curious v0.1] [i].d88" size="348848" crc="ee7b7a47" md5="3cb80a87a6f236821f1c4fee0a6d83e8" sha1="39b51206462ca6422546a76e7f8dd1ad9e59a0ad"/>
+	</machine>
+	<machine name="Horror House (Japan) [T-En by Umbrella Terms v1.1] (Cassette)">
+		<description>Horror House (Japan) [T-En by Umbrella Terms v1.1] (Cassette)</description>
+		<rom name="Horror House (Japan) [T-En by Umbrella Terms v1.1].t88" size="51507" crc="03a97e7c" md5="9c76a2e7e8224d9bc5a3ca0dd0093e3d" sha1="b553765ced434b354e59e7b13c50f015f2e9e6ab"/>
+	</machine>
+	<machine name="Mirrors (Japan) [T-En by Nebulous Translations v1.0]">
+		<description>Mirrors (Japan) [T-En by Nebulous Translations v1.0]</description>
+		<rom name="2608_bd.wav" size="7612" crc="ca9e2790" md5="9c6637930b1779abe00b8b63e4e41f50" sha1="8a1cf3c72683a2620bef0737f1aa0c32bde47ae5"/>
+		<rom name="2608_hh.wav" size="6412" crc="5a9dd262" md5="73548a1391631ff54a1f7c838d67917e" sha1="b4bbefabe19b427a092dfd9279ad08d037c4e83b"/>
+		<rom name="2608_rim.wav" size="2980" crc="ecc41e8c" md5="43d54b3e05c081fa280c9bace3af1043" sha1="4382aceb6968e3cb259cc7f2565a828494e0b3e6"/>
+		<rom name="2608_sd.wav" size="6700" crc="c0a71109" md5="08124ccb84a9f65e2affc29581e690c9" sha1="0ea4f93b81df9dbb8d48590b440f5910c0b798b6"/>
+		<rom name="2608_tom.wav" size="14044" crc="cb548cd1" md5="0faed5664a2dd8b1b2308e8a50ac25ea" sha1="dcf9da3ce28608b6bb177b35c16ee6f7057cff5b"/>
+		<rom name="2608_top.wav" size="57500" crc="1c5618f8" md5="3721ace646ffd56439aebbb2154e9263" sha1="31e6381c65a562574299f2add724dc808fcb5dd3"/>
+		<rom name="cdbios.rom" size="65536" crc="5c230221" md5="5b2cbbf67d9a6478cd2602017745c0e2" sha1="6394a8a23f44ea35fcfc3e974cf940bc8f84d62a"/>
+		<rom name="disk.rom" size="8192" crc="a222ecf0" md5="890b304e719974e53ff0d4d99c878d96" sha1="79e9c0786a14142f7a83690bf41fb4f60c5c1004"/>
+		<rom name="disk1main.d88" size="1331888" crc="8a4b0373" md5="299a9eee370c3643547bc15c32d82f2c" sha1="13145f76193d448c1a97842a6e459ed71bc9314c"/>
+		<rom name="disk2game.d88" size="1331888" crc="b150cccc" md5="c95fe304135f21e31f039a88fb311806" sha1="09e0d17975bf398d6aac4217ad298499ee442c49"/>
+		<rom name="Headdown.wav" size="2070" crc="2651f066" md5="00584d77d98fe9d79c8e235ecc0b42eb" sha1="0d03702d1c1cfb86b897de0359c61ee72bbb0d2d"/>
+		<rom name="Headon.wav" size="6922" crc="96043216" md5="a1194ec5d13e70a4fde57ac53de1152f" sha1="b5537f92ac11e47b9ebbdd32269c2622916894ff"/>
+		<rom name="Headup.wav" size="2326" crc="30f2435c" md5="604c88c0726c352fba514a76b2a744a4" sha1="6529ef9b8149a56897365f3ec227568334a5bebf"/>
+		<rom name="jisyo.rom" size="524288" crc="bd6eb062" md5="2e548679423370262f36cbde38a22789" sha1="deef0cc2a9734ba891a6d6c022aa70ffc66f783e"/>
+		<rom name="kanji1.rom" size="131072" crc="6178bd43" md5="d81c6d5d7ad1a4bbbd6ae22a01257603" sha1="82e11a177af6a5091dd67f50a2f4bafda84d6556"/>
+		<rom name="kanji2.rom" size="131072" crc="376eb677" md5="d8b9f259ce354dc8ca40af0e851a0528" sha1="bcf96584e2ba362218b813be51ea21573d1a2a78"/>
+		<rom name="Mirrors eng v1.0.ccd" size="3532" crc="7859d8bf" md5="35c733769d60277fcce522e121af82ae" sha1="d82fa9841e49d3a902dde21b25d7c652bf6c0f78"/>
+		<rom name="Mirrors eng v1.0.img" size="551779200" crc="15a513ba" md5="f3bc8d9e2650d9d9c6ebaef5e2353144" sha1="73ca965de7190ba6f9217e15616e310fca264165"/>
+		<rom name="Mirrors eng v1.0.sub" size="22521600" crc="4da61598" md5="f6d739f1b66082f7f06f403d30cf35eb" sha1="3e7c6b03607f86265cd3dd049091a3a4401408e3"/>
+		<rom name="n80.rom" size="32768" crc="8a2a1e17" md5="93cd1d78b7b9c50b80041ed330332ece" sha1="06dae1db384aa29d81c5b6ed587877e7128fcb35"/>
+		<rom name="n88.rom" size="32768" crc="356d5719" md5="55e75c0799e1e1907745276baec43753" sha1="5d9ba80d593a5119f52aae1ccd61a1457b4a89a1"/>
+		<rom name="n88_0.rom" size="8192" crc="a72697d7" md5="c254685f00ca9c31b97203d6ef19f5e2" sha1="5aedbc5916d67ef28767a2b942864765eea81bb8"/>
+		<rom name="n88_1.rom" size="8192" crc="7ad5d943" md5="a8e298da7ac947669bcb1ff25cee0a83" sha1="4ae4d37409ff99411a623da9f6a44192170a854e"/>
+		<rom name="n88_2.rom" size="8192" crc="1d6277b6" md5="87bc14a8a9ec66a99e89561bca4bda9b" sha1="dd9c3e50169b75bb707ef648f20d352e6a8bcfe4"/>
+		<rom name="n88_3.rom" size="8192" crc="692cbcd8" md5="e1791f8154f1cdf22b576a1a365b6e1f" sha1="af452aed79b072c4d17985830b7c5dca64d4b412"/>
+		<rom name="pc8801ma.exe" size="1004032" crc="c3f31418" md5="8c82c50b204d5216b7de36c77b475221" sha1="1c247f8da06e0109ef1e5c35c286eb3242fae52f"/>
+		<rom name="pc8801ma.ini" size="5176" crc="b1e0e1de" md5="07b3b159e65da282d2ebcabaa0dbd075" sha1="5a84565f705ce08025168177f131a5d4b096b532"/>
+		<rom name="Seek.wav" size="1022" crc="b79fbf6b" md5="9650fa1dcb644d78d278113e9ff7b051" sha1="162bde5da0ea9d9d42a4a0e2f6746d9ff4915f2b"/>
+	</machine>
+	<machine name="Nightlife (Japan) [T-En by Umbrella Terms v1.0]">
+		<description>Nightlife (Japan) [T-En by Umbrella Terms v1.0]</description>
+		<rom name="Nightlife (Japan) [T-En by Umbrella Terms v1.0].d88" size="66240" crc="50abaf0a" md5="52ce540799528d35585b33950164a599" sha1="b003c9f5f5fdca81832db615094417a6ce89391d"/>
+	</machine>
+	<machine name="Seikochan SOS (Japan) [T-En by Tackechi v1.0]">
+		<description>Seikochan SOS (Japan) [T-En by Tackechi v1.0]</description>
+		<rom name="Seikochan SOS (Japan) [T-En by Tackechi v1.0].d88" size="66240" crc="e9fa3a89" md5="a82a14a8edbf3bd647a174420ddbbb7a" sha1="5183ec103a6c3c83a732b5fd0e5089fe8dfdc28c"/>
+	</machine>
+	<machine name="Shin Taketori Monogatari (Japan) [T-En by Divingkxt &amp; FCandChill v1.1]">
+		<description>Shin Taketori Monogatari (Japan) [T-En by Divingkxt &amp; FCandChill v1.1]</description>
+		<rom name="Shin Taketori Monogatari (Japan) (Disk 1) [T-En by Divingkxt &amp; FCandChill v1.1].d88" size="377616" crc="b6b515d2" md5="12803114f073be39d9001ff9d6a82cbf" sha1="f3985d227a6f00327a78e21e6a66b464c78d2e20"/>
+		<rom name="Shin Taketori Monogatari (Japan) (Disk 2) [T-En by Divingkxt &amp; FCandChill v1.1].d88" size="371120" crc="59f34194" md5="d803fbc37e51c8bf18fcad55fb84c241" sha1="709061504f332bcf0515dd617f6dce770307ddd5"/>
+		<rom name="Shin Taketori Monogatari (Japan) (User Disk).d88" size="348848" crc="7c070df5" md5="c1a92bff47173c5800cd7d6d6f9c5bce" sha1="66da66d65d4cca7b09e9c5934cb5efdea45ea4f6"/>
+	</machine>
+	<machine name="Super Jack (Japan) [T-En by JPN Translations v0.9.1]">
+		<description>Super Jack (Japan) [T-En by JPN Translations v0.9.1]</description>
+		<rom name="Super Jack (Japan) [T-En by JPN Translations v0.9.1].d88" size="348848" crc="1c7c8310" md5="05f2a5bdc7ab885b5da760276154a6ce" sha1="92b45477e4c7a22dc4461b5b67edc2a69b875b93"/>
+	</machine>
+</datafile>

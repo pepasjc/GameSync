@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.models.save import ConflictInfo, SyncPlan, SyncRequest, is_hex_title_id
-from app.services import game_names, storage
+from app.services import game_names, rom_scanner, storage
 
 router = APIRouter()
 
@@ -74,8 +74,13 @@ async def sync(request: SyncRequest) -> SyncPlan:
             else:
                 # Both changed since last sync -> conflict
                 _add_conflict(
-                    conflict, conflict_info, title.title_id,
-                    server_meta, title.save_hash, title.size, console_id
+                    conflict,
+                    conflict_info,
+                    title.title_id,
+                    server_meta,
+                    title.save_hash,
+                    title.size,
+                    console_id,
                 )
         else:
             # No sync history: save exists but hashes differ.
@@ -118,6 +123,14 @@ async def sync(request: SyncRequest) -> SyncPlan:
         if tid not in client_title_ids and same_client_family:
             server_only.append(tid)
 
+    rom_available: list[str] = []
+    catalog = rom_scanner.get()
+    if catalog:
+        all_titles = upload + download + conflict + up_to_date + server_only
+        for tid in all_titles:
+            if catalog.get(tid):
+                rom_available.append(tid)
+
     return SyncPlan(
         upload=upload,
         download=download,
@@ -125,4 +138,5 @@ async def sync(request: SyncRequest) -> SyncPlan:
         up_to_date=up_to_date,
         server_only=server_only,
         conflict_info=conflict_info,
+        rom_available=rom_available,
     )

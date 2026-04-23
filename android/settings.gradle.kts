@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "SaveSync"
+rootProject.name = "GameSync"
 include(":app")

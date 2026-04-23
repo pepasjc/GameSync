@@ -206,16 +206,29 @@ class GameListView(QListView):
         idx = self.currentIndex()
         return self._model.entry_at(idx.row()) if idx.isValid() else None
 
-    def move_selection(self, delta: int) -> None:
+    def move_selection(
+        self,
+        delta: int,
+        hint: QAbstractItemView.ScrollHint = QAbstractItemView.ScrollHint.EnsureVisible,
+    ) -> None:
         cur = self.currentIndex()
         row = cur.row() if cur.isValid() else -1
         new_row = max(0, min(self._model.rowCount() - 1, row + delta))
         new_idx = self._model.index(new_row, 0)
         self.setCurrentIndex(new_idx)
-        self.scrollTo(new_idx, QAbstractItemView.ScrollHint.EnsureVisible)
+        self.scrollTo(new_idx, hint)
+
+    def _viewport_rows(self) -> int:
+        row_h = max(theme.CARD_H, 1)
+        return max(1, self.viewport().height() // row_h)
 
     def page_up(self) -> None:
-        self.move_selection(-8)
+        # Step by a whole viewport and land the new selection at the
+        # top of the list so the viewport visibly shifts even when the
+        # old selection was still visible inside it.
+        step = self._viewport_rows()
+        self.move_selection(-step, QAbstractItemView.ScrollHint.PositionAtTop)
 
     def page_down(self) -> None:
-        self.move_selection(8)
+        step = self._viewport_rows()
+        self.move_selection(step, QAbstractItemView.ScrollHint.PositionAtBottom)

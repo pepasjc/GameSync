@@ -3,16 +3,25 @@
 import re
 from pathlib import Path
 
-from app.services.rom_id import SYSTEM_CODES, parse_title_id as _parse_emulator_id
+from app.services.rom_id import (
+    SYSTEM_CODES,
+    normalize_rom_name,
+    parse_title_id as _parse_emulator_id,
+)
 
 # Global cache for game names (loaded once at startup)
 _3ds_title_ids: dict[
     str, str
-] = {}  # full 16-char hex TitleID -> name (from 3dstitledb.txt)
+] = {}  # full 16-char hex TitleID -> name (from 3DS DAT title_id lines)
 _3ds_names: dict[str, str] = {}  # 4-char game code -> name
+_3ds_serial_to_title_id: dict[str, str] = {}  # full product code -> 16-char title ID
+_3ds_by_slug: dict[str, str] = {}  # normalized DAT name slug -> preferred 16-char title ID
+_3ds_title_ids_by_slug: dict[str, list[str]] = {}  # normalized DAT name slug -> all title IDs
 _ds_names: dict[str, str] = {}  # 4-char game code -> name
 _psp_names: dict[str, str] = {}  # keyed by full product code e.g. "ULUS10272"
 _psx_names: dict[str, str] = {}  # keyed by full product code e.g. "SCUS94163"
+_ps2_names: dict[str, str] = {}  # keyed by full product code e.g. "SCUS97203"
+_sat_names: dict[str, str] = {}  # keyed by Saturn serial e.g. "T-12705H"
 _vita_names: dict[str, str] = {}  # keyed by full product code e.g. "PCSE00082"
 _wii_names: dict[
     str, str
@@ -25,8 +34,12 @@ _ps3_names: dict[str, str] = {}  # keyed by 9-char product code e.g. "BLJM61131"
 # entries loaded first are never overwritten by PSN entries loaded later.
 _psp_priority: dict[str, tuple[int, int]] = {}
 _psx_priority: dict[str, tuple[int, int]] = {}
+_ps2_priority: dict[str, tuple[int, int]] = {}
+_sat_priority: dict[str, tuple[int, int]] = {}
 _vita_priority: dict[str, tuple[int, int]] = {}
 _3ds_priority: dict[str, tuple[int, int]] = {}
+_3ds_title_priority: dict[str, tuple[int, int]] = {}
+_3ds_title_id_priority: dict[str, tuple[int, int]] = {}
 _ds_priority: dict[str, tuple[int, int]] = {}
 _wii_priority: dict[str, tuple[int, int]] = {}
 _ps3_priority: dict[str, tuple[int, int]] = {}
@@ -35,6 +48,9 @@ _ps3_priority: dict[str, tuple[int, int]] = {}
 # Rebuilt by build_psx_psn_to_retail() after all databases are loaded.
 _psx_by_slug: dict[str, str] = {}
 _psx_serials_by_slug: dict[str, list[str]] = {}
+_sat_by_slug: dict[str, str] = {}
+_sat_serials_by_slug: dict[str, list[str]] = {}
+_sat_safe_to_serial: dict[str, str] = {}
 
 # PSN PSone Classic code → original retail disc serial
 # e.g. "NPUJ00662" (Parasite Eve Japan PSN) → "SLPM86034" (Parasite Eve Japan retail)
@@ -48,6 +64,26 @@ _BRACKET_RE = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
 _REGION_RE = re.compile(
     r"\((USA|Europe|Japan|World|France|Germany|Italy|Spain|Australia)\)", re.IGNORECASE
 )
+
+_ROMAN_TO_ARABIC: dict[str, str] = {
+    "i": "1",
+    "ii": "2",
+    "iii": "3",
+    "iv": "4",
+    "v": "5",
+    "vi": "6",
+    "vii": "7",
+    "viii": "8",
+    "ix": "9",
+    "x": "10",
+    "xi": "11",
+    "xii": "12",
+    "xiii": "13",
+    "xiv": "14",
+    "xv": "15",
+}
+_ARABIC_TO_ROMAN: dict[str, str] = {v: k for k, v in _ROMAN_TO_ARABIC.items()}
+_AMBIGUOUS_PSX_PREFIXES = {"SLPM", "SLPS", "SCPS"}
 
 
 def _psx_name_slug(name: str) -> str:
@@ -63,6 +99,23 @@ def _psx_name_slug(name: str) -> str:
 def _psx_region_hint(name: str) -> str | None:
     match = _REGION_RE.search(name)
     return match.group(1).upper() if match else None
+
+
+def _slug_roman_variants(slug: str) -> list[str]:
+    """Return roman<->arabic variants for a normalized slug.
+
+    We only use these as a fallback when the exact slug misses, which keeps
+    names like "Mega Man X" from colliding with "Mega Man 10" unless one side
+    is actually absent from the index.
+    """
+    parts = slug.split("_")
+    variants: list[str] = []
+    for idx, part in enumerate(parts):
+        replacement = _ROMAN_TO_ARABIC.get(part) or _ARABIC_TO_ROMAN.get(part)
+        if not replacement:
+            continue
+        variants.append("_".join(parts[:idx] + [replacement] + parts[idx + 1 :]))
+    return variants
 
 
 def _psx_serial_region_rank(code: str, region_hint: str | None) -> tuple[int, int, str]:
@@ -95,6 +148,33 @@ def _psx_serial_region_rank(code: str, region_hint: str | None) -> tuple[int, in
         if prefix in group:
             return (idx, 0 if prefix.startswith("SC") else 1, code)
     return (len(fallback_order) + 1, 1, code)
+
+
+def _sat_serial_region_rank(code: str, region_hint: str | None) -> tuple[int, str]:
+    code = code.upper()
+    if region_hint:
+        hint = region_hint.upper()
+        if hint == "USA" and not code.endswith("-50") and not code.endswith("G"):
+            return (0, code)
+        if hint == "EUROPE" and code.endswith("-50"):
+            return (0, code)
+        if hint == "JAPAN" and code.endswith("G"):
+            return (0, code)
+
+    if code.endswith("-50"):
+        return (2, code)
+    if code.endswith("G"):
+        return (3, code)
+    return (1, code)
+
+
+def _saturn_safe_id(serial: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]", "", serial.replace(" ", "_")).upper()
+
+
+def make_saturn_title_id(serial: str) -> str:
+    safe_id = _saturn_safe_id(serial)
+    return f"SAT_{safe_id}" if safe_id else "SAT_UNKNOWN"
 
 
 # Patterns for platform detection
@@ -223,6 +303,12 @@ def detect_platform(title_id: str) -> str:
     if base in _ps3_names:
         return "PS3"
 
+    if tid in _sat_names:
+        return "SAT"
+
+    if tid.startswith("SAT_") and tid[4:] in _sat_safe_to_serial:
+        return "SAT"
+
     heuristic = _detect_playstation_platform_heuristic(tid)
     if heuristic:
         return heuristic
@@ -237,8 +323,11 @@ _HEX_16_RE = re.compile(r"^[0-9A-F]{16}$")
 def load_database(db_path: Path | None = None) -> int:
     """Load a game names database from file into the appropriate cache.
 
-    Automatically detects the target dict based on filename:
-      - 3dstitledb.txt  → _3ds_title_ids (full 16-char hex TitleID -> name)
+    Automatically detects the target dict based on filename.
+
+    3DS direct TitleID lookups now come from the DAT ``title_id`` lines loaded by
+    ``load_libretro_dat_to_dicts()``. This helper remains for the legacy text
+    databases that are still in use for other systems:
       - 3dstdb.txt      → _3ds_names  (4-char game code -> name)
       - dstdb.txt       → _ds_names
       - pspdb.txt       → _psp_names
@@ -249,13 +338,15 @@ def load_database(db_path: Path | None = None) -> int:
     Returns the number of entries loaded.
     """
     global \
-        _3ds_title_ids, \
         _3ds_names, \
         _ds_names, \
         _psp_names, \
+        _sat_names, \
         _vita_names, \
         _psx_by_slug, \
         _psx_serials_by_slug, \
+        _sat_by_slug, \
+        _sat_serials_by_slug, \
         _wii_names
 
     if db_path is None:
@@ -269,12 +360,12 @@ def load_database(db_path: Path | None = None) -> int:
 
     target_dict: dict[str, str] = _3ds_names  # default; overwritten below if not wii
     if not is_wii:
-        if "3dstitledb" in fname:
-            target_dict = _3ds_title_ids
-        elif "vita" in fname:
+        if "vita" in fname:
             target_dict = _vita_names
         elif "psx" in fname:
             target_dict = _psx_names
+        elif "saturn" in fname:
+            target_dict = _sat_names
         elif "psp" in fname:
             target_dict = _psp_names
         elif "ds" in fname and "3ds" not in fname:
@@ -329,17 +420,25 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
     """
     global \
         _psx_names, \
+        _ps2_names, \
         _psp_names, \
+        _sat_names, \
         _vita_names, \
+        _3ds_title_ids, \
         _3ds_names, \
+        _3ds_serial_to_title_id, \
         _ds_names, \
         _wii_names, \
         _ps3_names
     global \
         _psx_priority, \
+        _ps2_priority, \
         _psp_priority, \
+        _sat_priority, \
         _vita_priority, \
         _3ds_priority, \
+        _3ds_title_priority, \
+        _3ds_title_id_priority, \
         _ds_priority, \
         _wii_priority, \
         _ps3_priority
@@ -362,10 +461,18 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
         target = _ps3_names
         priority = _ps3_priority
         mode = "strip_hyphens"
+    elif "playstation 2" in fname:
+        target = _ps2_names
+        priority = _ps2_priority
+        mode = "strip_hyphens"
     elif "playstation" in fname:
         target = _psx_names
         priority = _psx_priority
         mode = "strip_hyphens"
+    elif "saturn" in fname:
+        target = _sat_names
+        priority = _sat_priority
+        mode = "keep_serial"
     elif "nintendo 3ds" in fname:
         target = _3ds_names
         priority = _3ds_priority
@@ -411,9 +518,11 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
     added = 0
     current_name: str | None = None
     current_serial: str | None = None
+    current_title_id: str | None = None
 
     _NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
     _SERIAL_RE = re.compile(r'^\s*serial\s+"(.+?)"')
+    _TITLE_ID_RE = re.compile(r'^\s*title_id\s+"([0-9A-Fa-f]{16})"')
 
     def _extract_key(serial: str) -> str | None:
         if mode == "strip_hyphens":
@@ -423,6 +532,9 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
                 if len(key) == 9 and key[:4].isalpha() and key[4:].isdigit()
                 else None
             )
+        if mode == "keep_serial":
+            key = serial.upper().strip()
+            return key or None
         if mode == "3ds_code":
             # CTR-P-XXXX or CTR-N-XXXX → XXXX (4-char)
             parts = serial.upper().split("-")
@@ -459,11 +571,17 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
             if m:
                 current_name = m.group(1)
                 current_serial = None
+                current_title_id = None
                 continue
 
             m = _SERIAL_RE.match(line)
             if m and current_serial is None:
                 current_serial = m.group(1)
+                continue
+
+            m = _TITLE_ID_RE.match(line)
+            if m and current_title_id is None:
+                current_title_id = m.group(1).upper()
                 continue
 
             # End of block — ")" alone on a line at top level
@@ -478,8 +596,42 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
                         target[key] = current_name
                         priority[key] = rank
                         added += 1
+                    if mode == "3ds_code" and current_title_id:
+                        serial_key = current_serial.upper().strip()
+                        if serial_key:
+                            _3ds_serial_to_title_id[serial_key] = current_title_id
+                        existing_title_id_rank = _3ds_title_id_priority.get(
+                            current_title_id,
+                            (
+                                len(_REGION_PRIORITY) + 1,
+                                len(_REGION_PRIORITY) + 1,
+                            ),
+                        )
+                        if (
+                            rank < existing_title_id_rank
+                            or current_title_id not in _3ds_title_ids
+                        ):
+                            _3ds_title_ids[current_title_id] = current_name
+                            _3ds_title_id_priority[current_title_id] = rank
+
+                        slug = normalize_rom_name(current_name)
+                        if slug and slug != "unknown":
+                            existing_title_rank = _3ds_title_priority.get(
+                                slug,
+                                (
+                                    len(_REGION_PRIORITY) + 1,
+                                    len(_REGION_PRIORITY) + 1,
+                                ),
+                            )
+                            if rank < existing_title_rank or slug not in _3ds_by_slug:
+                                _3ds_by_slug[slug] = current_title_id
+                                _3ds_title_priority[slug] = rank
+                            candidates = _3ds_title_ids_by_slug.setdefault(slug, [])
+                            if current_title_id not in candidates:
+                                candidates.append(current_title_id)
                 current_name = None
                 current_serial = None
+                current_title_id = None
 
     return added
 
@@ -521,6 +673,20 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
                 result[code] = (name, "PS3")
             continue
 
+        # For PS1/PS2-style serial families the numeric heuristic is not
+        # sufficient for every region prefix (notably Japanese SLPM/SLPS
+        # ranges). When one local DAT contains the code and the other does
+        # not, trust the explicit DAT membership before falling back to the
+        # prefix/number heuristic.
+        in_ps1_dat = base in _psx_names
+        in_ps2_dat = base in _ps2_names
+        if in_ps2_dat and not in_ps1_dat:
+            result[code] = (_ps2_names[base], "PS2")
+            continue
+        if in_ps1_dat and not in_ps2_dat and base[:4] in _AMBIGUOUS_PSX_PREFIXES:
+            result[code] = (_psx_names[base], "PS1")
+            continue
+
         platform = _detect_playstation_platform_heuristic(code_upper)
         if platform == "VITA":
             name = _vita_names.get(base)
@@ -537,6 +703,23 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             if name:
                 result[code] = (name, "PS1")
             continue
+        if platform == "PS2":
+            # Fall back to _psx_names when the PS2 DAT hasn't been loaded
+            # yet — legacy data in the wild carries SLUS/SCUS/SLES codes
+            # in the PSX dict from before "Sony - PlayStation 2.dat"
+            # was routed to its own dict.
+            name = _ps2_names.get(base) or _psx_names.get(base)
+            if name:
+                result[code] = (name, "PS2")
+            continue
+        if code_upper in _sat_names:
+            result[code] = (_sat_names[code_upper], "SAT")
+            continue
+        if code_upper.startswith("SAT_"):
+            sat_serial = _sat_safe_to_serial.get(code_upper[4:])
+            if sat_serial and sat_serial in _sat_names:
+                result[code] = (_sat_names[sat_serial], "SAT")
+                continue
         if platform == "PSP":
             name = _psp_names.get(base)
             if name:
@@ -547,7 +730,7 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
         is_3ds_format = code_upper.startswith("CTR-")
 
         if len(code_upper) == 16 and all(c in "0123456789ABCDEF" for c in code_upper):
-            # 1. Direct TitleID lookup (3dstitledb.txt — most accurate)
+            # 1. Direct TitleID lookup populated from 3DS DAT title_id lines.
             name = _3ds_title_ids.get(code_upper)
             if name:
                 platform = "NDS" if code_upper[:5] in _NDS_HIGH_PREFIXES else "3DS"
@@ -669,6 +852,32 @@ def get_psx_retail_serial(code: str) -> str | None:
     return _psx_psn_to_retail.get(code.upper().strip()[:9])
 
 
+def build_saturn_slug_index() -> int:
+    global _sat_by_slug, _sat_serials_by_slug, _sat_safe_to_serial
+
+    new_index: dict[str, str] = {}
+    slug_serials: dict[str, list[str]] = {}
+
+    for code, name in _sat_names.items():
+        slug = _psx_name_slug(name)
+        if not slug:
+            continue
+        slug_serials.setdefault(slug, []).append(code)
+
+    for slug, codes in slug_serials.items():
+        sorted_codes = sorted(codes)
+        new_index[slug] = sorted_codes[0]
+        slug_serials[slug] = sorted_codes
+
+    _sat_by_slug.clear()
+    _sat_by_slug.update(new_index)
+    _sat_serials_by_slug.clear()
+    _sat_serials_by_slug.update(slug_serials)
+    _sat_safe_to_serial.clear()
+    _sat_safe_to_serial.update({_saturn_safe_id(code): code for code in _sat_names})
+    return len(_sat_by_slug)
+
+
 def lookup_psx_serial(name: str) -> str | None:
     """Return the PS1 product code for a game name or ROM filename, or None.
 
@@ -678,9 +887,60 @@ def lookup_psx_serial(name: str) -> str | None:
     slug = _psx_name_slug(name)
     candidates = _psx_serials_by_slug.get(slug)
     if not candidates:
-        return _psx_by_slug.get(slug)
+        fallback = _psx_by_slug.get(slug)
+        if fallback:
+            return fallback
+
+        for variant in _slug_roman_variants(slug):
+            candidates = _psx_serials_by_slug.get(variant)
+            if candidates:
+                break
+            fallback = _psx_by_slug.get(variant)
+            if fallback:
+                return fallback
+
+    if not candidates:
+        return None
     region_hint = _psx_region_hint(name)
     return min(candidates, key=lambda code: _psx_serial_region_rank(code, region_hint))
+
+
+def lookup_saturn_serial(name: str) -> str | None:
+    slug = _psx_name_slug(name)
+    candidates = _sat_serials_by_slug.get(slug)
+    if not candidates:
+        return _sat_by_slug.get(slug)
+    region_hint = _psx_region_hint(name)
+    return min(candidates, key=lambda code: _sat_serial_region_rank(code, region_hint))
+
+
+def lookup_3ds_title_id(name: str) -> str | None:
+    slug = normalize_rom_name(name)
+    if not slug or slug == "unknown":
+        return None
+    preferred = _3ds_by_slug.get(slug)
+    if preferred:
+        return preferred
+    candidates = _3ds_title_ids_by_slug.get(slug)
+    if candidates:
+        return candidates[0]
+    return None
+
+
+def get_3ds_title_id_count() -> int:
+    return len(_3ds_title_ids)
+
+
+def lookup_disc_serial(system: str, name: str) -> str | None:
+    sys_upper = system.upper().strip()
+    if sys_upper in ("PS1", "PSX"):
+        return lookup_psx_serial(name)
+    if sys_upper == "3DS":
+        return lookup_3ds_title_id(name)
+    if sys_upper == "SAT":
+        serial = lookup_saturn_serial(name)
+        return make_saturn_title_id(serial) if serial else None
+    return None
 
 
 def get_name(product_code: str) -> str | None:

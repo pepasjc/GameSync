@@ -5,7 +5,7 @@ from app.services.bundle import create_bundle
 from app.services import game_names
 from app.services.ps1_cards import create_vmp, extract_raw_card
 from app.services.ps2_cards import add_ecc, strip_ecc
-from app.services import serialstation
+from app.services import storage
 
 
 def _make_bundle_bytes(
@@ -34,7 +34,12 @@ def _make_ps1_bundle_bytes(
     files: list[tuple[str, bytes]] | None = None,
 ) -> bytes:
     if files is None:
-        files = [("SCEVMC0.VMP", b"\x00PMV" + b"\x00" * 0x7C + b"MC\x00\x00" + b"\x00" * (0x20000 - 4))]
+        files = [
+            (
+                "SCEVMC0.VMP",
+                b"\x00PMV" + b"\x00" * 0x7C + b"MC\x00\x00" + b"\x00" * (0x20000 - 4),
+            )
+        ]
     bundle_files = [
         BundleFile(
             path=path,
@@ -44,7 +49,9 @@ def _make_ps1_bundle_bytes(
         )
         for path, data in files
     ]
-    bundle = SaveBundle(title_id=0, timestamp=timestamp, files=bundle_files, title_id_str=title_id)
+    bundle = SaveBundle(
+        title_id=0, timestamp=timestamp, files=bundle_files, title_id_str=title_id
+    )
     return create_bundle(bundle)
 
 
@@ -64,7 +71,9 @@ def _make_ps2_bundle_bytes(
         )
         for path, data in files
     ]
-    bundle = SaveBundle(title_id=0, timestamp=timestamp, files=bundle_files, title_id_str=title_id)
+    bundle = SaveBundle(
+        title_id=0, timestamp=timestamp, files=bundle_files, title_id_str=title_id
+    )
     return create_bundle(bundle)
 
 
@@ -137,7 +146,9 @@ class TestTitlesEndpoint:
         assert len(titles) == 1
         assert titles[0]["title_id"] == "0004000000055D00"
 
-    def test_titles_refresh_ps3_hash_from_current_files(self, client, auth_headers, tmp_save_dir):
+    def test_titles_refresh_ps3_hash_from_current_files(
+        self, client, auth_headers, tmp_save_dir
+    ):
         title_id = "NPUB30096-SAVEGAME"
         bundle = _make_string_bundle_bytes(
             title_id=title_id,
@@ -159,12 +170,10 @@ class TestTitlesEndpoint:
         assert titles[0]["title_id"] == title_id
         assert titles[0]["save_hash"] == hashlib.sha256(b"v2").hexdigest()
 
-    def test_titles_names_uses_serialstation_for_ps2_codes(self, client, auth_headers, monkeypatch):
-        async def fake_lookup_batch(codes):
-            assert codes == ["SLPM65590"]
-            return {"SLPM65590": ("Densha de Go! FINAL", "PS2")}
-
-        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
+    def test_titles_names_uses_local_db_for_ps2_codes(
+        self, client, auth_headers, monkeypatch
+    ):
+        monkeypatch.setitem(game_names._ps2_names, "SLPM65590", "Densha de Go! FINAL")
 
         r = client.post(
             "/api/v1/titles/names",
@@ -198,7 +207,110 @@ class TestTitlesEndpoint:
         assert game_names.detect_platform("SLUS01279") == "PS1"
         assert game_names.detect_platform("SLUS20002") == "PS2"
 
-    def test_titles_can_filter_by_console_type(self, client, auth_headers, monkeypatch):
+    def test_lookup_names_typed_resolves_ps2_serials_from_local_db(self, monkeypatch):
+        """PS2 serials (SCUS97203 = Wild Arms 3) must resolve to a name
+        from the local PS2 DAT.  Before routing "Sony - PlayStation 2.dat"
+        into its own dict and giving lookup_names_typed a PS2 branch,
+        these codes fell through every conditional and came back empty —
+        so the UI listed raw serials like SCUS97203 / PBPX95503 instead
+        of real game names."""
+        monkeypatch.setitem(game_names._ps2_names, "SCUS97203", "Wild Arms 3 (USA)")
+        monkeypatch.setitem(game_names._ps2_names, "SCES51920", "Gran Turismo 4 (Europe)")
+
+        result = game_names.lookup_names_typed(["SCUS97203", "SCES51920"])
+        assert result["SCUS97203"] == ("Wild Arms 3 (USA)", "PS2")
+        assert result["SCES51920"] == ("Gran Turismo 4 (Europe)", "PS2")
+
+    def test_lookup_names_typed_falls_back_to_psx_dict_for_legacy_ps2_entries(
+        self, monkeypatch
+    ):
+        """Data loaded before the PS2 DAT got its own dict lives in
+        _psx_names.  The PS2 branch must still find those names so
+        redeployment doesn't wipe out existing lookups."""
+        # Simulate legacy state: PS2 DAT was loaded into _psx_names.
+        monkeypatch.setitem(game_names._psx_names, "SLUS20002", "Armored Core 2 (USA)")
+
+        result = game_names.lookup_names_typed(["SLUS20002"])
+        # Heuristic identifies SLUS20002 as PS2 (serial ≥ 20000); the
+        # fallback lookup finds the legacy name and tags it PS2.
+        assert result["SLUS20002"] == ("Armored Core 2 (USA)", "PS2")
+
+    def test_lookup_names_typed_prefers_ps1_dat_for_ambiguous_japanese_prefixes(
+        self, monkeypatch
+    ):
+        monkeypatch.setitem(game_names._psx_names, "SLPM86034", "Parasite Eve (Japan)")
+
+        result = game_names.lookup_names_typed(["SLPM86034"])
+        assert result["SLPM86034"] == ("Parasite Eve (Japan)", "PS1")
+
+    def test_saturn_archive_lookup_classifies_results(self, client, auth_headers):
+        r = client.post(
+            "/api/v1/titles/saturn-archives",
+            json={
+                "title_id": "SAT_T-4507G",
+                "archive_names": ["GRANDIA_001", "DRACULAX_01", "UNKNOWN_SLOT"],
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["title_id"] == "SAT_T-4507G"
+
+        result_map = {item["archive_family"]: item for item in body["results"]}
+        assert result_map["GRANDIA"]["status"] == "exact_current"
+        assert result_map["GRANDIA"]["matches_current_title"] is True
+        assert result_map["GRANDIA"]["archive_names"] == ["GRANDIA_001"]
+        assert "SAT_T-4507G" in [c["title_id"] for c in result_map["GRANDIA"]["candidates"]]
+
+        assert result_map["DRACULAX"]["status"] == "other_title"
+        assert result_map["DRACULAX"]["matches_current_title"] is False
+        assert result_map["DRACULAX"]["archive_names"] == ["DRACULAX_01"]
+        assert [c["title_id"] for c in result_map["DRACULAX"]["candidates"]] == ["SAT_T-9527G"]
+        assert result_map["UNKNOWN_SLOT"]["status"] == "unknown"
+        assert result_map["UNKNOWN_SLOT"]["archive_names"] == ["UNKNOWN_SLOT"]
+        assert result_map["UNKNOWN_SLOT"]["candidates"] == []
+
+    def test_saturn_archive_lookup_prefers_specific_title_over_collection_overlap(
+        self, client, auth_headers
+    ):
+        r = client.post(
+            "/api/v1/titles/saturn-archives",
+            json={
+                "title_id": "SAT_T-9527G",
+                "archive_names": ["DRACULAX_01", "DRACULAX_02"],
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        result = body["results"][0]
+        assert result["archive_family"] == "DRACULAX"
+        assert result["status"] == "exact_current"
+        assert result["matches_current_title"] is True
+        assert [c["title_id"] for c in result["candidates"]] == ["SAT_T-9527G"]
+
+    def test_titles_list_prefers_local_db_name_over_stale_metadata(
+        self, client, auth_headers, monkeypatch
+    ):
+        monkeypatch.setitem(game_names._psx_names, "SLUS01324", "Breath of Fire IV (USA)")
+
+        bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01324")
+        client.post(
+            "/api/v1/saves/SLUS01324",
+            content=bundle_ps1,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        storage.update_metadata_name("SLUS01324", "Breath of Fire 4", "PS1")
+
+        r = client.get("/api/v1/titles", headers=auth_headers)
+        assert r.status_code == 200
+        titles = {t["title_id"]: t for t in r.json()["titles"]}
+        assert titles["SLUS01324"]["name"] == "Breath of Fire IV (USA)"
+        assert titles["SLUS01324"]["game_name"] == "Breath of Fire IV (USA)"
+        assert titles["SLUS01324"]["console_type"] == "PS1"
+
+    def test_titles_can_filter_by_console_type(self, client, auth_headers):
         bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
         client.post(
             "/api/v1/saves/SLUS01279",
@@ -213,23 +325,13 @@ class TestTitlesEndpoint:
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
 
-        async def fake_lookup_batch(codes):
-            result = {}
-            if "SLUS01279" in codes:
-                result["SLUS01279"] = ("Dino Crisis 2", "PS1")
-            if "ULUS10272" in codes:
-                result["ULUS10272"] = ("God of War", "PSP")
-            return result
-
-        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
-
         r = client.get("/api/v1/titles?console_type=PS1", headers=auth_headers)
         assert r.status_code == 200
         titles = r.json()["titles"]
         assert [t["title_id"] for t in titles] == ["SLUS01279"]
         assert titles[0]["console_type"] == "PS1"
 
-    def test_titles_can_filter_by_multiple_console_types(self, client, auth_headers, monkeypatch):
+    def test_titles_can_filter_by_multiple_console_types(self, client, auth_headers):
         bundle_ps1 = _make_ps1_bundle_bytes(title_id="SLUS01279")
         client.post(
             "/api/v1/saves/SLUS01279",
@@ -253,19 +355,6 @@ class TestTitlesEndpoint:
             content=bundle_psp,
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
-
-        async def fake_lookup_batch(codes):
-            result = {}
-            if "SLUS01279" in codes:
-                result["SLUS01279"] = ("Dino Crisis 2", "PS1")
-            if "NPUB30096" in codes or "NPUB30096-SAVEGAME" in codes:
-                result["NPUB30096"] = ("Ridge Racer 7", "PS3")
-                result["NPUB30096-SAVEGAME"] = ("Ridge Racer 7", "PS3")
-            if "ULUS10272" in codes:
-                result["ULUS10272"] = ("God of War", "PSP")
-            return result
-
-        monkeypatch.setattr(serialstation, "lookup_batch", fake_lookup_batch)
 
         r = client.get(
             "/api/v1/titles?console_type=PS1&console_type=PS3",
@@ -384,9 +473,7 @@ class TestUploadEndpoint:
 
 class TestDownloadEndpoint:
     def test_download_not_found(self, client, auth_headers):
-        r = client.get(
-            "/api/v1/saves/0004000000055D00", headers=auth_headers
-        )
+        r = client.get("/api/v1/saves/0004000000055D00", headers=auth_headers)
         assert r.status_code == 404
 
     def test_download_after_upload(self, client, auth_headers):
@@ -398,9 +485,7 @@ class TestDownloadEndpoint:
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
 
-        r = client.get(
-            "/api/v1/saves/0004000000055D00", headers=auth_headers
-        )
+        r = client.get("/api/v1/saves/0004000000055D00", headers=auth_headers)
         assert r.status_code == 200
         assert r.headers["content-type"] == "application/octet-stream"
         assert "X-Save-Timestamp" in r.headers
@@ -440,7 +525,9 @@ class TestDownloadEndpoint:
         assert r.headers["X-Save-File-Count"] == "2"
 
     def test_raw_download_rejects_multi_file_bundle(self, client, auth_headers):
-        bundle = _make_bundle_bytes(files=[("ICON0.PNG", b"icon"), ("DATA.BIN", b"save")])
+        bundle = _make_bundle_bytes(
+            files=[("ICON0.PNG", b"icon"), ("DATA.BIN", b"save")]
+        )
         client.post(
             "/api/v1/saves/0004000000055D00",
             content=bundle,
@@ -465,17 +552,23 @@ class TestDownloadEndpoint:
         assert r.status_code == 200
         assert r.content == raw
 
-    def test_ps1_bundle_upload_materializes_raw_slot_files(self, client, auth_headers, tmp_save_dir):
+    def test_ps1_bundle_upload_materializes_raw_slot_files(
+        self, client, auth_headers, tmp_save_dir
+    ):
         raw = b"MC\x00\x00" + b"\x22" * (0x20000 - 4)
         vmp = b"\x00PMV" + b"\x00" * 0x7C + raw
-        bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", vmp), ("PARAM.SFO", b"param")])
+        bundle = _make_ps1_bundle_bytes(
+            files=[("SCEVMC0.VMP", vmp), ("PARAM.SFO", b"param")]
+        )
         r = client.post(
             "/api/v1/saves/SLUS01279",
             content=bundle,
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
         assert r.status_code == 200
-        assert (tmp_save_dir / "SLUS01279" / "current" / "slot0.mcd").read_bytes() == raw
+        assert (
+            tmp_save_dir / "SLUS01279" / "current" / "slot0.mcd"
+        ).read_bytes() == raw
 
     def test_create_vmp_round_trips_raw_card(self):
         raw = b"MC\x00\x00" + b"\x33" * (0x20000 - 4)
@@ -528,12 +621,16 @@ class TestDownloadEndpoint:
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
 
-        r = client.get("/api/v1/saves/SLUS20002/ps2-card?format=ps2", headers=auth_headers)
+        r = client.get(
+            "/api/v1/saves/SLUS20002/ps2-card?format=ps2", headers=auth_headers
+        )
         assert r.status_code == 200
         assert len(r.content) == 528 * 16384
         assert strip_ecc(r.content) == mc2
 
-    def test_ps2_card_upload_accepts_ps2_and_stores_mc2(self, client, auth_headers, tmp_save_dir):
+    def test_ps2_card_upload_accepts_ps2_and_stores_mc2(
+        self, client, auth_headers, tmp_save_dir
+    ):
         mc2 = bytes((i % 197 for i in range(512 * 16384)))
         ps2 = add_ecc(mc2)
 
@@ -554,7 +651,9 @@ class TestDownloadEndpoint:
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
 
-        r = client.get("/api/v1/saves/SLUS20002/ps2-card/meta?format=ps2", headers=auth_headers)
+        r = client.get(
+            "/api/v1/saves/SLUS20002/ps2-card/meta?format=ps2", headers=auth_headers
+        )
         assert r.status_code == 200
         data = r.json()
         expected = add_ecc(mc2)
@@ -564,7 +663,9 @@ class TestDownloadEndpoint:
 
     def test_ps1_bundle_download_hides_raw_slot_files(self, client, auth_headers):
         raw = b"MC\x00\x00" + b"\x66" * (0x20000 - 4)
-        bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", create_vmp(raw)), ("PARAM.SFO", b"param")])
+        bundle = _make_ps1_bundle_bytes(
+            files=[("SCEVMC0.VMP", create_vmp(raw)), ("PARAM.SFO", b"param")]
+        )
         client.post(
             "/api/v1/saves/SLUS01279",
             content=bundle,
@@ -574,6 +675,7 @@ class TestDownloadEndpoint:
         r = client.get("/api/v1/saves/SLUS01279", headers=auth_headers)
         assert r.status_code == 200
         from app.services.bundle import parse_bundle
+
         downloaded = parse_bundle(r.content)
         paths = sorted(f.path for f in downloaded.files)
         assert "SCEVMC0.VMP" in paths
@@ -603,7 +705,10 @@ class TestDownloadEndpoint:
 
         downloaded = parse_bundle(r.content)
         assert downloaded.effective_title_id == title_id
-        assert sorted(f.path for f in downloaded.files) == ["PARAM.SFO", "USR-DATA/SAVE.DAT"]
+        assert sorted(f.path for f in downloaded.files) == [
+            "PARAM.SFO",
+            "USR-DATA/SAVE.DAT",
+        ]
 
     def test_upload_preserves_history(self, client, auth_headers, tmp_save_dir):
         # Upload v1
@@ -631,9 +736,7 @@ class TestDownloadEndpoint:
 
 class TestMetadataEndpoint:
     def test_meta_not_found(self, client, auth_headers):
-        r = client.get(
-            "/api/v1/saves/0004000000055D00/meta", headers=auth_headers
-        )
+        r = client.get("/api/v1/saves/0004000000055D00/meta", headers=auth_headers)
         assert r.status_code == 404
 
     def test_meta_after_upload(self, client, auth_headers):
@@ -644,9 +747,7 @@ class TestMetadataEndpoint:
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
 
-        r = client.get(
-            "/api/v1/saves/0004000000055D00/meta", headers=auth_headers
-        )
+        r = client.get("/api/v1/saves/0004000000055D00/meta", headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
         assert data["title_id"] == "0004000000055D00"
@@ -657,7 +758,9 @@ class TestMetadataEndpoint:
     def test_ps1_meta_uses_psp_visible_hash(self, client, auth_headers):
         raw = b"MC\x00\x00" + b"\x77" * (0x20000 - 4)
         vmp = create_vmp(raw)
-        bundle = _make_ps1_bundle_bytes(files=[("SCEVMC0.VMP", vmp), ("PARAM.SFO", b"param")])
+        bundle = _make_ps1_bundle_bytes(
+            files=[("SCEVMC0.VMP", vmp), ("PARAM.SFO", b"param")]
+        )
         client.post(
             "/api/v1/saves/SLUS01279",
             content=bundle,
@@ -679,7 +782,9 @@ class TestMetadataEndpoint:
             headers={**auth_headers, "Content-Type": "application/octet-stream"},
         )
 
-        r = client.get("/api/v1/saves/SLUS01279/ps1-card/meta?slot=0", headers=auth_headers)
+        r = client.get(
+            "/api/v1/saves/SLUS01279/ps1-card/meta?slot=0", headers=auth_headers
+        )
         assert r.status_code == 200
         data = r.json()
         assert data["title_id"] == "SLUS01279"
@@ -691,14 +796,28 @@ class TestMetadataEndpoint:
 class TestPs1Lookup:
     def test_lookup_psx_serial_prefers_region_hint(self, monkeypatch):
         monkeypatch.setattr(game_names, "_psx_by_slug", {"dino_crisis_2": "SCES02220"})
-        monkeypatch.setattr(game_names, "_psx_serials_by_slug", {
-            "dino_crisis_2": ["SCES02220", "SLUS01279"]
-        })
+        monkeypatch.setattr(
+            game_names,
+            "_psx_serials_by_slug",
+            {"dino_crisis_2": ["SCES02220", "SLUS01279"]},
+        )
 
         assert game_names.lookup_psx_serial("Dino Crisis 2 (USA)") == "SLUS01279"
         assert game_names.lookup_psx_serial("Dino Crisis 2 (Europe)") == "SCES02220"
 
-    def test_normalize_endpoint_uses_region_aware_ps1_serial_lookup(self, client, auth_headers, monkeypatch):
+    def test_lookup_psx_serial_falls_back_to_roman_arabic_variants(self, monkeypatch):
+        monkeypatch.setattr(game_names, "_psx_by_slug", {})
+        monkeypatch.setattr(
+            game_names,
+            "_psx_serials_by_slug",
+            {"breath_of_fire_4": ["SLUS01324"]},
+        )
+
+        assert game_names.lookup_psx_serial("Breath of Fire IV (USA)") == "SLUS01324"
+
+    def test_normalize_endpoint_uses_region_aware_ps1_serial_lookup(
+        self, client, auth_headers, monkeypatch
+    ):
         class FakeNormalizer:
             def normalize(self, system, filename, crc32=None):
                 return {
@@ -714,17 +833,15 @@ class TestPs1Lookup:
 
         monkeypatch.setattr(dat_normalizer, "get", lambda: FakeNormalizer())
         monkeypatch.setattr(game_names, "_psx_by_slug", {"dino_crisis_2": "SCES02220"})
-        monkeypatch.setattr(game_names, "_psx_serials_by_slug", {
-            "dino_crisis_2": ["SCES02220", "SLUS01279"]
-        })
+        monkeypatch.setattr(
+            game_names,
+            "_psx_serials_by_slug",
+            {"dino_crisis_2": ["SCES02220", "SLUS01279"]},
+        )
 
         r = client.post(
             "/api/v1/normalize/batch",
-            json={
-                "roms": [
-                    {"system": "PS1", "filename": "Dino Crisis 2 (USA).cue"}
-                ]
-            },
+            json={"roms": [{"system": "PS1", "filename": "Dino Crisis 2 (USA).cue"}]},
             headers=auth_headers,
         )
 
@@ -732,3 +849,155 @@ class TestPs1Lookup:
         result = r.json()["results"][0]
         assert result["canonical_name"] == "Dino Crisis 2 (USA)"
         assert result["title_id"] == "SLUS01279"
+
+
+class TestSaturnLookup:
+    def test_lookup_saturn_serial_prefers_region_hint(self, monkeypatch):
+        monkeypatch.setattr(game_names, "_sat_by_slug", {"alien_trilogy": "T-8113G"})
+        monkeypatch.setattr(
+            game_names,
+            "_sat_serials_by_slug",
+            {"alien_trilogy": ["T-8113G", "T-8113H", "T-8113H-50"]},
+        )
+
+        assert game_names.lookup_saturn_serial("Alien Trilogy (USA)") == "T-8113H"
+        assert game_names.lookup_saturn_serial("Alien Trilogy (Europe)") == "T-8113H-50"
+
+    def test_normalize_endpoint_uses_saturn_serial_lookup(
+        self, client, auth_headers, monkeypatch
+    ):
+        class FakeNormalizer:
+            def normalize(self, system, filename, crc32=None):
+                return {
+                    "canonical_name": "Albert Odyssey - Legend of Eldean (USA)",
+                    "slug": "albert_odyssey_legend_of_eldean_usa",
+                    "source": "dat_filename",
+                }
+
+            def search_candidates(self, system, filename):
+                return ["Albert Odyssey - Legend of Eldean (USA)"]
+
+        from app.services import dat_normalizer
+
+        monkeypatch.setattr(dat_normalizer, "get", lambda: FakeNormalizer())
+        monkeypatch.setattr(
+            game_names, "_sat_by_slug", {"albert_odyssey_legend_of_eldean": "T-12705H"}
+        )
+        monkeypatch.setattr(
+            game_names,
+            "_sat_serials_by_slug",
+            {"albert_odyssey_legend_of_eldean": ["T-12705H"]},
+        )
+        monkeypatch.setattr(game_names, "_sat_safe_to_serial", {"T-12705H": "T-12705H"})
+
+        r = client.post(
+            "/api/v1/normalize/batch",
+            json={
+                "roms": [
+                    {
+                        "system": "SAT",
+                        "filename": "Albert Odyssey - Legend of Eldean (USA).cue",
+                    }
+                ]
+            },
+            headers=auth_headers,
+        )
+
+        assert r.status_code == 200
+        result = r.json()["results"][0]
+        assert result["canonical_name"] == "Albert Odyssey - Legend of Eldean (USA)"
+        assert result["title_id"] == "SAT_T-12705H"
+
+    def test_lookup_names_typed_supports_saroo_style_saturn_title_id(self, monkeypatch):
+        monkeypatch.setattr(
+            game_names,
+            "_sat_names",
+            {"T-12705H": "Albert Odyssey - Legend of Eldean (USA)"},
+        )
+        monkeypatch.setattr(game_names, "_sat_safe_to_serial", {"T-12705H": "T-12705H"})
+
+        result = game_names.lookup_names_typed(["SAT_T-12705H"])
+
+        assert result["SAT_T-12705H"] == (
+            "Albert Odyssey - Legend of Eldean (USA)",
+            "SAT",
+        )
+        assert game_names.detect_platform("SAT_T-12705H") == "SAT"
+
+
+class Test3dsLookup:
+    def test_load_3ds_dat_with_title_ids_populates_lookup(self, tmp_path, monkeypatch):
+        dat_path = tmp_path / "Nintendo - Nintendo 3DS.dat"
+        dat_path.write_text(
+            "\n".join(
+                [
+                    "game (",
+                    '\tname "Mario Kart 7 (USA)"',
+                    '\tserial "CTR-P-AMKE"',
+                    '\ttitle_id "0004000000030800"',
+                    ")",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(game_names, "_3ds_names", {})
+        monkeypatch.setattr(game_names, "_3ds_priority", {})
+        monkeypatch.setattr(game_names, "_3ds_title_ids", {})
+        monkeypatch.setattr(game_names, "_3ds_title_id_priority", {})
+        monkeypatch.setattr(game_names, "_3ds_serial_to_title_id", {})
+        monkeypatch.setattr(game_names, "_3ds_by_slug", {})
+        monkeypatch.setattr(game_names, "_3ds_title_ids_by_slug", {})
+        monkeypatch.setattr(game_names, "_3ds_title_priority", {})
+
+        added = game_names.load_libretro_dat_to_dicts(dat_path)
+
+        assert added == 1
+        assert game_names.lookup_names_typed(["0004000000030800"]) == {
+            "0004000000030800": ("Mario Kart 7 (USA)", "3DS")
+        }
+        assert game_names._3ds_serial_to_title_id["CTR-P-AMKE"] == "0004000000030800"
+        assert (
+            game_names.lookup_disc_serial("3DS", "Mario Kart 7 (USA).3ds")
+            == "0004000000030800"
+        )
+
+    def test_normalize_endpoint_uses_3ds_title_id_lookup(
+        self, client, auth_headers, monkeypatch
+    ):
+        class FakeNormalizer:
+            def normalize(self, system, filename, crc32=None):
+                return {
+                    "canonical_name": "Mario Kart 7 (USA)",
+                    "slug": "mario_kart_7_usa",
+                    "source": "dat_filename",
+                }
+
+            def search_candidates(self, system, filename):
+                return ["Mario Kart 7 (USA)", "Mario Kart 7 (Europe)"]
+
+        from app.services import dat_normalizer
+
+        monkeypatch.setattr(dat_normalizer, "get", lambda: FakeNormalizer())
+        monkeypatch.setattr(
+            game_names,
+            "_3ds_by_slug",
+            {"mario_kart_7_usa": "0004000000030800"},
+        )
+        monkeypatch.setattr(
+            game_names,
+            "_3ds_title_ids_by_slug",
+            {"mario_kart_7_usa": ["0004000000030800"]},
+        )
+
+        r = client.post(
+            "/api/v1/normalize/batch",
+            json={"roms": [{"system": "3DS", "filename": "Mario Kart 7 (USA).3ds"}]},
+            headers=auth_headers,
+        )
+
+        assert r.status_code == 200
+        result = r.json()["results"][0]
+        assert result["canonical_name"] == "Mario Kart 7 (USA)"
+        assert result["title_id"] == "0004000000030800"

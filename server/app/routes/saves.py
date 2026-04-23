@@ -11,7 +11,8 @@ from app.models.save import (
     is_hex_title_id,
     validate_any_title_id,
 )
-from app.services import game_names, storage
+from app.services import dat_normalizer, game_names, storage
+from shared.sync_id import canonicalize_slug_title_id
 from app.services.ps1_cards import (
     create_vmp,
     ensure_raw_slot_files,
@@ -60,11 +61,29 @@ def _trace_title_files(stage: str, title_id: str, files: list[tuple[str, bytes]]
 
 
 def _validate_title_id(title_id: str) -> str:
-    """Validate and normalize a title ID (hex or product code)."""
+    """Validate and normalize a title ID (hex or product code).
+
+    Also canonicalizes slug-form IDs to their DAT-backed native form when
+    possible: a client uploading ``NDS_mario_kart_ds_usa_australia`` is
+    silently routed to the canonical ``00048000`` + hex(gamecode) ID that
+    the 3DS/NDS homebrew clients also use for the same game.  This means
+    saves from Steam Deck/Android slug-form clients land under the same
+    storage key as the hardware clients and sync cleanly across all of
+    them.  If no DAT entry matches, the slug is kept as-is so the save is
+    still addressable.
+    """
     try:
-        return validate_any_title_id(title_id)
+        validated = validate_any_title_id(title_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid title ID format")
+
+    norm = dat_normalizer.get()
+    if norm is None:
+        return validated
+    return canonicalize_slug_title_id(
+        validated,
+        serial_lookup=norm.lookup_serial,
+    )
 
 
 def _console_id_from_request(request: Request, query_console_id: str = "") -> str:
@@ -651,12 +670,34 @@ async def upload_save(
     except BundleError as e:
         raise HTTPException(status_code=400, detail=f"Invalid bundle: {e}")
 
-    # Verify title ID in URL matches bundle
-    if bundle.effective_title_id.upper() != title_id.upper():
+    # Verify title ID in URL matches bundle.  The URL title_id has already
+    # been canonicalised (slug → hex/serial when the DAT knows the game); do
+    # the same to the bundle's internal ID so a client that sends the slug
+    # form in both URL and bundle still passes this check — both sides end
+    # up comparing the same canonical form.
+    bundle_tid = bundle.effective_title_id
+    norm = dat_normalizer.get()
+    if norm is not None:
+        bundle_tid = canonicalize_slug_title_id(
+            bundle_tid, serial_lookup=norm.lookup_serial
+        )
+    if bundle_tid.upper() != title_id.upper():
         raise HTTPException(
             status_code=400,
             detail=f"Title ID mismatch: URL={title_id}, bundle={bundle.effective_title_id}",
         )
+
+    # Sync the bundle's title_id_str to the canonical form so downstream
+    # storage (which reads ``bundle.effective_title_id``) keys off the
+    # canonical ID instead of the client's slug.  For non-hex forms this
+    # is the non-empty string field; hex forms leave title_id_str empty
+    # and storage reads title_id_hex.
+    if bundle_tid != bundle.effective_title_id:
+        if is_hex_title_id(bundle_tid):
+            bundle.title_id = int(bundle_tid, 16)
+            bundle.title_id_str = ""
+        else:
+            bundle.title_id_str = bundle_tid
 
     if is_ps1_title_id(title_id):
         ps1_files = ensure_raw_slot_files([(f.path, f.data) for f in bundle.files])

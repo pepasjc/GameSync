@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Sharp - X1 [T-En] Collection</name>
+		<description>Sharp - X1 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>17-03-2023</version>
+		<date>17-03-2023</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="Brain Breaker (Japan) [T-En by Leina v1.0]">
+		<description>Brain Breaker (Japan) [T-En by Leina v1.0]</description>
+		<rom name="Brain Breaker (Japan) [T-En by Leina v1.0].2d" size="327680" crc="6a050c62" md5="45a5672c7ec807a2e25bea387b5ee2ab" sha1="aff663929b22c4bc95e3fb5ca5b0e9d10069d8f9"/>
+	</machine>
+</datafile>

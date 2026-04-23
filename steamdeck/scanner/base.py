@@ -3,64 +3,36 @@
 import hashlib
 import re
 import struct
+import sys
 from pathlib import Path
 from typing import Optional
 
+# Make the repo root importable so 'shared' can be found.
+_REPO_ROOT = str(Path(__file__).parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Region / normalization
-# ──────────────────────────────────────────────────────────────────────────────
+from shared.systems import PSX_RETAIL_PREFIXES  # noqa: E402
 
-_REGION_NAMES = {
-    "usa",
-    "europe",
-    "japan",
-    "world",
-    "germany",
-    "france",
-    "italy",
-    "spain",
-    "australia",
-    "brazil",
-    "korea",
-    "china",
-    "netherlands",
-    "sweden",
-    "denmark",
-    "norway",
-    "finland",
-    "asia",
-}
-
-_TAG_RE = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
-_PAREN_CONTENT_RE = re.compile(r"\(([^)]+)\)")
-_DISC_RE = re.compile(
-    r"\s*[\(\[]\s*(?:disc|disk|cd)\s*\d+(?:\s*of\s*\d+)?\s*[\)\]]",
-    re.IGNORECASE,
+# Re-export the canonical ROM name / title_id helpers from the shared package
+# so every scanner uses the SAME normalisation rules as the server and the
+# other Python clients.  Having two variants was the #1 source of sync bugs —
+# region-stripped slugs on one side, region-preserving on the other meant the
+# same ROM could land under two different server keys.
+from shared.rom_id import (  # noqa: E402  (re-exported)
+    make_title_id,
+    normalize_rom_name,
 )
 
-_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
-_MULTI_UNDERSCORE_RE = re.compile(r"_+")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PS1/PS2 serial + shared card constants
+# ──────────────────────────────────────────────────────────────────────────────
 
 # PS1 product code pattern: 4 letters + 5+ digits (e.g. SLUS01234)
 PS1_SERIAL_RE = re.compile(r"^[A-Z]{4}\d{5,}$")
 
-# PS1 retail disc prefixes (match Android's psxRetailPrefixes)
-PSX_RETAIL_PREFIXES = {
-    "SLUS",
-    "SCUS",
-    "PAPX",  # NA
-    "SLES",
-    "SCES",
-    "SCED",  # EU
-    "SLPS",
-    "SLPM",
-    "SCPS",
-    "SCPM",  # JP
-    "SLAJ",
-    "SLEJ",
-    "SCAJ",  # Other
-}
+# PSX_RETAIL_PREFIXES imported from shared.systems above.
 
 # Shared / global memory card names to skip (DuckStation / ePSXe)
 SHARED_CARD_NAMES = {
@@ -76,79 +48,6 @@ SHARED_CARD_NAMES = {
 
 # PS2 shared memory card name pattern
 PS2_SHARED_CARD_RE = re.compile(r"(?i)^mcd\d{3}$")
-
-
-def _extract_regions(name: str) -> list[str]:
-    """Extract geographic region tokens from parenthetical tags."""
-    regions: list[str] = []
-    seen: set[str] = set()
-    for m in _PAREN_CONTENT_RE.finditer(name):
-        for part in m.group(1).split(","):
-            token = part.strip().lower()
-            if token in _REGION_NAMES and token not in seen:
-                seen.add(token)
-                regions.append(token)
-    return regions
-
-
-def normalize_rom_name(filename: str) -> str:
-    """Strip extension, region/revision tags -> lowercase slug."""
-    name = filename
-    for _ in range(3):
-        dot = name.rfind(".")
-        if dot <= 0:
-            break
-        suffix = name[dot + 1 :]
-        if 1 <= len(suffix) <= 5 and suffix.isalnum():
-            name = name[:dot]
-        else:
-            break
-
-    name = _TAG_RE.sub("", name).strip()
-    name = name.lower()
-    name = _NON_ALNUM_RE.sub("_", name)
-    name = _MULTI_UNDERSCORE_RE.sub("_", name).strip("_")
-    return name or "unknown"
-
-
-def to_title_id(rom_name: str, system: str) -> str:
-    """
-    Convert a ROM name to a title ID slug, preserving region names.
-    Matches Android's EmulatorBase.toTitleId() logic.
-
-    "Shining Force CD (USA) (3R)" -> "SEGACD_shining_force_cd_usa"
-    "Sonic (USA, Europe)"         -> "MD_sonic_usa_europe"
-    """
-    regions = _extract_regions(rom_name)
-    stripped = _TAG_RE.sub("", rom_name).strip()
-    slug = stripped.lower()
-    slug = _NON_ALNUM_RE.sub("_", slug)
-    slug = _MULTI_UNDERSCORE_RE.sub("_", slug).strip("_")
-    base = f"{system}_{slug}"
-    if regions:
-        return f"{base}_{'_'.join(regions)}"
-    return base
-
-
-def to_ps1_title_id(name: str) -> str:
-    """
-    Build a PS1 title ID slug, stripping disc tags but preserving region so
-    multi-disc games share one ID and region variants stay separate.
-
-    "Parasite Eve (USA) (Disc 1)" -> "PS1_parasite_eve_usa"
-    "Final Fantasy VII (Japan) (Disc 2)" -> "PS1_final_fantasy_vii_japan"
-    """
-    regions = _extract_regions(name)
-    # Strip disc tags specifically, then all remaining parenthetical tags
-    stripped = _DISC_RE.sub("", name)
-    stripped = _TAG_RE.sub("", stripped).strip()
-    slug = stripped.lower()
-    slug = _NON_ALNUM_RE.sub("_", slug)
-    slug = _MULTI_UNDERSCORE_RE.sub("_", slug).strip("_")
-    base = f"PS1_{slug}"
-    if regions:
-        return f"{base}_{'_'.join(regions)}"
-    return base
 
 
 def normalize_serial(stem: str) -> Optional[str]:
@@ -421,6 +320,8 @@ PS1_ROM_DIRS = [
     "PlayStation1",
 ]
 PS2_ROM_DIRS = ["PS2", "ps2", "PlayStation2", "PlayStation 2", "Sony - PlayStation 2"]
+NDS_ROM_DIRS = ["nds", "NDS", "DS", "Nintendo DS", "Nintendo - Nintendo DS"]
+NDS_ROM_EXTENSIONS = {".nds", ".dsi"}
 
 
 def find_rom_dirs(base_paths: list[Path], dir_names: list[str]) -> list[Path]:
@@ -492,6 +393,49 @@ def read_nds_gamecode(rom_path: Path) -> Optional[str]:
             return code.decode("ascii")
     except Exception:
         pass
+    return None
+
+
+def nds_gamecode_to_title_id(gamecode: str) -> Optional[str]:
+    """Build the canonical 16-char hex NDS title_id from a 4-char gamecode.
+
+    Matches the format used by the 3DS/NDS homebrew clients and the Android
+    client so a save uploaded from Steam Deck ends up in the same server slot:
+
+        "AMKJ"  →  "00048000414D4B4A"
+
+    Returns None for invalid input.
+    """
+    if not gamecode or len(gamecode) != 4:
+        return None
+    if not all(0x20 <= ord(c) < 0x7F for c in gamecode):
+        return None
+    return "00048000" + "".join(f"{ord(c):02X}" for c in gamecode)
+
+
+def find_matching_nds_rom(rom_stem: str, search_dirs: list[Path]) -> Optional[Path]:
+    """Find an NDS/DSi ROM whose stem matches ``rom_stem`` (case-insensitive).
+
+    Searches each directory in ``search_dirs`` recursively; returns the first
+    hit.  Used by the melonDS scanner to promote slug title_ids to the
+    canonical hex form whenever the matching ROM is available on the device.
+    """
+    if not rom_stem:
+        return None
+    lowered = rom_stem.lower()
+    for d in search_dirs:
+        if not d.exists() or not d.is_dir():
+            continue
+        try:
+            for f in d.rglob("*"):
+                if (
+                    f.is_file()
+                    and f.suffix.lower() in NDS_ROM_EXTENSIONS
+                    and f.stem.lower() == lowered
+                ):
+                    return f
+        except (PermissionError, OSError):
+            continue
     return None
 
 

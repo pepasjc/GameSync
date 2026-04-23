@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Network Security Config for Save Sync.
+    Network Security Config for GameSync.
 
     This app is designed to connect to a user-configured, self-hosted sync server
     on a local network (LAN). LAN servers commonly run over plain HTTP on arbitrary

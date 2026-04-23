@@ -61,11 +61,13 @@ game (
 )
 game (
 	name "Cosmic Carnage (Japan, USA) (En)"
+	cloneof "Cosmic Carnage (Europe)"
 	region "Japan"
 	rom ( name "Cosmic Carnage (Japan, USA) (En).32x" size 3145728 crc 7C7BE6A2 md5 32F3002A46A462735AA12CA856CB7652 sha1 9A563ED821B483148339561EBD2B876EFA58847B )
 )
 game (
 	name "Cosmic Carnage (Japan, USA) (En) (Beta)"
+	cloneof "Cosmic Carnage (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "06"
@@ -74,6 +76,7 @@ game (
 )
 game (
 	name "Cosmic Carnage (Japan, USA) (En) (Beta)"
+	cloneof "Cosmic Carnage (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "21"
@@ -82,6 +85,7 @@ game (
 )
 game (
 	name "Cosmic Carnage (Japan, USA) (En) (Beta)"
+	cloneof "Cosmic Carnage (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "26"
@@ -90,6 +94,7 @@ game (
 )
 game (
 	name "Cosmic Carnage (Japan, USA) (En) (Beta)"
+	cloneof "Cosmic Carnage (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "28"
@@ -98,6 +103,7 @@ game (
 )
 game (
 	name "Cosmic Carnage (Japan, USA) (En) (Beta)"
+	cloneof "Cosmic Carnage (Europe)"
 	releaseyear "1994"
 	releasemonth "10"
 	releaseday "04"
@@ -106,6 +112,7 @@ game (
 )
 game (
 	name "Cosmic Carnage (Japan, USA) (En) (Beta)"
+	cloneof "Cosmic Carnage (Europe)"
 	releaseyear "1994"
 	releasemonth "10"
 	releaseday "05"
@@ -114,6 +121,7 @@ game (
 )
 game (
 	name "Cosmic Carnage (Japan, USA) (En) (Beta)"
+	cloneof "Cosmic Carnage (Europe)"
 	releaseyear "1994"
 	releasemonth "10"
 	releaseday "07"
@@ -122,6 +130,7 @@ game (
 )
 game (
 	name "Cosmic Carnage (Japan, USA) (En) (Beta)"
+	cloneof "Cosmic Carnage (Europe)"
 	releaseyear "1994"
 	releasemonth "10"
 	releaseday "11"
@@ -140,6 +149,7 @@ game (
 )
 game (
 	name "Doom (Europe) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "10"
 	releaseday "02"
@@ -148,11 +158,13 @@ game (
 )
 game (
 	name "Doom (Japan, USA) (En)"
+	cloneof "Doom (Europe)"
 	region "Japan"
 	rom ( name "Doom (Japan, USA) (En).32x" size 3145728 crc 208332FD md5 79339867D9D4F58B169753D9A29EA1A5 sha1 B68E9C7AF81853B8F05B8696033DFE4C80327E38 )
 )
 game (
 	name "Doom (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "06"
@@ -161,6 +173,7 @@ game (
 )
 game (
 	name "Doom (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "09"
@@ -169,6 +182,7 @@ game (
 )
 game (
 	name "Doom (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "14"
@@ -177,6 +191,7 @@ game (
 )
 game (
 	name "Doom (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "16"
@@ -185,6 +200,7 @@ game (
 )
 game (
 	name "Doom (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "21"
@@ -193,6 +209,7 @@ game (
 )
 game (
 	name "Doom (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "23"
@@ -201,6 +218,7 @@ game (
 )
 game (
 	name "Doom (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "25"
@@ -209,6 +227,7 @@ game (
 )
 game (
 	name "Doom (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "09"
 	releaseday "27"
@@ -217,6 +236,7 @@ game (
 )
 game (
 	name "Doom (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1994"
 	releasemonth "12"
 	releaseday "01"
@@ -225,6 +245,7 @@ game (
 )
 game (
 	name "Doom RR (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "15"
@@ -233,6 +254,7 @@ game (
 )
 game (
 	name "Doom RR (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "21"
@@ -241,6 +263,7 @@ game (
 )
 game (
 	name "Doom RR (Japan, USA) (En) (Beta)"
+	cloneof "Doom (Europe)"
 	releaseyear "1995"
 	releasemonth "03"
 	releaseday "07"
@@ -541,11 +564,13 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	region "Japan"
 	rom ( name "Knuckles' Chaotix (Japan, USA) (En).32x" size 3145728 crc D0B0B842 md5 47B1095E68B053125CD2CD5B1AC4EB50 sha1 0C2FFF7BC79ED26507C08AC47464C3AF19F7CED7 )
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1994"
 	releasemonth "12"
 	releaseday "07"
@@ -554,6 +579,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1994"
 	releasemonth "12"
 	releaseday "27"
@@ -562,6 +588,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1994"
 	releasemonth "12"
 	releaseday "30"
@@ -570,6 +597,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1995"
 	releasemonth "01"
 	releaseday "12"
@@ -578,6 +606,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1995"
 	releasemonth "01"
 	releaseday "19"
@@ -586,6 +615,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "07"
@@ -594,6 +624,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "08"
@@ -602,6 +633,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "09"
@@ -610,6 +642,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "10"
@@ -618,6 +651,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "13"
@@ -626,6 +660,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta) (Alt)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "13"
@@ -634,6 +669,7 @@ game (
 )
 game (
 	name "Knuckles' Chaotix (Japan, USA) (En) (Beta)"
+	cloneof "Knuckles' Chaotix (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "14"
@@ -769,6 +805,7 @@ game (
 )
 game (
 	name "Motherbase (Europe) (Sample)"
+	cloneof "Motherbase (Europe)"
 	region "Europe"
 	serial "GT-UK-84512-00"
 	rom ( name "Motherbase (Europe) (Sample).32x" size 2097152 crc E181C5D0 md5 937371A9985DFE7B42053AB882EF27A9 sha1 6D457A613E91ED265B0E2835A02E05558BC7E3CA serial "GT-UK-84512-00" )
@@ -1408,6 +1445,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase (Japan, USA) (En) (Beta)"
+	cloneof "Motherbase (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "10"
@@ -1416,6 +1454,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase (Japan, USA) (En) (Beta)"
+	cloneof "Motherbase (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "21"
@@ -1424,6 +1463,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase (Japan, USA) (En) (Beta)"
+	cloneof "Motherbase (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "23"
@@ -1432,6 +1472,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase (Japan, USA) (En) (Beta)"
+	cloneof "Motherbase (Europe)"
 	releaseyear "1995"
 	releasemonth "02"
 	releaseday "27"
@@ -1440,6 +1481,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase (Japan, USA) (En) (Beta)"
+	cloneof "Motherbase (Europe)"
 	releaseyear "1995"
 	releasemonth "03"
 	releaseday "03"
@@ -1448,6 +1490,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase (Japan, USA) (En) (Beta)"
+	cloneof "Motherbase (Europe)"
 	releaseyear "1995"
 	releasemonth "03"
 	releaseday "06"
@@ -1456,6 +1499,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase (Japan, USA) (En) (Beta)"
+	cloneof "Motherbase (Europe)"
 	releaseyear "1995"
 	releasemonth "03"
 	releaseday "10"
@@ -1464,6 +1508,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase (Japan, USA) (En) (Beta)"
+	cloneof "Motherbase (Europe)"
 	releaseyear "1995"
 	releasemonth "03"
 	releaseday "15"
@@ -1472,6 +1517,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase (Japan, USA) (En) (Beta)"
+	cloneof "Motherbase (Europe)"
 	releaseyear "1995"
 	releasemonth "03"
 	releaseday "31"
@@ -1480,6 +1526,7 @@ game (
 )
 game (
 	name "Zaxxon's Motherbase 2000 (Japan, USA) (En)"
+	cloneof "Motherbase (Europe)"
 	region "Japan"
 	serial "GM-MK-84512-00"
 	rom ( name "Zaxxon's Motherbase 2000 (Japan, USA) (En).32x" size 2097152 crc 447D44BE md5 BD32A5E46D0159DC88CB31EA4BD9D899 sha1 60C390F76C394BDD221936C21AECBF98AEC49A3D serial "GM-MK-84512-00" )

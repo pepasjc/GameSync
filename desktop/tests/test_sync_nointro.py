@@ -269,6 +269,87 @@ def test_sync_resolution_prefers_filename_fuzzy_before_header(monkeypatch, tmp_p
     assert confidence == "low"
 
 
+def test_find_dat_for_system_distinguishes_gb_from_gba(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    gb = dats / "Nintendo - Game Boy.dat"
+    gbc = dats / "Nintendo - Game Boy Color.dat"
+    gba = dats / "Nintendo - Game Boy Advance.dat"
+    for path in (gb, gbc, gba):
+        path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("GB") == gb
+    assert rn.find_dat_for_system("GBC") == gbc
+    assert rn.find_dat_for_system("GBA") == gba
+
+
+def test_find_dat_for_system_distinguishes_pce_from_pcsg(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    pce = dats / "NEC - PC Engine - TurboGrafx 16.dat"
+    pcsg = dats / "NEC - PC Engine SuperGrafx.dat"
+    pcecd = dats / "NEC - PC Engine CD - TurboGrafx-CD.dat"
+    for path in (pce, pcsg, pcecd):
+        path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("PCE") == pce
+    assert rn.find_dat_for_system("PCSG") == pcsg
+    assert rn.find_dat_for_system("PCECD") == pcecd
+
+
+def test_find_dat_for_system_distinguishes_wswan_from_wswanc(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    wswan = dats / "Bandai - WonderSwan.dat"
+    wswanc = dats / "Bandai - WonderSwan Color.dat"
+    for path in (wswan, wswanc):
+        path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("WSWAN") == wswan
+    assert rn.find_dat_for_system("WSWANC") == wswanc
+
+
+def test_find_dat_for_system_distinguishes_ngp_from_ngpc(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    ngp = dats / "SNK - Neo Geo Pocket.dat"
+    ngpc = dats / "SNK - Neo Geo Pocket Color.dat"
+    for path in (ngp, ngpc):
+        path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("NGP") == ngp
+    assert rn.find_dat_for_system("NGPC") == ngpc
+
+
+def test_find_dat_for_system_finds_virtual_boy(monkeypatch, tmp_path):
+    import rom_normalizer as rn
+
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    vb = dats / "Nintendo - Virtual Boy.dat"
+    vb.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats)
+
+    assert rn.find_dat_for_system("VB") == vb
+
+
 def test_scan_profile_handles_single_system_analogue_pocket_subroot(tmp_path):
     rom_root = tmp_path / "Assets" / "gba" / "common"
     save_root = tmp_path / "Saves" / "gba" / "common"
@@ -355,6 +436,313 @@ def test_scan_profile_keeps_alternate_paths_for_duplicate_rom_locations(tmp_path
     }
     found = {results[0].path, *results[0].alternate_paths}
     assert found == expected
+
+
+def test_scan_profile_saturn_uses_bkr_for_legacy_generic_profiles(tmp_path):
+    rom_root = tmp_path / "roms"
+    save_root = tmp_path / "saves"
+    rom_root.mkdir()
+    save_root.mkdir()
+
+    rom = rom_root / "Panzer Dragoon Saga (USA).chd"
+    rom.write_bytes(b"")
+
+    profile = {
+        "name": "Saturn Generic",
+        "device_type": "Generic",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "system": "SAT",
+        "save_ext": ".srm",
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].path == save_root / "Panzer Dragoon Saga (USA).bkr"
+    assert results[0].save_exists is False
+
+
+def test_scan_profile_retroarch_detects_saturn_bkr_saves(tmp_path):
+    save_root = tmp_path / "retroarch"
+    rom_root = tmp_path / "roms"
+    core_dir = save_root / "Beetle Saturn"
+    core_dir.mkdir(parents=True)
+    save_root.mkdir(exist_ok=True)
+    rom_root.mkdir(parents=True)
+    (rom_root / "Panzer Dragoon Saga (USA).chd").write_bytes(b"")
+    save_file = core_dir / "Panzer Dragoon Saga (USA).bkr"
+    save_file.write_bytes(b"saturn-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {"system": "SAT", "enabled": True, "save_ext": ".bkr", "save_folder": ""},
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "SAT"
+    assert results[0].path == save_root / "Panzer Dragoon Saga (USA).bkr"
+    assert results[0].save_exists is False
+
+
+def test_scan_profile_retroarch_detects_saturn_bkr_root_saves(tmp_path):
+    save_root = tmp_path / "retroarch"
+    rom_root = tmp_path / "roms"
+    save_root.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    (rom_root / "Panzer Dragoon Saga (USA).chd").write_bytes(b"")
+    save_file = save_root / "Panzer Dragoon Saga (USA).bkr"
+    save_file.write_bytes(b"saturn-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {"system": "SAT", "enabled": True, "save_ext": ".bkr", "save_folder": ""},
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "SAT"
+    assert results[0].path == save_file
+    assert results[0].save_exists is True
+
+
+def test_scan_profile_retroarch_detects_saturn_yabause_root_saves(tmp_path):
+    save_root = tmp_path / "retroarch"
+    rom_root = tmp_path / "roms"
+    save_root.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    (rom_root / "Panzer Dragoon Saga (USA).chd").write_bytes(b"")
+    save_file = save_root / "Panzer Dragoon Saga (USA).srm"
+    save_file.write_bytes(b"saturn-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {"system": "SAT", "enabled": True, "save_ext": ".srm", "save_folder": ""},
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "SAT"
+    assert results[0].path == save_file
+    assert results[0].save_exists is True
+
+
+def test_scan_profile_retroarch_saturn_mednafen_does_not_fallback_to_srm(tmp_path):
+    save_root = tmp_path / "retroarch"
+    rom_root = tmp_path / "roms"
+    save_root.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    (rom_root / "Panzer Dragoon Saga (USA).chd").write_bytes(b"")
+    save_file = save_root / "Panzer Dragoon Saga (USA).srm"
+    save_file.write_bytes(b"saturn-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {"system": "SAT", "enabled": True, "save_ext": ".bkr", "save_folder": ""},
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "SAT"
+    assert results[0].path == save_root / "Panzer Dragoon Saga (USA).bkr"
+    assert results[0].save_exists is False
+
+
+def test_scan_profile_retroarch_uses_saturn_rom_folder_override(tmp_path):
+    save_root = tmp_path / "retroarch"
+    rom_root = tmp_path / "roms"
+    saturn_rom_root = tmp_path / "other_saturn_roms"
+    save_root.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    saturn_rom_root.mkdir(parents=True)
+    (saturn_rom_root / "Panzer Dragoon Saga (USA).chd").write_bytes(b"")
+    save_file = save_root / "Panzer Dragoon Saga (USA).srm"
+    save_file.write_bytes(b"saturn-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {
+                "system": "SAT",
+                "enabled": True,
+                "save_ext": ".srm",
+                "save_folder": "",
+                "rom_folder": str(saturn_rom_root),
+            },
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "SAT"
+    assert results[0].path == save_file
+    assert results[0].save_exists is True
+
+
+def test_scan_profile_retroarch_uses_saturn_save_folder_override(tmp_path):
+    save_root = tmp_path / "retroarch"
+    saturn_save_root = tmp_path / "saturn_saves"
+    rom_root = tmp_path / "roms"
+    save_root.mkdir(parents=True)
+    saturn_save_root.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    (rom_root / "Panzer Dragoon Saga (USA).chd").write_bytes(b"")
+    save_file = saturn_save_root / "Panzer Dragoon Saga (USA).srm"
+    save_file.write_bytes(b"saturn-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {
+                "system": "SAT",
+                "enabled": True,
+                "save_ext": ".srm",
+                "save_folder": str(saturn_save_root),
+                "rom_folder": "",
+            },
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "SAT"
+    assert results[0].path == save_file
+    assert results[0].save_exists is True
+
+
+def test_scan_profile_retroarch_uses_system_save_folder_override(tmp_path):
+    save_root = tmp_path / "retroarch"
+    gba_save_root = tmp_path / "gba_saves"
+    rom_root = tmp_path / "roms"
+    save_root.mkdir(parents=True)
+    gba_save_root.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    save_file = gba_save_root / "Advance Wars (USA).srm"
+    save_file.write_bytes(b"gba-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {
+                "system": "GBA",
+                "enabled": True,
+                "save_ext": ".srm",
+                "save_folder": str(gba_save_root),
+                "rom_folder": "",
+            },
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "GBA"
+    assert results[0].path == save_file
+    assert results[0].save_exists is True
+
+
+def test_scan_profile_retroarch_uses_selected_core_for_non_saturn_system(tmp_path):
+    save_root = tmp_path / "retroarch"
+    rom_root = tmp_path / "roms"
+    save_root.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    (rom_root / "Advance Wars.gba").write_bytes(b"")
+    save_file = save_root / "Advance Wars.srm"
+    save_file.write_bytes(b"mgba-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {
+                "system": "GBA",
+                "enabled": True,
+                "save_ext": ".srm",
+                "save_folder": "",
+                "rom_folder": "",
+                "core": "mGBA",
+            },
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "GBA"
+    assert results[0].path == save_file
+    assert results[0].hash == se._hash_file(save_file)
+
+
+def test_scan_profile_retroarch_uses_selected_shared_core_with_rom_matching(tmp_path):
+    save_root = tmp_path / "retroarch"
+    rom_root = tmp_path / "roms"
+    save_root.mkdir(parents=True)
+    rom_root.mkdir(parents=True)
+    (rom_root / "Sonic CD (USA).chd").write_bytes(b"")
+    save_file = save_root / "Sonic CD (USA).srm"
+    save_file.write_bytes(b"segacd-save")
+
+    profile = {
+        "name": "RetroArch",
+        "device_type": "RetroArch",
+        "path": str(rom_root),
+        "save_folder": str(save_root),
+        "systems": [
+            {
+                "system": "SEGACD",
+                "enabled": True,
+                "save_ext": ".srm",
+                "save_folder": "",
+                "rom_folder": "",
+                "core": "Genesis Plus GX",
+            },
+        ],
+    }
+
+    results = se.scan_profile(profile, enable_auto_normalize=False)
+
+    assert len(results) == 1
+    assert results[0].system == "SEGACD"
+    assert results[0].path == save_file
+    assert results[0].hash == se._hash_file(save_file)
 
 
 def test_scan_cache_is_scoped_per_profile(tmp_path, monkeypatch):

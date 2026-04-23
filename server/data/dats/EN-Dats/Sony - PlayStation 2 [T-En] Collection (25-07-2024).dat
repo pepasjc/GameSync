@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Sony - PlayStation 2 [T-En] Collection</name>
+		<description>Sony - PlayStation 2 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>25-07-2024</version>
+		<date>25-07-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Sony PlayStation 2 [T-En] Docs">
+		<description>_Sony PlayStation 2 [T-En] Docs</description>
+		<rom name="Amagami (Japan) &amp; Amagami (Japan) (ebKore Plus) [T-En by Ni-shi-shi Translations v1.0.0].pdf" size="2220526" crc="891fc8bb" md5="60667dab2795b0ef819b3fb47029f08d" sha1="ea4c024922128f124da48235b6f1be4630aa69dc"/>
+		<rom name="Ar tonelico II - Melody of Metafalica (USA) [T-En by Project Metafalica v1.0] [Relocalized].txt" size="3154" crc="a30b1340" md5="b8b5c7c78cd8cff14ce6010df6f53782" sha1="e79d0a12e92203333dbd89596617ca6bffbaf11f"/>
+		<rom name="Atelier Marie+Elie - The Alchemists of Salburg - Episodes 1 &amp; 2 [T-En by Atelier Traduction v1.01] [n] [Tutorial].pdf" size="883672" crc="df35eef1" md5="254cd50356316df7c52906e1e2d8977a" sha1="aa33db28518753eb2b7ad5138496ccfa309ce344"/>
+		<rom name="Atelier Marie+Elie - The Alchemists of Salburg - Episodes 1 &amp; 2 [T-En by Atelier Traduction v1.01] [n].txt" size="3091" crc="6dc97844" md5="493c8c886c8bea7707a6626a93630a5b" sha1="ea3d7c63a1af37af7e71f0e482b2508d5dcec109"/>
+		<rom name="Berserk - Millennium Falcon Arc - Falcon of the Millenium Empire - Chapter of the Holy Demon War (Japan) [T-En by Wesker90 v1.1] [n].txt" size="1184" crc="de8b873e" md5="10b22f54c8b575bb1833162e061d3923" sha1="e253e196247059946dffe0eb83ba9237dcbc0413"/>
+		<rom name="Boku no Natsuyasumi 2 - Adventure by the Sea (Japan) [T-En by Hilltop v1.2] [n] [PCSX2 hi-res patch].txt" size="399" crc="374c8bf3" md5="65ffc0bec295b294a0480a817a8e4bf4" sha1="d6cf78b1ffbeedfc3450a2a7992eda6e0978b0c4"/>
+		<rom name="Boku no Natsuyasumi 2 - Adventure by the Sea (Japan) [T-En by Hilltop v1.2] [n] [PS3 Slim-Super Slim fix].CONFIG" size="28" crc="ebce88c9" md5="8bc287215caad365070b2089781cced7" sha1="eb54ce50abea0265d20037afafa37f374051835d"/>
+		<rom name="Boku no Natsuyasumi 2 - Adventure by the Sea (Japan) [T-En by Hilltop v1.2] [n].txt" size="5441" crc="20c7668c" md5="6dbbe2653847b2198b6f8cff365f2433" sha1="8721042093041614c602ff8e3a5f88122352f528"/>
+		<rom name="Dog of Bay (Japan) [T-En by Hilltop v1.0] (CD).txt" size="34375" crc="eb16eb38" md5="37e8b57ceda00f6cf602ecce285146fb" sha1="80a9bb9fb01f7551267c53253f10c0bde2dadb36"/>
+		<rom name="Dragon Quest &amp; Final Fantasy in Fortune Street Special (Japan) [T-En by Choppasmith v3.01] [n] [PCSX2 1.4.0 plugins]\gsdx32-sse2.dll" size="1628672" crc="32c64a9a" md5="2089504641e8bb81709aa875834fc147" sha1="2ce613b3a859414038b2712ce5534363695f24d0"/>
+		<rom name="Dragon Quest &amp; Final Fantasy in Fortune Street Special (Japan) [T-En by Choppasmith v3.01] [n] [PCSX2 1.4.0 plugins]\gsdx32-sse4.dll" size="1625600" crc="44e270b7" md5="e80ccd70074d6e5b1cea15041c2fceef" sha1="538e0a48c93017e173abe4a46756cc6d5fdce9df"/>
+		<rom name="Dragon Quest &amp; Final Fantasy in Fortune Street Special (Japan) [T-En by Choppasmith v3.01] [n] [PCSX2 1.4.0 plugins]\gsdx32-ssse3.dll" size="1627648" crc="fe97765e" md5="ae0200953a356f8105497ab9c13dca86" sha1="ac420552d807d5accf3e20d806c9e2b3910befee"/>
+		<rom name="Dragon Quest &amp; Final Fantasy in Fortune Street Special (Japan) [T-En by Choppasmith v3.01] [n].txt" size="7219" crc="b72f2190" md5="0740e11fd061a2eafa8e8226f6cbfa09" sha1="c8c41701b7a8ad146c90b981a69b4af8a765f388"/>
+		<rom name="Dragon Quest V - Tenkuu no Hanayome (Japan) [T-En by DQ Translations v1.2] [Manual].pdf" size="23913774" crc="ad1ed470" md5="82480befa866b7f9df0a250cd430759d" sha1="ed83960397a4097e8f8340937d5b56c632514970"/>
+		<rom name="Dragon Quest V - Tenkuu no Hanayome (Japan) [T-En by DQ Translations v1.2].pdf" size="1454643" crc="53c03c3c" md5="c4f8652c5c9dfba387ddda672148d264" sha1="fcf5cee0325f2abdbc7d6b16dc8fbfbf3d9a5ee3"/>
+		<rom name="Echo Night - Beyond (Europe, USA) [English fixes by IlDucci v1.0].txt" size="4632" crc="703596a5" md5="ea807195f08ea2416c99018df706f43c" sha1="feb70c7b31670a09c5f2b9841d48e1f2708993ad"/>
+		<rom name="Final Fantasy X-2 International + Last Mission (Japan) [T-En by Pbirdman v1.5] [i] [Notes].txt" size="3730" crc="99ec9eaa" md5="59913e492627183cfcb759f9d0f2f6de" sha1="f7e5b4adea822ed52d618499c02032ec2d066a5f"/>
+		<rom name="Final Fantasy X-2 International + Last Mission (Japan) [T-En by Pbirdman v1.5] [i].txt" size="3742" crc="934bb8d5" md5="74c5ad1d3917cb2697c7b3bf3cd8caa7" sha1="b037f56122311a89c337269ba0ad9d0d6b04a098"/>
+		<rom name="Final Fantasy XII International - Zodiac Job System (Japan) [T-En by ffgriever v0.23].txt" size="7310" crc="fdcabee0" md5="a90d655f21162b25dcda25135ffd190b" sha1="7dffdecc1a785f9af3961d065fc3a9881072d52c"/>
+		<rom name="Fire Pro Wrestling Z (Japan) [T-En by Fatman Dave v0.5b] [i].txt" size="2085" crc="bc11b08a" md5="920d3ece917453f71eb31998e63b1911" sha1="1b3597ae22f871ba4d47eb12d15e56a75f6414fa"/>
+		<rom name="Front Mission 5 - Scars of the War (Japan) [T-En by Front Mission 5 Team v4b].txt" size="6405" crc="7f18c1e0" md5="9b05e0bd33182b3d5c27d05ffacec248" sha1="60dfcd070421c83d2ed464f0f0329fa223652b01"/>
+		<rom name="Initial D - Special Stage (Japan) [T-En by Alexvgz v1.3] [i].txt" size="4024" crc="2bd54a52" md5="6e4b4b626d6b227f2064daf12acb00f0" sha1="034d1453b9aa367bcafc049e05153fcaedaa3439"/>
+		<rom name="J. League Winning Eleven 10 + Europe League '06-'07 (Japan) (v1.03) [T-En by Fernando fk v2.70].txt" size="799" crc="87575735" md5="58cd98c96b93d10446cedf6f9c1e0334" sha1="b52de6338a2b9554c8c0d32e7184a286d6119562"/>
+		<rom name="J.League Winning Eleven 8 - Asia Championship (Japan) [T-En by Albiore v0.9].txt" size="684" crc="ebbcec46" md5="85f8cef339dbe44ff7fa20d4e6f5587f" sha1="c368d7d66956b37945ab5dfeb0f59a9065b0eb76"/>
+		<rom name="Jojo no Kimyou na Bouken - Ougon no Kaze (Japan) [T-En by JoJo's Colored Adventure v1.0].txt" size="1646" crc="4b60db62" md5="65a2496bf0259844514855338f4fe88a" sha1="1bd1f0a85de93e0bd4d5427c6a4a0631923d1b62"/>
+		<rom name="JoJo's Bizarre Adventure - Phantom Blood (Japan) [T-En by Penguino &amp; Hudgyn Sasdarl v1.1] [n] [100PercentSaveFile].ps2" size="8650752" crc="44693476" md5="9051400101594af53c0347515fe178e8" sha1="0046edb506cca4cb98b3602e7b5fa95d487cbce7"/>
+		<rom name="JoJo's Bizarre Adventure - Phantom Blood (Japan) [T-En by Penguino &amp; Hudgyn Sasdarl v1.1] [n] [35A6E6D5].pnach" size="2960" crc="ee42d68e" md5="b18ba81ecdc1013297f6ab47a42a53e7" sha1="e6c0664d26f360e93580ad951c848528559bb3f0"/>
+		<rom name="JoJo's Bizarre Adventure - Phantom Blood (Japan) [T-En by Penguino &amp; Hudgyn Sasdarl v1.1] [n].txt" size="1612" crc="d7915e99" md5="e7d57bbdfca17a66f89de02103ca6e05" sha1="c5e0c555be6d576bd5f57cdc8dccdb5180febef9"/>
+		<rom name="Kenka Banchou 2 - Full Throttle (Japan) [T-En by TransGen v1.0alpha] [i].txt" size="3261" crc="016277d7" md5="f8ec2a77e073fa90a1c3c085fb11fdaa" sha1="fb77314ac32d59fdc3fb97ce6aa066133e1c010a"/>
+		<rom name="Monster Hunter (Japan) [T-En by mholdschool.com v0.9].txt" size="2486" crc="53589e07" md5="5c8726be5bd4965566ab2389026a3d7a" sha1="e273ffcfe9d64a572a2bdaee43026d3164da9bf9"/>
+		<rom name="Monster Hunter G (Japan) [T-En by amaillo Rev13v5] [Mods]\For old PCSX2 versions\1EDEE8DC.MHG_Element-Special_ATK_debloater.pnach" size="432" crc="af1f6606" md5="c958b0ce1dced5025096a647705cc9e6" sha1="765907873ac231fbda2ee03e578e30ecf71df668"/>
+		<rom name="Monster Hunter G (Japan) [T-En by amaillo Rev13v5] [Mods]\For old PCSX2 versions\1EDEE8DC.MHG_English_Keyboard.pnach" size="447" crc="f724cbd4" md5="a3dd032631b65b55d676ed13961a2c37" sha1="da6ee571bc6acfe1f1e85af45a0e1dc528ef2827"/>
+		<rom name="Monster Hunter G (Japan) [T-En by amaillo Rev13v5] [Mods]\For old PCSX2 versions\1EDEE8DC.MHG_Remix_Patch_Mods.pnach" size="4983" crc="785ad33d" md5="3b56447472b86098f2ad0edb4c34b660" sha1="f981093af6a480fca322dab9611f10bb7facdaee"/>
+		<rom name="Monster Hunter G (Japan) [T-En by amaillo Rev13v5] [Mods]\For OPL\SLPM_658.69.cht" size="2830" crc="9a80b61f" md5="3f7672b0a504718f77a16eb723e4197d" sha1="189bf546a0ced97cfa490dc27e2ae86380fadd0c"/>
+		<rom name="Monster Hunter G (Japan) [T-En by amaillo Rev13v5] [Mods]\For PCSX2 Nightly\SLPM-65869_1EDEE8DC.MHG_Mods.pnach" size="5935" crc="0aa63b73" md5="0c93ff07ca29ae3cc490b1f20168074b" sha1="8d62c6ecd91333a14338530ca351696c02188f0d"/>
+		<rom name="Monster Hunter G (Japan) [T-En by amaillo Rev13v5].txt" size="1549" crc="752db983" md5="d2223e85011de601e600fdd428a1b98c" sha1="6a12ced9b661f4e353c84ee584197c6f16c8a3bd"/>
+		<rom name="Mystic Nights (Korea) [T-En by Jeremy De Cola-David v1.1.0].md" size="12440" crc="c55a1612" md5="bafb3cf13d042fe2629260103377f213" sha1="668a5ec09d01b6b44f70957b0599290e3bea0393"/>
+		<rom name="Namco x Capcom (Japan) [T-En by TransGen Final Version A].txt" size="5984" crc="af5842a6" md5="7bc371813a0bd7966b2645188ebd23e3" sha1="8bfa46fb131a306d81850f2a686d870ecf45e7cd"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\Plugins\GSdx32-SSE4.dll" size="2589184" crc="549ff617" md5="8eb8d9fd134743b83ee3c6706ec721ae" sha1="a5f3d047760e4cb392c482718594276df3a6b147"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\clear screen\44B74843.dds" size="32896" crc="7f4478e8" md5="ca35d1bdaf0b5ee696bddefe03839543" sha1="a0ffda6908228776bbea50afba8362cc5707ef79"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\clear screen\5E6801EA.dds" size="32896" crc="b84f6e4b" md5="5200cc29c2473e6192297f80c495b20c" sha1="77f8ca2762ad68657a17f1940362c14883905860"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\clear screen\78B3A195.dds" size="32896" crc="3cd14d2b" md5="b9bca1eff7c05d668399bf1a5857c886" sha1="2cd6ca1c73faee0dac63b8b87d834b6650a86ef9"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\clear screen\A276A6F1.dds" size="32896" crc="b8753ca5" md5="d7ff0f24b9383c7ef9402e51ef797a0b" sha1="f8bb58d9c483fa183fcc123bfa27fcaf30768da4"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\clear screen\A9A48A7E.dds" size="65664" crc="b7ec2a7e" md5="48f8d45fa66f6718284bc096da28ea88" sha1="1d8eb038c1f7d198c0ae30caa65476bac9a6c5fa"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\clear screen\CDBA082B.dds" size="65664" crc="8b13ff63" md5="18f6c38c09e4d3a859cf84e45bbacb6e" sha1="cb88783ae9c835f22ba713dbba102f5a740221ae"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\clear screen\EF3BABF6.dds" size="65664" crc="b5dc67aa" md5="42609beb0c8d102cb196bae0c4c2b7e5" sha1="d88ea8a97ae833451d89e1e9c7b6a77b3a3d74a9"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\clear screen\F30E88CB.dds" size="32896" crc="38fbc20d" md5="969a5312b380cf9f5a118f514ca212ca" sha1="e4b8e552c9af251cf0d4dfc32d63e1dbb7704a6d"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\clear screen\FEF4FB35.dds" size="32896" crc="037e72a8" md5="1e82274f073633bb2e69299b32d8c849" sha1="d6194ca9a9b6a9cf357fa5a2e06e7d68732b9354"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\memcard.png" size="682734" crc="df27f7e5" md5="0a43f1df648bbbf9db5d40864fd2f68f" sha1="c2663f4cc311adac89de2d63a52f844cff327cdd"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\1121A6D7.dds" size="65664" crc="4ce6b420" md5="7e9206e8903b1c66b47aa5d158954b34" sha1="3ecddfa298ab60cd95189ad6d4bb50be8d15bd5c"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\1DB7E54A.dds" size="32896" crc="c7becbed" md5="5719d0cdd07cb453aad9e21d69895183" sha1="53608143ed0a98b90739ebc47a6cbaf2a2cc8d95"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\3E35C286.dds" size="32896" crc="fd2d4b38" md5="46dc654c288066534c34bee99b4a1f04" sha1="859272640eda85c82727e1d47203f31fdc5e14cc"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\4016983A.dds" size="32896" crc="5e6025a1" md5="44c87bb17f7c640e9e48dc42f0b60b08" sha1="33a7b8ae657006483ebca0e9de2f388e7ff50a99"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\40CCC916.dds" size="32896" crc="bd9dbf39" md5="8904cc63388477a23b813aa0f29de796" sha1="2731a7480b109550349e812d2bbe4208b88daed0"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\46DCB8C5.dds" size="32896" crc="2b7102c0" md5="107f74c282d9c12fd26722d7ab220188" sha1="c1f92d8dc3a6f5184cb1409c383a93e275e11b5f"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\5B587AD1.dds" size="32896" crc="09e09770" md5="6453a7bb33b6178c54981d0b8139b784" sha1="312da163bb38d5eb7886c6637594cfa3ae83efe0"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\5C54AB5D.dds" size="32896" crc="9d041cd6" md5="a6a8eebaa228953999aac36236a3e92e" sha1="0ef8962e0cc57667225258ebdd3888b126ed3c35"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\5CC9E617.dds" size="32896" crc="6d5c75ab" md5="05eca37884b6df732b7adeb6a3d21b75" sha1="7c8171c09962edb6727256155c83f618fd9a7694"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\61797512.dds" size="32896" crc="15b65576" md5="5aacb0612da08cc9d031f77c00ce4a05" sha1="1c90249765a89c9007900b8a890ac12b5f9ca648"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\7A69B500.dds" size="65664" crc="dfc89a62" md5="ae60359a42fe292e39cb08ca8a5481f3" sha1="9e4017b37237bdac8041584181e23c52b5ddbe78"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\902E1C13.dds" size="32896" crc="62ad72f2" md5="754a06267317cc3b626c111092c3d5cc" sha1="8ac96aef6edb6cfbb54f84137f19fac304011940"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\9787E5BF.dds" size="32896" crc="8a9e9f70" md5="937877fa9787389c9e5a1b4247945730" sha1="e73a0cd8faaf4f9003859f2e646a9480761660aa"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\9810DBC8.dds" size="65664" crc="6628ed1f" md5="1eba9b1dc030be6a3ba0a8e0645c1171" sha1="29c8787149bc3c81a60637f7e6e0bb313bffbe51"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\A2AA101B.dds" size="32896" crc="ff574213" md5="340890872ee3343cd28a60fc2b7d2307" sha1="6397accb979e3f75ec5fcf91f89bf2fdd5dacb33"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\A4E72FEC.dds" size="32896" crc="a8cae373" md5="c8a81851d75098fab5d373d0c42f518b" sha1="7790a419bafc37cb8f4f89d8d7a3f3586596bc98"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\AA513970.dds" size="65664" crc="0df0e7af" md5="5a60541c7c43b3ef82c5555f642ca448" sha1="0b5bcf49c3b9552786ae6f90f37ddaeda922d1ee"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\AA8E26F6.dds" size="65664" crc="256e4d56" md5="d83c512e1bffef8ef4bded4442b6de0e" sha1="a5b282c54e6acb99751027c988fa9791e419ee19"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\F4AC768C.dds" size="65664" crc="f600a5e9" md5="852cd95e28402dfc19106562bc95ff94" sha1="8ab082aa8e0cad21aa0666f54185bd037bfdaabb"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\menu\F9106545.dds" size="32896" crc="112d20ca" md5="217a8f7048d006656f851700daacac33" sha1="1bb5a33f51ac685f5f3cfdc93013edd4fccd81c6"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\misc\0C280BE8.dds" size="65664" crc="aa5e8d7a" md5="4cfea45619df7d73e2559037c0e34c08" sha1="b943330f510d98cef18fb2f286473f3528b0a050"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\misc\1122362A.dds" size="65664" crc="59510c4d" md5="8e3ee59f2544ec7f01917c6b1cf5d211" sha1="1e75773165180f23ec07150c4099533bf7ee92bc"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\misc\3A7BB430.dds" size="131200" crc="ee00dd8a" md5="27673812edf06d6ab0682d4a48ceec18" sha1="7b8594610d3c5b32df98bef20ffed38005d51aeb"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\misc\4B4C3AC5.dds" size="65664" crc="0c4287e6" md5="b1172e978aeaf2f5b1c5d64f1c116b42" sha1="cc36e26d1714632547e5b346a9c2e42982759539"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\misc\5203E667.dds" size="65664" crc="c23966df" md5="abf2af1647a40980c443fd9988050169" sha1="3efacfa103a5a3105b411dc0292cb3541665a4b0"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\misc\6460FF60.dds" size="65664" crc="d0d3de0a" md5="c8ae97cfa0d194ee9f168dd9152816e3" sha1="baaa7f05a97f1322f2c5d873bde8a75c45fa48db"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\misc\6AA75323.dds" size="32896" crc="c6d58c9e" md5="bdce5817d0fb7a7f99c5b6d984d4a955" sha1="61fa9086172440b217c46d46aadd8ee982a485a1"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\misc\8EDF206A.dds" size="32896" crc="dc0c569e" md5="b5eb16a48a107d90abadf495b3cf5399" sha1="7a1f023b4f3bd7a338d111256d9e05263e71bb0e"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\misc\F5D4A099.dds" size="65664" crc="fc6b1d5e" md5="0cbf26deddb9d357cf5adde325323f9a" sha1="3b1835a1fd4cd77d2825c9a228f7a46cb230930d"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\0BF13F7B.dds" size="16512" crc="cf77f2b7" md5="23573154ccf7009f3ce9c34b9cec1490" sha1="230cbe74bcc0494cb8fa7585b70d873b95c501c2"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\1439FC18.dds" size="65664" crc="c1ae9048" md5="e9d6147443eee04a22c49291461b57c0" sha1="7fa84cef1f42b4b43d573bf5f52ae6a05ca3e92b"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\260D5FA3.dds" size="32896" crc="76c156ff" md5="35e7c2fd4baaec5033587262f2afce63" sha1="6d92cd52525e98849758118b37d67ff5b7768c9a"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\2DC6C78A.dds" size="65664" crc="6776932d" md5="83314213e341208581a8880a5f16c9a7" sha1="3a7743e0cc39a86fe08136f1d79cc4c363eac532"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\340725A6.dds" size="65664" crc="23fe36ed" md5="2a88426f9e2903a2d05f8877f4d58f19" sha1="2edd4f5313d4c17bafed690a67620d544059db75"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\4CFFC2A8.dds" size="32896" crc="87253dc6" md5="58b1550179cbacbc8accc3e1be091527" sha1="b8beaa26550431f5ecc0c04a0db59088fb9351b4"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\4F4706D2.dds" size="32896" crc="d462bb8d" md5="e1c197cfd981290739185ff902760a81" sha1="5a55bfe6cd5c236def9a6b65b4ed17fb05763690"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\554B9401.dds" size="65664" crc="86b3692e" md5="97e8d67a31c9f12da6abaf1d4b561c8e" sha1="076cddcb66ae13f64bfcbd2534f19c0419e639e5"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\C4060FCB.dds" size="65664" crc="b48d4129" md5="4e3d802bb5640c30c58a6e478f65af20" sha1="bb726972f06836d6843e3dc3876b3d5939b8155c"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\CC6C8483.dds" size="32896" crc="6d340e23" md5="e3792bd1cae4f4ffd2701305ac49a586" sha1="69436a2cbf40ba94af24ce196edb9df6ab9be723"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\D98E4BEC.dds" size="65664" crc="ac7caa27" md5="e5b2f894a0fe43bbfdb423a54540689a" sha1="c19e3dce4789c8f3ed716628222c42ddff729c19"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\monkey onsen\EB661DD8.dds" size="65664" crc="33b95692" md5="5c6b9e947ade4621983d8231b5d14ea7" sha1="34af16c0a47f47a7cb4786c658669af088b305e1"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\07E80063.dds" size="1048704" crc="644685e1" md5="6e9d9dc89cb5d8e7b64f589b686c372c" sha1="0da3385a76f047ac29934233e9478ea14ca32478"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\0B6397ED.dds" size="1048704" crc="82a65b11" md5="5cf35bf3a0e85874cf8c53fe4158dcec" sha1="78ccd70d1f09fab5909045fda1df87c8d2c7e642"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\1DDBF9C6.dds" size="1048704" crc="7d5477e3" md5="ba8d1961699e2c1225919f3bbc7d7865" sha1="ae50bcf780dbce54d40116f5ee97de1b7c271c6f"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\217CB755.dds" size="1048704" crc="811c2cdb" md5="a876b65c966169c49f24fce2a51e1ff1" sha1="a0a682fff3b955ee8ccd6a030f6c546fb530177c"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\3B5A42F0.dds" size="1048704" crc="3936c92a" md5="d6b82f8a1a2e6377f7a0a260977b783d" sha1="5d90bf2518ba254982c9f1c1bc0de6efd48fcea0"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\44A3838C.dds" size="1048704" crc="64a64c7c" md5="23b9dbc257ef2149510c156987b2d7ee" sha1="0d2b27db65ba94d71e00178947b68d901c83798e"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\45CE5546.dds" size="1048704" crc="325ad92f" md5="cca70d3250377aeae59a5be7b4bb3706" sha1="efba8a4aaeb06eb387610595095ab17fc406d1ac"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\50AB293F.dds" size="1048704" crc="23030423" md5="1e0ddebe9d2613fd0e3fa94c6d98215f" sha1="dd7f501435bc66211d47b0260f95c19e5e424026"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\514EF25A.dds" size="1048704" crc="9224f026" md5="96ddb736e2227ef880aa11c2cd3ccd7d" sha1="4f2ef320c20d084f35af7c47319ce8f56e754547"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\54FD8BD4.dds" size="1048704" crc="20233a39" md5="a9579de7fb0f18088ca6046f4d039c14" sha1="e48c8fa09d2b633c4038881baaeab421ce02c4bd"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\5722ED63.dds" size="1048704" crc="2aaba5eb" md5="07a7e41aa2725ddca643f1b05a4416a9" sha1="978a824a77386f2364ab6f07f9a359204056827b"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\5FD18A0B.dds" size="1048704" crc="43f5f98e" md5="045fd0ba40127e5427b86f27900445f6" sha1="256c76b628ee7a91a25fe0b90e9a5475d151cdb7"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\62280329.dds" size="1048704" crc="6ca99e18" md5="c75e0b9b53dfed796337a908fd8e8382" sha1="804b8d609190e195043289cd99cb220fcc0149b3"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\62B854C5.dds" size="1048704" crc="b67fd32b" md5="068666ce0c6aaf13347f87385f523b57" sha1="115462daa0312acd5a88be876cd1ac44d44d1b53"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\755F32C8.dds" size="1048704" crc="9ee381f1" md5="6a67c67e07a958bab653ebce6051faca" sha1="846e4869232d3523ab29c0be10bc490b538ecb8b"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\79313E69.dds" size="1048704" crc="c5186665" md5="fda552f2b29f70dc3bbd33aa452ea8e2" sha1="b837e81cc2a51aad2882712f6b6b73faf236531b"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\7940AA56.dds" size="1048704" crc="2b042e77" md5="d2fa28fc1dd155ad20cfcfd49ca044c1" sha1="ebb844ea669b08192c288bed1a0e783796154bed"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\7CE7A30E.dds" size="1048704" crc="1f994c89" md5="f1ceb75600205b5829664dc6771645da" sha1="ce818eb8b5312268638be87c529289f57b123466"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\924E49DD.dds" size="1048704" crc="262271dc" md5="8d5391442c7653267b4e62f2f8517e81" sha1="7c4653b2005d9c6d9da1679d1d5f4892fdac9e49"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\95694518.dds" size="1048704" crc="a4ff29fd" md5="e4e63cb1171e6c3281e97a13f841eaec" sha1="d921ec8d11a94b823ca5b1084035e46f8b1fd36a"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\97C9B470.dds" size="1048704" crc="7de12950" md5="f7668b8bf3b170aee7ee492e2c98ec70" sha1="c75bd57331d76e1d14a483adbecc860894f01f7b"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\9802AC67.dds" size="1048704" crc="8ee89ca7" md5="26ebf13647e49a900d7d1a7804c46bc8" sha1="bd00b166e80eea098b1b41653a14d95bc7f719de"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\9A42EAA6.dds" size="1048704" crc="18a4d685" md5="f4b8936707eed1181e120a424d3223ee" sha1="42c36cf01f89b95bcf60a9ad571f5461e9d3bf25"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\9B2DC44F.dds" size="1048704" crc="bfb9ee71" md5="c0850cd99a367235fd01dccc8189cfb0" sha1="93ea082b0158cc52650849efcf81cdcb534f2175"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\C9AC6473.dds" size="1048704" crc="2d05b5e2" md5="e0efc06b1f7cb9d4a0c32b529eba245c" sha1="33399b19f1e5bc4a8aae2c36f81ccc9722276a97"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\E98923EF.dds" size="1048704" crc="8c6e9b58" md5="65e78c37b3643e7a4dc7f11f5073ab28" sha1="1a7811dff7472d29d647edd466600ffe23fd515d"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\text\EB18A201.dds" size="1048704" crc="aa91b73f" md5="69399c8ba72a45bd1505be8858814a34" sha1="993c5af75e03054e41c1b021f6825f175e3f6397"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\title screen\368ACF5E.dds" size="32896" crc="10433028" md5="119660b1f13410f78bb5de0f70391dbe" sha1="e31a3f31172d77345a5fadeb31b2212f7a23050d"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\title screen\3A02B575.dds" size="32896" crc="6f81307c" md5="07397045587a4fc2725518307c720c71" sha1="ce7588be26795066a54582b9307afa9913b016bd"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\title screen\95233609.dds" size="32896" crc="04c766e4" md5="57410c0ccdafdb276b16ee215d221562" sha1="c174f3db1c3f362b82a8851e380d9dfb65e76905"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\title screen\97A281C1.dds" size="32896" crc="0dcbcfa9" md5="968837e8d30f7d038cb13014b04aed0a" sha1="09de092ddfbfa6e98913c4cd0dd3611e1860a46d"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\title screen\A6715F99.dds" size="1048704" crc="a6948400" md5="787ed4ab0f6ee5f1692f8858cadcb2df" sha1="2a9077c3fdac022495dd65c0b2368b0f86365080"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\title screen\D93909D9.dds" size="524416" crc="b7dab4ab" md5="5c75f22bfbfa1b869f47229c3017ab60" sha1="b1df66c6e6170f6025b23d07a5c065ef5ea33437"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\title screen\EA13A09B.dds" size="32896" crc="d5790fe5" md5="4222a686d3235ebec2a3b0a1295254d1" sha1="f839355c7471d738746b06729bd3891569e29684"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\2F4F80D2.dds" size="32896" crc="d7097764" md5="cd8a5f1837a83297e1ed12b20e148d2f" sha1="31f75f64a0d05e98c7d414cfef14646a6c538dea"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\444B464D.dds" size="65664" crc="57db5cfa" md5="a79b7cf87e6f63d75a963db12bca1c72" sha1="77ec311368211d6916aa61dc951f920db97c2656"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\6748CA28.dds" size="131200" crc="0a0940e3" md5="670c5d454d467e376b3521284cf6926b" sha1="d281854b4e26e5015b3189fabfde0ab9473e9345"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\78418347.dds" size="65664" crc="90741dbd" md5="dbe78c4f83e8d931071cf1771c8e7a9f" sha1="68ac4ecc391bbdbb32fb713cdd39e9d7d3f65372"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\78CFE071.dds" size="131200" crc="b008b9b7" md5="797b6b3bd263cfa536069fb63b79a8c4" sha1="2eb561a5bcee3fc6d57f74dcfb2c40ec4c219cdf"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\8A2BDA42.dds" size="131200" crc="318c6cec" md5="1dc0c8cb2a4f9e330cc46f71ac3302b2" sha1="9c780e59d11b956b603c25f45c2fbecb51b442ec"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\8F185923.dds" size="65664" crc="71bfed34" md5="a0ee6c22e72c3a0769bf78b824cd5334" sha1="f917d771aa2a0af1ca616f2e4910e6adf5d552e8"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\A9D4D4F6.dds" size="65664" crc="b790f082" md5="b728e0647c329163386d01721e58b67f" sha1="69d3436152954542732145978975e245019f4485"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\DB89A2AC.dds" size="65664" crc="5291a9c9" md5="2ae8fe4f9ded39650c00cb6b8f4cdf4f" sha1="2c9500499eb37bde4a4b4b89e12c8f562d1ff23c"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\training room\E364F0E5.dds" size="65664" crc="dc09c706" md5="c0e2bdba05f3e408b3c30e31bb4a6298" sha1="367ca0376a4721d5b800449f75e0721554794c54"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\009600C8.dds" size="131200" crc="3830ef22" md5="b3059c5253b7b6ae90589b1c0b6cb05b" sha1="536b3beb4aa2bfc310ef9f83f4b86dcb487543c8"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\01DB83D3.dds" size="32896" crc="e4e6cd93" md5="2fd086e889161d074774c2e84ac159f4" sha1="0ad25d88ec5a1a68e9ca82d87cfb507a55746233"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\08ACDF77.dds" size="65664" crc="45ad7d31" md5="77a6cbd2518f971723575affe5bfe66c" sha1="0ab4f69d4e17b5b2468b825674ad541e2bc23c94"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\163C7FCC.dds" size="131200" crc="9b0c5fe8" md5="b93156e0913333d9f15fecd7b9526926" sha1="aee6a434c0dc9c58be7f092dd39d75ce5fce7bdd"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\3C7879C8.dds" size="65664" crc="e2f837ff" md5="c52b25a0ed7a116b714985562ddaca13" sha1="9cf63187ef4544ea687ef8efa3573bb63beac49e"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\4576419F.dds" size="32896" crc="88c53707" md5="0c27ad0404ac4f0e6ce79ced35cbb648" sha1="3b2376f4482f96383488881f9352ded512fdce65"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\4CC5002B.dds" size="131200" crc="0598bf05" md5="3eb220c0b499af32da1828cfa9e584f2" sha1="386aede6101b4fc925605591cc4f3cc4fa42a487"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\743CF112.dds" size="32896" crc="4b67cd1f" md5="094268e904eea8fd1e8bdb576198d60c" sha1="d2f1f7b0f10eed361ebac028df02f0d62280969c"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\84EF88F0.dds" size="131200" crc="959e0cf8" md5="97c61283694fe847dacff0339c0ac57d" sha1="c2fe210e2212dd31b8ae7fe21cd63cd485420cae"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\B571C32B.dds" size="32896" crc="1d66a5c2" md5="4a5230f3eefde19d3c24d7b5e2e17fbd" sha1="6604e866752752ceac3ad3ef81c3847269cc6522"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\C04A5A3B.dds" size="131200" crc="7b15171e" md5="d4dfe248ef9c0403ad8739945d4c48c6" sha1="1f1868cf6b80c1c46c69b442bae70d338da98661"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\CD7C37AF.dds" size="131200" crc="1e01345b" md5="022e6665c25f621eccf03bdea0528e0b" sha1="4c626c1d9c94f33f5d29f090818c0a88d7762e1b"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\ED97E8B4.dds" size="32896" crc="1561f5cc" md5="f2d6f2e61675d10e596a3acf106be666" sha1="378695b98b300acaa2df16b49a986b578e28151e"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\warning\F1F8FBFA.dds" size="32896" crc="c43ec84c" md5="b7fe3c51625f395c734c847a545aae04" sha1="350824a82779ed5a7200b7bda8ec31fab4f72aa8"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\1D515890.dds" size="65664" crc="bc38d2c8" md5="4828b5b845143390014e06e77c17e1b1" sha1="a5a988d1a3794f99619c696220c9580ef8b1d9c5"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\2CF7DDEC.dds" size="131200" crc="18dc0bf0" md5="4a52746197ee76f25ed0cbb49507865e" sha1="37a732388fdc49c0a8c0996c670316edb74ce0d2"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\458D99F2.dds" size="65664" crc="06ba24cf" md5="67ebb870e010b14f4d4710e175219ede" sha1="e1592fb46729619084ea8996005770e4d4d8adf3"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\59131031.dds" size="131200" crc="f47ebcc0" md5="3940ea71c064800c6f438f62e432e662" sha1="346abdd1bf6b4f8c6c89f7dffd2cf3352aec93cd"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\6430CA96.dds" size="131200" crc="7b839ee4" md5="904202a0b97ab877f6b4ee778d8456d7" sha1="dd375058d3cc6997cdd76f48f51ae985cdaa6ec0"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\7EB4634C.dds" size="131200" crc="ddc7101a" md5="a97db49c492aaae6e6134ab7f4416a93" sha1="4b6a53d9bf97a08b3638ee0dcbc945e39b9993df"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\B09AE89B.dds" size="131200" crc="4a19e429" md5="49f83593af1e6733fbb53698c52c5baf" sha1="31bdfd667139665d035ee0c9010b14f40cf317bf"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\C618E631.dds" size="131200" crc="cae17e68" md5="559348a6415f71d9919f7577d302e689" sha1="4d9d28f9c14b72d796f52d34cecc2f28792bed3f"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\DBA34741.dds" size="65664" crc="143a2cda" md5="3800e1810c9fca455f72010126da276d" sha1="229409cd81eb0ec873d119a6907fcfca3046750e"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\textures\2001\world map\EA2340FD.dds" size="65664" crc="0d2be830" md5="aa50f7f7c7f0276f6ea12325b2f93ea2" sha1="312ba8fdb0f3c0d8eff7329d2d98f1525604b74f"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] [PCSX2 plugins &amp; textures]\txtconfig\2A0B1FF9.yaml" size="7350" crc="d53efbd6" md5="237172c090588b51926500458a30fabe" sha1="f0685eaa8cb8c7f253d4b4fc26e63e0c8aa2444f"/>
+		<rom name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1].txt" size="4396" crc="26068816" md5="1585b624e79b8add114ece600f4a67a7" sha1="031f896cb4a02a19b23173fccbb5262c9174454e"/>
+		<rom name="Rogue Hearts Dungeon (Japan) [T-En by TransGen v1.1 beta].txt" size="4153" crc="f74d25b2" md5="bb0c0448f94cc0403a68efb4bacf15ea" sha1="040ff66bb7bd395bc5bc1cfa37ecf422f83baa17"/>
+		<rom name="Sega Ages 2500 Series Vol. 1 - Phantasy Star generation-1 (Japan) [T-En by Kyence v2.10] [Collabo Spells FAQ].txt" size="7474" crc="dec3a1a6" md5="049cc6e9c41d5b23687ada490dc6df31" sha1="e3f6264f6bb2674ace6889eb9461d483b25f3621"/>
+		<rom name="Sega Ages 2500 Series Vol. 1 - Phantasy Star generation-1 (Japan) [T-En by Kyence v2.10] [Hints].txt" size="5440" crc="81a6d710" md5="71070f75c1862a2aa64e7d04488e1294" sha1="1f2be0f7aedbf061f850c8616bb7d4a49a94f945"/>
+		<rom name="Sega Ages 2500 Series Vol. 1 - Phantasy Star generation-1 (Japan) [T-En by Kyence v2.10].txt" size="15744" crc="530ca4d1" md5="e73e8e20ef3fc9e7dfa566242fccc9c5" sha1="a9e740de9660309a0798ae8f6a65b6a666c8b01f"/>
+		<rom name="Sega Ages 2500 Series Vol. 17 - Phantasy Star generation-2 (Japan) [T-En by Kyence v0.8b].txt" size="12733" crc="f7edf00d" md5="7ba82beadad074088b054e7b870b5177" sha1="16ccb553628369215e37d0c2d4f76180bd8c8e6c"/>
+		<rom name="Sega Rally 2006 (Japan) [T-En by Astraxis v1.0].txt" size="3481" crc="26c28a76" md5="777cbee12b35745c26ff9518cd2b781e" sha1="635bc088445738463b5def67853797fb0c0cbf65"/>
+		<rom name="Shin Master of Monsters Final EX (Japan) [T-En by Nebelwurfer HQ v0.50] [i].txt" size="6074" crc="21c70067" md5="8d95a111579228f5bba4b1bce957af6e" sha1="8d88f20fc2d91615d3f8c683fb8a0cdfb43c434e"/>
+		<rom name="Shin Megami Tensei III - Nocturne Maniax - Chronicle Edition (Japan) [T-En by E.F Jang &amp; Krisan Thyme v1.1.3].txt" size="4198" crc="f1293d7b" md5="9ce331f2926196f04c2a42f182fa11e0" sha1="55a2033d62d89a1383c9e0dff57f0ba56478634d"/>
+		<rom name="Simple 2000 Series Vol. 105 - The Maid Uniform &amp; Machinegun (Japan) [T-En by Cargodin &amp; Hilltop v1.0] [n] [Manual].rtf" size="12948" crc="d9c9b32b" md5="207267383ec9732e2bc9a6f6a1452174" sha1="44ad33008814a1ce086138004fc1fbd53993b43b"/>
+		<rom name="Simple 2000 Series Vol. 105 - The Maid Uniform &amp; Machinegun (Japan) [T-En by Cargodin &amp; Hilltop v1.0] [n].txt" size="2504" crc="ebccec81" md5="9b64c131db6f4d1f5b4daa825dc93d3a" sha1="202d4adea6f877760128ac80343f971cfd167dcb"/>
+		<rom name="Soul Eater - Battle Resonance (Japan) [T-En by Anime Game Translations Team v1.1].txt" size="3991" crc="0b412b55" md5="cf0ca5eb3b31d92862a9b843bb3adca4" sha1="b5d7f73ffcdbc54c09d4417d5097e94f189aaf8c"/>
+		<rom name="Standard Daisenryaku - Ushinawareta Shouri (Japan) [T-En by Nebelwurfer HQ v0.60] [i].txt" size="1568" crc="5e4363e1" md5="7d5d0fd548efb958d3be046d015ce086" sha1="86333e96a5add296de8a08cbfc181d2ec3c67c6b"/>
+		<rom name="Super Robot Wars OG - Original Generations (Japan) [T-En by Black &amp; Dewgrass &amp; Kingcom &amp; Ngram Prisken v1.2] [n].txt" size="3523" crc="7c506cb6" md5="a726d9d674cb70f47f69a4fca8410487" sha1="5380b5691fad315e761690fc833fa137473898ca"/>
+		<rom name="SuperLite 2000 Vol. 34 - Akai Ito (Japan) [T-En by Shizuka &amp; Nanashi3 &amp; Zohar v20170115] [i].txt" size="4822" crc="0441862b" md5="da1609c1f1eaaa001d3a7c312c425da7" sha1="75b48fc562ae81f63559a09eea3357a88d1a71e2"/>
+		<rom name="Tales of Destiny - Director's Cut (Japan, Asia) [T-En by Life Bottle Productions v1.5] [Aethersx2].txt" size="691" crc="a2120136" md5="46e2d38ce0a0516132dd801212c360c5" sha1="807b1d08a287316ba71887521a0faba04deb8972"/>
+		<rom name="Tales of Destiny - Director's Cut (Japan, Asia) [T-En by Life Bottle Productions v1.5].iso.CONFIG" size="24" crc="8478d7d2" md5="c2b456a981c739047730ae9ec4f8e763" sha1="236ccb8125bfcf7fc986968c5ae3f8c25069e733"/>
+		<rom name="Tales of Destiny - Director's Cut (Japan, Asia) [T-En by Life Bottle Productions v1.5].png" size="111373" crc="3a3ab93a" md5="edd228810f5b93e69367dbc5212490fd" sha1="bfc21b8939b9745657afa6dc2ceaaf2a4a8743af"/>
+		<rom name="Tales of Destiny - Director's Cut (Japan, Asia) [T-En by Life Bottle Productions v1.5].txt" size="1672" crc="ac8acb7f" md5="dce7831aad8c1442ef881288961a7cf2" sha1="8ea4282270b0bf2abc22db9c795a79baa835f23e"/>
+		<rom name="Tales of Destiny 2 (Japan) [T-En by Cless v062808 Pre-Alpha] [i].txt" size="1376" crc="65c443ce" md5="f213eb6b1d6742aad889ad668c565f05" sha1="1419aaf8dbb437d0c540d93d9f9da6bb63720fd6"/>
+		<rom name="Vampire Panic (Japan) [T-En by TransGen v1.0 Beta].txt" size="3887" crc="ee235d18" md5="aa415815c8c74b25d057282fb27fd8a1" sha1="7fbb603b4f3844ea23bc6c3a770505e5f1ad5d87"/>
+		<rom name="World Soccer Winning Eleven 10 (Japan) [T-En by Fernando fk v5].txt" size="1931" crc="84d8712e" md5="d021992dbbf247f84deba29314841dbe" sha1="c21eb8b0e6447b018bf44b6466c5299383f6f3c1"/>
+		<rom name="World Soccer Winning Eleven 9 (Japan) [T-En by Fernando fk v5].txt" size="2102" crc="8dffb272" md5="8a0241a9069c1e2541c9358b3f377232" sha1="d76dbc781a2df62590da732f9597aab6d44a8a07"/>
+		<rom name="Zill O'll Infinite (Japan) [T-En by TransGen v1.0].txt" size="5131" crc="5a135cf4" md5="538d8dde35e36519a1d9a5b95005c84b" sha1="4f1484a9397dd40ca658b8151a0d74149a2e4669"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Amagami (Japan) (ebKore Plus) [T-En by Ni-shi-shi Translations v1.0.0] [Ai &amp; Haruka]" sha1="cc4f62c0edc77f5749efb6f5cca79b0387f54010"/>
+		<disk name="Amagami (Japan) (ebKore Plus) [T-En by Ni-shi-shi Translations v1.0.0] [Rihoko &amp; Sae]" sha1="f0fcc36996e2001d13606c2a6c815bc9d6205041"/>
+		<disk name="Amagami (Japan) (ebKore Plus) [T-En by Ni-shi-shi Translations v1.0.0] [Tsukasa &amp; Kaoru]" sha1="86f3392a1fa98a730347f2a9f3be6dde1294c586"/>
+		<disk name="Amagami (Japan) [T-En by Ni-shi-shi Translations v1.0.0] [Ai &amp; Haruka]" sha1="e016dddcdaa51cb7b2779a31a6cb3bc680199afe"/>
+		<disk name="Amagami (Japan) [T-En by Ni-shi-shi Translations v1.0.0] [Rihoko &amp; Sae]" sha1="6a66034b9ad6bb82aac158953bf3fa52d4c6eb95"/>
+		<disk name="Amagami (Japan) [T-En by Ni-shi-shi Translations v1.0.0] [Tsukasa &amp; Kaoru]" sha1="6bef4c7b02ea29373fda1a8ac04de5a7a05b7d72"/>
+		<disk name="Ar tonelico II - Melody of Metafalica (USA) [T-En by Project Metafalica v1.0] [Relocalized]" sha1="d2152f060405dd4d0a86991d7f835849a4747336"/>
+		<disk name="Atelier Marie+Elie - The Alchemists of Salburg - Episodes 1 &amp; 2 [T-En by Atelier Traduction v1.01] [n]" sha1="841809332358b420efc3663bad21bc4c7332c290"/>
+		<disk name="Battle Stadium D.O.N (Japan) [T-En by Lord Izen v20230906] [Japanese voices]" sha1="21194418f4da6285198627451e28ba1d951cf4c7"/>
+		<disk name="Battle Stadium D.O.N (Japan) [T-En by Lord Izen v20230906]" sha1="95ae73ebb4e0989867e8cfd406dede560a1d900f"/>
+		<disk name="Berserk - Millennium Falcon Arc - Falcon of the Millenium Empire - Chapter of the Holy Demon War (Japan) [T-En by Wesker90 v1.1] [n]" sha1="69dae3e4c9ee4214075f13d19f6ad409fb19e52f"/>
+		<disk name="Blood Will Tell - Tezuka Osamu's Dororo (Europe) (En,Fr,De,Es,It) [Undub by Kristian Zdunek v1.0]" sha1="f7fdf7420c9c88726e583166e06ef331bb96d99d"/>
+		<disk name="Blood Will Tell - Tezuka Osamu's Dororo (USA) [Undub by Kristian Zdunek v1.0]" sha1="3b39830d6dae07456ae177e21d5b69f79a9a49a9"/>
+		<disk name="Boku no Natsuyasumi 2 - Adventure by the Sea (Japan) [T-En by Hilltop v1.2] [n]" sha1="5934da5a95bd69efecdb85fd8debd72d5a05e5f7"/>
+		<disk name="Bujingai - Swordmaster (Europe) (En,Fr,De,Es,It) [Undub by Swosho v1.0] [NTSC 60Hz mode only]" sha1="f452333798f773861c0eebe3ca8b40b3bddbca5f"/>
+		<disk name="Dog of Bay (Japan) [T-En by Hilltop v1.0] (CD)" sha1="44cb65419aa64a2f25d7b67e0bd02820cd1b3821"/>
+		<disk name="Dot Hack Fraegment (Japan) [T-En by Dothackers v3.7] [i]" sha1="964ddeef689eaddf3d4eb39e65a0fcf51cd898dc"/>
+		<disk name="Dragon Ball Z 2V (Japan) [T-En by the_phoenix_mirror v1.0]" sha1="76461605dde8b07542daf9994790e42f0c9f910f"/>
+		<disk name="Dragon Quest &amp; Final Fantasy in Fortune Street Special (Japan) [T-En by Choppasmith v3.01] [n]" sha1="ea262d8eb5d76775cf14d075b5db6c205ee90583"/>
+		<disk name="Dragon Quest V - Tenkuu no Hanayome (Japan) [T-En by DQ Translations v1.2] [Dragon Quest VIII Style Names]" sha1="d972f459c00386e60bd83ce0c0161c0d4fe847e8"/>
+		<disk name="Dragon Quest V - Tenkuu no Hanayome (Japan) [T-En by DQ Translations v1.2] [Dragon Warrior Style Names]" sha1="92b9ebcb9eee203beb1008912d28d7dcc4934145"/>
+		<disk name="Echo Night - Beyond (Europe) [English fixes by IlDucci v1.0]" sha1="a53f87f785fd67e6f87c307ab84cced930f7926f"/>
+		<disk name="Echo Night - Beyond (USA) [English fixes by IlDucci v1.0]" sha1="a27eeb4079a72ae89374967cba584d83514b1ef1"/>
+		<disk name="Final Fantasy X-2 International + Last Mission (Japan) [T-En by Pbirdman v1.5] [i]" sha1="72c29c6a47468b8bc80421356d472466d587841e"/>
+		<disk name="Final Fantasy XII International - Zodiac Job System (Japan) [T-En by ffgriever v0.23]" sha1="e237691e74806c65a8ee7aba829091c36ab11775"/>
+		<disk name="Fire Pro Wrestling Z (Japan) [T-En by Fatman Dave v0.5b] [i] (CD)" sha1="d6fb59cd001a1f6f45f7c9f9d78b184f8bc39e93"/>
+		<disk name="Football Kingdom - Trial Edition (Japan) [T-En by Fernando fk v0.4] [i] (CD)" sha1="c071ec47450633b0a4ab8afd55f32f0b198574de"/>
+		<disk name="Front Mission 5 - Scars of the War (Japan) [T-En by Front Mission 5 Team v4b] [Add by Swosho v1.0]" sha1="ded38de55462ff29c9a725599048dcde9a2b91d5"/>
+		<disk name="Front Mission 5 - Scars of the War (Japan) [T-En by Front Mission 5 Team v4b]" sha1="1408b443fe6009a2a999917cec7ad0938dacbefd"/>
+		<disk name="Growlanser VI - Precarious World (Japan) [T-En by Risae v2024-01-23]" sha1="7c7606f54abc6fc3020aad8b2a575d4db2e70107"/>
+		<disk name="Initial D - Special Stage (Japan) [T-En by Alexvgz v1.3] [i]" sha1="4f6acfd809add5c5a7c4207f4aefcfdfd1079008"/>
+		<disk name="J. League Winning Eleven 10 + Europe League '06-'07 (Japan) (v1.03) [T-En by Fernando fk v2.70]" sha1="3eb6860aaad6e88ffd7556d4040883162d104c22"/>
+		<disk name="J.League Winning Eleven 8 - Asia Championship (Japan) [T-En by Albiore v0.9]" sha1="9fa98dcd5fcb37e996509e308b2a907e7d39e46e"/>
+		<disk name="Jojo no Kimyou na Bouken - Ougon no Kaze (Japan) [T-En by JoJo's Colored Adventure v1.0]" sha1="15e8c08566a7a7876e933d434a20beb58dabeba9"/>
+		<disk name="JoJo's Bizarre Adventure - Golden Wind (Japan) [T-En by Hudgyn Sasdarl v3.003] [n]" sha1="f80ef32cd892560e797734b6b315543b62d3ae45"/>
+		<disk name="JoJo's Bizarre Adventure - Phantom Blood (Japan) [T-En by Penguino &amp; Hudgyn Sasdarl v1.1] [n]" sha1="1bc92b64968fb4b0f71b687117d1a2db53fd8ae2"/>
+		<disk name="Kenka Banchou 2 - Full Throttle (Japan) [T-En by TransGen v1.0alpha] [i]" sha1="62e92bf4f7f75570b9d8660bc9564bee8ac76636"/>
+		<disk name="Kingdom Hearts II - Final Mix (Japan) [T-En by Crazycatz00 v0.99.15222.0425r]" sha1="2aee4c8ab50a842611ef88d184d56c92577a6c0e"/>
+		<disk name="Monster Hunter (Japan) [T-En by mholdschool.com v0.9]" sha1="8ed982a84435913e9f94bb19384d069b784f9ec6"/>
+		<disk name="Monster Hunter (Japan) [T-En v20200424_v6]" sha1="c8ad67c92b96bba09ce202aa1e9a6aea06dd7a17"/>
+		<disk name="Monster Hunter 2 (Japan) [T-En by Break Arts v1.02]" sha1="a3cd6fd714959eabc23054ed2c694f35c3b9e68f"/>
+		<disk name="Monster Hunter G (Japan) [T-En by amaillo Rev13v5]" sha1="98020fb0408669eea1c57e19bfca1240b7a8af31"/>
+		<disk name="Mystic Nights (Korea) [T-En by Jeremy De Cola-David v1.1.0]" sha1="afc951022079ffaf14c224f2631b23d877177d70"/>
+		<disk name="Namco x Capcom (Japan) [T-En by TransGen Final Version A]" sha1="86c5c72d90791dd794c317600f2fc733e03e893e"/>
+		<disk name="OutRun 2 SP (Japan) [T-En by SolidSnake11] [i]" sha1="8175aee73cf66fa08c3267f1896a41ec9e68b367"/>
+		<disk name="Piposaru 2001 (Japan) [T-En by BmanRulesYou21 v1.1] (CD)" sha1="c9878decd7da905f3affb06b9ba3ab767581c072"/>
+		<disk name="Rogue Hearts Dungeon (Japan) [T-En by TransGen v1.1 beta]" sha1="7b6bb5fa43195c5513892a0e82104ec43519b578"/>
+		<disk name="Sega Ages 2500 Series Vol. 1 - Phantasy Star Generation-1 (Japan) [T-En by Kyence v2.10] (CD)" sha1="db9259bdd6eb2a5652f4b140852c7fd7797673ca"/>
+		<disk name="Sega Ages 2500 Series Vol. 17 - Phantasy Star Generation-2 (Japan) [T-En by Goldenboy v2f] (CD)" sha1="58b280f50cbb3b481a02ee312f8092ca46996a53"/>
+		<disk name="Sega Ages 2500 Series Vol. 17 - Phantasy Star Generation-2 (Japan) [T-En by Kyence v0.8b] (CD)" sha1="321869f5327dbbe9991d9dc7f1f75eaa50569a91"/>
+		<disk name="Sega Rally 2006 (Japan) [T-En by Astraxis v1.0]" sha1="4f4623eedcbcc096c688f37e436d6a96e7180f25"/>
+		<disk name="Shadow Tower Abyss (Japan) [T-En by Mord of Swoonlight v1.0]" sha1="a5bb0e2bdaed0bbc55992aeb533767815dbb6651"/>
+		<disk name="Shin Master of Monsters Final EX (Japan) [T-En by Nebelwurfer HQ v0.50] [i]" sha1="bf29d8cca541b7a0281589c0603f1ea64370c649"/>
+		<disk name="Shin Megami Tensei III - Nocturne Maniax - Chronicle Edition (Japan) [T-En by E.F Jang &amp; Krisan Thyme v1.1.3]" sha1="3a6975ee3b34b3020d8df44d47047d88f55c79ef"/>
+		<disk name="Simple 2000 Series Vol. 105 - The Maid Uniform &amp; Machinegun (Japan) [T-En by Cargodin &amp; Hilltop v1.0] [n] (CD)" sha1="9e347bde71d628a767f1d099f37aaf1c476720c2"/>
+		<disk name="Soul Eater - Battle Resonance (Japan) [T-En by Anime Game Translations Team v1.1]" sha1="8a22895d444fb749d9c2c596c167f286b78dca58"/>
+		<disk name="Standard Daisenryaku - Ushinawareta Shouri (Japan) [T-En by Nebelwurfer HQ v0.60] [i]" sha1="430e11c6079a73b5851c79a5abc2e079313356a2"/>
+		<disk name="Super Robot Wars OG - Original Generations (Japan) [T-En by Black &amp; Dewgrass &amp; Kingcom &amp; Ngram Prisken v1.2] [n]" sha1="88fe02fa12006bdf22c8b08dba5c707b512611cd"/>
+		<disk name="SuperLite 2000 Vol. 34 - Akai Ito (Japan) [T-En by Shizuka &amp; Nanashi3 &amp; Zohar v20170115] [i]" sha1="3a19eee92d235ae45ee84a3928829b9dedce7829"/>
+		<disk name="Tales of Destiny - Director's Cut (Japan, Asia) [T-En by Life Bottle Productions v1.5]" sha1="6771703b7ec6a5f8d14d9643a0fff9e7fd6ef3c3"/>
+		<disk name="Tales of Destiny 2 (Japan) [T-En by Cless v062808 Pre-Alpha] [i]" sha1="e660529cc1bcf89f9e46ce4ed94a506b5481bc62"/>
+		<disk name="TearRing Saga - Berwick Saga - Lazberia Chronicle - Chapter 174 (Japan) [T-En by Aethin v2.3] [n]" sha1="e89535ea30d6e66f3e2064a1aadef356d455c70d"/>
+		<disk name="Vampire Panic (Japan) [T-En by TransGen v1.0 Beta] (CD)" sha1="7b70b5afe13afd62dc5865942bad0e245f7f8382"/>
+		<disk name="World Soccer Winning Eleven 10 (Japan) [T-En by Fernando fk v5]" sha1="1e0b48a2ce15e8d02b9e387a6d71a462b4fb6869"/>
+		<disk name="World Soccer Winning Eleven 9 (Japan) [T-En by Fernando fk v5]" sha1="a1ba4fe07b0a339153b6a2dec0114fb710a3acce"/>
+		<disk name="Yakuza (USA) [Undub by Kristian Zdunek v1.0] [PS3 fix v2]" sha1="4422ade32149987a8fb3f94c514fbb309f57161e"/>
+		<disk name="Yakuza (USA) [Undub by Kristian Zdunek v1.0]" sha1="f3dcf4713deb2c8e76841072fe10e9143b9aa20a"/>
+		<disk name="Zill O'll Infinite (Japan) [T-En by TransGen v1.0]" sha1="62c90230828df3e69a7c24889616ae549c426777"/>
+	</machine>
+</datafile>

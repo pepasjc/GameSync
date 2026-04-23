@@ -1,0 +1,793 @@
+{
+  "system_choices": [
+    "32X",
+    "3DS",
+    "A2600",
+    "A7800",
+    "ARCADE",
+    "DC",
+    "FDS",
+    "GB",
+    "GBA",
+    "GBC",
+    "GC",
+    "GG",
+    "LYNX",
+    "MAME",
+    "MD",
+    "N64",
+    "N64DD",
+    "NDS",
+    "NEOGEO",
+    "NES",
+    "NGP",
+    "NGPC",
+    "PCE",
+    "PCECD",
+    "PCSG",
+    "PS1",
+    "PS2",
+    "PS3",
+    "PSP",
+    "SAT",
+    "SEGACD",
+    "SMS",
+    "SNES",
+    "TG16",
+    "VB",
+    "WSWAN",
+    "WSWANC"
+  ],
+  "all_console_types": [
+    "All",
+    "32X",
+    "3DS",
+    "A2600",
+    "A7800",
+    "ARCADE",
+    "DC",
+    "FDS",
+    "GB",
+    "GBA",
+    "GBC",
+    "GC",
+    "GG",
+    "LYNX",
+    "MAME",
+    "MD",
+    "N64",
+    "N64DD",
+    "NDS",
+    "NEOGEO",
+    "NES",
+    "NGP",
+    "NGPC",
+    "PCE",
+    "PCECD",
+    "PCSG",
+    "PS1",
+    "PS2",
+    "PS3",
+    "PSP",
+    "SAT",
+    "SEGACD",
+    "SMS",
+    "SNES",
+    "VB",
+    "VITA",
+    "WSWAN",
+    "WSWANC"
+  ],
+  "system_aliases": {
+    "GEN": "MD",
+    "SCD": "SEGACD",
+    "WS": "WSWAN",
+    "ATARI2600": "A2600",
+    "ATARI5200": "A5200",
+    "ATARI7800": "A7800"
+  },
+  "system_codes": [
+    "32X",
+    "3DO",
+    "3DS",
+    "A2600",
+    "A5200",
+    "A7800",
+    "A800",
+    "ARCADE",
+    "ATARI2600",
+    "ATARI5200",
+    "ATARI7800",
+    "ATARIST",
+    "ATARIXED",
+    "BS",
+    "CPS1",
+    "CPS2",
+    "CPS3",
+    "DC",
+    "FBA",
+    "FBNEO",
+    "FDS",
+    "GB",
+    "GBA",
+    "GBC",
+    "GC",
+    "GEN",
+    "GG",
+    "JAGCD",
+    "JAGUAR",
+    "LYNX",
+    "MAME",
+    "MD",
+    "N64",
+    "N64DD",
+    "NAOMI",
+    "NAOMI2",
+    "NDS",
+    "NEOCD",
+    "NEOGEO",
+    "NES",
+    "NGP",
+    "NGPC",
+    "NSW",
+    "PC98",
+    "PCE",
+    "PCECD",
+    "PCFX",
+    "PCSG",
+    "POKEMINI",
+    "PS1",
+    "PS2",
+    "PS3",
+    "PSP",
+    "SAT",
+    "SCD",
+    "SEGACD",
+    "SMS",
+    "SNES",
+    "TG16",
+    "VB",
+    "VITA",
+    "WII",
+    "WS",
+    "WSWAN",
+    "WSWANC",
+    "X1",
+    "X68K"
+  ],
+  "rom_extensions": [
+    ".32x",
+    ".3ds",
+    ".7z",
+    ".a26",
+    ".a52",
+    ".a78",
+    ".bin",
+    ".ccd",
+    ".cci",
+    ".chd",
+    ".cia",
+    ".col",
+    ".cso",
+    ".cue",
+    ".d64",
+    ".dax",
+    ".dim",
+    ".ecm",
+    ".elf",
+    ".fds",
+    ".gb",
+    ".gba",
+    ".gbc",
+    ".gci",
+    ".gcm",
+    ".gen",
+    ".gg",
+    ".img",
+    ".iso",
+    ".j64",
+    ".jag",
+    ".lnx",
+    ".md",
+    ".mdf",
+    ".mds",
+    ".msa",
+    ".n64",
+    ".ndd",
+    ".nds",
+    ".neo",
+    ".nes",
+    ".ngc",
+    ".ngp",
+    ".pbp",
+    ".pc2",
+    ".pce",
+    ".pkg",
+    ".qd",
+    ".rar",
+    ".rom",
+    ".rvz",
+    ".sat",
+    ".sfc",
+    ".sgb",
+    ".sgx",
+    ".smc",
+    ".smd",
+    ".sms",
+    ".st",
+    ".stx",
+    ".tg16",
+    ".v64",
+    ".vb",
+    ".vec",
+    ".ws",
+    ".wsc",
+    ".z64",
+    ".zip"
+  ],
+  "cd_data_extensions": [
+    ".bin",
+    ".chd",
+    ".cso",
+    ".img",
+    ".iso",
+    ".mdf",
+    ".pbp"
+  ],
+  "cd_all_extensions": [
+    ".bin",
+    ".ccd",
+    ".chd",
+    ".cso",
+    ".cue",
+    ".img",
+    ".iso",
+    ".mdf",
+    ".pbp"
+  ],
+  "cd_folder_systems": [
+    "DC",
+    "PS1",
+    "SAT",
+    "SEGACD"
+  ],
+  "mega_everdrive_cd_systems": [
+    "SEGACD"
+  ],
+  "save_extensions": [
+    ".bkr",
+    ".dsv",
+    ".frz",
+    ".fs",
+    ".mc2",
+    ".mcd",
+    ".mcr",
+    ".ps2",
+    ".raw",
+    ".rtc",
+    ".sav",
+    ".srm"
+  ],
+  "companion_extensions": [
+    ".cue",
+    ".msu",
+    ".pcm"
+  ],
+  "save_ext_choices": [
+    ".sav",
+    ".srm",
+    ".bkr",
+    ".mcr",
+    ".mcd",
+    ".mc2",
+    ".ps2",
+    ".dsv",
+    ".frz",
+    ".fs",
+    ".raw",
+    ".rtc"
+  ],
+  "system_default_save_ext": {
+    "SAT": ".bkr"
+  },
+  "system_dat_keywords": {
+    "SNES": [
+      "Super Nintendo Entertainment System",
+      "Super Nintendo"
+    ],
+    "NES": [
+      "Nintendo Entertainment System"
+    ],
+    "FDS": [
+      "Family Computer Disk System"
+    ],
+    "GBA": [
+      "Game Boy Advance"
+    ],
+    "GBC": [
+      "Game Boy Color"
+    ],
+    "GB": [
+      "Game Boy"
+    ],
+    "N64": [
+      "Nintendo 64"
+    ],
+    "N64DD": [
+      "Nintendo 64DD"
+    ],
+    "NDS": [
+      "Nintendo DS"
+    ],
+    "3DS": [
+      "Nintendo 3DS"
+    ],
+    "GC": [
+      "GameCube",
+      "Gamecube"
+    ],
+    "VB": [
+      "Nintendo - Virtual Boy",
+      "Virtual Boy"
+    ],
+    "MD": [
+      "Mega Drive",
+      "Genesis"
+    ],
+    "32X": [
+      "32X"
+    ],
+    "SEGACD": [
+      "Sega - Mega-CD",
+      "Mega-CD",
+      "Sega CD"
+    ],
+    "GG": [
+      "Game Gear"
+    ],
+    "SMS": [
+      "Master System"
+    ],
+    "SAT": [
+      "Sega - Saturn",
+      "Saturn"
+    ],
+    "DC": [
+      "Sega - Dreamcast",
+      "Dreamcast"
+    ],
+    "PCE": [
+      "NEC - PC Engine - TurboGrafx-16",
+      "NEC - PC Engine - TurboGrafx 16",
+      "PC Engine - TurboGrafx-16",
+      "PC Engine - TurboGrafx 16"
+    ],
+    "PCSG": [
+      "NEC - PC Engine SuperGrafx",
+      "PC Engine SuperGrafx",
+      "SuperGrafx"
+    ],
+    "PCECD": [
+      "PC Engine CD",
+      "TurboGrafx CD",
+      "PC Engine CD-ROM"
+    ],
+    "NGP": [
+      "SNK - Neo Geo Pocket",
+      "Neo Geo Pocket"
+    ],
+    "NGPC": [
+      "SNK - Neo Geo Pocket Color",
+      "Neo Geo Pocket Color"
+    ],
+    "NEOCD": [
+      "SNK - Neo Geo CD",
+      "Neo Geo CD"
+    ],
+    "NEOGEO": [
+      "Neo Geo"
+    ],
+    "LYNX": [
+      "Atari - Lynx",
+      "Lynx"
+    ],
+    "WSWAN": [
+      "Bandai - WonderSwan",
+      "WonderSwan"
+    ],
+    "WSWANC": [
+      "Bandai - WonderSwan Color",
+      "WonderSwan Color"
+    ],
+    "PS1": [
+      "Sony - PlayStation"
+    ],
+    "PS2": [
+      "Sony - PlayStation 2"
+    ],
+    "PSP": [
+      "Sony - PlayStation Portable"
+    ],
+    "PS3": [
+      "Sony - PlayStation 3"
+    ],
+    "A2600": [
+      "Atari 2600"
+    ],
+    "A7800": [
+      "Atari 7800"
+    ]
+  },
+  "folder_to_system": {
+    "3do": "3DO",
+    "ags": "ARCADE",
+    "amiga": "ARCADE",
+    "amiga1200": "ARCADE",
+    "amiga600": "ARCADE",
+    "amigacd32": "ARCADE",
+    "amstradcpc": "ARCADE",
+    "atari2600": "A2600",
+    "atari5200": "A5200",
+    "atari7800": "A7800",
+    "atari800": "A800",
+    "atarijaguar": "JAGUAR",
+    "atarijaguarcd": "JAGCD",
+    "atarilynx": "LYNX",
+    "atarist": "ATARIST",
+    "atarixe": "ATARIXED",
+    "atomiswave": "ARCADE",
+    "arcade": "ARCADE",
+    "fba": "FBA",
+    "fbneo": "FBNEO",
+    "c64": "ARCADE",
+    "cavestory": "ARCADE",
+    "colecovision": "ARCADE",
+    "cps": "CPS1",
+    "cps1": "CPS1",
+    "cps2": "CPS2",
+    "cps3": "CPS3",
+    "daphne": "ARCADE",
+    "dreamcast": "DC",
+    "famicom": "NES",
+    "fds": "FDS",
+    "gameandwatch": "ARCADE",
+    "gamegear": "GG",
+    "gb": "GB",
+    "gba": "GBA",
+    "gbc": "GBC",
+    "gc": "GC",
+    "genesis": "MD",
+    "megadrive": "MD",
+    "megadrivejp": "MD",
+    "mastersystem": "SMS",
+    "megacd": "SCD",
+    "megacdjp": "SCD",
+    "sega32x": "32X",
+    "sega32xjp": "32X",
+    "sega32xna": "32X",
+    "segacd": "SCD",
+    "model2": "ARCADE",
+    "model3": "ARCADE",
+    "naomi": "ARCADE",
+    "naomigd": "ARCADE",
+    "n3ds": "3DS",
+    "n64": "N64",
+    "n64dd": "N64DD",
+    "nds": "NDS",
+    "nes": "NES",
+    "neogeo": "NEOGEO",
+    "neogeocd": "NEOCD",
+    "neogeocdjp": "NEOCD",
+    "ngp": "NGP",
+    "ngpc": "NGPC",
+    "pcengine": "PCE",
+    "pcenginecd": "PCECD",
+    "pcfx": "PCE",
+    "psx": "PS1",
+    "ps1": "PS1",
+    "ps2": "PS2",
+    "ps3": "PS3",
+    "psp": "PSP",
+    "psvita": "VITA",
+    "saturn": "SAT",
+    "saturnjp": "SAT",
+    "sfc": "SNES",
+    "sgb": "SNES",
+    "snes": "SNES",
+    "snesna": "SNES",
+    "sneshd": "SNES",
+    "satellaview": "SNES",
+    "sufami": "SNES",
+    "tg16": "TG16",
+    "tg-cd": "PCECD",
+    "virtualboy": "VB",
+    "wii": "WII",
+    "wonderswan": "WSWAN",
+    "wonderswancolor": "WSWANC",
+    "mame": "MAME",
+    "mame-advmame": "MAME",
+    "mame-mame4all": "MAME"
+  },
+  "system_color": {
+    "GBA": "#7b1fa2",
+    "GB": "#388e3c",
+    "GBC": "#2e7d32",
+    "SNES": "#5d4037",
+    "NES": "#c62828",
+    "N64": "#1565c0",
+    "MD": "#0d47a1",
+    "SMS": "#1976d2",
+    "GG": "#00838f",
+    "32X": "#0277bd",
+    "SEGACD": "#006064",
+    "PCE": "#558b2f",
+    "PCECD": "#558b2f",
+    "TG16": "#33691e",
+    "TGCD": "#33691e",
+    "A2600": "#e65100",
+    "A7800": "#bf360c",
+    "LYNX": "#4e342e",
+    "NGP": "#37474f",
+    "NGPC": "#263238",
+    "WSWAN": "#4527a0",
+    "WSWANC": "#311b92",
+    "NEOGEO": "#b71c1c",
+    "ARCADE": "#880e4f",
+    "PS1": "#37474f",
+    "PS2": "#1a237e",
+    "PS3": "#212121",
+    "PSP": "#004d40",
+    "NDS": "#1b5e20",
+    "3DS": "#b71c1c",
+    "GC": "#4a148c",
+    "WII": "#880e4f",
+    "NSW": "#e53935"
+  },
+  "default_system_color": "#424242",
+  "psx_retail_prefixes": [
+    "PAPX",
+    "SCAJ",
+    "SCED",
+    "SCES",
+    "SCPM",
+    "SCPS",
+    "SCUS",
+    "SLAJ",
+    "SLEJ",
+    "SLES",
+    "SLPM",
+    "SLPS",
+    "SLUS"
+  ],
+  "sync_id_rules": {
+    "3DS": {
+      "strategy": "title_id"
+    },
+    "NDS": {
+      "strategy": "prefix_hex_serial",
+      "prefix": "00048000"
+    },
+    "PS1": {
+      "strategy": "serial"
+    },
+    "PS2": {
+      "strategy": "serial"
+    },
+    "PS3": {
+      "strategy": "serial"
+    },
+    "PSP": {
+      "strategy": "serial"
+    },
+    "VITA": {
+      "strategy": "serial"
+    },
+    "SAT": {
+      "strategy": "serial"
+    },
+    "32X": {
+      "strategy": "slug"
+    },
+    "3DO": {
+      "strategy": "slug"
+    },
+    "A2600": {
+      "strategy": "slug"
+    },
+    "A5200": {
+      "strategy": "slug"
+    },
+    "A7800": {
+      "strategy": "slug"
+    },
+    "A800": {
+      "strategy": "slug"
+    },
+    "ARCADE": {
+      "strategy": "slug"
+    },
+    "ATARIST": {
+      "strategy": "slug"
+    },
+    "ATARIXED": {
+      "strategy": "slug"
+    },
+    "BS": {
+      "strategy": "slug"
+    },
+    "CPS1": {
+      "strategy": "slug"
+    },
+    "CPS2": {
+      "strategy": "slug"
+    },
+    "CPS3": {
+      "strategy": "slug"
+    },
+    "DC": {
+      "strategy": "slug"
+    },
+    "FBA": {
+      "strategy": "slug"
+    },
+    "FBNEO": {
+      "strategy": "slug"
+    },
+    "FDS": {
+      "strategy": "slug"
+    },
+    "GB": {
+      "strategy": "slug"
+    },
+    "GBA": {
+      "strategy": "slug"
+    },
+    "GBC": {
+      "strategy": "slug"
+    },
+    "GC": {
+      "strategy": "slug"
+    },
+    "GG": {
+      "strategy": "slug"
+    },
+    "JAGCD": {
+      "strategy": "slug"
+    },
+    "JAGUAR": {
+      "strategy": "slug"
+    },
+    "LYNX": {
+      "strategy": "slug"
+    },
+    "MAME": {
+      "strategy": "slug"
+    },
+    "MD": {
+      "strategy": "slug"
+    },
+    "N64": {
+      "strategy": "slug"
+    },
+    "N64DD": {
+      "strategy": "slug"
+    },
+    "NAOMI": {
+      "strategy": "slug"
+    },
+    "NAOMI2": {
+      "strategy": "slug"
+    },
+    "NEOCD": {
+      "strategy": "slug"
+    },
+    "NEOGEO": {
+      "strategy": "slug"
+    },
+    "NES": {
+      "strategy": "slug"
+    },
+    "NGP": {
+      "strategy": "slug"
+    },
+    "NGPC": {
+      "strategy": "slug"
+    },
+    "NSW": {
+      "strategy": "slug"
+    },
+    "PC98": {
+      "strategy": "slug"
+    },
+    "PCE": {
+      "strategy": "slug"
+    },
+    "PCECD": {
+      "strategy": "slug"
+    },
+    "PCFX": {
+      "strategy": "slug"
+    },
+    "PCSG": {
+      "strategy": "slug"
+    },
+    "POKEMINI": {
+      "strategy": "slug"
+    },
+    "SEGACD": {
+      "strategy": "slug"
+    },
+    "SMS": {
+      "strategy": "slug"
+    },
+    "SNES": {
+      "strategy": "slug"
+    },
+    "TG16": {
+      "strategy": "slug"
+    },
+    "VB": {
+      "strategy": "slug"
+    },
+    "WII": {
+      "strategy": "slug"
+    },
+    "WSWAN": {
+      "strategy": "slug"
+    },
+    "WSWANC": {
+      "strategy": "slug"
+    },
+    "X1": {
+      "strategy": "slug"
+    },
+    "X68K": {
+      "strategy": "slug"
+    }
+  },
+  "mister_folder_to_system": {
+    "GBA": "GBA",
+    "SNES": "SNES",
+    "NES": "NES",
+    "Genesis": "MD",
+    "MegaDrive": "MD",
+    "N64": "N64",
+    "Gameboy": "GB",
+    "GBC": "GBC",
+    "GameGear": "GG",
+    "SMS": "SMS",
+    "PCEngine": "PCE",
+    "TurboGrafx16": "PCE",
+    "Atari2600": "A2600",
+    "Atari7800": "A7800",
+    "Lynx": "LYNX",
+    "NeoGeo": "NEOGEO",
+    "32X": "32X",
+    "MegaCD": "SEGACD",
+    "PSX": "PS1",
+    "GG": "GG",
+    "NEOGEO": "NEOGEO",
+    "Lynx48": "LYNX",
+    "Saturn": "SAT"
+  },
+  "mister_system_to_folder": {
+    "GBA": "GBA",
+    "SNES": "SNES",
+    "NES": "NES",
+    "MD": "Genesis",
+    "N64": "N64",
+    "GB": "Gameboy",
+    "GBC": "GBC",
+    "GG": "GameGear",
+    "SMS": "SMS",
+    "PCE": "PCEngine",
+    "A2600": "Atari2600",
+    "A7800": "Atari7800",
+    "LYNX": "Lynx",
+    "NEOGEO": "NeoGeo",
+    "32X": "32X",
+    "SEGACD": "MegaCD",
+    "PS1": "PSX",
+    "SAT": "Saturn"
+  }
+}

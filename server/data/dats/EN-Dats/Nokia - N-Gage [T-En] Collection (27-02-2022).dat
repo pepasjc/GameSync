@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Nokia - N-Gage [T-En] Collection</name>
+		<description>Nokia - N-Gage [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>27-02-2022</version>
+		<date>27-02-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="7 Days Salvation (China) [T-En by EsperKnight &amp; SnowyAria &amp; Mr. Nobody v1.0]">
+		<description>7 Days Salvation (China) [T-En by EsperKnight &amp; SnowyAria &amp; Mr. Nobody v1.0]</description>
+		<rom name="7 Days Salvation (China) [T-En by EsperKnight &amp; SnowyAria &amp; Mr. Nobody v1.0].sis" size="27726668" crc="04108eaf" md5="4a0422e80ea49f79d05299d45b275965" sha1="d9965a0e4166761aea433287f12955abbd032121"/>
+	</machine>
+	<machine name="_Nokia N-Gage [T-En] Docs">
+		<description>_Nokia N-Gage [T-En] Docs</description>
+		<rom name="7 Days Salvation (China) [T-En by EsperKnight &amp; SnowyAria &amp; Mr. Nobody v1.0] [config].sdt" size="1252" crc="7bd0014f" md5="e226d4aaa254488d8ed81c8d2ff14483" sha1="b355ce53867c3175e7e8ec6d3a8e8e59b0bc8c07"/>
+		<rom name="7 Days Salvation (China) [T-En by EsperKnight &amp; SnowyAria &amp; Mr. Nobody v1.0].pdf" size="102287" crc="2ffab210" md5="c374433ee02bb0d2f2b0fc11383cff5c" sha1="726fbd77d6a833a3008119892a3224370c8584b7"/>
+		<rom name="7 Days Salvation (China) [T-En by EsperKnight &amp; SnowyAria &amp; Mr. Nobody v1.0].txt" size="3068" crc="1edf4e14" md5="df3ff43754923628092001f7628097f2" sha1="2cff13ab44916b689237e6923fe3d1071f5869e1"/>
+	</machine>
+</datafile>

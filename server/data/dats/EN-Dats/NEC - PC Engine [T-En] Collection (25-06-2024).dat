@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>NEC - PC Engine [T-En] Collection</name>
+		<description>NEC - PC Engine [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>25-06-2024</version>
+		<date>25-06-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_NEC - PC Engine [T-En] Docs">
+		<description>_NEC - PC Engine [T-En] Docs</description>
+		<rom name="Aoi Blink (Japan) [T-En by Gaijin Productions &amp; Zatos Hacks v0.99b].txt" size="6216" crc="9587331e" md5="c8b1bb069b4f3d1fb429dc40c817a820" sha1="1c0e764c7debb20933e7dae888c6ffc3236c7eea"/>
+		<rom name="Barunba (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro v1.0].txt" size="1097" crc="91f62548" md5="e038ab9a589fcf22dd2703af91118419" sha1="346d05b62819a2fd2386e5caa60dbe49d8c3f61e"/>
+		<rom name="Bikkuriman World (Japan) [T-En by Demiforce v1.00].txt" size="342" crc="7c376544" md5="7ceb1fa9a9b53008aba4aecac44797c4" sha1="d6869e03bf262674dbf29f678566ae02a7dc74e5"/>
+		<rom name="Bravoman (Japan) [T-En by Pennywise v1.00] [n].txt" size="3140" crc="214e67bc" md5="c21c03afaed499dc95d27b27fd0bbd64" sha1="2309f85ef901a1d07efadc7894e1931e8ce0c9ee"/>
+		<rom name="Bubblegum Crash! - Knight Sabers 2034 (Japan) [T-En by Dave Shadoff &amp; Filler &amp; Tomaitheous v1.0].txt" size="2577" crc="5f99423f" md5="7f8dee8fd61ca8390ba6aca3ef22e7ba" sha1="2bd1f68a7b834989352013f7f4752c0fd517b13f"/>
+		<rom name="City Hunter (Japan) [T-En by Cabbage v1.1].txt" size="4315" crc="7ed3fd75" md5="53576d159c3d37eae88f90f2d1f841f1" sha1="bf1d811a50559f88667ca84be8e22bdfb36e9834"/>
+		<rom name="Crest of Gaia, The (Japan) [T-En by Derrick Sobodash &amp; Benjamin Whitting v1.3] [n].txt" size="6365" crc="baa9560b" md5="3d6b71ab0c917bd007e57b1755300807" sha1="e0272e357b245fa5576c38d6b9c74db254dce4a5"/>
+		<rom name="Die Hard (Japan) [T-En by Spinner 8 &amp; DarknessSavior v1.0].txt" size="6101" crc="747b8f12" md5="76ad59d3c7ae0b094a11df129917c9dd" sha1="97876734609a339c45302e1c94ebf500654af33c"/>
+		<rom name="Dragon Egg! (Japan) [T-En by Cabbage &amp; Onionzoo v1.0].txt" size="1277" crc="8ccf33b2" md5="37edf551ebc8f123b4e557831f424e4f" sha1="5a2e66e3a285e2b6b45aa03400dd702117074bc6"/>
+		<rom name="Energy (Japan) [T-En by Cabbage &amp; Onionzoo v1.01].txt" size="2272" crc="f6dd478b" md5="7f841da91d4c2c9240dd3c2044bac8c6" sha1="e9adf79a05340fbcc98611205499bfed0ec3271f"/>
+		<rom name="F-1 Pilot - You're King of Kings (Japan) [T-En by Jink640 &amp; MrRichard999 v1.0].txt" size="516" crc="25b0d149" md5="0d0fac155682facbd16c8970826ee7f3" sha1="946152c58865958bf2b7087d3b924b6a813ef12b"/>
+		<rom name="Fairytale Dreams of Alice, The (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; Filler &amp; MooZ v1.0] [n].txt" size="2424" crc="b06ae0ed" md5="b4d8d8aa7db90d5ec7b0e6ca4038872c" sha1="c5539c5767a8f1261015f0f3e8122e9f22de9622"/>
+		<rom name="Final Match Tennis (Japan) [T-En by tAz-07 v1.2].txt" size="1013" crc="24ad13de" md5="45feaa3263a2adc822132511963a2133" sha1="20144bb888ad5990f8469d9e696a61af1766a97f"/>
+		<rom name="Final Match Tennis Ladies (Japan) [Hack by MooZ v1.0] [T-En by tAz-07 v1.0] [HMCD2002 Extract].txt" size="1520" crc="fbeeb7f5" md5="60613bfcadc690cecf82c66cca261eca" sha1="e5c1ac7100324b738932d2fade7b34edae0e7939"/>
+		<rom name="Flying Trooper X-Serd (Japan) [T-En by Nebulous Translations v1.0] [n].txt" size="9992" crc="c5c65a81" md5="74983ec8458fbe7b9a46e6301bb8799d" sha1="e06899affd12aa4c6b54cb1bce89f555291b243a"/>
+		<rom name="Ganbare! Golf Boys (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99].txt" size="697" crc="540c90de" md5="b07de398127af3cd132580f47d9337b1" sha1="01eba2bbdbab94f1cc3ad5a9e5e5a2aabf75ce1c"/>
+		<rom name="Gekisha Boy (Japan) [T-En by LaytonLoztew v1.0].txt" size="2417" crc="0cd00c10" md5="84e0051f13094f226b3cdbc2a0550582" sha1="b489c75ce693ea27c460c8d40d5c7b0f6c4e0647"/>
+		<rom name="Gekisha Boy (Japan) [T-En by Zatos Hacks v0.99].txt" size="2002" crc="18dadadc" md5="5694f3a6a66b54864d87693e975b8824" sha1="9f8c974288769893f36d5d1221e0d09a7247a8ae"/>
+		<rom name="Honey in the Sky (Japan) [T-En by Cabbage &amp; Filler &amp; Diogo Ribeiro v1.0] [n].txt" size="8414" crc="b6fdf39e" md5="d4c7044517019c4b7984b667895cc608" sha1="3a3bd5de0cac0ddb83890192b344141d3f8a52e4"/>
+		<rom name="Jaseiken Necromancer (Japan) [T-En by Pikachumanson v0.25] [i].txt" size="16622" crc="d4d958d4" md5="f8e5e6388cd520a1af4b5f54324dc5ee" sha1="772b3641acd6e5b5278193a55d9470531c3173cc"/>
+		<rom name="Knight Rider Special (Japan) [T-En by Psyklax v2.0].txt" size="3964" crc="32334fcf" md5="2bafbb6273ba60df1ae2461fb8f2ee88" sha1="d56d292beaaeee4f1175656a1916d2aa3afaa5fc"/>
+		<rom name="Kore ga Pro Yakyuu '89 (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99].txt" size="713" crc="47297522" md5="f97e8eab497a34d9a1021cf37f7bfc45" sha1="f45f94bf728013638f3b68b4b4f978c875f92a31"/>
+		<rom name="Kore ga Pro Yakyuu '90 (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99].txt" size="710" crc="714c6ec5" md5="4e8fb0b45f78fdbb88dc5b29fe98acee" sha1="345d34b940dd9d7a4540968d9aff7f7772d9e450"/>
+		<rom name="Lady Sword - Ryakudatsu Sareta 10-nin no Otome (Japan) (Unl) [T-En by EsperKnight &amp; Filler &amp; Grant Laughlin &amp; Tomaitheous v1.0].txt" size="8276" crc="80b551dc" md5="c6de48a9da52a7d2733d61144e0c6f5d" sha1="28e20b5fee1ad55b7360ab49c74a958d6d587f09"/>
+		<rom name="Lode Runner - Lost Labyrinth (Japan) [T-En by Dave Shadoff v0.99].txt" size="1326" crc="b0745aed" md5="a9c19a45c5e31437d460e98d6dbf96c3" sha1="b17e6b363c44d85133558281cb369ed0dbbf874e"/>
+		<rom name="Maerchen Maze (Japan) [T-En by MooZ &amp; Shubibiman v1.1].txt" size="446" crc="d009b291" md5="862141e68e25411376c33779cdda1b6d" sha1="a667b2e153fea835aa7902f2b5c0bcf8fb60e3ec"/>
+		<rom name="Maison Ikkoku (Japan) [T-En by Dave Shadoff &amp; Filler v1.01].txt" size="3552" crc="ea2541a0" md5="b6c1d138c1c4e9ff82ba26aa098c51a1" sha1="368c5151f8262b7179753e858582af2e1bfe8c55"/>
+		<rom name="Makai Hakkenden Shada (Japan) [T-En by Cabbage &amp; Shubibiman v1.0].txt" size="1034" crc="0f3d76d7" md5="2a4e04eadf9c672da4997184924065d7" sha1="91dc01aac675f179a2c5bb76cbfbfe616fe2b168"/>
+		<rom name="Mashin Hero Wataru (Japan) [T-En by Stardust Crusaders v1.00] [n].txt" size="1858" crc="d470d1a2" md5="3089c69b737a8e9eb43454012a4ca80b" sha1="510adc07586d3038b04709812dc67f36deaa6faa"/>
+		<rom name="Naxat Stadium (Japan) [T-En by Jink640 &amp; MrRichard999 v0.98].txt" size="747" crc="3d9874e9" md5="1d28a27a02c599b8610985c8bf070e37" sha1="b13a0b897397e5cf16fcfb2a033a59c269a6ff4a"/>
+		<rom name="Obo Chama-kun - Little Princeling (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; Filler &amp; MooZ v1.0] [n].txt" size="11177" crc="9c05460f" md5="4e635752b59d7365539ae943acc78b20" sha1="8884306f4ece4ed832916713e6851d40faa85f14"/>
+		<rom name="Out Live (Japan) [T-En by Nebulous Translations v1.1].txt" size="6754" crc="d449669c" md5="863ba372a2772ac334201d98af79e971" sha1="a9425fa1a8dcc5ca5bdf2abc7693fe65b5993f57"/>
+		<rom name="Puzzle Boy (Japan) [T-En by KingMike's Translation v1.0].txt" size="7187" crc="9ab58fa5" md5="dd18d7245140198bad611881b0ff6803" sha1="14f7ad951716a5674c34f47f3b4d8a659d93076f"/>
+		<rom name="Shanghai (Japan) [T-En by Dave Shadoff v0.99].txt" size="1129" crc="db30ba9e" md5="4d08641340f5896ec0de8ca764307c4a" sha1="96e913a81128aae5a36906facc696eba6c6ac53f"/>
+		<rom name="Shiryou Sensen - War of the Dead [T-En by Nebulous Translations v1.0].txt" size="12994" crc="a4240e4a" md5="dc52d04fddc1e98d9407c103048eb17f" sha1="80a875ca9b527f86ec3b192dd31e64415ed999c5"/>
+		<rom name="Son Son II (Japan) [T-En by Sgt. Bow Hack v1.0b].txt" size="874" crc="700cd48e" md5="d0aa9de9dac149d694125ba5c2a4f073" sha1="a99a4b1545ea8f1d8f562f51ac32c50727f3f4ff"/>
+		<rom name="Tower of Druaga, The (Japan) [T-En by Pennywise v1.01].txt" size="2117" crc="fd497c1e" md5="ed7f6ae88a270fad941817adb000a828" sha1="c4306659912a626049ce87dcd4e0ab667e1f2187"/>
+		<rom name="Tower of Druaga, The (Japan) [T-En by Procyon Lotor v1.1].txt" size="5848" crc="3d5c3a06" md5="8a9c0d65cb8b43b26dce99060688e3ff" sha1="d1b4bf8c24868f82304d40c44f651bba8ac8d461"/>
+		<rom name="Valkyrie no Densetsu (Japan) [T-En by Cabbage &amp; Shawn Cox v1.0].txt" size="1049" crc="7ff07e81" md5="78fd5bcd699d4e82067c64eb765a5800" sha1="3387c54c7668f85bc134ed35e6c58c43c6891cf3"/>
+		<rom name="Wonder Momo (Japan) [T-En by Filler &amp; Dave Shadoff &amp; Diogo Ribeiro v1.0].txt" size="4698" crc="4184ccfc" md5="4b6669a076170f35d62ad4766ed34a7b" sha1="2e4d8c2b15b0d9e85c6f657f6eecd5dc9f670995"/>
+		<rom name="World Circuit (Japan) [T-En by FlashPV &amp; Jink640 &amp; MrRichard999 v1.0].txt" size="553" crc="cc8038f7" md5="63aee38a81b8bac373515d92eb0470bf" sha1="8abcb9502dab11b962f2604dfcf233727e6aa967"/>
+		<rom name="Youkai Douchuuki (Japan) [T-En by Cabbage v1.0].txt" size="829" crc="a982ae24" md5="c9fb9fab6f0bfd4b679f27f0f4d278d2" sha1="52a5447b76a68412b030045464dcc5a997af7e22"/>
+	</machine>
+	<machine name="Aoi Blink (Japan) [T-En by Gaijin Productions &amp; Zatos Hacks v0.99b]">
+		<description>Aoi Blink (Japan) [T-En by Gaijin Productions &amp; Zatos Hacks v0.99b]</description>
+		<rom name="Aoi Blink (Japan) [T-En by Gaijin Productions &amp; Zatos Hacks v0.99b].pce" size="393216" crc="25d34a20" md5="6fd7e17d01fc93b9be9f89fa8359a579" sha1="781e6eda1f2e9be35d71b9853f97b8f26cce0631"/>
+	</machine>
+	<machine name="Barunba (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro v1.0]">
+		<description>Barunba (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro v1.0]</description>
+		<rom name="Barunba (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro v1.0].pce" size="524288" crc="2dfdd372" md5="aed9d6eb83d83da4c12a27b77638f528" sha1="561f09c98fb70d1cf1ae8b04a6c7f12ffae5eecb"/>
+	</machine>
+	<machine name="Bikkuriman World (Japan) [T-En by Demiforce v1.00]">
+		<description>Bikkuriman World (Japan) [T-En by Demiforce v1.00]</description>
+		<rom name="Bikkuriman World (Japan) [T-En by Demiforce v1.00].pce" size="262144" crc="02db6fe5" md5="7a13bd257402efafff3c33d9ba7d4ae4" sha1="9209ae070ef6a4ca6dad6fb20054b1ac3c265ccf"/>
+	</machine>
+	<machine name="Bravoman (Japan) [T-En by Pennywise v1.00] [n]">
+		<description>Bravoman (Japan) [T-En by Pennywise v1.00] [n]</description>
+		<rom name="Bravoman (Japan) [T-En by Pennywise v1.00] [n].pce" size="1048576" crc="7413aebd" md5="40ec4787c67dab77442a396eec99cd00" sha1="2f671b8fa9cff2f8e5d12c3bd662514f9cf3df34"/>
+	</machine>
+	<machine name="Bubblegum Crash! - Knight Sabers 2034 (Japan) [T-En by Dave Shadoff &amp; Filler &amp; Tomaitheous v1.0]">
+		<description>Bubblegum Crash! - Knight Sabers 2034 (Japan) [T-En by Dave Shadoff &amp; Filler &amp; Tomaitheous v1.0]</description>
+		<rom name="Bubblegum Crash! - Knight Sabers 2034 (Japan) [T-En by Dave Shadoff &amp; Filler &amp; Tomaitheous v1.0].pce" size="786432" crc="704b6916" md5="4675116aa55dcf17f6311142d43808ec" sha1="83ab5db31cd669787bbfaeaaa691a0f59e4d167c"/>
+	</machine>
+	<machine name="City Hunter (Japan) [T-En by Cabbage v1.1]">
+		<description>City Hunter (Japan) [T-En by Cabbage v1.1]</description>
+		<rom name="City Hunter (Japan) [T-En by Cabbage v1.1].pce" size="393216" crc="23f3df33" md5="9dcfed2ba5b59fa8f97387e01bb96f66" sha1="b92baeda4e71a0f348e2294a9deaa6fafa7bef6f"/>
+	</machine>
+	<machine name="Crest of Gaia, The (Japan) [T-En by Derrick Sobodash &amp; Benjamin Whitting v1.3] [n]">
+		<description>Crest of Gaia, The (Japan) [T-En by Derrick Sobodash &amp; Benjamin Whitting v1.3] [n]</description>
+		<rom name="Crest of Gaia, The (Japan) [T-En by Derrick Sobodash &amp; Benjamin Whitting v1.3] [n].pce" size="262144" crc="f93670ff" md5="a2b1c24c8701e930ae9cf0b48d0873ce" sha1="71e1f4f647e094e8758f0bc35409e1d31583b63a"/>
+	</machine>
+	<machine name="Die Hard (Japan) [T-En by Spinner 8 &amp; DarknessSavior v1.0]">
+		<description>Die Hard (Japan) [T-En by Spinner 8 &amp; DarknessSavior v1.0]</description>
+		<rom name="Die Hard (Japan) [T-En by Spinner 8 &amp; DarknessSavior v1.0].pce" size="524288" crc="91be0dec" md5="45195abbbdaff8dd8d8c521b84f1698d" sha1="ae01c948903cca1c849d77f68bffb3e533efcf50"/>
+	</machine>
+	<machine name="Dragon Egg! (Japan) [T-En by Cabbage &amp; Onionzoo v1.0]">
+		<description>Dragon Egg! (Japan) [T-En by Cabbage &amp; Onionzoo v1.0]</description>
+		<rom name="Dragon Egg! (Japan) [T-En by Cabbage &amp; Onionzoo v1.0].pce" size="524288" crc="bde8ea74" md5="2ee1759239d5e0b1dff0945d7266f54c" sha1="4e3a1e7d7b84df641bdcbbff240d5d78d74a1ec7"/>
+	</machine>
+	<machine name="Energy (Japan) [T-En by Cabbage &amp; Onionzoo v1.01]">
+		<description>Energy (Japan) [T-En by Cabbage &amp; Onionzoo v1.01]</description>
+		<rom name="Energy (Japan) [T-En by Cabbage &amp; Onionzoo v1.01].pce" size="262144" crc="370fa62c" md5="7fc06f2e3131c1cfcddff6c69d54b8b9" sha1="d237dff176ef5193885fdc4abb469f6435dd2aac"/>
+	</machine>
+	<machine name="F-1 Pilot - You're King of Kings (Japan) [T-En by Jink640 &amp; MrRichard999 v1.0]">
+		<description>F-1 Pilot - You're King of Kings (Japan) [T-En by Jink640 &amp; MrRichard999 v1.0]</description>
+		<rom name="F-1 Pilot - You're King of Kings (Japan) [T-En by Jink640 &amp; MrRichard999 v1.0].pce" size="393216" crc="f682a294" md5="090723391ac1728bf23192fc5496e654" sha1="ac1de3c0b9cbc5e0b8eda3ba87703abf95edc7ca"/>
+	</machine>
+	<machine name="Fairytale Dreams of Alice, The (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; Filler &amp; MooZ v1.0] [n]">
+		<description>Fairytale Dreams of Alice, The (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; Filler &amp; MooZ v1.0] [n]</description>
+		<rom name="Fairytale Dreams of Alice, The (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; Filler &amp; MooZ v1.0] [n].pce" size="393216" crc="c21f25c4" md5="4ed3f4820b238d5c1cb49dcaf24f382a" sha1="9868a3049e6bbc75a537415a2db8bbda17dc1864"/>
+	</machine>
+	<machine name="Final Match Tennis (Japan) [T-En by tAz-07 v1.2]">
+		<description>Final Match Tennis (Japan) [T-En by tAz-07 v1.2]</description>
+		<rom name="Final Match Tennis (Japan) [T-En by tAz-07 v1.2].pce" size="262144" crc="8c4f4941" md5="e161b34d6bcdbcfe582f943b2eef5715" sha1="6d14d4ac286b70cd7b689a8d4576da4e27a330dd"/>
+	</machine>
+	<machine name="Final Match Tennis Ladies (Japan) [Hack by MooZ v1.0] [T-En by tAz-07 v1.0] [HMCD2002 Extract]">
+		<description>Final Match Tennis Ladies (Japan) [Hack by MooZ v1.0] [T-En by tAz-07 v1.0] [HMCD2002 Extract]</description>
+		<rom name="Final Match Tennis Ladies (Japan) [Hack by MooZ v1.0] [T-En by tAz-07 v1.0] [HMCD2002 Extract].pce" size="262144" crc="2090650a" md5="5fd3ab558740192e44ed18166ea95950" sha1="3425036a2a8bd38a779d150bc03b3746a53afa8d"/>
+	</machine>
+	<machine name="Flying Trooper X-Serd (Japan) [T-En by Nebulous Translations v1.0] [n]">
+		<description>Flying Trooper X-Serd (Japan) [T-En by Nebulous Translations v1.0] [n]</description>
+		<rom name="Flying Trooper X-Serd (Japan) [T-En by Nebulous Translations v1.0] [n].pce" size="786432" crc="5aa263a3" md5="724726107e68455e57393b7c9d068109" sha1="d483bce40799267a942c40a8a3948b3448ec8963"/>
+	</machine>
+	<machine name="Gai Flame (Japan) [T-En by Nebulous Translations v0.98]">
+		<description>Gai Flame (Japan) [T-En by Nebulous Translations v0.98]</description>
+		<rom name="Gai Flame (Japan) [T-En by Nebulous Translations v0.98].pce" size="393216" crc="581164ce" md5="c4474a42a6373d6a8e96c71c4a42beae" sha1="b370a6634031834d2030327c0514f18f1cee679d"/>
+	</machine>
+	<machine name="Ganbare! Golf Boys (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99]">
+		<description>Ganbare! Golf Boys (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99]</description>
+		<rom name="Ganbare! Golf Boys (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99].pce" size="262144" crc="9ba009c2" md5="4956ab8684d322a35f2238eb477ad1f7" sha1="d7ef6a59b4e671adab1fe7af923681bfbb073e65"/>
+	</machine>
+	<machine name="Gekisha Boy (Japan) [T-En by LaytonLoztew v1.0]">
+		<description>Gekisha Boy (Japan) [T-En by LaytonLoztew v1.0]</description>
+		<rom name="Gekisha Boy (Japan) [T-En by LaytonLoztew v1.0].pce" size="524288" crc="61febf33" md5="9dcb79c53d21c5d3eff36ca6a92df81c" sha1="51c8be58749da5452dafe3a1e56f86df0b9dfbec"/>
+	</machine>
+	<machine name="Gekisha Boy (Japan) [T-En by Zatos Hacks v0.99]">
+		<description>Gekisha Boy (Japan) [T-En by Zatos Hacks v0.99]</description>
+		<rom name="Gekisha Boy (Japan) [T-En by Zatos Hacks v0.99].pce" size="524288" crc="9cfe7e17" md5="4293b1c07f9de4c32075cfa00963379c" sha1="a1083636dcc8d24c02454a4fb04256319d57f1ea"/>
+	</machine>
+	<machine name="Hanii in the Sky (Japan) [T-En by Eadmaster v0.3] [i]">
+		<description>Hanii in the Sky (Japan) [T-En by Eadmaster v0.3] [i]</description>
+		<rom name="Hanii in the Sky (Japan) [T-En by Eadmaster v0.3] [i].pce" size="262144" crc="e1387de2" md5="7ecdc619c894f5dc65ed6abcf06f07f3" sha1="4e255a6f592bdf57a2b7512535bc4c7b2b87e856"/>
+	</machine>
+	<machine name="Honey in the Sky (Japan) [T-En by Cabbage &amp; Filler &amp; Diogo Ribeiro v1.0] [n]">
+		<description>Honey in the Sky (Japan) [T-En by Cabbage &amp; Filler &amp; Diogo Ribeiro v1.0] [n]</description>
+		<rom name="Honey in the Sky (Japan) [T-En by Cabbage &amp; Filler &amp; Diogo Ribeiro v1.0] [n].pce" size="262144" crc="d1dc2f66" md5="015b8a761e1c3a8d0d474ef7e1063a55" sha1="ef3e666d73293e766e88c77e8bdfa331399789a6"/>
+	</machine>
+	<machine name="Jaseiken Necromancer (Japan) [T-En by Pikachumanson v0.25] [i]">
+		<description>Jaseiken Necromancer (Japan) [T-En by Pikachumanson v0.25] [i]</description>
+		<rom name="Jaseiken Necromancer (Japan) [T-En by Pikachumanson v0.25] [i].pce" size="262144" crc="174d29fd" md5="ca65de337ffe7b415311ebcfa4390116" sha1="547f9165b705fd6106bcfb73fd0dc2b6ab25c26d"/>
+	</machine>
+	<machine name="Knight Rider Special (Japan) [T-En by Psyklax v2.0]">
+		<description>Knight Rider Special (Japan) [T-En by Psyklax v2.0]</description>
+		<rom name="Knight Rider Special (Japan) [T-En by Psyklax v2.0].pce" size="262144" crc="1109d8e3" md5="79216bf0956d23b58331b98af6da6c4a" sha1="1da7d890ff87cf48ba214f6a246892006c5d70d6"/>
+	</machine>
+	<machine name="Kore ga Pro Yakyuu '89 (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99]">
+		<description>Kore ga Pro Yakyuu '89 (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99]</description>
+		<rom name="Kore ga Pro Yakyuu '89 (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99].pce" size="262144" crc="22a7deb7" md5="7c782bebf06a4c500c045ed2273ee440" sha1="7ca51790f80d1ac9068ebf907fa0a7b776f75cf7"/>
+	</machine>
+	<machine name="Kore ga Pro Yakyuu '90 (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99]">
+		<description>Kore ga Pro Yakyuu '90 (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99]</description>
+		<rom name="Kore ga Pro Yakyuu '90 (Japan) [T-En by AgentOrange &amp; Jink640 &amp; MrRichard999 v0.99].pce" size="262144" crc="482f619d" md5="4745a2d9d35e2b9833608092ff51c3ea" sha1="c805909f19c105b8b0a7ef25d64d28a678744970"/>
+	</machine>
+	<machine name="Lady Sword - Ryakudatsu Sareta 10-nin no Otome (Japan) (Unl) [T-En by EsperKnight &amp; Filler &amp; Grant Laughlin &amp; Tomaitheous v1.0]">
+		<description>Lady Sword - Ryakudatsu Sareta 10-nin no Otome (Japan) (Unl) [T-En by EsperKnight &amp; Filler &amp; Grant Laughlin &amp; Tomaitheous v1.0]</description>
+		<rom name="Lady Sword - Ryakudatsu Sareta 10-nin no Otome (Japan) (Unl) [T-En by EsperKnight &amp; Filler &amp; Grant Laughlin &amp; Tomaitheous v1.0].pce" size="1048576" crc="ff461dcd" md5="6b56d548b740cdbbc2993b5a8f03ffd4" sha1="7e6cf9b1c8ef96147129d297e0b39a2217d499f1"/>
+	</machine>
+	<machine name="Lode Runner - Lost Labyrinth (Japan) [T-En by Dave Shadoff v0.99]">
+		<description>Lode Runner - Lost Labyrinth (Japan) [T-En by Dave Shadoff v0.99]</description>
+		<rom name="Lode Runner - Lost Labyrinth (Japan) [T-En by Dave Shadoff v0.99].pce" size="262144" crc="a7c43940" md5="5a4b96646ef109fdb8e7d9e10da02103" sha1="2001616739bf42e4a9fed0a16893871589e24f04"/>
+	</machine>
+	<machine name="Maerchen Maze (Japan) [T-En by MooZ &amp; Shubibiman v1.1]">
+		<description>Maerchen Maze (Japan) [T-En by MooZ &amp; Shubibiman v1.1]</description>
+		<rom name="Maerchen Maze (Japan) [T-En by MooZ &amp; Shubibiman v1.1].pce" size="262144" crc="b7166358" md5="f34299acd4a789ad51e7b10be3a8947d" sha1="caf03a4bd2b8e74746b98c0b8be312231e447064"/>
+	</machine>
+	<machine name="Maison Ikkoku (Japan) [T-En by Dave Shadoff &amp; Filler v1.01]">
+		<description>Maison Ikkoku (Japan) [T-En by Dave Shadoff &amp; Filler v1.01]</description>
+		<rom name="Maison Ikkoku (Japan) [T-En by Dave Shadoff &amp; Filler v1.01].pce" size="524288" crc="73c5adf1" md5="0e4dfb8449b2f825af396f0c577b6ef2" sha1="47655a5c5445cc4d69cd32825e84c70ed4a14d26"/>
+	</machine>
+	<machine name="Makai Hakkenden Shada (Japan) [T-En by Cabbage &amp; Shubibiman v1.0]">
+		<description>Makai Hakkenden Shada (Japan) [T-En by Cabbage &amp; Shubibiman v1.0]</description>
+		<rom name="Makai Hakkenden Shada (Japan) [T-En by Cabbage &amp; Shubibiman v1.0].pce" size="262144" crc="017de16d" md5="6b33184f381d3bfc9870f5ad55b8c78a" sha1="448991d34538c40cb8d7738ed1093b86c4dd1cfd"/>
+	</machine>
+	<machine name="Mashin Hero Wataru (Japan) [T-En by Stardust Crusaders v1.00] [n]">
+		<description>Mashin Hero Wataru (Japan) [T-En by Stardust Crusaders v1.00] [n]</description>
+		<rom name="Mashin Hero Wataru (Japan) [T-En by Stardust Crusaders v1.00] [n].pce" size="524288" crc="53e14cb5" md5="5b90818137e6ea8a266fe625a297280f" sha1="be1153f6c951689e59830dc5e1cd25311a1d8cbe"/>
+	</machine>
+	<machine name="Naxat Stadium (Japan) [T-En by Jink640 &amp; MrRichard999 v0.98]">
+		<description>Naxat Stadium (Japan) [T-En by Jink640 &amp; MrRichard999 v0.98]</description>
+		<rom name="Naxat Stadium (Japan) [T-En by Jink640 &amp; MrRichard999 v0.98].pce" size="524288" crc="9d2f1124" md5="b125071c3a9c8b039ecff59b48930c0f" sha1="6387aee2722e4b0877b6146d246169effd2d7313"/>
+	</machine>
+	<machine name="Obo Chama-kun - Little Princeling (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; Filler &amp; MooZ v1.0] [n]">
+		<description>Obo Chama-kun - Little Princeling (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; Filler &amp; MooZ v1.0] [n]</description>
+		<rom name="Obo Chama-kun - Little Princeling (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; Filler &amp; MooZ v1.0] [n].pce" size="524288" crc="c38cec38" md5="c0a3afb6d541694f627a43e7553e4f0e" sha1="39d9830ba1c7d73761d7fb70b7cf0e0b6f0a77e8"/>
+	</machine>
+	<machine name="Out Live (Japan) [T-En by Nebulous Translations v1.1]">
+		<description>Out Live (Japan) [T-En by Nebulous Translations v1.1]</description>
+		<rom name="Out Live (Japan) [T-En by Nebulous Translations v1.1].pce" size="393216" crc="4d6e5b06" md5="aa26a277ea0c448966d14598077e9ede" sha1="0f1c73c5311854081350be54d684532d9c08166f"/>
+	</machine>
+	<machine name="Puzzle Boy (Japan) [T-En by KingMike's Translations v1.0]">
+		<description>Puzzle Boy (Japan) [T-En by KingMike's Translations v1.0]</description>
+		<rom name="Puzzle Boy (Japan) [T-En by KingMike's Translations v1.0].pce" size="262144" crc="da0e234f" md5="f5b8397f328f51313f812278db362c81" sha1="96e2fd5bbdea922ec0d2a1ed2a9881994d71f232"/>
+	</machine>
+	<machine name="Rabbit Punch Special (Japan) [T-En by Diogo Ribeiro v1.0] [n]">
+		<description>Rabbit Punch Special (Japan) [T-En by Diogo Ribeiro v1.0] [n]</description>
+		<rom name="Rabbit Punch Special (Japan) [T-En by Diogo Ribeiro v1.0] [n].pce" size="393216" crc="4fdc5a33" md5="dddb28ed4b10d55c87bdb1eab31ca6d9" sha1="2a878b6d2fd33e14543c3cd8ec675e81441f687a"/>
+	</machine>
+	<machine name="Shanghai (Japan) [T-En by Dave Shadoff v0.99]">
+		<description>Shanghai (Japan) [T-En by Dave Shadoff v0.99]</description>
+		<rom name="Shanghai (Japan) [T-En by Dave Shadoff v0.99].pce" size="131072" crc="2e6b6200" md5="73d3f8f6f7fc6d28b298fc0c7734a2a6" sha1="cdc416767efde0a7f2714ad55dee5fddbc2f6021"/>
+	</machine>
+	<machine name="Shiryou Sensen - War of the Dead [T-En by Nebulous Translations v1.0]">
+		<description>Shiryou Sensen - War of the Dead [T-En by Nebulous Translations v1.0]</description>
+		<rom name="Shiryou Sensen - War of the Dead [T-En by Nebulous Translations v1.0].pce" size="393216" crc="d74eb106" md5="52f37b526e06594b6bd5bc7ed398816a" sha1="b40f1d4708bfddae1db8f49c3e7e14c29f05b6f3"/>
+	</machine>
+	<machine name="Son Son II (Japan) [T-En by Sgt. Bow Hack v1.0b] [Add by Someitalian123 v1.0]">
+		<description>Son Son II (Japan) [T-En by Sgt. Bow Hack v1.0b] [Add by Someitalian123 v1.0]</description>
+		<rom name="Son Son II (Japan) [T-En by Sgt. Bow Hack v1.0b] [Add by Someitalian123 v1.0].pce" size="262144" crc="1a0599b4" md5="471b66578757b269a682e75ba810b1b7" sha1="3a53ed2ff692e277c55fa287b1d8281a50b0df3e"/>
+	</machine>
+	<machine name="Street Fighter II' - Champion Edition (Japan) [T-En by Cabbage v1.0]">
+		<description>Street Fighter II' - Champion Edition (Japan) [T-En by Cabbage v1.0]</description>
+		<rom name="Street Fighter II' - Champion Edition (Japan) [T-En by Cabbage v1.0].pce" size="2621440" crc="ae22eec4" md5="e6d47eca9fb1d01d6a492a49904e08dd" sha1="69946602f5e173da6744c6f9aef3f97a3ccd5f43"/>
+	</machine>
+	<machine name="Tower of Druaga, The (Japan) [T-En by Pennywise v1.01]">
+		<description>Tower of Druaga, The (Japan) [T-En by Pennywise v1.01]</description>
+		<rom name="Tower of Druaga, The (Japan) [T-En by Pennywise v1.01].pce" size="1048576" crc="1914ad86" md5="5b57c41734da55af282eabd56536d14c" sha1="1f1640cc5a3afc70224d63c1a2d403335739b2c3"/>
+	</machine>
+	<machine name="Tower of Druaga, The (Japan) [T-En by Procyon Lotor v1.1]">
+		<description>Tower of Druaga, The (Japan) [T-En by Procyon Lotor v1.1]</description>
+		<rom name="Tower of Druaga, The (Japan) [T-En by Procyon Lotor v1.1].pce" size="524288" crc="b9032dc3" md5="8da3885d9c6674f33cf9bac28905d249" sha1="7a36b6b64596a04a4a3fc6ffeacae44989504271"/>
+	</machine>
+	<machine name="Valkyrie no Densetsu (Japan) [T-En by Cabbage &amp; Shawn Cox v1.0]">
+		<description>Valkyrie no Densetsu (Japan) [T-En by Cabbage &amp; Shawn Cox v1.0]</description>
+		<rom name="Valkyrie no Densetsu (Japan) [T-En by Cabbage &amp; Shawn Cox v1.0].pce" size="524288" crc="97a62bd1" md5="c8e415bf9bf74284e51f8d96a22caff5" sha1="aaa4b32bc980f04b54932bd6792955fa25ebc22c"/>
+	</machine>
+	<machine name="Wonder Momo (Japan) [T-En by Filler &amp; Dave Shadoff &amp; Diogo Ribeiro v1.0]">
+		<description>Wonder Momo (Japan) [T-En by Filler &amp; Dave Shadoff &amp; Diogo Ribeiro v1.0]</description>
+		<rom name="Wonder Momo (Japan) [T-En by Filler &amp; Dave Shadoff &amp; Diogo Ribeiro v1.0].pce" size="524288" crc="5d7f809b" md5="029c30f28af4578ecbff5697ad1e772f" sha1="c345a9a8768bd29c1913014e0eff6a1edda8da47"/>
+	</machine>
+	<machine name="World Circuit (Japan) [T-En by FlashPV &amp; Jink640 &amp; MrRichard999 v1.0]">
+		<description>World Circuit (Japan) [T-En by FlashPV &amp; Jink640 &amp; MrRichard999 v1.0]</description>
+		<rom name="World Circuit (Japan) [T-En by FlashPV &amp; Jink640 &amp; MrRichard999 v1.0].pce" size="262144" crc="947cdd8e" md5="cd3e22a84dccac280b9aa1334c423937" sha1="d220d8f0addbeba01a20c871514cca2edca93a95"/>
+	</machine>
+	<machine name="Youkai Douchuuki (Japan) [T-En by Cabbage v1.0]">
+		<description>Youkai Douchuuki (Japan) [T-En by Cabbage v1.0]</description>
+		<rom name="Youkai Douchuuki (Japan) [T-En by Cabbage v1.0].pce" size="393216" crc="ebd8b418" md5="96465e931aa94eecc0d0f80ebfbbfdc9" sha1="9a1bf4d439b325cc1f507d1a132c31f81df71c77"/>
+	</machine>
+</datafile>

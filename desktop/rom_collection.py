@@ -3,24 +3,34 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
+import tempfile
 import zipfile
 import zlib
 
 import rom_normalizer as rn
 
+try:
+    import py7zr
+except ImportError:  # pragma: no cover - exercised when desktop deps are stale
+    py7zr = None
+
 
 ZIP_EXTENSIONS = {".zip"}
+SEVEN_Z_EXTENSIONS = {".7z"}
+ARCHIVE_EXTENSIONS = ZIP_EXTENSIONS | SEVEN_Z_EXTENSIONS
 MATCH_PRIORITY = {
     "crc": 0,
     "header": 1,
-    "fuzzy": 2,
-    "folder": 3,
-    "filename": 4,
+    "alias": 2,
+    "fuzzy": 3,
+    "folder": 4,
+    "filename": 5,
 }
 REGION_PRIORITY = {
     "USA": 0,
-    "Europe": 2,
-    "Japan": 3,
+    "World": 1,
+    "Japan": 2,
+    "Europe": 3,
 }
 _ENGLISH_TRANSLATION_MARKERS = (
     "[t-en",
@@ -43,6 +53,11 @@ _STATUS_PENALTIES = (
     "(Pirate",
     "(Virtual Console",
     "(Unl)",
+)
+_BIOS_NAME_PATTERNS = (
+    "[bios]",
+    "(enhancement chip)",
+    " firmware",
 )
 
 
@@ -70,9 +85,10 @@ class CollectionCandidate:
     @property
     def region_rank(self) -> int:
         if self.is_english_translation:
-            return 1
+            return 2
+        canonical_regions = rn.extract_region_hints(self.canonical_name)
         for region, rank in REGION_PRIORITY.items():
-            if f"({region})" in self.canonical_name:
+            if region in canonical_regions:
                 return rank
         return len(REGION_PRIORITY)
 
@@ -114,11 +130,11 @@ class CollectionCandidate:
         Prevents a France-sourced ROM that was upgraded to a ``(USA)`` canonical
         name from beating an actual USA-sourced ROM for the same game.
         """
-        source_region = rn.extract_region_hint(self.source_label)
-        canonical_region = rn.extract_region_hint(self.canonical_name)
-        if source_region and canonical_region and source_region == canonical_region:
+        source_regions = set(rn.extract_region_hints(self.source_label))
+        canonical_regions = set(rn.extract_region_hints(self.canonical_name))
+        if source_regions and canonical_regions and source_regions & canonical_regions:
             return 0
-        if not source_region and not canonical_region:
+        if not source_regions and not canonical_regions:
             return 0
         return 1
 
@@ -127,8 +143,9 @@ class CollectionCandidate:
         """Return a human-readable region label for this entry."""
         if self.is_english_translation:
             return "Translated"
+        canonical_regions = set(rn.extract_region_hints(self.canonical_name))
         for token in ("USA", "Europe", "Japan"):
-            if f"({token})" in self.canonical_name:
+            if token in canonical_regions:
                 return token
         return "Other"
 
@@ -142,16 +159,90 @@ class CollectionCandidate:
         return "#"
 
 
+@dataclass
+class ValidationIssue:
+    entry: CollectionCandidate
+    expected_name: str | None = None
+
+
+@dataclass
+class CollectionValidationReport:
+    present: list[CollectionCandidate]
+    wrong_region: list[ValidationIssue]
+    missing: list[str]
+    unmatched: list[Path]
+    duplicates: list[CollectionCandidate]
+    expected_total: int
+
+
 def _iter_source_files(folder: Path) -> list[Path]:
     return sorted(
         path
         for path in folder.rglob("*")
         if path.is_file()
+        and not _is_bios_name(path.name)
         and (
             path.suffix.lower() in rn.ROM_EXTENSIONS
-            or path.suffix.lower() in ZIP_EXTENSIONS
+            or path.suffix.lower() in ARCHIVE_EXTENSIONS
         )
     )
+
+
+def _is_bios_name(name: str) -> bool:
+    label = name.lower()
+    return any(marker in label for marker in _BIOS_NAME_PATTERNS)
+
+
+def _is_bios_candidate(canonical_name: str, source_label: str) -> bool:
+    return _is_bios_name(canonical_name) or _is_bios_name(source_label)
+
+
+def _is_bios_zip(path: Path) -> bool:
+    try:
+        with zipfile.ZipFile(path) as zf:
+            rom_members = [
+                info
+                for info in zf.infolist()
+                if not info.is_dir()
+                and Path(info.filename).suffix.lower() in rn.ROM_EXTENSIONS
+            ]
+    except zipfile.BadZipFile:
+        return False
+
+    return bool(rom_members) and all(
+        _is_bios_name(info.filename) for info in rom_members
+    )
+
+
+def _require_py7zr() -> None:
+    if py7zr is None:
+        raise RuntimeError(
+            "7z archive support requires the optional 'py7zr' dependency. "
+            "Install or refresh the desktop requirements first."
+        )
+
+
+def _is_bios_7z(path: Path) -> bool:
+    _require_py7zr()
+    with py7zr.SevenZipFile(path, "r") as archive:
+        rom_members = [
+            info
+            for info in archive.list()
+            if not info.is_directory
+            and Path(info.filename).suffix.lower() in rn.ROM_EXTENSIONS
+        ]
+    return bool(rom_members) and all(
+        _is_bios_name(info.filename) for info in rom_members
+    )
+
+
+def _is_bios_archive(path: Path) -> bool:
+    suffix = path.suffix.lower()
+    if suffix in ZIP_EXTENSIONS:
+        return _is_bios_zip(path)
+    if suffix in SEVEN_Z_EXTENSIONS:
+        return _is_bios_7z(path)
+    return False
 
 
 def _read_member_header_title(
@@ -206,6 +297,7 @@ def _resolve_canonical_name_for_file(
     system: str,
     no_intro: dict[str, str],
     name_index: dict[str, str],
+    alias_index: dict[str, str],
     skip_crc: bool = False,
 ) -> tuple[str | None, str]:
     canonical = None
@@ -220,6 +312,12 @@ def _resolve_canonical_name_for_file(
                 canonical = no_intro.get(crc)
                 if canonical:
                     return canonical, "crc"
+
+        canonical = _resolve_alias_canonical_name(
+            alias_index, path.name, path.parent.name
+        )
+        if canonical:
+            return canonical, "alias"
 
         header_title = rn.read_rom_header_title(path, system)
         if header_title:
@@ -263,6 +361,7 @@ def _resolve_canonical_name_for_zip(
     system: str,
     no_intro: dict[str, str],
     name_index: dict[str, str],
+    alias_index: dict[str, str],
     skip_crc: bool = False,
 ) -> list[CollectionCandidate]:
     candidates: list[CollectionCandidate] = []
@@ -274,6 +373,7 @@ def _resolve_canonical_name_for_zip(
                     for info in zf.infolist()
                     if not info.is_dir()
                     and Path(info.filename).suffix.lower() in rn.ROM_EXTENSIONS
+                    and not _is_bios_name(info.filename)
                 ),
                 key=lambda info: info.filename.lower(),
             )
@@ -305,6 +405,16 @@ def _resolve_canonical_name_for_zip(
                                 pass
                         if canonical:
                             match_source = "crc"
+                    if canonical is None:
+                        canonical = _resolve_alias_canonical_name(
+                            alias_index,
+                            member_path.name,
+                            member_path.parent.name,
+                            path.stem,
+                            path.parent.name,
+                        )
+                        if canonical:
+                            match_source = "alias"
                     if canonical is None:
                         header_title = _read_member_header_title(zf, info, system)
                         if header_title:
@@ -347,7 +457,7 @@ def _resolve_canonical_name_for_zip(
                                     )
                                 match_source = "folder"
 
-                if canonical:
+                if canonical and not _is_bios_candidate(canonical, info.filename):
                     candidates.append(
                         CollectionCandidate(
                             source_path=path,
@@ -363,6 +473,141 @@ def _resolve_canonical_name_for_zip(
     return candidates
 
 
+def _extract_7z_member(
+    archive: "py7zr.SevenZipFile",
+    member_name: str,
+    temp_root: Path,
+) -> Path:
+    archive.reset()
+    archive.extract(path=temp_root, targets=[member_name])
+    return temp_root / member_name
+
+
+def _resolve_canonical_name_for_archive_label(
+    archive_name: str,
+    parent_name: str,
+    no_intro: dict[str, str],
+    name_index: dict[str, str],
+    alias_index: dict[str, str],
+    *extra_labels: str,
+) -> tuple[str | None, str]:
+    if not no_intro:
+        return None, "filename"
+
+    canonical = _resolve_alias_canonical_name(
+        alias_index,
+        archive_name,
+        Path(archive_name).stem,
+        *extra_labels,
+        parent_name,
+    )
+    if canonical:
+        return canonical, "alias"
+
+    labels: list[tuple[str, str]] = [
+        (archive_name, "fuzzy"),
+        (Path(archive_name).stem, "fuzzy"),
+    ]
+    for label in extra_labels:
+        labels.append((label, "fuzzy"))
+    labels.append((parent_name, "folder"))
+
+    for label, match_source in labels:
+        if not label:
+            continue
+        canonical = rn.fuzzy_filename_search(label, name_index)
+        if canonical:
+            region_hint = rn.extract_region_hint(archive_name) or rn.extract_region_hint(
+                parent_name
+            )
+            if region_hint:
+                canonical = rn.find_region_preferred(canonical, no_intro, region_hint)
+            return canonical, match_source
+
+    return None, "filename"
+
+
+def _pick_7z_member(
+    path: Path,
+    infos: list["py7zr.py7zr.FileInfo"],
+) -> "py7zr.py7zr.FileInfo | None":
+    if not infos:
+        return None
+
+    archive_name = path.stem.lower()
+    archive_inner_suffix = Path(path.stem).suffix.lower()
+    archive_base = Path(path.stem).stem.lower()
+
+    for info in infos:
+        member_path = Path(info.filename)
+        member_name = member_path.name.lower()
+        member_base = member_path.stem.lower()
+        if member_name == archive_name or member_base == archive_base:
+            return info
+
+    if archive_inner_suffix in rn.ROM_EXTENSIONS:
+        for info in infos:
+            if Path(info.filename).suffix.lower() == archive_inner_suffix:
+                return info
+
+    return infos[0]
+
+
+def _resolve_canonical_name_for_7z(
+    path: Path,
+    system: str,
+    no_intro: dict[str, str],
+    name_index: dict[str, str],
+    alias_index: dict[str, str],
+    skip_crc: bool = False,
+) -> list[CollectionCandidate]:
+    _require_py7zr()
+    del system, skip_crc
+
+    with py7zr.SevenZipFile(path, "r") as archive:
+        infos = sorted(
+            (
+                info
+                for info in archive.list()
+                if not info.is_directory
+                and Path(info.filename).suffix.lower() in rn.ROM_EXTENSIONS
+                and not _is_bios_name(info.filename)
+            ),
+            key=lambda info: info.filename.lower(),
+        )
+    member = _pick_7z_member(path, infos)
+    if member is None:
+        return []
+
+    member_path = Path(member.filename)
+    canonical, match_source = _resolve_canonical_name_for_archive_label(
+        path.stem,
+        path.parent.name,
+        no_intro,
+        name_index,
+        alias_index,
+        member_path.name,
+        member_path.parent.name,
+    )
+    if canonical is None or _is_bios_candidate(canonical, path.name):
+        return []
+
+    extension = Path(path.stem).suffix.lower()
+    if extension not in rn.ROM_EXTENSIONS:
+        extension = member_path.suffix.lower()
+
+    return [
+        CollectionCandidate(
+            source_path=path,
+            canonical_name=canonical,
+            source_kind="7z",
+            extension=extension,
+            match_source=match_source,
+            archive_member=member.filename,
+        )
+    ]
+
+
 def scan_collection(
     folder: Path,
     system: str,
@@ -370,8 +615,10 @@ def scan_collection(
     progress_callback=None,
     clone_map: dict[str, str] | None = None,
     skip_crc: bool = False,
+    one_game_one_rom: bool = True,
 ) -> tuple[list[CollectionCandidate], list[CollectionCandidate], list[Path]]:
     name_index = rn.build_name_index(no_intro) if no_intro else {}
+    alias_index = rn.load_alias_index(system, no_intro) if no_intro else {}
     selected: dict[str, CollectionCandidate] = {}
     duplicates: list[CollectionCandidate] = []
     unmatched: list[Path] = []
@@ -384,17 +631,46 @@ def scan_collection(
         candidates: list[CollectionCandidate] = []
         if path.suffix.lower() in ZIP_EXTENSIONS:
             candidates = _resolve_canonical_name_for_zip(
-                path, system, no_intro, name_index, skip_crc=skip_crc
+                path,
+                system,
+                no_intro,
+                name_index,
+                alias_index,
+                skip_crc=skip_crc,
             )
+            archive_kind = "zip"
+        elif path.suffix.lower() in SEVEN_Z_EXTENSIONS:
+            candidates = _resolve_canonical_name_for_7z(
+                path,
+                system,
+                no_intro,
+                name_index,
+                alias_index,
+                skip_crc=skip_crc,
+            )
+            archive_kind = "7z"
+        else:
+            archive_kind = ""
+
+        if archive_kind:
             if not candidates:
+                if _is_bios_archive(path):
+                    continue
                 unmatched.append(path)
                 continue
         else:
             canonical_name, match_source = _resolve_canonical_name_for_file(
-                path, system, no_intro, name_index, skip_crc=skip_crc
+                path,
+                system,
+                no_intro,
+                name_index,
+                alias_index,
+                skip_crc=skip_crc,
             )
             if canonical_name is None:
                 unmatched.append(path)
+                continue
+            if _is_bios_candidate(canonical_name, path.name):
                 continue
             candidates = [
                 CollectionCandidate(
@@ -410,7 +686,7 @@ def scan_collection(
             # Use cloneof leader's base_key when available so cross-language
             # variants (e.g. Japanese name vs USA name) share the same dedup
             # bucket.
-            dedup_key = _dedup_key(candidate, clone_map)
+            dedup_key = _selection_key(candidate, clone_map, one_game_one_rom)
             existing = selected.get(dedup_key)
             if existing is None or _is_better_candidate(candidate, existing):
                 if existing is not None:
@@ -440,6 +716,30 @@ def _dedup_key(candidate: CollectionCandidate, clone_map: dict[str, str]) -> str
     return candidate.base_key
 
 
+def _resolve_alias_canonical_name(
+    alias_index: dict[str, str], *labels: str | None
+) -> str | None:
+    if not alias_index:
+        return None
+    for label in labels:
+        if not label:
+            continue
+        canonical = alias_index.get(rn.normalize_alias_lookup_name(label))
+        if canonical:
+            return canonical
+    return None
+
+
+def _selection_key(
+    candidate: CollectionCandidate,
+    clone_map: dict[str, str],
+    one_game_one_rom: bool,
+) -> str:
+    if one_game_one_rom:
+        return _dedup_key(candidate, clone_map)
+    return candidate.canonical_name.lower()
+
+
 def filter_by_regions(
     entries: list[CollectionCandidate],
     enabled_regions: set[str],
@@ -459,6 +759,179 @@ def filter_by_regions(
         elif region == "Translated" and "Other" in enabled_regions:
             kept.append(entry)
     return kept
+
+
+def expected_collection_entries(
+    no_intro: dict[str, str],
+    clone_map: dict[str, str] | None = None,
+    one_game_one_rom: bool = True,
+    enabled_regions: set[str] | None = None,
+) -> list[CollectionCandidate]:
+    clone_map = clone_map or {}
+    selected: dict[str, CollectionCandidate] = {}
+    unique_names = sorted(set(no_intro.values()), key=str.lower)
+    for canonical_name in unique_names:
+        candidate = CollectionCandidate(
+            source_path=Path(canonical_name),
+            canonical_name=canonical_name,
+            source_kind="expected",
+            extension="",
+            match_source="filename",
+        )
+        if enabled_regions is not None and not filter_by_regions(
+            [candidate], enabled_regions
+        ):
+            continue
+        key = _selection_key(candidate, clone_map, one_game_one_rom)
+        existing = selected.get(key)
+        if existing is None or _is_better_candidate(candidate, existing):
+            selected[key] = candidate
+    return sorted(selected.values(), key=lambda c: c.canonical_name.lower())
+
+
+def validate_collection(
+    folder: Path,
+    system: str,
+    no_intro: dict[str, str],
+    progress_callback=None,
+    clone_map: dict[str, str] | None = None,
+    skip_crc: bool = False,
+    one_game_one_rom: bool = True,
+    enabled_regions: set[str] | None = None,
+) -> CollectionValidationReport:
+    clone_map = clone_map or {}
+    entries, duplicates, unmatched = scan_collection(
+        folder,
+        system,
+        no_intro,
+        progress_callback=progress_callback,
+        clone_map=clone_map,
+        skip_crc=skip_crc,
+        one_game_one_rom=False,
+    )
+    if enabled_regions is not None:
+        entries = filter_by_regions(entries, enabled_regions)
+        duplicates = filter_by_regions(duplicates, enabled_regions)
+    expected_entries = expected_collection_entries(
+        no_intro,
+        clone_map=clone_map,
+        one_game_one_rom=one_game_one_rom,
+        enabled_regions=enabled_regions,
+    )
+    expected_by_name = {entry.canonical_name: entry for entry in expected_entries}
+    expected_by_key = {
+        _selection_key(entry, clone_map, one_game_one_rom): entry
+        for entry in expected_entries
+    }
+
+    present: list[CollectionCandidate] = []
+    wrong_region: list[ValidationIssue] = []
+    seen_expected: set[str] = set()
+    for entry in entries:
+        # 1. Exact canonical name match — perfect hit.
+        if entry.canonical_name in expected_by_name:
+            present.append(entry)
+            seen_expected.add(entry.canonical_name)
+            continue
+
+        # 2. Same 1G1R group (clone, revision, or translation of the same game).
+        entry_key = _dedup_key(entry, clone_map)
+        expected = expected_by_key.get(entry_key)
+
+        if expected:
+            # Mark the expected slot as covered so it won't appear in "missing".
+            seen_expected.add(expected.canonical_name)
+            # Distinguish version/revision variant (same region) from a different-
+            # region copy.  English translations count as a "present" equivalent.
+            if entry.region == expected.region or entry.is_english_translation:
+                present.append(entry)
+            else:
+                wrong_region.append(
+                    ValidationIssue(
+                        entry=entry,
+                        expected_name=expected.canonical_name,
+                    )
+                )
+        else:
+            # Not matched to any expected entry — truly outside the target set.
+            wrong_region.append(
+                ValidationIssue(entry=entry, expected_name=None)
+            )
+
+    missing = sorted(
+        (name for name in expected_by_name if name not in seen_expected), key=str.lower
+    )
+    return CollectionValidationReport(
+        present=sorted(present, key=lambda e: e.canonical_name.lower()),
+        wrong_region=sorted(
+            wrong_region, key=lambda issue: issue.entry.canonical_name.lower()
+        ),
+        missing=missing,
+        unmatched=unmatched,
+        duplicates=sorted(duplicates, key=lambda e: e.canonical_name.lower()),
+        expected_total=len(expected_entries),
+    )
+
+
+def format_validation_report(
+    report: CollectionValidationReport,
+    folder: Path,
+    system: str,
+    one_game_one_rom: bool,
+    enabled_regions: set[str],
+) -> str:
+    mode = "1G1R" if one_game_one_rom else "Complete Collection"
+    regions = ", ".join(sorted(enabled_regions)) if enabled_regions else "None"
+    lines = [
+        "ROM Collection Validation Report",
+        "",
+        f"Folder: {folder}",
+        f"System: {system}",
+        f"Mode: {mode}",
+        f"Regions: {regions}",
+        "",
+        f"Expected games: {report.expected_total}",
+        f"Present games: {len(report.present)}",
+        f"Incorrect region / not in target set: {len(report.wrong_region)}",
+        f"Missing games: {len(report.missing)}",
+        f"Unmatched files: {len(report.unmatched)}",
+        f"Duplicate source copies skipped: {len(report.duplicates)}",
+    ]
+
+    def _append_section(title: str, items: list[str]):
+        lines.append("")
+        lines.append(f"{title}:")
+        if not items:
+            lines.append("- None")
+            return
+        lines.extend(f"- {item}" for item in items)
+
+    _append_section(
+        "Present games",
+        [f"{entry.canonical_name} <- {entry.source_label}" for entry in report.present],
+    )
+    _append_section(
+        "Incorrect region / not in target set",
+        [
+            (
+                f"{issue.entry.canonical_name} <- {issue.entry.source_label}; expected: {issue.expected_name}"
+                if issue.expected_name
+                else f"{issue.entry.canonical_name} <- {issue.entry.source_label}"
+            )
+            for issue in report.wrong_region
+        ],
+    )
+    _append_section("Missing games", report.missing)
+    _append_section("Unmatched files", [path.name for path in report.unmatched])
+    _append_section(
+        "Duplicate source copies skipped",
+        [
+            f"{entry.canonical_name} <- {entry.source_label}"
+            for entry in report.duplicates
+        ],
+    )
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _is_better_candidate(
@@ -524,6 +997,10 @@ def build_collection(
     output_folder.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     unmatched_files = unmatched_files or []
+    unmatched_folder = output_folder / "unmatched files"
+    # Keep the managed unmatched-files output deterministic across repeated builds.
+    if unmatched_folder.is_dir():
+        shutil.rmtree(unmatched_folder)
     total = len(entries) + len(unmatched_files)
     for idx, entry in enumerate(entries, start=1):
         if progress_callback:
@@ -546,13 +1023,30 @@ def build_collection(
             else:
                 target = target_dir / f"{entry.canonical_name}.zip"
                 shutil.copy2(entry.source_path, target)
+        elif entry.source_kind == "7z" and entry.archive_member:
+            _require_py7zr()
+            if unzip_archives:
+                target = target_dir / entry.output_name
+                with py7zr.SevenZipFile(entry.source_path, "r") as archive, tempfile.TemporaryDirectory() as tmpdir:
+                    extracted = _extract_7z_member(archive, entry.archive_member, Path(tmpdir))
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(extracted, target)
+            else:
+                target = target_dir / f"{entry.canonical_name}.zip"
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    temp_root = Path(tmpdir)
+                    with py7zr.SevenZipFile(entry.source_path, "r") as archive:
+                        archive.extractall(path=temp_root)
+                    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for extracted in sorted(temp_root.rglob("*")):
+                            if extracted.is_file():
+                                zf.write(extracted, extracted.relative_to(temp_root).as_posix())
         else:
             target = target_dir / entry.output_name
             shutil.copy2(entry.source_path, target)
         written.append(target)
 
     if unmatched_files:
-        unmatched_folder = output_folder / "unmatched files"
         unmatched_folder.mkdir(parents=True, exist_ok=True)
         for offset, source_path in enumerate(unmatched_files, start=len(entries) + 1):
             if progress_callback:

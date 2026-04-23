@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import com.savesync.android.sync.SaturnSyncFormat
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -26,7 +27,14 @@ data class Settings(
     val romScanDir: String = "",
     /** Path to the Dolphin GC memory card root (e.g. /sdcard/dolphin-mmjr/GC).
      *  Leave empty to use the default dolphin-mmjr path on internal storage. */
-    val dolphinMemCardDir: String = ""
+    val dolphinMemCardDir: String = "",
+    /**
+     * Per-system ROM folder overrides: system code → absolute directory path.
+     * Overrides the auto-detected subfolder of [romScanDir] for a given system.
+     * e.g. "SAT" → "/sdcard/ROMs/Saturn"
+     */
+    val romDirOverrides: Map<String, String> = emptyMap(),
+    val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
 )
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "save_sync_settings")
@@ -41,6 +49,8 @@ class SettingsStore(private val context: Context) {
         val CONSOLE_ID = stringPreferencesKey("console_id")
         val ROM_SCAN_DIR = stringPreferencesKey("rom_scan_dir")
         val DOLPHIN_MEM_CARD_DIR = stringPreferencesKey("dolphin_mem_card_dir")
+        val ROM_DIR_OVERRIDES = stringPreferencesKey("rom_dir_overrides")
+        val SATURN_SYNC_FORMAT = stringPreferencesKey("saturn_sync_format")
         /** Tracks whether we've already attempted to restore from external backup */
         val BACKUP_RESTORED = booleanPreferencesKey("backup_restored")
         /** Remembered UI filter state */
@@ -50,9 +60,13 @@ class SettingsStore(private val context: Context) {
 
     /**
      * Backup file stored on external storage — survives full app uninstall/reinstall.
-     * Location: /sdcard/SaveSync/config.json
+     * New location: /sdcard/GameSync/config.json
+     * Legacy location: /sdcard/SaveSync/config.json
      */
     private val backupFile: File
+        get() = File(Environment.getExternalStorageDirectory(), "GameSync/config.json")
+
+    private val legacyBackupFile: File
         get() = File(Environment.getExternalStorageDirectory(), "SaveSync/config.json")
 
     val settingsFlow: Flow<Settings> = context.dataStore.data.map { prefs ->
@@ -66,7 +80,9 @@ class SettingsStore(private val context: Context) {
             autoSyncIntervalMinutes = prefs[Keys.AUTO_SYNC_INTERVAL] ?: 15,
             consoleId = consoleId,
             romScanDir = prefs[Keys.ROM_SCAN_DIR] ?: "",
-            dolphinMemCardDir = prefs[Keys.DOLPHIN_MEM_CARD_DIR] ?: ""
+            dolphinMemCardDir = prefs[Keys.DOLPHIN_MEM_CARD_DIR] ?: "",
+            romDirOverrides = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: ""),
+            saturnSyncFormat = SaturnSyncFormat.fromWireValue(prefs[Keys.SATURN_SYNC_FORMAT])
         )
     }
 
@@ -95,6 +111,7 @@ class SettingsStore(private val context: Context) {
             backup.consoleId.takeIf { it.isNotBlank() }?.let { p[Keys.CONSOLE_ID] = it }
             backup.romScanDir.takeIf { it.isNotBlank() }?.let { p[Keys.ROM_SCAN_DIR] = it }
             backup.dolphinMemCardDir.takeIf { it.isNotBlank() }?.let { p[Keys.DOLPHIN_MEM_CARD_DIR] = it }
+            p[Keys.SATURN_SYNC_FORMAT] = backup.saturnSyncFormat.wireValue
         }
     }
 
@@ -104,7 +121,8 @@ class SettingsStore(private val context: Context) {
         autoSyncEnabled: Boolean? = null,
         autoSyncIntervalMinutes: Int? = null,
         romScanDir: String? = null,
-        dolphinMemCardDir: String? = null
+        dolphinMemCardDir: String? = null,
+        saturnSyncFormat: SaturnSyncFormat? = null
     ) {
         context.dataStore.edit { prefs ->
             serverUrl?.let { prefs[Keys.SERVER_URL] = it }
@@ -113,8 +131,27 @@ class SettingsStore(private val context: Context) {
             autoSyncIntervalMinutes?.let { prefs[Keys.AUTO_SYNC_INTERVAL] = it }
             romScanDir?.let { prefs[Keys.ROM_SCAN_DIR] = it }
             dolphinMemCardDir?.let { prefs[Keys.DOLPHIN_MEM_CARD_DIR] = it }
+            saturnSyncFormat?.let { prefs[Keys.SATURN_SYNC_FORMAT] = it.wireValue }
         }
         // Mirror to the external backup file every time settings are saved
+        writeBackupFile()
+    }
+
+    /** Sets or replaces the override directory for a single system. */
+    suspend fun setRomDirOverride(system: String, path: String) {
+        context.dataStore.edit { prefs ->
+            val current = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: "")
+            prefs[Keys.ROM_DIR_OVERRIDES] = encodeOverrides(current + (system to path))
+        }
+        writeBackupFile()
+    }
+
+    /** Removes the override for a single system (falls back to auto-detected folder). */
+    suspend fun clearRomDirOverride(system: String) {
+        context.dataStore.edit { prefs ->
+            val current = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: "")
+            prefs[Keys.ROM_DIR_OVERRIDES] = encodeOverrides(current - system)
+        }
         writeBackupFile()
     }
 
@@ -170,6 +207,8 @@ class SettingsStore(private val context: Context) {
                 put("console_id", current.consoleId)
                 put("rom_scan_dir", current.romScanDir)
                 put("dolphin_mem_card_dir", current.dolphinMemCardDir)
+                put("rom_dir_overrides", JSONObject(current.romDirOverrides as Map<*, *>))
+                put("saturn_sync_format", current.saturnSyncFormat.wireValue)
             }
             val file = backupFile
             file.parentFile?.mkdirs()
@@ -179,9 +218,17 @@ class SettingsStore(private val context: Context) {
         }
     }
 
+    private fun parseOverrides(json: String): Map<String, String> = try {
+        val obj = JSONObject(json.ifBlank { "{}" })
+        obj.keys().asSequence().associateWith { obj.getString(it) }
+    } catch (_: Exception) { emptyMap() }
+
+    private fun encodeOverrides(map: Map<String, String>): String =
+        JSONObject(map as Map<*, *>).toString()
+
     private fun readBackupFile(): Settings? {
         return try {
-            val file = backupFile
+            val file = if (backupFile.exists()) backupFile else legacyBackupFile
             if (!file.exists()) return null
             val json = JSONObject(file.readText())
             Settings(
@@ -191,7 +238,11 @@ class SettingsStore(private val context: Context) {
                 autoSyncIntervalMinutes = json.optInt("auto_sync_interval_minutes", 15),
                 consoleId = json.optString("console_id", ""),
                 romScanDir = json.optString("rom_scan_dir", ""),
-                dolphinMemCardDir = json.optString("dolphin_mem_card_dir", "")
+                dolphinMemCardDir = json.optString("dolphin_mem_card_dir", ""),
+                romDirOverrides = parseOverrides(json.optString("rom_dir_overrides", "")),
+                saturnSyncFormat = SaturnSyncFormat.fromWireValue(
+                    json.optString("saturn_sync_format", SaturnSyncFormat.MEDNAFEN.wireValue)
+                )
             )
         } catch (_: Exception) {
             null

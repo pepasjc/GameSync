@@ -22,9 +22,11 @@ data class SaveEntry(
      * True when this entry is a PSP/PSX save slot directory (DATA.BIN + PARAM.SFO + etc.),
      * as opposed to a single save file or a generic multi-file directory.
      * This drives the PSP bundle upload/download path in SyncEngine, independently of
-     * whether the system is "PPSSPP" (PSP game) or "PSX" (PSone Classic under PPSSPP).
+     * whether the system is "PSP" (PSP game) or "PS1" (PSone Classic under PPSSPP).
      */
     val isPspSlot: Boolean get() = saveDir != null && !isMultiFile
+
+    val is3dsSaveDir: Boolean get() = systemName == "3DS" && isMultiFile && saveDir != null
 
     fun computeHash(): String {
         return when {
@@ -32,6 +34,9 @@ data class SaveEntry(
             // PSP slot dirs: sha256 of all file contents sorted by filename (no paths).
             // Matches the server's bundle hash and the PSP homebrew client's algorithm.
             isPspSlot -> HashUtils.sha256DirFiles(saveDir!!)
+            // 3DS save archives are recursive directory trees bundled with relative paths,
+            // but the server compares only concatenated file contents in bundle order.
+            is3dsSaveDir -> HashUtils.sha256DirTreeFiles(saveDir!!)
             saveFile != null && extraFiles.isNotEmpty() -> {
                 val files = (listOf(saveFile) + extraFiles).filter { it.exists() }.sortedBy { it.name }
                 HashUtils.sha256Files(files)

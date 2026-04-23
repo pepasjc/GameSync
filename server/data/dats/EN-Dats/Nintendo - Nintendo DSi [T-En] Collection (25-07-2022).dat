@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Nintendo - Nintendo DSi [T-En] Collection</name>
+		<description>Nintendo - Nintendo DSi [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>25-07-2022</version>
+		<date>25-07-2022</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Nintendo DSi [T-En] Docs">
+		<description>_Nintendo DSi [T-En] Docs</description>
+		<rom name="Go Go! Earth Seeker (Japan) [T-En by Brand Newman v1.0] [n].pdf" size="1171868" crc="f3b46be7" md5="fbdf9b7541b8b967088c2c12ddc9e42a" sha1="9cbfd11a42772df61e572199227a3231f8221bd4"/>
+	</machine>
+	<machine name="Go Go! Earth Seeker (Japan) [T-En by Brand Newman v1.0] [n]">
+		<description>Go Go! Earth Seeker (Japan) [T-En by Brand Newman v1.0] [n]</description>
+		<rom name="Go Go! Earth Seeker (Japan) [T-En by Brand Newman v1.0] [n].nds" size="3369984" crc="212bb621" md5="23c981bf8c1ce07cf9aba1ed04916c91" sha1="92590e7ba92edadd7e238eb41b5d9189f777c6b1"/>
+	</machine>
+</datafile>

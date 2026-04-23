@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>NEC - PC-FX [T-En] Collection</name>
+		<description>NEC - PC-FX [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>26-10-2021</version>
+		<date>26-10-2021</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_NEC PC-FX [T-En] Docs">
+		<description>_NEC PC-FX [T-En] Docs</description>
+		<rom name="Farland Story FX (Japan) [T-En by Djlpap R2].txt" size="31267" crc="79b4d94b" md5="94bba6fd6b062d09061b6ed87905df4d" sha1="f224a2ca6555eaeef19554c039a931fe6d76b912"/>
+		<rom name="God-Fighter Zeroigar (Japan) [T-En by SamIAm &amp; Elmer &amp; Esteban v1.0.1] [n].txt" size="9530" crc="276b5662" md5="6a6ce55b773c55aedbf87195e4f78b7e" sha1="dd9173cc14638e2175af065fe43e1daa0b5a655a"/>
+		<rom name="Ruruli Ra Rura (Japan) [T-En by Nekozomb v1-Infinity] [i].txt" size="607" crc="1d23e781" md5="b5bf20582559cc2a94a243c96e3acd41" sha1="390eb664d6cc8348de86d12db6416f31703c84ec"/>
+		<rom name="Welcome to Pia Carrot!! We've Been Waiting for You (Japan) [T-En by David Michel &amp; Filler] [Add by BabaJeanmel v1.0] [n].txt" size="706" crc="12dd0fe2" md5="5d88da557bcf336dd18c7410c96f64bb" sha1="7761be172c40d5af4fba6a8001a406eae70ee660"/>
+		<rom name="Welcome to Pia Carrot!! We've Been Waiting for You (Japan) [T-En by David Michel &amp; Filler] [n].txt" size="4270" crc="eea6e189" md5="4edbac88668768ed87cbef3f02a653c8" sha1="22f52a6bcc39b1fc4bf57280fa8522bd72b2c2a3"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Farland Story FX (Japan) [T-En by Djlpap R2]" sha1="1ed18d205b8129f9893a02736a5d6540d61ea4aa"/>
+		<disk name="God-Fighter Zeroigar (Japan) [T-En by SamIAm &amp; Elmer &amp; Esteban v1.0.1] [n]" sha1="d116e0c8ca5e9da2aa3ad8e2606407a0a3d52269"/>
+		<disk name="Ruruli Ra Rura (Japan) [T-En by Nekozomb v1-Infinity] [i]" sha1="ceb6b3d80e5515b7bf514d661673a3465afc9f4e"/>
+		<disk name="Welcome to Pia Carrot!! We've Been Waiting for You (Japan) [T-En by David Michel &amp; Filler] [Add by BabaJeanmel v1.0] [n]" sha1="881ac5a3e57a960968336ea45986e3d44a06cc6f"/>
+	</machine>
+</datafile>

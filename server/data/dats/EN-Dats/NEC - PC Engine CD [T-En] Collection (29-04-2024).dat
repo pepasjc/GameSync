@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>NEC - PC Engine CD [T-En] Collection</name>
+		<description>NEC - PC Engine CD [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>29-04-2024</version>
+		<date>29-04-2024</date>
+		<author>-insert author-</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>dd/mm/yyyy</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="[BIOS] Super CD-ROM System (Japan) (v3.0) [NuFont by Dave Shadoff v1.0]">
+		<description>[BIOS] Super CD-ROM System (Japan) (v3.0) [NuFont by Dave Shadoff v1.0]</description>
+		<rom name="[BIOS] Super CD-ROM System (Japan) (v3.0) [NuFont by Dave Shadoff v1.0].pce" size="262144" crc="0ecea1f3" md5="b1a62f02d112ec3a11623b0625d3c4cf" sha1="f82f505647506732e3bb7b56a2695dce9f2c5b0d"/>
+	</machine>
+	<machine name="[BIOS] TurboGrafx CD Super System Card (USA) (v3.0) [NuFont by Dave Shadoff v1.0]">
+		<description>[BIOS] TurboGrafx CD Super System Card (USA) (v3.0) [NuFont by Dave Shadoff v1.0]</description>
+		<rom name="[BIOS] TurboGrafx CD Super System Card (USA) (v3.0) [NuFont by Dave Shadoff v1.0].pce" size="262144" crc="b8d8b52d" md5="024885a2c9df29bc207349ca218b5037" sha1="96629109bca47c9bbd311c2558eee8dcd77bd077"/>
+	</machine>
+	<machine name="_NEC - PC Engine CD [T-En] Docs">
+		<description>_NEC - PC Engine CD [T-En] Docs</description>
+		<rom name="[BIOS] Super CD-ROM System (Japan) (v3.0) [NuFont by Dave Shadoff v1.0].txt" size="4850" crc="f50f0c9c" md5="c7da531ac3f0cc28775cf1321dd52a80" sha1="0336018ea692a46f8a2eaa2c87db19ac0ba86f06"/>
+		<rom name="[BIOS] TurboGrafx CD Super System Card (USA) (v3.0) [NuFont by Dave Shadoff v1.0].txt" size="4850" crc="f50f0c9c" md5="c7da531ac3f0cc28775cf1321dd52a80" sha1="0336018ea692a46f8a2eaa2c87db19ac0ba86f06"/>
+		<rom name="Bazar de Gozarre's Puzzle Game (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; MooZ v1.0] [n] [Guide].pdf" size="54183947" crc="91b08f60" md5="74a3f5f58744c03a266f24bffd940b0b" sha1="fc1de00d7741cdcaa5f4be6513d2b22b33fee9dd"/>
+		<rom name="Bazar de Gozarre's Puzzle Game (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; MooZ v1.0] [n].txt" size="4324" crc="8f2117e2" md5="ef02864e3e1aeee5b88390501171eb62" sha1="dfb80a85927a5a6d3c0bfec0f4d90980c944bd37"/>
+		<rom name="Bishoujo Senshi Sailor Moon (Japan) [T-En by Supper &amp; TheMajinZenki v1.1].txt" size="32356" crc="3eda6651" md5="718dd0acd87251a4c47aaf44e4e6a0f6" sha1="1f05d12d2e9be1450f5fe6d0d67045465f512ab4"/>
+		<rom name="Castlevania - Rondo of Blood (Japan) [T-En by Burnt Lasagna &amp; Cubanraul v1.01] [n].mht" size="562587" crc="796862b9" md5="2e7e8a7414cd547a13722ea2b97d7706" sha1="4df8547c089ebb4cb355c8b86509ede8fbc2dadb"/>
+		<rom name="Cosmic Fantasy 2 (USA) [Un-Worked Design by Supper v0 (21-03-2017)].txt" size="8549" crc="cb08aa41" md5="4d621180b440dbd5e3a3e2ebe845b448" sha1="6782e8781072ac18718a7e41398f51e08da33e68"/>
+		<rom name="Dead of the Brain 1&amp;2 (Japan) [T-En by Dave Shadoff v1.0E] [DOTB1 only].txt" size="10599" crc="a9fa5b5c" md5="08b3ece49eb3ea161c41fede317061c7" sha1="072051b137754589dcb5954498f474770cb00914"/>
+		<rom name="Exile (USA) [Un-Worked Design by Supper v0 (28-01-2017)].txt" size="7378" crc="1513a3fd" md5="ecab420c998e10306cf30980e7d91630" sha1="fa6f910b40a14a5e76d6cfaf27114c38257193e0"/>
+		<rom name="Exile - Wicked Phenomenon (USA) [Un-Worked Design by Supper v1 (09-02-2017)].txt" size="7893" crc="b1f1cbb2" md5="59720aed50365ae7ef15509ecca9d9eb" sha1="5a4fef8ddab25d75863be98f2efc100a94e3339b"/>
+		<rom name="Far East of Eden - Tengai Makyou - Ziria (Japan) [T-En by LIPEMCO! Translations v1.2].txt" size="47914" crc="186f99d1" md5="c550c807fdfb3d69cd8fd523e2572322" sha1="4b52de7d5e999894a5e6b86b70f141a52501b831"/>
+		<rom name="Galaxy Fraulein Yuna (Japan) [T-En by Supper &amp; Mafoo343 v1.3] [n] [Manual].mht" size="1912153" crc="989cec63" md5="1f019a7add67bb521ddb1214c34bf42b" sha1="079b26ebfa0b3538f413fa659310db9b1a22b461"/>
+		<rom name="Galaxy Fraulein Yuna (Japan) [T-En by Supper &amp; Mafoo343 v1.3] [n].txt" size="72448" crc="a79aeb86" md5="3006f5bfaeb4b11753dec17f4ef67771" sha1="df781a82a9efd607c2b156076ddb00a8e5939574"/>
+		<rom name="Galaxy Fraulein Yuna 2 - The Eternal Princess (Japan) [T-En by Supper &amp; Mafoo343 &amp; TheMajinZenki v1.1] [n] [Manual].mht" size="2878722" crc="9c8cd192" md5="2af0202641512aa5ef0c1acd35e11aa2" sha1="e6e6c65a707677a01ab49252ab06e6862e611817"/>
+		<rom name="Galaxy Fraulein Yuna 2 - The Eternal Princess (Japan) [T-En by Supper &amp; Mafoo343 &amp; TheMajinZenki v1.1] [n].txt" size="48880" crc="0828dbf4" md5="aa6add91b296dfdad656b8ea89d972c7" sha1="37ca73d5f0ed8d4b58581b5211d4b9bb3939eb80"/>
+		<rom name="Might and Magic (Japan) [T-En by TiCoKH v20230918] [Req NuFont BIOS].md" size="1464" crc="85560421" md5="5c11507dc84a5e42b4225b3dece29a5d" sha1="1949929fc21ed064684dfbb4cfa9725a61055671"/>
+		<rom name="Motteke Tamago (Japan) [T-En by Dave Shadoff v1.0].txt" size="6060" crc="e335053d" md5="6c1f6d2c0022166e4c25d1dac524d8cb" sha1="99ed32e3f87355cd1b6113bf84f613203018cc98"/>
+		<rom name="Private Eye dol (Japan) [T-En by Supper v1.0].txt" size="34092" crc="4c16aee7" md5="91e7c2b7e952f162d730a271cd5b82c0" sha1="a0585f57ec83843df029885b73fe4c140c22ed39"/>
+		<rom name="Sorcery Saga I - The Fiery Kindergarten Graduation (Japan) [T-En by LIPEMCO! Translations v1.0] [n].txt" size="24427" crc="abef8943" md5="eac59d29b29ce2c8ab9cee5dc196cb3e" sha1="f6c9f161f83773e97325a73d91aa2c1b2ed37665"/>
+		<rom name="Startling Odyssey II (Japan) [T-En by TruMisery v20100331].txt" size="2622" crc="d89a26c2" md5="ebeb26892ea1c03f90772ace4af3d59f" sha1="32e596875b41bd6daa1d17e58d77ee59923c03f4"/>
+		<rom name="Super Daisenryaku (Japan) [T-En by Gaijin Productions v0.99].txt" size="3004" crc="dab09f67" md5="10f3ec0fe56fadce4e3e64ecb9e78539" sha1="1c564f39432a05fd7cf7152f07b4e57c81518823"/>
+		<rom name="Xak III - The Eternal Recurrence (Japan) [T-En by NightWolve v1.00].txt" size="12601" crc="3fa506ae" md5="7c5a8ea1a031d98e72fe825a8cf5fdaa" sha1="488853704e3e0340510d47482a0c0b48fadd2ac6"/>
+		<rom name="Ys IV - The Dawn of Ys (Japan) [T-En by NightWolve v0.95] [En Dub by Burnt Lasagna v1.1].mht" size="16011236" crc="d3516e9c" md5="688021fea182076cfffe17a06e523924" sha1="99da00e1ae4615f7d74886f44a30fe4b9211ebe8"/>
+		<rom name="Ys IV - The Dawn of Ys (Japan) [T-En by NightWolve v0.95].txt" size="22717" crc="65e334ba" md5="bb5d8221da1db7ad9f275f4c8724567a" sha1="819fd38d83f19bec2b0b7c561bea747a80b7901d"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Bazar de Gozarre's Puzzle Game (Japan) [T-En by Dave Shadoff &amp; Diogo Ribeiro &amp; MooZ v1.0] [n]" sha1="9432a84a98944129a620d6ef2e129bb7569354d7"/>
+		<disk name="Bishoujo Senshi Sailor Moon (Japan) [T-En by Supper &amp; TheMajinZenki v1.1] [Honorifics]" sha1="e43059d408c14289d3bfa5dca3b0c2bbe6df7431"/>
+		<disk name="Bishoujo Senshi Sailor Moon (Japan) [T-En by Supper &amp; TheMajinZenki v1.1]" sha1="a00d3c5570d3a74b1a6d1c8fb2e1f01c79d2bb59"/>
+		<disk name="Castlevania - Rondo of Blood (Japan) [T-En by Burnt Lasagna &amp; Cubanraul v1.01] [n]" sha1="c7921e09e9593c5f52564bf6b92a5531fed79fc1"/>
+		<disk name="Cosmic Fantasy 2 (USA) [Un-Worked Design by Supper v0 (21-03-2017)]" sha1="8342161bc019cd2984da636495f9ee95f07b0c43"/>
+		<disk name="Dead of the Brain 1&amp;2 (Japan) [T-En by Dave Shadoff v1.0E] [DOTB1 only]" sha1="decb1546ef63e5aab9214d7a34c8e7c23199f287"/>
+		<disk name="Exile (USA) [Un-Worked Design by Supper v0 (28-01-2017)]" sha1="98ae78ce9f8826198cceec439ad8d116d862a982"/>
+		<disk name="Exile - Wicked Phenomenon (USA) [Un-Worked Design by Supper v1 (09-02-2017)]" sha1="3f822a5292f77db25bcbcf270e41a9ce46c15e2f"/>
+		<disk name="Far East of Eden - Tengai Makyou - Ziria (Japan) [T-En by LIPEMCO! Translations v1.2]" sha1="35f3520f6dab6729e053abacea94412724aa1ab2"/>
+		<disk name="Galaxy Fraulein Yuna (Japan) [T-En by Supper &amp; Mafoo343 v1.3] [n]" sha1="59097183bf0bb58c6d767c12223b00d68b77041e"/>
+		<disk name="Galaxy Fraulein Yuna 2 - The Eternal Princess (Japan) [T-En by Supper &amp; Mafoo343 &amp; TheMajinZenki v1.1] [n]" sha1="8ab490fe8ecda114221ed7315ee9ec4f1e360697"/>
+		<disk name="Might and Magic (Japan) [T-En by TiCoKH v20230918] [Req NuFont BIOS]" sha1="5dbf671b72010b07887715867e4ef8163e358ca4"/>
+		<disk name="Motteke Tamago (Japan) [T-En by Dave Shadoff v1.0]" sha1="ad1195208514e458c9e8cf57a470fa8cad3e70ef"/>
+		<disk name="Private Eye dol (Japan) [T-En by Supper v1.0]" sha1="1e3854676f23b59efd69c838b4f8b6b2b7ca6f0b"/>
+		<disk name="Sorcery Saga I - The Fiery Kindergarten Graduation (Japan) [T-En by LIPEMCO! Translations v1.0] [n]" sha1="243db2535822a05d1e011e7f2c5771b26677960f"/>
+		<disk name="Startling Odyssey II - Maryuu Sensou (Japan) [T-En by TruMisery v20100331]" sha1="cdbd9f69c7b8a6b5560448c3ef328c9d09874ad4"/>
+		<disk name="Super Daisenryaku (Japan) [T-En by Gaijin Productions v0.99]" sha1="e9a7b91da197d806e8b269294e8262c3a6a049c7"/>
+		<disk name="Valis IV (Japan) [T-En by Sideside v1.0] [i]" sha1="cfa97c6d2fcebec95c631ad34cbd030b3332dc19"/>
+		<disk name="Xak III - The Eternal Recurrence (Japan) [T-En by NightWolve v1.00]" sha1="2d1d7d28276f563eb2bc014c8e2c0d2d59a391fb"/>
+		<disk name="Ys IV - The Dawn of Ys (Japan) [T-En by NightWolve v0.95] [En Dub by Burnt Lasagna v1.1]" sha1="acb1ec34afc576577be91d38d71d4f1a99879059"/>
+		<disk name="Ys IV - The Dawn of Ys (Japan) [T-En by NightWolve v0.95]" sha1="b1a480cbc8494b16e775c3573b6c5d279343cd62"/>
+	</machine>
+</datafile>

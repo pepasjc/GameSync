@@ -30,12 +30,68 @@ from config import (
     download_ps2_card,
     download_ps3_save,
     download_raw_save,
+    download_raw_save_bytes,
     fetch_all_saves,
     fetch_history,
     format_display_game_name,
     restore_history,
 )
 from dialogs.history_dialog import HistoryDialog
+from saroo_format import SATURN_DOWNLOAD_FORMATS, convert_saturn_save_format
+
+
+def _saturn_download_choices() -> list[str]:
+    return [label for label, _ in SATURN_DOWNLOAD_FORMATS.values()]
+
+
+def _saturn_download_key(selected_label: str) -> str:
+    for key, (label, _) in SATURN_DOWNLOAD_FORMATS.items():
+        if label == selected_label:
+            return key
+    raise ValueError(f"Unknown Saturn download format: {selected_label}")
+
+
+def _sanitize_filename_stem(name: str, fallback: str) -> str:
+    stem = (name or "").strip()
+    for ch in '<>:"/\\|?*':
+        stem = stem.replace(ch, "_")
+    stem = stem.rstrip(". ").strip()
+    return stem or fallback
+
+
+def _raw_download_defaults(
+    title_id: str,
+    console_type: str,
+    saturn_format: str = "mednafen",
+    game_name: str | None = None,
+) -> tuple[str, str]:
+    from sync_engine import resolve_save_ext
+
+    if console_type == "SAT":
+        _, preferred_ext = SATURN_DOWNLOAD_FORMATS.get(
+            saturn_format, SATURN_DOWNLOAD_FORMATS["mednafen"]
+        )
+        save_ext = preferred_ext
+        default_stem = _sanitize_filename_stem(game_name or title_id, title_id)
+    else:
+        save_ext = resolve_save_ext(console_type, ".sav")
+        default_stem = title_id
+    default_name = f"{default_stem}{save_ext}"
+    if save_ext == ".bkr":
+        file_filter = "Saturn Saves (*.bkr *.sav *.srm);;All Files (*)"
+    elif console_type == "SAT":
+        file_filter = "Saturn Saves (*.srm *.bkr *.sav *.bin);;All Files (*)"
+    else:
+        file_filter = "Save Files (*.sav *.srm *.bin);;All Files (*)"
+    return default_name, file_filter
+
+
+def _download_saturn_save(title_id: str, dest_path: Path, saturn_format: str) -> None:
+    """Download Saturn save bytes and convert them to the requested format."""
+    raw_bytes = download_raw_save_bytes(title_id)
+    converted = convert_saturn_save_format(raw_bytes, saturn_format)
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    dest_path.write_bytes(converted)
 
 
 class ServerSavesTab(QWidget):
@@ -245,6 +301,20 @@ class ServerSavesTab(QWidget):
         title_id = data.get("title_id", "")
         console_type = data.get("console_type", detect_console_type(title_id))
         game_name = data.get("game_name", title_id)
+        saturn_format = "mednafen"
+
+        if console_type == "SAT":
+            selected_format, ok = QInputDialog.getItem(
+                self,
+                "Saturn Download Format",
+                "Download save as:",
+                _saturn_download_choices(),
+                0,
+                False,
+            )
+            if not ok:
+                return
+            saturn_format = _saturn_download_key(selected_format)
 
         if console_type == "PS1":
             default_name = f"{title_id}.mcd"
@@ -281,8 +351,9 @@ class ServerSavesTab(QWidget):
             if dest_path.name.upper() != title_id.upper():
                 dest_path = dest_path / title_id
         else:
-            default_name = f"{title_id}.sav"
-            file_filter = "Save Files (*.sav *.srm);;All Files (*)"
+            default_name, file_filter = _raw_download_defaults(
+                title_id, console_type, saturn_format, game_name
+            )
             dest = QFileDialog.getSaveFileName(
                 self,
                 "Save File As",
@@ -316,6 +387,13 @@ class ServerSavesTab(QWidget):
                     self,
                     "Downloaded",
                     f"PS3 save folder written to:\n{dest_path}",
+                )
+            elif console_type == "SAT":
+                _download_saturn_save(title_id, dest_path, saturn_format)
+                QMessageBox.information(
+                    self,
+                    "Downloaded",
+                    f"Saturn save written to:\n{dest_path}",
                 )
             else:
                 download_raw_save(title_id, dest_path)
