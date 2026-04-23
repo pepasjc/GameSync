@@ -2211,18 +2211,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     romDirOverrides = currentSettings.romDirOverrides,
                     extractFormat = extractFormat,
                 )
-                if (file != null) {
-                    _romDownloadState.value = RomDownloadState.Success(file)
-                    // Rescan so the newly downloaded ROM is picked up: the SaveEntry for this
-                    // title will get a real saveFile/saveDir and isServerOnly becomes false,
-                    // which re-enables the Sync / Upload / Download buttons immediately.
-                    scanSaves()
-                    // Also invalidate the Installed Games tab so the new
-                    // ROM shows up there on the next peek.
-                    scanInstalledRoms(force = true)
-                } else {
-                    _romDownloadState.value = RomDownloadState.Error("ROM not found on server")
-                }
+                _romDownloadState.value = RomDownloadState.Success(file)
+                // Rescan so the newly downloaded ROM is picked up: the SaveEntry for this
+                // title will get a real saveFile/saveDir and isServerOnly becomes false,
+                // which re-enables the Sync / Upload / Download buttons immediately.
+                scanSaves()
+                // Also invalidate the Installed Games tab so the new
+                // ROM shows up there on the next peek.
+                scanInstalledRoms(force = true)
+            } catch (e: java.net.SocketTimeoutException) {
+                // Server-side ROM conversion (e.g. 3DS decrypted CCI) can take
+                // several minutes on a Pi. The RomExtractTimeoutInterceptor
+                // raises the per-call read timeout to 30 minutes, but surface
+                // a clear message if we somehow still hit the wall instead of
+                // the confusing "ROM not found on server" that used to fire.
+                _romDownloadState.value = RomDownloadState.Error(
+                    "Download timed out — the server-side conversion is taking longer than expected."
+                )
             } catch (e: Exception) {
                 _romDownloadState.value = RomDownloadState.Error(e.message ?: "Download failed")
             }

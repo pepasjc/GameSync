@@ -513,11 +513,12 @@ def _normalize_serial(serial: str) -> str:
 def _parse_dat(
     dat_path: Path,
 ) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str]]:
-    """Parse a No-Intro/Redump DAT — XML or libretro clrmamepro text format.
+    """Parse a No-Intro/Redump DAT — XML, MAME, or libretro clrmamepro text.
 
-    Auto-detects format by inspecting the first non-empty line:
-      - Starts with "<"       → No-Intro/Redump XML
-      - Starts with "clrmame" → libretro clrmamepro text
+    Auto-detects format by inspecting the file header:
+      - Starts with "<"                → No-Intro/Redump XML
+      - Contains "machine (" blocks    → MAME clrmamepro variant
+      - Otherwise                      → libretro clrmamepro text
 
     Returns:
       crc_map         — {CRC32_UPPER_8 → canonical_name}
@@ -526,18 +527,28 @@ def _parse_dat(
       serial_map      — {canonical_name → serial_string}
     """
     try:
+        first_line = ""
+        has_machine_block = False
         with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
-            for first_line in fh:
-                stripped = first_line.strip()
-                if stripped:
+            for i, line in enumerate(fh):
+                stripped = line.strip()
+                if not first_line and stripped:
+                    first_line = stripped
+                    if first_line.startswith("<"):
+                        break
+                if stripped.startswith("machine (") or stripped == "machine (":
+                    has_machine_block = True
                     break
-            else:
-                stripped = ""
+                if stripped.startswith("game (") or stripped == "game (":
+                    break
+                if i > 500:
+                    break
 
-        if stripped.startswith("<"):
+        if first_line.startswith("<"):
             return _parse_xml_dat(dat_path)
-        else:
-            return _parse_clrmamepro_dat(dat_path)
+        if has_machine_block:
+            return _parse_mame_dat(dat_path)
+        return _parse_clrmamepro_dat(dat_path)
     except Exception as exc:
         logger.error(
             "[dat_normalizer] Failed to detect format of %s: %s", dat_path.name, exc
@@ -683,4 +694,115 @@ def _parse_clrmamepro_dat(
         logger.error(
             "[dat_normalizer] Failed to parse clrmamepro %s: %s", dat_path.name, exc
         )
+    return crc_map, slug_candidates, romfile_map, serial_map
+
+
+# ---------------------------------------------------------------------------
+# MAME clrmamepro text DAT parser
+# ---------------------------------------------------------------------------
+
+# Top-level blocks we want to ingest (machine = playable set; resource = BIOS /
+# shared device set).  Both follow the same layout so one parser handles both.
+_MAME_BLOCK_START_RE = re.compile(r"^(machine|resource)\s*\(")
+# Inside a block the set name is on a line by itself and is unquoted, e.g.
+# ``\tname 1on1gov``.  The trailing ``\s*$`` anchor ensures we don't confuse it
+# with the inner ``rom ( name ... size ... )`` lines (those have extra content
+# after the first token, so the anchor fails).
+_MAME_SET_NAME_RE = re.compile(r'^\s*name\s+(\S+)\s*$')
+# Display title is quoted, e.g. ``\tdescription "1 on 1 Government (Japan)"``.
+_MAME_DESC_RE = re.compile(r'^\s*description\s+"(.+?)"')
+
+
+def _parse_mame_dat(
+    dat_path: Path,
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str]]:
+    """Parse a MAME clrmamepro text DAT (``machine`` / ``resource`` blocks).
+
+    Format::
+
+        machine (
+            name 1on1gov                              # unquoted SET NAME
+            description "1 on 1 Government (Japan)"   # quoted DISPLAY NAME
+            year 2000
+            manufacturer "Tecmo"
+            rom ( name 1on1.u119 size 1048576 crc 10aecc19 ... )
+            rom ( name 1on1.u120 size 1048576 crc eea158bd ... )
+            ...
+        )
+
+    MAME differs from No-Intro-style clrmamepro in two important ways:
+
+    1. The top-level ``name`` inside each block is the **set name** (unquoted),
+       which is the ZIP filename stem on disk (e.g. ``1on1gov.zip``).  The
+       human-readable title lives in ``description "..."``.
+    2. The ``rom ( name X crc Y )`` lines reference individual chip files
+       *inside* the ZIP; their CRC32s don't match the ZIP container's CRC, so
+       scanning the ROM folder by file CRC would never match.  We therefore
+       skip CRC indexing entirely for MAME and rely on set-name → description
+       mapping via ``romfile_map`` (lookup #2 in :meth:`DatNormalizer.normalize`).
+
+    Returns:
+      crc_map         — always empty for MAME
+      slug_candidates — {slug → [description, ...]}
+      romfile_map     — {set_name.lower() → description}  (ZIP stem → title)
+      serial_map      — always empty for MAME
+    """
+    crc_map: dict[str, str] = {}
+    slug_candidates: dict[str, list[str]] = {}
+    romfile_map: dict[str, str] = {}
+    serial_map: dict[str, str] = {}
+
+    try:
+        current_set: Optional[str] = None
+        current_desc: Optional[str] = None
+        in_block = False
+
+        with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                stripped = line.strip()
+
+                if not in_block:
+                    if _MAME_BLOCK_START_RE.match(stripped):
+                        in_block = True
+                        current_set = None
+                        current_desc = None
+                    continue
+
+                # End of machine/resource block (bare ``)`` on its own line).
+                # MAME.dat keeps every inner element on a single line so we
+                # never see nested multi-line sub-blocks; a bare ``)`` always
+                # closes the outer block.
+                if stripped == ")":
+                    if current_set and current_desc:
+                        slug = normalize_rom_name(current_desc)
+                        cands = slug_candidates.setdefault(slug, [])
+                        if current_desc not in cands:
+                            cands.append(current_desc)
+                        # Map the on-disk ZIP stem (set-name) to the display
+                        # title.  Earlier winners stay — MAME set names are
+                        # unique so collisions shouldn't happen, but guard
+                        # just in case.
+                        romfile_map.setdefault(current_set.lower(), current_desc)
+                    in_block = False
+                    current_set = None
+                    current_desc = None
+                    continue
+
+                if current_set is None:
+                    m = _MAME_SET_NAME_RE.match(line)
+                    if m:
+                        current_set = m.group(1).strip()
+                        continue
+
+                if current_desc is None:
+                    m = _MAME_DESC_RE.match(line)
+                    if m:
+                        current_desc = m.group(1).strip()
+                        continue
+
+    except Exception as exc:
+        logger.error(
+            "[dat_normalizer] Failed to parse MAME DAT %s: %s", dat_path.name, exc
+        )
+
     return crc_map, slug_candidates, romfile_map, serial_map

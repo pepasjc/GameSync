@@ -18,6 +18,36 @@ class ApiKeyInterceptor(private val apiKey: String) : Interceptor {
     }
 }
 
+/**
+ * Raises the per-call read/write timeout for ROM catalog downloads that
+ * trigger a server-side conversion (``/api/v1/roms/{id}?extract=...``).
+ *
+ * The server runs ``chdman`` / ``DolphinTool`` / ``mount_cci`` synchronously
+ * before streaming the response, which can easily take several minutes for a
+ * multi-GB 3DS cart image on a Raspberry Pi. Without this override the default
+ * 60 s read timeout fires long before the conversion finishes, and the user
+ * sees a misleading "ROM not found on server" error. 30 minutes matches the
+ * server-side ``subprocess.run`` timeout for the slowest converter (3DS).
+ */
+class RomExtractTimeoutInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        val url = request.url
+        val isRomExtract = url.encodedPathSegments.size >= 3 &&
+            url.encodedPathSegments[0] == "api" &&
+            url.encodedPathSegments[1] == "v1" &&
+            url.encodedPathSegments[2] == "roms" &&
+            url.queryParameter("extract")?.isNotBlank() == true
+        return if (isRomExtract) {
+            chain.withReadTimeout(30, TimeUnit.MINUTES)
+                .withWriteTimeout(30, TimeUnit.MINUTES)
+                .proceed(request)
+        } else {
+            chain.proceed(request)
+        }
+    }
+}
+
 object ApiClient {
 
     private var currentApi: SaveSyncApi? = null
@@ -44,6 +74,7 @@ object ApiClient {
 
         val okHttpClient = OkHttpClient.Builder()
             .addInterceptor(ApiKeyInterceptor(apiKey))
+            .addInterceptor(RomExtractTimeoutInterceptor())
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)

@@ -9,8 +9,8 @@ FastAPI server that stores save files, manages history, coordinates sync across 
 - `chdman` (for CHD extraction) — `sudo apt install mame-tools`
 - `ciso` (for PSP CSO conversion) — `sudo apt install ciso`
 - Optional: a 3DS conversion toolchain wired through command templates if you
-  want `.3ds/.cci` cart image downloads converted to `.cia`, decrypted `.cia`,
-  or decrypted `.cci` from the ROM library
+  want `.3ds/.cci` cart image downloads converted to installable `.cia` or
+  decrypted `.cci` from the ROM library
 
 ## Quick Start
 
@@ -36,8 +36,7 @@ All settings are via environment variables with the `SYNC_` prefix, or in a `ser
 | `SYNC_SAVE_DIR` | `./saves` | Directory where save files and history are stored |
 | `SYNC_ROM_DIR` | *(unset)* | ROM root directory for the web library (see [ROM Library](#rom-library)) |
 | `SYNC_ROM_SCAN_INTERVAL` | `300` | Background ROM rescan interval in seconds (`0` disables it) |
-| `SYNC_ROM_3DS_CIA_COMMAND` | `""` | Optional command template that converts a `.3ds` / `.cci` cart image into an installable `.cia` |
-| `SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND` | `""` | Optional command template that converts a `.3ds` / `.cci` cart image into a decrypted `.cia` for emulators |
+| `SYNC_ROM_3DS_CIA_COMMAND` | `""` | Optional command template that converts a `.3ds` / `.cci` cart image into a decrypted `.cia` (installable on CFW 3DS **and** usable in emulators) |
 | `SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND` | `""` | Optional command template that converts a `.3ds` / `.cci` cart image into a decrypted `.cci` for emulators |
 | `SYNC_HOST` | `0.0.0.0` | Bind address |
 | `SYNC_PORT` | `8000` | Port |
@@ -52,7 +51,6 @@ SYNC_API_KEY=your-secret-key
 SYNC_SAVE_DIR=/home/pi/Documents/3ds_sync/server/saves
 SYNC_ROM_DIR=/mnt/roms
 SYNC_ROM_3DS_CIA_COMMAND=["/usr/local/bin/your-3ds-tool","{input}","{output}"]
-SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND=["/usr/local/bin/your-3ds-tool","--decrypted","{input}","{output}"]
 SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND=["/usr/local/bin/your-3ds-tool","--decrypted-cci","{input}","{output}"]
 SYNC_SITE_TITLE=My Game Library
 SYNC_ADMIN_USERS=pepas
@@ -68,7 +66,7 @@ running your configured command.
 
 On Raspberry Pi / Linux, the repository root script
 `install-3ds-rom-tools-rpi.sh` installs the full server-side 3DS conversion
-toolchain (all three formats) without touching `install-3ds-tools-rpi.sh`. It
+toolchain (both formats) without touching `install-3ds-tools-rpi.sh`. It
 stages private assets outside the repo at:
 
 ```text
@@ -76,15 +74,14 @@ stages private assets outside the repo at:
 /opt/3dssync/3ds-rom-tools/assets/seeddb.bin
 ```
 
-The script installs three wrappers under `/usr/local/bin/`:
+The script installs two wrappers under `/usr/local/bin/`:
 
 | Wrapper | Underlying tool | Produces |
 |---|---|---|
-| `3dssync-3ds-to-cia` | `3dsconv` (Python) | Decrypted CIA (also installable on CFW hardware) |
-| `3dssync-3ds-to-decrypted-cia` | *(alias of above)* | Same file — the web UI just serves it with a `_decrypted.cia` name |
+| `3dssync-3ds-to-cia` | `3dsconv` (Python) | Decrypted CIA (installable on CFW hardware **and** bootable in emulators like Citra / Lime3DS) |
 | `3dssync-3ds-to-decrypted-cci` | `ninfs` (`mount_cci`, FUSE) | Decrypted `.cci` for emulators |
 
-After the script completes, paste the three `SYNC_ROM_3DS_*_COMMAND` lines it
+After the script completes, paste the two `SYNC_ROM_3DS_*_COMMAND` lines it
 prints into `server/.env` and restart the server:
 
 ```bash
@@ -92,8 +89,8 @@ sudo systemctl restart 3dssync@pi
 ```
 
 The `decrypted-cci` wrapper requires FUSE: `sudo apt install fuse3 libfuse-dev`.
-If FUSE isn't available, only the CIA / decrypted-CIA buttons in the web UI
-will work; the CCI button will return a 503 with actionable instructions.
+If FUSE isn't available, only the CIA button in the web UI will work; the
+CCI button will return a 503 with actionable instructions.
 
 ---
 
@@ -408,8 +405,7 @@ All endpoints except `GET /` and `GET /api/v1/status` require `X-API-Key` header
 | `GET` | `/api/v1/roms/{title_id}?extract=gdi` | CHD → GDI ZIP (Dreamcast) |
 | `GET` | `/api/v1/roms/{title_id}?extract=iso` | CHD → ISO (PSP) |
 | `GET` | `/api/v1/roms/{title_id}?extract=cso` | CHD → CSO (PSP, requires `ciso`) |
-| `GET` | `/api/v1/roms/{title_id}?extract=cia` | 3DS cart image / `*.3ds.zip` / `*.cci.zip` → installable CIA |
-| `GET` | `/api/v1/roms/{title_id}?extract=decrypted_cia` | 3DS cart image / `*.3ds.zip` / `*.cci.zip` → decrypted CIA for emulators |
+| `GET` | `/api/v1/roms/{title_id}?extract=cia` | 3DS cart image / `*.3ds.zip` / `*.cci.zip` → decrypted CIA (installable + emulator-friendly) |
 | `GET` | `/api/v1/roms/{title_id}?extract=decrypted_cci` | 3DS cart image / `*.3ds.zip` / `*.cci.zip` → decrypted CCI for emulators |
 
 ### Web UI

@@ -549,8 +549,15 @@ class SyncEngine(
     /**
      * Download a ROM from the server's ROM catalog.
      * Saves to the ROM scan directory under the appropriate system subfolder.
-     * Returns the downloaded File on success, null on failure.
+     * Returns the downloaded File on success.
+     *
+     * On failure, throws [IOException] with a descriptive message so the
+     * caller can surface the real reason to the user (instead of collapsing
+     * every failure to a generic "not found"). Network/timeout exceptions
+     * are re-thrown verbatim so the UI layer can tell "server took too
+     * long" apart from "server said no".
      */
+    @Throws(IOException::class)
     suspend fun downloadRom(
         romId: String,
         system: String,
@@ -558,52 +565,69 @@ class SyncEngine(
         expectedFilename: String? = null,
         romDirOverrides: Map<String, String> = emptyMap(),
         extractFormat: String? = null,
-    ): File? {
-        return try {
-            val response = api.downloadRom(romId, extract = extractFormat)
-            if (!response.isSuccessful) {
-                Log.e(TAG, "ROM download HTTP error for $romId: ${response.code()}")
-                return null
+    ): File {
+        val response = try {
+            api.downloadRom(romId, extract = extractFormat)
+        } catch (e: IOException) {
+            Log.e(TAG, "downloadRom network error for $romId", e)
+            throw e
+        }
+        if (!response.isSuccessful) {
+            val code = response.code()
+            val detail = runCatching { response.errorBody()?.string() }.getOrNull()
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            val message = when (code) {
+                404 -> detail ?: "ROM not found on server"
+                503 -> detail ?: "Server-side conversion is not configured (HTTP 503)"
+                504 -> detail ?: "Server-side conversion timed out (HTTP 504)"
+                500 -> detail ?: "Server-side conversion failed (HTTP 500)"
+                else -> "HTTP $code" + (detail?.let { ": $it" } ?: "")
             }
-            val body = response.body() ?: return null
+            Log.e(TAG, "ROM download failed for $romId: $message")
+            throw IOException(message)
+        }
+        val body = response.body()
+            ?: throw IOException("Server returned empty response for ROM $romId")
 
-            val filename = expectedFilename
-                ?: response.headers()["Content-Disposition"]
-                    ?.let { cd ->
-                        val match = Regex("filename=\"?([^\"]+)\"?").find(cd)
-                        match?.groupValues?.get(1)
-                    }
-                ?: "$romId.rom"
+        val filename = expectedFilename
+            ?: response.headers()["Content-Disposition"]
+                ?.let { cd ->
+                    val match = Regex("filename=\"?([^\"]+)\"?").find(cd)
+                    match?.groupValues?.get(1)
+                }
+            ?: "$romId.rom"
 
-            // Delegate folder selection to the shared helper so the download
-            // path, the installed-ROMs scanner, and the Steam Deck client all
-            // agree on where an incoming ROM lands.  The helper canonicalises
-            // alias codes (``SCD`` → ``SEGACD``, ``GEN`` → ``MD``, …) before
-            // picking a candidate, which fixes the regression where catalog
-            // downloads for Sega CD landed in ``roms/SCD/`` instead of the
-            // user's existing ``roms/segacd/``.
-            val outDir = InstalledRomsScanner.resolveRomTargetDir(
-                scanRoot = File(romScanDir),
-                system = system,
-                romDirOverrides = romDirOverrides,
-            )
-            outDir.mkdirs()
+        // Delegate folder selection to the shared helper so the download
+        // path, the installed-ROMs scanner, and the Steam Deck client all
+        // agree on where an incoming ROM lands.  The helper canonicalises
+        // alias codes (``SCD`` → ``SEGACD``, ``GEN`` → ``MD``, …) before
+        // picking a candidate, which fixes the regression where catalog
+        // downloads for Sega CD landed in ``roms/SCD/`` instead of the
+        // user's existing ``roms/segacd/``.
+        val outDir = InstalledRomsScanner.resolveRomTargetDir(
+            scanRoot = File(romScanDir),
+            system = system,
+            romDirOverrides = romDirOverrides,
+        )
+        outDir.mkdirs()
 
-            // CD-ROM style games (PS1 multi-track .cue+.bin, Saturn,
-            // Dreamcast, Sega CD) live in a per-game subfolder by
-            // convention so the data track, cue sheet and any companion
-            // files stay grouped.  Match that layout on download by
-            // dropping the file into ``<outDir>/<stem>/<filename>`` where
-            // ``<stem>`` is the filename with its extension stripped.
-            val canonicalSystem = SystemAliases.normalizeSystemCode(system)
-            val finalDir = if (canonicalSystem in CD_FOLDER_SYSTEMS) {
-                val stem = filename.substringBeforeLast('.', filename)
-                File(outDir, stem).also { it.mkdirs() }
-            } else {
-                outDir
-            }
-            val outFile = File(finalDir, filename)
+        // CD-ROM style games (PS1 multi-track .cue+.bin, Saturn,
+        // Dreamcast, Sega CD) live in a per-game subfolder by
+        // convention so the data track, cue sheet and any companion
+        // files stay grouped.  Match that layout on download by
+        // dropping the file into ``<outDir>/<stem>/<filename>`` where
+        // ``<stem>`` is the filename with its extension stripped.
+        val canonicalSystem = SystemAliases.normalizeSystemCode(system)
+        val finalDir = if (canonicalSystem in CD_FOLDER_SYSTEMS) {
+            val stem = filename.substringBeforeLast('.', filename)
+            File(outDir, stem).also { it.mkdirs() }
+        } else {
+            outDir
+        }
+        val outFile = File(finalDir, filename)
 
+        try {
             body.byteStream().use { input ->
                 outFile.outputStream().use { output ->
                     val buffer = ByteArray(ROM_BUFFER_SIZE)
@@ -613,13 +637,14 @@ class SyncEngine(
                     }
                 }
             }
-
-            Log.i(TAG, "ROM downloaded: ${outFile.absolutePath} (${outFile.length()} bytes)")
-            outFile
-        } catch (e: Exception) {
-            Log.e(TAG, "downloadRom failed for $romId", e)
-            null
+        } catch (e: IOException) {
+            Log.e(TAG, "downloadRom write/stream error for $romId", e)
+            runCatching { outFile.delete() }
+            throw e
         }
+
+        Log.i(TAG, "ROM downloaded: ${outFile.absolutePath} (${outFile.length()} bytes)")
+        return outFile
     }
 
     private suspend fun downloadPs1Card(entry: SaveEntry, titleId: String): Boolean {

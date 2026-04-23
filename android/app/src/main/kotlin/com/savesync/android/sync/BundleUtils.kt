@@ -10,10 +10,20 @@ import java.util.zip.DeflaterOutputStream
 import java.util.zip.InflaterInputStream
 
 /**
- * Kotlin implementation of the 3DSS binary bundle format (v3/v4).
+ * Kotlin implementation of the 3DSS binary bundle format.
  *
- * v3: 16-byte ASCII null-padded title ID, zlib-compressed payload.
- * v4: 32-byte ASCII null-padded title ID, zlib-compressed payload.
+ * Create: always v4 (32-byte ASCII null-padded title ID, zlib-compressed).
+ *
+ * Parse: accepts every version the server may serve:
+ *   v1 — 8-byte big-endian u64 title ID, UNCOMPRESSED payload (legacy 3DS).
+ *   v2 — 8-byte big-endian u64 title ID, zlib-compressed payload (3DS + NDS).
+ *   v3 — 16-byte ASCII null-padded title ID, zlib-compressed (legacy PSP/Vita).
+ *   v4 — 32-byte ASCII null-padded title ID, zlib-compressed (PSP + 3DS emu).
+ *   v5 — 64-byte ASCII null-padded title ID, zlib-compressed (PS3).
+ *
+ * 3DS saves uploaded from the 3DS homebrew client come back as v2 bundles
+ * (the 3DS client always uses the compressed integer-title-id variant), so
+ * the Android emulator client must parse v2 to download those saves.
  *
  * Payload structure (same for all versions):
  *   File table: for each file — [2B path length][NB path UTF-8][4B size][32B SHA-256]
@@ -27,8 +37,11 @@ import java.util.zip.InflaterInputStream
 object BundleUtils {
 
     private val MAGIC = byteArrayOf('3'.code.toByte(), 'D'.code.toByte(), 'S'.code.toByte(), 'S'.code.toByte())
+    private const val VERSION_V1 = 1
+    private const val VERSION_V2 = 2
     private const val VERSION_V3 = 3
     private const val VERSION_V4 = 4
+    private const val VERSION_V5 = 5
 
     // ── create ───────────────────────────────────────────────────────────────
 
@@ -120,7 +133,17 @@ object BundleUtils {
     // ── parse ────────────────────────────────────────────────────────────────
 
     /**
-     * Parses a v3 or v4 bundle.
+     * Parses a 3DSS bundle of any supported version (v1–v5).
+     *
+     * v1/v2 use an 8-byte big-endian u64 title ID (3DS + NDS homebrew clients).
+     * v3/v4/v5 use an ASCII null-padded string title ID of 16/32/64 bytes (PSP/Vita/PS3).
+     *
+     * v1 is the only uncompressed variant; every other version has a zlib-
+     * compressed payload. The last header field is "total size" for v1 and
+     * "uncompressed size" for v2+ — we skip size validation for v1 because
+     * total_size is the sum of file sizes, not the payload length (which also
+     * includes the file table).
+     *
      * @return Ordered list of (filename, data) pairs — same order as in the bundle.
      * @throws IllegalArgumentException if the bundle is malformed.
      */
@@ -132,24 +155,34 @@ object BundleUtils {
 
         val version = buf.int
 
-        // Title ID field width depends on version
+        // Title ID field width depends on version. v1/v2 use a raw u64, the
+        // string variants pad to a fixed byte width. We don't need the title
+        // ID here — the caller already knows it from the URL — so just skip.
         val titleIdFieldSize = when (version) {
+            VERSION_V1, VERSION_V2 -> 8
             VERSION_V3 -> 16
             VERSION_V4 -> 32
+            VERSION_V5 -> 64
             else -> throw IllegalArgumentException("Unsupported bundle version: $version")
         }
-        buf.position(buf.position() + titleIdFieldSize)  // skip title ID
+        buf.position(buf.position() + titleIdFieldSize)
 
         /* val timestamp = */ buf.int
         val fileCount  = buf.int
-        val uncompressedSize = buf.int
+        /* last size field: "total data size" (v1) or "uncompressed payload size" (v2+). */
+        val sizeField = buf.int
 
-        // Rest is zlib-compressed payload
-        val compressed = ByteArray(buf.remaining()).also { buf.get(it) }
-        val payload = InflaterInputStream(ByteArrayInputStream(compressed))
-            .use { it.readBytes() }
-        require(payload.size == uncompressedSize) {
-            "Decompressed size mismatch: expected $uncompressedSize, got ${payload.size}"
+        val payload = if (version == VERSION_V1) {
+            // v1: remainder is the raw payload — no decompression.
+            ByteArray(buf.remaining()).also { buf.get(it) }
+        } else {
+            val compressed = ByteArray(buf.remaining()).also { buf.get(it) }
+            val inflated = InflaterInputStream(ByteArrayInputStream(compressed))
+                .use { it.readBytes() }
+            require(inflated.size == sizeField) {
+                "Decompressed size mismatch: expected $sizeField, got ${inflated.size}"
+            }
+            inflated
         }
 
         return parsePayload(payload, fileCount)
