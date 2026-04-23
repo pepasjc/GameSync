@@ -21,6 +21,82 @@ class RetroArchEmulator(
     override val name: String = "RetroArch"
     override val systemPrefix: String = "RETRO"
 
+    companion object {
+        /**
+         * Locations RetroArch may be installed to on Android, in priority order.
+         * Mirrors [retroArchBaseCandidates] but exposed statically so other
+         * callers (server-only placeholder builders) can find a saves root
+         * without constructing a full emulator instance.
+         */
+        private fun candidateBases(externalStorage: File): List<File> = listOf(
+            File(externalStorage, "RetroArch"),
+            File(externalStorage, "retroarch"),
+            File(externalStorage, "Android/data/com.retroarch.aarch64/files"),
+            File(externalStorage, "Android/data/com.retroarch/files"),
+            File(externalStorage, "Android/data/com.retroarch.ra32/files"),
+            File(externalStorage, "Android/data/com.retroarch.plus/files"),
+        )
+
+        /**
+         * Returns the first existing RetroArch saves directory, or — when
+         * [allowNonExistent] is true — the best-guess predicted path so server
+         * downloads still have somewhere to land before the user installs
+         * RetroArch or creates a save.
+         */
+        fun findSavesDir(externalStorage: File, allowNonExistent: Boolean = false): File? {
+            val bases = candidateBases(externalStorage)
+            val existingBase = bases.firstOrNull { it.exists() && it.isDirectory }
+            if (existingBase != null) {
+                val saves = File(existingBase, "saves")
+                if (saves.exists() && saves.isDirectory) return saves
+                if (allowNonExistent) return saves
+            }
+            return if (allowNonExistent) File(bases.first(), "saves") else null
+        }
+
+        /**
+         * Predicted ``<savesDir>/<stem>.<ext>`` for a retroarch-backed system.
+         * The stem is derived from [label] with disc/bracket tags stripped so
+         * multi-disc titles don't end up with per-disc duplicate saves.
+         */
+        fun defaultSaveFile(
+            externalStorage: File,
+            system: String,
+            label: String,
+            saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+        ): File? {
+            val savesDir = findSavesDir(externalStorage, allowNonExistent = true) ?: return null
+            val stem = sanitizeLabel(label)
+            val sys = system.uppercase()
+            if (sys == "SAT") {
+                return when (saturnSyncFormat) {
+                    SaturnSyncFormat.MEDNAFEN -> File(savesDir, "$stem.bkr")
+                    SaturnSyncFormat.YABAUSE -> File(savesDir, "$stem.srm")
+                    SaturnSyncFormat.YABASANSHIRO -> File(savesDir, "backup.bin")
+                }
+            }
+            return File(savesDir, "$stem.srm")
+        }
+
+        /**
+         * Strip disc/bracket tags and filesystem-unsafe characters so the
+         * predicted save path stays writable.  Mirrors the Steam Deck's
+         * ``_clean_stem`` so both clients converge on the same on-disk name
+         * when only server metadata is available.
+         */
+        private fun sanitizeLabel(label: String): String {
+            return label
+                .replace(Regex("""\s*[\(\[]\s*(disc|cd|side)\s*\d+(?:\s*of\s*\d+)?\s*[\)\]]""",
+                    RegexOption.IGNORE_CASE), "")
+                .replace(Regex("""\s*[\(\[][A-Z]{4}[-_ ]?\d{5}.*?[\)\]]""",
+                    RegexOption.IGNORE_CASE), "")
+                .replace(Regex("""[\\/:*?"<>|]"""), "")
+                .replace(Regex("""\s+"""), " ")
+                .trim()
+                .ifBlank { "game" }
+        }
+    }
+
     private val saveExtensions = setOf("srm", "sav", "savestate", "state", "saveram", "bkr")
 
     // PS1 disc image extensions that readPs1Serial() can handle

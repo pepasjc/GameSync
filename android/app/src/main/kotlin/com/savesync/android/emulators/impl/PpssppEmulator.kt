@@ -13,6 +13,28 @@ class PpssppEmulator(
     override val name: String = "PPSSPP"
     override val systemPrefix: String = "PSP"
 
+    companion object {
+        fun findSaveDataDir(baseDir: File, allowNonExistent: Boolean = false): File? {
+            val candidates = listOf("PSP/SAVEDATA", "psp/SAVEDATA", "PSP/savedata")
+            val existing = candidates
+                .map { File(baseDir, it) }
+                .firstOrNull { it.exists() && it.isDirectory }
+            if (existing != null) return existing
+            return if (allowNonExistent) File(baseDir, "PSP/SAVEDATA") else null
+        }
+
+        /**
+         * Predicted SAVEDATA slot directory for a PSP title_id.  The server hands
+         * back the full slot name (e.g. "ULUS10567DATA"), so we use it verbatim
+         * as the directory name — matches what the PPSSPP scanner yields once a
+         * save actually exists on disk.
+         */
+        fun defaultSlotDir(baseDir: File, titleId: String): File? {
+            val root = findSaveDataDir(baseDir, allowNonExistent = true) ?: return null
+            return File(root, titleId)
+        }
+    }
+
     // PSP product code: 4 uppercase letters + 5 digits (e.g. ULUS10272)
     private val productCodeRegex = Regex("^[A-Z]{4}[0-9]{5}")
     private val productCodeSearchRegex = Regex("([A-Z]{4}[0-9]{5})", RegexOption.IGNORE_CASE)
