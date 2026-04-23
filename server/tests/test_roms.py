@@ -9,6 +9,18 @@ from fastapi.testclient import TestClient
 from app.config import settings
 
 
+def _load_server_game_name_data():
+    from app.services import game_names
+
+    data_dir = Path(__file__).resolve().parents[1] / "data"
+    dats_dir = data_dir / "dats"
+
+    game_names.load_libretro_dat_to_dicts(dats_dir / "Nintendo - Nintendo 3DS.dat")
+    game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Nintendo - Nintendo 3DS (Digital).dat"
+    )
+
+
 @pytest.fixture()
 def rom_dir(tmp_path):
     d = tmp_path / "roms"
@@ -26,6 +38,7 @@ def rom_client(rom_dir, client, auth_headers):
     settings.rom_scan_interval = 0
 
     rom_db.init_db(settings.save_dir)
+    _load_server_game_name_data()
 
     (rom_dir / "gba").mkdir()
     (rom_dir / "gba" / "test rom.gba").write_bytes(b"\x00" * 100)
@@ -92,6 +105,7 @@ def rom_client_3ds_zip(rom_dir, client, auth_headers):
     )
 
     rom_db.init_db(settings.save_dir)
+    _load_server_game_name_data()
 
     (rom_dir / "n3ds").mkdir()
     archive_path = rom_dir / "n3ds" / "Super Mario 3D Land (USA).3ds.zip"
@@ -160,6 +174,7 @@ def rom_client_cci_zip(rom_dir, client, auth_headers):
     )
 
     rom_db.init_db(settings.save_dir)
+    _load_server_game_name_data()
 
     (rom_dir / "n3ds").mkdir()
     archive_path = rom_dir / "n3ds" / "Pilotwings Resort (USA).cci.zip"
@@ -267,7 +282,7 @@ class TestRomCatalog:
         assert body["total"] == 1
 
         rom = body["roms"][0]
-        assert rom["title_id"] == "3DS_super_mario_3d_land_usa"
+        assert rom["title_id"] == "0004000000054000"
         assert rom["extract_format"] == "3ds"
         assert rom["extract_formats"] == ["cia", "decrypted_cia", "decrypted_cci"]
 
@@ -280,7 +295,7 @@ class TestRomCatalog:
         assert body["total"] == 1
 
         rom = body["roms"][0]
-        assert rom["title_id"] == "3DS_pilotwings_resort_usa"
+        assert rom["title_id"] == "0004000000031C00"
         assert rom["extract_format"] == "3ds"
         assert rom["extract_formats"] == ["cia", "decrypted_cia", "decrypted_cci"]
 
@@ -543,7 +558,7 @@ class TestRomDbCache:
 
         assert count == 1
         rows = rom_db.list_all()
-        assert rows[0]["title_id"] == "3DS_super_mario_3d_land_usa"
+        assert rows[0]["title_id"] == "0004000000054000"
         assert rows[0]["name"] == "Super Mario 3D Land (USA)"
 
 

@@ -242,6 +242,9 @@ ROM_EXTENSIONS = {
     ".ngc",
     ".ws",
     ".wsc",
+    ".3ds",
+    ".cci",
+    ".cia",
     ".zip",
     ".7z",
     # Dreamcast

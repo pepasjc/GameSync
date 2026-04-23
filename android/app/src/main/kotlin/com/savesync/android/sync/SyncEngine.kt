@@ -82,7 +82,7 @@ class SyncEngine(
     }
 
     suspend fun sync(saves: List<SaveEntry>): SyncResult {
-        val resolvedSaves = normalizePs1SlugEntries(saves)
+        val resolvedSaves = normalizeCanonicalSlugEntries(saves)
         val errors = mutableListOf<String>()
         var uploaded = 0
         var downloaded = 0
@@ -243,18 +243,22 @@ class SyncEngine(
         )
     }
 
-    private suspend fun normalizePs1SlugEntries(saves: List<SaveEntry>): List<SaveEntry> {
-        val ps1SlugSaves = saves.filter { it.systemName == "PS1" && it.titleId.contains('_') }
-        if (ps1SlugSaves.isEmpty()) return saves
+    private suspend fun normalizeCanonicalSlugEntries(saves: List<SaveEntry>): List<SaveEntry> {
+        val canonicalSlugSaves = saves.filter {
+            it.titleId.contains('_') && (it.systemName == "PS1" || it.systemName == "3DS")
+        }
+        if (canonicalSlugSaves.isEmpty()) return saves
 
         return try {
             val response = api.normalizeRoms(
                 NormalizeRequest(
-                    roms = ps1SlugSaves.map { NormalizeRomEntry(system = "PS1", filename = it.displayName) }
+                    roms = canonicalSlugSaves.map {
+                        NormalizeRomEntry(system = it.systemName, filename = it.displayName)
+                    }
                 )
             )
-            val serialMap = ps1SlugSaves.indices.associate { i ->
-                val oldId = ps1SlugSaves[i].titleId
+            val serialMap = canonicalSlugSaves.indices.associate { i ->
+                val oldId = canonicalSlugSaves[i].titleId
                 val newId = response.results.getOrNull(i)?.title_id ?: oldId
                 oldId to newId
             }.filter { (old, new) -> old != new && !new.contains('_') }
@@ -265,7 +269,7 @@ class SyncEngine(
                 if (resolved != null) entry.copy(titleId = resolved) else entry
             }
         } catch (e: Exception) {
-            Log.w(TAG, "normalizePs1SlugEntries failed", e)
+            Log.w(TAG, "normalizeCanonicalSlugEntries failed", e)
             saves
         }
     }
@@ -515,10 +519,11 @@ class SyncEngine(
         system: String,
         romScanDir: String,
         expectedFilename: String? = null,
-        romDirOverrides: Map<String, String> = emptyMap()
+        romDirOverrides: Map<String, String> = emptyMap(),
+        extractFormat: String? = null,
     ): File? {
         return try {
-            val response = api.downloadRom(romId)
+            val response = api.downloadRom(romId, extract = extractFormat)
             if (!response.isSuccessful) {
                 Log.e(TAG, "ROM download HTTP error for $romId: ${response.code()}")
                 return null

@@ -923,3 +923,81 @@ class TestSaturnLookup:
             "SAT",
         )
         assert game_names.detect_platform("SAT_T-12705H") == "SAT"
+
+
+class Test3dsLookup:
+    def test_load_3ds_dat_with_title_ids_populates_lookup(self, tmp_path, monkeypatch):
+        dat_path = tmp_path / "Nintendo - Nintendo 3DS.dat"
+        dat_path.write_text(
+            "\n".join(
+                [
+                    "game (",
+                    '\tname "Mario Kart 7 (USA)"',
+                    '\tserial "CTR-P-AMKE"',
+                    '\ttitle_id "0004000000030800"',
+                    ")",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(game_names, "_3ds_names", {})
+        monkeypatch.setattr(game_names, "_3ds_priority", {})
+        monkeypatch.setattr(game_names, "_3ds_title_ids", {})
+        monkeypatch.setattr(game_names, "_3ds_title_id_priority", {})
+        monkeypatch.setattr(game_names, "_3ds_serial_to_title_id", {})
+        monkeypatch.setattr(game_names, "_3ds_by_slug", {})
+        monkeypatch.setattr(game_names, "_3ds_title_ids_by_slug", {})
+        monkeypatch.setattr(game_names, "_3ds_title_priority", {})
+
+        added = game_names.load_libretro_dat_to_dicts(dat_path)
+
+        assert added == 1
+        assert game_names.lookup_names_typed(["0004000000030800"]) == {
+            "0004000000030800": ("Mario Kart 7 (USA)", "3DS")
+        }
+        assert game_names._3ds_serial_to_title_id["CTR-P-AMKE"] == "0004000000030800"
+        assert (
+            game_names.lookup_disc_serial("3DS", "Mario Kart 7 (USA).3ds")
+            == "0004000000030800"
+        )
+
+    def test_normalize_endpoint_uses_3ds_title_id_lookup(
+        self, client, auth_headers, monkeypatch
+    ):
+        class FakeNormalizer:
+            def normalize(self, system, filename, crc32=None):
+                return {
+                    "canonical_name": "Mario Kart 7 (USA)",
+                    "slug": "mario_kart_7_usa",
+                    "source": "dat_filename",
+                }
+
+            def search_candidates(self, system, filename):
+                return ["Mario Kart 7 (USA)", "Mario Kart 7 (Europe)"]
+
+        from app.services import dat_normalizer
+
+        monkeypatch.setattr(dat_normalizer, "get", lambda: FakeNormalizer())
+        monkeypatch.setattr(
+            game_names,
+            "_3ds_by_slug",
+            {"mario_kart_7_usa": "0004000000030800"},
+        )
+        monkeypatch.setattr(
+            game_names,
+            "_3ds_title_ids_by_slug",
+            {"mario_kart_7_usa": ["0004000000030800"]},
+        )
+
+        r = client.post(
+            "/api/v1/normalize/batch",
+            json={"roms": [{"system": "3DS", "filename": "Mario Kart 7 (USA).3ds"}]},
+            headers=auth_headers,
+        )
+
+        assert r.status_code == 200
+        result = r.json()["results"][0]
+        assert result["canonical_name"] == "Mario Kart 7 (USA)"
+        assert result["title_id"] == "0004000000030800"

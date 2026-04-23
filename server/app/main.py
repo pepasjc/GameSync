@@ -22,9 +22,7 @@ async def lifespan(app: FastAPI):
     data_dir = Path(__file__).parent.parent / "data"
     dats_dir = data_dir / "dats"
 
-    # Load game names databases
-    # 3dstitledb.txt: full 16-char TitleID→name for 3DS hardware client (not in DATs)
-    count_title_ids = game_names.load_database(data_dir / "3dstitledb.txt")
+    # Load game name databases.
     count_wii = game_names.load_libretro_dat_to_dicts(
         dats_dir / "Nintendo - GameCube.dat"
     )
@@ -58,6 +56,7 @@ async def lifespan(app: FastAPI):
     count_3ds += game_names.load_libretro_dat_to_dicts(
         dats_dir / "Nintendo - Nintendo 3DS (Digital).dat"
     )
+    count_3ds_title_ids = game_names.get_3ds_title_id_count()
     count_ds = game_names.load_libretro_dat_to_dicts(
         dats_dir / "Nintendo - Nintendo DS.dat"
     )
@@ -71,7 +70,7 @@ async def lifespan(app: FastAPI):
         data_dir / "saturn_archive_names.json"
     )
     print(
-        f"Loaded {count_title_ids} 3DS TitleIDs + {count_3ds} 3DS codes + {count_ds} DS + "
+        f"Loaded {count_3ds_title_ids} 3DS TitleIDs + {count_3ds} 3DS codes + {count_ds} DS + "
         f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX + {count_ps2} PS2 + {count_sat} Saturn + {count_ps3} PS3 + {count_wii} GC/Wii game names "
         f"({count_psn_retail} PSN→retail mappings, {count_sat_slugs} Saturn slug mappings, {count_sat_archives} Saturn archive mappings)"
     )

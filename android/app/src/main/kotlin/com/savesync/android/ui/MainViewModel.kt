@@ -454,19 +454,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
 
-                    // For PS1 saves with slug-based title IDs (e.g. from DuckStation with
-                    // game-title-named memory cards, or RetroArch without a ROM scan dir),
-                    // call the normalize endpoint to resolve the disc serial from psxdb.
-                    // The server now returns a bare product code (e.g. "SCUS94163") for PS1
-                    // when a matching entry is found in its psxdb reverse index.
-                    val ps1SlugSaves = rawLocalSaves.filter { it.systemName == "PS1" && it.titleId.contains('_') }
-                    val resolvedRawSaves = if (ps1SlugSaves.isNotEmpty()) {
+                    // Some systems have canonical server IDs that are not the default
+                    // SYS_slug format we derive locally:
+                    // - PS1 uses retail serials like SCUS94163
+                    // - 3DS uses 16-char title IDs like 0004000000030800
+                    // Ask the normalize endpoint to bridge those slug entries to the
+                    // server's canonical ID before we do any matching or syncing.
+                    val canonicalSlugSaves = rawLocalSaves.filter {
+                        it.titleId.contains('_') &&
+                            (it.systemName == "PS1" || it.systemName == "3DS")
+                    }
+                    val resolvedRawSaves = if (canonicalSlugSaves.isNotEmpty()) {
                         try {
                             val response = api.normalizeRoms(NormalizeRequest(
-                                roms = ps1SlugSaves.map { NormalizeRomEntry(system = "PS1", filename = it.displayName) }
+                                roms = canonicalSlugSaves.map {
+                                    NormalizeRomEntry(system = it.systemName, filename = it.displayName)
+                                }
                             ))
-                            val serialMap = ps1SlugSaves.indices.associate { i ->
-                                val oldId = ps1SlugSaves[i].titleId
+                            val serialMap = canonicalSlugSaves.indices.associate { i ->
+                                val oldId = canonicalSlugSaves[i].titleId
                                 val newId = response.results.getOrNull(i)?.title_id ?: oldId
                                 oldId to newId
                             }.filter { (old, new) -> old != new && !new.contains('_') }
@@ -1288,7 +1294,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val serverId  = serverTitle.title_id
             val serverSys = serverId.substringBefore('_')
             val slug      = serverId.substringAfter('_')
-            val androidSys = serverToAndroidSystem[serverSys] ?: continue
+            val androidSys = normalizeSystemCode(serverSys)
             val localEntry = romEntries["${androidSys}_$slug"] ?: continue
             // Re-key the entry under the server's titleId so the look-up succeeds
             result[serverId] = localEntry.copy(titleId = serverId)
@@ -2037,7 +2043,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun downloadRom(romId: String, system: String, filename: String? = null) {
+    fun downloadRom(
+        romId: String,
+        system: String,
+        filename: String? = null,
+        extractFormat: String? = null,
+    ) {
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
             if (currentSettings.serverUrl.isBlank()) {
@@ -2057,7 +2068,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     settingsStore.ensureConsoleId(),
                     currentSettings.saturnSyncFormat
                 )
-                val file = engine.downloadRom(romId, system, currentSettings.romScanDir, filename, currentSettings.romDirOverrides)
+                val expectedFilename =
+                    if (extractFormat.isNullOrBlank()) filename else null
+                val file = engine.downloadRom(
+                    romId = romId,
+                    system = system,
+                    romScanDir = currentSettings.romScanDir,
+                    expectedFilename = expectedFilename,
+                    romDirOverrides = currentSettings.romDirOverrides,
+                    extractFormat = extractFormat,
+                )
                 if (file != null) {
                     _romDownloadState.value = RomDownloadState.Success(file)
                     // Rescan so the newly downloaded ROM is picked up: the SaveEntry for this

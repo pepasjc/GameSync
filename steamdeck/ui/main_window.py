@@ -178,7 +178,7 @@ class ServerWorker(QObject):
         the card's display_name as a stand-in filename when there is no
         rom_filename available.
         """
-        skip_systems = {"GC", "PS3", "PSP", "3DS", "WII", "NSW", "?"}
+        skip_systems = {"GC", "PS3", "PSP", "WII", "NSW", "?"}
         disc_systems = _DISC_SLUG_SYSTEMS
         needs_lookup: list[tuple[GameEntry, str]] = []
         rom_entries: list[dict[str, str]] = []
@@ -1022,12 +1022,16 @@ class MainWindow(QMainWindow):
             system or "?",
             self._config.get("rom_dir_overrides") or {},
         )
-        target_path = target_dir / filename
+        target_filename, extract_format = self._client.plan_rom_download(rom, system)
+        if system in _NATIVE_EXTRACT_SKIP:
+            extract_format = None
+            target_filename = filename
+        target_path = target_dir / target_filename
 
         msg = (
             f"Download ROM '{display}'?\n"
             f"System: {system or 'unknown'}\n"
-            f"File: {filename}{size_txt}\n"
+            f"File: {target_filename}{size_txt}\n"
             f"Destination: {target_dir}"
         )
         if target_path.exists():
@@ -1042,10 +1046,6 @@ class MainWindow(QMainWindow):
         )
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
-
-        extract_format = rom.get("extract_format")
-        if system in _NATIVE_EXTRACT_SKIP:
-            extract_format = None
 
         progress_dlg = DownloadProgressDialog(
             client=self._client,

@@ -123,7 +123,11 @@ data class RomEntry(
     val path: String,
     val size: Long,
     val crc32: String? = null,
-    val source: String? = null
+    val source: String? = null,
+    @SerializedName("extract_format")
+    val extractFormat: String? = null,
+    @SerializedName("extract_formats")
+    val extractFormats: List<String> = emptyList()
 )
 
 data class RomsResponse(
@@ -135,3 +139,17 @@ data class RomsSystemsResponse(
     val systems: List<String>,
     val stats: Map<String, Int>
 )
+
+private const val REQUIRED_3DS_EXTRACT_FORMAT = "decrypted_cci"
+
+fun RomEntry.preferredDownloadExtractFormat(): String? {
+    if (!system.equals("3DS", ignoreCase = true)) return null
+
+    val advertised = extractFormats
+        .map { it.trim().lowercase() }
+        .filter { it.isNotEmpty() }
+    if (REQUIRED_3DS_EXTRACT_FORMAT in advertised) return REQUIRED_3DS_EXTRACT_FORMAT
+
+    val legacy = extractFormat?.trim()?.lowercase().orEmpty()
+    return legacy.takeIf { it == REQUIRED_3DS_EXTRACT_FORMAT }
+}

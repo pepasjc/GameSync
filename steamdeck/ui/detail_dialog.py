@@ -436,11 +436,15 @@ QLabel#detailLabel {{
         target_dir = resolve_rom_target_dir(
             roms_base, entry.system, self._rom_dir_overrides
         )
-        target_path = target_dir / filename
+        target_filename, extract_format = self._client.plan_rom_download(rom, entry.system)
+        if entry.system in _NATIVE_COMPRESSED_FORMAT_SYSTEMS:
+            extract_format = None
+            target_filename = filename
+        target_path = target_dir / target_filename
 
         msg = (
             f"Download ROM for '{entry.display_name}'?\n"
-            f"File: {filename}{size_txt}\n"
+            f"File: {target_filename}{size_txt}\n"
             f"Destination: {target_dir}"
         )
         if target_path.exists():
@@ -455,17 +459,6 @@ QLabel#detailLabel {{
         )
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
-
-        # DuckStation / PCSX2 / Flycast / Dolphin all read their compressed
-        # disc formats natively, so forcing the server to extract CHD→CUE or
-        # RVZ→ISO just stalls the download on a multi-minute chdman /
-        # DolphinTool subprocess before a single byte flows.  Skip the
-        # extract hint on those systems and stream the raw file — PPSSPP
-        # still needs its ISO/CSO output so PSP stays on the extraction
-        # path.
-        extract_format = rom.get("extract_format")
-        if entry.system in _NATIVE_COMPRESSED_FORMAT_SYSTEMS:
-            extract_format = None
 
         progress_dlg = DownloadProgressDialog(
             client=self._client,

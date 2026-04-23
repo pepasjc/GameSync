@@ -163,6 +163,7 @@ interface SaveSyncApi {
     @Streaming
     @GET("api/v1/roms/{rom_id}")
     suspend fun downloadRom(
-        @Path("rom_id") romId: String
+        @Path("rom_id") romId: String,
+        @Query("extract") extract: String? = null,
     ): Response<ResponseBody>
 }

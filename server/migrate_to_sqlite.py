@@ -30,8 +30,14 @@ from app.services import db as _db, game_names as _game_names
 def _load_name_databases() -> int:
     """Load the title name databases so we can re-lookup names during migration."""
     data_dir = Path(__file__).parent / "data"
+    dats_dir = data_dir / "dats"
     total = 0
-    total += _game_names.load_database(data_dir / "3dstitledb.txt")
+    total += _game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Nintendo - Nintendo 3DS.dat"
+    )
+    total += _game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Nintendo - Nintendo 3DS (Digital).dat"
+    )
     total += _game_names.load_database(data_dir / "3dstdb.txt")
     total += _game_names.load_database(data_dir / "dstdb.txt")
     total += _game_names.load_database(data_dir / "pspdb.txt")
@@ -52,7 +58,7 @@ def migrate(save_dir: Path, dry_run: bool) -> None:
         return
 
     db_count = _load_name_databases()
-    print(f"Loaded {db_count:,} game name entries from database")
+    print(f"Loaded {db_count:,} game name entries from DAT/database sources")
     print()
 
     if not dry_run:

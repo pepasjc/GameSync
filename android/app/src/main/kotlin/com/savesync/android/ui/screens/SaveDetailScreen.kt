@@ -72,6 +72,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.savesync.android.api.preferredDownloadExtractFormat
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.storage.SyncStateEntity
 import com.savesync.android.ui.MainViewModel
@@ -380,7 +381,10 @@ fun SaveDetailScreen(
                         onClick = {
                             if (rom != null) {
                                 viewModel.downloadRom(
-                                    rom.rom_id ?: rom.title_id, rom.system, rom.filename
+                                    romId = rom.rom_id ?: rom.title_id,
+                                    system = rom.system,
+                                    filename = rom.filename,
+                                    extractFormat = rom.preferredDownloadExtractFormat(),
                                 )
                             }
                         }
@@ -400,7 +404,10 @@ fun SaveDetailScreen(
                             headerAbove = if (index == 0) "Available ROMs" else null,
                             onClick = {
                                 viewModel.downloadRom(
-                                    rom.rom_id ?: rom.title_id, rom.system, rom.filename
+                                    romId = rom.rom_id ?: rom.title_id,
+                                    system = rom.system,
+                                    filename = rom.filename,
+                                    extractFormat = rom.preferredDownloadExtractFormat(),
                                 )
                             }
                         ))

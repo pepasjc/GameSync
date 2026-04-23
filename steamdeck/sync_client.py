@@ -369,6 +369,26 @@ def _parse_dir_bundle(data: bytes) -> list[tuple[str, bytes]]:
     return result
 
 
+def _derive_3ds_download_filename(filename: str, extract_format: str) -> str:
+    """Map a raw 3DS catalog filename to the extracted output filename."""
+    stem = filename
+    lower = stem.lower()
+    if lower.endswith(".zip"):
+        stem = stem[:-4]
+        lower = stem.lower()
+
+    for ext in (".3ds", ".cci", ".cia"):
+        if lower.endswith(ext):
+            stem = stem[: -len(ext)]
+            break
+
+    if extract_format == "decrypted_cci":
+        return f"{stem}_decrypted.cci"
+    if extract_format == "decrypted_cia":
+        return f"{stem}_decrypted.cia"
+    return f"{stem}.cia"
+
+
 class SyncClient:
     def __init__(
         self,
@@ -456,6 +476,40 @@ class SyncClient:
         except Exception as exc:
             print(f"[ROMs] list failed: {exc}")
         return []
+
+    def plan_rom_download(
+        self,
+        rom: dict,
+        system: str,
+    ) -> tuple[str, Optional[str]]:
+        """
+        Pick the local filename and server extract hint for a ROM download.
+
+        3DS catalog rows advertise ``extract_formats`` because clients must
+        choose between hardware and emulator outputs.  Desktop emulator clients
+        only accept decrypted CCI so the downloaded ROM is directly usable by
+        emulator frontends.
+        Other systems continue to use the legacy single ``extract_format`` hint.
+        """
+        filename = str(rom.get("filename") or f"{rom.get('rom_id') or 'download'}.rom")
+        system_up = (system or rom.get("system") or "").upper()
+
+        if system_up == "3DS":
+            advertised = [
+                str(value).strip().lower()
+                for value in (rom.get("extract_formats") or [])
+                if str(value).strip()
+            ]
+            if "decrypted_cci" in advertised:
+                return _derive_3ds_download_filename(filename, "decrypted_cci"), "decrypted_cci"
+
+            legacy = str(rom.get("extract_format") or "").strip().lower()
+            if legacy == "decrypted_cci":
+                return _derive_3ds_download_filename(filename, legacy), legacy
+            return filename, None
+
+        extract = str(rom.get("extract_format") or "").strip().lower() or None
+        return filename, extract
 
     def find_roms_for_title(self, title_id: str, system: str) -> list[dict]:
         """

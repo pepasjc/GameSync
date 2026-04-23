@@ -538,7 +538,7 @@ fun SettingsScreen(
             // Add a custom system folder not yet auto-detected
             val knownAddSystems = listOf(
                 "SAT", "DC", "PS1", "PS2", "PSP", "GBA", "GBC", "GB", "SNES", "NES",
-                "N64", "NDS", "GC", "WII", "MD", "SMS", "GG", "SEGACD", "PCE", "NEOCD",
+                "N64", "NDS", "3DS", "GC", "WII", "MD", "SMS", "GG", "SEGACD", "PCE", "NEOCD",
                 "NGP", "WSWAN", "WSWANC", "A2600", "A7800", "LYNX", "MAME", "ARCADE"
             ).filter { it !in allSystems }
 

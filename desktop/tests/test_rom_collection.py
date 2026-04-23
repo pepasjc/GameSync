@@ -6,6 +6,22 @@ import pytest
 
 import rom_collection as rc
 import rom_normalizer as rn
+from systems import SYSTEM_CHOICES
+
+
+def test_system_choices_include_3ds():
+    assert "3DS" in SYSTEM_CHOICES
+
+
+def test_find_dat_for_3ds_uses_shared_keyword_map(monkeypatch, tmp_path):
+    dats_dir = tmp_path / "dats"
+    dats_dir.mkdir()
+    expected = dats_dir / "Nintendo - Nintendo 3DS.dat"
+    expected.write_text("<datafile />", encoding="utf-8")
+
+    monkeypatch.setattr(rn, "DATS_DIR", dats_dir)
+
+    assert rn.find_dat_for_system("3DS") == expected
 
 
 def test_scan_collection_prefers_usa_over_other_regions(tmp_path):

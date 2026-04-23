@@ -42,6 +42,24 @@ class InstalledRomsScannerTest {
     }
 
     @Test
+    fun `scan recognizes 3DS emulator formats`() {
+        writeFile(File(romScanDir, "3DS/Super Mario 3D Land (USA).cci"))
+        writeFile(File(romScanDir, "3DS/Animal Crossing - New Leaf (USA).cia"))
+
+        val roms = InstalledRomsScanner.scanInstalled(romScanDir.absolutePath)
+
+        assertEquals(2, roms.size)
+        assertEquals(listOf("3DS", "3DS"), roms.map { it.system })
+        assertEquals(
+            listOf(
+                "Animal Crossing - New Leaf (USA)",
+                "Super Mario 3D Land (USA)",
+            ),
+            roms.map { it.displayName },
+        )
+    }
+
+    @Test
     fun `cue plus bin pair groups under the cue primary`() {
         val cue = File(romScanDir, "PS1/Final Fantasy VII (USA).cue")
         val bin = File(romScanDir, "PS1/Final Fantasy VII (USA).bin")

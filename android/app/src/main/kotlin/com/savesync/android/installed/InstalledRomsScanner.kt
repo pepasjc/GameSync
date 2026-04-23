@@ -72,7 +72,7 @@ object InstalledRomsScanner {
      *  are included because a disc without those wouldn't be playable. */
     val ROM_EXTENSIONS: Set<String> = setOf(
         // Nintendo handhelds
-        "gba", "agb", "gb", "gbc", "sgb", "nds", "dsi", "3ds",
+        "gba", "agb", "gb", "gbc", "sgb", "nds", "dsi", "3ds", "cci", "cia",
         // Nintendo home
         "nes", "unf", "fds",
         "sfc", "smc", "snes", "fig", "swc",
@@ -110,7 +110,7 @@ object InstalledRomsScanner {
     )
 
     private val CART_PRIORITY: Map<String, Int> = mapOf(
-        "gba" to 6, "nds" to 6, "3ds" to 6,
+        "gba" to 6, "nds" to 6, "3ds" to 6, "cci" to 6, "cia" to 6,
         "gb" to 6, "gbc" to 6,
         "nes" to 6, "smc" to 6, "sfc" to 6,
         "md" to 6, "gen" to 6, "smd" to 6,

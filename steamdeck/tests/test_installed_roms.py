@@ -38,6 +38,21 @@ def test_scan_finds_cart_roms(tmp_path):
     assert gba.companion_files == []
 
 
+def test_scan_recognizes_3ds_cci_and_cia_roms(tmp_path):
+    emu = _mk_emu(tmp_path)
+    (emu / "roms" / "3ds").mkdir()
+    (emu / "roms" / "3ds" / "Super Mario 3D Land (USA).cci").write_bytes(b"x" * 100)
+    (emu / "roms" / "3ds" / "Animal Crossing - New Leaf (USA).cia").write_bytes(b"y" * 120)
+
+    roms = scan_installed(str(emu))
+
+    assert [r.system for r in roms] == ["3DS", "3DS"]
+    assert [r.display_name for r in roms] == [
+        "Animal Crossing - New Leaf (USA)",
+        "Super Mario 3D Land (USA)",
+    ]
+
+
 def test_scan_groups_cue_and_bin_pair(tmp_path):
     emu = _mk_emu(tmp_path)
     (emu / "roms" / "psx").mkdir()

@@ -248,6 +248,61 @@ def test_prepare_records_errors_when_target_is_a_file(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# SyncClient.plan_rom_download
+# ---------------------------------------------------------------------------
+
+
+def test_plan_rom_download_prefers_decrypted_cci_for_3ds():
+    client = SyncClient("localhost", 8000, "key")
+    filename, extract = client.plan_rom_download(
+        {
+            "rom_id": "3ds-1",
+            "system": "3DS",
+            "filename": "Super Mario 3D Land (USA).3ds.zip",
+            "extract_format": "3ds",
+            "extract_formats": ["cia", "decrypted_cia", "decrypted_cci"],
+        },
+        "3DS",
+    )
+
+    assert filename == "Super Mario 3D Land (USA)_decrypted.cci"
+    assert extract == "decrypted_cci"
+
+
+def test_plan_rom_download_ignores_legacy_3ds_hint_without_real_formats():
+    client = SyncClient("localhost", 8000, "key")
+    filename, extract = client.plan_rom_download(
+        {
+            "rom_id": "3ds-1",
+            "system": "3DS",
+            "filename": "Pilotwings Resort (USA).3ds",
+            "extract_format": "3ds",
+        },
+        "3DS",
+    )
+
+    assert filename == "Pilotwings Resort (USA).3ds"
+    assert extract is None
+
+
+def test_plan_rom_download_does_not_fall_back_to_3ds_cia_outputs():
+    client = SyncClient("localhost", 8000, "key")
+    filename, extract = client.plan_rom_download(
+        {
+            "rom_id": "3ds-1",
+            "system": "3DS",
+            "filename": "Pilotwings Resort (USA).3ds.zip",
+            "extract_format": "3ds",
+            "extract_formats": ["cia", "decrypted_cia"],
+        },
+        "3DS",
+    )
+
+    assert filename == "Pilotwings Resort (USA).3ds.zip"
+    assert extract is None
+
+
+# ---------------------------------------------------------------------------
 # SyncClient.download_rom
 # ---------------------------------------------------------------------------
 

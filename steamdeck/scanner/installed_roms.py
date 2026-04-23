@@ -40,6 +40,8 @@ _CART_PRIORITY: dict[str, int] = {
     ".gba": 6,
     ".nds": 6,
     ".3ds": 6,
+    ".cci": 6,
+    ".cia": 6,
     ".gb":  6,
     ".gbc": 6,
     ".nes": 6,
