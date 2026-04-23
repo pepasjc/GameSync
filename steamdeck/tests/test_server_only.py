@@ -34,9 +34,15 @@ def test_builder_emits_entry_per_uncovered_server_save(tmp_path):
     tids = {e.title_id for e in entries}
     assert tids == {"GBA_pokemon_emerald_usa", "SNES_super_metroid"}
     assert all(e.status == SyncStatus.SERVER_ONLY for e in entries)
-    # save_path is intentionally empty so Download Save stays hidden;
-    # user should Download ROM first so the scanner can place it.
-    assert all(e.save_path is None for e in entries)
+    # RetroArch-backed systems get a predicted .srm path so Download Save
+    # is immediately usable even without a local ROM.
+    by_id = {e.title_id: e for e in entries}
+    assert by_id["GBA_pokemon_emerald_usa"].save_path == (
+        tmp_path / "saves" / "retroarch" / "saves" / "Pokemon Emerald.srm"
+    )
+    assert by_id["SNES_super_metroid"].save_path == (
+        tmp_path / "saves" / "retroarch" / "saves" / "Super Metroid.srm"
+    )
 
 
 def test_builder_skips_saves_already_in_seen_ids(tmp_path):
@@ -148,3 +154,133 @@ def test_builder_populates_server_side_metadata(tmp_path):
     assert entry.server_timestamp == 1700000000.0
     assert entry.server_title_id == "GBA_zelda"
     assert entry.display_name == "Legend of Zelda"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Predicted save_path per system — ensures SERVER_ONLY entries are directly
+# downloadable rather than requiring the user to install the ROM first.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_ps1_server_only_predicts_duckstation_memcard_path(tmp_path):
+    server = {
+        "SLUS01324": {
+            "console_type": "PS1",
+            "name": "Breath of Fire IV (USA)",
+            "save_hash": "h",
+        }
+    }
+    entry = server_only.build_server_only_entries(server, set(), tmp_path)[0]
+    assert entry.save_path == (
+        tmp_path / "saves" / "duckstation" / "memcards"
+        / "Breath of Fire IV (USA)_1.mcd"
+    )
+    assert entry.is_multi_file is False
+    assert entry.is_psp_slot is False
+
+
+def test_ps1_server_only_strips_disc_tags_from_stem(tmp_path):
+    server = {
+        "SCUS94163": {
+            "console_type": "PS1",
+            "name": "Final Fantasy VII (USA) (Disc 1)",
+            "save_hash": "h",
+        }
+    }
+    entry = server_only.build_server_only_entries(server, set(), tmp_path)[0]
+    # Disc tag stripped so multi-disc saves share one card, matching
+    # DuckStation's _clean_card_label convention.
+    assert entry.save_path == (
+        tmp_path / "saves" / "duckstation" / "memcards"
+        / "Final Fantasy VII (USA)_1.mcd"
+    )
+
+
+def test_ps2_server_only_predicts_pcsx2_memcard_path(tmp_path):
+    server = {
+        "SLUS20002": {
+            "console_type": "PS2",
+            "name": "Final Fantasy X",
+            "save_hash": "h",
+        }
+    }
+    entry = server_only.build_server_only_entries(server, set(), tmp_path)[0]
+    assert entry.save_path == (
+        tmp_path / "saves" / "pcsx2" / "memcards" / "Final Fantasy X.ps2"
+    )
+
+
+def test_psp_server_only_uses_savedata_slot_dir(tmp_path):
+    server = {
+        "ULUS10567DATA": {
+            "console_type": "PSP",
+            "name": "Final Fantasy Tactics: The War of the Lions",
+            "save_hash": "h",
+        }
+    }
+    entry = server_only.build_server_only_entries(server, set(), tmp_path)[0]
+    assert entry.save_path == (
+        tmp_path / "saves" / "ppsspp" / "SAVEDATA" / "ULUS10567DATA"
+    )
+    # PSP downloads the save bundle and extracts into the slot directory.
+    assert entry.is_psp_slot is True
+    assert entry.is_multi_file is False
+
+
+def test_vita_server_only_uses_ux0_savedata_dir(tmp_path):
+    server = {
+        "PCSE00305": {
+            "console_type": "VITA",
+            "name": "Persona 4 Golden",
+            "save_hash": "h",
+        }
+    }
+    entry = server_only.build_server_only_entries(server, set(), tmp_path)[0]
+    assert entry.save_path == (
+        tmp_path / "saves" / "vita3k" / "ux0" / "user" / "00" / "savedata"
+        / "PCSE00305"
+    )
+    assert entry.is_multi_file is True
+
+
+def test_nds_server_only_predicts_sav_next_to_rom(tmp_path):
+    server = {
+        "NDS_chrono_trigger_usa": {
+            "console_type": "NDS",
+            "name": "Chrono Trigger (USA)",
+            "save_hash": "h",
+        }
+    }
+    entry = server_only.build_server_only_entries(server, set(), tmp_path)[0]
+    assert entry.save_path == (
+        tmp_path / "roms" / "nds" / "Chrono Trigger (USA).sav"
+    )
+
+
+def test_saturn_server_only_predicts_srm_at_retroarch_saves_root(tmp_path):
+    server = {
+        "SAT_T-4507G": {
+            "console_type": "SAT",
+            "name": "Grandia (USA)",
+            "save_hash": "h",
+        }
+    }
+    entry = server_only.build_server_only_entries(server, set(), tmp_path)[0]
+    assert entry.save_path == (
+        tmp_path / "saves" / "retroarch" / "saves" / "Grandia (USA).srm"
+    )
+
+
+def test_unknown_system_leaves_save_path_none(tmp_path):
+    # Fake system code the predictor doesn't know — save_path stays None so
+    # the Download button is hidden and the user is prompted to install the
+    # ROM + rescan instead of writing saves to an unpredictable location.
+    server = {
+        "ZZZ_unknown_game": {
+            "console_type": "ZZZ",
+            "name": "Mystery Platform Game",
+            "save_hash": "h",
+        }
+    }
+    entry = server_only.build_server_only_entries(server, set(), tmp_path)[0]
+    assert entry.save_path is None

@@ -293,7 +293,7 @@ QLabel#detailLabel {{
             btn_layout.addWidget(self._upload_btn)
 
         self._download_btn = None
-        if entry.server_hash and entry.save_path:
+        if entry.server_hash:
             self._download_btn = QPushButton("Download  [X]")
             self._download_btn.setStyleSheet(
                 f"QPushButton {{ background:{theme.STATUS_DOWNLOAD}; color:#fff;"
@@ -363,11 +363,21 @@ QLabel#detailLabel {{
 
     def _do_download(self):
         entry = self._entry
+        if entry.save_path is None:
+            ResultDialog(
+                False,
+                f"No local save destination for '{entry.display_name}' on"
+                f" {entry.system}.  Install the ROM and rescan, or configure"
+                " the emulation path in Settings.",
+                parent=self,
+            ).exec()
+            return
+
         msg = (
             f"Download server save for '{entry.display_name}'?\n"
             f"Title ID: {entry.title_id}"
         )
-        if entry.save_path and entry.save_path.exists():
+        if entry.save_path.exists():
             msg += "\n\nThis will overwrite your local save file."
 
         dlg = ConfirmDialog(
