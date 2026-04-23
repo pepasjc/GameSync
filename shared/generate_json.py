@@ -41,6 +41,7 @@ def main() -> None:
         "system_color": systems.SYSTEM_COLOR,
         "default_system_color": systems.DEFAULT_SYSTEM_COLOR,
         "psx_retail_prefixes": sorted(systems.PSX_RETAIL_PREFIXES),
+        "sync_id_rules": systems.SYNC_ID_RULES,
         "mister_folder_to_system": mister.MISTER_FOLDER_TO_SYSTEM,
         "mister_system_to_folder": mister.MISTER_SYSTEM_TO_FOLDER,
     }

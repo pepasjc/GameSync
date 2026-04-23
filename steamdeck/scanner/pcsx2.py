@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import Generator, Optional
 
 from .base import (
+    make_title_id,
     normalize_rom_name,
     sha256_file,
     find_paths,
-    to_title_id,
     normalize_serial,
     read_ps2_serial,
     find_rom_dirs,
@@ -160,7 +160,7 @@ def scan(
             else:
                 # Fall back to a slug derived from the card filename so the
                 # entry is still visible / syncable.
-                title_id = normalize_serial(stem) or to_title_id(stem, "PS2")
+                title_id = normalize_serial(stem) or make_title_id("PS2", stem)
 
             if title_id in yielded:
                 continue
@@ -183,7 +183,7 @@ def scan(
     for rom_file in scan_rom_files(rom_dirs, PS2_ROM_EXTENSIONS):
         stem = rom_file.stem
         serial = read_ps2_serial(rom_file) or normalize_serial(stem)
-        title_id = serial or to_title_id(stem, "PS2")
+        title_id = serial or make_title_id("PS2", stem)
 
         # If we're about to add a serial-backed entry and we already have a
         # weaker slug entry with the same display name, drop the stale one.

@@ -634,3 +634,117 @@ PSX_RETAIL_PREFIXES: frozenset[str] = frozenset(
         "SLAJ", "SLEJ", "SCAJ",          # Other
     }
 )
+
+# ---------------------------------------------------------------------------
+# sync_id rules — the single source of truth for how every client identifies
+# a save on the server.  Each client (3DS/NDS homebrew, Android, Steam Deck,
+# desktop) must ultimately emit an ID that agrees with the rule declared
+# here, so saves produced by different clients for the same game converge on
+# the same server slot.
+#
+# Strategies
+# ----------
+#   title_id           Native 16-char hex title_id (e.g. 3DS).  The client
+#                      already knows this value; no transformation needed.
+#
+#   prefix_hex_serial  Concatenate ``prefix`` with the hex encoding of the
+#                      ASCII serial bytes to produce a 16-char hex ID.
+#                      Used by NDS: the 4-char ROM gamecode (e.g. "AMKJ")
+#                      becomes ``00048000414D4B4A``.  This matches the
+#                      title_id the NDS/3DS homebrew clients compute when
+#                      they read the NDS ROM header on real hardware.
+#
+#   serial             Use the disc/cart serial verbatim (uppercased).
+#                      Applies to systems where the on-disc serial is the
+#                      canonical identifier already in use by real hardware,
+#                      emulators, and memory-card tooling.
+#
+#   slug               Fall back to ``SYSTEM_slug_region`` (e.g.
+#                      ``SNES_super_mario_world_usa``) for systems that have
+#                      no stable on-cart/on-disc ID.  This was the original
+#                      Steam Deck / desktop identifier.
+#
+# All strategies fall back to ``slug`` when the primary strategy can't be
+# applied (e.g. missing ROM, malformed header).  The resolver in
+# ``app.services.catalog_resolver`` handles the fallback transparently.
+# ---------------------------------------------------------------------------
+
+SYNC_ID_RULES: dict[str, dict[str, str]] = {
+    # Nintendo handhelds with native IDs
+    "3DS":  {"strategy": "title_id"},
+    "NDS":  {"strategy": "prefix_hex_serial", "prefix": "00048000"},
+    # Sony — disc/cart serial is the universal identifier
+    "PS1":  {"strategy": "serial"},
+    "PS2":  {"strategy": "serial"},
+    "PS3":  {"strategy": "serial"},
+    "PSP":  {"strategy": "serial"},
+    "VITA": {"strategy": "serial"},
+    # Sega Saturn — "T-NNNNNG" product codes match Saroo and emulators
+    "SAT":  {"strategy": "serial"},
+    # Everything else: slug.  Listed explicitly so the rule set is a complete
+    # declaration rather than relying on a default, and so a reader can
+    # confirm "yes, SNES really does use slug".
+    "32X":      {"strategy": "slug"},
+    "3DO":      {"strategy": "slug"},
+    "A2600":    {"strategy": "slug"},
+    "A5200":    {"strategy": "slug"},
+    "A7800":    {"strategy": "slug"},
+    "A800":     {"strategy": "slug"},
+    "ARCADE":   {"strategy": "slug"},
+    "ATARIST":  {"strategy": "slug"},
+    "ATARIXED": {"strategy": "slug"},
+    "BS":       {"strategy": "slug"},
+    "CPS1":     {"strategy": "slug"},
+    "CPS2":     {"strategy": "slug"},
+    "CPS3":     {"strategy": "slug"},
+    "DC":       {"strategy": "slug"},
+    "FBA":      {"strategy": "slug"},
+    "FBNEO":    {"strategy": "slug"},
+    "FDS":      {"strategy": "slug"},
+    "GB":       {"strategy": "slug"},
+    "GBA":      {"strategy": "slug"},
+    "GBC":      {"strategy": "slug"},
+    "GC":       {"strategy": "slug"},
+    "GG":       {"strategy": "slug"},
+    "JAGCD":    {"strategy": "slug"},
+    "JAGUAR":   {"strategy": "slug"},
+    "LYNX":     {"strategy": "slug"},
+    "MAME":     {"strategy": "slug"},
+    "MD":       {"strategy": "slug"},
+    "N64":      {"strategy": "slug"},
+    "N64DD":    {"strategy": "slug"},
+    "NAOMI":    {"strategy": "slug"},
+    "NAOMI2":   {"strategy": "slug"},
+    "NEOCD":    {"strategy": "slug"},
+    "NEOGEO":   {"strategy": "slug"},
+    "NES":      {"strategy": "slug"},
+    "NGP":      {"strategy": "slug"},
+    "NGPC":     {"strategy": "slug"},
+    "NSW":      {"strategy": "slug"},
+    "PC98":     {"strategy": "slug"},
+    "PCE":      {"strategy": "slug"},
+    "PCECD":    {"strategy": "slug"},
+    "PCFX":     {"strategy": "slug"},
+    "PCSG":     {"strategy": "slug"},
+    "POKEMINI": {"strategy": "slug"},
+    "SEGACD":   {"strategy": "slug"},
+    "SMS":      {"strategy": "slug"},
+    "SNES":     {"strategy": "slug"},
+    "TG16":     {"strategy": "slug"},
+    "VB":       {"strategy": "slug"},
+    "WII":      {"strategy": "slug"},
+    "WSWAN":    {"strategy": "slug"},
+    "WSWANC":   {"strategy": "slug"},
+    "X1":       {"strategy": "slug"},
+    "X68K":     {"strategy": "slug"},
+}
+
+
+def get_sync_id_rule(system: str) -> dict[str, str]:
+    """Return the sync_id rule for ``system``, defaulting to slug strategy.
+
+    Accepts any free-form system identifier; canonicalises via
+    :func:`normalize_system_code` before lookup.
+    """
+    canonical = normalize_system_code(system)
+    return SYNC_ID_RULES.get(canonical, {"strategy": "slug"})

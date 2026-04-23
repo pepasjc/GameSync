@@ -217,6 +217,15 @@ class DatNormalizer:
         self._canonical_names: dict[str, set[str]] = {}
         # system → {lowercase_rom_stem → canonical_name}  (arcade set-name lookup)
         self._romfile_index: dict[str, dict[str, str]] = {}
+        # system → {canonical_name → serial}  (DAT-declared on-disc/cart serial)
+        #   e.g. NDS   → {"Mario Kart DS (USA)": "AMCE", ...}
+        #        PS1   → {"Final Fantasy VII (USA) (Disc 1)": "SCUS-94163", ...}
+        #        SAT   → {"Panzer Dragoon (USA)": "T-4403H", ...}
+        # Used by the sync_id resolver to produce canonical identifiers that
+        # match what real hardware and emulators use.
+        self._serial_index: dict[str, dict[str, str]] = {}
+        # system → {normalized_serial → canonical_name} (reverse lookup)
+        self._serial_to_name: dict[str, dict[str, str]] = {}
         self._load_all()
 
     def _load_all(self) -> None:
@@ -229,7 +238,7 @@ class DatNormalizer:
                     "[dat_normalizer] Skipped (unrecognized system): %s", dat_path.name
                 )
                 continue
-            crc_map, slug_cands, romfile_map = _parse_dat(dat_path)
+            crc_map, slug_cands, romfile_map, serial_map = _parse_dat(dat_path)
             # Merge CRC index
             self._crc_index.setdefault(system, {}).update(crc_map)
             # Merge slug candidates
@@ -247,12 +256,26 @@ class DatNormalizer:
             # Merge ROM filename index
             if romfile_map:
                 self._romfile_index.setdefault(system, {}).update(romfile_map)
+            # Merge serial index (forward and reverse)
+            if serial_map:
+                self._serial_index.setdefault(system, {}).update(serial_map)
+                rev = self._serial_to_name.setdefault(system, {})
+                for name, serial in serial_map.items():
+                    norm = _normalize_serial(serial)
+                    if not norm:
+                        continue
+                    # Prefer the region-best canonical name when multiple
+                    # clones share a serial.
+                    current = rev.get(norm)
+                    if current is None or _region_score(name) < _region_score(current):
+                        rev[norm] = name
             logger.info(
-                "[dat_normalizer] %s: +%d CRC32 +%d names +%d romfiles  [%s]",
+                "[dat_normalizer] %s: +%d CRC32 +%d names +%d romfiles +%d serials  [%s]",
                 system,
                 len(crc_map),
                 sum(len(v) for v in slug_cands.values()),
                 len(romfile_map),
+                len(serial_map),
                 dat_path.name,
             )
         self._load_aliases()
@@ -396,9 +419,62 @@ class DatNormalizer:
             sys: {
                 "crc32_entries": len(self._crc_index.get(sys, {})),
                 "name_entries": len(self._slug_index.get(sys, {})),
+                "serial_entries": len(self._serial_index.get(sys, {})),
             }
             for sys in self.available_systems()
         }
+
+    # ------------------------------------------------------------------
+    # Serial lookup — used by the sync_id resolver
+    # ------------------------------------------------------------------
+
+    def serial_for_canonical(self, system: str, canonical_name: str) -> Optional[str]:
+        """Return the DAT serial for a canonical game name, if known."""
+        return self._serial_index.get(system.upper(), {}).get(canonical_name)
+
+    def canonical_for_serial(self, system: str, serial: str) -> Optional[str]:
+        """Reverse lookup: region-best canonical name for a DAT serial."""
+        norm = _normalize_serial(serial)
+        if not norm:
+            return None
+        return self._serial_to_name.get(system.upper(), {}).get(norm)
+
+    def lookup_serial(
+        self,
+        system: str,
+        filename: str,
+        crc32: Optional[str] = None,
+    ) -> Optional[str]:
+        """Find the DAT serial for a ROM by filename and/or CRC32.
+
+        Tries CRC32 first (most accurate) then falls back to filename-based
+        slug lookup.  Returns None when no entry matches.
+        """
+        sys_key = system.upper()
+        serials = self._serial_index.get(sys_key)
+        if not serials:
+            return None
+
+        # 1. CRC32 lookup → canonical → serial
+        if crc32:
+            crc_padded = crc32.upper().zfill(8)
+            canonical = self._crc_index.get(sys_key, {}).get(crc_padded)
+            if canonical and canonical in serials:
+                return serials[canonical]
+
+        # 2. Slug lookup → canonical → serial
+        stem = Path(filename).stem
+        slug = normalize_rom_name(stem)
+        canonical = self._slug_index.get(sys_key, {}).get(slug)
+        if canonical and canonical in serials:
+            return serials[canonical]
+
+        # 3. ROM filename lookup (arcade-style)
+        canonical = self._romfile_index.get(sys_key, {}).get(stem.lower())
+        if canonical and canonical in serials:
+            return serials[canonical]
+
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -422,9 +498,21 @@ def get() -> Optional[DatNormalizer]:
 # ---------------------------------------------------------------------------
 
 
+def _normalize_serial(serial: str) -> str:
+    """Canonicalise a DAT serial for dictionary lookup.
+
+    DATs sometimes list serials with inconsistent casing or punctuation (e.g.
+    ``SCUS-94163`` vs ``SCUS94163``).  We uppercase and strip non-alphanumeric
+    separators so either form matches the same key.
+    """
+    if not serial:
+        return ""
+    return re.sub(r"[^A-Z0-9]", "", serial.upper())
+
+
 def _parse_dat(
     dat_path: Path,
-) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str]]:
     """Parse a No-Intro/Redump DAT — XML or libretro clrmamepro text format.
 
     Auto-detects format by inspecting the first non-empty line:
@@ -435,6 +523,7 @@ def _parse_dat(
       crc_map         — {CRC32_UPPER_8 → canonical_name}
       slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
       romfile_map     — {lowercase_rom_stem → canonical_name}  (arcade set names)
+      serial_map      — {canonical_name → serial_string}
     """
     try:
         with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
@@ -453,22 +542,24 @@ def _parse_dat(
         logger.error(
             "[dat_normalizer] Failed to detect format of %s: %s", dat_path.name, exc
         )
-        return {}, {}, {}
+        return {}, {}, {}, {}
 
 
 def _parse_xml_dat(
     dat_path: Path,
-) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str]]:
     """Parse a standard No-Intro/Redump XML DAT.
 
     Returns:
       crc_map         — {CRC32_UPPER_8 → canonical_name}
       slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
       romfile_map     — {lowercase_rom_stem → canonical_name}
+      serial_map      — {canonical_name → serial_string}
     """
     crc_map: dict[str, str] = {}
     slug_candidates: dict[str, list[str]] = {}
     romfile_map: dict[str, str] = {}
+    serial_map: dict[str, str] = {}
     try:
         tree = ET.parse(dat_path)
         root = tree.getroot()
@@ -478,6 +569,11 @@ def _parse_xml_dat(
                 continue
             slug = normalize_rom_name(canonical)
             slug_candidates.setdefault(slug, []).append(canonical)
+            # No-Intro XML puts the serial either on the game element or on
+            # the rom element; check both.
+            game_serial = game.get("serial", "").strip()
+            if game_serial:
+                serial_map.setdefault(canonical, game_serial)
             for rom in game.findall("rom"):
                 crc = rom.get("crc", "").upper().zfill(8)
                 if crc and crc != "00000000":
@@ -485,18 +581,27 @@ def _parse_xml_dat(
                 rom_name = rom.get("name", "")
                 if rom_name:
                     romfile_map[Path(rom_name).stem.lower()] = canonical
+                rom_serial = rom.get("serial", "").strip()
+                if rom_serial:
+                    serial_map.setdefault(canonical, rom_serial)
     except Exception as exc:
         logger.error("[dat_normalizer] Failed to parse XML %s: %s", dat_path.name, exc)
-    return crc_map, slug_candidates, romfile_map
+    return crc_map, slug_candidates, romfile_map, serial_map
 
 
 _ROM_LINE_RE = re.compile(r"\brom\s*\(.*?\bcrc\s+([0-9A-Fa-f]{1,8})\b", re.IGNORECASE)
 _ROM_NAME_IN_LINE_RE = re.compile(r"\brom\s*\(.*?\bname\s+(\S+)", re.IGNORECASE)
+# game-level: `serial "BKAJ"` — a top-level block attribute
+_GAME_SERIAL_RE = re.compile(r'^\s*serial\s+"(.+?)"')
+# rom-level: `... serial "BKAJ" )` — same value on the rom line
+_ROM_SERIAL_IN_LINE_RE = re.compile(
+    r"\brom\s*\(.*?\bserial\s+\"([^\"]+)\"", re.IGNORECASE
+)
 
 
 def _parse_clrmamepro_dat(
     dat_path: Path,
-) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str]]:
     """Parse a libretro clrmamepro text-format DAT.
 
     Format::
@@ -504,34 +609,48 @@ def _parse_clrmamepro_dat(
         game (
             name "Canonical Title (Region)"
             region "USA"
-            rom ( name "file.ext" size 12345 crc AABBCCDD md5 ... )
+            serial "SLUS-01234"
+            rom ( name "file.ext" size 12345 crc AABBCCDD md5 ... serial "SLUS-01234" )
         )
 
     A game block may contain multiple rom lines (multi-disc / multi-track);
-    all their CRC32s are indexed to the same canonical name.
+    all their CRC32s are indexed to the same canonical name.  When the game
+    carries a ``serial`` attribute (NDS, PS1, PS2, PSP, Vita, Saturn DATs all
+    do) we capture it for sync_id resolution.
 
     Returns:
       crc_map         — {CRC32_UPPER_8 → canonical_name}
       slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
       romfile_map     — {lowercase_rom_stem → canonical_name}
+      serial_map      — {canonical_name → serial_string}
     """
     crc_map: dict[str, str] = {}
     slug_candidates: dict[str, list[str]] = {}
     romfile_map: dict[str, str] = {}
+    serial_map: dict[str, str] = {}
 
     _NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
 
     try:
         current_name: str | None = None
+        current_serial: str | None = None
 
         with open(dat_path, "r", encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 m = _NAME_RE.match(line)
                 if m:
                     current_name = m.group(1).strip()
+                    current_serial = None
                     continue
 
-                # rom ( ... name filename.zip ... crc XXXXXXXX ... )
+                # game-level `serial "..."` line (before any rom line)
+                ms = _GAME_SERIAL_RE.match(line)
+                if ms and current_name and current_serial is None:
+                    current_serial = ms.group(1).strip()
+                    if current_serial:
+                        serial_map.setdefault(current_name, current_serial)
+
+                # rom ( ... name filename.zip ... crc XXXXXXXX ... serial "..." )
                 if "rom (" in line and current_name:
                     nm = _ROM_NAME_IN_LINE_RE.search(line)
                     if nm:
@@ -545,6 +664,12 @@ def _parse_clrmamepro_dat(
                         if crc and crc != "00000000":
                             crc_map[crc] = current_name
 
+                    rs = _ROM_SERIAL_IN_LINE_RE.search(line)
+                    if rs and current_serial is None:
+                        current_serial = rs.group(1).strip()
+                        if current_serial:
+                            serial_map.setdefault(current_name, current_serial)
+
                 # end of block
                 if line.strip() == ")" and current_name:
                     slug = normalize_rom_name(current_name)
@@ -552,9 +677,10 @@ def _parse_clrmamepro_dat(
                     if current_name not in cands:
                         cands.append(current_name)
                     current_name = None
+                    current_serial = None
 
     except Exception as exc:
         logger.error(
             "[dat_normalizer] Failed to parse clrmamepro %s: %s", dat_path.name, exc
         )
-    return crc_map, slug_candidates, romfile_map
+    return crc_map, slug_candidates, romfile_map, serial_map

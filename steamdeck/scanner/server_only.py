@@ -35,7 +35,7 @@ from .models import GameEntry, SyncStatus
 
 # Systems that have their own dedicated builder.  We skip them here so we
 # don't clobber the save_path placeholders those builders already compute.
-_HANDLED_BY_DEDICATED_BUILDER = {"PS3", "GC"}
+_HANDLED_BY_DEDICATED_BUILDER = {"PS3", "GC", "3DS"}
 
 
 # Best-effort emulator label per system, used only for display in the Save

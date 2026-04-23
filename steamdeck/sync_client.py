@@ -747,7 +747,12 @@ class SyncClient:
                 skip = _PS3_BUNDLE_SKIP if system == "PS3" else None
                 data = _create_dir_bundle(title_id, save_path, skip_names=skip)
                 url = f"{self.base_url}/saves/{remote_title_id}"
-                params = {"source": "ps3_emu"} if system == "PS3" else {}
+                if system == "PS3":
+                    params = {"source": "ps3_emu"}
+                elif system == "3DS":
+                    params = {"source": "3ds_emu"}
+                else:
+                    params = {}
                 if force:
                     params["force"] = "true"
                 r = requests.post(
@@ -918,6 +923,8 @@ class SyncClient:
             # Get server hash from header
             server_hash = r.headers.get("X-Save-Hash", "")
             _update_state(title_id, server_hash)
+            if server_hash and (entry.is_psp_slot or entry.is_multi_file):
+                entry.save_hash = server_hash
             # Sync the entry's view of the server save to what we just
             # downloaded.  The /titles listing returns the VMP/blob hash
             # the server stores on disk, while the per-format download

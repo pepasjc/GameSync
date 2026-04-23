@@ -49,7 +49,7 @@ from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
-from scanner import scan_all, rpcs3, dolphin, server_only
+from scanner import scan_all, rpcs3, dolphin, citra, server_only
 from scanner.rom_match import (
     DISC_SLUG_SYSTEMS as _DISC_SLUG_SYSTEMS,
     RomIndex as _RomIndex,
@@ -336,6 +336,10 @@ class ServerWorker(QObject):
         seen_ids = {entry.title_id for entry in updated}
         updated.extend(
             dolphin.build_server_only_entries(server_saves, seen_ids, self._emulation_path)
+        )
+        seen_ids = {entry.title_id for entry in updated}
+        updated.extend(
+            citra.build_server_only_entries(server_saves, seen_ids, self._emulation_path)
         )
         # Generic placeholders for every other system — lets the user see
         # (and Download-ROM for) server saves on systems without a dedicated

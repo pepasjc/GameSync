@@ -381,12 +381,18 @@ class SyncEngine(
         }
     }
 
+    private fun is3dsBundleEntry(entry: SaveEntry): Boolean {
+        return entry.systemName == "3DS" && entry.isMultiFile && entry.saveDir != null
+    }
+
     suspend fun uploadSave(entry: SaveEntry): Boolean {
         if (isSharedYabaSanshiroContainer(entry)) {
             autoResolveSharedSaturnArchives(entry)
         }
         return if (entry.isPspSlot) {
             uploadPspBundle(entry)
+        } else if (is3dsBundleEntry(entry)) {
+            upload3dsBundle(entry)
         } else if (isPs1RawEntry(entry)) {
             uploadPs1Card(entry)
         } else if (isPs2RawEntry(entry)) {
@@ -395,6 +401,25 @@ class SyncEngine(
             uploadGcCard(entry)
         } else {
             uploadSaveRaw(entry)
+        }
+    }
+
+    private suspend fun upload3dsBundle(entry: SaveEntry): Boolean {
+        val saveDir = entry.saveDir ?: return false
+        return try {
+            val bundleBytes = BundleUtils.createTreeBundle(entry.titleId, saveDir)
+            val requestBody = bundleBytes.toRequestBody("application/octet-stream".toMediaType())
+            val response = api.uploadSaveBundle(
+                titleId = entry.titleId,
+                source = "3ds_emu",
+                force = true,
+                consoleId = consoleId,
+                body = requestBody
+            )
+            response.status == "ok"
+        } catch (e: Exception) {
+            Log.e(TAG, "upload3dsBundle failed for ${entry.titleId}", e)
+            false
         }
     }
 
@@ -476,6 +501,8 @@ class SyncEngine(
     suspend fun downloadSave(entry: SaveEntry, titleId: String): Boolean {
         return if (entry.isPspSlot) {
             downloadPspBundle(entry, titleId)
+        } else if (is3dsBundleEntry(entry)) {
+            download3dsBundle(entry, titleId)
         } else if (entry.systemName == "PS1" && entry.saveFile != null) {
             downloadPs1Card(entry, titleId)
         } else if (entry.systemName == "PS2" && entry.saveFile != null) {
@@ -666,6 +693,35 @@ class SyncEngine(
         }
     }
 
+    private suspend fun download3dsBundle(entry: SaveEntry, titleId: String): Boolean {
+        val saveDir = entry.saveDir ?: return false
+        val response = api.downloadSaveBundle(titleId)
+        if (!response.isSuccessful) {
+            val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                ?: "Download failed (${response.code()})"
+            Log.e(TAG, "Download 3DS bundle HTTP error for $titleId: $message")
+            throw IOException(message)
+        }
+        return try {
+            val bytes = response.body()?.bytes() ?: return false
+            val files = BundleUtils.parseBundle(bytes)
+            if (files.isEmpty()) return false
+            if (saveDir.exists()) {
+                saveDir.deleteRecursively()
+            }
+            saveDir.mkdirs()
+            for ((name, data) in files) {
+                val target = File(saveDir, name)
+                target.parentFile?.mkdirs()
+                target.writeBytes(data)
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "download3dsBundle failed for $titleId", e)
+            false
+        }
+    }
+
     suspend fun recordSyncedState(entry: SaveEntry) {
         updateSyncState(entry)
     }
@@ -706,6 +762,8 @@ class SyncEngine(
                 // PSP/PSX slot: hash = sha256(all files sorted by name, data only, no paths)
                 entry.isPspSlot && entry.saveDir?.exists() == true ->
                     HashUtils.sha256DirFiles(entry.saveDir)
+                is3dsBundleEntry(entry) && entry.saveDir?.exists() == true ->
+                    HashUtils.sha256DirTreeFiles(entry.saveDir)
                 saturnSnapshot != null ->
                     HashUtils.sha256Bytes(saturnSnapshot.bytes)
                 entry.saveFile?.exists() == true -> HashUtils.sha256File(entry.saveFile)

@@ -26,12 +26,17 @@ data class SaveEntry(
      */
     val isPspSlot: Boolean get() = saveDir != null && !isMultiFile
 
+    val is3dsSaveDir: Boolean get() = systemName == "3DS" && isMultiFile && saveDir != null
+
     fun computeHash(): String {
         return when {
             isServerOnly -> ""
             // PSP slot dirs: sha256 of all file contents sorted by filename (no paths).
             // Matches the server's bundle hash and the PSP homebrew client's algorithm.
             isPspSlot -> HashUtils.sha256DirFiles(saveDir!!)
+            // 3DS save archives are recursive directory trees bundled with relative paths,
+            // but the server compares only concatenated file contents in bundle order.
+            is3dsSaveDir -> HashUtils.sha256DirTreeFiles(saveDir!!)
             saveFile != null && extraFiles.isNotEmpty() -> {
                 val files = (listOf(saveFile) + extraFiles).filter { it.exists() }.sortedBy { it.name }
                 HashUtils.sha256Files(files)

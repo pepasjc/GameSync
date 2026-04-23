@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from .models import GameEntry, SyncStatus
-from . import retroarch, duckstation, pcsx2, ppsspp, rpcs3, dolphin, melonds
+from . import retroarch, duckstation, pcsx2, ppsspp, rpcs3, dolphin, melonds, citra
 
 
 def scan_all(
@@ -33,16 +33,17 @@ def scan_all(
         ("PCSX2", lambda b: pcsx2.scan(b, rom_scan_dir=rsd)),
         ("PPSSPP", lambda b: ppsspp.scan(b, rom_scan_dir=rsd)),
         ("Dolphin", lambda b: dolphin.scan(b, rom_scan_dir=rsd)),
+        ("melonDS", lambda b: melonds.scan(b, rom_scan_dir=rsd)),
     ]
 
     # Scanners that don't need rom_scan_dir
     scanners_basic = [
+        ("Azahar", citra.scan),
         (
             "RetroArch",
             lambda b: retroarch.scan(b, saturn_sync_format=saturn_sync_format),
         ),
         ("RPCS3", rpcs3.scan),
-        ("melonDS", melonds.scan),
     ]
 
     for name, scanner_fn in scanners_with_roms:

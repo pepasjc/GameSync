@@ -57,7 +57,11 @@ def test_scan_groups_cue_and_bin_pair(tmp_path):
     emu = _mk_emu(tmp_path)
     (emu / "roms" / "psx").mkdir()
     cue = emu / "roms" / "psx" / "Final Fantasy VII (USA).cue"
-    cue.write_text('FILE "Final Fantasy VII (USA).bin" BINARY\n')
+    # write_bytes keeps the content byte-exact; write_text on Windows
+    # would insert CRLF and desync the on-disk size from the in-memory
+    # length the test compares against.
+    cue_bytes = b'FILE "Final Fantasy VII (USA).bin" BINARY\n'
+    cue.write_bytes(cue_bytes)
     bin_file = emu / "roms" / "psx" / "Final Fantasy VII (USA).bin"
     bin_file.write_bytes(b"x" * 5000)
 
@@ -68,7 +72,7 @@ def test_scan_groups_cue_and_bin_pair(tmp_path):
     # .cue wins over .bin as the primary because it has a disc-format priority
     assert rom.path == cue
     assert rom.companion_files == [bin_file]
-    assert rom.size == 5000 + len(cue.read_text())
+    assert rom.size == 5000 + len(cue_bytes)
 
 
 def test_delete_installed_removes_primary_and_companions_from_system_root(tmp_path):

@@ -22,8 +22,7 @@ import java.util.zip.InflaterInputStream
  * The server's hash computation is:
  *   sha256( concat(file1.data, file2.data, ...) )  — in bundle order
  *
- * Files are always added in ascending filename order so the hash is deterministic
- * and matches the PSP homebrew client.
+ * Files are always added in deterministic order so the hash matches the server.
  */
 object BundleUtils {
 
@@ -67,11 +66,48 @@ object BundleUtils {
         }.toByteArray()
     }
 
-    private fun buildPayload(files: List<File>): ByteArray =
+    /**
+     * Creates a v4 bundle from every file under [saveDir], recursively sorted by relative path.
+     * Used for 3DS save trees where the save archive contains nested directories.
+     */
+    fun createTreeBundle(titleId: String, saveDir: File): ByteArray {
+        val files = saveDir.walkTopDown()
+            .filter { it.isFile }
+            .sortedBy { it.relativeTo(saveDir).path.replace('\\', '/') }
+            .toList()
+
+        val payload = buildPayload(files) { file ->
+            file.relativeTo(saveDir).path.replace('\\', '/')
+        }
+
+        val compressed = ByteArrayOutputStream().also { baos ->
+            DeflaterOutputStream(baos, java.util.zip.Deflater(6)).use { it.write(payload) }
+        }.toByteArray()
+
+        val timestamp = (System.currentTimeMillis() / 1000L).toInt()
+
+        return ByteArrayOutputStream().apply {
+            write(MAGIC)
+            write(int32LE(VERSION_V4))
+            val tidBytes = titleId.toByteArray(Charsets.US_ASCII)
+            val field = ByteArray(32)
+            tidBytes.copyInto(field, 0, 0, minOf(tidBytes.size, 31))
+            write(field)
+            write(int32LE(timestamp))
+            write(int32LE(files.size))
+            write(int32LE(payload.size))
+            write(compressed)
+        }.toByteArray()
+    }
+
+    private fun buildPayload(
+        files: List<File>,
+        nameForFile: (File) -> String = { it.name }
+    ): ByteArray =
         ByteArrayOutputStream().apply {
             // File table
             for (f in files) {
-                val nameBytes = f.name.toByteArray(Charsets.UTF_8)
+                val nameBytes = nameForFile(f).toByteArray(Charsets.UTF_8)
                 write(int16LE(nameBytes.size))
                 write(nameBytes)
                 write(int32LE(f.length().toInt()))

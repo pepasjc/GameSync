@@ -48,8 +48,8 @@ def test_builder_skips_saves_already_in_seen_ids(tmp_path):
     assert [e.title_id for e in entries] == ["SNES_chrono"]
 
 
-def test_builder_skips_ps3_and_gc_handled_by_dedicated_builders(tmp_path):
-    """PS3 and GC have their own builders that set up save_path placeholders;
+def test_builder_skips_ps3_gc_and_3ds_handled_by_dedicated_builders(tmp_path):
+    """PS3, GC, and 3DS have their own builders that set up save_path placeholders;
     the generic one must not duplicate those rows with null save_paths."""
     server = {
         "BLUS30464-AUTOSAVE-01": {
@@ -61,6 +61,11 @@ def test_builder_skips_ps3_and_gc_handled_by_dedicated_builders(tmp_path):
             "save_hash": "h",
             "console_type": "GC",
             "name": "Melee",
+        },
+        "0004000000030800": {
+            "save_hash": "h",
+            "console_type": "3DS",
+            "name": "Mario Kart 7",
         },
         "GBA_metroid_zero_mission": {
             "save_hash": "h",

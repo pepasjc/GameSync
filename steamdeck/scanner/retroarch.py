@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Generator, Optional
 
-from .base import sha256_file, find_paths, to_title_id
+from .base import sha256_file, find_paths, make_title_id
 from .models import GameEntry
 
 try:
@@ -32,7 +32,7 @@ def _saturn_title_id(rom_path: Optional[Path], rom_stem: str) -> str:
         serial_id = _resolve_sat(rom_path=rom_path, rom_name=rom_stem)
         if serial_id:
             return serial_id
-    return to_title_id(rom_stem, "SAT")
+    return make_title_id("SAT", rom_stem)
 
 # RetroArch Flatpak paths
 FLATPAK_RA_DATA = Path.home() / ".var/app/org.libretro.RetroArch/config/retroarch"
@@ -499,7 +499,7 @@ def scan(
         if system == "SAT":
             title_id = _saturn_title_id(rom_path, rom_stem)
         else:
-            title_id = to_title_id(rom_stem, system)
+            title_id = make_title_id(system, rom_stem)
         if title_id in seen_title_ids:
             continue
         seen_title_ids.add(title_id)
@@ -545,7 +545,7 @@ def scan(
             if system == "SAT":
                 title_id = _saturn_title_id(rom_file, rom_stem)
             else:
-                title_id = to_title_id(rom_stem, system)
+                title_id = make_title_id(system, rom_stem)
             if title_id in seen_title_ids:
                 continue
             seen_title_ids.add(title_id)

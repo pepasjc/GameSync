@@ -1,6 +1,7 @@
 {
   "system_choices": [
     "32X",
+    "3DS",
     "A2600",
     "A7800",
     "ARCADE",
@@ -163,6 +164,7 @@
     ".a78",
     ".bin",
     ".ccd",
+    ".cci",
     ".chd",
     ".cia",
     ".col",
@@ -204,6 +206,7 @@
     ".qd",
     ".rar",
     ".rom",
+    ".rvz",
     ".sat",
     ".sfc",
     ".sgb",
@@ -315,6 +318,9 @@
     ],
     "NDS": [
       "Nintendo DS"
+    ],
+    "3DS": [
+      "Nintendo 3DS"
     ],
     "GC": [
       "GameCube",
@@ -553,6 +559,192 @@
     "SLPS",
     "SLUS"
   ],
+  "sync_id_rules": {
+    "3DS": {
+      "strategy": "title_id"
+    },
+    "NDS": {
+      "strategy": "prefix_hex_serial",
+      "prefix": "00048000"
+    },
+    "PS1": {
+      "strategy": "serial"
+    },
+    "PS2": {
+      "strategy": "serial"
+    },
+    "PS3": {
+      "strategy": "serial"
+    },
+    "PSP": {
+      "strategy": "serial"
+    },
+    "VITA": {
+      "strategy": "serial"
+    },
+    "SAT": {
+      "strategy": "serial"
+    },
+    "32X": {
+      "strategy": "slug"
+    },
+    "3DO": {
+      "strategy": "slug"
+    },
+    "A2600": {
+      "strategy": "slug"
+    },
+    "A5200": {
+      "strategy": "slug"
+    },
+    "A7800": {
+      "strategy": "slug"
+    },
+    "A800": {
+      "strategy": "slug"
+    },
+    "ARCADE": {
+      "strategy": "slug"
+    },
+    "ATARIST": {
+      "strategy": "slug"
+    },
+    "ATARIXED": {
+      "strategy": "slug"
+    },
+    "BS": {
+      "strategy": "slug"
+    },
+    "CPS1": {
+      "strategy": "slug"
+    },
+    "CPS2": {
+      "strategy": "slug"
+    },
+    "CPS3": {
+      "strategy": "slug"
+    },
+    "DC": {
+      "strategy": "slug"
+    },
+    "FBA": {
+      "strategy": "slug"
+    },
+    "FBNEO": {
+      "strategy": "slug"
+    },
+    "FDS": {
+      "strategy": "slug"
+    },
+    "GB": {
+      "strategy": "slug"
+    },
+    "GBA": {
+      "strategy": "slug"
+    },
+    "GBC": {
+      "strategy": "slug"
+    },
+    "GC": {
+      "strategy": "slug"
+    },
+    "GG": {
+      "strategy": "slug"
+    },
+    "JAGCD": {
+      "strategy": "slug"
+    },
+    "JAGUAR": {
+      "strategy": "slug"
+    },
+    "LYNX": {
+      "strategy": "slug"
+    },
+    "MAME": {
+      "strategy": "slug"
+    },
+    "MD": {
+      "strategy": "slug"
+    },
+    "N64": {
+      "strategy": "slug"
+    },
+    "N64DD": {
+      "strategy": "slug"
+    },
+    "NAOMI": {
+      "strategy": "slug"
+    },
+    "NAOMI2": {
+      "strategy": "slug"
+    },
+    "NEOCD": {
+      "strategy": "slug"
+    },
+    "NEOGEO": {
+      "strategy": "slug"
+    },
+    "NES": {
+      "strategy": "slug"
+    },
+    "NGP": {
+      "strategy": "slug"
+    },
+    "NGPC": {
+      "strategy": "slug"
+    },
+    "NSW": {
+      "strategy": "slug"
+    },
+    "PC98": {
+      "strategy": "slug"
+    },
+    "PCE": {
+      "strategy": "slug"
+    },
+    "PCECD": {
+      "strategy": "slug"
+    },
+    "PCFX": {
+      "strategy": "slug"
+    },
+    "PCSG": {
+      "strategy": "slug"
+    },
+    "POKEMINI": {
+      "strategy": "slug"
+    },
+    "SEGACD": {
+      "strategy": "slug"
+    },
+    "SMS": {
+      "strategy": "slug"
+    },
+    "SNES": {
+      "strategy": "slug"
+    },
+    "TG16": {
+      "strategy": "slug"
+    },
+    "VB": {
+      "strategy": "slug"
+    },
+    "WII": {
+      "strategy": "slug"
+    },
+    "WSWAN": {
+      "strategy": "slug"
+    },
+    "WSWANC": {
+      "strategy": "slug"
+    },
+    "X1": {
+      "strategy": "slug"
+    },
+    "X68K": {
+      "strategy": "slug"
+    }
+  },
   "mister_folder_to_system": {
     "GBA": "GBA",
     "SNES": "SNES",

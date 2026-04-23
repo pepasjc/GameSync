@@ -21,10 +21,10 @@ from pathlib import Path
 from typing import Generator, Optional
 
 from .base import (
+    make_title_id,
     normalize_rom_name,
     sha256_file,
     find_paths,
-    to_ps1_title_id,
     normalize_serial,
     read_ps1_serial,
     find_rom_dirs,
@@ -224,7 +224,7 @@ def scan(
                     or normalize_serial(rom_file.stem)
                     or normalize_serial(label)
                 )
-                title_id = serial or to_ps1_title_id(label)
+                title_id = serial or make_title_id("PS1", label)
                 clean_label = _clean_card_label(label) or label
 
                 if title_id in yielded:
@@ -266,7 +266,7 @@ def scan(
             continue
 
         # No ROM match — emit a card-only entry so the save is still shown.
-        fallback_tid = serial or to_ps1_title_id(stem_no_slot)
+        fallback_tid = serial or make_title_id("PS1", stem_no_slot)
         if fallback_tid in yielded:
             _attach_card(yielded[fallback_tid], card)
             continue

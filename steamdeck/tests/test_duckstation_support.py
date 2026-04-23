@@ -65,19 +65,24 @@ def test_scan_keeps_card_only_entry_when_no_rom_match(tmp_path):
     assert results[0].save_path is not None
 
 
-def test_scan_dedupes_card_named_simply_vs_rom_with_region_tags(monkeypatch, tmp_path):
-    """The previous dedup compared card display_name to a cleaned ROM label —
-    that failed whenever the card's filename did NOT mirror the ROM's tags
-    (e.g. card "Crash_1.mcd" vs ROM "Crash Bandicoot (USA).bin").  The flipped
-    ROM-first scan matches cards by a fully normalised name, so this now
-    collapses to a single serial-keyed entry."""
+def test_scan_dedupes_region_tagged_card_with_rev_rom(monkeypatch, tmp_path):
+    """A card name that carries the region (``"Crash Bandicoot (USA)_1.mcd"``)
+    should attach to the ROM entry even when the ROM adds extra ``(Rev 1)``
+    metadata that the card stem omits — ``normalize_rom_name`` strips the
+    revision tag but preserves the region, so both sides produce
+    ``crash_bandicoot_usa`` and collapse to one serial-keyed entry.
+
+    A card *without* a region tag is genuinely distinct — it could be any
+    regional release — and correctly does NOT merge with a region-tagged
+    ROM.  That's the invariant that keeps SteamDeck saves landing under
+    the same server key as the Android client."""
     emulation = tmp_path / "Emulation"
     memcards = emulation / "saves" / "duckstation" / "memcards"
     roms_dir = emulation / "roms" / "PS1"
     memcards.mkdir(parents=True)
     roms_dir.mkdir(parents=True)
 
-    card = _write(memcards / "Crash Bandicoot_1.mcd", b"card")
+    card = _write(memcards / "Crash Bandicoot (USA)_1.mcd", b"card")
     rom = _write(roms_dir / "Crash Bandicoot (USA) (Rev 1).bin", b"rom")
 
     monkeypatch.setattr(
@@ -92,7 +97,11 @@ def test_scan_dedupes_card_named_simply_vs_rom_with_region_tags(monkeypatch, tmp
 
 def test_scan_merges_multi_disc_roms_under_single_entry(monkeypatch, tmp_path):
     """Both discs of a multi-disc game share a serial — the ROM pass must
-    collapse them so the card attaches to a single row, not one per disc."""
+    collapse them so the card attaches to a single row, not one per disc.
+
+    DuckStation names per-game cards after the ROM title (region and all,
+    minus the disc marker), so the card on disk for this game is
+    ``"Final Fantasy VII (USA)_1.mcd"``."""
     emulation = tmp_path / "Emulation"
     memcards = emulation / "saves" / "duckstation" / "memcards"
     roms_dir = emulation / "roms" / "PS1"
@@ -101,7 +110,7 @@ def test_scan_merges_multi_disc_roms_under_single_entry(monkeypatch, tmp_path):
 
     disc1 = _write(roms_dir / "Final Fantasy VII (USA) (Disc 1).bin", b"d1")
     disc2 = _write(roms_dir / "Final Fantasy VII (USA) (Disc 2).bin", b"d2")
-    _write(memcards / "Final Fantasy VII_1.mcd", b"card")
+    _write(memcards / "Final Fantasy VII (USA)_1.mcd", b"card")
 
     monkeypatch.setattr(duckstation, "read_ps1_serial", lambda p: "SCUS94163")
 
@@ -143,13 +152,15 @@ def test_scan_dino_crisis_duplicate_collapses_to_serial_and_duckstation_path(
 ):
     """The exact duplicate the user reported pre-fix:
 
-        Dino Crisis 2              (title_id: SLUS01279)  ← from the ROM
+        Dino Crisis 2 (USA)        (title_id: SLUS01279)  ← from the ROM
         Dino Crisis 2 (USA)        (title_id: PS1_dino_crisis_2_usa)  ← from card
 
     must collapse to ONE serial-keyed entry with the save_path set to the
-    path DuckStation writes: ``<memcards>/Dino Crisis 2_1.mcd``.  The card
-    name must NOT include the region tag — that's what breaks round-trip
-    sync with the actual emulator.
+    path DuckStation writes: ``<memcards>/Dino Crisis 2 (USA)_1.mcd``.  The
+    card name MUST include the region tag because DuckStation names cards
+    after the ROM title (which carries the region) — that's also the
+    invariant the shared normalizer relies on to keep cross-device sync
+    keys aligned.
     """
     emulation = tmp_path / "Emulation"
     memcards = emulation / "saves" / "duckstation" / "memcards"
@@ -157,7 +168,7 @@ def test_scan_dino_crisis_duplicate_collapses_to_serial_and_duckstation_path(
     memcards.mkdir(parents=True)
     roms_dir.mkdir(parents=True)
 
-    card = _write(memcards / "Dino Crisis 2_1.mcd", b"existing-card")
+    card = _write(memcards / "Dino Crisis 2 (USA)_1.mcd", b"existing-card")
     rom = _write(roms_dir / "Dino Crisis 2 (USA).bin", b"rom")
 
     monkeypatch.setattr(

@@ -24,6 +24,7 @@ import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SaveSyncApi
 import com.savesync.android.emulators.EmulatorRegistry
 import com.savesync.android.emulators.SaveEntry
+import com.savesync.android.emulators.impl.AzaharEmulator
 import com.savesync.android.emulators.impl.RetroArchEmulator
 import com.savesync.android.emulators.impl.DuckStationEmulator
 import com.savesync.android.storage.Settings
@@ -133,6 +134,7 @@ sealed class ServerMetaState {
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val compactPsCodeRegex = Regex("""^[A-Z]{4}\d{5}$""")
+    private val hex16TitleIdRegex = Regex("""^[0-9A-Fa-f]{16}$""")
 
     private val settingsStore = SettingsStore(application)
     private val db = SaveSyncApp.instance.database
@@ -490,6 +492,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // Slug-based PS1/PS2 IDs (PS1_slug / PS2_slug) are skipped here.
                     val productCodeEntries = resolvedRawSaves.filter { entry ->
                         entry.systemName == "PSP" ||
+                        (entry.systemName == "3DS" && hex16TitleIdRegex.matches(entry.titleId)) ||
                         ((entry.systemName == "PS1" || entry.systemName == "PS2") && !entry.titleId.contains('_')) ||
                         (entry.systemName == "SAT" && entry.titleId.startsWith("SAT_")) ||
                         (entry.systemName == "GC" && entry.titleId.startsWith("GC_"))
@@ -716,7 +719,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val ps2ServerOnly = stillUnanchoredTitles
                             .mapNotNull { titleInfo -> buildPs2ServerOnlyEntry(titleInfo) }
 
-                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly)
+                        val threedssServerOnly = stillUnanchoredTitles
+                            .mapNotNull { titleInfo -> build3dsServerOnlyEntry(titleInfo) }
+
+                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly + threedssServerOnly)
                             .mapTo(mutableSetOf()) { it.titleId }
 
                         // If a save has no local ROM/save anchor yet, still surface it when the
@@ -731,7 +737,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 )
                             }
 
-                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + romCatalogServerOnly
+                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + threedssServerOnly + romCatalogServerOnly
                     } catch (e: Exception) {
                         emptyList()
                     }
@@ -936,6 +942,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isServerOnly = true,
             canonicalName = titleInfo.name?.takeIf { it != displayName }
                 ?: titleInfo.game_name?.takeIf { it != displayName }
+        )
+    }
+
+    private fun build3dsServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo
+    ): SaveEntry? {
+        val system = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: ""
+        )
+        if (system != "3DS") return null
+        if (!hex16TitleIdRegex.matches(titleInfo.title_id)) return null
+
+        val saveDir = AzaharEmulator.defaultSaveDir(
+            storageBaseDir = Environment.getExternalStorageDirectory(),
+            titleId = titleInfo.title_id
+        ) ?: return null
+
+        val displayName = titleInfo.game_name
+            ?: titleInfo.name
+            ?: titleInfo.title_id
+
+        return SaveEntry(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            systemName = "3DS",
+            saveFile = null,
+            saveDir = saveDir,
+            isMultiFile = true,
+            isServerOnly = true,
+            canonicalName = titleInfo.game_name?.takeIf { it != displayName }
+                ?: titleInfo.name?.takeIf { it != displayName }
         )
     }
 

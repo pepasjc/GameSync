@@ -1,6 +1,7 @@
 package com.savesync.android.emulators
 
 import com.savesync.android.emulators.impl.AetherSX2Emulator
+import com.savesync.android.emulators.impl.AzaharEmulator
 import com.savesync.android.emulators.impl.DolphinEmulator
 import com.savesync.android.emulators.impl.DraSticEmulator
 import com.savesync.android.emulators.impl.DuckStationEmulator
@@ -26,6 +27,7 @@ object EmulatorRegistry {
         romDirOverrides: Map<String, String> = emptyMap(),
         saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
     ): List<EmulatorBase> = listOf(
+        AzaharEmulator(),
         RetroArchEmulator(romScanDir, romDirOverrides, saturnSyncFormat),
         PpssppEmulator(romScanDir, romDirOverrides),
         DuckStationEmulator(romScanDir),

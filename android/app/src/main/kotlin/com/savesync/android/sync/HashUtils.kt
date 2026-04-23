@@ -67,6 +67,30 @@ object HashUtils {
         return digest.digest().toHexString()
     }
 
+    /**
+     * Computes SHA-256 of all file contents in [dir] recursively, sorted by relative path,
+     * **without** including file paths in the hash.
+     *
+     * This matches the server hash for normal multi-file 3DSS bundles where metadata is
+     * stored per file but the slot hash is computed from the concatenated file contents in
+     * bundle order.
+     */
+    fun sha256DirTreeFiles(dir: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val files = collectFilesRecursively(dir)
+            .sortedBy { it.relativeTo(dir).path.replace('\\', '/') }
+        for (file in files) {
+            file.inputStream().use { stream ->
+                val buffer = ByteArray(8192)
+                var read: Int
+                while (stream.read(buffer).also { read = it } != -1) {
+                    digest.update(buffer, 0, read)
+                }
+            }
+        }
+        return digest.digest().toHexString()
+    }
+
     fun sha256Files(files: List<File>): String {
         val digest = MessageDigest.getInstance("SHA-256")
         for (file in files) {
