@@ -27,7 +27,7 @@ class RomEntryDownloadPolicyTest {
         val entry = rom(
             system = "3DS",
             extractFormat = "3ds",
-            extractFormats = listOf("cia", "decrypted_cia", "decrypted_cci"),
+            extractFormats = listOf("cia", "decrypted_cci"),
         )
 
         assertEquals("decrypted_cci", entry.preferredDownloadExtractFormat())
@@ -35,10 +35,6 @@ class RomEntryDownloadPolicyTest {
 
     @Test
     fun `3DS does not fall back to CIA outputs`() {
-        assertNull(
-            rom(system = "3DS", extractFormats = listOf("cia", "decrypted_cia"))
-                .preferredDownloadExtractFormat(),
-        )
         assertNull(
             rom(system = "3DS", extractFormats = listOf("cia"))
                 .preferredDownloadExtractFormat(),

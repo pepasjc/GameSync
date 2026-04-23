@@ -8,8 +8,11 @@ class Settings(BaseSettings):
     # Optional command templates for 3DS ROM conversion.
     # Supports either a shell-style string or a JSON array of args.
     # Available placeholders: {input}, {output}, {output_dir}, {stem}
+    #
+    # Only two formats are exposed: CIA (decrypted, installable on CFW 3DS AND
+    # usable in emulators — covered by a single command) and decrypted CCI
+    # (for emulators that prefer the CCI container).
     rom_3ds_cia_command: str = ""
-    rom_3ds_decrypted_cia_command: str = ""
     rom_3ds_decrypted_cci_command: str = ""
     api_key: str = "anything"
     host: str = "0.0.0.0"
@@ -30,6 +33,9 @@ class Settings(BaseSettings):
         "env_prefix": "SYNC_",
         "env_file": ".env",
         "env_file_encoding": "utf-8",
+        # Ignore unknown SYNC_* vars so old .env files (e.g. with the removed
+        # SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND) don't crash the server on boot.
+        "extra": "ignore",
     }
 
 

@@ -260,12 +260,14 @@ def test_plan_rom_download_prefers_decrypted_cci_for_3ds():
             "system": "3DS",
             "filename": "Super Mario 3D Land (USA).3ds.zip",
             "extract_format": "3ds",
-            "extract_formats": ["cia", "decrypted_cia", "decrypted_cci"],
+            "extract_formats": ["cia", "decrypted_cci"],
         },
         "3DS",
     )
 
-    assert filename == "Super Mario 3D Land (USA)_decrypted.cci"
+    # Filename preserves the ROM stem verbatim so save-folder detection on
+    # the Deck keeps working — no `_decrypted` marker.
+    assert filename == "Super Mario 3D Land (USA).cci"
     assert extract == "decrypted_cci"
 
 
@@ -286,6 +288,9 @@ def test_plan_rom_download_ignores_legacy_3ds_hint_without_real_formats():
 
 
 def test_plan_rom_download_does_not_fall_back_to_3ds_cia_outputs():
+    # If the server has a CIA wrapper configured but NOT a decrypted-CCI
+    # wrapper, the desktop emulator client falls back to the raw .3ds/.cci
+    # cart image rather than downloading a CIA it can't boot.
     client = SyncClient("localhost", 8000, "key")
     filename, extract = client.plan_rom_download(
         {
@@ -293,7 +298,7 @@ def test_plan_rom_download_does_not_fall_back_to_3ds_cia_outputs():
             "system": "3DS",
             "filename": "Pilotwings Resort (USA).3ds.zip",
             "extract_format": "3ds",
-            "extract_formats": ["cia", "decrypted_cia"],
+            "extract_formats": ["cia"],
         },
         "3DS",
     )

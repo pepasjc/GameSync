@@ -370,7 +370,13 @@ def _parse_dir_bundle(data: bytes) -> list[tuple[str, bytes]]:
 
 
 def _derive_3ds_download_filename(filename: str, extract_format: str) -> str:
-    """Map a raw 3DS catalog filename to the extracted output filename."""
+    """Map a raw 3DS catalog filename to the extracted output filename.
+
+    The ROM stem is preserved verbatim — only the extension changes. Adding a
+    ``_decrypted`` marker would break save-folder detection on the device,
+    which keys off the filename stem. Users who want to keep both a CIA and
+    a decrypted-CIA side by side must rename one locally themselves.
+    """
     stem = filename
     lower = stem.lower()
     if lower.endswith(".zip"):
@@ -383,9 +389,9 @@ def _derive_3ds_download_filename(filename: str, extract_format: str) -> str:
             break
 
     if extract_format == "decrypted_cci":
-        return f"{stem}_decrypted.cci"
-    if extract_format == "decrypted_cia":
-        return f"{stem}_decrypted.cia"
+        return f"{stem}.cci"
+    # The "cia" format produces a decrypted CIA that is ALSO installable on
+    # CFW 3DS hardware, so a single wrapper covers both use-cases.
     return f"{stem}.cia"
 
 

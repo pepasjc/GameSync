@@ -649,12 +649,6 @@ const STAGES = {
   cia: [
     'Starting conversion…',
     'Opening 3DS cart image…',
-    'Building installable CIA…',
-    'Writing CIA file…',
-  ],
-  decrypted_cia: [
-    'Starting conversion…',
-    'Opening 3DS cart image…',
     'Building decrypted CIA…',
     'Writing CIA file…',
   ],
@@ -673,8 +667,7 @@ const FMT_META = {
   iso: { badge:'ISO',           source:'CHD',     suffix:'',                    ext:'.iso',  errHint:'Check that chdman is installed on the server.' },
   cso: { badge:'CSO',           source:'CHD',     suffix:' · compressing',      ext:'.cso',  errHint:'Check that chdman and ciso/maxcso are installed on the server.' },
   rvz: { badge:'ISO',           source:'RVZ',     suffix:'',                    ext:'.iso',  errHint:'Check that DolphinTool is installed on the server.' },
-  cia:           { badge:'CIA',  source:'3DS CART', suffix:'',               ext:'.cia',  errHint:'Configure SYNC_ROM_3DS_CIA_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
-  decrypted_cia: { badge:'DCIA', source:'3DS CART', suffix:' · decrypted',   ext:'.cia',  errHint:'Configure SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
+  cia:           { badge:'CIA',  source:'3DS CART', suffix:' · decrypted',   ext:'.cia',  errHint:'Configure SYNC_ROM_3DS_CIA_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
   decrypted_cci: { badge:'CCI',  source:'3DS CART', suffix:' · decrypted',   ext:'.cci',  errHint:'Configure SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
 };
 
@@ -687,13 +680,28 @@ function activeQueueItem() {
 }
 
 function buildExtractFilename(titleId, gameName, fmt) {
+  // Fallback filename when the server didn't send Content-Disposition.
+  // Preserves the game-name stem verbatim — the extension is the only
+  // thing that changes between variants. Adding `_decrypted` or `_cue`-
+  // style markers breaks client-side save detection, which keys off the
+  // filename stem.
   const meta = FMT_META[fmt] || FMT_META.cue;
   const stem = gameName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || titleId;
-  return fmt === 'cue' ? `${stem}_cue.zip`
-       : fmt === 'gdi' ? `${stem}_gdi.zip`
-       : fmt === 'decrypted_cia' ? `${stem}_decrypted.cia`
-       : fmt === 'decrypted_cci' ? `${stem}_decrypted.cci`
-       : `${stem}${meta.ext}`;
+  return `${stem}${meta.ext}`;
+}
+
+function parseContentDispositionFilename(header) {
+  if (!header) return null;
+  // RFC 5987 filename*=UTF-8''... takes precedence when present.
+  const starMatch = header.match(/filename\*\s*=\s*(?:UTF-8|utf-8)''([^;]+)/i);
+  if (starMatch) {
+    try { return decodeURIComponent(starMatch[1]); } catch { /* fall through */ }
+  }
+  const quoted = header.match(/filename\s*=\s*"([^"]+)"/i);
+  if (quoted) return quoted[1];
+  const bare = header.match(/filename\s*=\s*([^;]+)/i);
+  if (bare) return bare[1].trim();
+  return null;
 }
 
 function toggleQueue(event) {
@@ -931,7 +939,11 @@ async function runNextQueuedExtract() {
     job.subText = '';
     renderQueue();
 
-    const filename = buildExtractFilename(job.titleId, job.gameName, job.fmt);
+    // Prefer the server's Content-Disposition filename so every client
+    // (web, Android, Steam Deck, curl) lands on the same stem — important
+    // for save-folder detection that keys off the filename.
+    const filename = parseContentDispositionFilename(r.headers.get('Content-Disposition'))
+                  || buildExtractFilename(job.titleId, job.gameName, job.fmt);
     triggerDownload(await r.blob(), filename);
     job.filename = filename;
     job.status = 'done';
@@ -1096,19 +1108,16 @@ function renderRoms() {
             data-url="${rawUrl}" data-fn="${fn}"
             title="Download original ${rawLabel}">${rawLabel}</button>
         </div>`;
-      } else if (extractFormats.some(f => ['cia', 'decrypted_cia', 'decrypted_cci'].includes(f))) {
-        // 3DS cart image: CIA / DCIA / CCI conversions + raw .3ds/.cci download.
-        // Raw button always shows "3DS" so it never collides with the decrypted-CCI button.
+      } else if (extractFormats.some(f => ['cia', 'decrypted_cci'].includes(f))) {
+        // 3DS cart image: CIA / CCI conversions + raw .3ds/.cci download.
+        // Raw button always shows "3DS" so it never collides with the CCI button.
+        // No separate "decrypted CIA" button — the CIA wrapper already produces
+        // a decrypted CIA that is ALSO installable on CFW hardware.
         const cartButtons = [];
         if (extractFormats.includes('cia')) {
           cartButtons.push(`<button class="dl-btn extract" data-action="extract"
             data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cia"
-            title="Convert to installable CIA (for 3DS hardware)">CIA</button>`);
-        }
-        if (extractFormats.includes('decrypted_cia')) {
-          cartButtons.push(`<button class="dl-btn extract" data-action="extract"
-            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cia"
-            title="Convert to decrypted CIA (for emulators)">DCIA</button>`);
+            title="Convert to decrypted CIA (installable on CFW 3DS, works in emulators)">CIA</button>`);
         }
         if (extractFormats.includes('decrypted_cci')) {
           cartButtons.push(`<button class="dl-btn extract" data-action="extract"

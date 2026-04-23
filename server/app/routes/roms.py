@@ -7,9 +7,8 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                   ?extract=iso  — CHD → ISO (PSP)
                                   ?extract=cso  — CHD → CSO compressed image (PSP)
                                   ?extract=rvz  — RVZ → ISO (GameCube / Wii via DolphinTool)
-                                  ?extract=cia  — 3DS cart image → installable CIA
-                                  ?extract=decrypted_cia
-                                                 3DS cart image → decrypted CIA for emulators
+                                  ?extract=cia  — 3DS cart image → decrypted CIA
+                                                 (installable on CFW 3DS AND usable in emulators)
                                   ?extract=decrypted_cci
                                                  3DS cart image → decrypted CCI for emulators
 POST /api/v1/roms/scan         — Trigger rescan of ROM directory
@@ -63,27 +62,22 @@ _GC_SYSTEMS = frozenset({'GC', 'WII'})
 # 3DS cartridge images can be converted to CIA variants
 _3DS_SYSTEMS = frozenset({'3DS'})
 _3DS_CART_EXTENSIONS = frozenset({'.3ds', '.cci'})
+# Output filenames preserve the original ROM stem — only the extension changes.
+# Two formats only: a decrypted CIA (which is also installable on CFW 3DS
+# hardware, so one button covers both use-cases) and a decrypted CCI for
+# emulators that prefer that format.
 _3DS_EXTRACT_SPECS = {
     'cia': {
         'setting': 'rom_3ds_cia_command',
         'env': 'SYNC_ROM_3DS_CIA_COMMAND',
         'label': 'CIA',
         'output_ext': '.cia',
-        'filename_suffix': '',
-    },
-    'decrypted_cia': {
-        'setting': 'rom_3ds_decrypted_cia_command',
-        'env': 'SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND',
-        'label': 'decrypted CIA',
-        'output_ext': '.cia',
-        'filename_suffix': '_decrypted',
     },
     'decrypted_cci': {
         'setting': 'rom_3ds_decrypted_cci_command',
         'env': 'SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND',
         'label': 'decrypted CCI',
         'output_ext': '.cci',
-        'filename_suffix': '_decrypted',
     },
 }
 _3DS_EXTRACT_FORMATS = list(_3DS_EXTRACT_SPECS.keys())
@@ -171,8 +165,8 @@ async def download_rom(
         description=(
             "Extract format: 'cue' (CUE/BIN zip), 'gdi' (GDI zip), "
             "'iso' (PSP ISO), 'cso' (PSP compressed ISO), "
-            "'cia' (3DS installable CIA), 'decrypted_cia' (3DS emulator CIA), "
-            "'decrypted_cci' (3DS emulator CCI)"
+            "'cia' (3DS decrypted CIA, also installable on CFW hardware), "
+            "'decrypted_cci' (3DS decrypted CCI for emulators)"
         ),
     ),
     range_header: Optional[str] = Header(None, alias="Range"),
@@ -290,7 +284,7 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
                 f"(a {spec['output_ext']} file).\n"
                 f"\n"
                 f"On Raspberry Pi / Linux, run the bundled installer from the repo root to set up "
-                f"the full 3DS conversion toolchain (CIA, decrypted CIA, decrypted CCI):\n"
+                f"the full 3DS conversion toolchain (CIA, decrypted CCI):\n"
                 f"    ./install-3ds-rom-tools-rpi.sh\n"
                 f"It prints the exact SYNC_ROM_3DS_* lines to paste into your server/.env file."
             ),
@@ -300,7 +294,8 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             input_path, stem = _materialize_3ds_source(source_path, tmp)
-            output_name = f"{stem}{spec['filename_suffix']}{spec['output_ext']}"
+            # Preserve the original ROM stem verbatim — only the extension changes.
+            output_name = f"{stem}{spec['output_ext']}"
             output_path = tmp / output_name
 
             cmd = _expand_command_template(
@@ -464,8 +459,9 @@ async def _extract_cd(chd_path: Path, system: str) -> Response:
     except subprocess.TimeoutExpired:
         return Response(status_code=504, content="Extraction timed out (>10 min)")
 
-    fmt      = 'gdi' if sys_up in _GDI_SYSTEMS else 'cue'
-    filename = f"{stem}_{fmt}.zip"
+    # Preserve the original ROM stem — the ZIP extension is the only hint the
+    # client needs to distinguish a CHD extraction from the raw file.
+    filename = f"{stem}.zip"
     return Response(
         content=data,
         media_type='application/zip',
