@@ -283,8 +283,16 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
         return Response(
             status_code=503,
             content=(
-                f"3DS {spec['label']} conversion is not configured. "
-                f"Set {spec['env']} to a command template that writes the output {spec['output_ext']} file."
+                f"3DS {spec['label']} conversion is not configured on the server.\n"
+                f"\n"
+                f"To enable this conversion, set {spec['env']} to a command template that "
+                f"reads {{input}} (a .3ds / .cci cart image) and writes the output to {{output}} "
+                f"(a {spec['output_ext']} file).\n"
+                f"\n"
+                f"On Raspberry Pi / Linux, run the bundled installer from the repo root to set up "
+                f"the full 3DS conversion toolchain (CIA, decrypted CIA, decrypted CCI):\n"
+                f"    ./install-3ds-rom-tools-rpi.sh\n"
+                f"It prints the exact SYNC_ROM_3DS_* lines to paste into your server/.env file."
             ),
         )
 

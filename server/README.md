@@ -67,14 +67,33 @@ endpoint will unpack the single `.3ds` / `.cci` file from the ZIP before
 running your configured command.
 
 On Raspberry Pi / Linux, the repository root script
-`install-3ds-rom-tools-rpi.sh` installs an optional server-side CIA conversion
-toolchain without touching `install-3ds-tools-rpi.sh`. It stages private assets
-outside the repo at:
+`install-3ds-rom-tools-rpi.sh` installs the full server-side 3DS conversion
+toolchain (all three formats) without touching `install-3ds-tools-rpi.sh`. It
+stages private assets outside the repo at:
 
 ```text
 /opt/3dssync/3ds-rom-tools/assets/boot9.bin
 /opt/3dssync/3ds-rom-tools/assets/seeddb.bin
 ```
+
+The script installs three wrappers under `/usr/local/bin/`:
+
+| Wrapper | Underlying tool | Produces |
+|---|---|---|
+| `3dssync-3ds-to-cia` | `3dsconv` (Python) | Decrypted CIA (also installable on CFW hardware) |
+| `3dssync-3ds-to-decrypted-cia` | *(alias of above)* | Same file — the web UI just serves it with a `_decrypted.cia` name |
+| `3dssync-3ds-to-decrypted-cci` | `ninfs` (`mount_cci`, FUSE) | Decrypted `.cci` for emulators |
+
+After the script completes, paste the three `SYNC_ROM_3DS_*_COMMAND` lines it
+prints into `server/.env` and restart the server:
+
+```bash
+sudo systemctl restart 3dssync@pi
+```
+
+The `decrypted-cci` wrapper requires FUSE: `sudo apt install fuse3 libfuse-dev`.
+If FUSE isn't available, only the CIA / decrypted-CIA buttons in the web UI
+will work; the CCI button will return a 503 with actionable instructions.
 
 ---
 

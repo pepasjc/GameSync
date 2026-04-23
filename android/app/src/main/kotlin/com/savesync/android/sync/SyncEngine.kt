@@ -12,12 +12,22 @@ import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.installed.InstalledRomsScanner
 import com.savesync.android.storage.AppDatabase
 import com.savesync.android.storage.SyncStateEntity
+import com.savesync.android.systems.SystemAliases
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.IOException
 
 private const val TAG = "SyncEngine"
+
+// Disc-based systems where each game conventionally lives in its own
+// subfolder rather than as a flat file in the system directory (PS1
+// .cue+.bin pairs, Saturn, Dreamcast, Sega CD).  Mirrors
+// ``shared/systems.py::CD_FOLDER_SYSTEMS`` — keep the two in sync.
+// When downloading a ROM for one of these systems we wrap the file in a
+// subfolder named after the filename stem so multi-track layouts stay
+// grouped and the system folder stays tidy.
+private val CD_FOLDER_SYSTEMS: Set<String> = setOf("SEGACD", "SAT", "DC", "PS1")
 
 private data class SaturnCanonicalSnapshot(
     val bytes: ByteArray,
@@ -578,7 +588,21 @@ class SyncEngine(
                 romDirOverrides = romDirOverrides,
             )
             outDir.mkdirs()
-            val outFile = File(outDir, filename)
+
+            // CD-ROM style games (PS1 multi-track .cue+.bin, Saturn,
+            // Dreamcast, Sega CD) live in a per-game subfolder by
+            // convention so the data track, cue sheet and any companion
+            // files stay grouped.  Match that layout on download by
+            // dropping the file into ``<outDir>/<stem>/<filename>`` where
+            // ``<stem>`` is the filename with its extension stripped.
+            val canonicalSystem = SystemAliases.normalizeSystemCode(system)
+            val finalDir = if (canonicalSystem in CD_FOLDER_SYSTEMS) {
+                val stem = filename.substringBeforeLast('.', filename)
+                File(outDir, stem).also { it.mkdirs() }
+            } else {
+                outDir
+            }
+            val outFile = File(finalDir, filename)
 
             body.byteStream().use { input ->
                 outFile.outputStream().use { output ->

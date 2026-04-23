@@ -157,9 +157,12 @@
     .save-dot::before { content:''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
     .rom-foot {
       padding: 8px 10px; border-top: 1px solid var(--border-muted);
-      display: flex; align-items: center; gap: 6px;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
     }
-    .rom-btns { display: flex; gap: 5px; margin-left: auto; }
+    .rom-btns { display: flex; gap: 5px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+    /* 3DS cards can have up to 4 buttons — give them their own compact treatment */
+    .rom-btns-3ds { gap: 4px; }
+    .rom-btns-3ds .dl-btn { padding: 4px 7px; font-size: 10px; letter-spacing: .02em; }
 
     /* ── BADGE ── */
     .badge {
@@ -407,6 +410,7 @@
       .rom-body  { padding: 10px; }
       .rom-foot  { padding: 7px 10px; }
       .dl-btn    { padding: 5px 8px; font-size: 11px; min-height: 34px; }
+      .rom-btns-3ds .dl-btn { padding: 4px 6px; font-size: 10px; min-height: 28px; }
 
       /* Saves table — hide less important columns */
       .tbl th:nth-child(3), .tbl td:nth-child(3) { display: none; } /* Size */
@@ -669,9 +673,9 @@ const FMT_META = {
   iso: { badge:'ISO',           source:'CHD',     suffix:'',                    ext:'.iso',  errHint:'Check that chdman is installed on the server.' },
   cso: { badge:'CSO',           source:'CHD',     suffix:' · compressing',      ext:'.cso',  errHint:'Check that chdman and ciso/maxcso are installed on the server.' },
   rvz: { badge:'ISO',           source:'RVZ',     suffix:'',                    ext:'.iso',  errHint:'Check that DolphinTool is installed on the server.' },
-  cia: { badge:'CIA',           source:'3DS CART', suffix:'',                    ext:'.cia',  errHint:'Check that SYNC_ROM_3DS_CIA_COMMAND is configured on the server.' },
-  decrypted_cia: { badge:'DEC CIA', source:'3DS CART', suffix:' · decrypted',    ext:'.cia',  errHint:'Check that SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND is configured on the server.' },
-  decrypted_cci: { badge:'DEC CCI', source:'3DS CART', suffix:' · decrypted',    ext:'.cci',  errHint:'Check that SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND is configured on the server.' },
+  cia:           { badge:'CIA',  source:'3DS CART', suffix:'',               ext:'.cia',  errHint:'Configure SYNC_ROM_3DS_CIA_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
+  decrypted_cia: { badge:'DCIA', source:'3DS CART', suffix:' · decrypted',   ext:'.cia',  errHint:'Configure SYNC_ROM_3DS_DECRYPTED_CIA_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
+  decrypted_cci: { badge:'CCI',  source:'3DS CART', suffix:' · decrypted',   ext:'.cci',  errHint:'Configure SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
 };
 
 function queueKey(titleId, fmt) {
@@ -1093,26 +1097,28 @@ function renderRoms() {
             title="Download original ${rawLabel}">${rawLabel}</button>
         </div>`;
       } else if (extractFormats.some(f => ['cia', 'decrypted_cia', 'decrypted_cci'].includes(f))) {
+        // 3DS cart image: CIA / DCIA / CCI conversions + raw .3ds/.cci download.
+        // Raw button always shows "3DS" so it never collides with the decrypted-CCI button.
         const cartButtons = [];
         if (extractFormats.includes('cia')) {
           cartButtons.push(`<button class="dl-btn extract" data-action="extract"
             data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cia"
-            title="Convert to installable CIA">CIA</button>`);
+            title="Convert to installable CIA (for 3DS hardware)">CIA</button>`);
         }
         if (extractFormats.includes('decrypted_cia')) {
           cartButtons.push(`<button class="dl-btn extract" data-action="extract"
             data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cia"
-            title="Convert to decrypted CIA for emulators">DEC CIA</button>`);
+            title="Convert to decrypted CIA (for emulators)">DCIA</button>`);
         }
         if (extractFormats.includes('decrypted_cci')) {
           cartButtons.push(`<button class="dl-btn extract" data-action="extract"
             data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cci"
-            title="Convert to decrypted CCI for emulators">DEC CCI</button>`);
+            title="Convert to decrypted CCI (for emulators)">CCI</button>`);
         }
         cartButtons.push(`<button class="dl-btn" data-action="dl"
             data-url="${rawUrl}" data-fn="${fn}"
-            title="Download original ${rawLabel}">${rawLabel}</button>`);
-        btnHtml = `<div class="rom-btns">${cartButtons.join('')}</div>`;
+            title="Download original ${rawLabel} cart image">3DS</button>`);
+        btnHtml = `<div class="rom-btns rom-btns-3ds">${cartButtons.join('')}</div>`;
       } else {
         btnHtml = `<button class="dl-btn" data-action="dl"
           data-url="${rawUrl}" data-fn="${fn}">↓</button>`;
