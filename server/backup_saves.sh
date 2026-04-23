@@ -1,7 +1,8 @@
 #!/bin/bash
 #
 # Restic backup script for 3DSSync save data.
-# Reads B2 credentials and restic passphrase from .env in the same dir.
+# Reads B2 credentials and restic passphrase from .env.backup in the same dir.
+# (Kept separate from .env so server config and backup creds are independent.)
 #
 # Cron example (nightly at 03:00):
 #   0 3 * * * /home/pi/3dssync/server/backup_saves.sh
@@ -10,7 +11,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env"
+ENV_FILE="${SCRIPT_DIR}/.env.backup"
 LOG_FILE="${SCRIPT_DIR}/restic-backup.log"
 
 # --- load .env ---------------------------------------------------------------
