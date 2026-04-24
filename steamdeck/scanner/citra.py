@@ -24,13 +24,11 @@ _FLATPAK_AZAHAR_TITLE_ROOT = (
     Path.home()
     / ".var/app/org.azahar_emu.Azahar/data/azahar-emu/sdmc/Nintendo 3DS"
     / _ZERO_ID
-    / _ZERO_ID
     / "title"
 )
 _LOCAL_AZAHAR_TITLE_ROOT = (
     Path.home()
     / ".local/share/azahar-emu/sdmc/Nintendo 3DS"
-    / _ZERO_ID
     / _ZERO_ID
     / "title"
 )
@@ -38,20 +36,18 @@ _LOCAL_CITRA_TITLE_ROOT = (
     Path.home()
     / ".local/share/citra-emu/sdmc/Nintendo 3DS"
     / _ZERO_ID
-    / _ZERO_ID
     / "title"
 )
 _LOCAL_LIME3DS_TITLE_ROOT = (
     Path.home()
     / ".local/share/lime3ds-emu/sdmc/Nintendo 3DS"
     / _ZERO_ID
-    / _ZERO_ID
     / "title"
 )
 
 
 def _title_root_suffix() -> Path:
-    return Path("sdmc") / "Nintendo 3DS" / _ZERO_ID / _ZERO_ID / "title"
+    return Path("sdmc") / "Nintendo 3DS" / _ZERO_ID / "title"
 
 
 def resolve_title_root(emulation_path: Path) -> Path | None:
