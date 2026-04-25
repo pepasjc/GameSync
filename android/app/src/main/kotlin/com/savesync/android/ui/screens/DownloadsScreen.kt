@@ -385,10 +385,16 @@ private fun buildSubtitle(
         DownloadEntity.Status.CANCELLED -> "Cancelled"
         DownloadEntity.Status.QUEUED -> "Queued"
         else -> {
-            // Active download.  Until the first byte arrives we show a
-            // Connecting state so the row doesn't look frozen — server
-            // conversions (3DS / RVZ → ISO) can take 10+ seconds before
-            // the first chunk hits the wire.
+            // Active download.  Three sub-states:
+            //   1. Truly waiting for the server  →  "Connecting to server…"
+            //      Only when neither the total nor any downloaded bytes
+            //      are known yet. Server conversions (3DS / RVZ → ISO)
+            //      can take 10+ seconds before the first chunk arrives.
+            //   2. Bytes flowing but server didn't send Content-Length
+            //      (shouldn't happen with our nginx config, but some
+            //      proxies / chunked-encoding paths drop it)  →
+            //      show "Downloading · X MB" so the user can see motion.
+            //   3. Normal case with known total → percent + ETA.
             if (downloaded == 0L && total <= 0L) {
                 return "Connecting to server…"
             }
@@ -397,7 +403,8 @@ private fun buildSubtitle(
                 val pct = (downloaded.toDouble() / total.toDouble() * 100).toInt()
                 parts += "${formatBytes(downloaded)} / ${formatBytes(total)} ($pct%)"
             } else {
-                parts += formatBytes(downloaded)
+                // total unknown but bytes are flowing — keep the user informed
+                parts += "Downloading · ${formatBytes(downloaded)}"
             }
             if (bytesPerSecond != null && bytesPerSecond > 0) {
                 parts += "${formatBytes(bytesPerSecond)}/s"
