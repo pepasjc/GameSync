@@ -73,6 +73,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.savesync.android.api.preferredDownloadExtractFormat
+import com.savesync.android.api.preferredDownloadFilename
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.storage.SyncStateEntity
 import com.savesync.android.ui.MainViewModel
@@ -380,11 +381,12 @@ fun SaveDetailScreen(
                         isBusy = romBusy,
                         onClick = {
                             if (rom != null) {
+                                val extract = rom.preferredDownloadExtractFormat()
                                 viewModel.downloadRom(
                                     romId = rom.rom_id ?: rom.title_id,
                                     system = rom.system,
-                                    filename = rom.filename,
-                                    extractFormat = rom.preferredDownloadExtractFormat(),
+                                    filename = rom.preferredDownloadFilename(extract),
+                                    extractFormat = extract,
                                 )
                             }
                         }
@@ -403,11 +405,12 @@ fun SaveDetailScreen(
                             isBusy = romBusy,
                             headerAbove = if (index == 0) "Available ROMs" else null,
                             onClick = {
+                                val extract = rom.preferredDownloadExtractFormat()
                                 viewModel.downloadRom(
                                     romId = rom.rom_id ?: rom.title_id,
                                     system = rom.system,
-                                    filename = rom.filename,
-                                    extractFormat = rom.preferredDownloadExtractFormat(),
+                                    filename = rom.preferredDownloadFilename(extract),
+                                    extractFormat = extract,
                                 )
                             }
                         ))

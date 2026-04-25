@@ -96,3 +96,8 @@ android/.gradle-user/caches/*
 # ensure_mcr2vmp_binary() when PS1 card conversion is first used.
 server/third_party/mcr2vmp/mcr2vmp
 server/third_party/mcr2vmp/mcr2vmp.exe
+
+# Secrets / runtime artifacts
+.env
+.env.backup
+server/restic-backup.log

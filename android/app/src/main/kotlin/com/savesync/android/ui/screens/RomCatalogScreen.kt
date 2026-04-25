@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.savesync.android.api.RomEntry
 import com.savesync.android.api.preferredDownloadExtractFormat
+import com.savesync.android.api.preferredDownloadFilename
 import com.savesync.android.catalog.RomCatalogFilter
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.components.SystemFilterChip
@@ -406,11 +407,12 @@ fun RomCatalogScreen(
             confirmButton = {
                 TextButton(onClick = {
                     val id = rom.rom_id ?: rom.title_id
+                    val extract = rom.preferredDownloadExtractFormat()
                     viewModel.downloadRom(
                         romId = id,
                         system = rom.system,
-                        filename = rom.filename,
-                        extractFormat = rom.preferredDownloadExtractFormat(),
+                        filename = rom.preferredDownloadFilename(extract),
+                        extractFormat = extract,
                     )
                     confirmTarget = null
                 }) { Text("Download") }

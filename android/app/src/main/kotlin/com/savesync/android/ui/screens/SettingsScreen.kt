@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.savesync.android.BuildConfig
 import com.savesync.android.api.ApiClient
+import com.savesync.android.emulators.EmudeckPaths
 import com.savesync.android.sync.SaturnSyncFormat
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.components.FolderPickerDialog
@@ -68,7 +69,8 @@ private val intervalOptions = listOf(5, 15, 30, 60)
 @Composable
 fun SettingsScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToEmulators: () -> Unit = {}
 ) {
     val settings by viewModel.settings.collectAsState()
     val scope = rememberCoroutineScope()
@@ -81,10 +83,10 @@ fun SettingsScreen(
     var autoSync by remember { mutableStateOf(false) }
     var intervalMinutes by remember { mutableStateOf(15) }
     var romScanDir by remember { mutableStateOf("") }
-    var dolphinMemCardDir by remember { mutableStateOf("") }
+    var emudeckDir by remember { mutableStateOf("") }
     var saturnSyncFormat by remember { mutableStateOf(SaturnSyncFormat.MEDNAFEN) }
     var showFolderPicker by remember { mutableStateOf(false) }
-    var showDolphinFolderPicker by remember { mutableStateOf(false) }
+    var showEmudeckFolderPicker by remember { mutableStateOf(false) }
     var settingsLoaded by remember { mutableStateOf(false) }
 
     // System folder overrides
@@ -100,17 +102,20 @@ fun SettingsScreen(
             autoSync = settings.autoSyncEnabled
             intervalMinutes = settings.autoSyncIntervalMinutes
             romScanDir = settings.romScanDir
-            dolphinMemCardDir = settings.dolphinMemCardDir
+            emudeckDir = settings.emudeckDir
             saturnSyncFormat = settings.saturnSyncFormat
             settingsLoaded = true
             // Auto-detect system folders once settings are loaded
-            if (settings.romScanDir.isNotBlank()) viewModel.detectSystemFolders()
+            if (settings.romScanDir.isNotBlank() || settings.emudeckDir.isNotBlank()) {
+                viewModel.detectSystemFolders()
+            }
         }
     }
     var connectionStatus by remember { mutableStateOf<String?>(null) }
     var connectionOk by remember { mutableStateOf<Boolean?>(null) }
     var intervalDropdownExpanded by remember { mutableStateOf(false) }
     var savedConfirmation by remember { mutableStateOf(false) }
+    val effectiveRomScanDir = EmudeckPaths.romsDir(emudeckDir)?.absolutePath ?: romScanDir
 
     Scaffold(
         topBar = {
@@ -201,13 +206,15 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         viewModel.saveSettings(
-                            serverUrl,
-                            apiKey,
-                            autoSync,
-                            intervalMinutes,
-                            romScanDir,
-                            dolphinMemCardDir,
-                            saturnSyncFormat
+                            serverUrl = serverUrl,
+                            apiKey = apiKey,
+                            autoSync = autoSync,
+                            intervalMinutes = intervalMinutes,
+                            romScanDir = romScanDir,
+                            emudeckDir = emudeckDir,
+                            saturnSyncFormat = saturnSyncFormat,
+                            beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
+                            cdGamesPerContentFolder = settings.cdGamesPerContentFolder
                         )
                         savedConfirmation = true
                     },
@@ -243,6 +250,59 @@ fun SettingsScreen(
                     },
                     style = MaterialTheme.typography.bodySmall
                 )
+            }
+
+            HorizontalDivider()
+
+            // --- Emudeck ---
+            Text("Emudeck", style = MaterialTheme.typography.titleMedium)
+
+            Text(
+                text = "Optional Emudeck folder. When set, 3DS uses storage/Azahar, " +
+                       "GC/Wii uses storage/Dolphin, PS2 uses storage/NetherSX2, " +
+                       "and PSP uses storage/PPSSPP. Other emulators keep their normal paths.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Emudeck Folder",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = if (emudeckDir.isNotBlank()) emudeckDir else "Not set",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (emudeckDir.isNotBlank())
+                            MaterialTheme.colorScheme.onSurface
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = { showEmudeckFolderPicker = true }) {
+                    Icon(
+                        Icons.Default.FolderOpen,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Browse")
+                }
+            }
+
+            if (emudeckDir.isNotBlank()) {
+                OutlinedButton(
+                    onClick = { emudeckDir = "" },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Clear Emudeck Folder")
+                }
             }
 
             HorizontalDivider()
@@ -339,6 +399,26 @@ fun SettingsScreen(
                 }
             }
 
+            // (Beetle Saturn per-core + CD per-content toggles moved to the
+            // Emulator Configuration screen — they live with the rest of the
+            // RetroArch knobs there.)
+
+            HorizontalDivider()
+
+            // --- Emulator Configuration link ---
+            OutlinedButton(
+                onClick = onNavigateToEmulators,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Emulator Configuration →")
+            }
+            Text(
+                text = "Per-emulator save folder overrides, RetroArch toggles, " +
+                       "and other emulator-specific options.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             HorizontalDivider()
 
             // --- ROM Scan Directory ---
@@ -347,7 +427,8 @@ fun SettingsScreen(
             Text(
                 text = "Select the folder where your ROMs are organized by system subfolder " +
                        "(e.g. GBA/, MegaDrive/, PS1/, SNES/, …). GameSync uses this to detect " +
-                       "which games you have installed so it can show server saves for them.",
+                       "which games you have installed so it can show server saves for them. " +
+                       "When Emudeck is set, GameSync uses its roms folder.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -364,9 +445,9 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = if (romScanDir.isNotBlank()) romScanDir else "Not set",
+                        text = if (effectiveRomScanDir.isNotBlank()) effectiveRomScanDir else "Not set",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (romScanDir.isNotBlank())
+                        color = if (effectiveRomScanDir.isNotBlank())
                             MaterialTheme.colorScheme.onSurface
                         else
                             MaterialTheme.colorScheme.onSurfaceVariant
@@ -384,7 +465,7 @@ fun SettingsScreen(
                 }
             }
 
-            if (romScanDir.isNotBlank()) {
+            if (romScanDir.isNotBlank() && emudeckDir.isBlank()) {
                 OutlinedButton(
                     onClick = { romScanDir = "" },
                     modifier = Modifier.fillMaxWidth()
@@ -409,7 +490,7 @@ fun SettingsScreen(
             OutlinedButton(
                 onClick = { viewModel.prepareRomFolders(romScanDir) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = romScanDir.isNotBlank(),
+                enabled = effectiveRomScanDir.isNotBlank(),
             ) {
                 Text("Prepare ROM Folders")
             }
@@ -475,7 +556,7 @@ fun SettingsScreen(
             val overrides = settings.romDirOverrides
             val allSystems = (detectedFolders.keys + overrides.keys).toSortedSet()
 
-            if (allSystems.isEmpty() && romScanDir.isNotBlank()) {
+            if (allSystems.isEmpty() && effectiveRomScanDir.isNotBlank()) {
                 Text(
                     text = "No system folders detected yet — press Detect.",
                     style = MaterialTheme.typography.bodySmall,
@@ -615,58 +696,11 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
-            // --- Dolphin GC ---
-            Text("Dolphin (GameCube)", style = MaterialTheme.typography.titleMedium)
-
-            Text(
-                text = "Path to the Dolphin GC memory card folder (e.g. /sdcard/dolphin-mmjr/GC). " +
-                       "Required if your saves are on an SD card or a different Dolphin variant. " +
-                       "Leave empty to use the default dolphin-mmjr path on internal storage.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Dolphin GC Folder",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (dolphinMemCardDir.isNotBlank()) dolphinMemCardDir else "Default (dolphin-mmjr/GC)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (dolphinMemCardDir.isNotBlank())
-                            MaterialTheme.colorScheme.onSurface
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                Button(onClick = { showDolphinFolderPicker = true }) {
-                    Icon(
-                        Icons.Default.FolderOpen,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Browse")
-                }
-            }
-
-            if (dolphinMemCardDir.isNotBlank()) {
-                OutlinedButton(
-                    onClick = { dolphinMemCardDir = "" },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Clear Dolphin Path")
-                }
-            }
-
-            HorizontalDivider()
+            // (Dolphin GC memory card folder moved to the Emulator
+            // Configuration screen alongside the other emulator save-folder
+            // overrides.  The legacy `dolphinMemCardDir` value is auto-merged
+            // into `saveDirOverrides["Dolphin"]` on first read so existing
+            // installs keep working.)
 
             // --- App info ---
             Spacer(Modifier.height(4.dp))
@@ -694,33 +728,37 @@ fun SettingsScreen(
                 // Auto-save immediately so the setting persists even without
                 // pressing "Save", and so the ROM scan diagnostic picks it up.
                 viewModel.saveSettings(
-                    serverUrl,
-                    apiKey,
-                    autoSync,
-                    intervalMinutes,
-                    path,
-                    dolphinMemCardDir,
-                    saturnSyncFormat
+                    serverUrl = serverUrl,
+                    apiKey = apiKey,
+                    autoSync = autoSync,
+                    intervalMinutes = intervalMinutes,
+                    romScanDir = path,
+                    emudeckDir = emudeckDir,
+                    saturnSyncFormat = saturnSyncFormat,
+                    beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
+                    cdGamesPerContentFolder = settings.cdGamesPerContentFolder
                 )
             }
         )
     }
 
-    if (showDolphinFolderPicker) {
+    if (showEmudeckFolderPicker) {
         FolderPickerDialog(
-            initialPath = dolphinMemCardDir,
-            onDismiss = { showDolphinFolderPicker = false },
+            initialPath = emudeckDir,
+            onDismiss = { showEmudeckFolderPicker = false },
             onFolderSelected = { path ->
-                dolphinMemCardDir = path
-                showDolphinFolderPicker = false
+                emudeckDir = path
+                showEmudeckFolderPicker = false
                 viewModel.saveSettings(
-                    serverUrl,
-                    apiKey,
-                    autoSync,
-                    intervalMinutes,
-                    romScanDir,
-                    path,
-                    saturnSyncFormat
+                    serverUrl = serverUrl,
+                    apiKey = apiKey,
+                    autoSync = autoSync,
+                    intervalMinutes = intervalMinutes,
+                    romScanDir = romScanDir,
+                    emudeckDir = path,
+                    saturnSyncFormat = saturnSyncFormat,
+                    beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
+                    cdGamesPerContentFolder = settings.cdGamesPerContentFolder
                 )
             }
         )

@@ -26,6 +26,8 @@ import com.savesync.android.emulators.EmulatorRegistry
 import com.savesync.android.emulators.EmudeckPaths
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.emulators.impl.AzaharEmulator
+import com.savesync.android.emulators.impl.DolphinEmulator
+import com.savesync.android.emulators.impl.MelonDsEmulator
 import com.savesync.android.emulators.impl.PpssppEmulator
 import com.savesync.android.emulators.impl.RetroArchEmulator
 import com.savesync.android.emulators.impl.DuckStationEmulator
@@ -454,25 +456,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val overrides = db.savePathOverrideDao().getAll()
                     .associate { it.filePath to it.system }
                 val romScanDir = effectiveRomScanDir(currentSettings)
-                val dolphinMemCardDir = currentSettings.dolphinMemCardDir
                 val emudeckDir = currentSettings.emudeckDir
                 val romDirOverrides = currentSettings.romDirOverrides
+                val saveDirOverrides = currentSettings.saveDirOverrides
                 val rawLocalSaves = EmulatorRegistry.discoverAllSaves(
-                    overrides,
-                    romScanDir,
-                    dolphinMemCardDir,
-                    emudeckDir,
-                    romDirOverrides,
-                    currentSettings.saturnSyncFormat
+                    overrides = overrides,
+                    romScanDir = romScanDir,
+                    emudeckDir = emudeckDir,
+                    romDirOverrides = romDirOverrides,
+                    saveDirOverrides = saveDirOverrides,
+                    saturnSyncFormat = currentSettings.saturnSyncFormat,
+                    beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
+                    cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
                 )
 
                 // Discover all ROMs the emulators know about (with expected save paths)
                 val allRomEntries = EmulatorRegistry.discoverAllRomEntries(
-                    romScanDir,
-                    dolphinMemCardDir,
-                    emudeckDir,
-                    romDirOverrides,
-                    currentSettings.saturnSyncFormat
+                    romScanDir = romScanDir,
+                    emudeckDir = emudeckDir,
+                    romDirOverrides = romDirOverrides,
+                    saveDirOverrides = saveDirOverrides,
+                    saturnSyncFormat = currentSettings.saturnSyncFormat,
+                    beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
+                    cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
                 )
 
                 val serverOnlySaves: List<SaveEntry>
@@ -747,12 +753,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         // entry to anchor a server-only title. We still surface those saves so
                         // the user can download a per-game card and configure it manually.
                         val ps2ServerOnly = stillUnanchoredTitles
-                            .mapNotNull { titleInfo -> buildPs2ServerOnlyEntry(titleInfo, currentSettings.emudeckDir) }
+                            .mapNotNull { titleInfo ->
+                                buildPs2ServerOnlyEntry(
+                                    titleInfo,
+                                    currentSettings.saveDirOverrides,
+                                    currentSettings.emudeckDir
+                                )
+                            }
+
+                        // PSP server-only saves don't need a local ROM to be useful: PPSSPP
+                        // stores per-title slots at PSP/SAVEDATA/<title_id>/ and the server
+                        // gives us the slot name verbatim, so we can predict the path even
+                        // when the ROM isn't installed yet.
+                        val pspServerOnly = stillUnanchoredTitles
+                            .mapNotNull { titleInfo ->
+                                buildPspServerOnlyEntry(
+                                    titleInfo,
+                                    currentSettings.saveDirOverrides,
+                                    currentSettings.emudeckDir
+                                )
+                            }
+
+                        // GC saves live at <dolphinRoot>/GC/<REGION>/Card A/<slot>-<CODE>-*.gci
+                        // and the server's title_id (GC_<code>) gives us everything we need
+                        // to predict the path. Without this entry GC server-only saves were
+                        // invisible because nothing else maps GC to a fallback.
+                        val gcServerOnly = stillUnanchoredTitles
+                            .mapNotNull { titleInfo ->
+                                buildGcServerOnlyEntry(
+                                    titleInfo,
+                                    currentSettings.saveDirOverrides,
+                                    currentSettings.emudeckDir
+                                )
+                            }
 
                         val threedssServerOnly = stillUnanchoredTitles
-                            .mapNotNull { titleInfo -> build3dsServerOnlyEntry(titleInfo, currentSettings.emudeckDir) }
+                            .mapNotNull { titleInfo ->
+                                build3dsServerOnlyEntry(
+                                    titleInfo,
+                                    currentSettings.saveDirOverrides,
+                                    currentSettings.emudeckDir
+                                )
+                            }
 
-                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly + threedssServerOnly)
+                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly)
                             .mapTo(mutableSetOf()) { it.titleId }
 
                         // If a save has no local ROM/save anchor yet, still surface it when the
@@ -768,7 +812,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 )
                             }
 
-                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + threedssServerOnly + romCatalogServerOnly
+                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly + romCatalogServerOnly
                     } catch (e: Exception) {
                         emptyList()
                     }
@@ -942,8 +986,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun normalizeSystemCode(system: String) =
         com.savesync.android.systems.SystemAliases.canonicalOrSelf(system)
 
+    /**
+     * Surface a server-only PSP title even when the user hasn't installed
+     * the corresponding PPSSPP ROM yet.  PSP saves live in
+     * ``PSP/SAVEDATA/<title_id>/`` and the server hands back the full slot
+     * name as ``title_id``, so we can predict the directory verbatim.
+     *
+     * Mirrors [buildPs2ServerOnlyEntry] / [build3dsServerOnlyEntry] — without
+     * this fallback, [buildPspServerOnlyMatches] only returns entries that
+     * anchored to a local ROM, and the post-anchor filter at line ~698 drops
+     * everything else.
+     *
+     * ``isMultiFile = false`` so [SaveEntry.isPspSlot] returns true and the
+     * sync engine takes the PSP-bundle path on download.
+     */
+    private fun buildPspServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo,
+        saveDirOverrides: Map<String, String>,
+        emudeckDir: String
+    ): SaveEntry? {
+        val system = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: ""
+        )
+        if (system != "PSP") return null
+
+        // Per-emulator override wins over Emudeck. The override path is
+        // expected to point at the SAVEDATA root (mirrors PpssppEmulator's
+        // own override resolution); we append the title_id as the slot dir.
+        val override = saveDirOverrides[PpssppEmulator.EMULATOR_KEY]
+            ?.takeIf { it.isNotBlank() }
+        val slotDir = if (override != null) {
+            File(File(override), titleInfo.title_id)
+        } else {
+            val pspBase = EmudeckPaths.ppssppRoot(emudeckDir)
+                ?: Environment.getExternalStorageDirectory()
+            PpssppEmulator.defaultSlotDir(pspBase, titleInfo.title_id) ?: return null
+        }
+
+        val displayName = titleInfo.name
+            ?: titleInfo.game_name
+            ?: titleInfo.title_id
+
+        return SaveEntry(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            systemName = "PSP",
+            saveFile = null,
+            saveDir = slotDir,
+            isMultiFile = false,
+            isServerOnly = true,
+            canonicalName = titleInfo.name?.takeIf { it != displayName }
+                ?: titleInfo.game_name?.takeIf { it != displayName }
+        )
+    }
+
     private fun buildPs2ServerOnlyEntry(
         titleInfo: com.savesync.android.api.TitleInfo,
+        saveDirOverrides: Map<String, String>,
         emudeckDir: String
     ): SaveEntry? {
         val system = normalizeSystemCode(
@@ -954,13 +1056,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         if (system != "PS2") return null
 
-        val ps2Base = EmudeckPaths.netherSx2Root(emudeckDir)
-            ?: Environment.getExternalStorageDirectory()
-        val memcardsDir = AetherSX2Emulator.findMemcardsDir(
-            ps2Base,
-            allowNonExistent = emudeckDir.isNotBlank()
-        )
-            ?: return null
+        // Per-emulator override wins over Emudeck and the auto-detected
+        // memcards path.  Without this the user's NetherSX2 override
+        // configured in Emulator Configuration would be silently ignored
+        // for server-only PS2 entries (the Emudeck-based companion call
+        // that follows would resolve a different path first).
+        val override = saveDirOverrides[AetherSX2Emulator.EMULATOR_KEY]
+            ?.takeIf { it.isNotBlank() }
+        val memcardsDir = if (override != null) {
+            File(override)
+        } else {
+            val ps2Base = EmudeckPaths.netherSx2Root(emudeckDir)
+                ?: Environment.getExternalStorageDirectory()
+            AetherSX2Emulator.findMemcardsDir(
+                ps2Base,
+                allowNonExistent = emudeckDir.isNotBlank()
+            ) ?: return null
+        }
 
         val displayName = titleInfo.name
             ?: titleInfo.game_name
@@ -982,8 +1094,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /**
+     * Surface a server-only GameCube title even when the user hasn't yet
+     * created any local saves in Dolphin.  GC saves live at
+     * ``<dolphinRoot>/GC/<REGION>/Card A/<slot>-<CODE>-<name>.gci`` and the
+     * server's title_id encodes the 4-char product code (``GC_<code>``), so
+     * we can predict the file path verbatim — region is inferred from the
+     * code's region byte (4th char).
+     *
+     * Mirrors [buildPs2ServerOnlyEntry] / [buildPspServerOnlyEntry].  Without
+     * this fallback, GC server-only saves were never visible because no
+     * builder existed and the post-anchor filter at line ~698 dropped them.
+     */
+    private fun buildGcServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo,
+        saveDirOverrides: Map<String, String>,
+        emudeckDir: String
+    ): SaveEntry? {
+        val system = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: ""
+        )
+        if (system != "GC") return null
+
+        val displayName = titleInfo.name
+            ?: titleInfo.game_name
+            ?: titleInfo.title_id
+
+        val dolphinOverride = saveDirOverrides[DolphinEmulator.EMULATOR_KEY]
+            ?.takeIf { it.isNotBlank() }
+            ?: ""
+        val saveFile = DolphinEmulator.defaultSaveFile(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            dolphinMemCardDir = dolphinOverride,
+            dolphinRootDir = EmudeckPaths.dolphinRoot(emudeckDir)
+        ) ?: return null
+
+        return SaveEntry(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            systemName = "GC",
+            saveFile = saveFile,
+            saveDir = null,
+            isServerOnly = true,
+            canonicalName = titleInfo.name?.takeIf { it != displayName }
+                ?: titleInfo.game_name?.takeIf { it != displayName }
+        )
+    }
+
     private fun build3dsServerOnlyEntry(
         titleInfo: com.savesync.android.api.TitleInfo,
+        saveDirOverrides: Map<String, String>,
         emudeckDir: String
     ): SaveEntry? {
         val system = normalizeSystemCode(
@@ -995,11 +1159,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (system != "3DS") return null
         if (!hex16TitleIdRegex.matches(titleInfo.title_id)) return null
 
-        val saveDir = AzaharEmulator.defaultSaveDir(
-            storageBaseDir = EmudeckPaths.azaharRoot(emudeckDir)
-                ?: Environment.getExternalStorageDirectory(),
-            titleId = titleInfo.title_id
-        ) ?: return null
+        // Per-emulator override wins over Emudeck. The override is expected
+        // to be the title root (sdmc/Nintendo 3DS/<id>/<id>/title); we feed
+        // it via candidateTitleRoots so defaultSaveDir's findTitleRoot picks
+        // it as the highest-priority candidate.
+        val override = saveDirOverrides[AzaharEmulator.EMULATOR_KEY]
+            ?.takeIf { it.isNotBlank() }
+        val saveDir = if (override != null) {
+            AzaharEmulator.defaultSaveDir(
+                storageBaseDir = Environment.getExternalStorageDirectory(),
+                titleId = titleInfo.title_id,
+                candidateTitleRoots = listOf(File(override))
+            )
+        } else {
+            AzaharEmulator.defaultSaveDir(
+                storageBaseDir = EmudeckPaths.azaharRoot(emudeckDir)
+                    ?: Environment.getExternalStorageDirectory(),
+                titleId = titleInfo.title_id
+            )
+        } ?: return null
 
         val displayName = titleInfo.game_name
             ?: titleInfo.name
@@ -1085,16 +1263,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         emudeckDir: String = ""
     ): Triple<File?, File?, Boolean> {
         val base = Environment.getExternalStorageDirectory()
+        // Per-emulator save-dir overrides take precedence over auto-detection
+        // (Emudeck, fork-specific paths, etc.). Read directly from the current
+        // settings StateFlow so callers don't have to thread the map through.
+        val saveDirOverrides = settings.value.saveDirOverrides
+        fun overrideFor(key: String): File? = saveDirOverrides[key]
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::File)
+            ?.takeIf { it.exists() && it.isDirectory }
+
         return when (system.uppercase()) {
             "PSP" -> {
                 // PPSSPP stores per-title saves in PSP/SAVEDATA/<title_id>/.
                 // Server hands us the full slot name as title_id, so use it
                 // verbatim.  isMultiFile=false so isPspSlot kicks in and the
                 // sync engine takes the PSP-bundle path.
-                val slotDir = PpssppEmulator.defaultSlotDir(
-                    EmudeckPaths.ppssppRoot(emudeckDir) ?: base,
-                    titleId
-                )
+                val pspOverride = overrideFor(PpssppEmulator.EMULATOR_KEY)
+                val slotDir = if (pspOverride != null) {
+                    File(pspOverride, titleId)
+                } else {
+                    PpssppEmulator.defaultSlotDir(
+                        EmudeckPaths.ppssppRoot(emudeckDir) ?: base,
+                        titleId
+                    )
+                }
                 Triple(null, slotDir, false)
             }
             "NDS" -> {
@@ -1102,9 +1294,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // reads <stem>.sav from the melonDS/ folder — mirror that so
                 // a Download lands where the emulator will look.  SyncEngine
                 // creates parent dirs on write, so we don't mkdirs() here.
-                val melonDir = listOf("melonDS", "melonDS Android", "melonds")
-                    .map { File(base, it) }
-                    .firstOrNull { it.exists() && it.isDirectory }
+                val melonDir = overrideFor(MelonDsEmulator.EMULATOR_KEY)
+                    ?: listOf("melonDS", "melonDS Android", "melonds")
+                        .map { File(base, it) }
+                        .firstOrNull { it.exists() && it.isDirectory }
                     ?: File(base, "melonDS")
                 val file = File(melonDir, "${sanitizeFilesystemStem(displayName)}.sav")
                 Triple(file, null, false)
@@ -1123,12 +1316,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Triple(null, File(root, titleId), true)
             }
             in retroarchSystems -> {
+                // RetroArch.defaultSaveFile() doesn't yet support an explicit
+                // root override — it auto-detects via cfg / external storage.
+                // The emulator instance honours saveDirOverride at scan time,
+                // so once a save lands locally it'll be found correctly even
+                // if the prediction path differs from the override.
+                // TODO(per-emulator predict): plumb the RetroArch override
+                // into defaultSaveFile() too.
                 val saturnFormat = settings.value.saturnSyncFormat
+                val perCore = settings.value.beetleSaturnPerCoreFolder
+                val perContent = settings.value.cdGamesPerContentFolder
                 val file = RetroArchEmulator.defaultSaveFile(
                     externalStorage = base,
                     system = system,
                     label = displayName,
                     saturnSyncFormat = saturnFormat,
+                    beetleSaturnPerCoreFolder = perCore,
+                    cdGamesPerContentFolder = perContent,
                 )
                 Triple(file, null, false)
             }
@@ -1563,16 +1767,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 // Only sync local saves (exclude server-only entries)
                 val romScanDir = effectiveRomScanDir(currentSettings)
-                val dolphinMemCardDir = currentSettings.dolphinMemCardDir
                 val emudeckDir = currentSettings.emudeckDir
                 val romDirOverrides = currentSettings.romDirOverrides
+                val saveDirOverrides = currentSettings.saveDirOverrides
                 val allLocalSaves = _allSaves.value.filter { !it.isServerOnly }.ifEmpty {
                     EmulatorRegistry.discoverAllSaves(
                         romScanDir = romScanDir,
-                        dolphinMemCardDir = dolphinMemCardDir,
                         emudeckDir = emudeckDir,
                         romDirOverrides = romDirOverrides,
-                        saturnSyncFormat = currentSettings.saturnSyncFormat
+                        saveDirOverrides = saveDirOverrides,
+                        saturnSyncFormat = currentSettings.saturnSyncFormat,
+                        beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
+                        cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
                     ).also { found ->
                         _allSaves.value = found
                     }
@@ -1623,9 +1829,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         autoSync: Boolean,
         intervalMinutes: Int,
         romScanDir: String = "",
-        dolphinMemCardDir: String = "",
         emudeckDir: String = "",
-        saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
+        saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+        beetleSaturnPerCoreFolder: Boolean = true,
+        cdGamesPerContentFolder: Boolean = false
     ) {
         viewModelScope.launch {
             settingsStore.updateSettings(
@@ -1634,12 +1841,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 autoSyncEnabled = autoSync,
                 autoSyncIntervalMinutes = intervalMinutes,
                 romScanDir = romScanDir,
-                dolphinMemCardDir = dolphinMemCardDir,
                 emudeckDir = emudeckDir,
-                saturnSyncFormat = saturnSyncFormat
+                saturnSyncFormat = saturnSyncFormat,
+                beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
+                cdGamesPerContentFolder = cdGamesPerContentFolder
             )
             ApiClient.invalidate()
             scheduleOrCancelAutoSync(autoSync, intervalMinutes)
+            scanSaves()
+        }
+    }
+
+    /** Persists a per-emulator save folder override and triggers a rescan. */
+    fun setSaveDirOverride(emulatorKey: String, path: String) {
+        viewModelScope.launch {
+            settingsStore.setSaveDirOverride(emulatorKey, path)
+            scanSaves()
+        }
+    }
+
+    /** Removes a per-emulator save folder override and triggers a rescan. */
+    fun clearSaveDirOverride(emulatorKey: String) {
+        viewModelScope.launch {
+            settingsStore.clearSaveDirOverride(emulatorKey)
+            scanSaves()
+        }
+    }
+
+    /**
+     * Persists just the two RetroArch-specific toggles, used by
+     * EmulatorsScreen's RetroArch card.  Doesn't disturb the rest of the
+     * settings (server URL, etc.) and triggers a rescan so save discovery
+     * picks up the new layout immediately.
+     */
+    fun saveRetroArchToggles(
+        beetleSaturnPerCoreFolder: Boolean,
+        cdGamesPerContentFolder: Boolean
+    ) {
+        viewModelScope.launch {
+            settingsStore.updateSettings(
+                beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
+                cdGamesPerContentFolder = cdGamesPerContentFolder
+            )
             scanSaves()
         }
     }
@@ -1744,7 +1987,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 romScanDir = effectiveDir,
                 emudeckDir = currentSettings.emudeckDir,
                 romDirOverrides = currentSettings.romDirOverrides,
-                saturnSyncFormat = currentSettings.saturnSyncFormat
+                saveDirOverrides = currentSettings.saveDirOverrides,
+                saturnSyncFormat = currentSettings.saturnSyncFormat,
+                beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
+                cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
             )
             // Group by system and count
             _romScanResults.value = if (allRoms.isEmpty()) {

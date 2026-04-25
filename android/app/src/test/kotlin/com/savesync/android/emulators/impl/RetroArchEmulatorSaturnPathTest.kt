@@ -29,6 +29,116 @@ class RetroArchEmulatorSaturnPathTest {
     }
 
     @Test
+    fun `mednafen path uses saves root when per-core folder is disabled`() {
+        val savesDir = File("build/test-retroarch-saves-flat")
+        val emulator = RetroArchEmulator(
+            saturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+            beetleSaturnPerCoreFolder = false
+        )
+
+        val target = emulator.expectedRetroArchSaturnSaveFile(
+            savesDir,
+            "Grandia (Japan) (Disc 1)"
+        )
+
+        assertEquals(File(savesDir, "Grandia (Japan) (Disc 1).bkr"), target)
+    }
+
+    @Test
+    fun `mednafen path layers per-content folder under per-core when both toggles on`() {
+        val savesDir = File("build/test-retroarch-saves-pc-on")
+        val emulator = RetroArchEmulator(
+            saturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+            beetleSaturnPerCoreFolder = true,
+            cdGamesPerContentFolder = true
+        )
+
+        val target = emulator.expectedRetroArchSaturnSaveFile(
+            savesDir,
+            "Grandia (Japan) (Disc 1)"
+        )
+
+        // saves/Beetle Saturn/Grandia (Japan)/Grandia (Japan) (Disc 1).bkr
+        assertEquals(
+            File(
+                File(File(savesDir, "Beetle Saturn"), "Grandia (Japan)"),
+                "Grandia (Japan) (Disc 1).bkr"
+            ),
+            target
+        )
+    }
+
+    @Test
+    fun `mednafen path lands in per-content folder at root when per-core off but per-content on`() {
+        val savesDir = File("build/test-retroarch-saves-pc-only")
+        val emulator = RetroArchEmulator(
+            saturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+            beetleSaturnPerCoreFolder = false,
+            cdGamesPerContentFolder = true
+        )
+
+        val target = emulator.expectedRetroArchSaturnSaveFile(
+            savesDir,
+            "Grandia (Japan) (Disc 1)"
+        )
+
+        assertEquals(
+            File(File(savesDir, "Grandia (Japan)"), "Grandia (Japan) (Disc 1).bkr"),
+            target
+        )
+    }
+
+    @Test
+    fun `yabasanshiro shared backup is never wrapped in a per-content folder`() {
+        val savesDir = File("build/test-retroarch-saves-yaba-pc")
+        val emulator = RetroArchEmulator(
+            saturnSyncFormat = SaturnSyncFormat.YABASANSHIRO,
+            cdGamesPerContentFolder = true
+        )
+
+        val target = emulator.expectedRetroArchSaturnSaveFile(
+            savesDir,
+            "Grandia (Japan) (Disc 1)"
+        )
+
+        // Still saves/yabasanshiro/backup.bin — single shared container
+        assertEquals(File(File(savesDir, "yabasanshiro"), "backup.bin"), target)
+    }
+
+    @Test
+    fun `applyPerContentFolder wraps a flat ps1 save when toggle is on`() {
+        val savesDir = File("build/test-retroarch-ps1-pc")
+        val flat = File(savesDir, "Final Fantasy VII (USA) (Disc 1).srm")
+
+        val wrapped = RetroArchEmulator.applyPerContentFolder(
+            baseFile = flat,
+            romName = "Final Fantasy VII (USA) (Disc 1)",
+            system = "PS1",
+            enabled = true
+        )
+
+        assertEquals(
+            File(File(savesDir, "Final Fantasy VII (USA)"), "Final Fantasy VII (USA) (Disc 1).srm"),
+            wrapped
+        )
+    }
+
+    @Test
+    fun `applyPerContentFolder leaves non-cd systems alone`() {
+        val savesDir = File("build/test-retroarch-gba-pc")
+        val flat = File(savesDir, "Pokemon Emerald (USA).srm")
+
+        val wrapped = RetroArchEmulator.applyPerContentFolder(
+            baseFile = flat,
+            romName = "Pokemon Emerald (USA)",
+            system = "GBA",
+            enabled = true
+        )
+
+        assertEquals(flat, wrapped)
+    }
+
+    @Test
     fun `yabause path uses default retroarch saves root with srm extension`() {
         val savesDir = File("build/test-retroarch-saves")
         val emulator = RetroArchEmulator(saturnSyncFormat = SaturnSyncFormat.YABAUSE)

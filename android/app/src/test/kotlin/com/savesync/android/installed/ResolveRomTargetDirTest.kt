@@ -25,8 +25,8 @@ class ResolveRomTargetDirTest {
     @Test
     fun `falls back to the first candidate when no existing folder matches`() {
         val dir = InstalledRomsScanner.resolveRomTargetDir(scanRoot(), "PS1")
-        // SYSTEM_ROM_DIRS for PS1 starts with "PS1" — first-candidate wins.
-        assertEquals(File(scanRoot(), "PS1"), dir)
+        // SYSTEM_ROM_DIRS for PS1 starts with "psx" to match EmuDeck.
+        assertEquals(File(scanRoot(), "psx"), dir)
         // Helper must NOT create the folder — caller handles mkdirs().
         assertEquals(false, dir.exists())
     }
@@ -69,11 +69,11 @@ class ResolveRomTargetDirTest {
         // The old when-expression in SyncEngine.downloadRom was missing
         // a case for ATARI5200 / A5200, so downloads fell into
         // roms/ATARI5200/ instead of the InstalledRomsScanner-expected
-        // ``Atari 5200`` folder.
+        // ``atari5200`` folder.
         val viaLegacy = InstalledRomsScanner.resolveRomTargetDir(scanRoot(), "ATARI5200")
         val viaCanonical = InstalledRomsScanner.resolveRomTargetDir(scanRoot(), "A5200")
         assertEquals(viaCanonical, viaLegacy)
-        assertEquals(File(scanRoot(), "Atari 5200"), viaLegacy)
+        assertEquals(File(scanRoot(), "atari5200"), viaLegacy)
     }
 
     // --- overrides -------------------------------------------------------
@@ -170,7 +170,7 @@ class ResolveRomTargetDirTest {
         org.junit.Assert.assertTrue("PS1" in existing)
         org.junit.Assert.assertTrue("MD" in existing)
         // No duplicate PS1 folder got created.
-        org.junit.Assert.assertFalse(File(scanRoot(), "PS1").exists())
+        org.junit.Assert.assertFalse(File(scanRoot(), "psx").exists())
         org.junit.Assert.assertFalse(File(scanRoot(), "PlayStation").exists())
     }
 
@@ -184,9 +184,9 @@ class ResolveRomTargetDirTest {
             mapOf("SAT" to custom.absolutePath),
         )
         org.junit.Assert.assertTrue(custom.isDirectory)
-        // And the default ``Saturn`` folder was NOT created under the
+        // And the default ``saturn`` folder was NOT created under the
         // scan root — the override won.
-        org.junit.Assert.assertFalse(File(scanRoot(), "Saturn").exists())
+        org.junit.Assert.assertFalse(File(scanRoot(), "saturn").exists())
         val createdTargets = report.created.map { it.second }
         org.junit.Assert.assertTrue(custom in createdTargets)
     }

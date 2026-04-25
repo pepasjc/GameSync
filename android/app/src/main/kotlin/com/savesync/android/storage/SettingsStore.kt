@@ -28,13 +28,51 @@ data class Settings(
     /** Path to the Dolphin GC memory card root (e.g. /sdcard/dolphin-mmjr/GC).
      *  Leave empty to use the default dolphin-mmjr path on internal storage. */
     val dolphinMemCardDir: String = "",
+    /** Emudeck root folder; supported emulator saves live under <root>/storage/<Emulator>. */
+    val emudeckDir: String = "",
     /**
      * Per-system ROM folder overrides: system code → absolute directory path.
      * Overrides the auto-detected subfolder of [romScanDir] for a given system.
      * e.g. "SAT" → "/sdcard/ROMs/Saturn"
      */
     val romDirOverrides: Map<String, String> = emptyMap(),
-    val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
+    /**
+     * Per-emulator save folder overrides: emulator key → absolute directory path.
+     * Each emulator's path resolver checks this map first before falling back
+     * to its built-in auto-detection logic.  Keys match the
+     * ``EMULATOR_KEY`` constant on each emulator's companion object
+     * (``RetroArch``, ``PPSSPP``, ``DuckStation``, ``DraStic``, ``melonDS``,
+     * ``mGBA``, ``Dolphin``, ``AetherSX2``, ``Azahar``).
+     *
+     * The legacy [dolphinMemCardDir] field is migrated into this map under
+     * key ``Dolphin`` on first read so existing installs keep working.
+     */
+    val saveDirOverrides: Map<String, String> = emptyMap(),
+    val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+    /**
+     * Mirrors RetroArch's "Sort Saves into Folders by Core Name" toggle for the
+     * Beetle Saturn (Mednafen) core specifically. When true (default), new
+     * Saturn .bkr downloads land under saves/Beetle Saturn/<rom>.bkr. When
+     * false, they land directly in saves/<rom>.bkr.  Existing saves on disk
+     * are still discovered in either location regardless of this toggle.
+     *
+     * TODO(per-core refactor): generalise to Map<CoreName, Boolean> once the
+     * settings UI grows a per-core list.
+     */
+    val beetleSaturnPerCoreFolder: Boolean = true,
+    /**
+     * Mirrors RetroArch's "Sort Saves into Folders by Content Directory"
+     * toggle, scoped to CD-based systems (PS1, PS2, Saturn, Sega CD, Dreamcast,
+     * PC Engine, Neo Geo CD).  When true, predicted save downloads for these
+     * systems land in a per-game subfolder (e.g.
+     * saves/Grandia/Grandia (Disc 1).bkr) so multi-disc titles stay grouped.
+     * When false (default), they land at the saves root like before.
+     * Existing saves on disk are still discovered in either layout.
+     *
+     * Saturn YabaSanshiro is exempt because it uses a single shared
+     * backup.bin container, not a per-game file.
+     */
+    val cdGamesPerContentFolder: Boolean = false
 )
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "save_sync_settings")
@@ -49,8 +87,12 @@ class SettingsStore(private val context: Context) {
         val CONSOLE_ID = stringPreferencesKey("console_id")
         val ROM_SCAN_DIR = stringPreferencesKey("rom_scan_dir")
         val DOLPHIN_MEM_CARD_DIR = stringPreferencesKey("dolphin_mem_card_dir")
+        val EMUDECK_DIR = stringPreferencesKey("emudeck_dir")
         val ROM_DIR_OVERRIDES = stringPreferencesKey("rom_dir_overrides")
+        val SAVE_DIR_OVERRIDES = stringPreferencesKey("save_dir_overrides")
         val SATURN_SYNC_FORMAT = stringPreferencesKey("saturn_sync_format")
+        val BEETLE_SATURN_PER_CORE_FOLDER = booleanPreferencesKey("beetle_saturn_per_core_folder")
+        val CD_GAMES_PER_CONTENT_FOLDER = booleanPreferencesKey("cd_games_per_content_folder")
         /** Tracks whether we've already attempted to restore from external backup */
         val BACKUP_RESTORED = booleanPreferencesKey("backup_restored")
         /** Remembered UI filter state */
@@ -73,6 +115,21 @@ class SettingsStore(private val context: Context) {
         val consoleId = prefs[Keys.CONSOLE_ID] ?: run {
             UUID.randomUUID().toString().replace("-", "").uppercase()
         }
+        val rawSaveDirOverrides = parseOverrides(prefs[Keys.SAVE_DIR_OVERRIDES] ?: "")
+        val legacyDolphinMemCardDir = prefs[Keys.DOLPHIN_MEM_CARD_DIR] ?: ""
+        // Migrate the legacy single-emulator dolphinMemCardDir into the
+        // per-emulator overrides map so the new EmulatorsScreen and the
+        // refactored DolphinEmulator both see it.  We only fold it in
+        // here (in the read flow) — the on-disk migration happens the
+        // next time the user saves a save-dir override from the UI.
+        val effectiveSaveDirOverrides = if (
+            legacyDolphinMemCardDir.isNotBlank() &&
+            rawSaveDirOverrides["Dolphin"].isNullOrBlank()
+        ) {
+            rawSaveDirOverrides + ("Dolphin" to legacyDolphinMemCardDir)
+        } else {
+            rawSaveDirOverrides
+        }
         Settings(
             serverUrl = prefs[Keys.SERVER_URL] ?: "",
             apiKey = prefs[Keys.API_KEY] ?: "",
@@ -80,9 +137,13 @@ class SettingsStore(private val context: Context) {
             autoSyncIntervalMinutes = prefs[Keys.AUTO_SYNC_INTERVAL] ?: 15,
             consoleId = consoleId,
             romScanDir = prefs[Keys.ROM_SCAN_DIR] ?: "",
-            dolphinMemCardDir = prefs[Keys.DOLPHIN_MEM_CARD_DIR] ?: "",
+            dolphinMemCardDir = legacyDolphinMemCardDir,
+            emudeckDir = prefs[Keys.EMUDECK_DIR] ?: "",
             romDirOverrides = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: ""),
-            saturnSyncFormat = SaturnSyncFormat.fromWireValue(prefs[Keys.SATURN_SYNC_FORMAT])
+            saveDirOverrides = effectiveSaveDirOverrides,
+            saturnSyncFormat = SaturnSyncFormat.fromWireValue(prefs[Keys.SATURN_SYNC_FORMAT]),
+            beetleSaturnPerCoreFolder = prefs[Keys.BEETLE_SATURN_PER_CORE_FOLDER] ?: true,
+            cdGamesPerContentFolder = prefs[Keys.CD_GAMES_PER_CONTENT_FOLDER] ?: false
         )
     }
 
@@ -111,7 +172,13 @@ class SettingsStore(private val context: Context) {
             backup.consoleId.takeIf { it.isNotBlank() }?.let { p[Keys.CONSOLE_ID] = it }
             backup.romScanDir.takeIf { it.isNotBlank() }?.let { p[Keys.ROM_SCAN_DIR] = it }
             backup.dolphinMemCardDir.takeIf { it.isNotBlank() }?.let { p[Keys.DOLPHIN_MEM_CARD_DIR] = it }
+            backup.emudeckDir.takeIf { it.isNotBlank() }?.let { p[Keys.EMUDECK_DIR] = it }
+            if (backup.saveDirOverrides.isNotEmpty()) {
+                p[Keys.SAVE_DIR_OVERRIDES] = encodeOverrides(backup.saveDirOverrides)
+            }
             p[Keys.SATURN_SYNC_FORMAT] = backup.saturnSyncFormat.wireValue
+            p[Keys.BEETLE_SATURN_PER_CORE_FOLDER] = backup.beetleSaturnPerCoreFolder
+            p[Keys.CD_GAMES_PER_CONTENT_FOLDER] = backup.cdGamesPerContentFolder
         }
     }
 
@@ -122,7 +189,10 @@ class SettingsStore(private val context: Context) {
         autoSyncIntervalMinutes: Int? = null,
         romScanDir: String? = null,
         dolphinMemCardDir: String? = null,
-        saturnSyncFormat: SaturnSyncFormat? = null
+        emudeckDir: String? = null,
+        saturnSyncFormat: SaturnSyncFormat? = null,
+        beetleSaturnPerCoreFolder: Boolean? = null,
+        cdGamesPerContentFolder: Boolean? = null
     ) {
         context.dataStore.edit { prefs ->
             serverUrl?.let { prefs[Keys.SERVER_URL] = it }
@@ -131,7 +201,10 @@ class SettingsStore(private val context: Context) {
             autoSyncIntervalMinutes?.let { prefs[Keys.AUTO_SYNC_INTERVAL] = it }
             romScanDir?.let { prefs[Keys.ROM_SCAN_DIR] = it }
             dolphinMemCardDir?.let { prefs[Keys.DOLPHIN_MEM_CARD_DIR] = it }
+            emudeckDir?.let { prefs[Keys.EMUDECK_DIR] = it }
             saturnSyncFormat?.let { prefs[Keys.SATURN_SYNC_FORMAT] = it.wireValue }
+            beetleSaturnPerCoreFolder?.let { prefs[Keys.BEETLE_SATURN_PER_CORE_FOLDER] = it }
+            cdGamesPerContentFolder?.let { prefs[Keys.CD_GAMES_PER_CONTENT_FOLDER] = it }
         }
         // Mirror to the external backup file every time settings are saved
         writeBackupFile()
@@ -151,6 +224,37 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             val current = parseOverrides(prefs[Keys.ROM_DIR_OVERRIDES] ?: "")
             prefs[Keys.ROM_DIR_OVERRIDES] = encodeOverrides(current - system)
+        }
+        writeBackupFile()
+    }
+
+    /**
+     * Sets or replaces the save-folder override for a single emulator.  Also
+     * folds in the legacy [Settings.dolphinMemCardDir] value (now retired)
+     * by clearing it when the user explicitly sets ``Dolphin`` here.
+     */
+    suspend fun setSaveDirOverride(emulatorKey: String, path: String) {
+        context.dataStore.edit { prefs ->
+            val current = parseOverrides(prefs[Keys.SAVE_DIR_OVERRIDES] ?: "")
+            prefs[Keys.SAVE_DIR_OVERRIDES] = encodeOverrides(current + (emulatorKey to path))
+            // One-shot migration: once the user has configured Dolphin
+            // through the new screen, drop the legacy single-emulator
+            // setting so it can't drift out of sync with the map.
+            if (emulatorKey == "Dolphin") {
+                prefs.remove(Keys.DOLPHIN_MEM_CARD_DIR)
+            }
+        }
+        writeBackupFile()
+    }
+
+    /** Removes the override for a single emulator (falls back to auto-detected). */
+    suspend fun clearSaveDirOverride(emulatorKey: String) {
+        context.dataStore.edit { prefs ->
+            val current = parseOverrides(prefs[Keys.SAVE_DIR_OVERRIDES] ?: "")
+            prefs[Keys.SAVE_DIR_OVERRIDES] = encodeOverrides(current - emulatorKey)
+            if (emulatorKey == "Dolphin") {
+                prefs.remove(Keys.DOLPHIN_MEM_CARD_DIR)
+            }
         }
         writeBackupFile()
     }
@@ -207,8 +311,12 @@ class SettingsStore(private val context: Context) {
                 put("console_id", current.consoleId)
                 put("rom_scan_dir", current.romScanDir)
                 put("dolphin_mem_card_dir", current.dolphinMemCardDir)
+                put("emudeck_dir", current.emudeckDir)
                 put("rom_dir_overrides", JSONObject(current.romDirOverrides as Map<*, *>))
+                put("save_dir_overrides", JSONObject(current.saveDirOverrides as Map<*, *>))
                 put("saturn_sync_format", current.saturnSyncFormat.wireValue)
+                put("beetle_saturn_per_core_folder", current.beetleSaturnPerCoreFolder)
+                put("cd_games_per_content_folder", current.cdGamesPerContentFolder)
             }
             val file = backupFile
             file.parentFile?.mkdirs()
@@ -239,10 +347,14 @@ class SettingsStore(private val context: Context) {
                 consoleId = json.optString("console_id", ""),
                 romScanDir = json.optString("rom_scan_dir", ""),
                 dolphinMemCardDir = json.optString("dolphin_mem_card_dir", ""),
+                emudeckDir = json.optString("emudeck_dir", ""),
                 romDirOverrides = parseOverrides(json.optString("rom_dir_overrides", "")),
+                saveDirOverrides = parseOverrides(json.optString("save_dir_overrides", "")),
                 saturnSyncFormat = SaturnSyncFormat.fromWireValue(
                     json.optString("saturn_sync_format", SaturnSyncFormat.MEDNAFEN.wireValue)
-                )
+                ),
+                beetleSaturnPerCoreFolder = json.optBoolean("beetle_saturn_per_core_folder", true),
+                cdGamesPerContentFolder = json.optBoolean("cd_games_per_content_folder", false)
             )
         } catch (_: Exception) {
             null

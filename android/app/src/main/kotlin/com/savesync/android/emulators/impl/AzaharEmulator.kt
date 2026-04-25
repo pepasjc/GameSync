@@ -5,7 +5,15 @@ import com.savesync.android.emulators.SaveEntry
 import java.io.File
 
 class AzaharEmulator(
-    private val candidateTitleRoots: List<File>? = null
+    private val candidateTitleRoots: List<File>? = null,
+    private val storageBaseDir: File? = null,
+    /**
+     * Optional explicit save folder override, configured in the Emulator
+     * Configuration screen.  When set, points directly at the
+     * ``sdmc/Nintendo 3DS/.../title`` root and bypasses the auto-detection
+     * candidates.
+     */
+    private val saveDirOverride: String? = null
 ) : EmulatorBase() {
 
     override val name: String = "Azahar"
@@ -48,14 +56,22 @@ class AzaharEmulator(
     }
 
     private fun resolveTitleRoot(allowNonExistent: Boolean): File? {
+        if (!saveDirOverride.isNullOrBlank()) {
+            val overrideDir = File(saveDirOverride)
+            if (overrideDir.exists() && overrideDir.isDirectory) return overrideDir
+            if (allowNonExistent) return overrideDir
+        }
         return findTitleRoot(
-            storageBaseDir = baseDir,
+            storageBaseDir = storageBaseDir ?: baseDir,
             allowNonExistent = allowNonExistent,
             candidateTitleRoots = candidateTitleRoots
         )
     }
 
     companion object {
+        /** Key used in [com.savesync.android.storage.Settings.saveDirOverrides]. */
+        const val EMULATOR_KEY = "Azahar"
+
         private const val ZERO_ID = "00000000000000000000000000000000"
         private val HEX8_REGEX = Regex("^[0-9A-Fa-f]{8}$")
         private val TITLE_ID_REGEX = Regex("^[0-9A-Fa-f]{16}$")
@@ -96,6 +112,7 @@ class AzaharEmulator(
         private fun buildCandidateTitleRoots(storageBaseDir: File): List<File> {
             val suffix = "Nintendo 3DS/$ZERO_ID/$ZERO_ID/title"
             val candidates = listOf(
+                "sdmc/$suffix",
                 "Azahar/sdmc/$suffix",
                 "azahar/sdmc/$suffix",
                 "Azahar-emu/sdmc/$suffix",

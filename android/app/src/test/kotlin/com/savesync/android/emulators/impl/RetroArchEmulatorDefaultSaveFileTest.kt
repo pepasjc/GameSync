@@ -54,12 +54,31 @@ class RetroArchEmulatorDefaultSaveFileTest {
     }
 
     @Test
-    fun `saturn with mednafen format uses bkr extension`() {
+    fun `saturn with mednafen and per-core folder enabled lands in beetle saturn subfolder`() {
         val target = RetroArchEmulator.defaultSaveFile(
             externalStorage = root,
             system = "SAT",
             label = "Grandia (USA)",
-            saturnSyncFormat = SaturnSyncFormat.MEDNAFEN
+            saturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+            beetleSaturnPerCoreFolder = true
+        )
+        assertEquals(
+            File(
+                File(File(File(root, "RetroArch"), "saves"), "Beetle Saturn"),
+                "Grandia (USA).bkr"
+            ),
+            target
+        )
+    }
+
+    @Test
+    fun `saturn with mednafen and per-core folder disabled lands at saves root`() {
+        val target = RetroArchEmulator.defaultSaveFile(
+            externalStorage = root,
+            system = "SAT",
+            label = "Grandia (USA)",
+            saturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+            beetleSaturnPerCoreFolder = false
         )
         assertEquals(
             File(File(File(root, "RetroArch"), "saves"), "Grandia (USA).bkr"),
@@ -91,6 +110,62 @@ class RetroArchEmulatorDefaultSaveFileTest {
         )
         assertEquals(
             File(File(File(root, "RetroArch"), "saves"), "backup.bin"),
+            target
+        )
+    }
+
+    @Test
+    fun `ps1 save with cd per-content folder enabled lands in per-game subfolder`() {
+        val target = RetroArchEmulator.defaultSaveFile(
+            externalStorage = root,
+            system = "PS1",
+            label = "Final Fantasy VII (USA) (Disc 1)",
+            cdGamesPerContentFolder = true
+        )
+        // saves/Final Fantasy VII (USA)/Final Fantasy VII (USA).srm
+        // (defaultSaveFile() sanitises the stem, so the filename also drops the disc tag)
+        assertEquals(
+            File(
+                File(File(File(root, "RetroArch"), "saves"), "Final Fantasy VII (USA)"),
+                "Final Fantasy VII (USA).srm"
+            ),
+            target
+        )
+    }
+
+    @Test
+    fun `gba save ignores cd per-content folder toggle`() {
+        val target = RetroArchEmulator.defaultSaveFile(
+            externalStorage = root,
+            system = "GBA",
+            label = "Pokemon Emerald (USA)",
+            cdGamesPerContentFolder = true
+        )
+        // GBA isn't in CD_SYSTEMS, so the toggle has no effect.
+        assertEquals(
+            File(File(File(root, "RetroArch"), "saves"), "Pokemon Emerald (USA).srm"),
+            target
+        )
+    }
+
+    @Test
+    fun `saturn mednafen with both per-core and per-content toggles on`() {
+        val target = RetroArchEmulator.defaultSaveFile(
+            externalStorage = root,
+            system = "SAT",
+            label = "Grandia (USA) (Disc 1)",
+            saturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+            beetleSaturnPerCoreFolder = true,
+            cdGamesPerContentFolder = true
+        )
+        assertEquals(
+            File(
+                File(
+                    File(File(File(root, "RetroArch"), "saves"), "Beetle Saturn"),
+                    "Grandia (USA)"
+                ),
+                "Grandia (USA).bkr"
+            ),
             target
         )
     }

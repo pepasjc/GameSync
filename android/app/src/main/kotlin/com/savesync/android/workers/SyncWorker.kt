@@ -9,6 +9,7 @@ import com.savesync.android.R
 import com.savesync.android.SaveSyncApp
 import com.savesync.android.api.ApiClient
 import com.savesync.android.emulators.EmulatorRegistry
+import com.savesync.android.emulators.EmudeckPaths
 import com.savesync.android.storage.SettingsStore
 import com.savesync.android.sync.SyncEngine
 import kotlinx.coroutines.flow.first
@@ -36,11 +37,16 @@ class SyncWorker(
             val api = ApiClient.create(settings.serverUrl, settings.apiKey)
 
             // Discover saves
+            val romScanDir = EmudeckPaths.romsDir(settings.emudeckDir)?.absolutePath
+                ?: settings.romScanDir
             val saves = EmulatorRegistry.discoverAllSaves(
-                romScanDir = settings.romScanDir,
-                dolphinMemCardDir = settings.dolphinMemCardDir,
+                romScanDir = romScanDir,
+                emudeckDir = settings.emudeckDir,
                 romDirOverrides = settings.romDirOverrides,
-                saturnSyncFormat = settings.saturnSyncFormat
+                saveDirOverrides = settings.saveDirOverrides,
+                saturnSyncFormat = settings.saturnSyncFormat,
+                beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
+                cdGamesPerContentFolder = settings.cdGamesPerContentFolder
             )
             if (saves.isEmpty()) {
                 postNotification("Sync complete", "No save files found.")

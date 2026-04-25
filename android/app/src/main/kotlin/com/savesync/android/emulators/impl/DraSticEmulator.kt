@@ -2,14 +2,32 @@ package com.savesync.android.emulators.impl
 
 import com.savesync.android.emulators.EmulatorBase
 import com.savesync.android.emulators.SaveEntry
+import java.io.File
 
-class DraSticEmulator(private val romScanDir: String = "") : EmulatorBase() {
+class DraSticEmulator(
+    private val romScanDir: String = "",
+    /**
+     * Optional explicit save folder override, configured in the Emulator
+     * Configuration screen.  Wins over the built-in ``drastic/backup``
+     * auto-detection when set.
+     */
+    private val saveDirOverride: String? = null
+) : EmulatorBase() {
 
     override val name: String = "DraStic"
     override val systemPrefix: String = "NDS"
 
+    companion object {
+        /** Key used in [com.savesync.android.storage.Settings.saveDirOverrides]. */
+        const val EMULATOR_KEY = "DraStic"
+    }
+
     override fun discoverSaves(): List<SaveEntry> {
-        val backupDir = firstExisting("drastic/backup", "DraStic/backup", "Drastic/backup")
+        val backupDir = saveDirOverride
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::File)
+            ?.takeIf { it.exists() && it.isDirectory }
+            ?: firstExisting("drastic/backup", "DraStic/backup", "Drastic/backup")
             ?: return emptyList()
 
         // Build NDS ROM search dirs for gamecode lookup

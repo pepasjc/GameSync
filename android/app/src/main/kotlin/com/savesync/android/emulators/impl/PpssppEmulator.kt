@@ -7,13 +7,23 @@ import java.io.File
 
 class PpssppEmulator(
     private val romScanDir: String = "",
-    private val romDirOverrides: Map<String, String> = emptyMap()
+    private val romDirOverrides: Map<String, String> = emptyMap(),
+    private val storageBaseDir: File? = null,
+    /**
+     * Optional explicit save folder override, configured in the Emulator
+     * Configuration screen.  Takes precedence over [storageBaseDir]'s
+     * ``PSP/SAVEDATA`` auto-detection when set.
+     */
+    private val saveDirOverride: String? = null
 ) : EmulatorBase() {
 
     override val name: String = "PPSSPP"
     override val systemPrefix: String = "PSP"
 
     companion object {
+        /** Key used in [com.savesync.android.storage.Settings.saveDirOverrides]. */
+        const val EMULATOR_KEY = "PPSSPP"
+
         fun findSaveDataDir(baseDir: File, allowNonExistent: Boolean = false): File? {
             val candidates = listOf("PSP/SAVEDATA", "psp/SAVEDATA", "PSP/savedata")
             val existing = candidates
@@ -72,8 +82,15 @@ class PpssppEmulator(
     }
 
     private fun findSaveDataDir(allowNonExistent: Boolean = false): File? {
-        val primary = File(baseDir, "PSP/SAVEDATA")
-        val existing = firstExisting("PSP/SAVEDATA", "psp/SAVEDATA", "PSP/savedata")
+        // Explicit user override wins over storageBaseDir's auto-detection.
+        if (!saveDirOverride.isNullOrBlank()) {
+            val overrideDir = File(saveDirOverride)
+            if (overrideDir.exists() && overrideDir.isDirectory) return overrideDir
+            if (allowNonExistent) return overrideDir
+        }
+        val root = storageBaseDir ?: baseDir
+        val primary = File(root, "PSP/SAVEDATA")
+        val existing = findSaveDataDir(root, allowNonExistent = false)
         return when {
             existing != null -> existing
             allowNonExistent -> primary
@@ -96,7 +113,7 @@ class PpssppEmulator(
             "PSP/game",
             "psp/game"
         ).forEach { rel ->
-            val dir = File(baseDir, rel)
+            val dir = File(storageBaseDir ?: baseDir, rel)
             if (dir.exists() && dir.isDirectory) dirs.add(dir)
         }
 

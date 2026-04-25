@@ -47,6 +47,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.screens.DownloadsScreen
+import com.savesync.android.ui.screens.EmulatorsScreen
 import com.savesync.android.ui.screens.InstalledGamesScreen
 import com.savesync.android.ui.screens.RomCatalogScreen
 import com.savesync.android.ui.screens.SaveDetailScreen
@@ -360,6 +361,13 @@ private fun MainApp() {
             }
             composable("settings") {
                 SettingsScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToEmulators = { navController.navigate("emulators") }
+                )
+            }
+            composable("emulators") {
+                EmulatorsScreen(
                     viewModel = viewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )

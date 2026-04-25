@@ -14,9 +14,19 @@ import java.io.File
  * place the emulator actually reads.
  */
 class DuckStationEmulator(
-    private val romScanDir: String = ""
+    private val romScanDir: String = "",
+    /**
+     * Optional explicit memcards folder override, configured in the Emulator
+     * Configuration screen.  Wins over the hardcoded
+     * ``Android/data/com.github.stenzek.duckstation/files/memcards`` path
+     * when set — useful for users who route DuckStation saves to an SD card.
+     */
+    private val saveDirOverride: String? = null
 ) : EmulatorBase() {
     companion object {
+        /** Key used in [com.savesync.android.storage.Settings.saveDirOverrides]. */
+        const val EMULATOR_KEY = "DuckStation"
+
         fun findMemcardsDir(baseDir: File, allowNonExistent: Boolean = false): File? {
             val primary = File(baseDir, "Android/data/com.github.stenzek.duckstation/files/memcards")
             return if (primary.exists() && primary.isDirectory) {
@@ -66,6 +76,11 @@ class DuckStationEmulator(
     }
 
     private fun findMemcardsDir(allowNonExistent: Boolean = false): File? {
+        if (!saveDirOverride.isNullOrBlank()) {
+            val overrideDir = File(saveDirOverride)
+            if (overrideDir.exists() && overrideDir.isDirectory) return overrideDir
+            if (allowNonExistent) return overrideDir
+        }
         return findMemcardsDir(baseDir, allowNonExistent)
     }
 

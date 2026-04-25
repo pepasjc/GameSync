@@ -2,14 +2,31 @@ package com.savesync.android.emulators.impl
 
 import com.savesync.android.emulators.EmulatorBase
 import com.savesync.android.emulators.SaveEntry
+import java.io.File
 
-class MelonDsEmulator(private val romScanDir: String = "") : EmulatorBase() {
+class MelonDsEmulator(
+    private val romScanDir: String = "",
+    /**
+     * Optional explicit save folder override, configured in the Emulator
+     * Configuration screen.  Wins over the built-in ``melonDS`` auto-detection.
+     */
+    private val saveDirOverride: String? = null
+) : EmulatorBase() {
 
     override val name: String = "melonDS"
     override val systemPrefix: String = "NDS"
 
+    companion object {
+        /** Key used in [com.savesync.android.storage.Settings.saveDirOverrides]. */
+        const val EMULATOR_KEY = "melonDS"
+    }
+
     override fun discoverSaves(): List<SaveEntry> {
-        val savesDir = firstExisting("melonDS", "melonDS Android", "melonds")
+        val savesDir = saveDirOverride
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::File)
+            ?.takeIf { it.exists() && it.isDirectory }
+            ?: firstExisting("melonDS", "melonDS Android", "melonds")
             ?: return emptyList()
 
         // Build NDS ROM search dirs for gamecode lookup

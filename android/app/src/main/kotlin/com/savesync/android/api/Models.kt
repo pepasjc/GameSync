@@ -142,14 +142,58 @@ data class RomsSystemsResponse(
 
 private const val REQUIRED_3DS_EXTRACT_FORMAT = "decrypted_cci"
 
+/** Source filename extensions the server's 3DS extractor can convert. */
+private val CONVERTIBLE_3DS_SOURCE_EXTENSIONS = setOf("3ds", "cci", "zip")
+
+/**
+ * For 3DS catalog entries with a convertible source extension (.3ds / .cci /
+ * .zip), always request ``decrypted_cci`` so the server hands back a
+ * decrypted .cci that Azahar / Citra forks can load directly.
+ *
+ * We deliberately don't gate on the catalog's ``extract_formats`` list — if
+ * the server's converter isn't configured the endpoint returns a 503 with an
+ * actionable error message, which is much more useful than silently falling
+ * back to the raw (possibly encrypted) source file.
+ *
+ * Returns null for non-3DS entries and for 3DS source files the server
+ * can't convert (e.g. raw .cia, .app), where the raw download path is the
+ * only sensible fallback.
+ */
 fun RomEntry.preferredDownloadExtractFormat(): String? {
     if (!system.equals("3DS", ignoreCase = true)) return null
 
-    val advertised = extractFormats
-        .map { it.trim().lowercase() }
-        .filter { it.isNotEmpty() }
-    if (REQUIRED_3DS_EXTRACT_FORMAT in advertised) return REQUIRED_3DS_EXTRACT_FORMAT
+    val sourceExt = filename.substringAfterLast('.', "").lowercase()
+    if (sourceExt !in CONVERTIBLE_3DS_SOURCE_EXTENSIONS) {
+        // Not a convertible source — fall back to raw download so the user
+        // at least gets the file.  Honours legacy ``extract_format`` field
+        // if the server somehow still advertises one.
+        val legacy = extractFormat?.trim()?.lowercase().orEmpty()
+        return legacy.takeIf { it == REQUIRED_3DS_EXTRACT_FORMAT }
+    }
 
-    val legacy = extractFormat?.trim()?.lowercase().orEmpty()
-    return legacy.takeIf { it == REQUIRED_3DS_EXTRACT_FORMAT }
+    return REQUIRED_3DS_EXTRACT_FORMAT
+}
+
+/**
+ * On-disk filename for a download given the chosen [extractFormat].  Mirrors
+ * the server's filename rewrite (``<stem>.cci`` for ``decrypted_cci``,
+ * ``<stem>.cia`` for ``cia``) so the local copy ends with the actual content
+ * type instead of the source extension.
+ *
+ * Without this, a download triggered with ``extract=decrypted_cci`` would
+ * land at ``<stem>.3ds`` (or ``<stem>.zip``), and Azahar wouldn't recognise
+ * the contents.
+ */
+fun RomEntry.preferredDownloadFilename(extractFormat: String?): String {
+    val stem = filename.substringBeforeLast('.', filename)
+    return when (extractFormat?.trim()?.lowercase()) {
+        "decrypted_cci" -> "$stem.cci"
+        "cia"           -> "$stem.cia"
+        "psp", "iso"    -> "$stem.iso"
+        "cso"           -> "$stem.cso"
+        "rvz"           -> "$stem.iso"  // server's rvz → iso conversion
+        "gdi"           -> "$stem.gdi"
+        "cue"           -> "$stem.cue"
+        else            -> filename
+    }
 }

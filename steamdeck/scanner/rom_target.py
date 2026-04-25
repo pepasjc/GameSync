@@ -72,6 +72,8 @@ SYSTEM_ROM_DIRS: dict[str, list[str]] = {
     "A800":   ["atari800", "A800", "Atari 800"],
     "LYNX":   ["lynx", "Lynx", "Atari Lynx"],
     "JAGUAR": ["jaguar", "Jaguar", "Atari Jaguar"],
+    # Arcade
+    "MAME":   ["mame", "MAME", "arcade", "Arcade"],
     # Misc
     "3DO":    ["3do", "3DO"],
     "POKEMINI": ["pokemini", "Pokemon Mini", "PokemonMini"],

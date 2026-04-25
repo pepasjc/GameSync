@@ -15,13 +15,44 @@ import java.io.File
 class RetroArchEmulator(
     private val romScanDir: String = "",
     private val romDirOverrides: Map<String, String> = emptyMap(),
-    private val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
+    private val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+    /**
+     * When true, predicted Saturn-Mednafen save downloads land under
+     * saves/Beetle Saturn/<rom>.bkr (matching RetroArch's "Sort Saves into
+     * Folders by Core Name" option for the Beetle Saturn core). When false,
+     * they land at saves/<rom>.bkr.  Existing files are still discovered in
+     * either location regardless of this toggle.
+     *
+     * TODO(per-core refactor): replace with a Map<CoreName, Boolean> once the
+     * UI exposes the option per core.
+     */
+    private val beetleSaturnPerCoreFolder: Boolean = true,
+    /**
+     * When true, predicted save paths for CD-based systems (PS1, PS2, Saturn,
+     * Sega CD, Dreamcast, PC Engine, Neo Geo CD) gain a per-game subfolder
+     * named after the disc-tag-stripped game stem.  Mirrors RetroArch's
+     * "Sort Saves into Folders by Content Directory" config, scoped to CD
+     * systems where it actually matters.  Saturn YabaSanshiro is exempt
+     * (single shared backup.bin).
+     */
+    private val cdGamesPerContentFolder: Boolean = false,
+    /**
+     * Optional explicit save folder override.  When set, takes precedence
+     * over both the user's ``retroarch.cfg`` ``savefile_directory`` and the
+     * built-in ``<base>/saves/`` auto-detection.  Configured in the
+     * Emulator Configuration screen and persisted in
+     * ``Settings.saveDirOverrides[EMULATOR_KEY]``.
+     */
+    private val saveDirOverride: String? = null
 ) : EmulatorBase() {
 
     override val name: String = "RetroArch"
     override val systemPrefix: String = "RETRO"
 
     companion object {
+        /** Key used in [com.savesync.android.storage.Settings.saveDirOverrides]. */
+        const val EMULATOR_KEY = "RetroArch"
+
         /**
          * Locations RetroArch may be installed to on Android, in priority order.
          * Mirrors [retroArchBaseCandidates] but exposed statically so other
@@ -58,24 +89,96 @@ class RetroArchEmulator(
          * Predicted ``<savesDir>/<stem>.<ext>`` for a retroarch-backed system.
          * The stem is derived from [label] with disc/bracket tags stripped so
          * multi-disc titles don't end up with per-disc duplicate saves.
+         *
+         * For Saturn (Mednafen), [beetleSaturnPerCoreFolder] mirrors RetroArch's
+         * "Sort Saves into Folders by Core Name" setting: when true the file
+         * lands under ``saves/Beetle Saturn/<stem>.bkr``, otherwise at
+         * ``saves/<stem>.bkr``.
+         *
+         * For CD-based systems, [cdGamesPerContentFolder] mirrors RetroArch's
+         * "Sort Saves into Folders by Content Directory" setting and adds a
+         * per-game subfolder (e.g. ``saves/Grandia/Grandia (Disc 1).bkr``).
+         * Layered after the per-core folder so both can be on at once.
          */
         fun defaultSaveFile(
             externalStorage: File,
             system: String,
             label: String,
             saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+            beetleSaturnPerCoreFolder: Boolean = true,
+            cdGamesPerContentFolder: Boolean = false,
         ): File? {
             val savesDir = findSavesDir(externalStorage, allowNonExistent = true) ?: return null
             val stem = sanitizeLabel(label)
             val sys = system.uppercase()
-            if (sys == "SAT") {
-                return when (saturnSyncFormat) {
-                    SaturnSyncFormat.MEDNAFEN -> File(savesDir, "$stem.bkr")
+            val base = if (sys == "SAT") {
+                when (saturnSyncFormat) {
+                    SaturnSyncFormat.MEDNAFEN -> {
+                        if (beetleSaturnPerCoreFolder) {
+                            File(File(savesDir, "Beetle Saturn"), "$stem.bkr")
+                        } else {
+                            File(savesDir, "$stem.bkr")
+                        }
+                    }
                     SaturnSyncFormat.YABAUSE -> File(savesDir, "$stem.srm")
                     SaturnSyncFormat.YABASANSHIRO -> File(savesDir, "backup.bin")
                 }
+            } else {
+                File(savesDir, "$stem.srm")
             }
-            return File(savesDir, "$stem.srm")
+            return applyPerContentFolder(base, stem, sys, cdGamesPerContentFolder)
+        }
+
+        /**
+         * System codes that store games on CD/disc images (cue/bin/iso/chd).
+         * Used to scope the "Sort Saves into Folders by Content Directory"
+         * toggle so flat-ROM systems (GBA, SNES, NES …) keep their default
+         * single-file save layout.
+         */
+        internal val CD_SYSTEMS: Set<String> = setOf(
+            "PS1", "PS2", "SAT", "SEGACD", "DC", "PCE", "NEOCD"
+        )
+
+        /**
+         * Sanitised per-game subfolder name used when ``cdGamesPerContentFolder``
+         * is on.  Strips disc/side/cd tags so multi-disc titles share a
+         * folder, then strips filesystem-unsafe characters.  Returns null when
+         * the result would be empty (caller falls back to the flat layout).
+         */
+        internal fun perContentFolderName(romName: String): String? {
+            val stripped = romName
+                .replace(
+                    Regex(
+                        """\s*[\(\[]\s*(disc|cd|side)\s*\d+(?:\s*of\s*\d+)?\s*[\)\]]""",
+                        RegexOption.IGNORE_CASE
+                    ), ""
+                )
+                .replace(Regex("""[\\/:*?"<>|]"""), "")
+                .replace(Regex("""\s+"""), " ")
+                .trim()
+            return stripped.ifBlank { null }
+        }
+
+        /**
+         * Wraps [baseFile] in a per-game subfolder when ``cdGamesPerContentFolder``
+         * applies for [system].  When [enabled] is false or the system isn't
+         * CD-based, returns [baseFile] unchanged.  Used by every Saturn/CD
+         * path predictor so the toggle is honoured uniformly.
+         */
+        internal fun applyPerContentFolder(
+            baseFile: File,
+            romName: String,
+            system: String,
+            enabled: Boolean
+        ): File {
+            if (!enabled) return baseFile
+            if (system.uppercase() !in CD_SYSTEMS) return baseFile
+            // YabaSanshiro stores everything in a single shared backup.bin —
+            // a per-game subfolder doesn't make sense for it.
+            if (baseFile.name.equals("backup.bin", ignoreCase = true)) return baseFile
+            val subfolderName = perContentFolderName(romName) ?: return baseFile
+            val parent = baseFile.parentFile ?: return baseFile
+            return File(File(parent, subfolderName), baseFile.name)
         }
 
         /**
@@ -129,13 +232,31 @@ class RetroArchEmulator(
             SaturnSyncFormat.YABASANSHIRO -> File(File(savesDir, "yabasanshiro"), "backup.bin")
         }
 
-        return when {
-            coreSpecific.exists() -> coreSpecific
-            direct.exists() -> direct
-            saturnSyncFormat == SaturnSyncFormat.MEDNAFEN -> coreSpecific
-            saturnSyncFormat == SaturnSyncFormat.YABAUSE -> direct
-            else -> coreSpecific
+        // Per-content-folder variants of each layout, so a save that's already
+        // on disk in the per-game subfolder layout is found first regardless
+        // of the user's current toggle state.
+        val directPerContent = applyPerContentFolder(direct, romName, "SAT", true)
+        val coreSpecificPerContent = applyPerContentFolder(coreSpecific, romName, "SAT", true)
+
+        // Existing files always win regardless of the toggles, so users with
+        // saves already on disk in any layout keep working without a
+        // migration step.
+        if (coreSpecificPerContent.exists()) return coreSpecificPerContent
+        if (coreSpecific.exists()) return coreSpecific
+        if (directPerContent.exists()) return directPerContent
+        if (direct.exists()) return direct
+
+        // Neither file exists yet — pick the default location for new
+        // downloads.  The Beetle Saturn (Mednafen) toggle mirrors RetroArch's
+        // "Sort Saves into Folders by Core Name" config; the other Saturn
+        // cores keep their established defaults.  Then layer the
+        // "Sort Saves into Folders by Content Directory" toggle on top.
+        val baseDefault = when (saturnSyncFormat) {
+            SaturnSyncFormat.MEDNAFEN -> if (beetleSaturnPerCoreFolder) coreSpecific else direct
+            SaturnSyncFormat.YABAUSE -> direct
+            SaturnSyncFormat.YABASANSHIRO -> coreSpecific
         }
+        return applyPerContentFolder(baseDefault, romName, "SAT", cdGamesPerContentFolder)
     }
 
     internal fun shouldTrackRetroArchSaveFile(file: File, system: String): Boolean {
@@ -255,6 +376,15 @@ class RetroArchEmulator(
      *   expected save path (the file just hasn't been downloaded yet).
      */
     private fun resolveSavesDir(bases: List<File>, allowNonExistent: Boolean = false): File? {
+        // Priority 0: explicit user override from EmulatorsScreen.  Wins over
+        // both retroarch.cfg and the auto-detected paths so a user who points
+        // RetroArch saves at a custom SD-card folder always sees that one.
+        if (!saveDirOverride.isNullOrBlank()) {
+            val overrideDir = File(saveDirOverride)
+            if (overrideDir.exists() && overrideDir.isDirectory) return overrideDir
+            if (allowNonExistent) return overrideDir
+        }
+
         // Priority 1: savefile_directory in retroarch.cfg at the base root
         val fromRootCfg = bases.firstNotNullOfOrNull { base ->
             parseSavefileDirectory(File(base, "retroarch.cfg"))
@@ -384,69 +514,63 @@ class RetroArchEmulator(
 
         val result = mutableListOf<SaveEntry>()
 
-        savesDir.listFiles()?.forEach { entry ->
-            if (entry.isFile) {
-                val romName = entry.nameWithoutExtension
-                val lc = romName.lowercase()
-                val system = romSystemMap[lc]
+        // Resolve a save file → SaveEntry, applying system-specific title ID
+        // lookups (NDS gamecode, PS1/Saturn product code, …).  Returns null
+        // when the file isn't trackable for [forcedSystem] (or when system
+        // resolution is ambiguous and forcedSystem is null).
+        fun trackSave(file: File, forcedSystem: String? = null): SaveEntry? {
+            if (!file.isFile) return null
+            val romName = file.nameWithoutExtension
+            val lc = romName.lowercase()
+            val system = forcedSystem ?: (
+                romSystemMap[lc]
                     ?: romSystemMap[romName]
                     ?: romScanSystemMap[lc]
                     ?: systemPrefix
-                if (shouldTrackRetroArchSaveFile(entry, system)) {
-                    if (isSharedYabaSanshiroBackup(entry, system)) {
-                        return@forEach
-                    }
-                    // For NDS saves, derive the title ID from the ROM gamecode (offset 0x0C).
-                    // For PS1/SAT saves, read the product code from the disc image header so
-                    // title IDs match the server's format (SAT_T-12705H, SLUS01234, etc.).
-                    // When no ROM is found, fall back to a region/disc-stripped slug so that
-                    // multi-disc games share the same ID (Disc 1 and Disc 2 → same entry).
-                    val titleId = when (system) {
-                        "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: toTitleId(romName, system)
-                        "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
-                        "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) }
-                            ?: lookupSaturnSerial(romName)
-                            ?: toTitleId(romName, system)
-                        else  -> toTitleId(romName, system)
-                    }
-                    result.add(
-                        SaveEntry(
-                            titleId = titleId,
-                            displayName = romName,
-                            systemName = system,
-                            saveFile = entry,
-                            saveDir = null
-                        )
-                    )
-                }
+            )
+            if (!shouldTrackRetroArchSaveFile(file, system)) return null
+            if (isSharedYabaSanshiroBackup(file, system)) return null
+            val titleId = when (system) {
+                "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: toTitleId(romName, system)
+                "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
+                "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) }
+                    ?: lookupSaturnSerial(romName)
+                    ?: toTitleId(romName, system)
+                else  -> toTitleId(romName, system)
+            }
+            return SaveEntry(
+                titleId = titleId,
+                displayName = romName,
+                systemName = system,
+                saveFile = file,
+                saveDir = null
+            )
+        }
+
+        savesDir.listFiles()?.forEach { entry ->
+            if (entry.isFile) {
+                trackSave(entry)?.let { result.add(it) }
             } else if (entry.isDirectory) {
-                // System subfolder inside saves/ (e.g. saves/GBA/romname.srm)
-                val system = systemFolderMap[entry.name.uppercase()] ?: return@forEach
-                entry.listFiles()?.forEach { file ->
-                    if (file.isFile && shouldTrackRetroArchSaveFile(file, system)) {
-                        if (isSharedYabaSanshiroBackup(file, system)) {
-                            return@forEach
+                val mappedSystem = systemFolderMap[entry.name.uppercase()]
+                if (mappedSystem != null) {
+                    // Existing behaviour: known system (or core) subfolder.
+                    // Walk one level for files; also recurse into per-content
+                    // sub-subfolders (e.g. saves/Beetle Saturn/Grandia/Grandia.bkr).
+                    entry.listFiles()?.forEach { inner ->
+                        when {
+                            inner.isFile -> trackSave(inner, mappedSystem)?.let { result.add(it) }
+                            inner.isDirectory -> inner.listFiles()?.forEach { f ->
+                                if (f.isFile) trackSave(f, mappedSystem)?.let { result.add(it) }
+                            }
                         }
-                        val romName = file.nameWithoutExtension
-                        val lc = romName.lowercase()
-                        // Apply gamecode/serial lookup for saves inside system subfolders too
-                        val titleId = when (system) {
-                            "NDS" -> ndsRomPathMap[lc]?.let { readNdsGamecode(it) } ?: toTitleId(romName, system)
-                            "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
-                            "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) }
-                                ?: lookupSaturnSerial(romName)
-                                ?: toTitleId(romName, system)
-                            else  -> toTitleId(romName, system)
-                        }
-                        result.add(
-                            SaveEntry(
-                                titleId = titleId,
-                                displayName = romName,
-                                systemName = system,
-                                saveFile = file,
-                                saveDir = null
-                            )
-                        )
+                    }
+                } else {
+                    // Unmapped subfolder — treat as a possible per-content
+                    // folder for a CD game.  We can't tell what system it
+                    // belongs to from the folder name, so let trackSave()
+                    // resolve via the rom-name lookup like at root level.
+                    entry.listFiles()?.forEach { inner ->
+                        if (inner.isFile) trackSave(inner)?.let { result.add(it) }
                     }
                 }
             }
@@ -840,14 +964,26 @@ class RetroArchEmulator(
                     ?: toTitleId(romName, system)
                 else -> toTitleId(romName, system)
             }
+            // Saturn has its own multi-layout resolver (per-core, per-content,
+            // shared backup.bin).  All other RetroArch-backed systems use the
+            // simple flat layout, optionally wrapped in a per-content
+            // subfolder for CD-based systems when the toggle is on.
+            val saveFile = if (system == "SAT") {
+                expectedRetroArchSaturnSaveFile(savesDir, romName)
+            } else {
+                val flat = File(savesDir, "$romName.${defaultSaveExtension(system)}")
+                val perContent = applyPerContentFolder(flat, romName, system, true)
+                when {
+                    perContent.exists() -> perContent
+                    flat.exists() -> flat
+                    else -> applyPerContentFolder(flat, romName, system, cdGamesPerContentFolder)
+                }
+            }
             titleId to SaveEntry(
                 titleId = titleId,
                 displayName = romName,
                 systemName = system,
-                saveFile = when (system) {
-                    "SAT" -> expectedRetroArchSaturnSaveFile(savesDir, romName)
-                    else -> File(savesDir, "$romName.${defaultSaveExtension(system)}")
-                },
+                saveFile = saveFile,
                 saveDir = null
             )
         }.toMap()
