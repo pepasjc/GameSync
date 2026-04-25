@@ -2,6 +2,7 @@ package com.savesync.android.ui
 
 import android.app.Application
 import android.os.Environment
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
@@ -2200,8 +2201,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         "or delete the .state file from the saves folder."
                     )
                 else
-                    SaveDetailState.Error("No save found on server")
+                    // SyncEngine.downloadSave() now THROWS on real errors
+                    // (network, parse, disk) so the catch below carries the
+                    // real reason. A literal "false" return means a
+                    // precondition couldn't be met locally — typically no
+                    // save target file/dir was resolvable for this entry.
+                    SaveDetailState.Error(
+                        "Couldn't download — no save target on this device. " +
+                        "Make sure the emulator is installed and run the game at least once."
+                    )
             } catch (e: Exception) {
+                Log.e("MainViewModel", "downloadSave failed for ${entry.titleId}", e)
                 _saveDetailState.value = SaveDetailState.Error(e.message ?: "Download failed")
             }
         }
