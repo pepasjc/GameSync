@@ -647,72 +647,46 @@ class SyncEngine(
         return outFile
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    // Save download helpers
-    //
-    // Error handling rule: "false" means a real precondition failure (no
-    // local save target, server returned an empty body, parsed bundle was
-    // empty) — those are conditions where there's literally nothing to
-    // write to disk and the caller should treat it as a no-op.
-    //
-    // Anything else — network IO error, HTTP 4xx/5xx with detail, bundle
-    // parse error, disk write error — must THROW so the UI can surface
-    // the real reason. The previous implementation caught Exception and
-    // returned false on every failure, which collapsed every problem
-    // (timeout, parse error, disk full, etc.) into the misleading
-    // "No save found on server" string in MainViewModel.kt:2203.
-    // ──────────────────────────────────────────────────────────────────
-
     private suspend fun downloadPs1Card(entry: SaveEntry, titleId: String): Boolean {
-        val saveFile = entry.saveFile ?: return false
-        val response = api.downloadPs1Card(titleId, slot = 0)
-        if (!response.isSuccessful) {
-            val message = response.errorBody()?.string()?.let(::extractErrorDetail)
-                ?: "Download failed (${response.code()})"
-            Log.e(TAG, "PS1 card download HTTP error for $titleId slot0: $message")
-            throw IOException(message)
-        }
-        val body = response.body() ?: return false
-        val bytes = try {
-            body.bytes()
-        } catch (e: IOException) {
-            Log.e(TAG, "PS1 card body read failed for $titleId", e)
-            throw IOException("Connection lost while downloading save: ${e.message}", e)
-        }
-        try {
+        return try {
+            val saveFile = entry.saveFile ?: return false
+            val response = api.downloadPs1Card(titleId, slot = 0)
+            if (!response.isSuccessful) {
+                val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                    ?: "Download failed (${response.code()})"
+                Log.e(TAG, "PS1 card download HTTP error for $titleId slot0: $message")
+                throw IOException(message)
+            }
+            val body = response.body() ?: return false
+            val bytes = body.bytes()
             saveFile.parentFile?.mkdirs()
             saveFile.writeBytes(bytes)
-        } catch (e: IOException) {
-            Log.e(TAG, "PS1 card disk write failed for $titleId", e)
-            throw IOException("Could not write save to disk: ${e.message}", e)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadPs1Card failed for $titleId", e)
+            false
         }
-        return true
     }
 
     private suspend fun downloadPs2Card(entry: SaveEntry, titleId: String): Boolean {
-        val saveFile = entry.saveFile ?: return false
-        val response = api.downloadPs2Card(titleId, format = "ps2")
-        if (!response.isSuccessful) {
-            val message = response.errorBody()?.string()?.let(::extractErrorDetail)
-                ?: "Download failed (${response.code()})"
-            Log.e(TAG, "PS2 card download HTTP error for $titleId: $message")
-            throw IOException(message)
-        }
-        val body = response.body() ?: return false
-        val bytes = try {
-            body.bytes()
-        } catch (e: IOException) {
-            Log.e(TAG, "PS2 card body read failed for $titleId", e)
-            throw IOException("Connection lost while downloading save: ${e.message}", e)
-        }
-        try {
+        return try {
+            val saveFile = entry.saveFile ?: return false
+            val response = api.downloadPs2Card(titleId, format = "ps2")
+            if (!response.isSuccessful) {
+                val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                    ?: "Download failed (${response.code()})"
+                Log.e(TAG, "PS2 card download HTTP error for $titleId: $message")
+                throw IOException(message)
+            }
+            val body = response.body() ?: return false
+            val bytes = body.bytes()
             saveFile.parentFile?.mkdirs()
             saveFile.writeBytes(bytes)
-        } catch (e: IOException) {
-            Log.e(TAG, "PS2 card disk write failed for $titleId", e)
-            throw IOException("Could not write save to disk: ${e.message}", e)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadPs2Card failed for $titleId", e)
+            false
         }
-        return true
     }
 
     private suspend fun downloadSaveRaw(entry: SaveEntry, titleId: String): Boolean {
@@ -723,33 +697,21 @@ class SyncEngine(
             Log.e(TAG, "Download HTTP error for $titleId: $message")
             throw IOException(message)
         }
-        val body = response.body() ?: return false
-        val bytes = try {
-            body.bytes()
-        } catch (e: IOException) {
-            Log.e(TAG, "Save raw body read failed for $titleId", e)
-            throw IOException("Connection lost while downloading save: ${e.message}", e)
-        }
-        val wrote = try {
-            writeDownloadedBytes(entry, bytes)
-        } catch (e: IOException) {
-            Log.e(TAG, "Save raw disk write failed for $titleId", e)
-            throw IOException("Could not write save to disk: ${e.message}", e)
-        }
-        if (wrote && isSaturnEntry(entry)) {
-            try {
+        return try {
+            val body = response.body() ?: return false
+            val bytes = body.bytes()
+            val wrote = writeDownloadedBytes(entry, bytes)
+            if (wrote && isSaturnEntry(entry)) {
                 val serverHash = response.headers()["X-Save-Hash"]
                     ?: HashUtils.sha256Bytes(bytes)
                 val archiveNames = SaturnSaveFormatConverter.archiveNames(bytes)
                 upsertKnownSyncState(entry, serverHash, archiveNames)
-            } catch (e: Exception) {
-                // Saturn-specific bookkeeping — failing this shouldn't make
-                // the whole download appear to fail, since the bytes are
-                // already on disk. Log it and move on.
-                Log.w(TAG, "Saturn sync-state bookkeeping failed for $titleId", e)
             }
+            wrote
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadSaveRaw failed for $titleId", e)
+            false
         }
-        return wrote
     }
 
     /**
@@ -765,29 +727,19 @@ class SyncEngine(
             Log.e(TAG, "Download bundle HTTP error for $titleId: $message")
             throw IOException(message)
         }
-        val bytes = try {
-            response.body()?.bytes() ?: return false
-        } catch (e: IOException) {
-            Log.e(TAG, "PSP bundle body read failed for $titleId", e)
-            throw IOException("Connection lost while downloading save: ${e.message}", e)
-        }
-        val files = try {
-            BundleUtils.parseBundle(bytes)
-        } catch (e: Exception) {
-            Log.e(TAG, "PSP bundle parse failed for $titleId (${bytes.size} bytes)", e)
-            throw IOException("Bad save bundle from server: ${e.message}", e)
-        }
-        if (files.isEmpty()) return false
-        try {
+        return try {
+            val bytes = response.body()?.bytes() ?: return false
+            val files = BundleUtils.parseBundle(bytes)
+            if (files.isEmpty()) return false
             slotDir.mkdirs()
             for ((name, data) in files) {
                 File(slotDir, name).writeBytes(data)
             }
-        } catch (e: IOException) {
-            Log.e(TAG, "PSP bundle disk write failed for $titleId", e)
-            throw IOException("Could not write save to disk: ${e.message}", e)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadPspBundle failed for $titleId", e)
+            false
         }
-        return true
     }
 
     private suspend fun download3dsBundle(entry: SaveEntry, titleId: String): Boolean {
@@ -799,20 +751,10 @@ class SyncEngine(
             Log.e(TAG, "Download 3DS bundle HTTP error for $titleId: $message")
             throw IOException(message)
         }
-        val bytes = try {
-            response.body()?.bytes() ?: return false
-        } catch (e: IOException) {
-            Log.e(TAG, "3DS bundle body read failed for $titleId", e)
-            throw IOException("Connection lost while downloading save: ${e.message}", e)
-        }
-        val files = try {
-            BundleUtils.parseBundle(bytes)
-        } catch (e: Exception) {
-            Log.e(TAG, "3DS bundle parse failed for $titleId (${bytes.size} bytes)", e)
-            throw IOException("Bad save bundle from server: ${e.message}", e)
-        }
-        if (files.isEmpty()) return false
-        try {
+        return try {
+            val bytes = response.body()?.bytes() ?: return false
+            val files = BundleUtils.parseBundle(bytes)
+            if (files.isEmpty()) return false
             if (saveDir.exists()) {
                 saveDir.deleteRecursively()
             }
@@ -822,11 +764,11 @@ class SyncEngine(
                 target.parentFile?.mkdirs()
                 target.writeBytes(data)
             }
-        } catch (e: IOException) {
-            Log.e(TAG, "3DS bundle disk write failed for $titleId", e)
-            throw IOException("Could not write save to disk: ${e.message}", e)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "download3dsBundle failed for $titleId", e)
+            false
         }
-        return true
     }
 
     suspend fun recordSyncedState(entry: SaveEntry) {
@@ -953,28 +895,23 @@ class SyncEngine(
     }
 
     private suspend fun downloadGcCard(entry: SaveEntry, titleId: String): Boolean {
-        val saveFile = entry.saveFile ?: return false
-        val response = api.downloadGcCard(titleId, format = "gci")
-        if (!response.isSuccessful) {
-            val message = response.errorBody()?.string()?.let(::extractErrorDetail)
-                ?: "Download failed (${response.code()})"
-            Log.e(TAG, "downloadGcCard error for $titleId: $message")
-            throw IOException(message)
-        }
-        val bytes = try {
-            response.body()?.bytes() ?: return false
-        } catch (e: IOException) {
-            Log.e(TAG, "GC card body read failed for $titleId", e)
-            throw IOException("Connection lost while downloading save: ${e.message}", e)
-        }
-        try {
+        return try {
+            val saveFile = entry.saveFile ?: return false
+            val response = api.downloadGcCard(titleId, format = "gci")
+            if (!response.isSuccessful) {
+                val message = response.errorBody()?.string()?.let(::extractErrorDetail)
+                    ?: "Download failed (${response.code()})"
+                Log.e(TAG, "downloadGcCard error for $titleId: $message")
+                return false
+            }
+            val bytes = response.body()?.bytes() ?: return false
             saveFile.parentFile?.mkdirs()
             saveFile.writeBytes(bytes)
-        } catch (e: IOException) {
-            Log.e(TAG, "GC card disk write failed for $titleId", e)
-            throw IOException("Could not write save to disk: ${e.message}", e)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadGcCard failed for $titleId", e)
+            false
         }
-        return true
     }
 
     private suspend fun syncRawCardEntry(entry: SaveEntry): RawCardSyncOutcome {

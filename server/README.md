@@ -245,7 +245,7 @@ server {
 
     # Streaming endpoints — bypass nginx buffering for ROMs and saves so
     # multi-GB transfers don't load into Pi RAM on either direction.
-    location ~ ^/api/v1/(roms|saves)(/|$) {
+    location ~ ^/api/v1/roms(/|$) {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -275,7 +275,7 @@ server {
     proxy_read_timeout 24h;
     proxy_send_timeout 24h;
 
-    location ~ ^/api/v1/(roms|saves)(/|$) {
+    location ~ ^/api/v1/roms(/|$) {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -318,7 +318,7 @@ server {
     auth_basic "GameSync";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
-    location ~ ^/api/v1/(roms|saves)(/|$) {
+    location ~ ^/api/v1/roms(/|$) {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
