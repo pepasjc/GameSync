@@ -661,21 +661,52 @@ async function api(path) {
   return r.json();
 }
 
-async function dlFile(url, filename, btn) {
-  const origTxt = btn?.textContent;
-  if (btn) { btn.disabled = true; btn.classList.add('busy'); btn.textContent = '…'; }
-  try {
-    const r = await fetch(url, { headers: { 'X-API-Key': API_KEY } });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    triggerDownload(await r.blob(), filename);
-    toast(`⬇ ${filename}`, 'ok');
-  } catch(e) {
-    if (e.name !== 'AbortError') toast('Download failed: ' + e.message, 'err');
-  } finally {
-    if (btn) { btn.disabled = false; btn.classList.remove('busy'); btn.textContent = origTxt || '↓'; }
+// Append the API key as a query param so a plain <a href> can authenticate.
+// The auth middleware already accepts both X-API-Key header AND ?api_key=...
+// (server/app/middleware/auth.py), so this is just a UX layer.
+function withAuth(url) {
+  return url + (url.includes('?') ? '&' : '?') + 'api_key=' + encodeURIComponent(API_KEY);
+}
+
+// Raw ROM / save downloads now use a native browser download instead of
+// fetch().blob(). Reasons:
+//   - fetch().blob() buffers the WHOLE response in browser RAM — fatal for
+//     a 4 GB PS2 ISO on a phone.
+//   - Native downloads stream straight to disk, show the browser's progress
+//     bar, and survive backgrounding the tab on mobile.
+//   - The browser issues HTTP Range automatically and can resume on
+//     interruptions when the server advertises Accept-Ranges (we do).
+// This means we can't show a per-button spinner during the transfer (the
+// browser owns the UI now), but we briefly flash a "started" hint so the
+// user knows the click registered.
+function dlFile(url, filename, btn) {
+  const a = document.createElement('a');
+  a.href = withAuth(url);
+  if (filename) a.download = filename;
+  // Some mobile browsers ignore the download attribute on cross-origin /
+  // proxied responses but still trigger a download because of the server's
+  // Content-Disposition header — that's fine, the filename comes from there.
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  toast(`⬇ ${filename || 'Download started'}`, 'ok');
+
+  // Brief visual ack on the clicked button.
+  if (btn) {
+    const origTxt = btn.textContent;
+    btn.disabled = true; btn.classList.add('busy'); btn.textContent = '…';
+    setTimeout(() => {
+      btn.disabled = false; btn.classList.remove('busy');
+      btn.textContent = origTxt || '↓';
+    }, 900);
   }
 }
 
+// Used by the extract queue (CHD → ISO etc) which DOES want the fetch()
+// path so it can show "now converting" progress and stage messages while
+// the server runs chdman / DolphinTool / etc. With the server now streaming
+// the result from a temp file (instead of buffering), the browser side is
+// the only thing still buffered — but extracts are typically <2 GB.
 function triggerDownload(blob, filename) {
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(blob), download: filename,

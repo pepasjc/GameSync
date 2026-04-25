@@ -16,7 +16,6 @@ GET  /api/v1/roms/systems      — List systems with ROMs and counts
 """
 
 import asyncio
-import io
 import json
 import os
 import shlex
@@ -28,9 +27,16 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Header, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from starlette.background import BackgroundTask
 
 from app.config import settings
+
+# Chunk size for streamed Range responses. 1 MiB is a good balance between
+# syscall overhead and keeping memory bounded — a single in-flight request
+# never holds more than this much in RAM at a time, so 4GB ROMs over slow
+# WAN links cost ~1MB of process memory regardless of file size.
+_STREAM_CHUNK = 1 << 20
 from app.services import rom_scanner
 
 router = APIRouter()
@@ -227,6 +233,43 @@ async def download_rom(
     return _serve_full(file_path, file_size, content_type)
 
 
+# ── Extract helpers — common cleanup + streaming ────────────────────────────
+#
+# All extract endpoints used to call `output.read_bytes()` and return the
+# whole result as `Response(content=bytes)`. For a 4GB Wii ISO that means
+# 4GB of Python heap allocation on a Raspberry Pi — guaranteed OOM.
+#
+# The new pattern:
+#   1. Create a tempdir *manually* (not a context manager) so it survives
+#      past the request handler.
+#   2. Run the conversion blocking in an executor as before.
+#   3. Return FileResponse(path=...) so Starlette streams from disk.
+#   4. Attach a BackgroundTask that wipes the tempdir after the response
+#      body has been fully sent.
+#
+# This keeps RAM bounded to ~1 MB per request regardless of output size,
+# and lets nginx pass bytes through as fast as the client can consume them.
+
+def _cleanup_dir(path: str) -> None:
+    shutil.rmtree(path, ignore_errors=True)
+
+
+def _stream_file_response(
+    file_path: Path,
+    media_type: str,
+    cleanup_dir: str | None = None,
+) -> FileResponse:
+    """Return a streaming FileResponse, with optional tempdir cleanup."""
+    background = BackgroundTask(_cleanup_dir, cleanup_dir) if cleanup_dir else None
+    return FileResponse(
+        path=file_path,
+        media_type=media_type,
+        filename=file_path.name,
+        headers={'Content-Disposition': f'attachment; filename="{file_path.name}"'},
+        background=background,
+    )
+
+
 # ── GameCube / Wii RVZ → ISO ─────────────────────────────────────────────────
 
 async def _extract_rvz(rvz_path: Path, stem: str) -> Response:
@@ -248,33 +291,31 @@ async def _extract_rvz(rvz_path: Path, stem: str) -> Response:
             ),
         )
 
-    def _run() -> bytes:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            iso_path = Path(tmpdir) / (stem + '.iso')
-            r = subprocess.run(
-                [dolphin_tool, 'convert', '-f', 'iso', '-i', str(rvz_path), '-o', str(iso_path)],
-                capture_output=True, text=True, timeout=600,
-            )
-            if r.returncode != 0:
-                raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'DolphinTool failed')
-            return iso_path.read_bytes()
+    tmpdir = tempfile.mkdtemp(prefix='rvz_extract_')
+    iso_path = Path(tmpdir) / (stem + '.iso')
+
+    def _run() -> None:
+        r = subprocess.run(
+            [dolphin_tool, 'convert', '-f', 'iso', '-i', str(rvz_path), '-o', str(iso_path)],
+            capture_output=True, text=True, timeout=600,
+        )
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'DolphinTool failed')
 
     try:
-        data = await asyncio.get_event_loop().run_in_executor(None, _run)
+        await asyncio.get_event_loop().run_in_executor(None, _run)
     except RuntimeError as exc:
+        _cleanup_dir(tmpdir)
         return Response(status_code=500, content=f"Conversion failed: {exc}")
     except subprocess.TimeoutExpired:
+        _cleanup_dir(tmpdir)
         return Response(status_code=504, content="Conversion timed out (>10 min)")
 
-    filename = stem + '.iso'
-    return Response(
-        content=data,
-        media_type='application/x-iso9660-image',
-        headers={
-            'Content-Disposition': f'attachment; filename="{filename}"',
-            'Content-Length': str(len(data)),
-        },
-    )
+    if not iso_path.is_file():
+        _cleanup_dir(tmpdir)
+        return Response(status_code=500, content="Conversion completed but produced no ISO")
+
+    return _stream_file_response(iso_path, 'application/x-iso9660-image', cleanup_dir=tmpdir)
 
 
 # ── Nintendo 3DS cart image → CIA / CCI variants ────────────────────────────
@@ -309,57 +350,54 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
             ),
         )
 
-    def _run() -> tuple[str, bytes]:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp = Path(tmpdir)
-            input_path, stem = _materialize_3ds_source(source_path, tmp)
-            # Preserve the original ROM stem verbatim — only the extension changes.
-            output_name = f"{stem}{spec['output_ext']}"
-            output_path = tmp / output_name
+    tmpdir = tempfile.mkdtemp(prefix='3ds_extract_')
 
-            cmd = _expand_command_template(
-                command_template,
-                input=str(input_path),
-                output=str(output_path),
-                output_dir=str(tmp),
-                stem=stem,
+    def _run() -> Path:
+        tmp = Path(tmpdir)
+        input_path, stem = _materialize_3ds_source(source_path, tmp)
+        # Preserve the original ROM stem verbatim — only the extension changes.
+        output_name = f"{stem}{spec['output_ext']}"
+        output_path = tmp / output_name
+
+        cmd = _expand_command_template(
+            command_template,
+            input=str(input_path),
+            output=str(output_path),
+            output_dir=str(tmp),
+            stem=stem,
+        )
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=1800,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or result.stdout.strip() or '3DS conversion failed')
+
+        final_path = output_path if output_path.is_file() else _find_single_output(tmp, spec['output_ext'])
+        if final_path is None or not final_path.is_file():
+            raise RuntimeError(
+                f"converter completed but did not produce a {spec['output_ext']} file"
             )
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=1800,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(result.stderr.strip() or result.stdout.strip() or '3DS conversion failed')
-
-            final_path = output_path if output_path.is_file() else _find_single_output(tmp, spec['output_ext'])
-            if final_path is None or not final_path.is_file():
-                raise RuntimeError(
-                    f"converter completed but did not produce a {spec['output_ext']} file"
-                )
-
-            return final_path.name, final_path.read_bytes()
+        return final_path
 
     try:
-        filename, data = await asyncio.get_event_loop().run_in_executor(None, _run)
+        final_path = await asyncio.get_event_loop().run_in_executor(None, _run)
     except RuntimeError as exc:
+        _cleanup_dir(tmpdir)
         return Response(status_code=500, content=f"Conversion failed: {exc}")
     except subprocess.TimeoutExpired:
+        _cleanup_dir(tmpdir)
         return Response(status_code=504, content="Conversion timed out (>30 min)")
     except zipfile.BadZipFile:
+        _cleanup_dir(tmpdir)
         return Response(status_code=400, content="Invalid ZIP archive")
     except ValueError as exc:
+        _cleanup_dir(tmpdir)
         return Response(status_code=400, content=str(exc))
 
-    return Response(
-        content=data,
-        media_type='application/x-3ds-rom',
-        headers={
-            'Content-Disposition': f'attachment; filename="{filename}"',
-            'Content-Length': str(len(data)),
-        },
-    )
+    return _stream_file_response(final_path, 'application/x-3ds-rom', cleanup_dir=tmpdir)
 
 
 # ── PSP CHD → ISO / CSO ──────────────────────────────────────────────────────
@@ -385,55 +423,53 @@ async def _extract_psp(chd_path: Path, system: str, stem: str, fmt: str) -> Resp
                 content="No CSO tool found. Install one: sudo apt install ciso  OR  compile maxcso",
             )
 
-    def _run() -> bytes:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp = Path(tmpdir)
-            iso_path = tmp / (stem + '.iso')
+    tmpdir = tempfile.mkdtemp(prefix='psp_extract_')
+    tmp = Path(tmpdir)
+    iso_path = tmp / (stem + '.iso')
+    cso_path = tmp / (stem + '.cso')
 
-            # PSP CHDs are hard-disk images (createhd), not CD-ROM images (createcd).
-            # Use extracthd which outputs a raw ISO directly.
-            r = subprocess.run(
-                ['chdman', 'extracthd', '-i', str(chd_path), '-o', str(iso_path)],
-                capture_output=True, text=True, timeout=600,
-            )
-            if r.returncode != 0:
-                raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'chdman failed')
+    def _run() -> Path:
+        # PSP CHDs are hard-disk images (createhd), not CD-ROM images (createcd).
+        # Use extracthd which outputs a raw ISO directly.
+        r = subprocess.run(
+            ['chdman', 'extracthd', '-i', str(chd_path), '-o', str(iso_path)],
+            capture_output=True, text=True, timeout=600,
+        )
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'chdman failed')
 
-            if fmt == 'iso':
-                return iso_path.read_bytes()
+        if fmt == 'iso':
+            return iso_path
 
-            # Step 2 — ISO → CSO
-            cso_path = tmp / (stem + '.cso')
-            if 'maxcso' in (cso_tool or ''):
-                cmd = [cso_tool, str(iso_path), '--output', str(cso_path)]
-            else:
-                # ciso: ciso <level 1-9> <input> <output>
-                cmd = [cso_tool, '9', str(iso_path), str(cso_path)]
+        # Step 2 — ISO → CSO
+        if 'maxcso' in (cso_tool or ''):
+            cmd = [cso_tool, str(iso_path), '--output', str(cso_path)]
+        else:
+            # ciso: ciso <level 1-9> <input> <output>
+            cmd = [cso_tool, '9', str(iso_path), str(cso_path)]
 
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-            if r.returncode != 0:
-                raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'CSO conversion failed')
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'CSO conversion failed')
 
-            return cso_path.read_bytes()
+        # ISO is no longer needed; remove early so the tempdir doesn't double in size.
+        try:
+            iso_path.unlink()
+        except OSError:
+            pass
+        return cso_path
 
     try:
-        data = await asyncio.get_event_loop().run_in_executor(None, _run)
+        out_path = await asyncio.get_event_loop().run_in_executor(None, _run)
     except RuntimeError as exc:
+        _cleanup_dir(tmpdir)
         return Response(status_code=500, content=f"Conversion failed: {exc}")
     except subprocess.TimeoutExpired:
+        _cleanup_dir(tmpdir)
         return Response(status_code=504, content="Conversion timed out (>10 min)")
 
-    ext       = '.' + fmt   # .iso or .cso
-    mime      = 'application/x-iso9660-image' if fmt == 'iso' else 'application/x-cso'
-    filename  = stem + ext
-    return Response(
-        content=data,
-        media_type=mime,
-        headers={
-            'Content-Disposition': f'attachment; filename="{filename}"',
-            'Content-Length': str(len(data)),
-        },
-    )
+    mime = 'application/x-iso9660-image' if fmt == 'iso' else 'application/x-cso'
+    return _stream_file_response(out_path, mime, cleanup_dir=tmpdir)
 
 
 # ── CD-ROM CHD → CUE/BIN or GDI zip ─────────────────────────────────────────
@@ -455,52 +491,71 @@ async def _extract_cd(chd_path: Path, system: str) -> Response:
     out_ext = '.gdi' if sys_up in _GDI_SYSTEMS else '.cue'
     stem    = chd_path.stem
 
-    def _run_extraction() -> bytes:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            out_file = Path(tmpdir) / (stem + out_ext)
-            r = subprocess.run(
-                ['chdman', 'extractcd', '-i', str(chd_path), '-o', str(out_file)],
-                capture_output=True, text=True, timeout=600,
-            )
-            if r.returncode != 0:
-                raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'unknown error')
+    # Two-phase tempdir layout:
+    #   <tmpdir>/extract/   — chdman writes its raw output here
+    #   <tmpdir>/<stem>.zip — final archive we stream to the client
+    # We zip with ZIP_STORED (no compression) because BIN/RAW track data is
+    # already incompressible and the client can extract instantly. This also
+    # lets us avoid CPU spike on the Pi during the zip step.
+    tmpdir = tempfile.mkdtemp(prefix='cd_extract_')
+    extract_dir = Path(tmpdir) / 'extract'
+    extract_dir.mkdir()
+    zip_path = Path(tmpdir) / f'{stem}.zip'
 
-            buf = io.BytesIO()
-            with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-                for f in sorted(Path(tmpdir).iterdir()):
-                    zf.write(f, f.name)
-            return buf.getvalue()
+    def _run_extraction() -> Path:
+        out_file = extract_dir / (stem + out_ext)
+        r = subprocess.run(
+            ['chdman', 'extractcd', '-i', str(chd_path), '-o', str(out_file)],
+            capture_output=True, text=True, timeout=600,
+        )
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.strip() or r.stdout.strip() or 'unknown error')
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED) as zf:
+            for f in sorted(extract_dir.iterdir()):
+                zf.write(f, f.name)
+
+        # Free the raw extracted files now that they're inside the zip — keeps
+        # disk usage from doubling on the Pi.
+        for f in extract_dir.iterdir():
+            try: f.unlink()
+            except OSError: pass
+        try: extract_dir.rmdir()
+        except OSError: pass
+
+        return zip_path
 
     try:
-        data = await asyncio.get_event_loop().run_in_executor(None, _run_extraction)
+        out_path = await asyncio.get_event_loop().run_in_executor(None, _run_extraction)
     except RuntimeError as exc:
+        _cleanup_dir(tmpdir)
         return Response(status_code=500, content=f"Extraction failed: {exc}")
     except subprocess.TimeoutExpired:
+        _cleanup_dir(tmpdir)
         return Response(status_code=504, content="Extraction timed out (>10 min)")
 
-    # Preserve the original ROM stem — the ZIP extension is the only hint the
-    # client needs to distinguish a CHD extraction from the raw file.
-    filename = f"{stem}.zip"
-    return Response(
-        content=data,
-        media_type='application/zip',
-        headers={
-            'Content-Disposition': f'attachment; filename="{filename}"',
-            'Content-Length': str(len(data)),
-        },
-    )
+    return _stream_file_response(out_path, 'application/zip', cleanup_dir=tmpdir)
 
 
 # ── Regular file serving ─────────────────────────────────────────────────────
+#
+# Both helpers below stream from disk in chunks instead of loading the whole
+# file into RAM. The previous implementation called `file_path.read_bytes()`
+# which on a Pi with 2-4 GB RAM made multi-GB ROM downloads OOM-kill the
+# process — and even when it didn't, the long blocking read held the event
+# loop and tripped nginx's `proxy_read_timeout`, severing the connection.
 
 def _serve_full(file_path: Path, file_size: int, content_type: str) -> Response:
-    return Response(
-        content=file_path.read_bytes(),
+    # FileResponse uses the platform's zero-copy sendfile() under the hood
+    # when possible, otherwise falls back to chunked async reads. Either way
+    # the request handler never holds the whole file in memory.
+    return FileResponse(
+        path=file_path,
         media_type=content_type,
+        filename=file_path.name,
         headers={
-            'Content-Length': str(file_size),
             'Accept-Ranges': 'bytes',
-            'Content-Disposition': f'attachment; filename="{file_path.name}"',
+            'Content-Length': str(file_size),
         },
     )
 
@@ -513,13 +568,23 @@ def _serve_range(
         return Response(status_code=416, headers={'Content-Range': f'bytes */{file_size}'})
 
     length = end - start + 1
-    with open(file_path, 'rb') as f:
-        f.seek(start)
-        data = f.read(length)
 
-    return Response(
+    def _iter() -> bytes:
+        # Open inside the generator so the file handle's lifetime is tied to
+        # the response stream, not the request handler.
+        with open(file_path, 'rb') as f:
+            f.seek(start)
+            remaining = length
+            while remaining > 0:
+                buf = f.read(min(_STREAM_CHUNK, remaining))
+                if not buf:
+                    break
+                remaining -= len(buf)
+                yield buf
+
+    return StreamingResponse(
+        _iter(),
         status_code=206,
-        content=data,
         media_type=content_type,
         headers={
             'Content-Range': f'bytes {start}-{end}/{file_size}',

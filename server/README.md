@@ -208,8 +208,31 @@ Cert auto-renews via cron every 60 days.
 
 ```nginx
 # /etc/nginx/sites-available/gamesync
+#
+# Key tuning notes for large-file ROM/save downloads:
+#   * proxy_read_timeout / proxy_send_timeout are set to 24h so a 4GB ROM
+#     over a slow cellular connection doesn't get severed mid-stream.
+#   * The dedicated `location ~ ^/api/v1/(roms|saves)/` block disables
+#     proxy_buffering so the FastAPI streaming response passes straight
+#     through to the client — nginx never tries to buffer a multi-GB file
+#     to disk/RAM on the Pi.
+#   * proxy_request_buffering off lets large UPLOADS (saves, raw saves)
+#     stream into uvicorn instead of being spooled to /tmp first.
 
 limit_req_zone $binary_remote_addr zone=main:10m rate=20r/s;
+
+# Shared snippet for all server blocks. Inline if you'd rather not use an
+# include file; this just deduplicates the proxy headers / timeouts.
+#
+#   /etc/nginx/snippets/gamesync-proxy.conf
+#
+#     proxy_pass http://127.0.0.1:8000;
+#     proxy_set_header Host $host;
+#     proxy_set_header X-Real-IP $remote_addr;
+#     proxy_set_header X-Remote-User $remote_user;
+#     proxy_http_version 1.1;
+#     proxy_read_timeout 24h;
+#     proxy_send_timeout 24h;
 
 # ── LAN: plain HTTP (no password) ────────────────────────────────────────────
 server {
@@ -217,8 +240,20 @@ server {
     server_name 192.168.1.201;   # your Pi's LAN IP
 
     client_max_body_size 0;
-    proxy_read_timeout 600s;
-    proxy_send_timeout 600s;
+    proxy_read_timeout 24h;
+    proxy_send_timeout 24h;
+
+    # Streaming endpoints — bypass nginx buffering for ROMs and saves so
+    # multi-GB transfers don't load into Pi RAM on either direction.
+    location ~ ^/api/v1/(roms|saves)(/|$) {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Remote-User $remote_user;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -237,8 +272,18 @@ server {
     ssl_certificate_key /etc/nginx/ssl/key.pem;
 
     client_max_body_size 0;
-    proxy_read_timeout 600s;
-    proxy_send_timeout 600s;
+    proxy_read_timeout 24h;
+    proxy_send_timeout 24h;
+
+    location ~ ^/api/v1/(roms|saves)(/|$) {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Remote-User $remote_user;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -267,11 +312,21 @@ server {
     limit_req zone=main burst=30 nodelay;
 
     client_max_body_size 0;
-    proxy_read_timeout 600s;
-    proxy_send_timeout 600s;
+    proxy_read_timeout 24h;
+    proxy_send_timeout 24h;
 
     auth_basic "GameSync";
     auth_basic_user_file /etc/nginx/.htpasswd;
+
+    location ~ ^/api/v1/(roms|saves)(/|$) {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Remote-User $remote_user;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:8000;
