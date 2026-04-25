@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from chd_converter import find_chdman
 from config import SYSTEM_CHOICES, load_config
 
 
@@ -34,6 +35,7 @@ def format_build_confirmation_message(
     bucket_count: int,
     unzip_archives: bool,
     one_game_one_rom: bool,
+    convert_to_chd: bool = False,
 ) -> str:
     unmatched_copied_count = unmatched_found_count if include_unmatched else 0
     total_written = matched_count + unmatched_copied_count
@@ -63,15 +65,21 @@ def format_build_confirmation_message(
         else "Mode: complete collection (all matched variants)."
     )
 
-    return (
-        f"Build collection in:\n{output_folder}\n\n"
-        f"Total files to write: {total_written}\n"
-        f"{mode_line}\n"
-        f"{matched_line}\n"
-        f"{unmatched_line}\n"
-        f"{zip_line}\n"
-        "Proceed?"
-    )
+    lines = [
+        f"Build collection in:\n{output_folder}",
+        "",
+        f"Total files to write: {total_written}",
+        mode_line,
+        matched_line,
+        unmatched_line,
+        zip_line,
+    ]
+    if convert_to_chd:
+        lines.append(
+            ".cue / .gdi / .iso sources will be compressed to .chd via chdman."
+        )
+    lines.append("Proceed?")
+    return "\n".join(lines)
 
 
 class CollectionScanWorker(QThread):
@@ -87,6 +95,7 @@ class CollectionScanWorker(QThread):
         clone_map: dict[str, str] | None = None,
         skip_crc: bool = False,
         one_game_one_rom: bool = True,
+        serial_map: dict[str, str] | None = None,
     ):
         super().__init__()
         self.folder = folder
@@ -95,6 +104,7 @@ class CollectionScanWorker(QThread):
         self.clone_map = clone_map or {}
         self.skip_crc = skip_crc
         self.one_game_one_rom = one_game_one_rom
+        self.serial_map = serial_map or {}
 
     def run(self):
         try:
@@ -108,6 +118,7 @@ class CollectionScanWorker(QThread):
                 clone_map=self.clone_map,
                 skip_crc=self.skip_crc,
                 one_game_one_rom=self.one_game_one_rom,
+                serial_map=self.serial_map,
             )
             self.finished.emit(entries, duplicates, unmatched)
         except Exception as exc:
@@ -128,6 +139,8 @@ class CollectionBuildWorker(QThread):
         unzip_archives: bool,
         unmatched_files: list[Path] | None = None,
         folder_count: int = 1,
+        convert_to_chd: bool = False,
+        chdman_path: Path | None = None,
     ):
         super().__init__()
         self.entries = entries
@@ -135,6 +148,8 @@ class CollectionBuildWorker(QThread):
         self.unzip_archives = unzip_archives
         self.unmatched_files = unmatched_files or []
         self.folder_count = folder_count
+        self.convert_to_chd = convert_to_chd
+        self.chdman_path = chdman_path
 
     def run(self):
         try:
@@ -147,6 +162,8 @@ class CollectionBuildWorker(QThread):
                 unmatched_files=self.unmatched_files,
                 folder_count=self.folder_count,
                 progress_callback=self.progress.emit,
+                convert_to_chd=self.convert_to_chd,
+                chdman_path=self.chdman_path,
             )
             self.finished.emit(written)
         except Exception as exc:
@@ -169,6 +186,7 @@ class CollectionValidateWorker(QThread):
         skip_crc: bool = False,
         one_game_one_rom: bool = True,
         enabled_regions: set[str] | None = None,
+        serial_map: dict[str, str] | None = None,
     ):
         super().__init__()
         self.folder = folder
@@ -178,6 +196,7 @@ class CollectionValidateWorker(QThread):
         self.skip_crc = skip_crc
         self.one_game_one_rom = one_game_one_rom
         self.enabled_regions = enabled_regions
+        self.serial_map = serial_map or {}
 
     def run(self):
         try:
@@ -192,6 +211,7 @@ class CollectionValidateWorker(QThread):
                 skip_crc=self.skip_crc,
                 one_game_one_rom=self.one_game_one_rom,
                 enabled_regions=self.enabled_regions,
+                serial_map=self.serial_map,
             )
             self.finished.emit(report)
         except Exception as exc:
@@ -208,10 +228,12 @@ class RomCollectionTab(QWidget):
         self._unmatched = []
         self._no_intro = {}
         self._clone_map: dict[str, str] = {}
+        self._serial_map: dict[str, str] = {}
         self._loaded_dat_path: Path | None = None
         self._last_rom_folder: Path | None = None
         self._last_dat_folder: Path | None = None
         self._last_output_folder: Path | None = None
+        self._chdman_path: Path | None = find_chdman()
         self._init_ui()
 
     def _init_ui(self):
@@ -313,6 +335,24 @@ class RomCollectionTab(QWidget):
         )
         source_layout.addWidget(QLabel("Options:"), 6, 0)
         source_layout.addWidget(self.crc_check, 6, 1, 1, 3)
+
+        # Convert to CHD — applied at build time.  Only enabled when chdman
+        # is available on disk.
+        self.chd_check = QCheckBox("Convert .cue/.gdi/.iso to .chd on build")
+        if self._chdman_path is None:
+            self.chd_check.setEnabled(False)
+            self.chd_check.setToolTip(
+                "chdman.exe not found.\n"
+                "Place the MAME chdman executable in the project's tools/ folder\n"
+                "(or add it to PATH) to enable CHD conversion."
+            )
+        else:
+            self.chd_check.setToolTip(
+                "When checked, .cue / .gdi / .iso sources are compressed to "
+                ".chd during collection build using chdman.\n"
+                f"chdman: {self._chdman_path}"
+            )
+        source_layout.addWidget(self.chd_check, 7, 1, 1, 3)
 
         layout.addLayout(source_layout)
 
@@ -420,6 +460,7 @@ class RomCollectionTab(QWidget):
         else:
             self._no_intro = {}
             self._clone_map = {}
+            self._serial_map = {}
             self._loaded_dat_path = None
             self.dat_label.setText(
                 f"No DAT found for {system} in dats/ folder — browse manually"
@@ -430,12 +471,18 @@ class RomCollectionTab(QWidget):
 
         self._no_intro = rn.load_no_intro_dat(path)
         self._clone_map = rn.load_cloneof_map(path)
+        # PS1/PS2/PSP DATs in libretro format carry disc serials.
+        # Systems without serial info get an empty map — harmless.
+        self._serial_map = rn.load_serial_map(path)
         self._loaded_dat_path = path
         count = len(self._no_intro)
         clones = len(self._clone_map)
+        serials = len(self._serial_map)
         label = f"{path.name}  ({count:,} entries"
         if clones:
             label += f", {clones:,} clone links"
+        if serials:
+            label += f", {serials:,} serials"
         label += ")"
         self.dat_label.setText(label)
 
@@ -466,6 +513,7 @@ class RomCollectionTab(QWidget):
             clone_map=self._clone_map,
             skip_crc=not self.crc_check.isChecked(),
             one_game_one_rom=self.one_game_one_rom_check.isChecked(),
+            serial_map=self._serial_map,
         )
         self._scan_worker.progress.connect(self.status_label.setText)
         self._scan_worker.finished.connect(self._on_scan_done)
@@ -564,6 +612,11 @@ class RomCollectionTab(QWidget):
             return
         self._last_output_folder = Path(folder)
         output_folder = self._last_output_folder
+        # CHD conversion is a build-time toggle — only effective when chdman
+        # was discoverable when the tab loaded.
+        convert_to_chd = bool(
+            self.chd_check.isChecked() and self._chdman_path is not None
+        )
         reply = QMessageBox.question(
             self,
             "Build ROM Collection",
@@ -576,6 +629,7 @@ class RomCollectionTab(QWidget):
                 bucket_count=self.bucket_count_spin.value(),
                 unzip_archives=self.unzip_check.isChecked(),
                 one_game_one_rom=self.one_game_one_rom_check.isChecked(),
+                convert_to_chd=convert_to_chd,
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -592,6 +646,8 @@ class RomCollectionTab(QWidget):
             folder_count=self.bucket_count_spin.value()
             if self.bucket_folders_check.isChecked()
             else 1,
+            convert_to_chd=convert_to_chd,
+            chdman_path=self._chdman_path,
         )
         self._build_worker.progress.connect(self.status_label.setText)
         self._build_worker.finished.connect(self._on_build_done)
@@ -634,6 +690,7 @@ class RomCollectionTab(QWidget):
             skip_crc=not self.crc_check.isChecked(),
             one_game_one_rom=self.one_game_one_rom_check.isChecked(),
             enabled_regions=self._enabled_regions(),
+            serial_map=self._serial_map,
         )
         self._validate_worker.progress.connect(self.status_label.setText)
         self._validate_worker.finished.connect(
@@ -689,6 +746,7 @@ class RomCollectionTab(QWidget):
             "region_japan": self.region_japan_check.isChecked(),
             "region_other": self.region_other_check.isChecked(),
             "crc_matching": self.crc_check.isChecked(),
+            "convert_to_chd": self.chd_check.isChecked(),
             "last_rom_folder": str(self._last_rom_folder)
             if self._last_rom_folder
             else "",
@@ -716,6 +774,10 @@ class RomCollectionTab(QWidget):
         self.region_japan_check.setChecked(bool(state.get("region_japan", True)))
         self.region_other_check.setChecked(bool(state.get("region_other", True)))
         self.crc_check.setChecked(bool(state.get("crc_matching", True)))
+        # Only restore the CHD toggle when chdman is actually available — the
+        # checkbox stays disabled otherwise.
+        if self._chdman_path is not None:
+            self.chd_check.setChecked(bool(state.get("convert_to_chd", False)))
         self._on_bucket_toggle()
         system = state.get("system", "")
         if system:

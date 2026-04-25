@@ -308,6 +308,123 @@ def _crc32_file(path: Path) -> str:
     return f"{crc & 0xFFFFFFFF:08X}"
 
 
+# ---------------------------------------------------------------------------
+# Sony disc-serial extraction (PS1 / PS2 / PSP)
+# ---------------------------------------------------------------------------
+
+# Systems that ship with a 4-letter + 5-digit Sony disc serial in their DAT
+# and whose ROM filenames commonly encode the serial.  Used to gate the
+# serial-based lookup so we don't waste cycles on, say, SNES files.
+_SERIAL_LOOKUP_SYSTEMS: frozenset[str] = frozenset({"PS1", "PS2", "PSP"})
+
+# Every 4-letter prefix that the libretro PS1/PS2/PSP DATs actually emit.
+# Kept here (rather than in systems.py) so the normalizer has zero run-time
+# deps on the config layer.
+_PS_DISC_SERIAL_PREFIXES: frozenset[str] = frozenset(
+    {
+        # PS1 / PS2 (Sony)
+        "SLUS", "SCUS", "SCED", "PAPX", "PBPX",
+        "SLES", "SCES",
+        "SLPS", "SLPM", "SCPS", "SCPM", "SLPN",
+        # Other-region Sony
+        "SCAJ", "SLAJ", "SLKA", "SCKA", "SLEJ",
+        # PSP UMD
+        "ULUS", "ULES", "ULJM", "ULJS", "UCUS", "UCES", "UCJS", "UCJM",
+        "UCKS", "UCAS", "ULKS", "ULAS",
+        # PSP / PSN downloadable
+        "NPUG", "NPEG", "NPJG", "NPUH", "NPEH", "NPJH",
+    }
+)
+
+# Matches a PlayStation disc serial embedded in a filename.
+#
+# Handles the three separator conventions seen in the wild:
+#     SCES_538.51.game name.iso   -> underscore + dot
+#     SCES-53851 - Foo.iso        -> bare hyphen
+#     SLUS20265 - Bar.iso         -> no separator
+#
+# The leading lookbehind prevents matching inside longer tokens (e.g. a CRC
+# like "ASLUS20265F").  The trailing lookahead keeps us from eating into
+# suffixes such as "SLUS-20265GH" – we match the 5-digit base and the lookup
+# table holds both the bare and suffixed variants.
+_PS_SERIAL_RE = re.compile(
+    r"(?:^|(?<=[^A-Za-z0-9]))"
+    r"([A-Za-z]{4})[-_ ]?(\d{3})[._\- ]?(\d{2})"
+    r"(?=$|[^0-9])",
+)
+
+
+def extract_ps_serial(filename: str) -> str | None:
+    """Extract a Sony PlayStation disc serial from a ROM filename.
+
+    Returns the canonical ``PREFIX-NNNNN`` form (matching the libretro DAT
+    representation), or None when no recognised serial is present.
+
+    Examples
+    --------
+    >>> extract_ps_serial("SCES_538.51.game name.iso")
+    'SCES-53851'
+    >>> extract_ps_serial("SLUS-20265 - Agent Under Fire.iso")
+    'SLUS-20265'
+    >>> extract_ps_serial("SLPM65002 - 0 Story.iso")
+    'SLPM-65002'
+    >>> extract_ps_serial("Super Mario 64.z64") is None
+    True
+    """
+    # Drop the extension so numeric extensions (e.g. ".z64") can't trip the
+    # digit portion of the match.
+    stem = Path(filename).stem
+    for match in _PS_SERIAL_RE.finditer(stem):
+        prefix = match.group(1).upper()
+        if prefix in _PS_DISC_SERIAL_PREFIXES:
+            return f"{prefix}-{match.group(2)}{match.group(3)}"
+    return None
+
+
+def supports_serial_lookup(system: str) -> bool:
+    """True when the given system code has a usable serial-based lookup."""
+    return (system or "").upper() in _SERIAL_LOOKUP_SYSTEMS
+
+
+def lookup_serial(serial: str, serial_map: dict[str, str]) -> str | None:
+    """Look up a serial in a libretro ``{serial: name}`` map.
+
+    Falls back to matching a variant with trailing region / disc index suffixes
+    when the bare serial is absent, e.g. ``SLUS-20265`` → ``SLUS-20265GH``.
+    """
+    if not serial or not serial_map:
+        return None
+    if serial in serial_map:
+        return serial_map[serial]
+    prefix = serial + "-"
+    prefix_slash = serial + "/"
+    for candidate, name in serial_map.items():
+        if candidate.startswith(prefix) or candidate.startswith(prefix_slash):
+            return name
+    # Some DATs pad the digit portion with a suffix letter (SLUS-20265GH).
+    # Accept that too.
+    for candidate, name in serial_map.items():
+        if candidate.startswith(serial) and len(candidate) > len(serial):
+            tail = candidate[len(serial) :]
+            if tail and not tail[0].isdigit():
+                return name
+    return None
+
+
+def load_serial_map(dat_path: Path) -> dict[str, str]:
+    """Return a ``{serial: canonical_name}`` map from ``dat_path``.
+
+    Thin wrapper over :func:`load_libretro_dat` kept for clarity at call
+    sites — libretro clrmamepro DATs carry explicit ``serial "..."`` fields,
+    while No-Intro XML DATs generally do not, so callers can rely on an empty
+    result being a real answer.
+    """
+    try:
+        return load_libretro_dat(dat_path)
+    except Exception:
+        return {}
+
+
 def load_no_intro_dat(dat_path: Path) -> dict[str, str]:
     """Parse a No-Intro DAT file (XML or libretro clrmamepro text format).
 

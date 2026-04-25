@@ -42,3 +42,34 @@ def test_build_confirmation_message_includes_unmatched_in_total_when_enabled():
         in message
     )
     assert "ZIP ROMs stay .zip and 7z ROMs will be converted to .zip." in message
+
+
+def test_build_confirmation_message_mentions_chd_when_enabled():
+    message = format_build_confirmation_message(
+        output_folder=Path(r"H:\ROMs\ps2"),
+        matched_count=10,
+        unmatched_found_count=0,
+        include_unmatched=False,
+        split_into_ranges=False,
+        bucket_count=4,
+        unzip_archives=False,
+        one_game_one_rom=True,
+        convert_to_chd=True,
+    )
+    assert ".chd" in message
+    assert "chdman" in message
+
+
+def test_build_confirmation_message_omits_chd_line_when_disabled():
+    message = format_build_confirmation_message(
+        output_folder=Path(r"H:\ROMs\ps2"),
+        matched_count=10,
+        unmatched_found_count=0,
+        include_unmatched=False,
+        split_into_ranges=False,
+        bucket_count=4,
+        unzip_archives=False,
+        one_game_one_rom=True,
+        convert_to_chd=False,
+    )
+    assert "chdman" not in message
