@@ -94,10 +94,12 @@ async def list_roms(
     system: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     has_save: Optional[bool] = Query(None),
+    limit: Optional[int] = Query(None, ge=1, le=20000),
+    offset: int = Query(0, ge=0),
 ):
     catalog = rom_scanner.get()
     if not catalog:
-        return {"roms": [], "total": 0}
+        return {"roms": [], "total": 0, "offset": 0, "limit": limit, "has_more": False}
 
     entries = catalog.list_all()
 
@@ -116,8 +118,19 @@ async def list_roms(
         else:
             entries = [e for e in entries if not storage.title_exists(e.title_id)]
 
+    # `total` is always the full filtered count — essential for the client to
+    # know whether to page further or show a "showing X of Y" hint.
+    total = len(entries)
+
+    if limit is not None:
+        page = entries[offset : offset + limit]
+        has_more = (offset + len(page)) < total
+    else:
+        page = entries[offset:] if offset else entries
+        has_more = False
+
     result = []
-    for e in entries:
+    for e in page:
         d = e.to_dict()
         extract_format, extract_formats = _extract_formats_for_entry(e.system or '', e.filename)
         if extract_format:
@@ -126,7 +139,13 @@ async def list_roms(
             d['extract_formats'] = extract_formats
         result.append(d)
 
-    return {"roms": result, "total": len(result)}
+    return {
+        "roms": result,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": has_more,
+    }
 
 
 # ── Misc endpoints ───────────────────────────────────────────────────────────

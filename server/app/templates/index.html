@@ -324,6 +324,55 @@
     .skel-head { height: 20px; width: 220px; background: var(--border-muted); border-radius: 4px; margin-bottom: 16px; }
     .skel-card { background: var(--bg-card); border: 1px solid var(--border-muted); border-radius: var(--radius); height: 140px; }
 
+    /* ── SYSTEM OVERVIEW GRID (landing screen) ── */
+    .sys-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .sys-tile {
+      position: relative; display: flex; flex-direction: column;
+      background: var(--bg-card); border: 1px solid var(--border-muted);
+      border-radius: var(--radius); padding: 16px 16px 14px;
+      cursor: pointer; overflow: hidden;
+      transition: border-color .15s, transform .12s, box-shadow .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sys-tile:hover  { border-color: var(--border); transform: translateY(-2px); box-shadow: var(--shadow); }
+    .sys-tile:active { transform: translateY(0); }
+    .sys-tile-stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+    .sys-tile-code  { font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+    .sys-tile-name  { font-size: 12px; color: var(--text-2); margin-top: 2px;
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sys-tile-foot  { display: flex; align-items: baseline; gap: 6px; margin-top: 14px; }
+    .sys-tile-cnt   { font-size: 22px; font-weight: 700; color: var(--accent); line-height: 1; }
+    .sys-tile-lbl   { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+
+    /* ── BACK BAR / CONTEXT HEADER ── */
+    .ctx-bar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border-muted);
+    }
+    .back-btn {
+      background: var(--bg-card); border: 1px solid var(--border-muted); color: var(--text-2);
+      border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+      display: inline-flex; align-items: center; gap: 5px;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+    .back-btn:hover { background: var(--bg-card-h); color: var(--text); border-color: var(--border); }
+    .ctx-title { display: flex; align-items: center; gap: 10px; }
+    .ctx-title h2 { font-size: 17px; font-weight: 600; }
+    .ctx-count {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1px 9px; font-size: 11px; color: var(--text-2);
+    }
+
+    /* ── LOAD MORE SENTINEL ── */
+    .load-more {
+      padding: 22px; text-align: center; color: var(--text-muted); font-size: 12px;
+    }
+    .load-more.hidden { display: none; }
+
     /* ── EMPTY ── */
     .empty { text-align: center; padding: 72px 20px; color: var(--text-muted); }
     .empty-icon  { font-size: 48px; margin-bottom: 14px; line-height: 1; }
@@ -513,9 +562,40 @@ const IS_ADMIN = __IS_ADMIN__;
 // ═══════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════
-const S = { roms: [], saves: [], tab: 'roms', q: '' };
+// View model for the ROM side of the library:
+//   view: 'overview'  -> system picker grid (landing screen, tiny payload)
+//         'system'    -> one system's ROMs, lazy-rendered
+//         'search'    -> server-side search results, grouped by system
+//   stats           -> {SYS: count} — populated from /roms/systems
+//   systemCache     -> {SYS: [rom, ...]} — per-system fetch cache so re-entry is instant
+//   currentSystem   -> which system is being viewed (when view === 'system')
+//   savedTitleIds   -> Set<title_id> — used to flag ROMs that have saves on server
+//   searchResults   -> last search response payload
+//   rendered        -> pointer used by the lazy-renderer in the current section
+//   searchAbort     -> AbortController for the in-flight search request
+const S = {
+  view:          'overview',
+  stats:         {},
+  systemCache:   {},
+  currentSystem: null,
+  savedTitleIds: new Set(),
+  saves:         [],
+  searchResults: null,
+  searchAbort:   null,
+  tab:           'roms',
+  q:             '',
+  // Lazy render state — reused by both the system view and search view
+  lazy: { items: [], rendered: 0, observer: null, containerId: null, renderFn: null },
+};
 const Q = { items: [], nextId: 1, activeId: null };
 let _convAbort = null;  // AbortController for active queued conversion
+
+// Lazy-render config: enough cards to fill a mobile viewport plus some headroom,
+// but small enough that a single batch doesn't cause jank.
+const LAZY_BATCH = 60;
+// Hard ceiling on server-side search results shown to the UI. The server is
+// fine with more, but 40k matches rendered all at once defeats the purpose.
+const SEARCH_CAP = 400;
 
 // ═══════════════════════════════════════════════════════
 //  SYSTEM METADATA
@@ -993,18 +1073,31 @@ function clearFinishedJobs() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  LOAD
+//  LOAD — landing screen
+//  Fetch the lightweight system overview + the saves list (saves total is
+//  typically a few hundred, not thousands, so we can load it all). ROM *cards*
+//  are not fetched until the user picks a system, searches, or opens the
+//  Saves tab. This is the whole point of the rewrite: the 40k payload never
+//  leaves the server during a cold load on mobile.
 // ═══════════════════════════════════════════════════════
-async function loadAll() {
-  showSkeleton();
+async function loadLanding() {
+  showSkeletonTiles();
   try {
-    const [rd, sd] = await Promise.all([api('/api/v1/roms'), api('/api/v1/titles')]);
-    const saveIds = new Set((sd.titles || []).map(t => t.title_id));
-    S.roms  = (rd.roms || []).map(r => ({ ...r, hasSave: saveIds.has(r.title_id) }));
-    S.saves = sd.titles || [];
-    qs('#cnt-roms').textContent  = S.roms.length;
+    const [ss, sd] = await Promise.all([
+      api('/api/v1/roms/systems'),
+      api('/api/v1/titles'),
+    ]);
+    S.stats         = ss.stats || {};
+    S.saves         = sd.titles || [];
+    S.savedTitleIds = new Set(S.saves.map(t => t.title_id));
+
+    // Header tab counts
+    const romTotal = Object.values(S.stats).reduce((n, v) => n + v, 0);
+    qs('#cnt-roms').textContent  = romTotal;
     qs('#cnt-saves').textContent = S.saves.length;
-    renderRoms();
+
+    renderSystemNav();          // sidebar + mobile chips (used across all views)
+    renderOverview();
     renderSaves();
   } catch(e) {
     qs('#roms-pane').innerHTML = emptyState('⚠️', 'Failed to load data', e.message);
@@ -1012,149 +1105,333 @@ async function loadAll() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  RENDER — ROMs
+//  NAV — sidebar + mobile chips
+//  Built once from the stats payload; click jumps into the system view.
 // ═══════════════════════════════════════════════════════
-function renderRoms() {
-  const q = S.q;
-  const groups = {};
-  for (const r of S.roms) {
-    if (q && !r.name?.toLowerCase().includes(q) && !r.filename?.toLowerCase().includes(q)) continue;
-    const s = r.system || 'UNKNOWN';
-    (groups[s] = groups[s] || []).push(r);
-  }
-  const systems = Object.keys(groups).sort();
-
-  const romNavHtml = systems.map(s =>
-    `<div class="sys-link" onclick="jump('rs-${s}')">
+function renderSystemNav() {
+  const systems = Object.keys(S.stats).sort();
+  const navHtml = systems.map(s =>
+    `<div class="sys-link" data-action="nav-system" data-sys="${esc(s)}">
        <span class="sys-dot" style="background:${clr(s)}"></span>
        <span class="sys-link-name">${esc(s)}</span>
-       <span class="sys-link-cnt">${groups[s].length}</span>
+       <span class="sys-link-cnt">${S.stats[s]}</span>
      </div>`
   ).join('');
-  qs('#sys-nav').innerHTML = romNavHtml;
+  qs('#sys-nav').innerHTML = navHtml;
 
-  // Mobile chips
   qs('#sys-chips').innerHTML = systems.map(s =>
-    `<div class="sys-chip" onclick="jump('rs-${s}')">
+    `<div class="sys-chip" data-action="nav-system" data-sys="${esc(s)}">
        <span class="sys-chip-dot" style="background:${clr(s)}"></span>
        ${esc(s)}
-       <span class="sys-chip-cnt">${groups[s].length}</span>
+       <span class="sys-chip-cnt">${S.stats[s]}</span>
      </div>`
   ).join('');
+}
 
+// ═══════════════════════════════════════════════════════
+//  VIEW — overview (landing screen)
+//  A grid of system tiles. Tiny DOM (~30 tiles), instant on mobile.
+// ═══════════════════════════════════════════════════════
+function renderOverview() {
+  disposeLazy();
+  S.view = 'overview';
+  S.currentSystem = null;
+
+  const systems = Object.keys(S.stats).sort();
   if (!systems.length) {
-    qs('#roms-pane').innerHTML = emptyState('📭',
-      q ? `No ROMs match "${esc(q)}"` : 'No ROMs available',
-      q ? 'Try a different search term.' : 'Set SYNC_ROM_DIR to point to your ROM library.');
+    qs('#roms-pane').innerHTML = emptyState('📭', 'No ROMs available',
+      'Set SYNC_ROM_DIR to point to your ROM library, then rescan from Settings.');
     return;
   }
 
-  const total = systems.reduce((n, s) => n + groups[s].length, 0);
+  const total = systems.reduce((n, s) => n + S.stats[s], 0);
   let h = statsBar(total, 'ROMs', systems.length, 'Systems');
-
+  h += '<div class="sys-grid">';
   for (const sys of systems) {
-    const c = clr(sys);
-    h += `<div class="sys-section" id="rs-${sys}">
-      <div class="sys-header">
-        <span class="badge" style="background:${c}">${esc(sys)}</span>
-        <h2>${esc(lbl(sys))}</h2>
-        <span class="sys-count">${groups[sys].length}</span>
+    h += `<div class="sys-tile" data-action="nav-system" data-sys="${esc(sys)}">
+      <div class="sys-tile-stripe" style="background:${clr(sys)}"></div>
+      <div class="sys-tile-code">${esc(sys)}</div>
+      <div class="sys-tile-name" title="${esc(lbl(sys))}">${esc(lbl(sys))}</div>
+      <div class="sys-tile-foot">
+        <span class="sys-tile-cnt">${S.stats[sys]}</span>
+        <span class="sys-tile-lbl">ROMs</span>
       </div>
-      <div class="card-grid">`;
-
-    for (const rom of groups[sys]) {
-      const tid  = esc(rom.title_id);
-      const fn   = esc(rom.filename || rom.title_id);
-      const fmt  = rom.extract_format; // legacy single-format hint
-      const extractFormats = Array.isArray(rom.extract_formats) ? rom.extract_formats : [];
-      const rawUrl = `/api/v1/roms/${encodeURIComponent(rom.title_id)}`;
-      const rawLabel = (rom.filename?.split('.').pop() || 'ROM').toUpperCase();
-
-      // Button group — varies by extract_format
-      let btnHtml;
-      if (extractFormats.length && extractFormats.includes('iso') && extractFormats.includes('cso')) {
-        // PSP: three options — ISO, CSO, CHD
-        btnHtml = `<div class="rom-btns">
-          <button class="dl-btn extract" data-action="extract"
-            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
-            title="Extract to ISO">ISO</button>
-          <button class="dl-btn extract" data-action="extract"
-            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cso"
-            title="Extract and compress to CSO">CSO</button>
-          <button class="dl-btn" data-action="dl"
-            data-url="${rawUrl}" data-fn="${fn}"
-            title="Download original ${rawLabel}">${rawLabel}</button>
-        </div>`;
-      } else if (extractFormats.length === 1 && (extractFormats[0] === 'gdi' || extractFormats[0] === 'cue')) {
-        // CD-ROM: two options — CUE/BIN zip or GDI zip, plus CHD
-        const singleFmt = extractFormats[0];
-        const label = singleFmt === 'gdi' ? 'GDI' : 'CUE/BIN';
-        const tip   = singleFmt === 'gdi' ? 'GDI (Dreamcast) ZIP' : 'CUE/BIN ZIP';
-        btnHtml = `<div class="rom-btns">
-          <button class="dl-btn extract" data-action="extract"
-            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="${singleFmt}"
-            title="Convert to ${tip}">${label}</button>
-          <button class="dl-btn" data-action="dl"
-            data-url="${rawUrl}" data-fn="${fn}"
-            title="Download original ${rawLabel}">${rawLabel}</button>
-        </div>`;
-      } else if (extractFormats.length === 1 && extractFormats[0] === 'iso' && fmt === 'rvz') {
-        // GameCube / Wii: ISO conversion + original RVZ download
-        btnHtml = `<div class="rom-btns">
-          <button class="dl-btn extract" data-action="extract"
-            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="rvz"
-            title="Convert RVZ to ISO">ISO</button>
-          <button class="dl-btn" data-action="dl"
-            data-url="${rawUrl}" data-fn="${fn}"
-            title="Download original ${rawLabel}">${rawLabel}</button>
-        </div>`;
-      } else if (extractFormats.some(f => ['cia', 'decrypted_cci'].includes(f))) {
-        // 3DS cart image: CIA / CCI conversions + raw .3ds/.cci download.
-        // Raw button always shows "3DS" so it never collides with the CCI button.
-        // No separate "decrypted CIA" button — the CIA wrapper already produces
-        // a decrypted CIA that is ALSO installable on CFW hardware.
-        const cartButtons = [];
-        if (extractFormats.includes('cia')) {
-          cartButtons.push(`<button class="dl-btn extract" data-action="extract"
-            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cia"
-            title="Convert to decrypted CIA (installable on CFW 3DS, works in emulators)">CIA</button>`);
-        }
-        if (extractFormats.includes('decrypted_cci')) {
-          cartButtons.push(`<button class="dl-btn extract" data-action="extract"
-            data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cci"
-            title="Convert to decrypted CCI (for emulators)">CCI</button>`);
-        }
-        cartButtons.push(`<button class="dl-btn" data-action="dl"
-            data-url="${rawUrl}" data-fn="${fn}"
-            title="Download original ${rawLabel} cart image">3DS</button>`);
-        btnHtml = `<div class="rom-btns rom-btns-3ds">${cartButtons.join('')}</div>`;
-      } else {
-        btnHtml = `<button class="dl-btn" data-action="dl"
-          data-url="${rawUrl}" data-fn="${fn}">↓</button>`;
-      }
-
-      h += `<div class="rom-card">
-        <div class="rom-stripe" style="background:${c}"></div>
-        <div class="rom-body">
-          <div class="rom-title" title="${esc(rom.name)}">${esc(rom.name)}</div>
-          <div class="rom-meta">
-            <span class="rom-size">${fmtB(rom.size)}</span>
-            ${rom.hasSave ? `<span class="save-dot">save</span>` : ''}
-          </div>
-        </div>
-        <div class="rom-foot">
-          <span class="badge" style="background:${c}; font-size:9px">${esc(sys)}</span>
-          ${btnHtml}
-        </div>
-      </div>`;
-    }
-    h += `</div></div>`;
+    </div>`;
   }
+  h += '</div>';
   qs('#roms-pane').innerHTML = h;
 }
 
 // ═══════════════════════════════════════════════════════
-//  RENDER — Saves
+//  VIEW — single system (lazy-rendered)
+//  Fetches all ROMs for ONE system (typically hundreds to a few thousand),
+//  then streams cards into the DOM in LAZY_BATCH chunks via IntersectionObserver.
+// ═══════════════════════════════════════════════════════
+async function openSystem(sys) {
+  sys = (sys || '').toUpperCase();
+  if (!sys) return;
+
+  disposeLazy();
+  S.view = 'system';
+  S.currentSystem = sys;
+
+  // Jump to top so context-bar is visible on mobile after drill-down.
+  window.scrollTo({ top: 0 });
+
+  let roms = S.systemCache[sys];
+  if (!roms) {
+    qs('#roms-pane').innerHTML = skeletonSystem(sys);
+    try {
+      const d = await api(`/api/v1/roms?system=${encodeURIComponent(sys)}`);
+      roms = d.roms || [];
+      // Annotate save ownership once at fetch time.
+      for (const r of roms) r.hasSave = S.savedTitleIds.has(r.title_id);
+      S.systemCache[sys] = roms;
+    } catch(e) {
+      qs('#roms-pane').innerHTML = emptyState('⚠️', 'Failed to load ' + sys, e.message);
+      return;
+    }
+  } else {
+    // Refresh save flags (saves may have changed since cache fill).
+    for (const r of roms) r.hasSave = S.savedTitleIds.has(r.title_id);
+  }
+
+  if (!roms.length) {
+    qs('#roms-pane').innerHTML =
+      contextBar(sys, 0) +
+      emptyState('📭', 'No ROMs in ' + sys, 'The catalog has no entries for this system.');
+    return;
+  }
+
+  // Shell: context bar + grid + load-more sentinel.
+  qs('#roms-pane').innerHTML =
+    contextBar(sys, roms.length) +
+    `<div class="card-grid" id="lazy-grid"></div>
+     <div class="load-more" id="lazy-sentinel">Loading more…</div>`;
+
+  startLazy(roms, 'lazy-grid', 'lazy-sentinel', romCardHtml);
+}
+
+// ═══════════════════════════════════════════════════════
+//  VIEW — search (server-side, cross-system)
+//  Grouped by system; capped at SEARCH_CAP for sanity. User can open a
+//  specific system from the results to see everything.
+// ═══════════════════════════════════════════════════════
+async function runSearch(q) {
+  disposeLazy();
+  S.view = 'search';
+  S.currentSystem = null;
+
+  // Cancel in-flight search if the user kept typing.
+  if (S.searchAbort) S.searchAbort.abort();
+  S.searchAbort = new AbortController();
+
+  qs('#roms-pane').innerHTML = emptyState('🔍', `Searching "${esc(q)}"…`, '');
+
+  let data;
+  try {
+    const r = await fetch(
+      `/api/v1/roms?search=${encodeURIComponent(q)}&limit=${SEARCH_CAP}`,
+      { headers: { 'X-API-Key': API_KEY }, signal: S.searchAbort.signal }
+    );
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    data = await r.json();
+  } catch(e) {
+    if (e.name === 'AbortError') return;  // superseded by a newer search
+    qs('#roms-pane').innerHTML = emptyState('⚠️', 'Search failed', e.message);
+    return;
+  } finally {
+    S.searchAbort = null;
+  }
+
+  const roms = (data.roms || []).map(r => ({ ...r, hasSave: S.savedTitleIds.has(r.title_id) }));
+  S.searchResults = { q, total: data.total, shown: roms.length, roms };
+
+  if (!roms.length) {
+    qs('#roms-pane').innerHTML =
+      searchBar(q, 0, data.total) +
+      emptyState('📭', `No ROMs match "${esc(q)}"`, 'Try a different search term.');
+    return;
+  }
+
+  qs('#roms-pane').innerHTML =
+    searchBar(q, roms.length, data.total) +
+    `<div class="card-grid" id="lazy-grid"></div>
+     <div class="load-more" id="lazy-sentinel">Loading more…</div>`;
+
+  startLazy(roms, 'lazy-grid', 'lazy-sentinel', romCardHtml);
+}
+
+// ═══════════════════════════════════════════════════════
+//  LAZY RENDERER
+//  Appends cards in LAZY_BATCH chunks. An IntersectionObserver watches the
+//  sentinel at the bottom of the list — when it enters the viewport, we
+//  render the next chunk. This keeps initial render cost constant no matter
+//  how many ROMs the system contains.
+// ═══════════════════════════════════════════════════════
+function startLazy(items, containerId, sentinelId, renderFn) {
+  S.lazy.items = items;
+  S.lazy.rendered = 0;
+  S.lazy.containerId = containerId;
+  S.lazy.renderFn = renderFn;
+
+  renderNextBatch();
+
+  const sentinel = document.getElementById(sentinelId);
+  if (!sentinel) return;
+  S.lazy.observer = new IntersectionObserver(entries => {
+    if (entries.some(e => e.isIntersecting)) renderNextBatch();
+  }, { rootMargin: '400px 0px' });  // start rendering before sentinel is actually visible
+  S.lazy.observer.observe(sentinel);
+}
+
+function renderNextBatch() {
+  const { items, rendered, containerId, renderFn } = S.lazy;
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const end = Math.min(rendered + LAZY_BATCH, items.length);
+  if (end <= rendered) return;
+
+  // Build a DocumentFragment once, then append — single reflow per batch.
+  const tmp = document.createElement('div');
+  let h = '';
+  for (let i = rendered; i < end; i++) h += renderFn(items[i]);
+  tmp.innerHTML = h;
+  const frag = document.createDocumentFragment();
+  while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+  container.appendChild(frag);
+
+  S.lazy.rendered = end;
+
+  if (end >= items.length) {
+    const s = document.getElementById('lazy-sentinel');
+    if (s) s.classList.add('hidden');
+    if (S.lazy.observer) { S.lazy.observer.disconnect(); S.lazy.observer = null; }
+  }
+}
+
+function disposeLazy() {
+  if (S.lazy.observer) { S.lazy.observer.disconnect(); S.lazy.observer = null; }
+  S.lazy.items = [];
+  S.lazy.rendered = 0;
+  S.lazy.containerId = null;
+  S.lazy.renderFn = null;
+}
+
+// ═══════════════════════════════════════════════════════
+//  ROM CARD — HTML builder (same markup as before, now per-item)
+// ═══════════════════════════════════════════════════════
+function romCardHtml(rom) {
+  const sys  = rom.system || 'UNKNOWN';
+  const c    = clr(sys);
+  const tid  = esc(rom.title_id);
+  const fn   = esc(rom.filename || rom.title_id);
+  const fmt  = rom.extract_format;
+  const extractFormats = Array.isArray(rom.extract_formats) ? rom.extract_formats : [];
+  const rawUrl = `/api/v1/roms/${encodeURIComponent(rom.title_id)}`;
+  const rawLabel = (rom.filename?.split('.').pop() || 'ROM').toUpperCase();
+
+  let btnHtml;
+  if (extractFormats.length && extractFormats.includes('iso') && extractFormats.includes('cso')) {
+    // PSP: three options — ISO, CSO, CHD
+    btnHtml = `<div class="rom-btns">
+      <button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
+        title="Extract to ISO">ISO</button>
+      <button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cso"
+        title="Extract and compress to CSO">CSO</button>
+      <button class="dl-btn" data-action="dl"
+        data-url="${rawUrl}" data-fn="${fn}"
+        title="Download original ${rawLabel}">${rawLabel}</button>
+    </div>`;
+  } else if (extractFormats.length === 1 && (extractFormats[0] === 'gdi' || extractFormats[0] === 'cue')) {
+    const singleFmt = extractFormats[0];
+    const label = singleFmt === 'gdi' ? 'GDI' : 'CUE/BIN';
+    const tip   = singleFmt === 'gdi' ? 'GDI (Dreamcast) ZIP' : 'CUE/BIN ZIP';
+    btnHtml = `<div class="rom-btns">
+      <button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="${singleFmt}"
+        title="Convert to ${tip}">${label}</button>
+      <button class="dl-btn" data-action="dl"
+        data-url="${rawUrl}" data-fn="${fn}"
+        title="Download original ${rawLabel}">${rawLabel}</button>
+    </div>`;
+  } else if (extractFormats.length === 1 && extractFormats[0] === 'iso' && fmt === 'rvz') {
+    btnHtml = `<div class="rom-btns">
+      <button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="rvz"
+        title="Convert RVZ to ISO">ISO</button>
+      <button class="dl-btn" data-action="dl"
+        data-url="${rawUrl}" data-fn="${fn}"
+        title="Download original ${rawLabel}">${rawLabel}</button>
+    </div>`;
+  } else if (extractFormats.some(f => ['cia', 'decrypted_cci'].includes(f))) {
+    const cartButtons = [];
+    if (extractFormats.includes('cia')) {
+      cartButtons.push(`<button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cia"
+        title="Convert to decrypted CIA (installable on CFW 3DS, works in emulators)">CIA</button>`);
+    }
+    if (extractFormats.includes('decrypted_cci')) {
+      cartButtons.push(`<button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cci"
+        title="Convert to decrypted CCI (for emulators)">CCI</button>`);
+    }
+    cartButtons.push(`<button class="dl-btn" data-action="dl"
+        data-url="${rawUrl}" data-fn="${fn}"
+        title="Download original ${rawLabel} cart image">3DS</button>`);
+    btnHtml = `<div class="rom-btns rom-btns-3ds">${cartButtons.join('')}</div>`;
+  } else {
+    btnHtml = `<button class="dl-btn" data-action="dl"
+      data-url="${rawUrl}" data-fn="${fn}">↓</button>`;
+  }
+
+  return `<div class="rom-card">
+    <div class="rom-stripe" style="background:${c}"></div>
+    <div class="rom-body">
+      <div class="rom-title" title="${esc(rom.name)}">${esc(rom.name)}</div>
+      <div class="rom-meta">
+        <span class="rom-size">${fmtB(rom.size)}</span>
+        ${rom.hasSave ? `<span class="save-dot">save</span>` : ''}
+      </div>
+    </div>
+    <div class="rom-foot">
+      <span class="badge" style="background:${c}; font-size:9px">${esc(sys)}</span>
+      ${btnHtml}
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  CONTEXT-BAR HELPERS (back button + header for drill-down views)
+// ═══════════════════════════════════════════════════════
+function contextBar(sys, count) {
+  const c = clr(sys);
+  return `<div class="ctx-bar">
+    <button class="back-btn" data-action="nav-overview" title="Back to systems">← Systems</button>
+    <div class="ctx-title">
+      <span class="badge" style="background:${c}">${esc(sys)}</span>
+      <h2>${esc(lbl(sys))}</h2>
+      <span class="ctx-count">${count}</span>
+    </div>
+  </div>`;
+}
+
+function searchBar(q, shown, total) {
+  const capped = total > shown ? ` (showing first ${shown} — narrow your search for more)` : '';
+  return `<div class="ctx-bar">
+    <button class="back-btn" data-action="nav-overview" title="Clear search">← Systems</button>
+    <div class="ctx-title">
+      <h2>Search: "${esc(q)}"</h2>
+      <span class="ctx-count">${total} match${total === 1 ? '' : 'es'}${capped}</span>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER — Saves (unchanged layout; the saves list is small)
 // ═══════════════════════════════════════════════════════
 function renderSaves() {
   const q = S.q;
@@ -1222,6 +1499,7 @@ function switchTab(tab) {
   qs('#sbl').textContent = tab === 'roms' ? 'Systems' : 'Platforms';
 
   if (tab === 'saves') {
+    // Rebuild nav from the actual saves we have (platforms, not ROM systems).
     const groups = {};
     for (const sv of S.saves) {
       const nm = sv.game_name || sv.name || sv.title_id;
@@ -1229,25 +1507,29 @@ function switchTab(tab) {
       const p = sv.console_type || sv.platform || 'UNKNOWN';
       (groups[p] = groups[p] || []).push(sv);
     }
-    const saveNavHtml = Object.keys(groups).sort().map(p =>
+    const plats = Object.keys(groups).sort();
+    qs('#sys-nav').innerHTML = plats.map(p =>
       `<div class="sys-link" onclick="jump('sp-${p}')">
          <span class="sys-dot" style="background:${clr(p)}"></span>
          <span class="sys-link-name">${esc(p)}</span>
          <span class="sys-link-cnt">${groups[p].length}</span>
        </div>`
     ).join('');
-    qs('#sys-nav').innerHTML = saveNavHtml;
-
-    // Mobile chips
-    qs('#sys-chips').innerHTML = Object.keys(groups).sort().map(p =>
+    qs('#sys-chips').innerHTML = plats.map(p =>
       `<div class="sys-chip" onclick="jump('sp-${p}')">
          <span class="sys-chip-dot" style="background:${clr(p)}"></span>
          ${esc(p)}
          <span class="sys-chip-cnt">${groups[p].length}</span>
        </div>`
     ).join('');
+    renderSaves();
   } else {
-    renderRoms();
+    // Back on the ROMs tab — restore the system nav from stats.
+    renderSystemNav();
+    // Re-render current ROM view (overview / system / search).
+    if (S.view === 'system' && S.currentSystem) openSystem(S.currentSystem);
+    else if (S.view === 'search' && S.q)         runSearch(S.q);
+    else                                          renderOverview();
   }
 }
 
@@ -1262,7 +1544,10 @@ async function scanRoms(btn) {
   try {
     const d = await api('/api/v1/roms/scan');
     toast(`Scan complete — ${d.count} ROMs found`, 'ok');
-    closeCfg(); loadAll();
+    closeCfg();
+    // Invalidate per-system caches — a rescan may have added/removed ROMs.
+    S.systemCache = {};
+    loadLanding();
   } catch(e) { toast('Scan failed: ' + e.message, 'err'); }
   finally { btn.disabled = false; btn.textContent = '🔄 Rescan ROM directory'; }
 }
@@ -1319,14 +1604,28 @@ function showSkeleton() {
     `<div class="skel-head skeleton" style="margin-bottom:24px"></div>
      <div class="card-grid">${c}</div>`;
 }
+// Tile-shaped skeleton for the landing (system picker) screen.
+function showSkeletonTiles() {
+  const t = Array.from({length:12}, () =>
+    `<div class="sys-tile skeleton" style="height:92px"></div>`
+  ).join('');
+  qs('#roms-pane').innerHTML = `<div class="sys-grid">${t}</div>`;
+}
+// Slim skeleton inside a system view while the per-system fetch is in flight.
+function skeletonSystem(sys) {
+  const c = Array.from({length:12}, () => `<div class="skel-card skeleton"></div>`).join('');
+  return contextBar(sys, '…') + `<div class="card-grid">${c}</div>`;
+}
 
 // ── EVENT DELEGATION ─────────────────────────────────────
 document.addEventListener('click', e => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
-  const { action, url, fn, tid, name, fmt } = btn.dataset;
-  if (action === 'dl')      dlFile(url, fn, btn);
-  if (action === 'extract') enqueueExtract(tid, name, fmt);
+  const { action, url, fn, tid, name, fmt, sys } = btn.dataset;
+  if (action === 'dl')           dlFile(url, fn, btn);
+  if (action === 'extract')      enqueueExtract(tid, name, fmt);
+  if (action === 'nav-system')   { qs('#search').value = ''; S.q = ''; openSystem(sys); }
+  if (action === 'nav-overview') { qs('#search').value = ''; S.q = ''; renderOverview(); }
 });
 
 // ── QUEUE ACTIONS / OUTSIDE CLOSE ────────────────────────
@@ -1355,7 +1654,30 @@ function syncHdrHeight() {
 }
 
 // ── SEARCH ───────────────────────────────────────────────
+// ROMs tab: hit the server with ?search= (paginated, capped at SEARCH_CAP).
+// Saves tab: stays client-side (the full saves list is small).
+// 240ms debounce is a good sweet spot on mobile — responsive without firing
+// a request per keystroke. AbortController inside runSearch() cancels any
+// in-flight request when a newer one supersedes it.
 let _st;
+function handleSearchInput(raw) {
+  const q = (raw || '').trim();
+  S.q = q.toLowerCase();
+  if (S.tab === 'saves') {
+    renderSaves();
+    return;
+  }
+  // ROMs tab.
+  if (!q) {
+    if (S.searchAbort) { S.searchAbort.abort(); S.searchAbort = null; }
+    // If the user was drilled into a system, stay there on clear; else overview.
+    if (S.currentSystem) openSystem(S.currentSystem);
+    else                 renderOverview();
+    return;
+  }
+  runSearch(q);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   syncHdrHeight();
   window.addEventListener('resize', syncHdrHeight);
@@ -1365,14 +1687,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   qs('#search').addEventListener('input', e => {
     clearTimeout(_st);
-    _st = setTimeout(() => {
-      S.q = e.target.value.toLowerCase();
-      if (S.tab === 'roms') renderRoms();
-      else                  renderSaves();
-    }, 180);
+    _st = setTimeout(() => handleSearchInput(e.target.value), 240);
   });
   renderQueue();
-  loadAll();
+  loadLanding();
 });
 </script>
 </body>

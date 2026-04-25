@@ -245,6 +245,43 @@ class TestRomCatalog:
         assert resp.status_code == 200
         assert resp.json()["total"] == 0
 
+    def test_list_roms_pagination(self, rom_client, auth_headers):
+        # First page of 1 → total still reflects the full filtered count,
+        # and has_more is true because page < total.
+        resp = rom_client.get("/api/v1/roms?limit=1&offset=0", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 2
+        assert body["offset"] == 0
+        assert body["limit"] == 1
+        assert body["has_more"] is True
+        assert len(body["roms"]) == 1
+
+        # Second page of 1 exhausts the result set.
+        resp = rom_client.get("/api/v1/roms?limit=1&offset=1", headers=auth_headers)
+        body = resp.json()
+        assert body["total"] == 2
+        assert body["offset"] == 1
+        assert body["has_more"] is False
+        assert len(body["roms"]) == 1
+
+        # Offset past the end — empty page, but total + has_more still sane.
+        resp = rom_client.get("/api/v1/roms?limit=1&offset=5", headers=auth_headers)
+        body = resp.json()
+        assert body["total"] == 2
+        assert body["has_more"] is False
+        assert body["roms"] == []
+
+    def test_list_roms_limit_applies_after_filters(self, rom_client, auth_headers):
+        # Filtering narrows to 1 row; a larger limit must still report total=1.
+        resp = rom_client.get(
+            "/api/v1/roms?system=GBA&limit=50", headers=auth_headers
+        )
+        body = resp.json()
+        assert body["total"] == 1
+        assert body["has_more"] is False
+        assert len(body["roms"]) == 1
+
     def test_list_roms_exposes_3ds_zip_conversion_options(
         self, rom_client_3ds_zip, auth_headers
     ):
