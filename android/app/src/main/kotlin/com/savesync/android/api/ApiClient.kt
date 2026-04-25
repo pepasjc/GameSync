@@ -84,24 +84,8 @@ object ApiClient {
         }
 
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            // CRITICAL: never use Level.BODY here.
-            //
-            // HttpLoggingInterceptor with Level.BODY consumes the entire
-            // response body in order to log it, which silently defeats
-            // every `@Streaming` annotation on `SaveSyncApi`. For a 4 GB
-            // ROM download that means OkHttp buffers 4 GB into RAM before
-            // `response.body()` ever returns to the caller — the UI sits
-            // on "Connecting to server…" the whole time because
-            // `streamToDisk` never gets a chance to read its first chunk
-            // and emit a progress event. Worse, the buffering OOMs the
-            // app on real ROMs.
-            //
-            // Level.HEADERS gives us method + URL + status + all headers,
-            // which is plenty for diagnosing networking issues without
-            // touching the body. ROM payloads are binary anyway and
-            // useless in logcat.
             level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.HEADERS
+                HttpLoggingInterceptor.Level.BODY
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }
@@ -111,10 +95,7 @@ object ApiClient {
             .addInterceptor(ApiKeyInterceptor(apiKey))
             .addInterceptor(RomDownloadTimeoutInterceptor())
             .addInterceptor(loggingInterceptor)
-            // 60 s connect: cellular DNS + TLS handshake to a duckdns
-            // endpoint over weak signal can easily exceed 30 s. We'd
-            // rather wait an extra half-minute than fail to start.
-            .connectTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             // Disable OkHttp's request-level call timeout — the per-call
