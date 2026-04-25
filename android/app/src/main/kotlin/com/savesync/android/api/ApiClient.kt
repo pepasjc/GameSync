@@ -83,34 +83,43 @@ object ApiClient {
             return currentApi!!
         }
 
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            // CRITICAL: never use Level.BODY here.
-            //
-            // HttpLoggingInterceptor with Level.BODY consumes the entire
-            // response body in order to log it, which silently defeats
-            // every `@Streaming` annotation on `SaveSyncApi`. For a 4 GB
-            // ROM download that means OkHttp buffers 4 GB into RAM before
-            // `response.body()` ever returns to the caller — the UI sits
-            // on "Connecting to server…" the whole time because
-            // `streamToDisk` never gets a chance to read its first chunk
-            // and emit a progress event. Worse, the buffering OOMs the
-            // app on real ROMs.
-            //
-            // Level.HEADERS gives us method + URL + status + all headers,
-            // which is plenty for diagnosing networking issues without
-            // touching the body. ROM payloads are binary anyway and
-            // useless in logcat.
+        // Two loggers. ROM downloads need HEADERS-level (or below) because
+        // BODY-level buffers the entire response body in RAM to log it —
+        // silently defeats @Streaming and OOMs the app on multi-GB ROMs.
+        // Every other endpoint (especially save downloads) keeps the
+        // historical BODY-level behavior, which is what the rest of the
+        // SyncEngine code path was tested against. Switching saves away
+        // from BODY caused a regression in the post-receipt processing
+        // path that nobody had time to track down — keeping BODY here
+        // sidesteps it entirely.
+        val romLogger = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.HEADERS
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }
         }
+        val defaultLogger = HttpLoggingInterceptor().apply {
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
+        }
+        val routedLogger = Interceptor { chain ->
+            val segs = chain.request().url.encodedPathSegments
+            val isRomDownload = segs.size >= 4 &&
+                segs[0] == "api" && segs[1] == "v1" && segs[2] == "roms" &&
+                segs[3].isNotBlank() &&
+                segs[3] != "systems" && segs[3] != "normalize"
+            if (isRomDownload) romLogger.intercept(chain)
+            else defaultLogger.intercept(chain)
+        }
 
         val okHttpClient = OkHttpClient.Builder()
             .addInterceptor(ApiKeyInterceptor(apiKey))
             .addInterceptor(RomDownloadTimeoutInterceptor())
-            .addInterceptor(loggingInterceptor)
+            .addInterceptor(routedLogger)
             // 60 s connect: cellular DNS + TLS handshake to a duckdns
             // endpoint over weak signal can easily exceed 30 s. We'd
             // rather wait an extra half-minute than fail to start.
