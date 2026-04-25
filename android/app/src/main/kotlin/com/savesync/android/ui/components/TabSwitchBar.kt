@@ -18,8 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** Stable ordering for the three top-level tabs, mirrored by MainActivity. */
-val TAB_LABELS: List<String> = listOf("Saves", "Catalog", "Installed")
+/** Stable ordering for the four top-level tabs, mirrored by MainActivity. */
+val TAB_LABELS: List<String> = listOf("Saves", "Catalog", "Installed", "Downloads")
 
 /**
  * Compact pill-style tab switcher designed to live inside a TopAppBar's

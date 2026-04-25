@@ -17,6 +17,12 @@
     <!-- For posting notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Keep ROM downloads alive in the background.  Without this the OS
+         can kill the process under memory pressure mid-stream — observed
+         as "the app crashed during my long download". -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <application
         android:name=".SaveSyncApp"
         android:allowBackup="true"
@@ -39,6 +45,13 @@
         </activity>
 
         <!-- SyncWorker is registered automatically by WorkManager -->
+
+        <!-- Foreground service that keeps ROM downloads running while
+             the user is in another app or has the screen off. -->
+        <service
+            android:name=".sync.DownloadForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- FileProvider for sharing save files -->
         <provider

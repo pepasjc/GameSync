@@ -125,10 +125,23 @@ fun RomCatalogScreen(
         if (searchVisible) runCatching { searchFocusRequester.requestFocus() }
     }
 
-    // Surface download outcomes as snackbars.
+    // Surface enqueue outcomes as snackbars.  The Downloads tab now owns
+    // progress + final-status display; these snackbars only confirm that
+    // the request was accepted (or rejected before it left the device).
     LaunchedEffect(downloadState) {
         when (val s = downloadState) {
+            is MainViewModel.RomDownloadState.Downloading -> {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        "Queued ${s.name} — see Downloads tab for progress"
+                    )
+                    viewModel.resetRomDownloadState()
+                }
+            }
             is MainViewModel.RomDownloadState.Success -> {
+                // Legacy state — preserved for any caller that still uses
+                // the synchronous path (e.g. unit tests).  The DownloadManager
+                // never emits this directly.
                 scope.launch {
                     snackbarHostState.showSnackbar("Downloaded ${s.file.name}")
                     viewModel.resetRomDownloadState()
@@ -473,7 +486,9 @@ private fun DownloadBanner(name: String) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CircularProgressIndicator(modifier = Modifier.size(18.dp))
-        Text("Downloading $name…", style = MaterialTheme.typography.bodyMedium)
+        // Now an enqueue confirmation — the actual transfer is running on
+        // the Downloads tab via DownloadManager.
+        Text("Queued $name — open Downloads tab", style = MaterialTheme.typography.bodyMedium)
     }
 }
 

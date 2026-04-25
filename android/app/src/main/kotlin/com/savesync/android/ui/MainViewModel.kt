@@ -23,14 +23,17 @@ import com.savesync.android.api.SaturnArchiveLookupRequest
 import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SaveSyncApi
 import com.savesync.android.emulators.EmulatorRegistry
+import com.savesync.android.emulators.EmudeckPaths
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.emulators.impl.AzaharEmulator
 import com.savesync.android.emulators.impl.PpssppEmulator
 import com.savesync.android.emulators.impl.RetroArchEmulator
 import com.savesync.android.emulators.impl.DuckStationEmulator
+import com.savesync.android.storage.DownloadEntity
 import com.savesync.android.storage.Settings
 import com.savesync.android.storage.SettingsStore
 import com.savesync.android.storage.SyncStateEntity
+import com.savesync.android.sync.DownloadManager
 import com.savesync.android.sync.HashUtils
 import com.savesync.android.sync.SaturnArchiveStateStore
 import com.savesync.android.sync.SaturnSyncFormat
@@ -39,7 +42,9 @@ import com.savesync.android.sync.SyncEngine
 import com.savesync.android.sync.SyncResult
 import com.savesync.android.workers.SyncWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -139,6 +144,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val settingsStore = SettingsStore(application)
     private val db = SaveSyncApp.instance.database
+    /** Application-scoped download manager — survives ViewModel teardown.
+     *  See [com.savesync.android.sync.DownloadManager] for the rationale. */
+    private val downloadManager = SaveSyncApp.instance.downloadManager
+
+    // ── Downloads tab plumbing ─────────────────────────────────────────
+    /** Live list of every persisted download row, ordered most-recent-first. */
+    val downloads: StateFlow<List<DownloadEntity>> =
+        downloadManager.observeAll()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Per-download throttled progress events.  Re-exposed verbatim so the
+     *  Downloads screen can collect velocity / sub-second progress without
+     *  thrashing Room. */
+    val downloadProgressEvents: SharedFlow<DownloadManager.ProgressEvent> =
+        downloadManager.progressEvents
+
+    /** One-shot signal asking the host (MainActivity) to switch to the
+     *  Downloads tab — emitted right after the user enqueues a new ROM. */
+    private val _navigateToDownloadsTab =
+        MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+    val navigateToDownloadsTab: SharedFlow<Unit> = _navigateToDownloadsTab
 
     // Unfiltered combined list of local + server-only saves
     private val _allSaves = MutableStateFlow<List<SaveEntry>>(emptyList())
@@ -427,13 +453,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val currentSettings = settingsStore.settingsFlow.first()
                 val overrides = db.savePathOverrideDao().getAll()
                     .associate { it.filePath to it.system }
-                val romScanDir = currentSettings.romScanDir
+                val romScanDir = effectiveRomScanDir(currentSettings)
                 val dolphinMemCardDir = currentSettings.dolphinMemCardDir
+                val emudeckDir = currentSettings.emudeckDir
                 val romDirOverrides = currentSettings.romDirOverrides
                 val rawLocalSaves = EmulatorRegistry.discoverAllSaves(
                     overrides,
                     romScanDir,
                     dolphinMemCardDir,
+                    emudeckDir,
                     romDirOverrides,
                     currentSettings.saturnSyncFormat
                 )
@@ -442,6 +470,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val allRomEntries = EmulatorRegistry.discoverAllRomEntries(
                     romScanDir,
                     dolphinMemCardDir,
+                    emudeckDir,
                     romDirOverrides,
                     currentSettings.saturnSyncFormat
                 )
@@ -718,10 +747,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         // entry to anchor a server-only title. We still surface those saves so
                         // the user can download a per-game card and configure it manually.
                         val ps2ServerOnly = stillUnanchoredTitles
-                            .mapNotNull { titleInfo -> buildPs2ServerOnlyEntry(titleInfo) }
+                            .mapNotNull { titleInfo -> buildPs2ServerOnlyEntry(titleInfo, currentSettings.emudeckDir) }
 
                         val threedssServerOnly = stillUnanchoredTitles
-                            .mapNotNull { titleInfo -> build3dsServerOnlyEntry(titleInfo) }
+                            .mapNotNull { titleInfo -> build3dsServerOnlyEntry(titleInfo, currentSettings.emudeckDir) }
 
                         val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly + threedssServerOnly)
                             .mapTo(mutableSetOf()) { it.titleId }
@@ -734,7 +763,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             .mapNotNull { titleInfo ->
                                 buildRomCatalogServerOnlyEntry(
                                     titleInfo = titleInfo,
-                                    roms = romCatalogByTitle[titleInfo.title_id].orEmpty()
+                                    roms = romCatalogByTitle[titleInfo.title_id].orEmpty(),
+                                    emudeckDir = currentSettings.emudeckDir
                                 )
                             }
 
@@ -913,7 +943,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         com.savesync.android.systems.SystemAliases.canonicalOrSelf(system)
 
     private fun buildPs2ServerOnlyEntry(
-        titleInfo: com.savesync.android.api.TitleInfo
+        titleInfo: com.savesync.android.api.TitleInfo,
+        emudeckDir: String
     ): SaveEntry? {
         val system = normalizeSystemCode(
             titleInfo.platform
@@ -923,7 +954,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         if (system != "PS2") return null
 
-        val memcardsDir = AetherSX2Emulator.findMemcardsDir(Environment.getExternalStorageDirectory())
+        val ps2Base = EmudeckPaths.netherSx2Root(emudeckDir)
+            ?: Environment.getExternalStorageDirectory()
+        val memcardsDir = AetherSX2Emulator.findMemcardsDir(
+            ps2Base,
+            allowNonExistent = emudeckDir.isNotBlank()
+        )
             ?: return null
 
         val displayName = titleInfo.name
@@ -947,7 +983,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun build3dsServerOnlyEntry(
-        titleInfo: com.savesync.android.api.TitleInfo
+        titleInfo: com.savesync.android.api.TitleInfo,
+        emudeckDir: String
     ): SaveEntry? {
         val system = normalizeSystemCode(
             titleInfo.platform
@@ -959,7 +996,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!hex16TitleIdRegex.matches(titleInfo.title_id)) return null
 
         val saveDir = AzaharEmulator.defaultSaveDir(
-            storageBaseDir = Environment.getExternalStorageDirectory(),
+            storageBaseDir = EmudeckPaths.azaharRoot(emudeckDir)
+                ?: Environment.getExternalStorageDirectory(),
             titleId = titleInfo.title_id
         ) ?: return null
 
@@ -982,7 +1020,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun buildRomCatalogServerOnlyEntry(
         titleInfo: com.savesync.android.api.TitleInfo,
-        roms: List<RomEntry>
+        roms: List<RomEntry>,
+        emudeckDir: String
     ): SaveEntry? {
         if (roms.isEmpty()) return null
 
@@ -1014,7 +1053,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // a local ROM.  Without this the user would hit "No local save
         // location is known for this title yet" every time.
         val (predictedFile, predictedDir, isMulti) = predictDefaultSaveTarget(
-            resolvedSystem, titleInfo.title_id, displayName
+            resolvedSystem, titleInfo.title_id, displayName, emudeckDir
         )
 
         return SaveEntry(
@@ -1042,7 +1081,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun predictDefaultSaveTarget(
         system: String,
         titleId: String,
-        displayName: String
+        displayName: String,
+        emudeckDir: String = ""
     ): Triple<File?, File?, Boolean> {
         val base = Environment.getExternalStorageDirectory()
         return when (system.uppercase()) {
@@ -1051,7 +1091,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Server hands us the full slot name as title_id, so use it
                 // verbatim.  isMultiFile=false so isPspSlot kicks in and the
                 // sync engine takes the PSP-bundle path.
-                val slotDir = PpssppEmulator.defaultSlotDir(base, titleId)
+                val slotDir = PpssppEmulator.defaultSlotDir(
+                    EmudeckPaths.ppssppRoot(emudeckDir) ?: base,
+                    titleId
+                )
                 Triple(null, slotDir, false)
             }
             "NDS" -> {
@@ -1519,13 +1562,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
                 val engine = SyncEngine(api, db, consoleId, currentSettings.saturnSyncFormat)
                 // Only sync local saves (exclude server-only entries)
-                val romScanDir = currentSettings.romScanDir
+                val romScanDir = effectiveRomScanDir(currentSettings)
                 val dolphinMemCardDir = currentSettings.dolphinMemCardDir
+                val emudeckDir = currentSettings.emudeckDir
                 val romDirOverrides = currentSettings.romDirOverrides
                 val allLocalSaves = _allSaves.value.filter { !it.isServerOnly }.ifEmpty {
                     EmulatorRegistry.discoverAllSaves(
                         romScanDir = romScanDir,
                         dolphinMemCardDir = dolphinMemCardDir,
+                        emudeckDir = emudeckDir,
                         romDirOverrides = romDirOverrides,
                         saturnSyncFormat = currentSettings.saturnSyncFormat
                     ).also { found ->
@@ -1551,7 +1596,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Scans romScanDir subfolders and populates [detectedSystemFolders]. */
     fun detectSystemFolders() {
         viewModelScope.launch {
-            val romScanDir = settingsStore.settingsFlow.first().romScanDir
+            val romScanDir = effectiveRomScanDir(settingsStore.settingsFlow.first())
             _detectedSystemFolders.value = EmulatorRegistry.detectSystemFolders(romScanDir)
         }
     }
@@ -1579,6 +1624,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         intervalMinutes: Int,
         romScanDir: String = "",
         dolphinMemCardDir: String = "",
+        emudeckDir: String = "",
         saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN
     ) {
         viewModelScope.launch {
@@ -1589,6 +1635,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 autoSyncIntervalMinutes = intervalMinutes,
                 romScanDir = romScanDir,
                 dolphinMemCardDir = dolphinMemCardDir,
+                emudeckDir = emudeckDir,
                 saturnSyncFormat = saturnSyncFormat
             )
             ApiClient.invalidate()
@@ -1688,13 +1735,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun runRomScanDiagnostic(dir: String = "") {
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
-            val effectiveDir = dir.ifBlank { currentSettings.romScanDir }
+            val effectiveDir = effectiveRomScanDir(currentSettings, dir)
             if (effectiveDir.isBlank()) {
                 _romScanResults.value = mapOf("(no ROM directory set)" to 0)
                 return@launch
             }
             val allRoms = EmulatorRegistry.discoverAllRomEntries(
                 romScanDir = effectiveDir,
+                emudeckDir = currentSettings.emudeckDir,
                 romDirOverrides = currentSettings.romDirOverrides,
                 saturnSyncFormat = currentSettings.saturnSyncFormat
             )
@@ -1724,7 +1772,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun prepareRomFolders(dir: String = "") {
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
-            val effectiveDir = dir.ifBlank { currentSettings.romScanDir }
+            val effectiveDir = effectiveRomScanDir(currentSettings, dir)
             if (effectiveDir.isBlank()) {
                 _prepareFoldersMessage.value =
                     "Set a ROM directory first, then try again."
@@ -2182,52 +2230,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         filename: String? = null,
         extractFormat: String? = null,
     ) {
+        // Run on viewModelScope only long enough to read settings; the
+        // actual enqueue hops onto appScope inside enqueueAsync so it
+        // can't be cancelled by ViewModel teardown.  Without this hop
+        // a fast user (tap → navigate away) could leave a row in DB
+        // with no worker attached.
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
             if (currentSettings.serverUrl.isBlank()) {
                 _romDownloadState.value = RomDownloadState.Error("Server URL not configured")
                 return@launch
             }
-            if (currentSettings.romScanDir.isBlank()) {
+            val romScanDir = effectiveRomScanDir(currentSettings)
+            if (romScanDir.isBlank()) {
                 _romDownloadState.value = RomDownloadState.Error("ROM directory not configured. Set it in Settings.")
                 return@launch
             }
-            _romDownloadState.value = RomDownloadState.Downloading(filename ?: romId)
             try {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
-                val engine = SyncEngine(
-                    api,
-                    db,
-                    settingsStore.ensureConsoleId(),
-                    currentSettings.saturnSyncFormat
-                )
-                val expectedFilename =
-                    if (extractFormat.isNullOrBlank()) filename else null
-                val file = engine.downloadRom(
+                val displayName = filename ?: romId
+                // Fire-and-forget on appScope — the worker, the row insert,
+                // and the foreground-service handoff all happen there.
+                downloadManager.enqueueAsync(
+                    api = api,
                     romId = romId,
                     system = system,
-                    romScanDir = currentSettings.romScanDir,
-                    expectedFilename = expectedFilename,
+                    displayName = displayName,
+                    filename = filename ?: romId,
+                    romScanDir = romScanDir,
                     romDirOverrides = currentSettings.romDirOverrides,
                     extractFormat = extractFormat,
                 )
-                _romDownloadState.value = RomDownloadState.Success(file)
-                // Rescan so the newly downloaded ROM is picked up: the SaveEntry for this
-                // title will get a real saveFile/saveDir and isServerOnly becomes false,
-                // which re-enables the Sync / Upload / Download buttons immediately.
-                scanSaves()
-                // Also invalidate the Installed Games tab so the new
-                // ROM shows up there on the next peek.
-                scanInstalledRoms(force = true)
-            } catch (e: java.net.SocketTimeoutException) {
-                // Server-side ROM conversion (e.g. 3DS decrypted CCI) can take
-                // several minutes on a Pi. The RomExtractTimeoutInterceptor
-                // raises the per-call read timeout to 30 minutes, but surface
-                // a clear message if we somehow still hit the wall instead of
-                // the confusing "ROM not found on server" that used to fire.
-                _romDownloadState.value = RomDownloadState.Error(
-                    "Download timed out — the server-side conversion is taking longer than expected."
-                )
+                _romDownloadState.value = RomDownloadState.Downloading(displayName)
+                _navigateToDownloadsTab.tryEmit(Unit)
             } catch (e: Exception) {
                 _romDownloadState.value = RomDownloadState.Error(e.message ?: "Download failed")
             }
@@ -2236,6 +2271,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetRomDownloadState() {
         _romDownloadState.value = RomDownloadState.Idle
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Downloads tab — manager passthroughs.  All of these hop onto
+    // appScope so a ViewModel teardown mid-action doesn't leave the
+    // UI lying about a status that didn't actually transition.
+    // ──────────────────────────────────────────────────────────────────
+
+    fun pauseDownload(id: String) {
+        downloadManager.pauseAsync(id)
+    }
+
+    fun resumeDownload(id: String) {
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            if (currentSettings.serverUrl.isBlank()) return@launch
+            val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
+            downloadManager.resumeAsync(api, id)
+        }
+    }
+
+    fun cancelDownload(id: String) {
+        downloadManager.cancelAsync(id)
+    }
+
+    fun removeDownload(id: String) {
+        downloadManager.removeAsync(id)
+    }
+
+    fun clearFinishedDownloads() {
+        downloadManager.clearFinishedAsync()
+    }
+
+    /**
+     * Trigger a fresh save / installed-rom scan after a download finishes.
+     * The Downloads screen calls this from a LaunchedEffect that watches
+     * for status transitions to COMPLETED so the rest of the app picks
+     * up the new file without an explicit refresh.
+     */
+    fun onDownloadCompleted() {
+        viewModelScope.launch {
+            scanSaves()
+            scanInstalledRoms(force = true)
+        }
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -2291,7 +2370,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // dispatch switch would be nice but this matches the
                 // other scanners in the app.
                 val roms = InstalledRomsScanner.scanInstalled(
-                    current.romScanDir,
+                    effectiveRomScanDir(current),
                     current.romDirOverrides,
                 )
                 _installedRoms.value = roms
@@ -2410,7 +2489,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
                 // Try to rename ROM in romScanDir
-                val romScanDir = currentSettings.romScanDir
+                val romScanDir = effectiveRomScanDir(currentSettings)
                 val renamedRom = if (romScanDir.isNotBlank()) {
                     val systemDir = java.io.File(romScanDir, entry.systemName)
                     val romFile = systemDir.listFiles()?.firstOrNull { f ->
@@ -2432,5 +2511,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _saveDetailState.value = SaveDetailState.Error(e.message ?: "Normalize failed")
             }
         }
+    }
+
+    private fun effectiveRomScanDir(settings: Settings, requestedDir: String = ""): String {
+        return EmudeckPaths.romsDir(settings.emudeckDir)?.absolutePath
+            ?: requestedDir.ifBlank { settings.romScanDir }
     }
 }

@@ -19,4 +19,6 @@
     <string name="grant_permission">Grant Permission</string>
     <string name="channel_sync_name">Sync Notifications</string>
     <string name="channel_sync_desc">Notifications for background save sync operations</string>
+    <string name="channel_downloads_name">ROM Downloads</string>
+    <string name="channel_downloads_desc">Foreground notification while ROMs are downloading</string>
 </resources>

@@ -46,6 +46,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.savesync.android.ui.MainViewModel
+import com.savesync.android.ui.screens.DownloadsScreen
 import com.savesync.android.ui.screens.InstalledGamesScreen
 import com.savesync.android.ui.screens.RomCatalogScreen
 import com.savesync.android.ui.screens.SaveDetailScreen
@@ -266,7 +267,7 @@ class MainActivity : ComponentActivity() {
  * Ordered list of top-level tab routes. The index is what [TabSwitchBar]
  * binds to, so any reorder here automatically shifts the selected indicator.
  */
-internal val TAB_ROUTES: List<String> = listOf("saves", "catalog", "installed")
+internal val TAB_ROUTES: List<String> = listOf("saves", "catalog", "installed", "downloads")
 
 /** Unwrap a [Context] (possibly wrapped by a ContextWrapper chain) to the
  *  owning [ComponentActivity]. Returns null in previews. */
@@ -304,6 +305,19 @@ private fun MainApp() {
         }
     }
 
+    // Auto-jump to Downloads when the user enqueues a new ROM so they see
+    // the live progress immediately instead of guessing if it started.
+    LaunchedEffect(navController, viewModel) {
+        viewModel.navigateToDownloadsTab.collect {
+            val current = navController.currentDestination?.route
+            // Only auto-jump from the catalog — leaves saves / installed
+            // alone for users who triggered a download from elsewhere.
+            if (current == TAB_ROUTES[1]) {
+                navigateToTab(navController, TAB_ROUTES[3])
+            }
+        }
+    }
+
     val onNavigateToTab: (Int) -> Unit = { idx ->
         navigateToTab(navController, TAB_ROUTES[idx])
     }
@@ -334,6 +348,12 @@ private fun MainApp() {
             }
             composable(TAB_ROUTES[2]) {
                 InstalledGamesScreen(
+                    viewModel = viewModel,
+                    onNavigateToTab = onNavigateToTab,
+                )
+            }
+            composable(TAB_ROUTES[3]) {
+                DownloadsScreen(
                     viewModel = viewModel,
                     onNavigateToTab = onNavigateToTab,
                 )
