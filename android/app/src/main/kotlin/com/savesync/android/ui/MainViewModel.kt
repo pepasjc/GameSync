@@ -162,11 +162,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val downloadProgressEvents: SharedFlow<DownloadManager.ProgressEvent> =
         downloadManager.progressEvents
 
-    /** One-shot signal asking the host (MainActivity) to switch to the
-     *  Downloads tab — emitted right after the user enqueues a new ROM. */
-    private val _navigateToDownloadsTab =
-        MutableSharedFlow<Unit>(extraBufferCapacity = 4)
-    val navigateToDownloadsTab: SharedFlow<Unit> = _navigateToDownloadsTab
+    // (Removed _navigateToDownloadsTab one-shot signal: enqueueing a ROM
+    // used to auto-jump the user to the Downloads tab, which broke the
+    // "queue several games while browsing the catalog" flow.  The
+    // snackbar at "Queued <name> — see Downloads tab for progress" is the
+    // confirmation feedback now; the user navigates manually if they
+    // want to watch progress.)
 
     // Unfiltered combined list of local + server-only saves
     private val _allSaves = MutableStateFlow<List<SaveEntry>>(emptyList())
@@ -2508,7 +2509,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     extractFormat = extractFormat,
                 )
                 _romDownloadState.value = RomDownloadState.Downloading(displayName)
-                _navigateToDownloadsTab.tryEmit(Unit)
             } catch (e: Exception) {
                 _romDownloadState.value = RomDownloadState.Error(e.message ?: "Download failed")
             }

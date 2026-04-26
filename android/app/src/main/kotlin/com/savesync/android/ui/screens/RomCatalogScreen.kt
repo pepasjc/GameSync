@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,10 +97,20 @@ fun RomCatalogScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    var query by remember { mutableStateOf("") }
-    var systemFilter by remember { mutableStateOf<String?>(null) }
+    // Filter state uses rememberSaveable so the user's place in the catalog
+    // (selected system + search query + whether the search bar is open)
+    // survives tab switching.  NavHost preserves the destination's
+    // SavedState bundle across tab pops with saveState=true /
+    // restoreState=true, and rememberSaveable rides on top of that — so
+    // queueing a download then bouncing between Catalog ↔ Downloads
+    // doesn't reset the filter back to the default system.
+    var query by rememberSaveable { mutableStateOf("") }
+    var systemFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var searchVisible by rememberSaveable { mutableStateOf(false) }
+    // confirmTarget intentionally stays as plain remember — re-showing the
+    // download confirmation dialog after the user navigated away is creepy
+    // (they'd come back to a modal they didn't open).
     var confirmTarget by remember { mutableStateOf<RomEntry?>(null) }
-    var searchVisible by remember { mutableStateOf(false) }
 
     // ── Gamepad navigation state ────────────────────────────────────────
     // We drive selection ourselves so D-pad / analog stick scrolls the

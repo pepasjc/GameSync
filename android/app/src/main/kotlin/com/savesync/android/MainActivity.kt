@@ -306,18 +306,11 @@ private fun MainApp() {
         }
     }
 
-    // Auto-jump to Downloads when the user enqueues a new ROM so they see
-    // the live progress immediately instead of guessing if it started.
-    LaunchedEffect(navController, viewModel) {
-        viewModel.navigateToDownloadsTab.collect {
-            val current = navController.currentDestination?.route
-            // Only auto-jump from the catalog — leaves saves / installed
-            // alone for users who triggered a download from elsewhere.
-            if (current == TAB_ROUTES[1]) {
-                navigateToTab(navController, TAB_ROUTES[3])
-            }
-        }
-    }
+    // (Removed: previously we auto-jumped to the Downloads tab on
+    // enqueue, but that yanked the user out of the catalog mid-browse.
+    // The catalog's own snackbar — "Queued <name> — see Downloads tab
+    // for progress" — is now the only confirmation.  Users navigate
+    // manually when they want to watch.)
 
     val onNavigateToTab: (Int) -> Unit = { idx ->
         navigateToTab(navController, TAB_ROUTES[idx])
