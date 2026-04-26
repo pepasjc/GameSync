@@ -2549,6 +2549,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     romScanDir = romScanDir,
                     romDirOverrides = currentSettings.romDirOverrides,
                     extractFormat = extractFormat,
+                    // Same toggle that controls SAVE-folder layout for CD
+                    // systems also controls whether the downloaded ROM lands
+                    // flat or in a per-game subfolder. The setting is
+                    // captured at enqueue time and persisted into the
+                    // DownloadEntity's path fields, so flipping the toggle
+                    // mid-download doesn't move an in-flight transfer.
+                    cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder,
                 )
                 _romDownloadState.value = RomDownloadState.Downloading(displayName)
             } catch (e: Exception) {

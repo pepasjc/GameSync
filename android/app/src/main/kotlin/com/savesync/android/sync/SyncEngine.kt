@@ -565,6 +565,7 @@ class SyncEngine(
         expectedFilename: String? = null,
         romDirOverrides: Map<String, String> = emptyMap(),
         extractFormat: String? = null,
+        cdGamesPerContentFolder: Boolean = false,
     ): File {
         val response = try {
             api.downloadRom(romId, extract = extractFormat)
@@ -613,13 +614,14 @@ class SyncEngine(
         outDir.mkdirs()
 
         // CD-ROM style games (PS1 multi-track .cue+.bin, Saturn,
-        // Dreamcast, Sega CD) live in a per-game subfolder by
+        // Dreamcast, Sega CD) CAN live in a per-game subfolder by
         // convention so the data track, cue sheet and any companion
-        // files stay grouped.  Match that layout on download by
-        // dropping the file into ``<outDir>/<stem>/<filename>`` where
-        // ``<stem>`` is the filename with its extension stripped.
+        // files stay grouped.  Whether to do that is the user's choice
+        // — gated on [cdGamesPerContentFolder] from settings, mirroring
+        // the same toggle that controls SAVE-folder layout.  When off,
+        // CD ROMs land flat in ``<outDir>/<filename>``.
         val canonicalSystem = SystemAliases.normalizeSystemCode(system)
-        val finalDir = if (canonicalSystem in CD_FOLDER_SYSTEMS) {
+        val finalDir = if (cdGamesPerContentFolder && canonicalSystem in CD_FOLDER_SYSTEMS) {
             val stem = filename.substringBeforeLast('.', filename)
             File(outDir, stem).also { it.mkdirs() }
         } else {

@@ -165,6 +165,7 @@ class DownloadManager(
         romScanDir: String,
         romDirOverrides: Map<String, String> = emptyMap(),
         extractFormat: String? = null,
+        cdGamesPerContentFolder: Boolean = false,
     ): Deferred<String> = appScope.async {
         enqueue(
             api = api,
@@ -175,6 +176,7 @@ class DownloadManager(
             romScanDir = romScanDir,
             romDirOverrides = romDirOverrides,
             extractFormat = extractFormat,
+            cdGamesPerContentFolder = cdGamesPerContentFolder,
         )
     }
 
@@ -209,12 +211,14 @@ class DownloadManager(
         romScanDir: String,
         romDirOverrides: Map<String, String> = emptyMap(),
         extractFormat: String? = null,
+        cdGamesPerContentFolder: Boolean = false,
     ): String {
         val (finalFile, partFile) = resolveTargetFiles(
             romScanDir = romScanDir,
             system = system,
             filename = filename,
             romDirOverrides = romDirOverrides,
+            cdGamesPerContentFolder = cdGamesPerContentFolder,
         )
         val now = nowMillis()
         val entity = DownloadEntity(
@@ -669,16 +673,24 @@ class DownloadManager(
     }
 
     /**
-     * Resolve `<scanDir>/<system>/<filename>` (with CD-folder wrapping)
-     * and the matching `.part` sibling.  Mirrors the layout produced by
-     * [SyncEngine.downloadRom] so this manager and the legacy single-shot
-     * download path stay byte-compatible.
+     * Resolve `<scanDir>/<system>/<filename>` and the matching `.part`
+     * sibling.  When [cdGamesPerContentFolder] is on (and the system is
+     * a CD-based one in [CD_FOLDER_SYSTEMS]) the file is wrapped in a
+     * per-game subfolder named after the filename stem, so multi-track
+     * layouts (PS1 .cue+.bin pairs, Saturn, Sega CD, Dreamcast) stay
+     * grouped.  When off, the file lands flat under the system folder.
+     *
+     * The resolved paths are persisted into the DownloadEntity at
+     * enqueue time, so changing the toggle mid-download has no effect on
+     * an in-flight download — that one keeps using its original path so
+     * resume / retry remain consistent.
      */
     private fun resolveTargetFiles(
         romScanDir: String,
         system: String,
         filename: String,
         romDirOverrides: Map<String, String> = emptyMap(),
+        cdGamesPerContentFolder: Boolean = false,
     ): Pair<File, File> {
         val outDir = InstalledRomsScanner.resolveRomTargetDir(
             scanRoot = File(romScanDir),
@@ -686,7 +698,7 @@ class DownloadManager(
             romDirOverrides = romDirOverrides,
         )
         val canonicalSystem = SystemAliases.normalizeSystemCode(system)
-        val finalDir = if (canonicalSystem in CD_FOLDER_SYSTEMS) {
+        val finalDir = if (cdGamesPerContentFolder && canonicalSystem in CD_FOLDER_SYSTEMS) {
             val stem = filename.substringBeforeLast('.', filename)
             File(outDir, stem)
         } else {
