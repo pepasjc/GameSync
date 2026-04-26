@@ -16,6 +16,7 @@ GET  /api/v1/roms/systems      — List systems with ROMs and counts
 """
 
 import asyncio
+import hashlib
 import json
 import os
 import shlex
@@ -54,6 +55,96 @@ def _conversion_tmp_dir() -> str | None:
         # whole request — the server log already records the OSError.
         return None
     return str(settings.tmp_dir)
+
+
+# ── Conversion output cache ─────────────────────────────────────────────────
+#
+# 3DS / GameCube / PSP / CHD conversions are slow (multi-minute CPU-bound
+# decryption + decompression).  The same source ROM converted to the same
+# format always produces the same output, so caching the result by
+# (source_path, mtime, size, format) is a free 100% speedup on every
+# repeat download.  On a Pi serving a developer who's testing the same
+# game over and over, this is the difference between "instant" and
+# "seven minutes per attempt."
+#
+# Cache layout:
+#   <settings.tmp_dir>/_conversion_cache/<sha-prefix>_<stem><output_ext>
+#
+# The cache lives under ``settings.tmp_dir`` (auto-disabled when that's
+# unset, mirroring tmpfs-fallback behaviour).  We never evict anything
+# automatically — on a sane host with the tmp_dir on a multi-TB volume
+# this is fine for years; if disk pressure ever becomes a concern, a
+# cron/systemd-timer can prune oldest-mtime entries.
+
+_CACHE_DIR_NAME = "_conversion_cache"
+
+
+def _conversion_cache_dir() -> Path | None:
+    """Persistent cache directory under ``settings.tmp_dir``.  Returns
+    ``None`` when no tmp_dir is configured (caching disabled — every
+    request goes through the full pipeline)."""
+    tmp = _conversion_tmp_dir()
+    if tmp is None:
+        return None
+    cache = Path(tmp) / _CACHE_DIR_NAME
+    try:
+        cache.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+    return cache
+
+
+def _conversion_cache_key(source_path: Path, fmt: str) -> str:
+    """Stable 16-char SHA-256 prefix of (absolute path, mtime_ns, size,
+    format).  Including mtime + size means the cache invalidates
+    automatically when the source ROM is replaced (e.g. user re-downloads
+    a fresher dump), without any explicit cache-bust step."""
+    st = source_path.stat()
+    payload = f"{source_path.absolute()}|{st.st_mtime_ns}|{st.st_size}|{fmt}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _cached_output_path(source_path: Path, fmt: str, output_ext: str) -> Path | None:
+    """Predicted cache path for this (source, fmt) — does NOT check
+    existence.  Returns ``None`` when caching is disabled."""
+    cache = _conversion_cache_dir()
+    if cache is None:
+        return None
+    key = _conversion_cache_key(source_path, fmt)
+    return cache / f"{source_path.stem}_{key}{output_ext}"
+
+
+def _lookup_cached_output(source_path: Path, fmt: str, output_ext: str) -> Path | None:
+    """Return path to a pre-computed conversion output if one exists,
+    else ``None``.  Callers that get a hit can skip the entire
+    converter pipeline and stream straight from the cached file."""
+    candidate = _cached_output_path(source_path, fmt, output_ext)
+    if candidate is None:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def _save_to_cache(temp_output: Path, source_path: Path, fmt: str, output_ext: str) -> Path:
+    """Move a fresh conversion output into the cache and return the new
+    path.  When caching is disabled, returns the original path
+    unchanged so callers always get a usable Path back.
+
+    Move (not copy) avoids paying for a duplicate write on the slow
+    (Pi + USB HDD) tier — ``shutil.move`` is a rename when source +
+    destination are on the same filesystem, which is the common case
+    when ``settings.tmp_dir`` is set.
+    """
+    cached_path = _cached_output_path(source_path, fmt, output_ext)
+    if cached_path is None:
+        return temp_output
+    try:
+        shutil.move(str(temp_output), str(cached_path))
+        return cached_path
+    except OSError:
+        # If the move fails (cross-fs without permission, dest exists and
+        # is busy, etc.), keep using the temp output — the response still
+        # works, we just don't get the cache benefit on this request.
+        return temp_output
 
 
 # Chunk size for streamed Range responses. 1 MiB is a good balance between
@@ -315,6 +406,11 @@ async def _extract_rvz(rvz_path: Path, stem: str) -> Response:
             ),
         )
 
+    # Cache fast-path
+    cached = _lookup_cached_output(rvz_path, 'rvz', '.iso')
+    if cached is not None:
+        return _stream_file_response(cached, 'application/x-iso9660-image')
+
     tmpdir = tempfile.mkdtemp(prefix='rvz_extract_', dir=_conversion_tmp_dir())
     iso_path = Path(tmpdir) / (stem + '.iso')
 
@@ -339,7 +435,8 @@ async def _extract_rvz(rvz_path: Path, stem: str) -> Response:
         _cleanup_dir(tmpdir)
         return Response(status_code=500, content="Conversion completed but produced no ISO")
 
-    return _stream_file_response(iso_path, 'application/x-iso9660-image', cleanup_dir=tmpdir)
+    cached_path = _save_to_cache(iso_path, rvz_path, 'rvz', '.iso')
+    return _stream_file_response(cached_path, 'application/x-iso9660-image', cleanup_dir=tmpdir)
 
 
 # ── Nintendo 3DS cart image → CIA / CCI variants ────────────────────────────
@@ -355,6 +452,13 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
     spec = _3DS_EXTRACT_SPECS.get(fmt)
     if spec is None:
         return Response(status_code=400, content=f"Unsupported 3DS extract format: {fmt}")
+
+    # Cache fast-path: an identical conversion completed before for this
+    # exact source ROM (matched on path + mtime + size + format) — stream
+    # the cached output directly without re-running the slow converter.
+    cached = _lookup_cached_output(source_path, fmt, spec['output_ext'])
+    if cached is not None:
+        return _stream_file_response(cached, 'application/x-3ds-rom')
 
     command_template = getattr(settings, spec['setting'])
     if not command_template:
@@ -421,7 +525,12 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
         _cleanup_dir(tmpdir)
         return Response(status_code=400, content=str(exc))
 
-    return _stream_file_response(final_path, 'application/x-3ds-rom', cleanup_dir=tmpdir)
+    # Promote the converted output into the persistent cache so the next
+    # request for this exact source+format gets the instant fast-path.
+    # On the same filesystem, ``shutil.move`` is just a rename — zero
+    # extra I/O cost on top of the conversion we already did.
+    cached_path = _save_to_cache(final_path, source_path, fmt, spec['output_ext'])
+    return _stream_file_response(cached_path, 'application/x-3ds-rom', cleanup_dir=tmpdir)
 
 
 # ── PSP CHD → ISO / CSO ──────────────────────────────────────────────────────
@@ -446,6 +555,13 @@ async def _extract_psp(chd_path: Path, system: str, stem: str, fmt: str) -> Resp
                 status_code=503,
                 content="No CSO tool found. Install one: sudo apt install ciso  OR  compile maxcso",
             )
+
+    # Cache fast-path
+    output_ext = '.iso' if fmt == 'iso' else '.cso'
+    cached = _lookup_cached_output(chd_path, fmt, output_ext)
+    if cached is not None:
+        mime = 'application/x-iso9660-image' if fmt == 'iso' else 'application/x-cso'
+        return _stream_file_response(cached, mime)
 
     tmpdir = tempfile.mkdtemp(prefix='psp_extract_', dir=_conversion_tmp_dir())
     tmp = Path(tmpdir)
@@ -493,7 +609,8 @@ async def _extract_psp(chd_path: Path, system: str, stem: str, fmt: str) -> Resp
         return Response(status_code=504, content="Conversion timed out (>10 min)")
 
     mime = 'application/x-iso9660-image' if fmt == 'iso' else 'application/x-cso'
-    return _stream_file_response(out_path, mime, cleanup_dir=tmpdir)
+    cached_path = _save_to_cache(out_path, chd_path, fmt, output_ext)
+    return _stream_file_response(cached_path, mime, cleanup_dir=tmpdir)
 
 
 # ── CD-ROM CHD → CUE/BIN or GDI zip ─────────────────────────────────────────
@@ -514,6 +631,15 @@ async def _extract_cd(chd_path: Path, system: str) -> Response:
 
     out_ext = '.gdi' if sys_up in _GDI_SYSTEMS else '.cue'
     stem    = chd_path.stem
+
+    # Cache fast-path: the CD extraction is deterministic (chdman is
+    # bit-exact for a given CHD), so caching the final ZIP is safe.
+    # Format key is a fixed literal because there's only one CHD-CD output
+    # variant per system; we use ``out_ext`` to pick a stable cache key.
+    cd_fmt = f'cd_{out_ext.lstrip(".")}'  # e.g. "cd_cue" / "cd_gdi"
+    cached = _lookup_cached_output(chd_path, cd_fmt, '.zip')
+    if cached is not None:
+        return _stream_file_response(cached, 'application/zip')
 
     # Two-phase tempdir layout:
     #   <tmpdir>/extract/   — chdman writes its raw output here
@@ -558,7 +684,8 @@ async def _extract_cd(chd_path: Path, system: str) -> Response:
         _cleanup_dir(tmpdir)
         return Response(status_code=504, content="Extraction timed out (>10 min)")
 
-    return _stream_file_response(out_path, 'application/zip', cleanup_dir=tmpdir)
+    cached_path = _save_to_cache(out_path, chd_path, cd_fmt, '.zip')
+    return _stream_file_response(cached_path, 'application/zip', cleanup_dir=tmpdir)
 
 
 # ── Regular file serving ─────────────────────────────────────────────────────
@@ -682,7 +809,13 @@ def _materialize_3ds_source(source_path: Path, tmp_dir: Path) -> tuple[Path, str
         member_name = Path(member.filename).name
         extracted = tmp_dir / member_name
         with zf.open(member) as src, open(extracted, 'wb') as dst:
-            shutil.copyfileobj(src, dst)
+            # Default copyfileobj buffer is 8 KiB.  For multi-GB ROMs that
+            # means hundreds of thousands of read/write syscalls; bumping to
+            # 8 MiB shaves syscall overhead and lets the kernel pipeline I/O
+            # alongside zlib decompression more efficiently.  Decompression
+            # itself stays single-threaded (Python's zipfile module limit),
+            # but every megabyte of avoided syscall churn helps.
+            shutil.copyfileobj(src, dst, length=8 * 1024 * 1024)
         return extracted, extracted.stem
 
 
