@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import com.savesync.android.installed.InstalledRom
 import com.savesync.android.installed.InstalledRomsScanner
 import com.savesync.android.ui.MainViewModel
+import com.savesync.android.ui.SaveDetailState
 import com.savesync.android.ui.components.SystemFilterChip
 import com.savesync.android.ui.components.TabSwitchBar
 import kotlinx.coroutines.launch
@@ -84,6 +86,9 @@ fun InstalledGamesScreen(
     val loading by viewModel.installedRomsLoading.collectAsState()
     val loaded by viewModel.installedRomsLoaded.collectAsState()
     val deleteState by viewModel.deleteInstalledState.collectAsState()
+    // Shared with SaveDetailScreen — emits Working/Success/Error during a
+    // save sync triggered from the per-rom dialog below.
+    val saveDetailState by viewModel.saveDetailState.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -131,6 +136,25 @@ fun InstalledGamesScreen(
                     )
                 }
                 viewModel.resetDeleteInstalledState()
+            }
+            else -> Unit
+        }
+    }
+
+    // Surface the result of a sync triggered from this tab as a snackbar
+    // and clear the shared SaveDetailState afterwards so navigating to
+    // SaveDetailScreen later doesn't re-show a stale message.  We don't
+    // observe the Working state here — the dialog already closed; a
+    // snackbar that says "Syncing…" then disappears would be noisy.
+    LaunchedEffect(saveDetailState) {
+        when (val s = saveDetailState) {
+            is SaveDetailState.Success -> {
+                scope.launch { snackbarHostState.showSnackbar(s.message) }
+                viewModel.resetDetailState()
+            }
+            is SaveDetailState.Error -> {
+                scope.launch { snackbarHostState.showSnackbar(s.message) }
+                viewModel.resetDetailState()
             }
             else -> Unit
         }
@@ -339,15 +363,17 @@ fun InstalledGamesScreen(
         val wholeFolder = InstalledRomsScanner.wouldRemoveWholeFolder(rom)
         AlertDialog(
             onDismissRequest = { confirmTarget = null },
-            title = { Text("Delete ROM?") },
+            // Title shows the game name so the dialog reads as a per-rom
+            // action sheet instead of just "Delete ROM?" (which was
+            // misleading once we added the Sync Saves action below).
+            title = { Text(rom.displayName, fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text(rom.displayName, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(6.dp))
                     Text("System: ${rom.system}")
+                    Spacer(Modifier.height(6.dp))
                     if (wholeFolder) {
                         Text(
-                            "Removes the whole folder (and every file inside it):",
+                            "Folder: ${rom.path.parentFile?.name ?: "?"}",
                         )
                         Text(
                             rom.path.parentFile?.absolutePath ?: rom.path.absolutePath,
@@ -366,23 +392,52 @@ fun InstalledGamesScreen(
                         )
                     }
                     Spacer(Modifier.height(6.dp))
-                    Text("Frees: ${formatBytes(rom.size)}")
-                    Spacer(Modifier.height(8.dp))
+                    Text("Size: ${formatBytes(rom.size)}")
+                    Spacer(Modifier.height(12.dp))
                     Text(
-                        "This removes the data permanently and cannot be undone.",
+                        "Sync Saves uploads / downloads this game's save against the server. Delete removes the ROM data permanently — this can't be undone.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
+            // confirmButton hosts the primary (non-destructive) Sync action.
+            // Material3 AlertDialog only exposes confirm + dismiss slots, so
+            // the destructive Delete moves into the dismiss slot beside
+            // Cancel as a Row — matches the visual convention "destructive
+            // buttons live on the left, primary on the right."
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.deleteInstalledRom(rom)
+                    viewModel.syncInstalledRomSaves(rom)
                     confirmTarget = null
-                }) { Text("Delete") }
+                }) {
+                    Icon(
+                        Icons.Filled.CloudSync,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(6.dp))
+                    Text("Sync Saves")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { confirmTarget = null }) { Text("Cancel") }
+                Row {
+                    TextButton(onClick = {
+                        viewModel.deleteInstalledRom(rom)
+                        confirmTarget = null
+                    }) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.size(6.dp))
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    }
+                    Spacer(Modifier.size(4.dp))
+                    TextButton(onClick = { confirmTarget = null }) { Text("Cancel") }
+                }
             }
         )
     }

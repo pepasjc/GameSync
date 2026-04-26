@@ -2380,6 +2380,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Trigger a save-sync for a ROM listed on the Installed tab.  The
+     * Installed tab models rows as ``InstalledRom`` (path-based) rather
+     * than ``SaveEntry`` (sync-engine-aware), so we have to look up the
+     * matching SaveEntry from the unfiltered combined list before we can
+     * hand it off to the existing per-save sync flow.
+     *
+     * Match key is (system code) + (normalised display name) — lowercase
+     * + alphanumeric-only — to absorb the small differences between how
+     * each scanner builds its display name (RetroArchEmulator uses the
+     * file stem verbatim, InstalledRomsScanner runs the stem through
+     * ``prettyName`` which collapses underscores to spaces).
+     *
+     * Falls through to the existing ``saveDetailState`` flow so the same
+     * snackbar / progress UI used by SaveDetailScreen + RomCatalogScreen
+     * applies here too — the Installed tab subscribes to that flow.
+     */
+    fun syncInstalledRomSaves(rom: InstalledRom) {
+        val target = normalizeForLookup(rom.displayName)
+        val match = _allSaves.value.firstOrNull { entry ->
+            entry.systemName.equals(rom.system, ignoreCase = true) &&
+                normalizeForLookup(entry.displayName) == target
+        }
+        if (match == null) {
+            _saveDetailState.value = SaveDetailState.Error(
+                "No save found for \"${rom.displayName}\" yet. " +
+                    "If you've never opened this game, sync once after creating " +
+                    "a save in the emulator so the server has something to track."
+            )
+            return
+        }
+        // Delegate to the existing per-save sync; it owns API client setup,
+        // Saturn-archive picker handshake, status reporting, and the
+        // post-sync metadata refresh.
+        syncSave(match)
+    }
+
+    /** Normalisation used by [syncInstalledRomSaves] to bridge slight
+     *  display-name differences between scanners. */
+    private fun normalizeForLookup(name: String): String =
+        name.lowercase().replace(Regex("[^a-z0-9]+"), "")
+
     fun uploadSave(entry: SaveEntry) {
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
