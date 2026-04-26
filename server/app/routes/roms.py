@@ -32,6 +32,30 @@ from starlette.background import BackgroundTask
 
 from app.config import settings
 
+
+def _conversion_tmp_dir() -> str | None:
+    """Resolve where ``tempfile.mkdtemp`` should put conversion workdirs.
+
+    Returns the configured ``settings.tmp_dir`` (creating it if needed) when
+    set, otherwise ``None`` so ``mkdtemp`` falls back to its system default.
+
+    Centralised here because (a) every conversion path needs the same
+    treatment and (b) we can't rely on the ``TMPDIR`` environment variable —
+    uv's bundled python-build-standalone interpreter strips ``TMPDIR`` on
+    startup while leaving every other env var alone.
+    """
+    if settings.tmp_dir is None:
+        return None
+    try:
+        settings.tmp_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # If the configured dir can't be created (permissions, missing mount,
+        # etc.), fall back to the system default rather than failing the
+        # whole request — the server log already records the OSError.
+        return None
+    return str(settings.tmp_dir)
+
+
 # Chunk size for streamed Range responses. 1 MiB is a good balance between
 # syscall overhead and keeping memory bounded — a single in-flight request
 # never holds more than this much in RAM at a time, so 4GB ROMs over slow
@@ -291,7 +315,7 @@ async def _extract_rvz(rvz_path: Path, stem: str) -> Response:
             ),
         )
 
-    tmpdir = tempfile.mkdtemp(prefix='rvz_extract_')
+    tmpdir = tempfile.mkdtemp(prefix='rvz_extract_', dir=_conversion_tmp_dir())
     iso_path = Path(tmpdir) / (stem + '.iso')
 
     def _run() -> None:
@@ -350,7 +374,7 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
             ),
         )
 
-    tmpdir = tempfile.mkdtemp(prefix='3ds_extract_')
+    tmpdir = tempfile.mkdtemp(prefix='3ds_extract_', dir=_conversion_tmp_dir())
 
     def _run() -> Path:
         tmp = Path(tmpdir)
@@ -423,7 +447,7 @@ async def _extract_psp(chd_path: Path, system: str, stem: str, fmt: str) -> Resp
                 content="No CSO tool found. Install one: sudo apt install ciso  OR  compile maxcso",
             )
 
-    tmpdir = tempfile.mkdtemp(prefix='psp_extract_')
+    tmpdir = tempfile.mkdtemp(prefix='psp_extract_', dir=_conversion_tmp_dir())
     tmp = Path(tmpdir)
     iso_path = tmp / (stem + '.iso')
     cso_path = tmp / (stem + '.cso')
@@ -497,7 +521,7 @@ async def _extract_cd(chd_path: Path, system: str) -> Response:
     # We zip with ZIP_STORED (no compression) because BIN/RAW track data is
     # already incompressible and the client can extract instantly. This also
     # lets us avoid CPU spike on the Pi during the zip step.
-    tmpdir = tempfile.mkdtemp(prefix='cd_extract_')
+    tmpdir = tempfile.mkdtemp(prefix='cd_extract_', dir=_conversion_tmp_dir())
     extract_dir = Path(tmpdir) / 'extract'
     extract_dir.mkdir()
     zip_path = Path(tmpdir) / f'{stem}.zip'

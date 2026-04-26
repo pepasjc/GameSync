@@ -5,6 +5,22 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     save_dir: Path = Path(__file__).parent.parent / "saves"
     rom_dir: Path | None = None
+    # Optional override for where ROM-conversion working directories are
+    # created.  When unset, ``tempfile.gettempdir()`` is used (typically
+    # ``/tmp``, which is a 1.9 GB tmpfs on a default Raspberry Pi).
+    #
+    # 3DS games can decompress + decrypt to 4+ GB of intermediate files,
+    # so a Pi or any host with a small ``/tmp`` should point this at a
+    # spinning-disk or SSD path with plenty of headroom.  Example:
+    #
+    #     SYNC_TMP_DIR=/mnt/hd/tmp
+    #
+    # We pass this value as ``dir=`` to every ``tempfile.mkdtemp()``
+    # call in ``app/routes/roms.py`` and the mcr2vmp tool, which means
+    # we don't have to rely on the ``TMPDIR`` env var — uv's bundled
+    # Python build (python-build-standalone) silently strips ``TMPDIR``
+    # on startup, so the env-var approach is unreliable here.
+    tmp_dir: Path | None = None
     # Optional command templates for 3DS ROM conversion.
     # Supports either a shell-style string or a JSON array of args.
     # Available placeholders: {input}, {output}, {output_dir}, {stem}

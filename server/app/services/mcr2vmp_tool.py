@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from app.config import settings
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
@@ -79,9 +81,22 @@ def ensure_mcr2vmp_binary() -> Path:
     return binary
 
 
+def _conversion_tmp_dir() -> str | None:
+    """Same role as ``app.routes.roms._conversion_tmp_dir``: route every
+    conversion's working dir to ``settings.tmp_dir`` when configured.
+    Returns ``None`` (system default) when unset or unwritable."""
+    if settings.tmp_dir is None:
+        return None
+    try:
+        settings.tmp_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+    return str(settings.tmp_dir)
+
+
 def convert_raw_card_to_vmp(raw: bytes) -> bytes:
     binary = ensure_mcr2vmp_binary()
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(dir=_conversion_tmp_dir()) as tmpdir:
         tmp = Path(tmpdir)
         input_path = tmp / "card.mcr"
         output_path = tmp / "card.mcr.VMP"
