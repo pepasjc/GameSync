@@ -44,7 +44,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.drop
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,6 +123,40 @@ fun RomCatalogScreen(
     val listFocusRequester = remember { FocusRequester() }
     val searchFocusRequester = remember { FocusRequester() }
 
+    // ── Per-system scroll memory ────────────────────────────────────────
+    // The same LazyListState is reused as the user cycles through systems
+    // (because the LazyColumn always renders the actively-filtered list),
+    // so without this map a system-filter change would either keep the
+    // user at the previous system's scroll offset (now pointing at a
+    // totally unrelated game) or — depending on filtered.size — clamp them
+    // back to the top.  Map: system code (or "ALL" for no filter) →
+    // firstVisibleItemIndex when the user last left that system.  We
+    // store just the index (no offset) — close enough that the user
+    // recognises their place; saving offset too would mostly add noise.
+    //
+    // listSaver flattens the map to a [k, v, k, v, ...] list which the
+    // SavedState bundle handles natively, so this state survives both
+    // tab switching (via NavHost saveState=true) and configuration
+    // changes (rotation, theme switch).
+    val scrollPositions: MutableMap<String, Int> = rememberSaveable(
+        saver = listSaver(
+            save = { map -> map.flatMap { listOf(it.key, it.value) } },
+            restore = { entries ->
+                mutableMapOf<String, Int>().apply {
+                    var i = 0
+                    while (i + 1 < entries.size) {
+                        val k = entries[i] as? String ?: ""
+                        val v = entries[i + 1] as? Int ?: 0
+                        if (k.isNotEmpty()) put(k, v)
+                        i += 2
+                    }
+                }
+            }
+        )
+    ) { mutableMapOf() }
+    // Stable map key for the active filter — null filter == "ALL".
+    val systemKey = systemFilter ?: "ALL"
+
     // Lazy first-load when the tab is opened.
     LaunchedEffect(Unit) {
         if (!loaded && !loading) viewModel.fetchRomCatalog()
@@ -181,6 +218,40 @@ fun RomCatalogScreen(
         } else {
             selectedIndex = 0
         }
+    }
+
+    // Continuously snapshot the active system's scroll position into the
+    // per-system map, so flipping back to a previously-visited system
+    // restores where you were instead of dumping you at the top.
+    //
+    // ``drop(1)`` is critical: snapshotFlow always emits the current value
+    // immediately on subscription, but when ``systemKey`` changes the
+    // restore effect below fires concurrently and we don't want this saver
+    // to overwrite the new system's saved position with the previous
+    // (stale) listState value before the restore lands.  Skipping the
+    // initial emission means we only persist values that came from real
+    // scroll events, not from coroutine restart.
+    LaunchedEffect(listState, systemKey) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .drop(1)
+            .collect { idx -> scrollPositions[systemKey] = idx }
+    }
+
+    // Restore saved scroll position when the user switches systems.  We
+    // gate on ``lastRestoredKey`` so subsequent filter updates within
+    // the same system (e.g. typing in the search box) don't re-scroll
+    // the list — only an actual system change triggers a restore.
+    var lastRestoredKey by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(systemKey, filtered.size) {
+        if (lastRestoredKey == systemKey) return@LaunchedEffect
+        if (filtered.isEmpty()) return@LaunchedEffect  // wait for items
+        val saved = scrollPositions[systemKey] ?: 0
+        val target = saved.coerceIn(0, filtered.size - 1)
+        listState.scrollToItem(target)
+        // Place the gamepad cursor on the same item so D-pad navigation
+        // resumes from the visible row instead of jumping back to item 0.
+        selectedIndex = target
+        lastRestoredKey = systemKey
     }
 
     // Helper that cycles the system filter (null = all systems), used by
