@@ -1001,11 +1001,23 @@ function startQueueStages(job) {
   const stages = STAGES[job.fmt] || STAGES.cue;
   let stageIdx = 0;
   job.stageText = stages[stageIdx];
-  job.subText = 'This may take a minute for large games';
+  job.subText = 'Multi-GB 3DS games can take 5–8 minutes the first time (cached after that)';
+  // Tracks how long we've been on the LAST stage so we can append
+  // "(still working… N s)" instead of letting the user think we're stuck.
+  let lastStageEnteredAt = null;
   job.stageTimer = setInterval(() => {
     if (stageIdx < stages.length - 1) {
       stageIdx += 1;
       job.stageText = stages[stageIdx];
+      if (stageIdx === stages.length - 1) lastStageEnteredAt = Date.now();
+      renderQueue();
+    } else if (lastStageEnteredAt != null) {
+      // Once we've reached the final stage, every tick adds elapsed time
+      // to the label so it's obvious the server is still working.  Stops
+      // the user thinking the WebUI is stuck on "Writing CCI file…" when
+      // really the converter is just slow on a Pi.
+      const secs = Math.round((Date.now() - lastStageEnteredAt) / 1000);
+      job.stageText = `${stages[stageIdx]} (server still working… ${secs}s)`;
       renderQueue();
     }
   }, 3200);
@@ -1035,8 +1047,28 @@ async function runNextQueuedExtract() {
   _convAbort = new AbortController();
 
   try {
-    const url = `/api/v1/roms/${encodeURIComponent(job.titleId)}?extract=${encodeURIComponent(job.fmt)}`;
-    const r = await fetch(url, {
+    // Two-phase strategy so multi-GB downloads don't OOM the browser:
+    //
+    //   Phase 1 — fetch() with the API key in a custom header so the server
+    //             runs the conversion (or hits the cache) and returns the
+    //             response headers including Content-Disposition. We DO NOT
+    //             read the body — that's what was killing the WebUI on big
+    //             3DS games (await r.blob() on a 3.5 GB CCI buffers the
+    //             whole thing in browser memory and either OOMs the tab or
+    //             stalls forever, depending on the platform).
+    //
+    //   Phase 2 — trigger an <a download href="…?api_key=…"> click. The
+    //             browser handles the actual transfer with its native
+    //             download manager: streams to disk, shows real progress,
+    //             survives tab backgrounding, supports its own retry. The
+    //             server side is a cache HIT (we just populated it during
+    //             phase 1), so the conversion doesn't run twice.
+    //
+    // Net effect: same wall-clock time for the user, but reliability for
+    // 1 GB+ downloads goes from "depends on phone RAM" to "browser
+    // download manager handles it natively."
+    const baseUrl = `/api/v1/roms/${encodeURIComponent(job.titleId)}?extract=${encodeURIComponent(job.fmt)}`;
+    const r = await fetch(baseUrl, {
       headers: { 'X-API-Key': API_KEY },
       signal: _convAbort.signal,
     });
@@ -1046,16 +1078,34 @@ async function runNextQueuedExtract() {
       throw new Error(txt || `HTTP ${r.status}`);
     }
 
-    job.stageText = 'Done! Starting download…';
-    job.subText = '';
-    renderQueue();
-
     // Prefer the server's Content-Disposition filename so every client
     // (web, Android, Steam Deck, curl) lands on the same stem — important
     // for save-folder detection that keys off the filename.
     const filename = parseContentDispositionFilename(r.headers.get('Content-Disposition'))
                   || buildExtractFilename(job.titleId, job.gameName, job.fmt);
-    triggerDownload(await r.blob(), filename);
+
+    // Phase-1 cleanup: explicitly cancel the in-flight body so the
+    // browser stops buffering bytes we'll never read.  Without this the
+    // network stack keeps draining the response in the background
+    // (wasteful) until the GC eventually closes the Response.
+    try { await r.body?.cancel(); } catch (_) { /* ignore */ }
+
+    job.stageText = 'Streaming download to your device…';
+    job.subText = 'Browser will save the file as it arrives';
+    renderQueue();
+
+    // Phase 2: hand off to the browser's native download manager.
+    // The API key has to ride in the URL because <a href> can't carry
+    // custom headers; the server's auth middleware accepts ?api_key=.
+    const downloadUrl = `${baseUrl}&api_key=${encodeURIComponent(API_KEY)}`;
+    const a = Object.assign(document.createElement('a'), {
+      href: downloadUrl,
+      download: filename,
+    });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
     job.filename = filename;
     job.status = 'done';
     job.stageText = 'Download started';

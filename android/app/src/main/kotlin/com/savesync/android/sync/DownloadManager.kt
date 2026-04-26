@@ -16,6 +16,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -33,13 +34,37 @@ import java.io.RandomAccessFile
 import java.util.UUID
 
 private const val TAG = "DownloadManager"
-private const val IO_BUFFER_SIZE = 64 * 1024  // 64 KB — fewer syscalls than 8 KB on big files
+private const val IO_BUFFER_SIZE = 256 * 1024  // 256 KB — fewer syscalls and better throughput on multi-GB
 private const val INITIAL_PERSIST_INTERVAL_MS = 250L
 private const val STEADY_PERSIST_INTERVAL_MS = 1500L
 private const val INITIAL_PHASE_MS = 5_000L  // first 5 s = aggressive persist
 private const val FLUSH_INTERVAL_MS = 5_000L  // fsync every 5 s of streaming
 private const val PROGRESS_EVENT_INTERVAL_MS = 200L
-private const val MAX_AUTO_RETRIES = 3
+
+/**
+ * Auto-retry policy for transient IOException during streaming.
+ *
+ * Multi-GB downloads on cellular / weak Wi-Fi routinely lose the
+ * connection at 80%+ — a tower handover, a Wi-Fi roam, even a proxy
+ * idle-cull will surface as a single read() throwing IOException.  The
+ * old policy (3 immediate retries, no backoff) burned all attempts during
+ * one network blip, so the user got "Failed" on a download that was 4 GB
+ * into a 4.2 GB transfer.
+ *
+ * New policy: more attempts with exponential backoff so a 60-second
+ * outage doesn't kill the download.  Each retry uses ``Range:`` so the
+ * already-on-disk bytes are preserved — total wasted work is at most one
+ * IO_BUFFER_SIZE chunk per failure.
+ */
+private val RETRY_BACKOFF_MS = longArrayOf(
+    2_000L,    // attempt 2: ~2 s after first failure
+    8_000L,    // attempt 3: ~8 s
+    20_000L,   // attempt 4: ~20 s
+    45_000L,   // attempt 5: ~45 s
+    90_000L,   // attempt 6: 1.5 min
+    180_000L,  // attempt 7: 3 min — covers a typical mobile-data lapse
+)
+private const val MAX_AUTO_RETRIES = 7  // first attempt + 6 retries
 private const val CANCEL_JOIN_TIMEOUT_MS = 5_000L
 
 /**
@@ -352,6 +377,13 @@ class DownloadManager(
     /**
      * Body of the worker coroutine.  Re-reads the entity at every retry
      * boundary so user-driven pause/cancel updates take effect immediately.
+     *
+     * Retry strategy: ``MAX_AUTO_RETRIES`` total attempts.  Between
+     * attempts we sleep for a backoff drawn from ``RETRY_BACKOFF_MS`` so a
+     * transient outage (Wi-Fi roam, cellular handover, server restart)
+     * doesn't burn all attempts in a few hundred milliseconds.  The wait
+     * is interruptible — a user pause/cancel during the backoff exits
+     * cleanly because Kotlin's ``delay`` is cooperatively cancellable.
      */
     private suspend fun runDownload(api: SaveSyncApi, id: String) {
         var attempt = 0
@@ -377,15 +409,21 @@ class DownloadManager(
                 lastError = io
                 Log.w(TAG, "Download $id attempt $attempt failed: ${io.message}", io)
                 // On the last attempt, fall through to the failure marker
-                // below.  Otherwise loop and retry with the saved bytes.
+                // below.  Otherwise sleep with exponential backoff and
+                // loop — the next attempt sees the persisted .part file
+                // and resumes via Range:.
                 if (attempt >= MAX_AUTO_RETRIES) break
+                val backoff = RETRY_BACKOFF_MS.getOrElse(attempt - 1) { RETRY_BACKOFF_MS.last() }
+                Log.d(TAG, "Download $id sleeping ${backoff}ms before attempt ${attempt + 1}")
+                delay(backoff)
             } catch (t: Throwable) {
                 Log.e(TAG, "Download $id terminal error", t)
                 lastError = IOException(t.message ?: "Unknown error", t)
                 break
             }
         }
-        markFailed(id, lastError?.message ?: "Download failed after retries")
+        val msg = lastError?.message ?: "Download failed"
+        markFailed(id, "$msg (after $attempt attempts)")
         refreshForegroundService()
     }
 

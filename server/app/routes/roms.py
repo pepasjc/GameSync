@@ -296,7 +296,7 @@ async def trigger_scan(request: Request, use_crc32: bool = Query(False)):
 
 # ── Download endpoint ────────────────────────────────────────────────────────
 
-@router.get("/roms/{title_id:path}")
+@router.api_route("/roms/{title_id:path}", methods=["GET", "HEAD"])
 async def download_rom(
     title_id: str,
     request: Request,
