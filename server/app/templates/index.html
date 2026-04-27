@@ -1465,11 +1465,17 @@ function disposeLazy() {
 function romCardHtml(rom) {
   const sys  = rom.system || 'UNKNOWN';
   const c    = clr(sys);
-  const tid  = esc(rom.title_id);
-  const fn   = esc(rom.filename || rom.title_id);
+  // Always prefer rom_id over title_id for routing/extract: title_id
+  // collides for multi-variant entries (Saturn ROM hacks sharing a product
+  // code, multi-disc games after disc-index stripping, etc.). rom_id is
+  // catalog-unique. Fall back to title_id for any old payload missing
+  // rom_id.
+  const dlId = rom.rom_id || rom.title_id;
+  const tid  = esc(dlId);
+  const fn   = esc(rom.filename || dlId);
   const fmt  = rom.extract_format;
   const extractFormats = Array.isArray(rom.extract_formats) ? rom.extract_formats : [];
-  const rawUrl = `/api/v1/roms/${encodeURIComponent(rom.title_id)}`;
+  const rawUrl = `/api/v1/roms/${encodeURIComponent(dlId)}`;
   const rawLabel = (rom.filename?.split('.').pop() || 'ROM').toUpperCase();
 
   // Floating share icon — anchored top-right of the card via .rom-share.

@@ -296,9 +296,9 @@ async def trigger_scan(request: Request, use_crc32: bool = Query(False)):
 
 # ── Download endpoint ────────────────────────────────────────────────────────
 
-@router.api_route("/roms/{title_id:path}", methods=["GET", "HEAD"])
+@router.api_route("/roms/{rom_key:path}", methods=["GET", "HEAD"])
 async def download_rom(
-    title_id: str,
+    rom_key: str,
     request: Request,
     extract: Optional[str] = Query(
         None,
@@ -315,9 +315,22 @@ async def download_rom(
     if not catalog:
         return Response(status_code=404, content="No ROM catalog available")
 
-    entry = catalog.get(title_id)
+    # The catalog is keyed by `rom_id` (always unique). For most ROMs
+    # rom_id == title_id, so plain title_id lookups still resolve. But
+    # multi-variant titles (e.g. Saturn ROM hacks sharing a Saturn product
+    # code, or multi-disc games whose disc index is stripped from the
+    # serial) collide on title_id and only the rom_id is unique. Older
+    # clients / deep links may still send the title_id; fall back to the
+    # first entry whose title_id matches so they keep working, while new
+    # clients should send rom_id directly.
+    entry = catalog.get(rom_key)
     if not entry:
-        return Response(status_code=404, content=f"ROM not found: {title_id}")
+        for e in catalog.list_all():
+            if e.title_id == rom_key:
+                entry = e
+                break
+    if not entry:
+        return Response(status_code=404, content=f"ROM not found: {rom_key}")
 
     rom_dir = settings.rom_dir
     if not rom_dir:
