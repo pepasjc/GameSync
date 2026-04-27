@@ -141,8 +141,26 @@
       background: var(--bg-card); border: 1px solid var(--border-muted);
       border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column;
       transition: border-color .15s, transform .12s, box-shadow .15s;
+      position: relative;
     }
     .rom-card:hover { border-color: var(--border); transform: translateY(-2px); box-shadow: var(--shadow); }
+
+    /* Top-right share icon — appears over the stripe, fades in on hover.
+       Click bubbles to delegated 'copy' handler. Always visible on touch
+       devices via @media query below. */
+    .rom-share {
+      position: absolute; top: 6px; right: 6px; z-index: 2;
+      width: 24px; height: 24px; padding: 0;
+      border: 1px solid var(--border-muted); border-radius: 6px;
+      background: rgba(13, 17, 23, .78); color: var(--text-muted);
+      font-size: 12px; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity .15s, color .15s, border-color .15s, background .15s;
+    }
+    .rom-card:hover .rom-share, .rom-share:focus-visible { opacity: 1; }
+    .rom-share:hover { color: var(--accent); border-color: var(--accent); background: rgba(13, 17, 23, .95); }
+    .rom-share.busy  { opacity: 1; color: var(--yellow); border-color: var(--yellow); }
+    @media (hover: none) { .rom-share { opacity: .85; } }
     .rom-stripe { height: 3px; }
     .rom-body { padding: 12px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
     .rom-title {
@@ -186,6 +204,14 @@
       background: transparent; color: var(--green); border: 1px solid #2d6a4a;
     }
     .dl-btn.extract:hover:not(:disabled) { background: rgba(63,185,80,.1); border-color: var(--green); }
+
+    /* Copy-link button: subtle outline so it doesn't compete with the primary download */
+    .dl-btn.copy {
+      background: transparent; color: var(--accent); border: 1px solid #30363d;
+      padding: 5px 8px;
+    }
+    .dl-btn.copy:hover:not(:disabled) { background: rgba(88,166,255,.1); border-color: var(--accent); }
+    .rom-btns-3ds .dl-btn.copy { padding: 4px 6px; }
 
     /* ── SAVES TABLE ── */
     .tbl-wrap { overflow-x: auto; border-radius: var(--radius); }
@@ -700,6 +726,39 @@ function dlFile(url, filename, btn) {
       btn.textContent = origTxt || '↓';
     }, 900);
   }
+}
+
+// Copy a shareable absolute URL (with embedded api_key) to the clipboard.
+// Only wired up on direct-download buttons — extract/conversion routes are
+// excluded because they're not idempotent (depend on cache state) and
+// produce streaming responses that don't survive cold link replays.
+function copyLink(url, btn) {
+  const full = location.origin + withAuth(url);
+  const ok = () => {
+    toast('🔗 Link copied', 'ok');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.classList.add('busy'); btn.textContent = '✓';
+      setTimeout(() => { btn.classList.remove('busy'); btn.textContent = orig; }, 900);
+    }
+  };
+  const fail = () => toast('Copy failed — link: ' + full, 'err');
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(full).then(ok, fail);
+    return;
+  }
+  // Fallback for plain http:// (LAN deployments) where the async clipboard
+  // API is gated behind a secure context.
+  const ta = document.createElement('textarea');
+  ta.value = full;
+  ta.style.position = 'fixed'; ta.style.left = '-9999px'; ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    if (document.execCommand('copy')) ok(); else fail();
+  } catch (e) { fail(); }
+  document.body.removeChild(ta);
 }
 
 // Used by the extract queue (CHD → ISO etc) which DOES want the fetch()
@@ -1413,6 +1472,13 @@ function romCardHtml(rom) {
   const rawUrl = `/api/v1/roms/${encodeURIComponent(rom.title_id)}`;
   const rawLabel = (rom.filename?.split('.').pop() || 'ROM').toUpperCase();
 
+  // Floating share icon — anchored top-right of the card via .rom-share.
+  // Only points at the raw/direct download (rawUrl): ?extract= conversion
+  // routes aren't stable shareable URLs (job-cached, streamed, slow).
+  const shareIcon = `<button class="rom-share" data-action="copy"
+        data-url="${rawUrl}" title="Copy share link to original ${rawLabel}"
+        aria-label="Copy share link">🔗</button>`;
+
   let btnHtml;
   if (extractFormats.length && extractFormats.includes('iso') && extractFormats.includes('cso')) {
     // PSP: three options — ISO, CSO, CHD
@@ -1470,6 +1536,7 @@ function romCardHtml(rom) {
   }
 
   return `<div class="rom-card">
+    ${shareIcon}
     <div class="rom-stripe" style="background:${c}"></div>
     <div class="rom-body">
       <div class="rom-title" title="${esc(rom.name)}">${esc(rom.name)}</div>
@@ -1560,7 +1627,10 @@ function renderSaves() {
         <td><div class="save-date">${fmtD(sv.last_sync || sv.server_timestamp)}</div></td>
         <td><div class="save-size">${fmtB(sv.save_size)}</div></td>
         <td><div class="save-size">${sv.file_count ?? '—'}</div></td>
-        <td><button class="dl-btn" data-action="dl" data-url="${esc(url)}" data-fn="${fn}">↓</button></td>
+        <td style="white-space:nowrap">
+          <button class="dl-btn" data-action="dl" data-url="${esc(url)}" data-fn="${fn}">↓</button>
+          <button class="dl-btn copy" data-action="copy" data-url="${esc(url)}" title="Copy share link">🔗</button>
+        </td>
       </tr>`;
     }
     h += `</tbody></table></div></div>`;
@@ -1704,6 +1774,7 @@ document.addEventListener('click', e => {
   if (!btn) return;
   const { action, url, fn, tid, name, fmt, sys } = btn.dataset;
   if (action === 'dl')           dlFile(url, fn, btn);
+  if (action === 'copy')         copyLink(url, btn);
   if (action === 'extract')      enqueueExtract(tid, name, fmt);
   if (action === 'nav-system')   { qs('#search').value = ''; S.q = ''; openSystem(sys); }
   if (action === 'nav-overview') { qs('#search').value = ''; S.q = ''; renderOverview(); }
