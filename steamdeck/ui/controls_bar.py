@@ -64,6 +64,7 @@ class ControlsBar(QWidget):
     MODE_SAVES = "saves"
     MODE_CATALOG = "catalog"
     MODE_INSTALLED = "installed"
+    MODE_DOWNLOADS = "downloads"
 
     _HINTS_SAVES: list[tuple[str, str, str]] = [
         ("A", "BTN_A", "Info"),
@@ -93,6 +94,16 @@ class ControlsBar(QWidget):
         ("☰", "BTN_S", "Settings"),
     ]
 
+    # Downloads tab — most actions live on the row buttons themselves
+    # (pause/resume/cancel/remove), so the bottom bar just covers the
+    # globals.  Y is wired by main_window to clear finished entries.
+    _HINTS_DOWNLOADS: list[tuple[str, str, str]] = [
+        ("B", "BTN_B", "Exit"),
+        ("Y", "BTN_Y", "Clear finished"),
+        ("L1/R1", "BTN_L", "Tab"),
+        ("☰", "BTN_S", "Settings"),
+    ]
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(theme.CONTROLS_H)
@@ -112,6 +123,8 @@ class ControlsBar(QWidget):
             hints = self._HINTS_CATALOG
         elif mode == self.MODE_INSTALLED:
             hints = self._HINTS_INSTALLED
+        elif mode == self.MODE_DOWNLOADS:
+            hints = self._HINTS_DOWNLOADS
         else:
             hints = self._HINTS_SAVES
         # Tear down the previous pills and stretch so the new set lays out

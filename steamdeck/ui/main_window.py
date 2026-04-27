@@ -64,7 +64,8 @@ from scanner.installed_roms import (
 )
 from scanner.rom_target import resolve_rom_target_dir
 from sync_client import SyncClient, _find_server_save
-from config import load_config, save_config
+from config import load_config, save_config, DOWNLOADS_DB_PATH
+from download_manager import DownloadManager
 from . import theme
 from .catalog_view import CatalogView
 from .game_list import GameListView
@@ -73,7 +74,7 @@ from .controls_bar import ControlsBar
 from .settings_dialog import SettingsDialog
 from .detail_dialog import DetailDialog
 from .confirm_dialog import ConfirmDialog, ResultDialog
-from .download_dialog import DownloadProgressDialog
+from .downloads_view import DownloadsView
 from .detail_dialog import _NATIVE_COMPRESSED_FORMAT_SYSTEMS as _NATIVE_EXTRACT_SKIP
 
 try:
@@ -503,7 +504,21 @@ class MainWindow(QMainWindow):
         # systems the active tab actually has entries for.
         self._catalog_systems: list[str] = [CatalogView.ALL_SYSTEMS]
         self._installed_systems: list[str] = [InstalledView.ALL_SYSTEMS]
-        self._active_tab = 0  # 0 = saves, 1 = catalog, 2 = installed
+        # 0 = saves, 1 = catalog, 2 = installed, 3 = downloads
+        self._active_tab = 0
+
+        # Background download queue.  The Downloads tab + every
+        # ROM-download trigger site (catalog A button, save-detail
+        # dialog) feed this manager instead of opening modal
+        # progress dialogs that lock the UI.
+        self._download_manager = DownloadManager(self._client, DOWNLOADS_DB_PATH, parent=self)
+        # When a download lands, refresh the saves list (so the
+        # save-status flips) and the Installed tab (so the new file
+        # appears).  Mirrors what the old modal flow did on success.
+        self._download_manager.completed.connect(self._on_download_completed)
+        # Keep the filter-bar count label in sync while the user is
+        # parked on the Downloads tab.
+        self._download_manager.list_changed.connect(self._on_downloads_list_changed)
 
         # Build UI
         central = QWidget()
@@ -531,10 +546,13 @@ class MainWindow(QMainWindow):
         self._installed_view.status_changed.connect(self._on_installed_status_changed)
         self._installed_view.systems_changed.connect(self._on_installed_systems)
 
+        self._downloads_view = DownloadsView(self._download_manager)
+
         self._stack = QStackedWidget()
         self._stack.addWidget(self._list_view)       # idx 0 — saves
         self._stack.addWidget(self._catalog_view)    # idx 1 — catalog
         self._stack.addWidget(self._installed_view)  # idx 2 — installed
+        self._stack.addWidget(self._downloads_view)  # idx 3 — downloads
         root.addWidget(self._stack, 1)
 
         self._controls = ControlsBar()
@@ -627,7 +645,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(8)
 
         self._tab_buttons: list[QPushButton] = []
-        for idx, label in enumerate(("My Games", "ROM Catalog", "Installed")):
+        for idx, label in enumerate(("My Games", "ROM Catalog", "Installed", "Downloads")):
             btn = QPushButton(label)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setCheckable(True)
@@ -892,7 +910,7 @@ class MainWindow(QMainWindow):
     # Tab switching
     # ──────────────────────────────────────────────────────────────
 
-    TAB_COUNT = 3
+    TAB_COUNT = 4
 
     def _set_active_tab(self, idx: int) -> None:
         idx = max(0, min(self.TAB_COUNT - 1, idx))
@@ -946,6 +964,18 @@ class MainWindow(QMainWindow):
             self._search_edit.setPlaceholderText(
                 "Search installed ROMs (name, system, filename)…"
             )
+        elif self._active_tab == 3:
+            # Downloads tab has no system / status filter — the rows
+            # carry their own state.  Park the labels at em-dashes so
+            # the filterbar doesn't show a stale value from another tab.
+            self._controls.set_mode(ControlsBar.MODE_DOWNLOADS)
+            self._system_label.setText("—")
+            self._status_filter_label.setText("—")
+            count = len(self._download_manager.list_all())
+            self._count_label.setText(
+                f"{count} download{'' if count == 1 else 's'}"
+            )
+            self._search_edit.setPlaceholderText("Search not available on this tab")
         else:
             self._controls.set_mode(ControlsBar.MODE_SAVES)
             self._system_label.setText(self._system_filter)
@@ -1051,36 +1081,46 @@ class MainWindow(QMainWindow):
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
 
-        progress_dlg = DownloadProgressDialog(
-            client=self._client,
+        # Enqueue rather than block — the Downloads tab takes it from
+        # here, and the user can keep browsing the catalog while the
+        # transfer runs.  ``_on_download_completed`` rescans saves
+        # and the Installed tab once a row finishes.
+        self._download_manager.enqueue(
             rom_id=rom_id,
+            system=system or "?",
+            display_name=display,
             target_path=target_path,
             extract_format=extract_format,
-            display_name=display,
-            parent=self,
+            expected_size=size,
         )
-        progress_dlg.exec()
-        ok = progress_dlg.success
-        if ok:
-            msg_done = f"ROM '{display}' downloaded to {target_path}."
-        else:
-            detail = progress_dlg.error_detail or getattr(
-                self._client, "last_download_error", ""
-            ) or ""
-            msg_done = f"Download failed for '{display}'."
-            if detail:
-                msg_done += f"\n\n{detail}"
-        ResultDialog(ok, msg_done, parent=self).exec()
+        # Surface a quick acknowledgement and jump to the Downloads
+        # tab so the user can see the new row immediately.
+        ResultDialog(
+            True,
+            f"'{display}' added to the Downloads tab.",
+            parent=self,
+        ).exec()
+        self._set_active_tab(3)
 
-        if ok:
-            # Mirror the detail-dialog flow so a freshly downloaded ROM
-            # shows up in the scanner list (and flips its save status).
-            self._start_scan()
-            # And invalidate the Installed tab cache — the freshly
-            # downloaded ROM belongs in there too.
-            self._installed_view.mark_loading(True)
-            self._installed_view.set_roms([])
-            self._fetch_installed()
+    def _on_downloads_list_changed(self) -> None:
+        """Refresh the filterbar count when the queue changes (only if visible)."""
+        if self._active_tab == 3:
+            count = len(self._download_manager.list_all())
+            self._count_label.setText(
+                f"{count} download{'' if count == 1 else 's'}"
+            )
+
+    def _on_download_completed(self, _eid: str) -> None:
+        """Refresh the Saves + Installed tabs whenever a download lands.
+
+        The same post-download bookkeeping the modal flow used to do
+        inline; centralising it here keeps the manager-driven enqueue
+        path identical for catalog-tab and detail-dialog triggers.
+        """
+        self._start_scan()
+        self._installed_view.mark_loading(True)
+        self._installed_view.set_roms([])
+        self._fetch_installed()
 
     # ──────────────────────────────────────────────────────────────
     # Installed tab wiring
@@ -1321,6 +1361,7 @@ class MainWindow(QMainWindow):
             emulation_path=self._config.get("emulation_path"),
             rom_scan_dir=self._config.get("rom_scan_dir", ""),
             rom_dir_overrides=self._config.get("rom_dir_overrides") or {},
+            download_manager=self._download_manager,
         )
         dlg.exec()
         # A freshly downloaded ROM doesn't show up in the current scan result,
@@ -1339,11 +1380,15 @@ class MainWindow(QMainWindow):
         Saves tab rescans the local emulator folders (server + local
         state can drift between launches).  Catalog and Installed tabs
         pop up the search field since their data is already loaded.
+        Downloads tab maps Y to "Clear finished" — the only meaningful
+        global action when the row controls cover everything else.
         """
         if self._active_tab in (1, 2):
             if not self._search_visible:
                 self._toggle_search()
             self._search_edit.setFocus()
+        elif self._active_tab == 3:
+            self._download_manager.clear_finished()
         else:
             self._action_refresh()
 
@@ -1353,6 +1398,11 @@ class MainWindow(QMainWindow):
             self._download_catalog_rom(self._catalog_view.selected_rom())
         elif self._active_tab == 2:
             self._delete_installed_rom(self._installed_view.selected_rom())
+        elif self._active_tab == 3:
+            # Downloads tab has no list-cursor concept — the user
+            # interacts with rows directly via mouse/touch.  Swallow
+            # the press so it doesn't fall through to the saves tab.
+            return
         else:
             self._action_detail()
 
@@ -1450,10 +1500,16 @@ class MainWindow(QMainWindow):
             self._active_view_move(1)
 
     def _active_view_move(self, delta: int) -> None:
+        # Downloads tab has no item-cursor concept — its rows scroll
+        # via the embedded QScrollArea, not via a selection model.
+        if self._active_tab == 3:
+            return
         view = self._current_list_view()
         view.move_selection(delta)
 
     def _active_view_page(self, direction: int) -> None:
+        if self._active_tab == 3:
+            return
         view = self._current_list_view()
         if direction > 0:
             view.page_down()
@@ -1701,6 +1757,17 @@ class MainWindow(QMainWindow):
                     self._cycle_system(nav_x)
         elif nav_y == 0 and nav_x == 0:
             self._axis_nav_time = 0.0  # reset so next press fires immediately
+
+    def closeEvent(self, event):
+        # Flag any active downloads as "paused" before tearing down
+        # the worker threads so the .part files aren't left in
+        # ambiguous "downloading" state — the recovery pass on next
+        # launch picks them up cleanly.
+        try:
+            self._download_manager.shutdown()
+        except Exception:
+            pass
+        super().closeEvent(event)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

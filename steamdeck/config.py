@@ -8,6 +8,10 @@ STATE_PATH = Path.home() / ".config" / "savesync" / "steamdeck_state.json"
 SATURN_ARCHIVE_STATE_PATH = (
     Path.home() / ".config" / "savesync" / "steamdeck_saturn_archives.json"
 )
+# SQLite-backed download queue.  Survives app restarts so the user can
+# pause a multi-GB download, close the app, and resume later.  Mirrors
+# Android's Room "downloads" table.
+DOWNLOADS_DB_PATH = Path.home() / ".config" / "savesync" / "steamdeck_downloads.db"
 
 SATURN_SYNC_FORMATS = ("mednafen", "yabause", "yabasanshiro")
 

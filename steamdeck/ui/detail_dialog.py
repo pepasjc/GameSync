@@ -77,6 +77,7 @@ class DetailDialog(QDialog, GamepadModalMixin):
         emulation_path: Optional[Path] = None,
         rom_scan_dir: Optional[str] = None,
         rom_dir_overrides: Optional[dict] = None,
+        download_manager=None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Save Info")
@@ -91,6 +92,10 @@ class DetailDialog(QDialog, GamepadModalMixin):
         self._emulation_path = Path(emulation_path) if emulation_path else None
         self._rom_scan_dir = rom_scan_dir or ""
         self._rom_dir_overrides = dict(rom_dir_overrides or {})
+        # Optional: when supplied, ROM downloads triggered from this
+        # dialog go onto the background queue instead of the legacy
+        # blocking modal flow.
+        self._download_manager = download_manager
         # Caller checks this after exec() to decide whether to trigger a full
         # rescan — a downloaded ROM changes the SERVER_ONLY → SYNCED status
         # for its save entry, but only after the scanner re-runs.
@@ -470,9 +475,35 @@ QLabel#detailLabel {{
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
 
+        rom_id = str(rom.get("rom_id") or entry.title_id)
+        if self._download_manager is not None:
+            # Background queue path — drops the row onto the Downloads
+            # tab so the user can keep using the rest of the app.  We
+            # don't set ``self.rom_downloaded = True`` here because the
+            # transfer hasn't actually finished yet; MainWindow's
+            # ``completed`` signal handler will rescan when it does.
+            self._download_manager.enqueue(
+                rom_id=rom_id,
+                system=entry.system or "?",
+                display_name=entry.display_name,
+                target_path=target_path,
+                extract_format=extract_format,
+                expected_size=size,
+            )
+            ResultDialog(
+                True,
+                f"'{entry.display_name}' added to the Downloads tab.",
+                parent=self,
+            ).exec()
+            self.accept()
+            return
+
+        # Legacy modal path — still here for callers that haven't been
+        # passed a ``download_manager``.  Will go away once every entry
+        # point routes through the queue.
         progress_dlg = DownloadProgressDialog(
             client=self._client,
-            rom_id=str(rom.get("rom_id") or entry.title_id),
+            rom_id=rom_id,
             target_path=target_path,
             extract_format=extract_format,
             display_name=entry.display_name,
