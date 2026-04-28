@@ -11,10 +11,18 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                                  (installable on CFW 3DS AND usable in emulators)
                                   ?extract=decrypted_cci
                                                  3DS cart image → decrypted CCI for emulators
-                                  PS3 .iso and .pkg files are streamed raw (no extraction
-                                  needed — RPCS3 mounts the ISO directly; .pkg files are
-                                  PSN-style installable packages).  Catalog scanner picks
-                                  up .iso/.pkg under ``<rom_dir>/ps3/``.
+                                  PS3 .iso files: streamed raw (RPCS3 mounts ISO directly).
+                                  PS3 bundle (subfolder containing .pkg files): streamed as
+                                  ZIP_STORED archive of every file in the subfolder.  Loose
+                                  .pkg at <rom_dir>/ps3/ root are skipped — operators must
+                                  drop PSN content into a per-game subfolder so the catalog
+                                  can derive the game name + group .pkg + .rap files.
+GET  /api/v1/roms/{rom_id}/manifest
+                              — Bundle file list (returns single-element list for non-bundle)
+GET  /api/v1/roms/{rom_id}/file/{rel_path}
+                              — Stream a single file out of a bundle (Range support).
+                                Used by the PS3 client to route .pkg → /dev_hdd0/packages
+                                and .rap → /dev_hdd0/exdata.
 POST /api/v1/roms/scan         — Trigger rescan of ROM directory
 GET  /api/v1/roms/systems      — List systems with ROMs and counts
 """
@@ -23,6 +31,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -387,6 +396,225 @@ async def trigger_scan(request: Request, use_crc32: bool = Query(False)):
     return {"status": "ok", "count": len(catalog.entries)}
 
 
+# ── PS3 bundle helpers ───────────────────────────────────────────────────────
+#
+# A bundle entry corresponds to ``<rom_dir>/ps3/<subfolder>/`` containing one
+# or more .pkg files (and optionally .rap activations).  The catalog row's
+# ``path`` field stores the relative subfolder so the routes below can find
+# the on-disk source without a second DB lookup.
+
+
+def _bundle_dir_for(entry, rom_dir: Path) -> Path | None:
+    if not getattr(entry, 'is_bundle', False):
+        return None
+    bundle_dir = (rom_dir / entry.path).resolve()
+    rom_dir_resolved = rom_dir.resolve()
+    # Guard against a malicious or stale catalog row pointing outside the
+    # rom_dir tree (e.g. an absolute path or "../").  rom_dir_resolved must
+    # be a strict prefix of bundle_dir.
+    try:
+        bundle_dir.relative_to(rom_dir_resolved)
+    except ValueError:
+        return None
+    if not bundle_dir.is_dir():
+        return None
+    return bundle_dir
+
+
+def _bundle_manifest_files(entry) -> list[dict]:
+    """Return the [{name, size}] list stored in the catalog row.
+
+    Falls through to a live filesystem walk when the row didn't carry the
+    list (older catalog rows or a manual rescan glitch).  Filtering matches
+    the scanner's keep-list so we never advertise a file the bundle ZIP
+    wouldn't ship.
+    """
+    files = getattr(entry, 'bundle_files', None) or []
+    if files:
+        return list(files)
+
+    rom_dir = settings.rom_dir
+    if rom_dir is None:
+        return []
+    bundle_dir = _bundle_dir_for(entry, rom_dir)
+    if bundle_dir is None:
+        return []
+
+    out: list[dict] = []
+    for f in sorted(bundle_dir.rglob('*')):
+        if not f.is_file():
+            continue
+        ext = f.suffix.lower()
+        keep = (
+            ext == '.pkg'
+            or ext in {'.rap', '.edat'}
+            or ext in {'.iso', '.pbp'}
+        )
+        if not keep:
+            continue
+        out.append({
+            'name': f.relative_to(bundle_dir).as_posix(),
+            'size': f.stat().st_size,
+        })
+    return out
+
+
+async def _serve_bundle_zip(entry, bundle_dir: Path) -> Response:
+    """Return a ZIP_STORED archive of every file in the bundle.
+
+    PSN packages are already incompressible (encrypted blobs), so deflate
+    just wastes CPU.  ZIP_STORED also lets us advertise an exact
+    Content-Length without re-archiving every request: the ZIP overhead is
+    fixed (30 byte local header + 46 byte central directory entry per
+    member, plus 22 byte EOCD).  We materialise the ZIP to a tempfile so
+    Starlette can stream it with proper Range support.
+    """
+    files = _bundle_manifest_files(entry)
+    if not files:
+        return Response(status_code=404, content="Bundle is empty on disk")
+
+    tmpdir = tempfile.mkdtemp(prefix='ps3_bundle_', dir=_conversion_tmp_dir())
+    safe_stem = re.sub(r'[^A-Za-z0-9_.\- ]+', '_', entry.name).strip('_ ') or 'bundle'
+    zip_path = Path(tmpdir) / f'{safe_stem}.zip'
+
+    def _build_zip() -> Path:
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
+            for f in files:
+                src = bundle_dir / f['name']
+                if not src.is_file():
+                    continue
+                zf.write(src, arcname=f['name'])
+        return zip_path
+
+    try:
+        out_path = await asyncio.get_event_loop().run_in_executor(None, _build_zip)
+    except Exception as exc:  # pragma: no cover — disk error path
+        _cleanup_dir(tmpdir)
+        return Response(status_code=500, content=f"Bundle ZIP failed: {exc}")
+
+    return _stream_file_response(out_path, 'application/zip', cleanup_dir=tmpdir)
+
+
+# ── Bundle-specific endpoints ───────────────────────────────────────────────
+#
+# Both routes are mounted BEFORE the catch-all download route below so the
+# FastAPI matcher resolves them first.  ``rom_key`` here is always a single
+# segment because ``download_rom`` already URL-escapes it on the way out;
+# bundle ids never contain slashes.
+
+
+@router.get("/roms/{rom_key}/manifest")
+async def rom_manifest(rom_key: str):
+    """Return the file list for a bundle entry.
+
+    Single-file ROMs return a 1-element manifest with the on-disk name +
+    size, so the desktop / steamdeck / PS3 client can use one code path
+    regardless of bundle-ness.
+    """
+    catalog = rom_scanner.get()
+    if not catalog:
+        return JSONResponse(status_code=404, content={"detail": "no catalog"})
+
+    entry = catalog.get(rom_key)
+    if not entry:
+        for e in catalog.list_all():
+            if e.title_id == rom_key:
+                entry = e
+                break
+    if not entry:
+        return JSONResponse(status_code=404,
+                            content={"detail": f"ROM not found: {rom_key}"})
+
+    rom_dir = settings.rom_dir
+    if rom_dir is None:
+        return JSONResponse(status_code=404,
+                            content={"detail": "ROM directory not configured"})
+
+    if getattr(entry, 'is_bundle', False):
+        files = _bundle_manifest_files(entry)
+        return {
+            "rom_id": entry.rom_id,
+            "is_bundle": True,
+            "name": entry.name,
+            "system": entry.system,
+            "total_size": entry.size,
+            "files": files,
+        }
+
+    file_path = rom_dir / entry.path
+    if not file_path.is_file():
+        return JSONResponse(status_code=404,
+                            content={"detail": "ROM file missing on disk"})
+    return {
+        "rom_id": entry.rom_id,
+        "is_bundle": False,
+        "name": entry.name,
+        "system": entry.system,
+        "total_size": file_path.stat().st_size,
+        "files": [{"name": entry.filename, "size": file_path.stat().st_size}],
+    }
+
+
+@router.api_route("/roms/{rom_key}/file/{rel_path:path}",
+                  methods=["GET", "HEAD"])
+async def download_bundle_file(
+    rom_key: str,
+    rel_path: str,
+    range_header: Optional[str] = Header(None, alias="Range"),
+):
+    """Serve a single file out of a PS3 bundle.
+
+    Used by the PS3 client so it can route .pkg files to /dev_hdd0/packages
+    and .rap files to /dev_hdd0/exdata without downloading a ZIP first.
+    Each file uses Range so very large packages can resume across sessions
+    on the slow PS3 connection.
+    """
+    catalog = rom_scanner.get()
+    if not catalog:
+        return Response(status_code=404, content="No ROM catalog available")
+
+    entry = catalog.get(rom_key)
+    if not entry:
+        for e in catalog.list_all():
+            if e.title_id == rom_key:
+                entry = e
+                break
+    if not entry:
+        return Response(status_code=404, content=f"ROM not found: {rom_key}")
+    if not getattr(entry, 'is_bundle', False):
+        return Response(status_code=400,
+                        content="ROM is not a bundle; use /roms/<rom_id>")
+
+    rom_dir = settings.rom_dir
+    if rom_dir is None:
+        return Response(status_code=404, content="ROM directory not configured")
+
+    bundle_dir = _bundle_dir_for(entry, rom_dir)
+    if bundle_dir is None:
+        return Response(status_code=404,
+                        content="Bundle directory missing on disk")
+
+    # Path traversal guard: refuse anything that escapes the bundle dir
+    # after resolution (PSL1GHT / curl / our own clients all send normal
+    # POSIX paths so we don't need URL-decode magic here).
+    requested = (bundle_dir / rel_path).resolve()
+    try:
+        requested.relative_to(bundle_dir.resolve())
+    except ValueError:
+        return Response(status_code=400, content="Bad bundle file path")
+
+    if not requested.is_file():
+        return Response(status_code=404,
+                        content=f"Bundle file not found: {rel_path}")
+
+    file_size = requested.stat().st_size
+    content_type = _content_type(requested.name)
+
+    if range_header:
+        return _serve_range(requested, file_size, content_type, range_header)
+    return _serve_full(requested, file_size, content_type)
+
+
 # ── Download endpoint ────────────────────────────────────────────────────────
 
 @router.api_route("/roms/{rom_key:path}", methods=["GET", "HEAD"])
@@ -428,6 +656,16 @@ async def download_rom(
     rom_dir = settings.rom_dir
     if not rom_dir:
         return Response(status_code=404, content="ROM directory not configured")
+
+    # PS3 bundle entry → /ps3/<subfolder> on disk holds many files.  Serve
+    # the whole subfolder as a ZIP (PS3 bundle files are already
+    # incompressible PSN packages, so use ZIP_STORED for instant streaming).
+    if getattr(entry, 'is_bundle', False):
+        bundle_dir = rom_dir / entry.path
+        if not bundle_dir.is_dir():
+            return Response(status_code=404,
+                            content="Bundle directory not found on disk")
+        return await _serve_bundle_zip(entry, bundle_dir)
 
     file_path = rom_dir / entry.path
     if not file_path.is_file():

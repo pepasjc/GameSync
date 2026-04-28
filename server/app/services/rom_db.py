@@ -20,15 +20,17 @@ _lock = threading.Lock()
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS roms (
-    rom_id      TEXT PRIMARY KEY,
-    title_id    TEXT NOT NULL,
-    system      TEXT NOT NULL DEFAULT '',
-    name        TEXT NOT NULL DEFAULT '',
-    filename    TEXT NOT NULL DEFAULT '',
-    path        TEXT NOT NULL DEFAULT '',
-    size        INTEGER NOT NULL DEFAULT 0,
-    crc32       TEXT NOT NULL DEFAULT '',
-    source      TEXT NOT NULL DEFAULT ''
+    rom_id        TEXT PRIMARY KEY,
+    title_id      TEXT NOT NULL,
+    system        TEXT NOT NULL DEFAULT '',
+    name          TEXT NOT NULL DEFAULT '',
+    filename      TEXT NOT NULL DEFAULT '',
+    path          TEXT NOT NULL DEFAULT '',
+    size          INTEGER NOT NULL DEFAULT 0,
+    crc32         TEXT NOT NULL DEFAULT '',
+    source        TEXT NOT NULL DEFAULT '',
+    is_bundle     INTEGER NOT NULL DEFAULT 0,
+    bundle_files  TEXT NOT NULL DEFAULT ''
 )
 """
 
@@ -56,6 +58,8 @@ def _needs_rebuild(conn: sqlite3.Connection) -> bool:
         "size",
         "crc32",
         "source",
+        "is_bundle",
+        "bundle_files",
     ]
 
 
@@ -98,17 +102,27 @@ def _get() -> sqlite3.Connection:
 
 def upsert(entries: list[dict]) -> int:
     conn = _get()
+    # Default the optional bundle fields so callers from older code paths
+    # (that haven't been updated to set them) still work without a KeyError.
+    normalized: list[dict] = []
+    for e in entries:
+        d = dict(e)
+        d.setdefault("is_bundle", 0)
+        d.setdefault("bundle_files", "")
+        normalized.append(d)
     with _lock:
         conn.execute("DELETE FROM roms")
         conn.executemany(
             """
-            INSERT INTO roms (rom_id, title_id, system, name, filename, path, size, crc32, source)
-            VALUES (:rom_id, :title_id, :system, :name, :filename, :path, :size, :crc32, :source)
+            INSERT INTO roms (rom_id, title_id, system, name, filename, path,
+                              size, crc32, source, is_bundle, bundle_files)
+            VALUES (:rom_id, :title_id, :system, :name, :filename, :path,
+                    :size, :crc32, :source, :is_bundle, :bundle_files)
             """,
-            entries,
+            normalized,
         )
         conn.commit()
-    return len(entries)
+    return len(normalized)
 
 
 def get(rom_id: str) -> Optional[dict]:
