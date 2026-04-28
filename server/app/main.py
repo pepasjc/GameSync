@@ -81,6 +81,7 @@ async def lifespan(app: FastAPI):
 
     # Load ROM catalog from cache (or scan if no cache)
     rom_scan_task = None
+    rom_cleanup_task = None
     if settings.rom_dir:
         rom_db_path = settings.save_dir / "roms.db"
         from app.services import rom_db
@@ -95,8 +96,20 @@ async def lifespan(app: FastAPI):
         else:
             print("ROM catalog: no ROMs found or directory not accessible")
 
+        # Drop any roms.db rows that point at files which have since
+        # disappeared from disk (user moved a ROM, renamed a folder, etc).
+        # Fast — just stat() per row, no full filesystem walk.  Runs
+        # once at startup and again every 24h via ``_periodic_rom_cleanup``.
+        try:
+            removed = rom_scanner.cleanup_missing()
+            if removed:
+                print(f"ROM catalog: removed {removed} stale row(s) (files gone)")
+        except Exception:
+            logger.exception("[rom_scanner] startup cleanup_missing failed")
+
         if settings.rom_scan_interval > 0:
             rom_scan_task = asyncio.create_task(_periodic_rom_scan())
+        rom_cleanup_task = asyncio.create_task(_periodic_rom_cleanup())
 
     yield
 
@@ -104,6 +117,12 @@ async def lifespan(app: FastAPI):
         rom_scan_task.cancel()
         try:
             await rom_scan_task
+        except asyncio.CancelledError:
+            pass
+    if rom_cleanup_task:
+        rom_cleanup_task.cancel()
+        try:
+            await rom_cleanup_task
         except asyncio.CancelledError:
             pass
 
@@ -132,6 +151,32 @@ async def _periodic_rom_scan():
                     )
             except Exception:
                 logger.exception("[rom_scanner] Periodic scan failed")
+    except asyncio.CancelledError:
+        pass
+
+
+async def _periodic_rom_cleanup():
+    """Drop roms.db rows whose backing file vanished from disk.
+
+    Cheap stat-only sweep; intentionally separate from the heavier
+    ``_periodic_rom_scan`` so we can run it on a slow cadence (24h)
+    without dragging the scan interval up.  Scans miss deletions only
+    until their next interval anyway, but a daily targeted cleanup
+    keeps the DB tidy even if the operator turned off ``rom_scan_interval``
+    or set it very high.
+    """
+    DAY_SECONDS = 86400
+    try:
+        while True:
+            await asyncio.sleep(DAY_SECONDS)
+            try:
+                removed = rom_scanner.cleanup_missing()
+                if removed:
+                    logger.info(
+                        "[rom_scanner] Daily cleanup: removed %d row(s)", removed
+                    )
+            except Exception:
+                logger.exception("[rom_scanner] Daily cleanup failed")
     except asyncio.CancelledError:
         pass
 

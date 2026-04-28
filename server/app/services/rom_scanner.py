@@ -410,6 +410,51 @@ def rescan(use_crc32: bool = False) -> Optional[RomCatalog]:
     return _catalog
 
 
+def cleanup_missing() -> int:
+    """Drop catalog rows whose backing file is gone from disk.
+
+    Lightweight alternative to a full rescan: walks the in-memory
+    catalog (which mirrors ``roms.db``), stats each entry's path under
+    ``settings.rom_dir``, and deletes any row whose file no longer
+    exists.  Doesn't traverse the ROM tree, doesn't touch DAT lookups,
+    doesn't recompute CRC32s — just stat() per row.
+
+    Returns the number of rows removed (0 when everything still
+    exists or when there's no catalog yet).
+    """
+    from app.config import settings
+
+    if _catalog is None:
+        return 0
+    rom_dir = settings.rom_dir
+    if not rom_dir or not rom_dir.is_dir():
+        return 0
+
+    to_remove: list[str] = []
+    # ``list(...)`` snapshot — we mutate ``_entries`` below, so iterating
+    # the live dict would raise.
+    for entry in list(_catalog.list_all()):
+        full = rom_dir / entry.path
+        try:
+            if not full.is_file():
+                to_remove.append(entry.rom_id)
+        except OSError:
+            # Permission/IO issue — leave the row alone rather than
+            # nuke entries the OS just can't stat right now.
+            continue
+
+    if not to_remove:
+        return 0
+
+    for rom_id in to_remove:
+        rom_db.delete(rom_id)
+        _catalog._entries.pop(rom_id, None)
+    _catalog._rebuild_index()
+
+    logger.info("[rom_scanner] cleanup_missing: removed %d row(s)", len(to_remove))
+    return len(to_remove)
+
+
 def _save_dir() -> Path:
     from app.config import settings
 
