@@ -660,7 +660,17 @@ def _parse_xml_dat(
 
 
 _ROM_LINE_RE = re.compile(r"\brom\s*\(.*?\bcrc\s+([0-9A-Fa-f]{1,8})\b", re.IGNORECASE)
-_ROM_NAME_IN_LINE_RE = re.compile(r"\brom\s*\(.*?\bname\s+(\S+)", re.IGNORECASE)
+# clrmamepro rom names come in two flavours:
+#   rom ( name foo.gba size ... )           ← unquoted single token
+#   rom ( name "Some Game (USA).iso" ... )  ← quoted, may contain spaces
+# The previous ``\S+`` capture stopped at the first space inside a
+# quoted name, so a "0 Story (Japan) (Disc 1).iso" entry was indexed as
+# ``"0`` with extension ``.000`` from "10.000 Bullets..." — see
+# https://github.com/.../issues for the original report.  Capture both
+# forms; downstream code reads ``group(1) or group(2)``.
+_ROM_NAME_IN_LINE_RE = re.compile(
+    r'\brom\s*\(.*?\bname\s+(?:"([^"]+)"|(\S+))', re.IGNORECASE
+)
 # game-level: `serial "BKAJ"` — a top-level block attribute
 _GAME_SERIAL_RE = re.compile(r'^\s*serial\s+"(.+?)"')
 # rom-level: `... serial "BKAJ" )` — same value on the rom line
@@ -727,7 +737,9 @@ def _parse_clrmamepro_dat(
                 if "rom (" in line and current_name:
                     nm = _ROM_NAME_IN_LINE_RE.search(line)
                     if nm:
-                        rom_path_str = nm.group(1).strip('"')
+                        # Two capture groups — quoted vs unquoted.  Whichever
+                        # matched is the actual rom name.
+                        rom_path_str = (nm.group(1) or nm.group(2) or "").strip()
                         rom_stem = Path(rom_path_str).stem.lower()
                         if rom_stem:
                             romfile_map[rom_stem] = current_name

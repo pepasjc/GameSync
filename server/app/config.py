@@ -30,6 +30,17 @@ class Settings(BaseSettings):
     # (for emulators that prefer the CCI container).
     rom_3ds_cia_command: str = ""
     rom_3ds_decrypted_cci_command: str = ""
+    # Optional command templates for Xbox / Xbox 360 ROM conversion.
+    # Same placeholder set as the 3DS commands: {input}, {output},
+    # {output_dir}, {stem}.  The expected outputs are a single .iso
+    # for ``rom_xbox_iso_command`` (decompresses Xbox CCI / xiso to a
+    # plain ISO) and a .zip of the extracted game-folder layout for
+    # ``rom_xbox_folder_command`` (e.g. ``extract-xiso -x`` followed
+    # by zipping the resulting directory).  Both stay empty until the
+    # operator configures the toolchain — until then the server
+    # returns 503 with a hint pointing at SYNC_ROM_XBOX_*.
+    rom_xbox_iso_command: str = ""
+    rom_xbox_folder_command: str = ""
     api_key: str = "anything"
     host: str = "0.0.0.0"
     port: int = 8000

@@ -1548,6 +1548,24 @@ function romCardHtml(rom) {
         data-url="${rawUrl}" data-fn="${fn}"
         title="Download original ${rawLabel} cart image">3DS</button>`);
     btnHtml = `<div class="rom-btns rom-btns-3ds">${cartButtons.join('')}</div>`;
+  } else if (extractFormats.some(f => ['folder'].includes(f))) {
+    // Xbox / Xbox 360 disc image.  Up to three buttons: ISO (decompress
+    // CCI/CSO), FOLDER (extract-xiso → zipped game directory), and the
+    // raw download.  ``rom-btns-3ds`` reuses the compact 4-button
+    // layout — same visual density we already pay for on 3DS cards.
+    const xboxButtons = [];
+    if (extractFormats.includes('iso')) {
+      xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
+        title="Decompress CCI / CSO to a plain ISO">ISO</button>`);
+    }
+    xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="folder"
+        title="Extract the xiso filesystem and download as a ZIP of the game folder">FOLDER</button>`);
+    xboxButtons.push(`<button class="dl-btn" data-action="dl"
+        data-url="${rawUrl}" data-fn="${fn}"
+        title="Download original ${rawLabel}">${rawLabel}</button>`);
+    btnHtml = `<div class="rom-btns rom-btns-3ds">${xboxButtons.join('')}</div>`;
   } else {
     btnHtml = `<button class="dl-btn" data-action="dl"
       data-url="${rawUrl}" data-fn="${fn}">↓</button>`;

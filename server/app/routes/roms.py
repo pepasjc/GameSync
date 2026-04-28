@@ -166,9 +166,13 @@ _CUE_SYSTEMS = frozenset({
     'PCECD', 'PCENGINECD', 'TG16CD',
     '3DO',
     'PCFX',
-    'NGCD',
+    # Neo Geo CD: scanner emits ``NEOCD`` (canonical), some older
+    # configs / external clients use ``NGCD`` or ``NEOGEOCD`` — list
+    # all three so the extract path matches regardless of which alias
+    # arrived.  Same pattern for Atari Jaguar CD below.
+    'NEOCD', 'NGCD', 'NEOGEOCD',
     'AMIGACD32',
-    'JAGCD',
+    'JAGCD', 'JAGUARCD',
     # PS2 is dual-media — DVDs go through the ISO extract path, CDs
     # through this CUE/BIN path.  Listing PS2 here gates the CD extract
     # handler; the actual disc-vs-DVD decision per game is made in
@@ -188,6 +192,14 @@ _PS2_SYSTEMS = frozenset({'PS2'})
 
 # GameCube / Wii use RVZ (Dolphin compressed) — convert with DolphinTool
 _GC_SYSTEMS = frozenset({'GC', 'WII'})
+
+# Xbox / Xbox 360 disc images.  Both share the same CCI/CSO compressed
+# format (``ciso``-derived) plus the plain xiso .iso layout, and both
+# emulators (xemu, xenia) consume either a decompressed .iso or an
+# extracted game-folder structure.  We support both targets via the
+# server's configurable command templates.
+_XBOX_SYSTEMS = frozenset({'XBOX', 'X360', 'XBOX360'})
+_XBOX_DISC_EXTENSIONS = frozenset({'.cci', '.cso', '.iso'})
 
 # 3DS cartridge images can be converted to CIA variants
 _3DS_SYSTEMS = frozenset({'3DS'})
@@ -211,6 +223,30 @@ _3DS_EXTRACT_SPECS = {
     },
 }
 _3DS_EXTRACT_FORMATS = list(_3DS_EXTRACT_SPECS.keys())
+
+# Xbox conversion specs — same shape as the 3DS table so the shared
+# ``_expand_command_template`` / cache machinery handles them without
+# special-casing.  ``iso`` decompresses CCI/CSO to a single .iso file;
+# ``folder`` runs ``extract-xiso -x`` (or equivalent) and ZIPs the
+# resulting game directory so the download is a single archive the
+# user can drop into xemu / xenia.
+_XBOX_EXTRACT_SPECS = {
+    'iso': {
+        'setting': 'rom_xbox_iso_command',
+        'env': 'SYNC_ROM_XBOX_ISO_COMMAND',
+        'label': 'ISO',
+        'output_ext': '.iso',
+        'mime': 'application/x-iso9660-image',
+    },
+    'folder': {
+        'setting': 'rom_xbox_folder_command',
+        'env': 'SYNC_ROM_XBOX_FOLDER_COMMAND',
+        'label': 'extracted folder ZIP',
+        'output_ext': '.zip',
+        'mime': 'application/zip',
+    },
+}
+_XBOX_EXTRACT_FORMATS = list(_XBOX_EXTRACT_SPECS.keys())
 
 # All systems that support any CHD extraction
 _CD_SYSTEMS   = _CUE_SYSTEMS | _GDI_SYSTEMS
@@ -352,7 +388,12 @@ async def download_rom(
     if extract:
         fmt = extract.lower()
         sys_up = (entry.system or '').upper()
-        if fmt in _3DS_EXTRACT_SPECS:
+        if sys_up in _XBOX_SYSTEMS and fmt in _XBOX_EXTRACT_SPECS:
+            # Xbox CCI/CSO/ISO conversions go through the templated
+            # command runner.  Must check this BEFORE the generic
+            # ``iso``/``cso`` branch so PSP doesn't claim Xbox CCIs.
+            return await _extract_xbox(file_path, sys_up, fmt)
+        elif fmt in _3DS_EXTRACT_SPECS:
             return await _extract_3ds(file_path, sys_up, fmt)
         elif fmt == 'rvz' or (fmt == 'iso' and file_path.suffix.lower() == '.rvz'):
             return await _extract_rvz(file_path, file_path.stem)
@@ -556,6 +597,123 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
     # extra I/O cost on top of the conversion we already did.
     cached_path = _save_to_cache(final_path, source_path, fmt, spec['output_ext'])
     return _stream_file_response(cached_path, 'application/x-3ds-rom', cleanup_dir=tmpdir)
+
+
+# ── Xbox CCI / CSO / ISO → ISO or extracted-folder ZIP ──────────────────────
+
+async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
+    """Convert an Xbox / Xbox 360 disc image.
+
+    ``fmt`` is one of:
+      * ``'iso'``    — decompress CCI / CSO into a raw .iso.  No-op for
+                       inputs that are already .iso, but the route lets
+                       the user trigger it anyway in case they want a
+                       fresh deterministic copy.
+      * ``'folder'`` — extract the xiso filesystem (game directory
+                       layout) and return a single .zip of the result so
+                       it's one download.
+
+    Both paths shell out to a configurable command template (see
+    ``settings.rom_xbox_iso_command`` / ``rom_xbox_folder_command``).
+    Until the operator wires those up the route returns 503 with a hint
+    pointing at the SYNC_ROM_XBOX_* env vars — same UX as the 3DS one.
+    """
+    if system not in _XBOX_SYSTEMS:
+        return Response(
+            status_code=400,
+            content=f"{fmt} extraction is only supported for Xbox / Xbox 360 ROMs (got {system})",
+        )
+
+    spec = _XBOX_EXTRACT_SPECS.get(fmt)
+    if spec is None:
+        return Response(status_code=400, content=f"Unsupported Xbox extract format: {fmt}")
+
+    if source_path.suffix.lower() not in _XBOX_DISC_EXTENSIONS:
+        return Response(
+            status_code=400,
+            content=(
+                f"Xbox extract expects a {sorted(_XBOX_DISC_EXTENSIONS)} input; "
+                f"got {source_path.suffix}"
+            ),
+        )
+
+    cached = _lookup_cached_output(source_path, fmt, spec['output_ext'])
+    if cached is not None:
+        return _stream_file_response(cached, spec['mime'])
+
+    command_template = getattr(settings, spec['setting'])
+    if not command_template:
+        return Response(
+            status_code=503,
+            content=(
+                f"Xbox {spec['label']} conversion is not configured on the server.\n"
+                f"\n"
+                f"To enable this conversion, set {spec['env']} to a command template that "
+                f"reads {{input}} (an Xbox CCI / CSO / xiso image) and writes the output to "
+                f"{{output}} (a {spec['output_ext']} file).  ``{{output_dir}}`` is a fresh "
+                f"scratch directory the command can stage intermediate files in, and "
+                f"``{{stem}}`` is the input filename without extension.\n"
+                f"\n"
+                f"Typical wiring with extract-xiso (https://github.com/XboxDev/extract-xiso):\n"
+                f"  iso     : extract-xiso -r {{input}} -d {{output_dir}} && "
+                f"mv {{output_dir}}/{{stem}}.iso {{output}}\n"
+                f"  folder  : extract-xiso -x {{input}} -d {{output_dir}}/{{stem}} && "
+                f"cd {{output_dir}} && zip -r {{output}} {{stem}}"
+            ),
+        )
+
+    tmpdir = tempfile.mkdtemp(prefix='xbox_extract_', dir=_conversion_tmp_dir())
+
+    def _run() -> Path:
+        tmp = Path(tmpdir)
+        stem = source_path.stem
+        output_name = f"{stem}{spec['output_ext']}"
+        output_path = tmp / output_name
+
+        cmd = _expand_command_template(
+            command_template,
+            input=str(source_path),
+            output=str(output_path),
+            output_dir=str(tmp),
+            stem=stem,
+        )
+        # Xbox 360 disc images can hit ~7 GB extracted; bump the
+        # subprocess timeout vs the 3DS path's 30 min so a slow Pi
+        # doesn't get killed mid-extract.  ``extract-xiso`` itself is
+        # fast — the bottleneck is the zip step on a large folder.
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=3600,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                result.stderr.strip() or result.stdout.strip() or 'Xbox conversion failed'
+            )
+
+        final_path = (
+            output_path
+            if output_path.is_file()
+            else _find_single_output(tmp, spec['output_ext'])
+        )
+        if final_path is None or not final_path.is_file():
+            raise RuntimeError(
+                f"converter completed but did not produce a {spec['output_ext']} file"
+            )
+        return final_path
+
+    try:
+        final_path = await asyncio.get_event_loop().run_in_executor(None, _run)
+    except RuntimeError as exc:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=500, content=f"Conversion failed: {exc}")
+    except subprocess.TimeoutExpired:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=504, content="Conversion timed out (>60 min)")
+
+    cached_path = _save_to_cache(final_path, source_path, fmt, spec['output_ext'])
+    return _stream_file_response(cached_path, spec['mime'], cleanup_dir=tmpdir)
 
 
 # ── PSP CHD → ISO / CSO ──────────────────────────────────────────────────────
@@ -895,6 +1053,14 @@ def _extract_formats_for_entry(system: str, filename: str) -> tuple[str | None, 
         return 'rvz', ['iso']
     elif sys_up in _3DS_SYSTEMS and suffix in _3DS_CART_EXTENSIONS.union({'.zip'}):
         return '3ds', list(_3DS_EXTRACT_FORMATS)
+    elif sys_up in _XBOX_SYSTEMS and suffix in _XBOX_DISC_EXTENSIONS:
+        # CCI / CSO compressed images expose both decompress-to-ISO and
+        # extract-to-folder targets.  A plain .iso is already
+        # decompressed, so only the folder target is meaningful — the
+        # raw .iso button covers the "give me the ISO" case.
+        if suffix in ('.cci', '.cso'):
+            return 'iso', list(_XBOX_EXTRACT_FORMATS)
+        return 'folder', ['folder']
 
     return None, []
 
