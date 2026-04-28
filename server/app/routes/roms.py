@@ -11,6 +11,10 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                                  (installable on CFW 3DS AND usable in emulators)
                                   ?extract=decrypted_cci
                                                  3DS cart image → decrypted CCI for emulators
+                                  PS3 .iso and .pkg files are streamed raw (no extraction
+                                  needed — RPCS3 mounts the ISO directly; .pkg files are
+                                  PSN-style installable packages).  Catalog scanner picks
+                                  up .iso/.pkg under ``<rom_dir>/ps3/``.
 POST /api/v1/roms/scan         — Trigger rescan of ROM directory
 GET  /api/v1/roms/systems      — List systems with ROMs and counts
 """
@@ -1195,6 +1199,7 @@ _CONTENT_TYPES = {
     '.n64': 'application/x-n64-rom',
     '.z64': 'application/x-n64-rom',
     '.iso': 'application/x-iso9660-image',
+    '.pkg': 'application/octet-stream',  # PS3 / PSP PSN package — no standard MIME
     '.chd': 'application/x-chd',
     '.cso': 'application/x-cso',
     '.rvz': 'application/x-rvz',

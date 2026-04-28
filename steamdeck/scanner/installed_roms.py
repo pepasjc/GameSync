@@ -30,6 +30,8 @@ _PRIMARY_PRIORITY: dict[str, int] = {
     ".iso": 8,
     ".cso": 8,
     ".cdi": 8,
+    ".pkg": 8,  # PS3 / PSP PSN package — primary container
+    ".pbp": 7,  # PSP eboot / PS3 emulator boot
     ".m3u": 7,
 }
 

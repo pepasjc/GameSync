@@ -53,6 +53,83 @@ def test_scan_recognizes_3ds_cci_and_cia_roms(tmp_path):
     ]
 
 
+def test_scan_recognizes_ps3_iso_roms(tmp_path):
+    """End-to-end: a PS3 .iso dropped under ``roms/ps3/`` (where the
+    catalog downloader lands PS3 ROMs) is discovered as a single
+    InstalledRom with system=PS3.  This is the only ROM-discovery path
+    the steamdeck client offers for PS3 — RPCS3 itself reads the ISO
+    folder via its own GUI configuration, not through this scanner.
+    """
+    emu = _mk_emu(tmp_path)
+    (emu / "roms" / "ps3").mkdir()
+    iso = emu / "roms" / "ps3" / "Demon's Souls (USA).iso"
+    iso.write_bytes(b"x" * 4096)
+
+    roms = scan_installed(str(emu))
+
+    assert len(roms) == 1
+    rom = roms[0]
+    assert rom.system == "PS3"
+    assert rom.path == iso
+    assert rom.display_name == "Demon's Souls (USA)"
+    assert rom.companion_files == []
+    assert rom.size == 4096
+
+
+def test_scan_recognizes_ps3_iso_in_titlecase_folder(tmp_path):
+    """RetroDeck / manual setups capitalise the system folder.  The
+    SYSTEM_ROM_DIRS alias list covers both ``ps3`` and ``PS3`` so the
+    scanner picks the ISO up either way.
+    """
+    emu = _mk_emu(tmp_path)
+    (emu / "roms" / "PS3").mkdir()
+    iso = emu / "roms" / "PS3" / "Metal Gear Solid 4 (USA).iso"
+    iso.write_bytes(b"y" * 2048)
+
+    roms = scan_installed(str(emu))
+
+    assert len(roms) == 1
+    assert roms[0].system == "PS3"
+    assert roms[0].path == iso
+
+
+def test_scan_recognizes_ps3_pkg_roms(tmp_path):
+    """PS3 PSN packages (.pkg) drop into ``roms/ps3/``.  Used for full
+    PSN games, demos, and homebrew installable via RPCS3.
+    """
+    emu = _mk_emu(tmp_path)
+    (emu / "roms" / "ps3").mkdir()
+    pkg = emu / "roms" / "ps3" / "Journey [NPUB30564].pkg"
+    pkg.write_bytes(b"x" * 2048)
+
+    roms = scan_installed(str(emu))
+
+    assert len(roms) == 1
+    assert roms[0].system == "PS3"
+    assert roms[0].path == pkg
+    assert roms[0].size == 2048
+
+
+def test_scan_ps3_pkg_and_iso_coexist(tmp_path):
+    """A PS3 folder containing both .iso and .pkg yields two distinct
+    InstalledRom entries — different stems, so no companion grouping
+    collapses them.
+    """
+    emu = _mk_emu(tmp_path)
+    (emu / "roms" / "ps3").mkdir()
+    iso = emu / "roms" / "ps3" / "Demon's Souls [BLUS30443].iso"
+    pkg = emu / "roms" / "ps3" / "Journey [NPUB30564].pkg"
+    iso.write_bytes(b"a" * 100)
+    pkg.write_bytes(b"b" * 200)
+
+    roms = scan_installed(str(emu))
+
+    assert len(roms) == 2
+    paths = sorted(r.path for r in roms)
+    assert paths == sorted([iso, pkg])
+    assert all(r.system == "PS3" for r in roms)
+
+
 def test_scan_groups_cue_and_bin_pair(tmp_path):
     emu = _mk_emu(tmp_path)
     (emu / "roms" / "psx").mkdir()

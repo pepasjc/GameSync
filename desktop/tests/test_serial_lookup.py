@@ -61,6 +61,60 @@ def test_extract_psp_prefix():
     assert rn.extract_ps_serial("NPJH-50100 - ps2 dl.iso") == "NPJH-50100"
 
 
+def test_extract_ps3_prefix():
+    # Retail Blu-ray serials (BLUS / BLES / BLJM / BCUS / BCES).
+    assert rn.extract_ps_serial("BLUS30464 - Demon's Souls.iso") == "BLUS-30464"
+    assert (
+        rn.extract_ps_serial("BLES-00932 - Metal Gear Solid 4.iso") == "BLES-00932"
+    )
+    assert rn.extract_ps_serial("BCUS98208.God of War III.iso") == "BCUS-98208"
+    # PSN downloadable serials (NP*B*).
+    assert (
+        rn.extract_ps_serial("NPUB30564 - Journey.iso") == "NPUB-30564"
+    )
+
+
+def test_extract_ps3_opl_bracket_format():
+    """PS3 ISO creator emits ``Game Name [SERIAL].iso`` — same bracketed
+    layout as PS2 OPL.  Serial sits between square brackets at the end of
+    the stem; the existing lookbehind/lookahead accept it because ``[``
+    and ``]`` aren't alphanumeric.
+    """
+    assert (
+        rn.extract_ps_serial("Vampire Ressurection [BLJM60567].iso")
+        == "BLJM-60567"
+    )
+    assert (
+        rn.extract_ps_serial("Demon's Souls [BLUS30464].iso") == "BLUS-30464"
+    )
+    assert (
+        rn.extract_ps_serial("Metal Gear Solid 4 (USA) [BLUS30109].iso")
+        == "BLUS-30109"
+    )
+
+
+def test_extract_ps3_pkg_serial():
+    """PS3 PSN ``.pkg`` files carry the same serial in the filename — DAT
+    entries from libretro/EN-Dats translation packs use exactly this
+    layout (e.g. ``BLJM-61322 (install this pkg).pkg``).
+    """
+    assert (
+        rn.extract_ps_serial("BLJM-61322 (install this pkg).pkg")
+        == "BLJM-61322"
+    )
+    assert (
+        rn.extract_ps_serial("Journey [NPUB30564].pkg") == "NPUB-30564"
+    )
+    assert (
+        rn.extract_ps_serial("BLUS30464 - Demon's Souls.pkg") == "BLUS-30464"
+    )
+    # Sub-folder DLC layout from the EN-Dats DAT.
+    assert (
+        rn.extract_ps_serial("BLJM-61063 BGM DLC Pack 70 Songs.pkg")
+        == "BLJM-61063"
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────
 # supports_serial_lookup
 # ──────────────────────────────────────────────────────────────────────
@@ -68,7 +122,8 @@ def test_supports_serial_lookup_ps_systems():
     assert rn.supports_serial_lookup("PS1")
     assert rn.supports_serial_lookup("PS2")
     assert rn.supports_serial_lookup("PSP")
-    assert rn.supports_serial_lookup("ps2")  # case-insensitive
+    assert rn.supports_serial_lookup("PS3")
+    assert rn.supports_serial_lookup("ps3")  # case-insensitive
 
 
 def test_supports_serial_lookup_non_ps():
@@ -140,3 +195,32 @@ def test_extract_then_lookup_end_to_end():
     name = rn.lookup_serial(serial, serial_map)
     assert name is not None
     assert "Agent Under Fire" in name
+
+
+# ──────────────────────────────────────────────────────────────────────
+# PS3 OPL-style end-to-end (real DAT)
+# ──────────────────────────────────────────────────────────────────────
+_PS3_DAT = Path(__file__).resolve().parents[2] / "server" / "data" / "dats" / "Sony - PlayStation 3.dat"
+
+
+def test_ps3_opl_bracket_end_to_end():
+    """``Vampire Ressurection [BLJM60567].iso`` → DAT canonical name.
+
+    Mirrors the PS2 OPL flow: extract serial from the bracketed suffix,
+    then look up the canonical name in the libretro PS3 DAT.  This is
+    the path the ROM normalizer/collection takes for renaming PS3
+    catalog drops.
+    """
+    if not _PS3_DAT.exists():
+        import pytest
+
+        pytest.skip("PS3 DAT not available")
+    serial_map = rn.load_serial_map(_PS3_DAT)
+    assert len(serial_map) > 1000  # Real DAT has thousands
+
+    filename = "Vampire Ressurection [BLJM60567].iso"
+    serial = rn.extract_ps_serial(filename)
+    assert serial == "BLJM-60567"
+    name = rn.lookup_serial(serial, serial_map)
+    assert name is not None
+    assert "Vampire Resurrection" in name

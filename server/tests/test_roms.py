@@ -308,6 +308,92 @@ class TestRomCatalog:
         assert rom["extract_format"] == "3ds"
         assert rom["extract_formats"] == ["cia", "decrypted_cci"]
 
+    def test_scan_picks_up_ps3_iso_at_top_level(self, tmp_path):
+        """Top-level PS3 ISO under ``<rom_dir>/ps3/`` is cataloged with
+        system=PS3.  Baseline for the subfolder PKG test below.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        (rom_dir / "ps3").mkdir(parents=True)
+        iso = rom_dir / "ps3" / "Demon's Souls [BLUS30443].iso"
+        iso.write_bytes(b"x" * 1024)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        ps3_entries = catalog.list_by_system("PS3")
+        assert len(ps3_entries) == 1
+        assert ps3_entries[0].filename == "Demon's Souls [BLUS30443].iso"
+
+    def test_scan_picks_up_ps3_pkg_in_subfolders(self, tmp_path):
+        """PS3 PKGs under arbitrary subfolders (DLC layouts, per-game
+        subdirs) are cataloged.  ``rglob('*')`` already recurses; this
+        test locks the behaviour so future refactors don't regress it.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        # Layout: ps3/<game>/<files> + ps3/dlc/<files> + ps3/<file>
+        (rom_dir / "ps3" / "Journey").mkdir(parents=True)
+        (rom_dir / "ps3" / "Journey" / "Journey [NPUB30564].pkg").write_bytes(
+            b"a" * 512
+        )
+
+        (rom_dir / "ps3" / "dlc").mkdir(parents=True)
+        (rom_dir / "ps3" / "dlc" / "BLJM-61063 BGM DLC Pack.pkg").write_bytes(
+            b"b" * 256
+        )
+
+        # Top-level PKG also picked up alongside subfolder PKGs.
+        (rom_dir / "ps3" / "Vampire Resurrection [BLJM60567].pkg").write_bytes(
+            b"c" * 128
+        )
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        ps3_entries = catalog.list_by_system("PS3")
+        filenames = sorted(e.filename for e in ps3_entries)
+        assert filenames == [
+            "BLJM-61063 BGM DLC Pack.pkg",
+            "Journey [NPUB30564].pkg",
+            "Vampire Resurrection [BLJM60567].pkg",
+        ]
+
+        # Subfolder PKGs carry the relative path (POSIX form) for download.
+        paths = sorted(e.path for e in ps3_entries)
+        assert "ps3/Journey/Journey [NPUB30564].pkg" in paths
+        assert "ps3/dlc/BLJM-61063 BGM DLC Pack.pkg" in paths
+        assert "ps3/Vampire Resurrection [BLJM60567].pkg" in paths
+
+    def test_scan_picks_up_ps3_iso_and_pkg_mixed(self, tmp_path):
+        """Mixed PS3 catalog with ISOs at the top level and PKGs under
+        per-game subfolders all show up in the same system bucket.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        (rom_dir / "ps3").mkdir(parents=True)
+        (rom_dir / "ps3" / "Skate 3 [BLUS30464].iso").write_bytes(b"x" * 1024)
+
+        (rom_dir / "ps3" / "Journey").mkdir()
+        (rom_dir / "ps3" / "Journey" / "Journey [NPUB30564].pkg").write_bytes(
+            b"y" * 512
+        )
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        ps3_entries = catalog.list_by_system("PS3")
+        assert len(ps3_entries) == 2
+        suffixes = sorted({Path(e.filename).suffix.lower() for e in ps3_entries})
+        assert suffixes == [".iso", ".pkg"]
+
 
 class TestRomDownload:
     def test_download_rom(self, rom_client, auth_headers):

@@ -309,15 +309,15 @@ def _crc32_file(path: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Sony disc-serial extraction (PS1 / PS2 / PSP)
+# Sony disc-serial extraction (PS1 / PS2 / PSP / PS3)
 # ---------------------------------------------------------------------------
 
 # Systems that ship with a 4-letter + 5-digit Sony disc serial in their DAT
 # and whose ROM filenames commonly encode the serial.  Used to gate the
 # serial-based lookup so we don't waste cycles on, say, SNES files.
-_SERIAL_LOOKUP_SYSTEMS: frozenset[str] = frozenset({"PS1", "PS2", "PSP"})
+_SERIAL_LOOKUP_SYSTEMS: frozenset[str] = frozenset({"PS1", "PS2", "PSP", "PS3"})
 
-# Every 4-letter prefix that the libretro PS1/PS2/PSP DATs actually emit.
+# Every 4-letter prefix that the libretro PS1/PS2/PSP/PS3 DATs actually emit.
 # Kept here (rather than in systems.py) so the normalizer has zero run-time
 # deps on the config layer.
 _PS_DISC_SERIAL_PREFIXES: frozenset[str] = frozenset(
@@ -333,6 +333,13 @@ _PS_DISC_SERIAL_PREFIXES: frozenset[str] = frozenset(
         "UCKS", "UCAS", "ULKS", "ULAS",
         # PSP / PSN downloadable
         "NPUG", "NPEG", "NPJG", "NPUH", "NPEH", "NPJH",
+        # PS3 retail Blu-ray (BL** = retail, BC** = first-party Sony retail)
+        "BLUS", "BLES", "BLJM", "BLJS", "BLAS", "BLKS",
+        "BCUS", "BCES", "BCJS", "BCAS", "BCKS",
+        # PS3 PSN downloadable (NP*B*)
+        "NPUB", "NPEB", "NPJB", "NPHB", "NPIB",
+        # PS3 PSN demos / addons (less common but appear in DATs)
+        "NPUA", "NPEA", "NPJA", "NPHA", "NPIA",
     }
 )
 

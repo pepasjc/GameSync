@@ -41,6 +41,9 @@ async def lifespan(app: FastAPI):
     count_ps3 = game_names.load_libretro_dat_to_dicts(
         dats_dir / "Sony - PlayStation 3.dat"
     )
+    count_ps3 += game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Sony - PlayStation 3 (PSN).dat", psn=True
+    )
     count_psp = game_names.load_libretro_dat_to_dicts(
         dats_dir / "Sony - PlayStation Portable.dat"
     )

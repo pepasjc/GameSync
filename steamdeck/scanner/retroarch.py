@@ -234,6 +234,10 @@ ROM_EXTENSIONS = {
     ".chd",
     ".iso",
     ".bin",
+    # PSP / PS3 PSN package
+    ".pkg",
+    # PSP eboot / PS3 emulator boot
+    ".pbp",
     ".pce",
     ".a26",
     ".a78",
