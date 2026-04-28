@@ -1,5 +1,7 @@
 #include "ui.h"
 #include "sync.h"
+#include "roms.h"
+#include "downloads.h"
 
 #include <SDL/SDL.h>
 #include <SDL/SDL_gfxPrimitives.h>
@@ -90,6 +92,46 @@ static const char *kind_label(const TitleInfo *title) {
     }
 }
 
+/* Tab strip — drawn in the right half of every view's header bar so the
+ * user always sees which view they're in, what comes next, and how to
+ * get there.  Active tab is bright yellow; others sit in muted accent. */
+static void draw_tab_strip(AppView current) {
+    if (!g_screen) return;
+    static const char *names[APP_VIEW_COUNT] = {
+        "Saves", "ROM Catalog", "Downloads"
+    };
+    UiColor active   = {255, 222, 89};   /* hilite yellow */
+    UiColor inactive = {120, 145, 180};  /* muted accent */
+    UiColor sep      = {88, 100, 132};
+
+    /* Right-anchor the strip so it never overlaps the version string on
+     * the left.  We draw a fixed width: "Saves | ROM Catalog | Downloads
+     * (SELECT → next)" is ~78 chars at 8 px/char ≈ 620 px.  Plenty of
+     * room on a 1920-pixel header. */
+    int x = SCREEN_WIDTH - 700;
+    int y = 18;
+
+    for (int i = 0; i < APP_VIEW_COUNT; i++) {
+        UiColor color = (i == (int)current) ? active : inactive;
+        char buf[48];
+        snprintf(buf, sizeof(buf), "[%d] %s", i + 1, names[i]);
+        draw_text(x, y, color, buf);
+        x += 9 * (int)strlen(buf) + 16;
+        if (i + 1 < APP_VIEW_COUNT) {
+            draw_text(x, y, sep, "|");
+            x += 16;
+        }
+    }
+    /* Hint immediately to the right of the strip — same line so the
+     * user's eye can sweep header → strip → hint in one read. */
+    int next = ((int)current + 1) % APP_VIEW_COUNT;
+    char hint[64];
+    /* Plain ASCII arrow — SDL_gfx's bitmap font on PS3 doesn't render
+     * non-ASCII glyphs reliably. */
+    snprintf(hint, sizeof(hint), "(SELECT -> %s)", names[next]);
+    draw_text(x, y, active, hint);
+}
+
 void ui_clear(void) {
     if (!g_screen) {
         return;
@@ -166,6 +208,7 @@ void ui_draw_list(
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
     rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48, border.r, border.g, border.b, 255);
     draw_textf(24, y, accent, "GameSync PS3 v%s", APP_VERSION);
+    draw_tab_strip(APP_VIEW_SAVES);
     y += 22;
     draw_textf(24, y, white, "Server: %s", state->server_url);
     y += 18;
@@ -181,7 +224,7 @@ void ui_draw_list(
     );
     draw_text(24, SCREEN_HEIGHT - 28, dim, status_line ? status_line : "Ready.");
     draw_textf(24, SCREEN_HEIGHT - 46, dim,
-        "Up/Dn: nav   X: sync   R3: sync all   Sq: upload   Tri: download   L3: hash   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   Start: config   PS/Home: exit",
+        "Up/Dn: nav   X: sync   R3: sync all   Sq: upload   Tri: download   L3: hash   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   Start: config   Select: views   PS/Home: exit",
         show_server_only ? "ON" : "OFF");
 
     if (visible_count == 0) {
@@ -612,4 +655,369 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
         }
         usleep(50000);
     }
+}
+
+/* ============================================================
+ * ROM catalog + downloads views
+ * ============================================================
+ *
+ * Both render in the same shape as ui_draw_list — header bar at top,
+ * scrollable list of rows below, footer hint at bottom — so muscle memory
+ * carries over from the saves view.  No detail panel: the full info we'd
+ * normally surface there (target path, server hash) doesn't gain much for
+ * ROMs and would require a wider list column to stay readable. */
+
+#define HEADER_BAR_BOTTOM 55
+
+static void format_size(uint64_t bytes, char *out, size_t out_size) {
+    if (bytes >= (1ULL << 30)) {
+        double gib = (double)bytes / (double)(1ULL << 30);
+        snprintf(out, out_size, "%.2f GiB", gib);
+    } else if (bytes >= (1ULL << 20)) {
+        double mib = (double)bytes / (double)(1ULL << 20);
+        snprintf(out, out_size, "%.1f MiB", mib);
+    } else if (bytes >= (1ULL << 10)) {
+        double kib = (double)bytes / (double)(1ULL << 10);
+        snprintf(out, out_size, "%.0f KiB", kib);
+    } else {
+        snprintf(out, out_size, "%llu B", (unsigned long long)bytes);
+    }
+}
+
+/* Find a download entry whose rom_id matches *rom_id*.  Defined locally so
+ * the UI doesn't need to mutate the list (downloads.c's own
+ * downloads_find takes a non-const pointer). */
+static const DownloadEntry *find_download_const(
+    const DownloadList *list, const char *rom_id
+) {
+    if (!list || !rom_id) return NULL;
+    for (int i = 0; i < list->count; i++) {
+        if (strcmp(list->items[i].rom_id, rom_id) == 0)
+            return &list->items[i];
+    }
+    return NULL;
+}
+
+void ui_draw_rom_catalog(const RomCatalog *catalog,
+                         const DownloadList *downloads,
+                         int selected, int scroll_offset,
+                         const char *status_line) {
+    if (!g_screen) return;
+    if (g_xmb_open) return;
+
+    UiColor accent = {88, 208, 255};
+    UiColor white  = {240, 240, 240};
+    UiColor dim    = {160, 168, 184};
+    UiColor border = {44, 58, 82};
+    UiColor hilite = {255, 222, 89};
+    UiColor done   = {80, 220, 120};
+    UiColor pause  = {255, 200, 80};
+    UiColor err    = {255, 80, 80};
+
+    ui_clear();
+
+    /* Header bar (mirrors ui_draw_list). */
+    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, HEADER_BAR_BOTTOM, 14, 20, 34, 255);
+    draw_text(24, 18, accent, "GameSync PS3 -- ROM Catalog (PS3)");
+    draw_tab_strip(APP_VIEW_ROMS);
+    if (status_line && status_line[0])
+        draw_text(440, 36, dim, status_line);
+
+    /* List border. */
+    rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48,
+                  border.r, border.g, border.b, 255);
+
+    int total = catalog ? catalog->count : 0;
+    if (total == 0) {
+        draw_text(28, LIST_START_Y, dim,
+                  "No PS3 ROMs in the server catalog yet.");
+        if (catalog && catalog->last_error[0]) {
+            draw_text(28, LIST_START_Y + 28, err, catalog->last_error);
+        }
+        draw_text(24, SCREEN_HEIGHT - 28, dim,
+                  "Cross: download   Square: pause   Triangle: resume   "
+                  "Select: next view   PS/Home: exit");
+        SDL_PumpEvents();
+        SDL_Flip(g_screen);
+        return;
+    }
+
+    int end = scroll_offset + LIST_VISIBLE_ROWS;
+    if (end > total) end = total;
+
+    for (int i = scroll_offset; i < end; i++) {
+        const RomEntry *r = &catalog->items[i];
+        bool is_selected = (i == selected);
+        UiColor base_color = white;
+        const char *status_label = "    ";
+
+        const DownloadEntry *dl = find_download_const(downloads, r->rom_id);
+        if (dl) {
+            switch (dl->status) {
+                case DL_STATUS_QUEUED:
+                    status_label = "Q   "; base_color = accent; break;
+                case DL_STATUS_ACTIVE:
+                    status_label = "ACT "; base_color = accent; break;
+                case DL_STATUS_PAUSED:
+                    status_label = "PAUS"; base_color = pause;  break;
+                case DL_STATUS_COMPLETED:
+                    status_label = "DONE"; base_color = done;   break;
+                case DL_STATUS_ERROR:
+                    status_label = "ERR "; base_color = err;    break;
+            }
+        }
+
+        UiColor color = is_selected ? hilite : base_color;
+        char marker = is_selected ? '>' : ' ';
+
+        char size_buf[24];
+        format_size(r->size, size_buf, sizeof(size_buf));
+
+        char line[512];
+        snprintf(line, sizeof(line),
+                 "%c [%s] %-46.46s  %-10s",
+                 marker, status_label,
+                 r->name[0] ? r->name : r->filename,
+                 size_buf);
+        draw_text(28, LIST_START_Y + ((i - scroll_offset) * LINE_HEIGHT),
+                  color, line);
+    }
+
+    /* Footer with control hints. */
+    char footer[256];
+    snprintf(footer, sizeof(footer),
+             "Selected %d/%d   Cross: queue/start   Triangle: resume   "
+             "Circle: refresh (server rescan + reload)   Select: next view",
+             selected + 1, total);
+    draw_text(24, SCREEN_HEIGHT - 28, dim, footer);
+
+    SDL_PumpEvents();
+    SDL_Flip(g_screen);
+}
+
+/* ETA: bytes remaining / bytes-per-second.  ``out`` is filled with a
+ * human string ("12m34s", "<1s", "??:??") so callers don't have to
+ * format inline.  Returns false when ETA is unknown (no speed data
+ * yet) so the caller can fall back to a placeholder. */
+static bool format_eta(uint64_t remaining, uint64_t bps,
+                       char *out, size_t out_size) {
+    if (bps == 0 || remaining == 0) {
+        snprintf(out, out_size, "--");
+        return false;
+    }
+    uint64_t secs = remaining / bps;
+    if (secs >= 3600) {
+        unsigned long long h = secs / 3600;
+        unsigned long long m = (secs % 3600) / 60;
+        snprintf(out, out_size, "%lluh%02llum", h, m);
+    } else if (secs >= 60) {
+        unsigned long long m = secs / 60;
+        unsigned long long s = secs % 60;
+        snprintf(out, out_size, "%llum%02llus", m, s);
+    } else {
+        snprintf(out, out_size, "%llus", (unsigned long long)secs);
+    }
+    return true;
+}
+
+static void format_bps(uint64_t bps, char *out, size_t out_size) {
+    if (bps == 0) { snprintf(out, out_size, "--"); return; }
+    if (bps >= (1ULL << 20)) {
+        snprintf(out, out_size, "%.2f MiB/s", (double)bps / (double)(1ULL << 20));
+    } else if (bps >= (1ULL << 10)) {
+        snprintf(out, out_size, "%.1f KiB/s", (double)bps / (double)(1ULL << 10));
+    } else {
+        snprintf(out, out_size, "%llu B/s", (unsigned long long)bps);
+    }
+}
+
+void ui_draw_downloads(const DownloadList *downloads,
+                       int selected, int scroll_offset,
+                       const char *status_line,
+                       bool active_in_progress,
+                       uint64_t active_downloaded,
+                       uint64_t active_total,
+                       uint64_t active_bps) {
+    if (!g_screen) return;
+    if (g_xmb_open) return;
+
+    UiColor accent = {88, 208, 255};
+    UiColor white  = {240, 240, 240};
+    UiColor dim    = {160, 168, 184};
+    UiColor border = {44, 58, 82};
+    UiColor hilite = {255, 222, 89};
+    UiColor done   = {80, 220, 120};
+    UiColor pause  = {255, 200, 80};
+    UiColor err    = {255, 80, 80};
+
+    ui_clear();
+
+    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, HEADER_BAR_BOTTOM, 14, 20, 34, 255);
+    draw_text(24, 18, accent, "GameSync PS3 -- Downloads");
+    draw_tab_strip(APP_VIEW_DOWNLOADS);
+    if (status_line && status_line[0])
+        draw_text(440, 36, dim, status_line);
+
+    rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48,
+                  border.r, border.g, border.b, 255);
+
+    int total = downloads ? downloads->count : 0;
+
+    /* When a download is in flight, render a fat info panel at the top
+     * of the list area so the user gets a clear at-a-glance status:
+     * file name + index, percent, bytes, speed, ETA, and the pause
+     * hint.  This is the panel the user said felt missing — without it
+     * the bundle download looked frozen because the list only showed a
+     * single "Bundle 1/2: foo.pkg" line. */
+    int list_start_y = LIST_START_Y;
+    if (active_in_progress) {
+        const DownloadEntry *active = NULL;
+        for (int i = 0; i < total; i++) {
+            if (downloads->items[i].status == DL_STATUS_ACTIVE) {
+                active = &downloads->items[i];
+                break;
+            }
+        }
+
+        const char *display_name =
+            active && active->name[0] ? active->name :
+            (active && active->filename[0] ? active->filename : "(unknown)");
+        const char *current_file =
+            active && active->target_path[0] ? active->target_path : "";
+        /* Show only the basename of target_path so the panel doesn't
+         * wrap on a 1080p screen. */
+        const char *base_slash = current_file ? strrchr(current_file, '/') : NULL;
+        const char *current_basename = base_slash ? base_slash + 1 : current_file;
+
+        uint64_t off = active_downloaded;
+        uint64_t tot = (active_total > 0) ? active_total
+                       : (active ? active->total : 0);
+        int pct = 0;
+        if (tot > 0) {
+            pct = (int)((off * 100ULL) / tot);
+            if (pct > 100) pct = 100;
+        }
+
+        char off_buf[24], tot_buf[24], bps_buf[24], eta_buf[24];
+        format_size(off, off_buf, sizeof(off_buf));
+        format_size(tot, tot_buf, sizeof(tot_buf));
+        format_bps(active_bps, bps_buf, sizeof(bps_buf));
+        uint64_t remaining = (tot > off) ? (tot - off) : 0;
+        format_eta(remaining, active_bps, eta_buf, sizeof(eta_buf));
+
+        /* Background for the panel so it visually separates from the
+         * queue list below. */
+        boxRGBA(g_screen, 18, 70, SCREEN_WIDTH - 18, 70 + 130,
+                18, 26, 42, 255);
+        rectangleRGBA(g_screen, 18, 70, SCREEN_WIDTH - 18, 70 + 130,
+                      border.r, border.g, border.b, 255);
+
+        int y = 78;
+        draw_textf(28, y, accent, "Now downloading: %.80s", display_name);
+        y += 22;
+        if (active && active->is_bundle && active->bundle_count > 0) {
+            draw_textf(28, y, white,
+                       "Bundle file %d / %d:  %.80s",
+                       active->bundle_index + 1,
+                       active->bundle_count,
+                       current_basename);
+        } else {
+            draw_textf(28, y, white, "File: %.80s", current_basename);
+        }
+        y += 22;
+        draw_textf(28, y, white,
+                   "%3d%%   %s / %s   Speed: %s   ETA: %s",
+                   pct, off_buf, tot_buf, bps_buf, eta_buf);
+        y += 22;
+        draw_text(28, y, dim,
+                  "Square: pause (saves progress)   "
+                  "Circle: cancel (after pause)");
+
+        list_start_y = 70 + 130 + 12;  /* shift list down past the panel */
+    }
+
+    if (total == 0) {
+        draw_text(28, list_start_y, dim,
+                  "No downloads queued.  Switch to the ROM Catalog view "
+                  "and press Cross on a title.");
+        draw_text(24, SCREEN_HEIGHT - 28, dim,
+                  "Select: next view   PS/Home: exit");
+        SDL_PumpEvents();
+        SDL_Flip(g_screen);
+        return;
+    }
+
+    /* Compute how many rows fit when the panel is visible. */
+    int rows_avail = (SCREEN_HEIGHT - 48 - list_start_y) / LINE_HEIGHT;
+    if (rows_avail > LIST_VISIBLE_ROWS) rows_avail = LIST_VISIBLE_ROWS;
+    if (rows_avail < 1) rows_avail = 1;
+    int end = scroll_offset + rows_avail;
+    if (end > total) end = total;
+
+    for (int i = scroll_offset; i < end; i++) {
+        const DownloadEntry *e = &downloads->items[i];
+        bool is_selected = (i == selected);
+
+        UiColor base_color = white;
+        const char *status_label = "    ";
+        switch (e->status) {
+            case DL_STATUS_QUEUED:
+                status_label = "Q   "; base_color = accent; break;
+            case DL_STATUS_ACTIVE:
+                status_label = "ACT "; base_color = accent; break;
+            case DL_STATUS_PAUSED:
+                status_label = "PAUS"; base_color = pause;  break;
+            case DL_STATUS_COMPLETED:
+                status_label = "DONE"; base_color = done;   break;
+            case DL_STATUS_ERROR:
+                status_label = "ERR "; base_color = err;    break;
+        }
+
+        UiColor color = is_selected ? hilite : base_color;
+        char marker = is_selected ? '>' : ' ';
+
+        /* Active row: live offset + bundle index in the row text. */
+        uint64_t off  = e->offset;
+        uint64_t tot  = e->total;
+        if (e->status == DL_STATUS_ACTIVE && active_in_progress) {
+            off = active_downloaded;
+            if (active_total > 0) tot = active_total;
+        }
+
+        char off_buf[24], tot_buf[24];
+        format_size(off, off_buf, sizeof(off_buf));
+        format_size(tot, tot_buf, sizeof(tot_buf));
+
+        int pct = 0;
+        if (tot > 0) {
+            pct = (int)((off * 100ULL) / tot);
+            if (pct > 100) pct = 100;
+        }
+
+        char bundle_tag[16] = {0};
+        if (e->is_bundle && e->bundle_count > 0) {
+            snprintf(bundle_tag, sizeof(bundle_tag),
+                     " [%d/%d]", e->bundle_index + 1, e->bundle_count);
+        }
+
+        char line[512];
+        snprintf(line, sizeof(line),
+                 "%c [%s] %-36.36s%s  %3d%%  %10s / %-10s",
+                 marker, status_label,
+                 e->name[0] ? e->name : e->filename,
+                 bundle_tag,
+                 pct, off_buf, tot_buf);
+        draw_text(28, list_start_y + ((i - scroll_offset) * LINE_HEIGHT),
+                  color, line);
+    }
+
+    char footer[320];
+    snprintf(footer, sizeof(footer),
+             "Selected %d/%d   Cross: start/resume   Square: pause   "
+             "Circle: cancel   Triangle: clear completed   Select: next view",
+             selected + 1, total);
+    draw_text(24, SCREEN_HEIGHT - 28, dim, footer);
+
+    SDL_PumpEvents();
+    SDL_Flip(g_screen);
 }

@@ -2,6 +2,8 @@
 #define PS3SYNC_UI_H
 
 #include "common.h"
+#include "downloads.h"
+#include "roms.h"
 #include "sync.h"
 
 bool ui_init(char *error_buf, size_t error_buf_size);
@@ -44,5 +46,19 @@ void ui_draw_config_editor(
     bool dirty
 );
 void ui_draw_text_editor(const char *label, const char *value, int cursor_pos);
+
+/* ----- ROM catalog + download views ----- */
+void ui_draw_rom_catalog(const RomCatalog *catalog,
+                         const DownloadList *downloads,
+                         int selected, int scroll_offset,
+                         const char *status_line);
+
+void ui_draw_downloads(const DownloadList *downloads,
+                       int selected, int scroll_offset,
+                       const char *status_line,
+                       bool active_in_progress,
+                       uint64_t active_downloaded,
+                       uint64_t active_total,
+                       uint64_t active_bps);
 
 #endif /* PS3SYNC_UI_H */

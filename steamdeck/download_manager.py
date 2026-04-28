@@ -132,6 +132,12 @@ class DownloadEntity:
     extract_format: str
     created_at: float
     updated_at: float
+    # ``is_bundle`` is True for PS3 bundle entries served as a ZIP_STORED
+    # archive by the server.  When set, the worker downloads the .part to
+    # a temporary .zip, extracts the archive to ``final_file_path``
+    # (treated as a directory), then unlinks the .zip.  Single-file
+    # downloads keep the legacy path.
+    is_bundle: bool = False
 
     @property
     def is_terminal(self) -> bool:
@@ -161,6 +167,7 @@ CREATE TABLE IF NOT EXISTS downloads (
     status           TEXT NOT NULL DEFAULT 'queued',
     error_message    TEXT NOT NULL DEFAULT '',
     extract_format   TEXT NOT NULL DEFAULT '',
+    is_bundle        INTEGER NOT NULL DEFAULT 0,
     created_at       REAL NOT NULL DEFAULT 0,
     updated_at       REAL NOT NULL DEFAULT 0
 );
@@ -168,8 +175,19 @@ CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status);
 CREATE INDEX IF NOT EXISTS idx_downloads_updated ON downloads(updated_at DESC);
 """
 
+# Columns whose presence we depend on.  An old DB created before
+# ``is_bundle`` was added is migrated in ``_migrate_schema`` instead of
+# being dropped — local download history is too painful to lose.
+_REQUIRED_COLUMNS = {
+    "is_bundle": "INTEGER NOT NULL DEFAULT 0",
+}
+
 
 def _row_to_entity(row: sqlite3.Row) -> DownloadEntity:
+    # ``is_bundle`` may be missing on rows from an older DB schema;
+    # default to False so legacy single-file downloads keep working.
+    keys = row.keys() if hasattr(row, "keys") else []
+    is_bundle = bool(row["is_bundle"]) if "is_bundle" in keys else False
     return DownloadEntity(
         id=row["id"],
         rom_id=row["rom_id"],
@@ -185,6 +203,7 @@ def _row_to_entity(row: sqlite3.Row) -> DownloadEntity:
         extract_format=row["extract_format"],
         created_at=float(row["created_at"]),
         updated_at=float(row["updated_at"]),
+        is_bundle=is_bundle,
     )
 
 
@@ -376,18 +395,55 @@ class _DownloadWorker(QObject):
                     except OSError:
                         pass
 
-                # Atomic rename .part → final.  Cross-filesystem moves
-                # raise OSError; fall back to copy+unlink.
-                final_path.parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    part_path.replace(final_path)
-                except OSError:
-                    import shutil
-                    shutil.copy2(part_path, final_path)
+                if ent.is_bundle:
+                    # Bundle path: extract the staged ZIP into the
+                    # target directory and delete the archive.  We
+                    # extract the .part directly (no intermediate .zip
+                    # rename) because zipfile.ZipFile is happy with any
+                    # readable path; cleanup is just an unlink either
+                    # way.  Skipping the intermediate also means a
+                    # mid-extract crash leaves only the .part on disk —
+                    # no orphaned .zip the user has to chase down.
+                    import zipfile as _zf
+
+                    final_path.mkdir(parents=True, exist_ok=True)
+                    try:
+                        with _zf.ZipFile(str(part_path), "r") as zf:
+                            for member in zf.namelist():
+                                # Path-traversal guard — match the
+                                # server-side check.  zipfile happily
+                                # creates ../escape directories on
+                                # most platforms otherwise.
+                                if member.startswith("/") or ".." in Path(member).parts:
+                                    raise RuntimeError(
+                                        f"Refusing unsafe ZIP member: {member}"
+                                    )
+                                zf.extract(member, str(final_path))
+                    except Exception as exc:  # noqa: BLE001
+                        self.finished.emit(
+                            eid,
+                            STATUS_FAILED,
+                            f"ZIP extract failed: {exc or exc.__class__.__name__}",
+                        )
+                        return
+
                     try:
                         part_path.unlink()
                     except OSError:
                         pass
+                else:
+                    # Atomic rename .part → final.  Cross-filesystem moves
+                    # raise OSError; fall back to copy+unlink.
+                    final_path.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        part_path.replace(final_path)
+                    except OSError:
+                        import shutil
+                        shutil.copy2(part_path, final_path)
+                        try:
+                            part_path.unlink()
+                        except OSError:
+                            pass
 
                 # If we got here without knowing the total size, assume
                 # downloaded == total so the bar locks at 100%.
@@ -456,6 +512,7 @@ class DownloadManager(QObject):
         )
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
+        self._migrate_schema()
         self._conn.commit()
         self._db_lock = threading.Lock()
 
@@ -466,6 +523,21 @@ class DownloadManager(QObject):
         self._recover_interrupted()
 
     # ── Recovery / lifecycle ────────────────────────────────────────
+
+    def _migrate_schema(self) -> None:
+        """Add columns that were introduced after the original DB layout.
+
+        SQLite ``CREATE TABLE IF NOT EXISTS`` is a no-op when the table
+        already exists, so older installs miss any columns added later.
+        We pull the live ``PRAGMA table_info`` once and ``ALTER TABLE``
+        each missing column individually — cheap and safe.
+        """
+        existing = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(downloads)").fetchall()
+        }
+        for col, ddl in _REQUIRED_COLUMNS.items():
+            if col not in existing:
+                self._conn.execute(f"ALTER TABLE downloads ADD COLUMN {col} {ddl}")
 
     def _recover_interrupted(self) -> None:
         """Flip stuck DOWNLOADING/QUEUED rows to PAUSED on startup.
@@ -540,15 +612,31 @@ class DownloadManager(QObject):
         target_path: Path,
         extract_format: Optional[str] = None,
         expected_size: int = 0,
+        is_bundle: bool = False,
     ) -> str:
         """Create a new row in QUEUED state and kick the worker.
 
         Returns the new download id so the UI can navigate to the
         Downloads tab and highlight the freshly-added row.
+
+        For PS3 bundle entries, pass ``is_bundle=True`` and a
+        ``target_path`` pointing at the desired *directory*
+        (``~/Emulation/roms/ps3/<bundle_name>/``).  The worker downloads
+        the server's ZIP_STORED archive to a sibling .zip.part file,
+        extracts it into ``target_path``, and unlinks the .zip on
+        completion.
         """
         eid = str(uuid.uuid4())
         target_path = Path(target_path)
-        part_path = target_path.with_suffix(target_path.suffix + ".part")
+        if is_bundle:
+            # Stage the ZIP next to the final directory, not inside it,
+            # so a partial extraction doesn't pollute the bundle dir
+            # with a stale .zip.part.
+            part_path = target_path.parent / (target_path.name + ".zip.part")
+            display_filename = target_path.name + ".zip"
+        else:
+            part_path = target_path.with_suffix(target_path.suffix + ".part")
+            display_filename = target_path.name
         now = time.time()
         with self._db_lock:
             self._conn.execute(
@@ -556,14 +644,14 @@ class DownloadManager(QObject):
                 "(id, rom_id, system, display_name, filename, "
                 "part_file_path, final_file_path, total_bytes, "
                 "downloaded_bytes, status, error_message, "
-                "extract_format, created_at, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "extract_format, is_bundle, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     eid,
                     rom_id,
                     (system or "").upper(),
                     display_name or rom_id,
-                    target_path.name,
+                    display_filename,
                     str(part_path),
                     str(target_path),
                     int(expected_size or 0),
@@ -571,6 +659,7 @@ class DownloadManager(QObject):
                     STATUS_QUEUED,
                     "",
                     extract_format or "",
+                    1 if is_bundle else 0,
                     now,
                     now,
                 ),

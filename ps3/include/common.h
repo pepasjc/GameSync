@@ -21,6 +21,28 @@
 #define HASH_CACHE_FILE "/dev_hdd0/game/3DSSYNC00/USRDIR/hash_cache.dat"
 #define DEBUG_LOG_FILE "/dev_hdd0/game/3DSSYNC00/USRDIR/debug.log"
 #define GAMES_CONF_PATH "/dev_hdd0/game/3DSSYNC00/USRDIR/games.conf"
+#define DOWNLOADS_FILE "/dev_hdd0/game/3DSSYNC00/USRDIR/downloads.dat"
+
+/* ROM download target directories.  PS3 ISOs are mounted by webMAN/MultiMAN
+ * from /dev_hdd0/PS3ISO; PSN packages live in /dev_hdd0/packages so the
+ * built-in package installer can pick them up; .rap activation files for
+ * PSN content go to /dev_hdd0/exdata where the firmware reads them. */
+#define ROM_TARGET_ISO_DIR    "/dev_hdd0/PS3ISO"
+#define ROM_TARGET_PKG_DIR    "/dev_hdd0/packages"
+#define ROM_TARGET_EXDATA_DIR "/dev_hdd0/exdata"
+/* Fallback for any other ROM kind we cannot place automatically */
+#define ROM_TARGET_FALLBACK_DIR "/dev_hdd0/game/3DSSYNC00/USRDIR/downloads"
+
+/* Top-level views the user can cycle between with SELECT.  Each view runs
+ * its own input-dispatch block in main.c.  Adding a new view = add an enum
+ * entry + a render branch + an input branch.  No scene framework — keep it
+ * small. */
+typedef enum {
+    APP_VIEW_SAVES     = 0,
+    APP_VIEW_ROMS      = 1,
+    APP_VIEW_DOWNLOADS = 2,
+    APP_VIEW_COUNT     = 3,
+} AppView;
 
 typedef enum {
     SAVE_KIND_PS3     = 0,

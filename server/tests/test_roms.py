@@ -327,17 +327,19 @@ class TestRomCatalog:
         assert len(ps3_entries) == 1
         assert ps3_entries[0].filename == "Demon's Souls [BLUS30443].iso"
 
-    def test_scan_picks_up_ps3_pkg_in_subfolders(self, tmp_path):
-        """PS3 PKGs under arbitrary subfolders (DLC layouts, per-game
-        subdirs) are cataloged.  ``rglob('*')`` already recurses; this
-        test locks the behaviour so future refactors don't regress it.
+    def test_scan_groups_ps3_subfolders_as_bundles(self, tmp_path):
+        """PS3 PKGs under per-game subfolders collapse into one bundle
+        entry per subfolder; loose .pkg at the top level is dropped.
+
+        Replaces the old per-file behaviour: each subfolder is now a
+        single catalog row whose ``path`` is the subfolder (not the .pkg
+        file) and whose ``bundle_files`` list captures the contents.
         """
         from app.services import rom_db, rom_scanner
 
         rom_db.init_db(tmp_path)
         rom_dir = tmp_path / "roms"
 
-        # Layout: ps3/<game>/<files> + ps3/dlc/<files> + ps3/<file>
         (rom_dir / "ps3" / "Journey").mkdir(parents=True)
         (rom_dir / "ps3" / "Journey" / "Journey [NPUB30564].pkg").write_bytes(
             b"a" * 512
@@ -348,7 +350,7 @@ class TestRomCatalog:
             b"b" * 256
         )
 
-        # Top-level PKG also picked up alongside subfolder PKGs.
+        # Top-level PKG is intentionally dropped (no game name available).
         (rom_dir / "ps3" / "Vampire Resurrection [BLJM60567].pkg").write_bytes(
             b"c" * 128
         )
@@ -357,22 +359,21 @@ class TestRomCatalog:
         catalog.scan(rom_dir, use_crc32=False)
 
         ps3_entries = catalog.list_by_system("PS3")
-        filenames = sorted(e.filename for e in ps3_entries)
-        assert filenames == [
-            "BLJM-61063 BGM DLC Pack.pkg",
-            "Journey [NPUB30564].pkg",
-            "Vampire Resurrection [BLJM60567].pkg",
-        ]
+        # Two bundles, no loose top-level entry.
+        assert len(ps3_entries) == 2
+        assert all(e.is_bundle for e in ps3_entries)
 
-        # Subfolder PKGs carry the relative path (POSIX form) for download.
+        names = sorted(e.name for e in ps3_entries)
+        assert names == ["Journey", "dlc"]
+
         paths = sorted(e.path for e in ps3_entries)
-        assert "ps3/Journey/Journey [NPUB30564].pkg" in paths
-        assert "ps3/dlc/BLJM-61063 BGM DLC Pack.pkg" in paths
-        assert "ps3/Vampire Resurrection [BLJM60567].pkg" in paths
+        assert "ps3/Journey" in paths
+        assert "ps3/dlc" in paths
 
-    def test_scan_picks_up_ps3_iso_and_pkg_mixed(self, tmp_path):
-        """Mixed PS3 catalog with ISOs at the top level and PKGs under
-        per-game subfolders all show up in the same system bucket.
+    def test_scan_picks_up_ps3_iso_and_bundle_mixed(self, tmp_path):
+        """Mixed PS3 catalog: top-level .iso → individual entry, per-game
+        subfolder with .pkg → bundle entry.  Both end up under system=PS3
+        but with different ``is_bundle`` flags.
         """
         from app.services import rom_db, rom_scanner
 
@@ -391,8 +392,211 @@ class TestRomCatalog:
 
         ps3_entries = catalog.list_by_system("PS3")
         assert len(ps3_entries) == 2
-        suffixes = sorted({Path(e.filename).suffix.lower() for e in ps3_entries})
-        assert suffixes == [".iso", ".pkg"]
+        # Sort to make the assertions stable regardless of scan order.
+        by_kind = sorted(ps3_entries, key=lambda e: e.is_bundle)
+        iso_entry, bundle_entry = by_kind[0], by_kind[1]
+        assert iso_entry.is_bundle is False
+        assert iso_entry.filename.endswith(".iso")
+        assert bundle_entry.is_bundle is True
+        assert bundle_entry.name == "Journey"
+
+    def test_scan_ps3_bundle_groups_pkg_and_rap(self, tmp_path):
+        """A PS3 subfolder with a .pkg + .rap collapses to one bundle
+        entry; the file list is preserved on the catalog row so the
+        client can iterate it without a second scan.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        (rom_dir / "ps3" / "Vampire Resurrection [BLJM60567]").mkdir(parents=True)
+        bundle = rom_dir / "ps3" / "Vampire Resurrection [BLJM60567]"
+        (bundle / "BLJM-60567.pkg").write_bytes(b"a" * 1024)
+        (bundle / "BLJM-60567.rap").write_bytes(b"b" * 256)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        ps3 = catalog.list_by_system("PS3")
+        assert len(ps3) == 1
+        e = ps3[0]
+        assert e.is_bundle is True
+        assert e.name == "Vampire Resurrection [BLJM60567]"
+        # Total size accounts for every kept file in the bundle.
+        assert e.size == 1024 + 256
+        names = sorted(f["name"] for f in e.bundle_files)
+        assert names == ["BLJM-60567.pkg", "BLJM-60567.rap"]
+
+    def test_scan_ps3_skips_loose_pkg_at_top_level(self, tmp_path):
+        """``<rom_dir>/ps3/foo.pkg`` (no containing subfolder) is skipped
+        per the operator policy — there's no game name to display, and
+        the client wouldn't know how to label it.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        (rom_dir / "ps3").mkdir(parents=True)
+        (rom_dir / "ps3" / "loose-NPUB30024.pkg").write_bytes(b"x" * 100)
+        (rom_dir / "ps3" / "Demon's Souls [BLUS30443].iso").write_bytes(b"y" * 200)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        ps3 = catalog.list_by_system("PS3")
+        assert len(ps3) == 1
+        assert ps3[0].filename.endswith(".iso")
+
+    def test_scan_ps3_bundle_with_multi_pkg_dlc(self, tmp_path):
+        """Subfolder with several .pkg files (e.g. game + DLC) stays as
+        ONE bundle entry — the client decides which ones to install.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        bundle = rom_dir / "ps3" / "MyGame"
+        bundle.mkdir(parents=True)
+        (bundle / "MyGame.pkg").write_bytes(b"x" * 64)
+        (bundle / "MyGame DLC1.pkg").write_bytes(b"y" * 32)
+        (bundle / "MyGame DLC2.pkg").write_bytes(b"z" * 16)
+        (bundle / "MyGame.rap").write_bytes(b"r" * 8)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        ps3 = catalog.list_by_system("PS3")
+        assert len(ps3) == 1
+        assert ps3[0].is_bundle is True
+        assert len(ps3[0].bundle_files) == 4
+
+    def test_bundle_manifest_endpoint(self, tmp_path, client, auth_headers):
+        """``GET /api/v1/roms/{rom_id}/manifest`` returns the file list.
+
+        Used by the PS3 client (and steamdeck) to plan multi-file
+        downloads without having to scan the bundle ZIP first.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original = settings.rom_dir
+        try:
+            rom_db.init_db(tmp_path)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+
+            bundle = rom_dir / "ps3" / "Journey"
+            bundle.mkdir(parents=True)
+            (bundle / "Journey.pkg").write_bytes(b"a" * 100)
+            (bundle / "Journey.rap").write_bytes(b"b" * 50)
+
+            rom_scanner.init(rom_dir)
+            catalog = rom_scanner.get()
+            assert catalog is not None
+            ps3_entries = catalog.list_by_system("PS3")
+            assert len(ps3_entries) == 1
+            rom_id = ps3_entries[0].rom_id
+
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}/manifest", headers=auth_headers
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["is_bundle"] is True
+            assert body["name"] == "Journey"
+            assert body["total_size"] == 150
+            names = sorted(f["name"] for f in body["files"])
+            assert names == ["Journey.pkg", "Journey.rap"]
+        finally:
+            settings.rom_dir = original
+            rom_scanner._catalog = None
+
+    def test_bundle_per_file_download_endpoint(
+        self, tmp_path, client, auth_headers
+    ):
+        """``GET /api/v1/roms/{rom_id}/file/<name>`` streams one file from
+        a bundle.  The PS3 client uses this so it can route .pkg vs .rap
+        without downloading the ZIP first.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original = settings.rom_dir
+        try:
+            rom_db.init_db(tmp_path)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+
+            bundle = rom_dir / "ps3" / "Journey"
+            bundle.mkdir(parents=True)
+            (bundle / "Journey.pkg").write_bytes(b"P" * 100)
+            (bundle / "Journey.rap").write_bytes(b"R" * 50)
+
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("PS3")[0].rom_id
+
+            r1 = client.get(
+                f"/api/v1/roms/{rom_id}/file/Journey.pkg",
+                headers=auth_headers,
+            )
+            assert r1.status_code == 200
+            assert r1.content == b"P" * 100
+
+            r2 = client.get(
+                f"/api/v1/roms/{rom_id}/file/Journey.rap",
+                headers=auth_headers,
+            )
+            assert r2.status_code == 200
+            assert r2.content == b"R" * 50
+
+            # Path traversal guard.
+            r3 = client.get(
+                f"/api/v1/roms/{rom_id}/file/../escape.txt",
+                headers=auth_headers,
+            )
+            assert r3.status_code in (400, 404)
+        finally:
+            settings.rom_dir = original
+            rom_scanner._catalog = None
+
+    def test_bundle_zip_download(self, tmp_path, client, auth_headers):
+        """Plain ``GET /api/v1/roms/{rom_id}`` on a bundle returns a ZIP
+        with every file inside.  The webUI + steamdeck rely on this.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+        import io
+        import zipfile as zf_mod
+
+        original = settings.rom_dir
+        try:
+            rom_db.init_db(tmp_path)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+
+            bundle = rom_dir / "ps3" / "Journey"
+            bundle.mkdir(parents=True)
+            (bundle / "Journey.pkg").write_bytes(b"P" * 100)
+            (bundle / "Journey.rap").write_bytes(b"R" * 50)
+
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("PS3")[0].rom_id
+
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}", headers=auth_headers
+            )
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "application/zip"
+            with zf_mod.ZipFile(io.BytesIO(resp.content)) as zf:
+                names = sorted(zf.namelist())
+                assert names == ["Journey.pkg", "Journey.rap"]
+                assert zf.read("Journey.pkg") == b"P" * 100
+                assert zf.read("Journey.rap") == b"R" * 50
+        finally:
+            settings.rom_dir = original
+            rom_scanner._catalog = None
 
 
 class TestRomDownload:

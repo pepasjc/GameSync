@@ -24,7 +24,7 @@ CXXFLAGS    := $(CFLAGS)
 ASFLAGS     := $(CFLAGS)
 LDFLAGS     += -L$(PSL1GHT)/portlibs/ppu/lib
 LD          := ppu-gcc
-LIBS        := -lSDL_gfx -lSDL -lrsx -lgcm_sys -laudio -lsysutil -lio -lnet -lnetctl -lsysmodule -lrt -llv2 -lpolarssl -lz -lm
+LIBS        := -lSDL_gfx -lSDL -lrsx -lgcm_sys -laudio -lsysutil -lio -lnet -lnetctl -lsysmodule -lrt -llv2 -lsysfs -lpolarssl -lz -lm
 
 CPPFILES    :=
 CFILES      := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))

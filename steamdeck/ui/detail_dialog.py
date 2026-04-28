@@ -455,13 +455,33 @@ QLabel#detailLabel {{
         if entry.system in _NATIVE_COMPRESSED_FORMAT_SYSTEMS:
             extract_format = None
             target_filename = filename
-        target_path = target_dir / target_filename
 
-        msg = (
-            f"Download ROM for '{entry.display_name}'?\n"
-            f"File: {target_filename}{size_txt}\n"
-            f"Destination: {target_dir}"
-        )
+        # PS3 bundle entries (subfolder containing .pkg files) ship from
+        # the server as ZIP_STORED archives.  We download into a
+        # per-game directory under target_dir and the worker handles
+        # extraction.  ``is_bundle`` flips the worker into the bundle
+        # path; ``target_path`` is the directory, not a file.
+        is_bundle = bool(rom.get("is_bundle"))
+        if is_bundle:
+            bundle_dir_name = (rom.get("name") or
+                               Path(target_filename).stem) or rom_id
+            target_path = target_dir / bundle_dir_name
+        else:
+            target_path = target_dir / target_filename
+
+        if is_bundle:
+            file_count = len(rom.get("files") or [])
+            msg = (
+                f"Download PS3 bundle '{entry.display_name}'?\n"
+                f"Files: {file_count}{size_txt}\n"
+                f"Destination: {target_path}"
+            )
+        else:
+            msg = (
+                f"Download ROM for '{entry.display_name}'?\n"
+                f"File: {target_filename}{size_txt}\n"
+                f"Destination: {target_dir}"
+            )
         if target_path.exists():
             msg += "\n\nA file with this name already exists and will be overwritten."
 
@@ -487,8 +507,9 @@ QLabel#detailLabel {{
                 system=entry.system or "?",
                 display_name=entry.display_name,
                 target_path=target_path,
-                extract_format=extract_format,
+                extract_format=None if is_bundle else extract_format,
                 expected_size=size,
+                is_bundle=is_bundle,
             )
             ResultDialog(
                 True,
