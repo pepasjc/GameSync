@@ -728,14 +728,36 @@ function dlFile(url, filename, btn) {
   }
 }
 
-// Copy a shareable absolute URL (with embedded api_key) to the clipboard.
-// Only wired up on direct-download buttons — extract/conversion routes are
-// excluded because they're not idempotent (depend on cache state) and
-// produce streaming responses that don't survive cold link replays.
-function copyLink(url, btn) {
-  const full = location.origin + withAuth(url);
+// Copy a shareable absolute URL to the clipboard.  We DO NOT embed the
+// API key — instead we ask the server to mint an HMAC-signed token
+// scoped to (path, expiry).  The recipient gets a self-contained URL
+// that works without their own API key, the api_key never leaves the
+// authenticated session, and rotating the key revokes every old share
+// link in one move.
+//
+// Only wired up on direct-download buttons — extract/conversion routes
+// are excluded because they're not idempotent (depend on cache state)
+// and produce streaming responses that don't survive cold link replays.
+async function copyLink(url, btn) {
+  // Strip any prior query params (e.g. ?api_key=…) — we sign the bare
+  // path only.  ``url`` here is already path-relative ("/api/v1/...").
+  const barePath = url.split('?', 1)[0];
+
+  let signedPath;
+  try {
+    const data = await api(
+      `/api/v1/roms/share-link?path=${encodeURIComponent(barePath)}`
+    );
+    if (!data || !data.url) throw new Error('Server returned no url');
+    signedPath = data.url;
+  } catch (e) {
+    toast('Could not create share link: ' + (e.message || e), 'err');
+    return;
+  }
+  const full = location.origin + signedPath;
+
   const ok = () => {
-    toast('🔗 Link copied', 'ok');
+    toast('🔗 Share link copied (no API key)', 'ok');
     if (btn) {
       const orig = btn.textContent;
       btn.classList.add('busy'); btn.textContent = '✓';

@@ -324,6 +324,50 @@ async def list_systems():
     return {"systems": catalog.systems(), "stats": catalog.stats()}
 
 
+@router.get("/roms/share-link")
+async def create_share_link(
+    path: str = Query(..., description="Path to share, e.g. /api/v1/roms/SLUS00922"),
+    ttl_days: int = Query(7, ge=1, le=30),
+):
+    """Mint an HMAC-signed share URL for a download path.
+
+    The returned URL embeds a short-lived token (default 7 days) and
+    can be pasted into a browser by anyone — no API key needed.  The
+    token is bound to the exact path, so it can't be replayed against
+    another ROM / save.  Rotating ``settings.api_key`` invalidates
+    every previously-issued share link.
+
+    Allow-listed prefixes only (``/api/v1/roms/<id>``,
+    ``/api/v1/saves/<id>``); admin-shaped sub-routes (scan / systems)
+    are rejected so a leaked token can't escalate.
+    """
+    from app.services import share_token
+
+    # Strip any pre-existing query string the caller might have left on
+    # the path (the WebUI sometimes builds these from a download URL
+    # that already had ``?api_key=...``).  We sign the bare path only.
+    bare_path = path.split("?", 1)[0]
+
+    if not share_token.is_shareable_path(bare_path):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": (
+                    "Path is not shareable.  Only individual ROM and save "
+                    "download paths can be shared."
+                )
+            },
+        )
+
+    token, expires = share_token.make(bare_path, ttl_seconds=ttl_days * 86400)
+    return {
+        "path": bare_path,
+        "token": token,
+        "expires_at": expires,
+        "url": f"{bare_path}?token={token}",
+    }
+
+
 @router.get("/roms/scan")
 async def trigger_scan(request: Request, use_crc32: bool = Query(False)):
     # Only admin users may trigger a rescan
