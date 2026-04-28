@@ -169,6 +169,11 @@ _CUE_SYSTEMS = frozenset({
     'NGCD',
     'AMIGACD32',
     'JAGCD',
+    # PS2 is dual-media — DVDs go through the ISO extract path, CDs
+    # through this CUE/BIN path.  Listing PS2 here gates the CD extract
+    # handler; the actual disc-vs-DVD decision per game is made in
+    # ``_extract_formats_for_entry`` using the DAT.
+    'PS2',
 })
 
 # Dreamcast uses GDI format
@@ -176,6 +181,10 @@ _GDI_SYSTEMS = frozenset({'DC', 'DREAMCAST'})
 
 # PSP uses its own ISO/CSO pipeline
 _PSP_SYSTEMS = frozenset({'PSP'})
+
+# PS2 uses chdman's ``extractdvd`` subcommand for DVD CHDs (single ISO output).
+# PS2 CDs continue to flow through ``_extract_cd`` like other CD-ROM systems.
+_PS2_SYSTEMS = frozenset({'PS2'})
 
 # GameCube / Wii use RVZ (Dolphin compressed) — convert with DolphinTool
 _GC_SYSTEMS = frozenset({'GC', 'WII'})
@@ -347,6 +356,9 @@ async def download_rom(
             return await _extract_3ds(file_path, sys_up, fmt)
         elif fmt == 'rvz' or (fmt == 'iso' and file_path.suffix.lower() == '.rvz'):
             return await _extract_rvz(file_path, file_path.stem)
+        elif fmt == 'iso' and sys_up in _PS2_SYSTEMS:
+            # PS2 DVD path — chdman ``extractdvd`` produces a raw ISO.
+            return await _extract_ps2_iso(file_path, file_path.stem)
         elif fmt in ('iso', 'cso'):
             return await _extract_psp(file_path, sys_up, file_path.stem, fmt)
         else:
@@ -626,6 +638,79 @@ async def _extract_psp(chd_path: Path, system: str, stem: str, fmt: str) -> Resp
     return _stream_file_response(cached_path, mime, cleanup_dir=tmpdir)
 
 
+# ── PS2 CHD → ISO (DVD images) ──────────────────────────────────────────────
+
+async def _extract_ps2_iso(chd_path: Path, stem: str) -> Response:
+    """Extract a PS2 DVD CHD to a single .iso via ``chdman extractdvd``.
+
+    PS2 ships both DVDs and CDs.  CD images flow through ``_extract_cd``
+    (CUE/BIN zip); only DVD images take this code path, and the caller is
+    responsible for figuring out which it is via the DAT lookup in
+    :func:`_extract_formats_for_entry`.
+
+    Output is a raw ISO image — no further compression — because PS2
+    emulators (PCSX2, AetherSX2) read .iso natively and the CHD already
+    sat in a compressed form on the server, so re-compressing at this
+    stage would just slow things down.
+    """
+    if chd_path.suffix.lower() != '.chd':
+        return Response(status_code=400, content="Only CHD files can be extracted")
+
+    if not shutil.which('chdman'):
+        return Response(
+            status_code=503,
+            content="chdman not installed. Run: sudo apt install mame-tools",
+        )
+
+    # Cache fast-path — same convention as PSP / CD extracts.
+    cached = _lookup_cached_output(chd_path, 'iso', '.iso')
+    if cached is not None:
+        return _stream_file_response(cached, 'application/x-iso9660-image')
+
+    tmpdir = tempfile.mkdtemp(prefix='ps2_extract_', dir=_conversion_tmp_dir())
+    tmp = Path(tmpdir)
+    iso_path = tmp / (stem + '.iso')
+
+    def _run() -> Path:
+        # PS2 DVDs were created with ``chdman createdvd``; ``extractdvd``
+        # is the matching reverse operation.  Some older chdman builds
+        # (pre-0.227) only ship ``extractraw`` — fall back to that on a
+        # "subcommand unknown" failure so older Pi images still work.
+        r = subprocess.run(
+            ['chdman', 'extractdvd', '-i', str(chd_path), '-o', str(iso_path)],
+            capture_output=True, text=True, timeout=900,
+        )
+        if r.returncode != 0:
+            stderr = (r.stderr or '').strip()
+            if 'unknown command' in stderr.lower() or 'usage:' in stderr.lower():
+                # Older chdman — try extractraw as a fallback.
+                r2 = subprocess.run(
+                    ['chdman', 'extractraw', '-i', str(chd_path), '-o', str(iso_path)],
+                    capture_output=True, text=True, timeout=900,
+                )
+                if r2.returncode != 0:
+                    raise RuntimeError(
+                        (r2.stderr or r2.stdout or 'chdman extractraw failed').strip()
+                    )
+            else:
+                raise RuntimeError(stderr or (r.stdout or '').strip() or 'chdman failed')
+        return iso_path
+
+    try:
+        out_path = await asyncio.get_event_loop().run_in_executor(None, _run)
+    except RuntimeError as exc:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=500, content=f"Conversion failed: {exc}")
+    except subprocess.TimeoutExpired:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=504, content="Conversion timed out (>15 min)")
+
+    cached_path = _save_to_cache(out_path, chd_path, 'iso', '.iso')
+    return _stream_file_response(
+        cached_path, 'application/x-iso9660-image', cleanup_dir=tmpdir
+    )
+
+
 # ── CD-ROM CHD → CUE/BIN or GDI zip ─────────────────────────────────────────
 
 async def _extract_cd(chd_path: Path, system: str) -> Response:
@@ -786,6 +871,22 @@ def _extract_formats_for_entry(system: str, filename: str) -> tuple[str | None, 
     if suffix == '.chd':
         if sys_up in _PSP_SYSTEMS:
             return 'psp', ['iso', 'cso']
+        if sys_up in _PS2_SYSTEMS:
+            # PS2 is split media: DVD CHDs extract to a single ISO,
+            # CD CHDs extract to a CUE/BIN zip.  Ask the DAT what the
+            # original disc was.  When the DAT can't answer (game not
+            # in any loaded DAT, or DAT only listed cart entries) we
+            # fall back to no extract option — the user still gets the
+            # raw CHD download.
+            normalizer = _dat_normalizer_get()
+            disc_ext = (
+                normalizer.lookup_disc_format('PS2', filename) if normalizer else None
+            )
+            if disc_ext == 'iso':
+                return 'iso', ['iso']
+            if disc_ext in ('bin', 'cue'):
+                return 'cue', ['cue']
+            return None, []
         if sys_up in _GDI_SYSTEMS:
             return 'gdi', ['gdi']
         if sys_up in _CUE_SYSTEMS:
@@ -796,6 +897,12 @@ def _extract_formats_for_entry(system: str, filename: str) -> tuple[str | None, 
         return '3ds', list(_3DS_EXTRACT_FORMATS)
 
     return None, []
+
+
+def _dat_normalizer_get():
+    """Lazy DatNormalizer accessor — avoids a hard import cycle at module load."""
+    from app.services import dat_normalizer
+    return dat_normalizer.get()
 
 
 def _materialize_3ds_source(source_path: Path, tmp_dir: Path) -> tuple[Path, str]:

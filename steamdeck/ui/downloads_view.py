@@ -51,6 +51,24 @@ from download_manager import (
 )
 
 
+# QProgressBar uses int32 internally — passing it raw byte counts
+# overflows for any ROM bigger than 2 GB.  Scale every bar to a fixed
+# 0..PROGRESS_SCALE range and feed it ``downloaded * SCALE / total``.
+# 1000 gives 0.1 %% resolution which is more than enough for the
+# rendered bar width on the Steam Deck screen.
+_PROGRESS_SCALE = 1000
+
+
+def _scaled_progress(downloaded: int, total: int) -> int:
+    """Map ``downloaded`` bytes onto the 0..PROGRESS_SCALE bar range."""
+    if total <= 0:
+        return 0
+    if downloaded >= total:
+        return _PROGRESS_SCALE
+    # int(...) truncates — fine, we never display fractions of a tick.
+    return max(0, int(downloaded * _PROGRESS_SCALE / total))
+
+
 # Status → human-readable label + colour.  Mirrors the badge palette
 # used elsewhere in the app so the user picks up the meaning by
 # colour without reading the text on small screens.
@@ -209,16 +227,18 @@ class _DownloadRow(QFrame):
 
         # Progress bar mode: indeterminate while queued or
         # connecting (no total + no bytes yet); determinate otherwise.
+        # Bar uses _PROGRESS_SCALE rather than raw bytes — see the
+        # module-level note about the int32 overflow on >2 GB files.
         if ent.status == STATUS_DOWNLOADING and ent.total_bytes <= 0 and ent.downloaded_bytes == 0:
             self._bar.setRange(0, 0)
         elif ent.total_bytes > 0:
-            self._bar.setRange(0, ent.total_bytes)
-            self._bar.setValue(min(ent.downloaded_bytes, ent.total_bytes))
+            self._bar.setRange(0, _PROGRESS_SCALE)
+            self._bar.setValue(_scaled_progress(ent.downloaded_bytes, ent.total_bytes))
         else:
             # Bytes flowing but no Content-Length — show a partial bar
             # at 50% so the user sees motion without a misleading %.
-            self._bar.setRange(0, 100)
-            self._bar.setValue(50 if ent.status == STATUS_DOWNLOADING else 0)
+            self._bar.setRange(0, _PROGRESS_SCALE)
+            self._bar.setValue(_PROGRESS_SCALE // 2 if ent.status == STATUS_DOWNLOADING else 0)
 
         if ent.status != self._status:
             # Reset speed sampler on status flip so a "Resume" doesn't
@@ -245,9 +265,9 @@ class _DownloadRow(QFrame):
             self._last_sample_bytes = downloaded
 
         if total > 0:
-            if self._bar.maximum() != total:
-                self._bar.setRange(0, total)
-            self._bar.setValue(min(downloaded, total))
+            if self._bar.maximum() != _PROGRESS_SCALE:
+                self._bar.setRange(0, _PROGRESS_SCALE)
+            self._bar.setValue(_scaled_progress(downloaded, total))
         # Build the label inline rather than pulling a fresh entity
         # every tick (the manager has already persisted; the label is
         # a pure function of the args we have).

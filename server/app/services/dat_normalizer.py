@@ -226,6 +226,13 @@ class DatNormalizer:
         self._serial_index: dict[str, dict[str, str]] = {}
         # system → {normalized_serial → canonical_name} (reverse lookup)
         self._serial_to_name: dict[str, dict[str, str]] = {}
+        # system → {canonical_name → original disc extension without dot}
+        # e.g. PS2 → {"Final Fantasy X (USA)": "iso",
+        #             "Klonoa 2 (USA)": "bin"}
+        # Lets the catalog tell ISO-on-DVD games apart from BIN-on-CD games
+        # so the WebUI can offer the matching extract button (Redump PS2
+        # DAT mixes both within the same set).
+        self._disc_format_index: dict[str, dict[str, str]] = {}
         self._load_all()
 
     def _load_all(self) -> None:
@@ -238,7 +245,7 @@ class DatNormalizer:
                     "[dat_normalizer] Skipped (unrecognized system): %s", dat_path.name
                 )
                 continue
-            crc_map, slug_cands, romfile_map, serial_map = _parse_dat(dat_path)
+            crc_map, slug_cands, romfile_map, serial_map, disc_fmt_map = _parse_dat(dat_path)
             # Merge CRC index
             self._crc_index.setdefault(system, {}).update(crc_map)
             # Merge slug candidates
@@ -269,13 +276,18 @@ class DatNormalizer:
                     current = rev.get(norm)
                     if current is None or _region_score(name) < _region_score(current):
                         rev[norm] = name
+            # Merge disc-format index (only PS2 actually consumes this
+            # today, but the data costs nothing for other systems).
+            if disc_fmt_map:
+                self._disc_format_index.setdefault(system, {}).update(disc_fmt_map)
             logger.info(
-                "[dat_normalizer] %s: +%d CRC32 +%d names +%d romfiles +%d serials  [%s]",
+                "[dat_normalizer] %s: +%d CRC32 +%d names +%d romfiles +%d serials +%d disc-fmts  [%s]",
                 system,
                 len(crc_map),
                 sum(len(v) for v in slug_cands.values()),
                 len(romfile_map),
                 len(serial_map),
+                len(disc_fmt_map),
                 dat_path.name,
             )
         self._load_aliases()
@@ -476,6 +488,44 @@ class DatNormalizer:
 
         return None
 
+    def lookup_disc_format(
+        self,
+        system: str,
+        filename: str,
+        crc32: Optional[str] = None,
+    ) -> Optional[str]:
+        """Return the DAT-declared disc media for a ROM, e.g. "iso" or "bin".
+
+        Used by the WebUI to decide whether a CHD on disk should expose
+        an ISO extract button (DVD source) or a CUE/BIN button (CD source).
+        Resolution mirrors :meth:`lookup_serial`: CRC32 first, then slug,
+        then arcade-style romfile-stem.  Returns None when the system
+        wasn't loaded with disc-format data (e.g. cart-only DATs) or no
+        canonical name maps to the supplied filename.
+        """
+        sys_key = system.upper()
+        formats = self._disc_format_index.get(sys_key)
+        if not formats:
+            return None
+
+        if crc32:
+            crc_padded = crc32.upper().zfill(8)
+            canonical = self._crc_index.get(sys_key, {}).get(crc_padded)
+            if canonical and canonical in formats:
+                return formats[canonical]
+
+        stem = Path(filename).stem
+        slug = normalize_rom_name(stem)
+        canonical = self._slug_index.get(sys_key, {}).get(slug)
+        if canonical and canonical in formats:
+            return formats[canonical]
+
+        canonical = self._romfile_index.get(sys_key, {}).get(stem.lower())
+        if canonical and canonical in formats:
+            return formats[canonical]
+
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Module-level singleton — initialized in FastAPI lifespan
@@ -553,12 +603,12 @@ def _parse_dat(
         logger.error(
             "[dat_normalizer] Failed to detect format of %s: %s", dat_path.name, exc
         )
-        return {}, {}, {}, {}
+        return {}, {}, {}, {}, {}
 
 
 def _parse_xml_dat(
     dat_path: Path,
-) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str], dict[str, str]]:
     """Parse a standard No-Intro/Redump XML DAT.
 
     Returns:
@@ -566,11 +616,14 @@ def _parse_xml_dat(
       slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
       romfile_map     — {lowercase_rom_stem → canonical_name}
       serial_map      — {canonical_name → serial_string}
+      disc_format_map — {canonical_name → original ext without dot}
+                        (e.g. "iso" for PS2 DVDs, "bin" for PS2 CDs)
     """
     crc_map: dict[str, str] = {}
     slug_candidates: dict[str, list[str]] = {}
     romfile_map: dict[str, str] = {}
     serial_map: dict[str, str] = {}
+    disc_format_map: dict[str, str] = {}
     try:
         tree = ET.parse(dat_path)
         root = tree.getroot()
@@ -592,12 +645,18 @@ def _parse_xml_dat(
                 rom_name = rom.get("name", "")
                 if rom_name:
                     romfile_map[Path(rom_name).stem.lower()] = canonical
+                    # First ROM extension wins (multi-track CDs list .cue
+                    # then .bin — we capture the .cue, but for the PS2
+                    # use case any of {iso,bin,cue} answers DVD-vs-CD).
+                    ext = Path(rom_name).suffix.lstrip(".").lower()
+                    if ext and canonical not in disc_format_map:
+                        disc_format_map[canonical] = ext
                 rom_serial = rom.get("serial", "").strip()
                 if rom_serial:
                     serial_map.setdefault(canonical, rom_serial)
     except Exception as exc:
         logger.error("[dat_normalizer] Failed to parse XML %s: %s", dat_path.name, exc)
-    return crc_map, slug_candidates, romfile_map, serial_map
+    return crc_map, slug_candidates, romfile_map, serial_map, disc_format_map
 
 
 _ROM_LINE_RE = re.compile(r"\brom\s*\(.*?\bcrc\s+([0-9A-Fa-f]{1,8})\b", re.IGNORECASE)
@@ -612,7 +671,7 @@ _ROM_SERIAL_IN_LINE_RE = re.compile(
 
 def _parse_clrmamepro_dat(
     dat_path: Path,
-) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str], dict[str, str]]:
     """Parse a libretro clrmamepro text-format DAT.
 
     Format::
@@ -634,11 +693,14 @@ def _parse_clrmamepro_dat(
       slug_candidates — {slug → [canonical_name, ...]}  (all variants per slug)
       romfile_map     — {lowercase_rom_stem → canonical_name}
       serial_map      — {canonical_name → serial_string}
+      disc_format_map — {canonical_name → original ext without dot}
+                        (e.g. "iso" for PS2 DVDs, "bin"/"cue" for PS2 CDs)
     """
     crc_map: dict[str, str] = {}
     slug_candidates: dict[str, list[str]] = {}
     romfile_map: dict[str, str] = {}
     serial_map: dict[str, str] = {}
+    disc_format_map: dict[str, str] = {}
 
     _NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
 
@@ -665,9 +727,19 @@ def _parse_clrmamepro_dat(
                 if "rom (" in line and current_name:
                     nm = _ROM_NAME_IN_LINE_RE.search(line)
                     if nm:
-                        rom_stem = Path(nm.group(1).strip('"')).stem.lower()
+                        rom_path_str = nm.group(1).strip('"')
+                        rom_stem = Path(rom_path_str).stem.lower()
                         if rom_stem:
                             romfile_map[rom_stem] = current_name
+                        # Capture the on-disc file extension once per
+                        # game; first rom line wins so multi-track CD
+                        # entries (cue then bin) don't overwrite each
+                        # other.  The PS2 caller treats {iso} as DVD
+                        # and {bin,cue} as CD, so either of the CD
+                        # tracks lands us in the right bucket.
+                        ext = Path(rom_path_str).suffix.lstrip(".").lower()
+                        if ext and current_name not in disc_format_map:
+                            disc_format_map[current_name] = ext
 
                     rm = _ROM_LINE_RE.search(line)
                     if rm:
@@ -694,7 +766,7 @@ def _parse_clrmamepro_dat(
         logger.error(
             "[dat_normalizer] Failed to parse clrmamepro %s: %s", dat_path.name, exc
         )
-    return crc_map, slug_candidates, romfile_map, serial_map
+    return crc_map, slug_candidates, romfile_map, serial_map, disc_format_map
 
 
 # ---------------------------------------------------------------------------
@@ -715,7 +787,7 @@ _MAME_DESC_RE = re.compile(r'^\s*description\s+"(.+?)"')
 
 def _parse_mame_dat(
     dat_path: Path,
-) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, str], dict[str, str], dict[str, str]]:
     """Parse a MAME clrmamepro text DAT (``machine`` / ``resource`` blocks).
 
     Format::
@@ -805,4 +877,6 @@ def _parse_mame_dat(
             "[dat_normalizer] Failed to parse MAME DAT %s: %s", dat_path.name, exc
         )
 
-    return crc_map, slug_candidates, romfile_map, serial_map
+    # MAME has no concept of "disc format" so the disc_format_map is
+    # always empty for arcade DATs.
+    return crc_map, slug_candidates, romfile_map, serial_map, {}

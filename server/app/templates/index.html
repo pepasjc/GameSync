@@ -1520,6 +1520,18 @@ function romCardHtml(rom) {
         data-url="${rawUrl}" data-fn="${fn}"
         title="Download original ${rawLabel}">${rawLabel}</button>
     </div>`;
+  } else if (extractFormats.length === 1 && extractFormats[0] === 'iso') {
+    // PS2 DVD: CHD source, server runs ``chdman extractdvd`` to a single
+    // ISO.  Order matters — this branch must come AFTER the rvz one so
+    // GC / Wii cards keep the "Convert RVZ to ISO" tooltip.
+    btnHtml = `<div class="rom-btns">
+      <button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
+        title="Convert CHD to ISO">ISO</button>
+      <button class="dl-btn" data-action="dl"
+        data-url="${rawUrl}" data-fn="${fn}"
+        title="Download original ${rawLabel}">${rawLabel}</button>
+    </div>`;
   } else if (extractFormats.some(f => ['cia', 'decrypted_cci'].includes(f))) {
     const cartButtons = [];
     if (extractFormats.includes('cia')) {
