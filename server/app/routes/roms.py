@@ -1025,6 +1025,47 @@ async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
 
 # ── PS1 → PSP EBOOT.PBP ──────────────────────────────────────────────────────
 
+_PS1_SERIAL_RE = re.compile(
+    r'(?:^|[^A-Za-z0-9])'
+    r'((?:SLUS|SCUS|SLES|SCES|SLPS|SLPM|SCPS|SCPM|SLPN|'
+    r'SCAJ|SLAJ|PAPX|PBPX|SLED|SCED)[-_ ]?\d{3}[._\- ]?\d{2})'
+    r'(?=$|[^0-9A-Za-z])',
+    re.IGNORECASE,
+)
+
+
+def _extract_ps1_serial_from_filename(name: str) -> str | None:
+    """Pull a Sony PS1 disc serial out of a filename like
+    ``Crash Bandicoot [SCUS-94900].chd`` → ``SCUS-94900``.
+
+    Mirrors the desktop client's ``extract_ps_serial`` regex but limited
+    to the PS1-only prefixes — the goal is to feed popstation_md a
+    ``main_gamecode`` argument it accepts.
+    """
+    stem = Path(name).stem
+    m = _PS1_SERIAL_RE.search(stem)
+    if not m:
+        return None
+    raw = m.group(1).upper().replace('_', '-').replace(' ', '-').replace('.', '-')
+    # Normalise to PREFIX-12345 (5 contiguous digits, dash separator).
+    parts = re.findall(r'[A-Z]+|\d+', raw)
+    letters = ''.join(p for p in parts if p.isalpha())
+    digits = ''.join(p for p in parts if p.isdigit())
+    if len(letters) >= 4 and len(digits) >= 5:
+        return f"{letters[:4]}-{digits[:5]}"
+    return None
+
+
+def _ps1_clean_title(name: str) -> str:
+    """Strip parentheticals + bracketed serials so the popstation_md
+    ``main_title`` field reads naturally on the PSP XMB.
+    """
+    stem = Path(name).stem
+    cleaned = re.sub(r'\s*[\[\(][^\]\)]*[\]\)]', '', stem)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned or stem
+
+
 async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
     """Convert a PS1 disc image to a PSP-installable EBOOT.PBP.
 
@@ -1062,14 +1103,22 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
             content=(
                 f"PS1 → {spec['label']} conversion is not configured on the server.\n"
                 f"\n"
-                f"To enable this conversion, set {spec['env']} to a command template that "
-                f"reads {{input}} (a PS1 .cue/.bin/.chd/.iso) and writes the output to "
-                f"{{output}} (an EBOOT.PBP).  ``{{output_dir}}`` is a fresh scratch dir "
-                f"and ``{{stem}}`` is the input filename without extension.\n"
+                f"Available placeholders:\n"
+                f"  {{input}}        — path to the data track (server pre-extracts CHD).\n"
+                f"  {{output}}       — path the server expects the EBOOT.PBP to land at.\n"
+                f"  {{output_dir}}   — fresh scratch dir for the converter to use.\n"
+                f"  {{stem}}         — input filename without extension.\n"
+                f"  {{title}}        — game title (filename minus parentheticals).\n"
+                f"  {{gamecode}}     — disc serial (SCUS-12345 etc).\n"
+                f"  {{compression}}  — fixed at 9.\n"
                 f"\n"
-                f"Pi-friendly examples:\n"
-                f"  popstation_md (https://github.com/dots-tb/popstation_md):\n"
-                f"    popstation_md -i {{input}} -o {{output}}\n"
+                f"Pi-friendly examples ({spec['env']}=...):\n"
+                f"  popstation_md (https://github.com/dots-tb/popstation_md) — outputs\n"
+                f"  EBOOT.PBP into the current working directory, so wrap with sh -c:\n"
+                f"    sh -c 'cd {{output_dir}} && popstation_md \"{{title}}\" \"{{title}}\" \\\n"
+                f"      {{gamecode}} {{gamecode}} {{compression}} {{input}} && \\\n"
+                f"      mv EBOOT.PBP {{output}}'\n"
+                f"\n"
                 f"  psx2psp (Python, no compile):\n"
                 f"    python3 psx2psp.py -i {{input}} -o {{output}}\n"
             ),
@@ -1084,8 +1133,8 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
         # popstation tools (popstation_md / psx2psp / etc.) read raw
         # CD-ROM images — .bin / .cue / .iso — but cannot parse CHD.
         # If the catalog row points at a .chd, extract it to CUE/BIN
-        # first via chdman and feed the .cue to popstation.  This is
-        # invisible to the operator's command template.
+        # first via chdman and feed the .bin (Track 01) to popstation.
+        # popstation_md takes the data track directly, not the cue.
         popstation_input = source_path
         if source_path.suffix.lower() == '.chd':
             if not shutil.which('chdman'):
@@ -1113,10 +1162,35 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
                 raise RuntimeError(
                     'chdman completed but did not produce a .cue'
                 )
-            popstation_input = cue_out
+            # Pick the largest .bin in the extract dir — that's the
+            # data track.  popstation_md reads the bytes directly; cue
+            # is only useful for multi-track audio CD layouts which
+            # popstation_md doesn't support anyway.
+            bins = sorted(
+                extract_dir.glob('*.bin'),
+                key=lambda p: p.stat().st_size,
+                reverse=True,
+            )
+            if not bins:
+                raise RuntimeError(
+                    'chdman extracted CUE but no .bin track was produced'
+                )
+            popstation_input = bins[0]
 
         output_name = f"{stem}{spec['output_ext']}"
         output_path = tmp / output_name
+
+        # popstation_md needs the disc serial + a title.  Pull both
+        # from the source filename so the operator's template can stay
+        # simple (no per-game configuration).  Falls back gracefully:
+        # missing serial → use stem as gamecode (still passes the
+        # "Invalid number of arguments" check); missing title → use
+        # cleaned stem.
+        gamecode = (
+            _extract_ps1_serial_from_filename(source_path.name)
+            or stem
+        )
+        title = _ps1_clean_title(source_path.name)
 
         cmd = _expand_command_template(
             command_template,
@@ -1124,14 +1198,23 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
             output=str(output_path),
             output_dir=str(tmp),
             stem=stem,
+            title=title,
+            gamecode=gamecode,
+            compression='9',
         )
         # popstation runs are I/O-bound on the Pi; cap at 30 min for a
         # ~700 MB CD image — generous enough for old SD cards.
+        # ``cwd=tmp`` matters because popstation_md writes ``EBOOT.PBP``
+        # to the current working directory regardless of the {output}
+        # placeholder.  Running with cwd set to the scratch dir means
+        # the file lands where ``_find_single_output`` looks for it,
+        # and the operator's template doesn't need a shell wrapper.
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             timeout=1800,
+            cwd=str(tmp),
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -1140,10 +1223,16 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
                 or 'PS1 → EBOOT conversion failed'
             )
 
+        # Some popstation forks ignore {output} and always emit a
+        # literal ``EBOOT.PBP`` in cwd.  Recognise that name first so
+        # we don't fall back to "any .pbp anywhere" before checking
+        # the conventional location.
+        eboot_in_cwd = tmp / 'EBOOT.PBP'
         final_path = (
             output_path
             if output_path.is_file()
-            else _find_single_output(tmp, spec['output_ext'])
+            else (eboot_in_cwd if eboot_in_cwd.is_file()
+                  else _find_single_output(tmp, spec['output_ext']))
         )
         if final_path is None or not final_path.is_file():
             raise RuntimeError(

@@ -24,6 +24,25 @@
 #define STATE_FILE      "ms0:/PSP/GAME/pspsync/state.dat"
 #define HASH_CACHE_FILE "ms0:/PSP/GAME/pspsync/hash_cache.dat"
 #define CONSOLE_ID_FILE "ms0:/PSP/GAME/pspsync/console_id.txt"
+#define DOWNLOADS_FILE  "ms0:/PSP/GAME/pspsync/downloads.dat"
+
+/* ROM download target dirs.
+ *   PSP CSO/ISO → ms0:/ISO  (Adrenaline + most CFW menus expect this)
+ *   PS1 EBOOT   → ms0:/PSP/GAME/<gameid>/EBOOT.PBP  (per-game subdir)
+ *   Fallback    → ms0:/PSP/GAME/pspsync/downloads
+ */
+#define ROM_TARGET_ISO_DIR      "ms0:/ISO"
+#define ROM_TARGET_PSP_GAME_DIR "ms0:/PSP/GAME"
+#define ROM_TARGET_FALLBACK_DIR "ms0:/PSP/GAME/pspsync/downloads"
+
+/* Top-level views the user can cycle between with START.  Each view
+ * runs its own input-dispatch block in main.c. */
+typedef enum {
+    APP_VIEW_SAVES     = 0,
+    APP_VIEW_ROMS      = 1,
+    APP_VIEW_DOWNLOADS = 2,
+    APP_VIEW_COUNT     = 3,
+} AppView;
 
 typedef struct {
     char game_id[GAME_ID_LEN];          /* PSP product code e.g. ULUS10272 */

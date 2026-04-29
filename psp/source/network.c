@@ -721,3 +721,304 @@ void network_merge_server_titles(SyncState *state) {
         add_server_title(state, game_id, console_type);
     }
 }
+
+/* ============================================================
+ * ROM catalog + streaming download (Range-resumable)
+ * ============================================================ */
+
+static NetProgress64Fn g_progress64_cb = NULL;
+
+void network_set_progress64_cb(NetProgress64Fn cb) { g_progress64_cb = cb; }
+
+int network_fetch_rom_catalog(const SyncState *state,
+                              const char *system_code,
+                              int offset, int limit,
+                              char *out, uint32_t out_size,
+                              int *status_out) {
+    if (!state || !out || out_size < 2) return -1;
+    if (offset < 0) offset = 0;
+    if (limit  < 0) limit  = 0;
+
+    char path[256];
+    int  pos = 0;
+    pos += snprintf(path + pos, sizeof(path) - pos, "/api/v1/roms?");
+    if (system_code && system_code[0]) {
+        pos += snprintf(path + pos, sizeof(path) - pos, "system=%s&", system_code);
+    }
+    if (limit > 0) {
+        pos += snprintf(path + pos, sizeof(path) - pos, "limit=%d&", limit);
+    }
+    pos += snprintf(path + pos, sizeof(path) - pos, "offset=%d", offset);
+
+    int status = 0;
+    int n = http_request(state, "GET", path,
+                         NULL, NULL, 0,
+                         (uint8_t *)out, out_size, &status);
+    if (status_out) *status_out = status;
+    if (n < 0 || status != 200) {
+        return n < 0 ? n : -1;
+    }
+    return n;
+}
+
+int network_fetch_rom_manifest(const SyncState *state,
+                               const char *rom_id,
+                               char *out, uint32_t out_size,
+                               int *status_out) {
+    if (!state || !rom_id || !out || out_size < 2) return -1;
+    char path[256];
+    snprintf(path, sizeof(path), "/api/v1/roms/%s/manifest", rom_id);
+
+    int status = 0;
+    int n = http_request(state, "GET", path,
+                         NULL, NULL, 0,
+                         (uint8_t *)out, out_size, &status);
+    if (status_out) *status_out = status;
+    if (n < 0 || status != 200) {
+        return n < 0 ? n : -1;
+    }
+    return n;
+}
+
+int network_trigger_rom_scan(const SyncState *state, int *count_out) {
+    if (count_out) *count_out = -1;
+    if (!state) return -1;
+    static uint8_t resp[4096];
+    int status = 0;
+    int n = http_request(state, "GET", "/api/v1/roms/scan",
+                         NULL, NULL, 0, resp, sizeof(resp), &status);
+    if (n < 0 || status != 200) return n < 0 ? n : -1;
+    if (count_out) {
+        const char *p = strstr((const char *)resp, "\"count\"");
+        if (p) {
+            const char *colon = strchr(p, ':');
+            if (colon) *count_out = atoi(colon + 1);
+        }
+    }
+    return 0;
+}
+
+/* Carry-over body bytes that arrived alongside the response headers.
+ * Lives at file scope so the streaming recv helper can find them. */
+static uint8_t *g_stream_carry     = NULL;
+static int      g_stream_carry_len = 0;
+static int      g_stream_carry_pos = 0;
+
+/* Internal: open a TCP connection, send GET with optional Range, leave
+ * the socket positioned at the start of the response body so the
+ * caller can stream it.  Returns socket fd on success or -1 on error. */
+static int http_open_get_stream(const SyncState *state,
+                                const char *api_path,
+                                uint64_t range_start,
+                                int *status_out,
+                                int64_t *content_len_out) {
+    char host[256];
+    int port;
+    char url_path[256];
+    char full_url[512];
+    snprintf(full_url, sizeof(full_url), "%s%s", state->server_url, api_path);
+    if (parse_url(full_url, host, sizeof(host), &port,
+                  url_path, sizeof(url_path)) < 0) {
+        return -1;
+    }
+
+    int sock = tcp_connect(host, port);
+    if (sock < 0) return -1;
+
+    char hdr[1024];
+    int  hlen;
+    if (range_start > 0) {
+        hlen = snprintf(hdr, sizeof(hdr),
+            "GET %s HTTP/1.0\r\n"
+            "Host: %s:%d\r\n"
+            "X-API-Key: %s\r\n"
+            "X-Console-ID: %s\r\n"
+            "Range: bytes=%llu-\r\n"
+            "Connection: close\r\n"
+            "\r\n",
+            url_path, host, port,
+            state->api_key, state->console_id,
+            (unsigned long long)range_start);
+    } else {
+        hlen = snprintf(hdr, sizeof(hdr),
+            "GET %s HTTP/1.0\r\n"
+            "Host: %s:%d\r\n"
+            "X-API-Key: %s\r\n"
+            "X-Console-ID: %s\r\n"
+            "Connection: close\r\n"
+            "\r\n",
+            url_path, host, port,
+            state->api_key, state->console_id);
+    }
+
+    if (tcp_send_all(sock, (uint8_t *)hdr, hlen) < 0) {
+        sceNetInetClose(sock);
+        return -1;
+    }
+
+    /* Walk headers byte-by-byte until \r\n\r\n.  Same trick as
+     * http_receive_response but we keep the socket open and don't
+     * pre-read body bytes into a buffer. */
+    static char header_buf[HTTP_BUF_SIZE];
+    int header_len = 0;
+    char *hdr_end = NULL;
+    while (!hdr_end && header_len < (int)sizeof(header_buf) - 1) {
+        int r = sceNetInetRecv(sock, header_buf + header_len,
+                               sizeof(header_buf) - header_len - 1, 0);
+        if (r <= 0) { sceNetInetClose(sock); return -1; }
+        header_len += r;
+        header_buf[header_len] = '\0';
+        hdr_end = strstr(header_buf, "\r\n\r\n");
+    }
+    if (!hdr_end) { sceNetInetClose(sock); return -1; }
+
+    int status = 200;
+    if (sscanf(header_buf, "HTTP/1.%*d %d", &status) != 1) status = 200;
+    if (status_out) *status_out = status;
+
+    int64_t content_length = -1;
+    char *cl = strstr(header_buf, "Content-Length: ");
+    if (cl) content_length = strtoll(cl + 16, NULL, 10);
+    if (content_len_out) *content_len_out = content_length;
+
+    if (status != 200 && status != 206) {
+        sceNetInetClose(sock);
+        return -1;
+    }
+
+    /* Some bytes of body may already be in header_buf past \r\n\r\n —
+     * we have to keep them.  Stash a pointer + length pair so the
+     * streamer drains them before the next sceNetInetRecv. */
+    g_stream_carry_pos = 0;
+    g_stream_carry_len = (int)(header_buf + header_len - (hdr_end + 4));
+    if (g_stream_carry_len > 0) {
+        g_stream_carry = (uint8_t *)(hdr_end + 4);
+    } else {
+        g_stream_carry = NULL;
+        g_stream_carry_len = 0;
+    }
+
+    return sock;
+}
+
+static int stream_recv(int sock, uint8_t *buf, int max) {
+    /* First drain any carry-over body bytes from the header read. */
+    if (g_stream_carry && g_stream_carry_pos < g_stream_carry_len) {
+        int avail = g_stream_carry_len - g_stream_carry_pos;
+        int copy = avail < max ? avail : max;
+        memcpy(buf, g_stream_carry + g_stream_carry_pos, copy);
+        g_stream_carry_pos += copy;
+        if (g_stream_carry_pos >= g_stream_carry_len) {
+            g_stream_carry = NULL;
+            g_stream_carry_len = g_stream_carry_pos = 0;
+        }
+        return copy;
+    }
+    return sceNetInetRecv(sock, buf, max, 0);
+}
+
+/* Shared streaming core — used by single-file ROM and per-bundle-file
+ * downloads.  Caller provides the absolute API path (with any query
+ * string already appended). */
+static int download_stream_to_file(const SyncState *state,
+                                   const char *api_path,
+                                   const char *target_path,
+                                   uint64_t start_offset,
+                                   uint64_t *total_out) {
+    int status = 0;
+    int64_t content_length = -1;
+    int sock = http_open_get_stream(state, api_path,
+                                    start_offset, &status, &content_length);
+    if (sock < 0) {
+        if (status == 416 || status == 404) return -3;
+        return -1;
+    }
+
+    bool resumed = (status == 206);
+    uint64_t written = resumed ? start_offset : 0;
+    uint64_t expected_total =
+        (content_length >= 0)
+            ? ((uint64_t)content_length + (resumed ? start_offset : 0))
+            : 0;
+    if (total_out) *total_out = expected_total;
+
+    char part_path[512];
+    snprintf(part_path, sizeof(part_path), "%s.part", target_path);
+
+    FILE *fp = fopen(part_path, resumed ? "ab" : "wb");
+    if (!fp) {
+        sceNetInetClose(sock);
+        return -2;
+    }
+
+    static uint8_t chunk[65536];
+    int rc = 0;
+    while (1) {
+        int n = stream_recv(sock, chunk, sizeof(chunk));
+        if (n > 0) {
+            size_t w = fwrite(chunk, 1, (size_t)n, fp);
+            if (w != (size_t)n) { rc = -2; break; }
+            written += (uint64_t)n;
+            if (g_progress64_cb &&
+                g_progress64_cb(written, expected_total))
+            {
+                rc = 1;
+                break;
+            }
+            if (expected_total > 0 && written >= expected_total) break;
+        } else if (n == 0) {
+            break;
+        } else {
+            rc = -1;
+            break;
+        }
+    }
+
+    fclose(fp);
+    sceNetInetClose(sock);
+
+    if (rc != 0) return rc;
+
+    if (expected_total > 0 && written < expected_total) {
+        return 1;
+    }
+
+    if (rename(part_path, target_path) != 0) {
+        unlink(target_path);
+        if (rename(part_path, target_path) != 0) return -2;
+    }
+    if (total_out) *total_out = written;
+    return 0;
+}
+
+int network_download_rom_resumable(const SyncState *state,
+                                   const char *rom_id,
+                                   const char *extract_fmt,
+                                   const char *target_path,
+                                   uint64_t start_offset,
+                                   uint64_t *total_out) {
+    if (!state || !rom_id || !target_path) return -1;
+    char api_path[512];
+    if (extract_fmt && extract_fmt[0]) {
+        snprintf(api_path, sizeof(api_path),
+                 "/api/v1/roms/%s?extract=%s", rom_id, extract_fmt);
+    } else {
+        snprintf(api_path, sizeof(api_path), "/api/v1/roms/%s", rom_id);
+    }
+    return download_stream_to_file(state, api_path, target_path,
+                                   start_offset, total_out);
+}
+
+int network_download_bundle_file_resumable(const SyncState *state,
+                                           const char *rom_id,
+                                           const char *bundle_file,
+                                           const char *target_path,
+                                           uint64_t start_offset,
+                                           uint64_t *total_out) {
+    if (!state || !rom_id || !bundle_file || !target_path) return -1;
+    char api_path[768];
+    snprintf(api_path, sizeof(api_path),
+             "/api/v1/roms/%s/file/%s", rom_id, bundle_file);
+    return download_stream_to_file(state, api_path, target_path,
+                                   start_offset, total_out);
+}
