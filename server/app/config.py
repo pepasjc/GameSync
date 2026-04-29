@@ -42,16 +42,33 @@ class Settings(BaseSettings):
     rom_xbox_iso_command: str = ""
     rom_xbox_folder_command: str = ""
     # Optional command template for converting a PS1 disc image to a PSP
-    # EBOOT.PBP (popstation-style) so the PSP client can drop the result
-    # into ms0:/PSP/GAME/<id>/ and play PS1 games on real PSP hardware.
-    # Same placeholder set as the other extract commands: {input},
-    # {output}, {output_dir}, {stem}.  Expected output is a single file
-    # at {output} (an EBOOT.PBP).  Recommended Pi-friendly tools:
-    #   - ``psx2psp`` (Python, no compile)
-    #   - ``popstation_md`` (C, builds with ``make``)
-    # Empty by default; until set the server returns 503 with a hint
-    # pointing at SYNC_ROM_PS1_EBOOT_COMMAND.
+    # EBOOT.PBP so the PSP client can drop the result into
+    # ms0:/PSP/GAME/<id>/ and play PS1 games on real PSP hardware.  The
+    # template is invoked with these placeholders expanded:
+    #   {inputs}     — one shell-escaped path per disc, space-joined
+    #                  (multi-disc: "Disc1.chd Disc2.chd Disc3.chd")
+    #   {input}      — primary-disc path only (single-disc convenience)
+    #   {title}      — human-readable game name (e.g. "Final Fantasy VII")
+    #   {gamecode}   — PS1 product code (e.g. "SCUS94503", 9 chars no dash)
+    #   {output_dir} — fresh per-request scratch dir (must contain EBOOT.PBP
+    #                  somewhere underneath when the command finishes)
+    # We recommend pop-fe (https://github.com/sahlberg/pop-fe).  It handles
+    # CHD extraction, multi-track binmerge, ATRAC3 audio encoding, asset
+    # fetching, and multi-disc PBP packaging in one invocation.  Example:
+    #   ["python3","/home/pi/pop-fe/pop-fe.py","--psp-dir","{output_dir}",
+    #    "--title","{title}","--game_id","{gamecode}","--no-libcrypt",
+    #    "{inputs}"]
+    # NOTE: ``{inputs}`` is interpreted as ONE token in the JSON array form
+    # and expanded into multiple argv entries at runtime — never wrap it in
+    # quotes or split it into multiple template entries.
     rom_ps1_eboot_command: str = ""
+    # Working directory for the PS1 EBOOT command.  pop-fe (and similar
+    # tools) resolve sibling binaries (binmerge, atracdenc, cue2cu2.py) by
+    # relative path from cwd, so the subprocess must start inside the
+    # pop-fe source tree.  When unset we fall back to the per-request
+    # output_dir, which works for self-contained converters but breaks
+    # pop-fe.
+    rom_ps1_eboot_cwd: str = ""
     api_key: str = "anything"
     host: str = "0.0.0.0"
     port: int = 8000

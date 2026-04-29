@@ -316,6 +316,17 @@ void ui_draw_rom_catalog(const RomCatalog *catalog,
 
             char marker = (i == selected) ? '>' : ' ';
             const char *display = r->name[0] ? r->name : r->filename;
+            /* Multi-disc games appear as a single row (disc 2+ are
+             * filtered out at parse time); annotate with the disc
+             * count so the user knows the EBOOT will bundle all of
+             * them.  44-char column will truncate long names — that's
+             * fine, the disc count is what's load-bearing. */
+            char label_buf[MAX_TITLE_LEN + 16];
+            if (r->disc_total > 1) {
+                snprintf(label_buf, sizeof(label_buf),
+                         "%s (%d discs)", display, r->disc_total);
+                display = label_buf;
+            }
             pspDebugScreenPrintf(
                 "%c[%s] %-44.44s %7s\n",
                 marker, tag, display, size_buf);

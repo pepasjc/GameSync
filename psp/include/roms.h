@@ -53,6 +53,15 @@ typedef struct {
      * ["iso","cso"], so the client always picks "cso" to save space.
      * PS1 rows advertise "eboot" so the client downloads an EBOOT.PBP. */
     char     extract_format[8];
+    /* Multi-disc PS1 grouping (server-computed).  Multi-disc games
+     * arrive as N rows sharing ``title_id``; the server tags each row
+     * with its disc index (1-based) and the total disc count.  We keep
+     * disc 1 (so the UI can show "Final Fantasy VII (3 discs)") and
+     * drop disc 2+ at parse time — a single multi-disc EBOOT.PBP is
+     * generated when the user picks disc 1, and POPS handles in-game
+     * disc swapping.  Single-disc games get (1, 1). */
+    int      disc_index;
+    int      disc_total;
 } RomEntry;
 
 typedef struct {

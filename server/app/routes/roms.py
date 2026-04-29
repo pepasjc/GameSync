@@ -160,6 +160,48 @@ def _save_to_cache(temp_output: Path, source_path: Path, fmt: str, output_ext: s
         return temp_output
 
 
+def _conversion_cache_key_multi(source_paths: list[Path], fmt: str) -> str:
+    """Cache key over an ordered set of source files (multi-disc PS1).
+
+    Hashes each path's (absolute, mtime_ns, size) so the cache invalidates
+    when any disc is replaced.  Discs are hashed in the order supplied
+    because order matters for pop-fe (Disc 1 must be argv[0]) — passing
+    the same set in a different order would legitimately produce a
+    different PBP and so should miss the cache.
+    """
+    parts: list[str] = []
+    for p in source_paths:
+        st = p.stat()
+        parts.append(f"{p.absolute()}|{st.st_mtime_ns}|{st.st_size}")
+    payload = '\n'.join(parts) + f"|{fmt}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _cached_output_by_key(label: str, key: str, output_ext: str) -> Path | None:
+    cache = _conversion_cache_dir()
+    if cache is None:
+        return None
+    return cache / f"{label}_{key}{output_ext}"
+
+
+def _lookup_cached_by_key(label: str, key: str, output_ext: str) -> Path | None:
+    candidate = _cached_output_by_key(label, key, output_ext)
+    if candidate is None:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def _save_to_cache_by_key(temp_output: Path, label: str, key: str, output_ext: str) -> Path:
+    cached = _cached_output_by_key(label, key, output_ext)
+    if cached is None:
+        return temp_output
+    try:
+        shutil.move(str(temp_output), str(cached))
+        return cached
+    except OSError:
+        return temp_output
+
+
 # Chunk size for streamed Range responses. 1 MiB is a good balance between
 # syscall overhead and keeping memory bounded — a single in-flight request
 # never holds more than this much in RAM at a time, so 4GB ROMs over slow
@@ -317,6 +359,13 @@ async def list_roms(
     # know whether to page further or show a "showing X of Y" hint.
     total = len(entries)
 
+    # Multi-disc PS1 grouping must be computed over the full filtered set
+    # before pagination — otherwise a multi-disc game split across page
+    # boundaries would report wrong disc_total values.  Maps rom_id →
+    # (disc_index, disc_total, primary_rom_id).  Single-disc games get
+    # the trivial (1, 1, rom_id) tuple.
+    ps1_disc_meta = _ps1_compute_disc_groups(entries)
+
     if limit is not None:
         page = entries[offset : offset + limit]
         has_more = (offset + len(page)) < total
@@ -332,6 +381,9 @@ async def list_roms(
             d['extract_format'] = extract_format
         if extract_formats:
             d['extract_formats'] = extract_formats
+        meta = ps1_disc_meta.get(e.rom_id)
+        if meta is not None:
+            d['disc_index'], d['disc_total'], d['primary_rom_id'] = meta
         result.append(d)
 
     return {
@@ -341,6 +393,34 @@ async def list_roms(
         "limit": limit,
         "has_more": has_more,
     }
+
+
+def _ps1_compute_disc_groups(entries) -> dict[str, tuple[int, int, str]]:
+    """Group PS1 entries by ``title_id`` to surface multi-disc info to
+    clients.  Returns a map keyed on ``rom_id``; PS1 entries get
+    ``(disc_index, disc_total, primary_rom_id)``, non-PS1 entries are
+    omitted (clients only branch on PS1).
+
+    Single-disc PS1 games still get an entry with ``(1, 1, rom_id)`` so
+    the PSP client can use the field's presence as a "this is a PS1
+    game" flag without an extra system check.
+    """
+    groups: dict[str, list] = {}
+    for e in entries:
+        if (e.system or '').upper() not in _PS1_EBOOT_SYSTEMS:
+            continue
+        if not e.title_id:
+            continue
+        groups.setdefault(e.title_id, []).append(e)
+
+    meta: dict[str, tuple[int, int, str]] = {}
+    for group in groups.values():
+        group.sort(key=lambda e: (_ps1_disc_number(e.filename), e.filename))
+        total = len(group)
+        primary_rom_id = group[0].rom_id
+        for idx, e in enumerate(group, 1):
+            meta[e.rom_id] = (idx, total, primary_rom_id)
+    return meta
 
 
 # ── Misc endpoints ───────────────────────────────────────────────────────────
@@ -698,10 +778,12 @@ async def download_rom(
         elif fmt in _3DS_EXTRACT_SPECS:
             return await _extract_3ds(file_path, sys_up, fmt)
         elif fmt == 'eboot' and sys_up in _PS1_EBOOT_SYSTEMS:
-            # PS1 → PSP EBOOT.PBP via popstation; check before the
-            # generic CUE/BIN ``_extract_cd`` branch so PS1 doesn't
-            # silently fall through to the wrong handler.
-            return await _extract_ps1_eboot(file_path, sys_up)
+            # PS1 → PSP EBOOT.PBP via pop-fe; check before the generic
+            # CUE/BIN ``_extract_cd`` branch so PS1 doesn't silently
+            # fall through to the wrong handler.  ``entry`` is required
+            # so the handler can look up sibling discs (multi-disc
+            # games) by shared ``title_id``.
+            return await _extract_ps1_eboot(file_path, sys_up, entry)
         elif fmt == 'rvz' or (fmt == 'iso' and file_path.suffix.lower() == '.rvz'):
             return await _extract_rvz(file_path, file_path.stem)
         elif fmt == 'iso' and sys_up in _PS2_SYSTEMS:
@@ -1057,8 +1139,8 @@ def _extract_ps1_serial_from_filename(name: str) -> str | None:
 
 
 def _ps1_clean_title(name: str) -> str:
-    """Strip parentheticals + bracketed serials so the popstation_md
-    ``main_title`` field reads naturally on the PSP XMB.
+    """Strip parentheticals + bracketed serials so the EBOOT title field
+    reads naturally on the PSP XMB.
     """
     stem = Path(name).stem
     cleaned = re.sub(r'\s*[\[\(][^\]\)]*[\]\)]', '', stem)
@@ -1066,18 +1148,78 @@ def _ps1_clean_title(name: str) -> str:
     return cleaned or stem
 
 
-async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
-    """Convert a PS1 disc image to a PSP-installable EBOOT.PBP.
+# ``Foo (Disc 2) [ENG].chd`` → 2.  Falls back to 1 for files without a
+# disc tag (single-disc games or non-standard naming).
+_PS1_DISC_NUM_RE = re.compile(
+    r'\(\s*[Dd]is[ck]\s+(\d+)\s*(?:of\s+\d+)?\s*\)',
+)
+
+
+def _ps1_disc_number(filename: str) -> int:
+    m = _PS1_DISC_NUM_RE.search(filename)
+    return int(m.group(1)) if m else 1
+
+
+def _ps1_normalize_gamecode(value: str | None) -> str:
+    """Strip non-alphanumerics and uppercase.  pop-fe + popstation expect
+    the canonical PS1 product code form (``SCUS94503``, 9 chars, no dash);
+    the catalog's ``title_id`` is already in that form, but a fallback
+    via ``_extract_ps1_serial_from_filename`` returns the dashed form."""
+    if not value:
+        return ''
+    return re.sub(r'[^A-Za-z0-9]', '', value).upper()
+
+
+def _ps1_disc_siblings(entry) -> list:
+    """Return all PS1 catalog entries sharing ``entry.title_id`` (i.e. the
+    full multi-disc set), sorted by disc number derived from filename.
+
+    Multi-disc PS1 games end up as N RomEntry rows with the same
+    ``title_id`` (the disc serial — same for every disc) but distinct
+    ``rom_id`` (disambiguated by stem suffix).  pop-fe needs all discs
+    in disc-1-first order to produce a single multi-disc EBOOT.PBP that
+    the PSP firmware (POPS) can disc-swap between via the home menu.
+
+    Returns ``[entry]`` for single-disc games or when the catalog isn't
+    populated yet (e.g. a request mid-rescan).
+    """
+    if (entry.system or '').upper() not in _PS1_EBOOT_SYSTEMS:
+        return [entry]
+    title_id = entry.title_id
+    if not title_id:
+        return [entry]
+    catalog = rom_scanner.get()
+    if catalog is None:
+        return [entry]
+    siblings = [
+        e for e in catalog.list_all()
+        if (e.system or '').upper() in _PS1_EBOOT_SYSTEMS
+        and e.title_id == title_id
+    ]
+    if len(siblings) <= 1:
+        return [entry]
+    siblings.sort(key=lambda e: (_ps1_disc_number(e.filename), e.filename))
+    return siblings
+
+
+async def _extract_ps1_eboot(source_path: Path, system: str, entry) -> Response:
+    """Convert a PS1 disc image (or multi-disc set) to a PSP EBOOT.PBP.
 
     Used by the PSP client's ROM Catalog so PS1 games convert into a PBP
     installable under ``ms0:/PSP/GAME/<id>/`` and play on real PSP
-    hardware (popstation route).  Output is the raw .pbp — no zip
-    wrapper — so the client can stream it straight to the target path
-    without an extra extraction step.
+    hardware.  Output is the raw .pbp — no zip wrapper — so the client
+    can stream it straight to the target path without an extra extraction
+    step.
 
-    Mirrors :func:`_extract_xbox` / :func:`_extract_3ds` for the command
-    template + cache fast-path.  Until the operator wires up
-    ``SYNC_ROM_PS1_EBOOT_COMMAND``, the route returns 503 with a hint.
+    Multi-disc games (Final Fantasy VII, Ace Combat 3, etc.) are
+    detected via shared ``title_id`` across catalog entries.  The full
+    set of disc files is passed to the converter in disc-1-first order
+    in a single invocation, producing one multi-disc PBP that POPS can
+    swap discs in.  The cache key is over the entire disc set, so a
+    request for any disc hits the same cached PBP.
+
+    Until the operator wires up ``SYNC_ROM_PS1_EBOOT_COMMAND``, the
+    route returns 503 with a pop-fe install hint.
     """
     if system not in _PS1_EBOOT_SYSTEMS:
         return Response(
@@ -1090,9 +1232,20 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
 
     spec = _PS1_EBOOT_SPEC
 
-    # Cache fast-path — the same source ROM always produces the same PBP
-    # (popstation is deterministic for a given input + version).
-    cached = _lookup_cached_output(source_path, 'eboot', spec['output_ext'])
+    # Resolve the full multi-disc set (or [entry] for single-disc).
+    siblings = _ps1_disc_siblings(entry)
+    rom_dir = settings.rom_dir
+    if rom_dir is None:
+        return Response(status_code=503, content="ROM directory not configured")
+    disc_paths = [rom_dir / s.path for s in siblings]
+    disc_paths = [p for p in disc_paths if p.is_file()]
+    if not disc_paths:
+        return Response(status_code=404, content="No disc files found on disk")
+
+    # Cache key spans every disc — disc 1 and disc 2 of the same game
+    # map to the same cached PBP.
+    cache_key = _conversion_cache_key_multi(disc_paths, 'eboot')
+    cached = _lookup_cached_by_key('ps1_eboot', cache_key, spec['output_ext'])
     if cached is not None:
         return _stream_file_response(cached, spec['mime'])
 
@@ -1103,118 +1256,69 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
             content=(
                 f"PS1 → {spec['label']} conversion is not configured on the server.\n"
                 f"\n"
+                f"Recommended setup with pop-fe (https://github.com/sahlberg/pop-fe):\n"
+                f"  1. git clone https://github.com/sahlberg/pop-fe.git /home/pi/pop-fe\n"
+                f"  2. cd /home/pi/pop-fe && git submodule update --init\n"
+                f"  3. (cd atracdenc/src && cmake . && make)\n"
+                f"  4. pip3 install --user --break-system-packages \\\n"
+                f"       pycdlib ecdsa PyPDF2 pycryptodome rarfile opencv-contrib-python\n"
+                f"  5. Add to server/.env:\n"
+                f"     SYNC_ROM_PS1_EBOOT_CWD=/home/pi/pop-fe\n"
+                f"     SYNC_ROM_PS1_EBOOT_COMMAND=[\"python3\",\"/home/pi/pop-fe/pop-fe.py\","
+                f"\"--psp-dir\",\"{{output_dir}}\",\"--title\",\"{{title}}\","
+                f"\"--game_id\",\"{{gamecode}}\",\"--no-libcrypt\",\"{{inputs}}\"]\n"
+                f"\n"
                 f"Available placeholders:\n"
-                f"  {{input}}        — path to the data track (server pre-extracts CHD).\n"
-                f"  {{output}}       — path the server expects the EBOOT.PBP to land at.\n"
-                f"  {{output_dir}}   — fresh scratch dir for the converter to use.\n"
-                f"  {{stem}}         — input filename without extension.\n"
-                f"  {{title}}        — game title (filename minus parentheticals).\n"
-                f"  {{gamecode}}     — disc serial (SCUS-12345 etc).\n"
-                f"  {{compression}}  — fixed at 9.\n"
-                f"\n"
-                f"Pi-friendly examples ({spec['env']}=...):\n"
-                f"  popstation_md (https://github.com/dots-tb/popstation_md) — outputs\n"
-                f"  EBOOT.PBP into the current working directory, so wrap with sh -c:\n"
-                f"    sh -c 'cd {{output_dir}} && popstation_md \"{{title}}\" \"{{title}}\" \\\n"
-                f"      {{gamecode}} {{gamecode}} {{compression}} {{input}} && \\\n"
-                f"      mv EBOOT.PBP {{output}}'\n"
-                f"\n"
-                f"  psx2psp (Python, no compile):\n"
-                f"    python3 psx2psp.py -i {{input}} -o {{output}}\n"
+                f"  {{inputs}}      — list-valued; expands to N argv entries, one per disc\n"
+                f"                    (multi-disc games pass all discs in disc-1-first order)\n"
+                f"  {{input}}       — primary disc path only\n"
+                f"  {{title}}       — game name (catalog ``name``, falls back to filename)\n"
+                f"  {{gamecode}}    — PS1 product code (catalog ``title_id``, e.g. SCUS94503)\n"
+                f"  {{output_dir}}  — fresh scratch dir; converter must put EBOOT.PBP under it\n"
+                f"  {{stem}}        — primary disc filename without extension\n"
+                f"  {{compression}} — fixed at 9 (kept for popstation-flavoured templates)\n"
             ),
         )
 
+    cwd = settings.rom_ps1_eboot_cwd or None
     tmpdir = tempfile.mkdtemp(prefix='ps1_eboot_', dir=_conversion_tmp_dir())
+
+    title = entry.name or _ps1_clean_title(disc_paths[0].name)
+    gamecode = (
+        _ps1_normalize_gamecode(entry.title_id)
+        or _ps1_normalize_gamecode(_extract_ps1_serial_from_filename(disc_paths[0].name))
+        or 'SLUS00000'  # last-resort placeholder; pop-fe still emits a PBP
+    )
+    primary = disc_paths[0]
 
     def _run() -> Path:
         tmp = Path(tmpdir)
-        stem = source_path.stem
-
-        # popstation tools (popstation_md / psx2psp / etc.) read raw
-        # CD-ROM images — .bin / .cue / .iso — but cannot parse CHD.
-        # If the catalog row points at a .chd, extract it to CUE/BIN
-        # first via chdman and feed the .bin (Track 01) to popstation.
-        # popstation_md takes the data track directly, not the cue.
-        popstation_input = source_path
-        if source_path.suffix.lower() == '.chd':
-            if not shutil.which('chdman'):
-                raise RuntimeError(
-                    "chdman not installed — required to extract PS1 CHDs "
-                    "before popstation can convert them.  Install via "
-                    "``sudo apt install mame-tools``."
-                )
-            extract_dir = tmp / 'chd_src'
-            extract_dir.mkdir()
-            cue_out = extract_dir / f'{stem}.cue'
-            r = subprocess.run(
-                ['chdman', 'extractcd',
-                 '-i', str(source_path),
-                 '-o', str(cue_out)],
-                capture_output=True, text=True, timeout=600,
-            )
-            if r.returncode != 0:
-                raise RuntimeError(
-                    'CHD extract failed: '
-                    + (r.stderr.strip() or r.stdout.strip()
-                       or 'unknown chdman error')
-                )
-            if not cue_out.is_file():
-                raise RuntimeError(
-                    'chdman completed but did not produce a .cue'
-                )
-            # Pick the largest .bin in the extract dir — that's the
-            # data track.  popstation_md reads the bytes directly; cue
-            # is only useful for multi-track audio CD layouts which
-            # popstation_md doesn't support anyway.
-            bins = sorted(
-                extract_dir.glob('*.bin'),
-                key=lambda p: p.stat().st_size,
-                reverse=True,
-            )
-            if not bins:
-                raise RuntimeError(
-                    'chdman extracted CUE but no .bin track was produced'
-                )
-            popstation_input = bins[0]
-
-        output_name = f"{stem}{spec['output_ext']}"
-        output_path = tmp / output_name
-
-        # popstation_md needs the disc serial + a title.  Pull both
-        # from the source filename so the operator's template can stay
-        # simple (no per-game configuration).  Falls back gracefully:
-        # missing serial → use stem as gamecode (still passes the
-        # "Invalid number of arguments" check); missing title → use
-        # cleaned stem.
-        gamecode = (
-            _extract_ps1_serial_from_filename(source_path.name)
-            or stem
-        )
-        title = _ps1_clean_title(source_path.name)
+        stage = tmp / 'stage'
+        stage.mkdir()
 
         cmd = _expand_command_template(
             command_template,
-            input=str(popstation_input),
-            output=str(output_path),
-            output_dir=str(tmp),
-            stem=stem,
+            inputs=[str(p) for p in disc_paths],
+            input=str(primary),
+            output=str(stage / 'EBOOT.PBP'),
+            output_dir=str(stage),
+            stem=primary.stem,
             title=title,
             gamecode=gamecode,
             compression='9',
         )
-        # popstation runs are I/O-bound on the Pi; cap at 30 min for a
-        # ~700 MB CD image — generous enough for old SD cards.
-        # ``cwd=tmp`` matters because popstation_md writes ``EBOOT.PBP``
-        # to the current working directory regardless of the {output}
-        # placeholder.  Running with cwd set to the scratch dir means
-        # the file lands where ``_find_single_output`` looks for it,
-        # and the operator's template doesn't need a shell wrapper.
+        # pop-fe + ATRAC3 encoding + asset fetching can take 5-15 min
+        # per disc on a Pi — give multi-disc runs a full hour.  Run with
+        # ``cwd`` set to the configured pop-fe source tree so its
+        # relative-path lookups for binmerge / cue2cu2.py / atracdenc
+        # resolve correctly; falls back to the per-request scratch dir
+        # for self-contained converters that don't care.
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=1800,
-            cwd=str(tmp),
+            timeout=3600,
+            cwd=cwd or str(tmp),
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -1223,22 +1327,19 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
                 or 'PS1 → EBOOT conversion failed'
             )
 
-        # Some popstation forks ignore {output} and always emit a
-        # literal ``EBOOT.PBP`` in cwd.  Recognise that name first so
-        # we don't fall back to "any .pbp anywhere" before checking
-        # the conventional location.
-        eboot_in_cwd = tmp / 'EBOOT.PBP'
-        final_path = (
-            output_path
-            if output_path.is_file()
-            else (eboot_in_cwd if eboot_in_cwd.is_file()
-                  else _find_single_output(tmp, spec['output_ext']))
-        )
-        if final_path is None or not final_path.is_file():
+        # pop-fe writes ``<psp-dir>/<gameid>/EBOOT.PBP`` (or
+        # ``<psp-dir>/PSP/GAME/<gameid>/EBOOT.PBP`` if that subtree
+        # already existed in the staging dir).  Other converters may
+        # emit it directly into ``output_dir``.  Recover by globbing,
+        # picking the largest match (filters out empty stub PBPs).
+        candidates = list(stage.rglob('EBOOT.PBP'))
+        if not candidates:
             raise RuntimeError(
-                "popstation completed but did not produce an EBOOT.PBP"
+                "converter completed but did not produce an EBOOT.PBP\n"
+                + (result.stdout[-2000:] if result.stdout else '')
             )
-        return final_path
+        candidates.sort(key=lambda p: p.stat().st_size, reverse=True)
+        return candidates[0]
 
     try:
         final_path = await asyncio.get_event_loop().run_in_executor(None, _run)
@@ -1247,9 +1348,9 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
         return Response(status_code=500, content=f"Conversion failed: {exc}")
     except subprocess.TimeoutExpired:
         _cleanup_dir(tmpdir)
-        return Response(status_code=504, content="Conversion timed out (>30 min)")
+        return Response(status_code=504, content="Conversion timed out (>1 hour)")
 
-    cached_path = _save_to_cache(final_path, source_path, 'eboot', spec['output_ext'])
+    cached_path = _save_to_cache_by_key(final_path, 'ps1_eboot', cache_key, spec['output_ext'])
     return _stream_file_response(cached_path, spec['mime'], cleanup_dir=tmpdir)
 
 
@@ -1652,7 +1753,7 @@ def _materialize_3ds_source(source_path: Path, tmp_dir: Path) -> tuple[Path, str
         return extracted, extracted.stem
 
 
-def _expand_command_template(template: str, **values: str) -> list[str]:
+def _expand_command_template(template: str, **values) -> list[str]:
     payload = template.strip()
     if not payload:
         raise RuntimeError("empty command template")
@@ -1665,10 +1766,31 @@ def _expand_command_template(template: str, **values: str) -> list[str]:
     else:
         parts = shlex.split(payload, posix=os.name != 'nt')
 
+    # A list-valued placeholder (e.g. ``{inputs}`` for multi-disc PS1)
+    # expands to N argv entries when it appears as a token by itself.
+    # Embedding it inside a larger token like ``--files={inputs}`` is a
+    # template authoring mistake — flag it loudly rather than silently
+    # str(list)-ing.
+    list_values = {k: list(v) for k, v in values.items() if isinstance(v, (list, tuple))}
+    scalar_values = {k: v for k, v in values.items() if not isinstance(v, (list, tuple))}
+
     expanded: list[str] = []
     for part in parts:
+        list_token_match = next(
+            (k for k in list_values if part == f'{{{k}}}'),
+            None,
+        )
+        if list_token_match is not None:
+            expanded.extend(list_values[list_token_match])
+            continue
+        for key in list_values:
+            if f'{{{key}}}' in part:
+                raise RuntimeError(
+                    f"placeholder {{{key}}} is list-valued and must appear "
+                    f"as a standalone token, not embedded in {part!r}"
+                )
         updated = part
-        for key, value in values.items():
+        for key, value in scalar_values.items():
             updated = updated.replace(f'{{{key}}}', value)
         expanded.append(updated)
     return expanded

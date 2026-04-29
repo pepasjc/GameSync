@@ -181,8 +181,32 @@ static bool parse_catalog_page(const char *scratch_buf, int n,
                 e->file_count = (int)fc;
             }
         }
+        v = find_key(p + 1, obj_end, "disc_index");
+        if (v) {
+            uint64_t idx = 0;
+            if (extract_u64(v, obj_end, &idx) && idx < 16) {
+                e->disc_index = (int)idx;
+            }
+        }
+        v = find_key(p + 1, obj_end, "disc_total");
+        if (v) {
+            uint64_t tot = 0;
+            if (extract_u64(v, obj_end, &tot) && tot < 16) {
+                e->disc_total = (int)tot;
+            }
+        }
 
         if (e->rom_id[0] && e->filename[0]) {
+            /* Multi-disc PS1 games: hide all but disc 1.  The server
+             * generates a single multi-disc EBOOT.PBP when disc 1 is
+             * downloaded, and POPS handles in-game disc swapping —
+             * showing disc 2+ in the catalog would only invite
+             * duplicate downloads that overwrite each other under
+             * ms0:/PSP/GAME/<gameid>/. */
+            if (e->disc_total > 1 && e->disc_index > 1) {
+                p = obj_end + 1;
+                continue;
+            }
             if (!e->name[0]) {
                 strncpy(e->name, e->filename, sizeof(e->name) - 1);
             }
