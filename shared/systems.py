@@ -56,6 +56,7 @@ SYSTEM_CHOICES: list[str] = sorted(
         "VB",
         "WSWAN",
         "WSWANC",
+        "XBOX",
     ],
     key=str.lower,
 )
@@ -101,6 +102,7 @@ ALL_CONSOLE_TYPES: list[str] = ["All"] + sorted(
         "VITA",
         "WSWAN",
         "WSWANC",
+        "XBOX",
     ],
     key=str.lower,
 )
@@ -226,6 +228,9 @@ _SYSTEM_NAME_ALIASES: dict[str, str] = {
     "NEOGEOPOCKET":    "NGP",
     "NEOGEOPOCKETCOLOR": "NGPC",
     "NEOGEOCD":        "NEOCD",
+    "OGXBOX":          "XBOX",
+    "ORIGINALXBOX":    "XBOX",
+    "MICROSOFTXBOX":   "XBOX",
 }
 
 

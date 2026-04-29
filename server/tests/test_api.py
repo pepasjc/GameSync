@@ -207,6 +207,44 @@ class TestTitlesEndpoint:
         assert game_names.detect_platform("SLUS01279") == "PS1"
         assert game_names.detect_platform("SLUS20002") == "PS2"
 
+    def test_detect_platform_recognizes_xbox_8hex_title_id(self):
+        # Original Xbox uses 8-char hex Title IDs as UDATA folder names.
+        assert game_names.detect_platform("4D530004") == "XBOX"  # Halo: Combat Evolved
+        assert game_names.detect_platform("4541000D") == "XBOX"  # 007 Agent Under Fire
+        assert game_names.detect_platform("4d530004") == "XBOX"  # case-insensitive
+        # 16-hex still resolves to 3DS, not Xbox.
+        assert game_names.detect_platform("0004000000055D00") == "3DS"
+
+    def test_lookup_names_typed_resolves_xbox_titles(self, monkeypatch):
+        """Xbox 8-hex Title IDs must resolve from _xbox_names with platform=XBOX."""
+        monkeypatch.setitem(
+            game_names._xbox_names, "4D530004", "Halo - Combat Evolved (USA)"
+        )
+        monkeypatch.setitem(
+            game_names._xbox_names, "4541000D", "007 - Agent Under Fire (USA)"
+        )
+
+        result = game_names.lookup_names_typed(["4D530004", "4541000D"])
+        assert result["4D530004"] == ("Halo - Combat Evolved (USA)", "XBOX")
+        assert result["4541000D"] == ("007 - Agent Under Fire (USA)", "XBOX")
+
+    def test_validate_any_title_id_accepts_xbox_8hex(self):
+        from app.models.save import (
+            is_xbox_title_id,
+            validate_any_title_id,
+        )
+
+        # Valid Xbox 8-hex IDs round-trip uppercased.
+        assert validate_any_title_id("4d530004") == "4D530004"
+        assert validate_any_title_id("4541000D") == "4541000D"
+        assert is_xbox_title_id("4D530004") is True
+        assert is_xbox_title_id("4d530004") is True
+        # 16-hex is not a Xbox ID.
+        assert is_xbox_title_id("0004000000055D00") is False
+        # Non-hex 8-char strings are rejected by is_xbox_title_id but the
+        # broader product-code path may still accept them as PSP/Vita-style.
+        assert is_xbox_title_id("ULUS1000G") is False
+
     def test_lookup_names_typed_resolves_ps2_serials_from_local_db(self, monkeypatch):
         """PS2 serials (SCUS97203 = Wild Arms 3) must resolve to a name
         from the local PS2 DAT.  Before routing "Sony - PlayStation 2.dat"

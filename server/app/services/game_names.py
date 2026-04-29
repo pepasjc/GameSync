@@ -27,6 +27,7 @@ _wii_names: dict[
     str, str
 ] = {}  # 4-char GC/Wii game code -> name e.g. "GALE" -> "Super Smash Bros. Melee"
 _ps3_names: dict[str, str] = {}  # keyed by 9-char product code e.g. "BLJM61131"
+_xbox_names: dict[str, str] = {}  # keyed by 8-char hex Xbox Title ID e.g. "4D530004"
 
 # Per-dict priority trackers: key → (source_tier, region_rank)
 # source_tier: 0 = retail disc, 1 = PSN/digital
@@ -43,6 +44,7 @@ _3ds_title_id_priority: dict[str, tuple[int, int]] = {}
 _ds_priority: dict[str, tuple[int, int]] = {}
 _wii_priority: dict[str, tuple[int, int]] = {}
 _ps3_priority: dict[str, tuple[int, int]] = {}
+_xbox_priority: dict[str, tuple[int, int]] = {}
 
 # Reverse index: normalized game name slug → PS1 retail serial (preferred over PSN codes)
 # Rebuilt by build_psx_psn_to_retail() after all databases are loaded.
@@ -183,6 +185,8 @@ _PSP_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")  # same but allows slot suffix
 _VITA_CODE_RE = re.compile(r"^PCS[A-Z]\d{5}$")  # PCSE00000, PCSB12345, PCSG00001
 _PS3_CODE_RE = re.compile(r"^BL[A-Z]{2}\d{5}$")  # BLUS30289, BLES01017, BLJM61131
 _PS3_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")  # BLUS30289-SAVE00, NPUB12345, etc.
+# Original Xbox: 8-char hex Title ID, used as directory name under E:\UDATA\
+_XBOX_CODE_RE = re.compile(r"^[0-9A-F]{8}$")
 
 # 3DS title ID high-word prefixes (first 5 hex chars of the 16-char ID)
 _3DS_HIGH_PREFIXES = {
@@ -291,6 +295,10 @@ def detect_platform(title_id: str) -> str:
         if tid[:5] in _NDS_HIGH_PREFIXES:
             return "NDS"
         return "3DS"
+
+    # 8-char hex = original Xbox Title ID (e.g. "4D530004" Halo: Combat Evolved)
+    if _XBOX_CODE_RE.match(tid):
+        return "XBOX"
 
     # Vita: PCS[A-Z]#####
     if _VITA_CODE_RE.match(tid) or (len(tid) >= 4 and tid[:3] == "PCS"):
@@ -489,6 +497,10 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
         target = _wii_names
         priority = _wii_priority
         mode = "wii_code"  # extract 4-char code from RVL-XXXX-RGN (index 1)
+    elif "microsoft - xbox" in fname and "360" not in fname:
+        target = _xbox_names
+        priority = _xbox_priority
+        mode = "xbox_titleid"  # key off the 8-char hex `title_id` line
     else:
         return 0
 
@@ -525,7 +537,8 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
 
     _NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
     _SERIAL_RE = re.compile(r'^\s*serial\s+"(.+?)"')
-    _TITLE_ID_RE = re.compile(r'^\s*title_id\s+"([0-9A-Fa-f]{16})"')
+    # Accept either 16-char hex (3DS) or 8-char hex (original Xbox).
+    _TITLE_ID_RE = re.compile(r'^\s*title_id\s+"([0-9A-Fa-f]{16}|[0-9A-Fa-f]{8})"')
 
     def _extract_key(serial: str) -> str | None:
         if mode == "strip_hyphens":
@@ -589,7 +602,10 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
 
             # End of block — ")" alone on a line at top level
             has_3ds_title_only = mode == "3ds_code" and bool(current_title_id)
-            if line.strip() == ")" and current_name and (current_serial or has_3ds_title_only):
+            has_xbox_title_only = mode == "xbox_titleid" and bool(current_title_id)
+            if line.strip() == ")" and current_name and (
+                current_serial or has_3ds_title_only or has_xbox_title_only
+            ):
                 rank = (_source_tier, _region_rank(current_name))
                 entry_added = False
 
@@ -603,6 +619,16 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
                             target[key] = current_name
                             priority[key] = rank
                             entry_added = True
+
+                if mode == "xbox_titleid" and current_title_id:
+                    existing_rank = _xbox_priority.get(
+                        current_title_id,
+                        (len(_REGION_PRIORITY) + 1, len(_REGION_PRIORITY) + 1),
+                    )
+                    if rank < existing_rank or current_title_id not in _xbox_names:
+                        _xbox_names[current_title_id] = current_name
+                        _xbox_priority[current_title_id] = rank
+                        entry_added = True
 
                 if mode == "3ds_code" and current_title_id:
                     serial_key = current_serial.upper().strip() if current_serial else ""
@@ -737,6 +763,13 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             name = _psp_names.get(base)
             if name:
                 result[code] = (name, "PSP")
+            continue
+
+        # Original Xbox: 8-char hex Title ID (e.g. "4D530004" Halo)
+        if _XBOX_CODE_RE.match(code_upper):
+            name = _xbox_names.get(code_upper)
+            if name:
+                result[code] = (name, "XBOX")
             continue
 
         # 3DS/DS: full 16-char hex TitleID
@@ -942,6 +975,10 @@ def lookup_3ds_title_id(name: str) -> str | None:
 
 def get_3ds_title_id_count() -> int:
     return len(_3ds_title_ids)
+
+
+def get_xbox_title_id_count() -> int:
+    return len(_xbox_names)
 
 
 def lookup_disc_serial(system: str, name: str) -> str | None:

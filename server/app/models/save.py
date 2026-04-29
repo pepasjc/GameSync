@@ -15,6 +15,11 @@ BUNDLE_VERSION_V5 = 5  # String title_id for PSP/Vita/PS3 (64 bytes ASCII, null-
 
 # Accepts 16-char hex IDs (3DS/DS) OR 4-31 alphanumeric product codes (PSP/Vita)
 _HEX_TITLE_ID_RE = re.compile(r"^[0-9A-F]{16}$")
+# Original Xbox uses 8-char hex Title IDs (32-bit) — directory name under E:\UDATA\
+# e.g. "4D530004" (Halo: Combat Evolved). 8-hex is a strict subset of the 4-31
+# product-code regex, so no separate gate is needed for validation, but we keep
+# this constant explicit for is_xbox_title_id() and platform detection.
+_XBOX_HEX_TITLE_ID_RE = re.compile(r"^[0-9A-F]{8}$")
 _PRODUCT_CODE_RE = re.compile(r"^[A-Z0-9]{4,31}$")
 _SAVE_DIR_TITLE_ID_RE = re.compile(r"^[A-Z]{4}\d{5}[A-Z0-9._-]{0,54}$")
 # Emulator format: SYSTEM_slug  e.g. GBA_zelda_the_minish_cap
@@ -26,15 +31,20 @@ def is_hex_title_id(title_id: str) -> bool:
     return bool(_HEX_TITLE_ID_RE.match(title_id.upper()))
 
 
+def is_xbox_title_id(title_id: str) -> bool:
+    """True for the 8-char hex Title IDs used by the original Xbox."""
+    return bool(_XBOX_HEX_TITLE_ID_RE.match(title_id.upper()))
+
+
 def validate_any_title_id(v: str) -> str:
-    """Accept 16-char hex (3DS/DS), 4-31 alphanumeric product codes (PSP/Vita/PSX),
-    PS save-directory IDs rooted in a 9-char product code (PSP/Vita/PS3),
-    or emulator SYSTEM_slug format (e.g. GBA_zelda_the_minish_cap)."""
+    """Accept 16-char hex (3DS/DS), 8-char hex (original Xbox), 4-31 alphanumeric
+    product codes (PSP/Vita/PSX), PS save-directory IDs rooted in a 9-char product
+    code (PSP/Vita/PS3), or emulator SYSTEM_slug format (e.g. GBA_zelda_the_minish_cap)."""
     v = v.strip()
     v_upper = v.upper()
     if (
         _HEX_TITLE_ID_RE.match(v_upper)
-        or _PRODUCT_CODE_RE.match(v_upper)
+        or _PRODUCT_CODE_RE.match(v_upper)  # also matches Xbox 8-hex
         or _SAVE_DIR_TITLE_ID_RE.match(v_upper)
     ):
         return v_upper
@@ -43,6 +53,7 @@ def validate_any_title_id(v: str) -> str:
         return v
     raise ValueError(
         "title_id must be a 16-char hex string (3DS/DS), "
+        "an 8-char hex string (original Xbox), "
         "a 4-31 char alphanumeric product code (PSP/Vita/PSX), "
         "a PS save-directory ID starting with a 9-char product code, "
         "or an emulator SYSTEM_slug (e.g. GBA_zelda_the_minish_cap)"
