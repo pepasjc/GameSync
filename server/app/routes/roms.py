@@ -1080,12 +1080,47 @@ async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
     def _run() -> Path:
         tmp = Path(tmpdir)
         stem = source_path.stem
+
+        # popstation tools (popstation_md / psx2psp / etc.) read raw
+        # CD-ROM images — .bin / .cue / .iso — but cannot parse CHD.
+        # If the catalog row points at a .chd, extract it to CUE/BIN
+        # first via chdman and feed the .cue to popstation.  This is
+        # invisible to the operator's command template.
+        popstation_input = source_path
+        if source_path.suffix.lower() == '.chd':
+            if not shutil.which('chdman'):
+                raise RuntimeError(
+                    "chdman not installed — required to extract PS1 CHDs "
+                    "before popstation can convert them.  Install via "
+                    "``sudo apt install mame-tools``."
+                )
+            extract_dir = tmp / 'chd_src'
+            extract_dir.mkdir()
+            cue_out = extract_dir / f'{stem}.cue'
+            r = subprocess.run(
+                ['chdman', 'extractcd',
+                 '-i', str(source_path),
+                 '-o', str(cue_out)],
+                capture_output=True, text=True, timeout=600,
+            )
+            if r.returncode != 0:
+                raise RuntimeError(
+                    'CHD extract failed: '
+                    + (r.stderr.strip() or r.stdout.strip()
+                       or 'unknown chdman error')
+                )
+            if not cue_out.is_file():
+                raise RuntimeError(
+                    'chdman completed but did not produce a .cue'
+                )
+            popstation_input = cue_out
+
         output_name = f"{stem}{spec['output_ext']}"
         output_path = tmp / output_name
 
         cmd = _expand_command_template(
             command_template,
-            input=str(source_path),
+            input=str(popstation_input),
             output=str(output_path),
             output_dir=str(tmp),
             stem=stem,
