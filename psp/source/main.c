@@ -26,6 +26,7 @@
 #include <pspdebug.h>
 #include <pspctrl.h>
 #include <psppower.h>
+#include <pspthreadman.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -150,17 +151,23 @@ static int rom_progress64_cb(uint64_t downloaded, uint64_t total) {
         g_dl_speed_anchor_bytes = downloaded;
     }
 
-    /* Periodic redraw of the downloads view so the user sees
-     * progress.  pspDebugScreen has no flicker concern (no double
-     * buffer) so we redraw on every callback. */
+    /* Partial repaint of the active-progress rows only.  Avoids the
+     * pspDebugScreenClear() call that caused visible flicker — the
+     * tab strip, list rows, and status line stay untouched between
+     * progress ticks.  Throttle still kept at ~4 Hz to bound CPU
+     * cost of formatting + writes during fast transfers. */
     if (g_app_view == APP_VIEW_DOWNLOADS) {
-        char status[64];
-        snprintf(status, sizeof(status),
-                 "Downloading...  (Square = pause)");
-        ui_draw_downloads(&g_downloads, g_dl_selected, g_dl_scroll,
-                          status, true,
-                          g_active_downloaded, g_active_total,
-                          g_active_bps, g_app_view);
+        static uint32_t last_draw_us = 0;
+        uint32_t now_us = sceKernelGetSystemTimeLow();
+        bool first = (last_draw_us == 0);
+        bool finished = (total > 0 && downloaded >= total);
+        if (first || finished || (now_us - last_draw_us) >= 250000U) {
+            last_draw_us = now_us;
+            ui_draw_progress_partial(&g_downloads,
+                                     g_active_downloaded,
+                                     g_active_total,
+                                     g_active_bps);
+        }
     }
     return 0;
 }
@@ -215,6 +222,15 @@ static void run_download(SyncState *state, DownloadEntry *e) {
 
     e->status = DL_STATUS_ACTIVE;
 
+    /* One full repaint up front so the tab strip, list rows, and
+     * status line are on screen.  Subsequent progress updates from
+     * rom_progress64_cb are partial — only the 4 active-panel rows —
+     * which is what kills the flicker. */
+    ui_draw_downloads(&g_downloads, g_dl_selected, g_dl_scroll,
+                      "Downloading...  (Square = pause)", true,
+                      g_active_downloaded, g_active_total,
+                      g_active_bps, g_app_view);
+
     network_set_progress64_cb(rom_progress64_cb);
     uint64_t total_seen = 0;
     int rc = network_download_rom_resumable(state, e->rom_id,
@@ -255,8 +271,11 @@ int main(int argc, char *argv[]) {
     setup_callbacks();
     ui_init();
 
-    /* Power management: prevent sleep during sync */
-    // scePowerSetClockFrequency(333, 333, 166); // Deprecated
+    /* Power management: bump CPU/bus to max so WiFi recv + MS write
+     * keep up.  Default boot clock is 222/111 MHz which caps PSP TCP
+     * throughput around 80-100 KB/s; 333/166 MHz can reach 1+ MB/s
+     * over a clean 802.11g link. */
+    scePowerSetClockFrequency(333, 333, 166);
 
     memset(&g_state, 0, sizeof(SyncState));
     g_state.wifi_ap_index = 0;

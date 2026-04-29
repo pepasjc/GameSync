@@ -50,4 +50,14 @@ void ui_draw_downloads(const DownloadList *downloads,
                        uint64_t active_bps,
                        AppView current_view);
 
+/* Repaint only the active-download progress rows (4 lines starting at
+ * LIST_START_ROW).  No screen clear, no surrounding redraw — eliminates
+ * the flicker caused by pspDebugScreenClear() during fast progress
+ * updates.  Caller must have already drawn the full view at least once
+ * (e.g. via ui_draw_downloads) before calling this. */
+void ui_draw_progress_partial(const DownloadList *downloads,
+                              uint64_t active_downloaded,
+                              uint64_t active_total,
+                              uint64_t active_bps);
+
 #endif /* UI_H */

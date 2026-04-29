@@ -48,12 +48,24 @@ static const char *find_key(const char *p, const char *end, const char *key) {
             p++;
             continue;
         }
-        if (depth == 0 && *p == '"' && (p + n) <= end &&
-            strncmp(p, needle, (size_t)n) == 0)
-        {
-            const char *q = p + n;
-            q = skip_ws(q);
-            if (q < end && *q == ':') return skip_ws(q + 1);
+        if (*p == '"') {
+            /* Match key only at top level. Otherwise skip the string body
+             * (including any nested {/}/[/]) so depth tracking stays
+             * correct across game names that contain bracket chars. */
+            if (depth == 0 && (p + n) <= end &&
+                strncmp(p, needle, (size_t)n) == 0)
+            {
+                const char *q = p + n;
+                q = skip_ws(q);
+                if (q < end && *q == ':') return skip_ws(q + 1);
+            }
+            p++;
+            while (p < end && *p != '"') {
+                if (*p == '\\' && p + 1 < end) p++;
+                p++;
+            }
+            if (p < end) p++;  /* past closing quote */
+            continue;
         }
         p++;
     }

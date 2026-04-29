@@ -452,3 +452,66 @@ void ui_draw_downloads(const DownloadList *downloads,
         "%d/%d  X:start/resume  Sq:pause  O:cancel  T:clear done",
         selected + 1, total);
 }
+
+void ui_draw_progress_partial(const DownloadList *downloads,
+                              uint64_t active_downloaded,
+                              uint64_t active_total,
+                              uint64_t active_bps) {
+    /* Find the active entry — used for the name/file labels.  Skip if
+     * none (caller should not invoke us in that case). */
+    const DownloadEntry *active = NULL;
+    int total = downloads ? downloads->count : 0;
+    for (int i = 0; i < total; i++) {
+        if (downloads->items[i].status == DL_STATUS_ACTIVE) {
+            active = &downloads->items[i];
+            break;
+        }
+    }
+
+    const char *display_name =
+        (active && active->name[0]) ? active->name :
+        ((active && active->filename[0]) ? active->filename : "(unknown)");
+    const char *file = (active && active->target_path[0]) ?
+        active->target_path : "";
+    const char *base_slash = file ? strrchr(file, '/') : NULL;
+    const char *current_basename = base_slash ? base_slash + 1 : file;
+
+    uint64_t off = active_downloaded;
+    uint64_t tot = (active_total > 0) ? active_total
+                   : (active ? active->total : 0);
+    int pct = 0;
+    if (tot > 0) {
+        pct = (int)((off * 100ULL) / tot);
+        if (pct > 100) pct = 100;
+    }
+    char off_buf[16], tot_buf[16], bps_buf[16], eta_buf[16];
+    format_size_short(off, off_buf, sizeof(off_buf));
+    format_size_short(tot, tot_buf, sizeof(tot_buf));
+    format_bps_short(active_bps, bps_buf, sizeof(bps_buf));
+    uint64_t remaining = (tot > off) ? (tot - off) : 0;
+    format_eta_short(remaining, active_bps, eta_buf, sizeof(eta_buf));
+
+    /* Overwrite each row in place, padded to SCREEN_COLS so leftover
+     * chars from prior longer text get blanked out.  No clear, no
+     * tab-strip redraw — only the 4 active-panel rows touch the
+     * framebuffer, so the user never sees a blank frame. */
+    int row = LIST_START_ROW;
+    char line[SCREEN_COLS + 4];
+
+    snprintf(line, sizeof(line), "Now: %.50s", display_name);
+    pspDebugScreenSetXY(0, row++);
+    pspDebugScreenPrintf("%-*s", SCREEN_COLS - 1, line);
+
+    snprintf(line, sizeof(line), "File: %.55s", current_basename);
+    pspDebugScreenSetXY(0, row++);
+    pspDebugScreenPrintf("%-*s", SCREEN_COLS - 1, line);
+
+    snprintf(line, sizeof(line), "%3d%%  %7s/%-7s  %9s  ETA %s",
+             pct, off_buf, tot_buf, bps_buf, eta_buf);
+    pspDebugScreenSetXY(0, row++);
+    pspDebugScreenPrintf("%-*s", SCREEN_COLS - 1, line);
+
+    snprintf(line, sizeof(line), "[Sq:pause] [O:cancel after pause]");
+    pspDebugScreenSetXY(0, row++);
+    pspDebugScreenPrintf("%-*s", SCREEN_COLS - 1, line);
+}
