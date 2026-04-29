@@ -129,6 +129,7 @@ bool downloads_load(DownloadList *list) {
         next_field(&cursor, bundle_flag_buf,   sizeof(bundle_flag_buf));
         next_field(&cursor, bundle_index_buf,  sizeof(bundle_index_buf));
         next_field(&cursor, bundle_count_buf,  sizeof(bundle_count_buf));
+        next_field(&cursor, e->extract_format, sizeof(e->extract_format));
 
         e->status = downloads_str_to_status(status_buf);
         e->offset = strtoull(offset_buf, NULL, 10);
@@ -181,7 +182,7 @@ bool downloads_save(const DownloadList *list) {
         DownloadStatus persisted =
             (e->status == DL_STATUS_ACTIVE) ? DL_STATUS_PAUSED : e->status;
 
-        fprintf(fp, "%s=%s|%llu|%llu|%s|%s|%s|%s|%d|%d|%d\n",
+        fprintf(fp, "%s=%s|%llu|%llu|%s|%s|%s|%s|%d|%d|%d|%s\n",
                 e->rom_id,
                 downloads_status_to_str(persisted),
                 (unsigned long long)e->offset,
@@ -192,7 +193,8 @@ bool downloads_save(const DownloadList *list) {
                 e->name,
                 e->is_bundle ? 1 : 0,
                 e->bundle_index,
-                e->bundle_count);
+                e->bundle_count,
+                e->extract_format);
     }
 
     fclose(fp);
@@ -244,6 +246,11 @@ DownloadEntry *downloads_upsert_from_catalog(DownloadList *list,
     if (rom->is_bundle && rom->file_count > 0) {
         e->bundle_count = rom->file_count;
     }
+    /* Carry the server's extract hint over so the worker knows whether
+     * to add ``?extract=<fmt>`` to the request URL.  Empty = raw. */
+    strncpy(e->extract_format, rom->extract_format,
+            sizeof(e->extract_format) - 1);
+    e->extract_format[sizeof(e->extract_format) - 1] = '\0';
 
     /* For bundles, target_path is a per-file location which only makes
      * sense once we have the manifest; leave empty until run_download

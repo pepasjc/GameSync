@@ -26,10 +26,13 @@
 /* ROM download target directories.  PS3 ISOs are mounted by webMAN/MultiMAN
  * from /dev_hdd0/PS3ISO; PSN packages live in /dev_hdd0/packages so the
  * built-in package installer can pick them up; .rap activation files for
- * PSN content go to /dev_hdd0/exdata where the firmware reads them. */
+ * PSN content go to /dev_hdd0/exdata where the firmware reads them; PS1
+ * games go under /dev_hdd0/PSXISO/<game name>/ so webMAN's PS1 emulator
+ * can mount them. */
 #define ROM_TARGET_ISO_DIR    "/dev_hdd0/PS3ISO"
 #define ROM_TARGET_PKG_DIR    "/dev_hdd0/packages"
 #define ROM_TARGET_EXDATA_DIR "/dev_hdd0/exdata"
+#define ROM_TARGET_PSXISO_DIR "/dev_hdd0/PSXISO"
 /* Fallback for any other ROM kind we cannot place automatically */
 #define ROM_TARGET_FALLBACK_DIR "/dev_hdd0/game/3DSSYNC00/USRDIR/downloads"
 

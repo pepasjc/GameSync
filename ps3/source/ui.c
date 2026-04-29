@@ -718,10 +718,10 @@ void ui_draw_rom_catalog(const RomCatalog *catalog,
 
     /* Header bar (mirrors ui_draw_list). */
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, HEADER_BAR_BOTTOM, 14, 20, 34, 255);
-    draw_text(24, 18, accent, "GameSync PS3 -- ROM Catalog (PS3)");
+    draw_text(24, 18, accent, "GameSync PS3 -- ROM Catalog");
     draw_tab_strip(APP_VIEW_ROMS);
     if (status_line && status_line[0])
-        draw_text(440, 36, dim, status_line);
+        draw_text(24, 38, dim, status_line);
 
     /* List border. */
     rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48,

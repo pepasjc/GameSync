@@ -25,10 +25,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Catalog cap.  Real PS3 catalogs are smaller than this so we just over-
- * provision and call it a day; if a real deployment exceeds this we'd
- * need pagination + windowing. */
-#define ROM_CATALOG_MAX 512
+/* Catalog cap.  Sized for real-world PS1 libraries (Redump full set is
+ * ~3000 titles).  Each RomEntry is ~420 B, so 4096 entries = ~1.7 MB
+ * BSS — comfortable on the PS3's user budget given the rest of the app
+ * sits well under 50 MB. */
+#define ROM_CATALOG_MAX 4096
 
 /* Max length of a rom_id string returned by the server.  These look like
  * "PS3_BLUS30443" or "PS3_BUNDLE_journey" so 96 is plenty. */
@@ -52,6 +53,9 @@ typedef struct {
     uint64_t size;                    /* total bytes the server will send */
     bool     is_bundle;               /* subfolder of .pkg/.rap/etc */
     int      file_count;              /* used when is_bundle is true */
+    /* Extraction hint advertised by the server (e.g. "cue" for PS1 CHDs
+     * that should be served as CUE/BIN ZIP).  Empty means raw download. */
+    char     extract_format[8];
 } RomEntry;
 
 typedef struct {
@@ -70,39 +74,46 @@ typedef struct {
     char          last_error[128];
 } RomBundleManifest;
 
-/* Fetch + parse the PS3 catalog into ``catalog``.  Pass an existing scratch
- * buffer (e.g. the 8 MB net buffer in main.c) and its capacity so we don't
- * stack-blow PS3's tiny default thread.
+/* Fetch + parse a system catalog into ``catalog``.  Pass the desired
+ * system code ("PS3" or "PS1") plus a scratch buffer (1 MB is enough for
+ * the JSON list — catalogs are kBs).
  *
  * Returns true on success.  On failure ``catalog->last_error`` is filled
  * with a user-displayable message ("offline", "auth failed", ...). */
-bool roms_fetch_ps3_catalog(const SyncState *state,
-                            char *scratch_buf, uint32_t scratch_buf_size,
-                            RomCatalog *catalog);
+bool roms_fetch_catalog(const SyncState *state,
+                        const char *system_code,
+                        char *scratch_buf, uint32_t scratch_buf_size,
+                        RomCatalog *catalog);
 
-/* Compute on-disk target path for a ROM entry.
+/* Compute on-disk target path for a single-file ROM entry.
  *
- *   .iso → /dev_hdd0/PS3ISO/<filename>
- *   .pkg → /dev_hdd0/packages/<filename>
- *   else → /dev_hdd0/game/3DSSYNC00/USRDIR/downloads/<filename>
+ *   PS3 .iso → /dev_hdd0/PS3ISO/<filename>
+ *   PS3 .pkg → /dev_hdd0/packages/<filename>
+ *   PS1 any  → /dev_hdd0/PSXISO/<sanitized_game_name>/<filename>
+ *   else     → /dev_hdd0/game/3DSSYNC00/USRDIR/downloads/<filename>
  *
- * The corresponding directory is mkdir()'d if missing.  out_path is filled
- * with at most out_size-1 bytes.  Returns false if the filename has no
- * recognized extension or out_size is too small. */
+ * out_path is filled with at most out_size-1 bytes.  Returns false if
+ * the filename has no recognized extension or out_size is too small. */
 bool roms_resolve_target_path(const RomEntry *rom,
                               char *out_path, size_t out_size);
 
-/* Per-file routing inside a PS3 bundle.
+/* Per-file routing inside a bundle, system-aware.
  *
- *   .pkg → /dev_hdd0/packages/<filename>
- *   .rap → /dev_hdd0/exdata/<filename>
- *   .iso → /dev_hdd0/PS3ISO/<filename>
- *   else → /dev_hdd0/packages/<filename>  (best-effort fallback)
+ *   PS3:
+ *     .pkg → /dev_hdd0/packages/<basename>
+ *     .rap/.edat → /dev_hdd0/exdata/<basename>
+ *     .iso → /dev_hdd0/PS3ISO/<basename>
+ *     else → /dev_hdd0/packages/<basename>  (fallback)
+ *   PS1:
+ *     all  → /dev_hdd0/PSXISO/<sanitized_game_name>/<basename>
  *
- * The basename is taken from the bundle file's relative path so a
- * subfolder like "DLC/Foo.pkg" still ends up in /dev_hdd0/packages,
- * matching how MultiMAN's package installer expects to find them. */
-bool roms_resolve_bundle_file_target(const char *bundle_file_name,
+ * The basename is taken from the bundle file's relative path; the
+ * subfolder under PSXISO is created from the bundle's name so webMAN's
+ * PS1 emulator can mount the disc the way it expects.  ``game_name``
+ * may be NULL or empty for non-PS1 systems. */
+bool roms_resolve_bundle_file_target(const char *system,
+                                     const char *game_name,
+                                     const char *bundle_file_name,
                                      char *out_path, size_t out_size);
 
 /* Fetch the bundle manifest from the server (GET /roms/{rom_id}/manifest).
@@ -117,6 +128,11 @@ bool roms_fetch_bundle_manifest(const SyncState *state,
 /* Make sure all target directories exist.  Called once at startup so
  * subsequent downloads don't have to retry the mkdir for each file. */
 void roms_ensure_target_dirs(void);
+
+/* Recursive mkdir helper exposed for callers that need to create
+ * per-game subfolders just before opening a .part file inside them
+ * (PS1 routing under /dev_hdd0/PSXISO/<game>/). */
+void roms_mkdir_p(const char *path);
 
 /* Stat /dev_hdd0 for free bytes and compare against required.  Returns
  * false if the FS query fails OR if free space is insufficient.

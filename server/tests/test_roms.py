@@ -56,6 +56,50 @@ def rom_client(rom_dir, client, auth_headers):
 
 
 @pytest.fixture()
+def rom_client_ps1_eboot(rom_dir, client, auth_headers):
+    """Fixture that wires up a stub ``popstation`` command for PS1 → PSP
+    EBOOT.PBP conversion.  The stub just prefixes ``PBP:`` to whatever
+    bytes the input file contains so tests can assert content end-to-end
+    without needing a real popstation install on CI runners."""
+    from app.services import rom_db, rom_scanner
+
+    original_rom_dir = settings.rom_dir
+    original_interval = settings.rom_scan_interval
+    original_cmd = settings.rom_ps1_eboot_command
+
+    settings.rom_dir = rom_dir
+    settings.rom_scan_interval = 0
+    settings.rom_ps1_eboot_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'PBP:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
+
+    rom_db.init_db(settings.save_dir)
+    _load_server_game_name_data()
+
+    (rom_dir / "psx").mkdir()
+    iso = rom_dir / "psx" / "Crash Bandicoot (USA).iso"
+    iso.write_bytes(b"DISC")
+
+    rom_scanner.init(rom_dir)
+
+    yield client
+
+    settings.rom_dir = original_rom_dir
+    settings.rom_scan_interval = original_interval
+    settings.rom_ps1_eboot_command = original_cmd
+    rom_scanner._catalog = None
+
+
+@pytest.fixture()
 def rom_client_3ds_zip(rom_dir, client, auth_headers):
     from app.services import rom_db, rom_scanner
 
@@ -559,6 +603,104 @@ class TestRomCatalog:
             assert r3.status_code in (400, 404)
         finally:
             settings.rom_dir = original
+            rom_scanner._catalog = None
+
+    def test_scan_ps1_subfolder_becomes_bundle(self, tmp_path):
+        """PS1 subfolder containing CD images collapses into a single
+        bundle entry — same shape as the PS3 PKG flow but triggered by
+        any PS1 ROM extension instead of just ``.pkg``.  Loose
+        top-level PS1 files stay individual.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        # Bundle: cue + bin tracks + sub sidecar
+        bundle = rom_dir / "psx" / "Final Fantasy VII (USA) (Disc 1)"
+        bundle.mkdir(parents=True)
+        (bundle / "FF7-D1.cue").write_bytes(b"FILE \"FF7-D1 (Track 01).bin\"\n")
+        (bundle / "FF7-D1 (Track 01).bin").write_bytes(b"x" * 4096)
+        (bundle / "FF7-D1 (Track 02).bin").write_bytes(b"y" * 2048)
+        (bundle / "FF7-D1.sub").write_bytes(b"s" * 256)
+
+        # Loose top-level CHD — stays as individual entry.
+        (rom_dir / "psx" / "Crash Bandicoot (USA).chd").write_bytes(b"c" * 8192)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        ps1 = catalog.list_by_system("PS1")
+        assert len(ps1) == 2
+
+        bundles = [e for e in ps1 if e.is_bundle]
+        loose = [e for e in ps1 if not e.is_bundle]
+        assert len(bundles) == 1
+        assert len(loose) == 1
+
+        b = bundles[0]
+        assert b.name == "Final Fantasy VII (USA) (Disc 1)"
+        names = sorted(f["name"] for f in b.bundle_files)
+        assert "FF7-D1.cue" in names
+        assert "FF7-D1 (Track 01).bin" in names
+        assert "FF7-D1 (Track 02).bin" in names
+        assert "FF7-D1.sub" in names  # companion kept
+        assert b.size == 4096 + 2048 + 256 + len(b"FILE \"FF7-D1 (Track 01).bin\"\n")
+
+        assert loose[0].filename == "Crash Bandicoot (USA).chd"
+
+    def test_ps1_eboot_extract_route(self, rom_client_ps1_eboot, auth_headers):
+        """``GET /api/v1/roms/<id>?extract=eboot`` runs the configured
+        popstation command and streams an EBOOT.PBP back.  Used by the
+        PSP client's ROM Catalog so PS1 games convert into a PBP that
+        drops into ms0:/PSP/GAME/<id>/.
+        """
+        resp = rom_client_ps1_eboot.get(
+            "/api/v1/roms?system=PS1", headers=auth_headers
+        )
+        assert resp.status_code == 200
+        roms = resp.json()["roms"]
+        assert len(roms) == 1
+        rom_id = roms[0]["rom_id"]
+
+        # The catalog row should advertise eboot in its extract_formats.
+        assert "eboot" in roms[0].get("extract_formats", [])
+
+        r2 = rom_client_ps1_eboot.get(
+            f"/api/v1/roms/{rom_id}?extract=eboot", headers=auth_headers
+        )
+        assert r2.status_code == 200
+        assert r2.headers["content-type"] == "application/octet-stream"
+        assert r2.content == b"PBP:DISC"
+
+    def test_ps1_eboot_unconfigured_returns_503(
+        self, rom_dir, client, auth_headers
+    ):
+        """Without a command template the route must surface a 503 with
+        a hint pointing at the env var, mirroring the 3DS / Xbox UX so
+        operators know exactly what to set."""
+        from app.services import rom_db, rom_scanner
+
+        original = settings.rom_dir
+        original_cmd = settings.rom_ps1_eboot_command
+        try:
+            rom_db.init_db(tmp_save := settings.save_dir)
+            _load_server_game_name_data()
+            settings.rom_dir = rom_dir
+            settings.rom_ps1_eboot_command = ""
+            (rom_dir / "psx").mkdir()
+            (rom_dir / "psx" / "Foo.iso").write_bytes(b"x")
+            rom_scanner.init(rom_dir)
+
+            rom_id = rom_scanner.get().list_by_system("PS1")[0].rom_id
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}?extract=eboot", headers=auth_headers
+            )
+            assert resp.status_code == 503
+            assert "SYNC_ROM_PS1_EBOOT_COMMAND" in resp.text
+        finally:
+            settings.rom_dir = original
+            settings.rom_ps1_eboot_command = original_cmd
             rom_scanner._catalog = None
 
     def test_bundle_zip_download(self, tmp_path, client, auth_headers):

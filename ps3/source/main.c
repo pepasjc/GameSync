@@ -55,6 +55,7 @@
 #include "state.h"
 #include "sync.h"
 #include "ui.h"
+#include "zip_extract.h"
 
 #include <SDL/SDL.h>
 #include <io/pad.h>
@@ -817,6 +818,13 @@ static int  g_rom_scroll   = 0;
 static int  g_dl_selected  = 0;
 static int  g_dl_scroll    = 0;
 
+/* Catalog system cycle.  L1 / R1 inside the ROM Catalog view rotates
+ * through this list; default is PS3 because that's the system most
+ * users will be looking at on a PS3 client. */
+static const char *G_ROM_SYSTEMS[] = { "PS3", "PS1" };
+#define G_ROM_SYSTEM_COUNT ((int)(sizeof(G_ROM_SYSTEMS) / sizeof(G_ROM_SYSTEMS[0])))
+static int g_rom_system_index = 0;
+
 /* Live progress for the active download — read by ui_draw_downloads when
  * rendered from the progress callback. */
 static volatile bool     g_active_in_progress = false;
@@ -1016,12 +1024,25 @@ static void run_download(const SyncState *state, DownloadEntry *e) {
             const RomBundleFile *bf = &manifest.files[idx];
 
             char target[PATH_LEN];
-            if (!roms_resolve_bundle_file_target(bf->name, target,
+            if (!roms_resolve_bundle_file_target(e->system, e->name,
+                                                 bf->name, target,
                                                  sizeof(target))) {
                 debug_log("download: bundle file %s could not resolve target",
                           bf->name);
                 rc = -2;
                 break;
+            }
+            /* PS1 (and any future per-game subfolder rule) needs the
+             * parent dir created before the streamer fopens .part. */
+            {
+                char parent[PATH_LEN];
+                strncpy(parent, target, sizeof(parent) - 1);
+                parent[sizeof(parent) - 1] = '\0';
+                char *slash = strrchr(parent, '/');
+                if (slash) {
+                    *slash = '\0';
+                    roms_mkdir_p(parent);
+                }
             }
             /* Ask the FS what's already on disk so a kill mid-file picks
              * up where the .part left off. */
@@ -1082,7 +1103,44 @@ static void run_download(const SyncState *state, DownloadEntry *e) {
         return;
     }
 
-    /* Single-file path (unchanged behaviour). */
+    /* Single-file path.  PS1 single-file ROMs route under
+     * /dev_hdd0/PSXISO/<game>/, so create that parent dir first or
+     * fopen will fail.
+     *
+     * For entries the server marks with an extract format (PS1 .chd →
+     * "cue"), we hijack the target path to point at a sibling .zip in
+     * the same directory and let the streamer write that.  After the
+     * download finishes we extract the ZIP into the original target's
+     * parent and delete the staging .zip — so the user ends up with
+     * cue+bin sitting at /dev_hdd0/PSXISO/<game>/ exactly the way
+     * webMAN's PS1 emulator wants them. */
+    char extract_target[PATH_LEN] = {0};
+    char extract_dir[PATH_LEN]    = {0};
+    bool needs_extract = (e->extract_format[0] != '\0');
+
+    if (needs_extract) {
+        /* extract_dir = parent of e->target_path */
+        strncpy(extract_dir, e->target_path, sizeof(extract_dir) - 1);
+        extract_dir[sizeof(extract_dir) - 1] = '\0';
+        char *slash = strrchr(extract_dir, '/');
+        if (slash) *slash = '\0';
+        /* Stage download as <parent>/<rom_id>.zip — rom_id is URL-safe
+         * and unique, avoids collisions when two extracted ROMs share
+         * the same stem. */
+        snprintf(extract_target, sizeof(extract_target),
+                 "%s/%s.zip", extract_dir, e->rom_id);
+        roms_mkdir_p(extract_dir);
+    } else {
+        char parent[PATH_LEN];
+        strncpy(parent, e->target_path, sizeof(parent) - 1);
+        parent[sizeof(parent) - 1] = '\0';
+        char *slash = strrchr(parent, '/');
+        if (slash) {
+            *slash = '\0';
+            roms_mkdir_p(parent);
+        }
+    }
+    const char *download_path = needs_extract ? extract_target : e->target_path;
     g_active_in_progress = true;
     g_active_downloaded  = e->offset;
     g_active_total       = e->total;
@@ -1099,8 +1157,10 @@ static void run_download(const SyncState *state, DownloadEntry *e) {
               (unsigned long long)e->total);
 
     uint64_t total_seen = 0;
-    int rc = network_download_rom_resumable(state, e->rom_id, e->target_path,
-                                            e->offset, &total_seen);
+    int rc = network_download_rom_resumable_ex(state, e->rom_id,
+                                               needs_extract ? e->extract_format : NULL,
+                                               download_path,
+                                               e->offset, &total_seen);
     network_set_progress64_cb(NULL);
 
     /* Refresh offset from the streamer's view (handles 200-vs-206 fallthroughs
@@ -1109,9 +1169,35 @@ static void run_download(const SyncState *state, DownloadEntry *e) {
     if (total_seen > 0) e->total = total_seen;
 
     if (rc == 0) {
-        e->status = DL_STATUS_COMPLETED;
-        ui_message("Download complete:\n\n%s\n\nSaved to:\n%s",
-                   e->name[0] ? e->name : e->filename, e->target_path);
+        if (needs_extract) {
+            ui_status("Extracting %s...", e->name[0] ? e->name : e->filename);
+            char err[128] = {0};
+            bool ok = zip_extract_stored(extract_target, extract_dir,
+                                         err, sizeof(err));
+            /* Drop the staging .zip whether extraction succeeded or
+             * not — the user can retry, but no point keeping a 1 GB
+             * intermediate. */
+            unlink(extract_target);
+            if (!ok) {
+                e->status = DL_STATUS_ERROR;
+                downloads_save(&g_downloads);
+                ui_message("Extract failed for %s:\n%s\n\nCheck %s.",
+                           e->name[0] ? e->name : e->filename,
+                           err[0] ? err : "(unknown)", DEBUG_LOG_FILE);
+                g_active_in_progress = false;
+                g_pause_requested    = false;
+                g_active_rom_id[0]   = '\0';
+                return;
+            }
+            e->status = DL_STATUS_COMPLETED;
+            ui_message(
+                "Download complete:\n\n%s\n\nExtracted to:\n%s",
+                e->name[0] ? e->name : e->filename, extract_dir);
+        } else {
+            e->status = DL_STATUS_COMPLETED;
+            ui_message("Download complete:\n\n%s\n\nSaved to:\n%s",
+                       e->name[0] ? e->name : e->filename, e->target_path);
+        }
     } else if (rc == 1) {
         e->status = DL_STATUS_PAUSED;
         ui_status("Paused %s", e->filename);
@@ -1627,18 +1713,42 @@ int main(void) {
         if (g_app_view == APP_VIEW_ROMS) {
             int total = g_rom_catalog.count;
 
+            const char *current_system =
+                G_ROM_SYSTEMS[g_rom_system_index];
+
+            /* L1 / R1: cycle catalog system (PS3 ↔ PS1).  Reset
+             * selection + cache so the new system's catalog auto-loads
+             * via the empty-cache check below. */
+            if ((just & MASK_L1) || (just & MASK_R1)) {
+                int dir = (just & MASK_R1) ? 1 : -1;
+                g_rom_system_index =
+                    (g_rom_system_index + dir + G_ROM_SYSTEM_COUNT)
+                    % G_ROM_SYSTEM_COUNT;
+                memset(&g_rom_catalog, 0, sizeof(g_rom_catalog));
+                g_rom_selected = 0;
+                g_rom_scroll   = 0;
+                current_system = G_ROM_SYSTEMS[g_rom_system_index];
+                ui_status("System: %s", current_system);
+                total = 0;
+                redraw = true;
+            }
+
             /* Auto-fetch on first entry (or when the catalog is empty
              * because a previous fetch failed and the user pressed
              * Circle to retry). */
             if (total == 0 && !g_rom_catalog.last_error[0] && has_net) {
-                ui_status("Fetching PS3 catalog...");
+                char fetching_msg[64];
+                snprintf(fetching_msg, sizeof(fetching_msg),
+                         "Fetching %s catalog...", current_system);
+                ui_status("%s", fetching_msg);
                 /* Reuse the request-time scratch buffer.  Catalog payloads
                  * are KB-MB so 1 MB is plenty without touching the bigger
                  * 8 MB save bundle buffer. */
                 static char catalog_scratch[1 * 1024 * 1024];
-                roms_fetch_ps3_catalog(state, catalog_scratch,
-                                       sizeof(catalog_scratch),
-                                       &g_rom_catalog);
+                roms_fetch_catalog(state, current_system,
+                                   catalog_scratch,
+                                   sizeof(catalog_scratch),
+                                   &g_rom_catalog);
                 total = g_rom_catalog.count;
                 if (g_rom_selected >= total) g_rom_selected = total > 0 ? total - 1 : 0;
                 redraw = true;
@@ -1742,9 +1852,11 @@ int main(void) {
             }
 
             if (redraw) {
-                char roms_status[128];
+                char roms_status[160];
                 snprintf(roms_status, sizeof(roms_status),
-                         "%d catalog entries, %d in queue",
+                         "[%s]  %d catalog entries, %d in queue   "
+                         "(L1/R1: switch system)",
+                         current_system,
                          g_rom_catalog.count, g_downloads.count);
                 ui_draw_rom_catalog(&g_rom_catalog, &g_downloads,
                                     g_rom_selected, g_rom_scroll,

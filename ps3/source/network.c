@@ -1042,16 +1042,25 @@ int network_trigger_rom_scan(const SyncState *state, int *count_out) {
 
 int network_fetch_rom_catalog(const SyncState *state,
                               const char *system_code,
+                              int offset, int limit,
                               char *out, uint32_t out_size,
                               int *status_out) {
     if (!state || !out || out_size < 2) return -1;
+    if (offset < 0) offset = 0;
+    if (limit  < 0) limit  = 0;
 
     char path[256];
+    int  pos = 0;
+    pos += snprintf(path + pos, sizeof(path) - pos, "/api/v1/roms?");
     if (system_code && system_code[0]) {
-        snprintf(path, sizeof(path), "/api/v1/roms?system=%s&limit=500", system_code);
-    } else {
-        snprintf(path, sizeof(path), "/api/v1/roms?limit=500");
+        pos += snprintf(path + pos, sizeof(path) - pos,
+                        "system=%s&", system_code);
     }
+    if (limit > 0) {
+        pos += snprintf(path + pos, sizeof(path) - pos,
+                        "limit=%d&", limit);
+    }
+    pos += snprintf(path + pos, sizeof(path) - pos, "offset=%d", offset);
 
     debug_log("net: fetch_rom_catalog GET %s server=%s out_size=%u",
               path, state->server_url, (unsigned)out_size);
@@ -1062,11 +1071,12 @@ int network_fetch_rom_catalog(const SyncState *state,
                          (uint8_t *)out, out_size, &status);
     if (status_out) *status_out = status;
     if (n < 0 || status != 200) {
-        debug_log("net: fetch_rom_catalog (%s) failed status=%d n=%d",
-                  system_code ? system_code : "all", status, n);
+        debug_log("net: fetch_rom_catalog (%s, offset=%d) failed status=%d n=%d",
+                  system_code ? system_code : "all", offset, status, n);
         return n < 0 ? n : -1;
     }
-    debug_log("net: fetch_rom_catalog OK n=%d status=%d", n, status);
+    debug_log("net: fetch_rom_catalog OK offset=%d n=%d status=%d",
+              offset, n, status);
     return n;
 }
 
@@ -1295,9 +1305,25 @@ int network_download_rom_resumable(const SyncState *state,
                                    const char *target_path,
                                    uint64_t start_offset,
                                    uint64_t *total_out) {
+    return network_download_rom_resumable_ex(state, rom_id, NULL,
+                                             target_path, start_offset,
+                                             total_out);
+}
+
+int network_download_rom_resumable_ex(const SyncState *state,
+                                      const char *rom_id,
+                                      const char *extract_format,
+                                      const char *target_path,
+                                      uint64_t start_offset,
+                                      uint64_t *total_out) {
     if (!state || !rom_id || !target_path) return -1;
     char api_path[512];
-    snprintf(api_path, sizeof(api_path), "/api/v1/roms/%s", rom_id);
+    if (extract_format && extract_format[0]) {
+        snprintf(api_path, sizeof(api_path),
+                 "/api/v1/roms/%s?extract=%s", rom_id, extract_format);
+    } else {
+        snprintf(api_path, sizeof(api_path), "/api/v1/roms/%s", rom_id);
+    }
     return download_stream_to_file(state, api_path, target_path,
                                    start_offset, total_out);
 }

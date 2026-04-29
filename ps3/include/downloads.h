@@ -59,6 +59,12 @@ typedef struct {
     bool     is_bundle;
     int      bundle_index;
     int      bundle_count;
+    /* Server-side extract hint.  When non-empty, the streamer appends
+     * ``?extract=<fmt>`` to the download URL and the worker treats the
+     * downloaded file as a ZIP_STORED archive that should be extracted
+     * into the target's parent directory.  Used by PS1 CHDs (extract=cue
+     * → ZIP of CUE+BIN). */
+    char     extract_format[8];
 } DownloadEntry;
 
 typedef struct {

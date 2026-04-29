@@ -67,11 +67,15 @@ bool network_activate_fake_usb(void);
  * 8 MB bundle buffer (which only fits saves) and stream straight to disk
  * so multi-GB ISOs and PKGs can be downloaded on the PS3's tiny budget. */
 
-/* Fetch raw catalog JSON for a system.  Caller-owned out buffer is filled
- * with up to out_size-1 bytes (NUL-terminated).  Returns body length on
- * success, <=0 on error.  status_out receives the HTTP status code. */
+/* Fetch raw catalog JSON for a system, with offset/limit pagination.
+ * Caller-owned out buffer is filled with up to out_size-1 bytes (NUL-
+ * terminated).  Returns body length on success, <=0 on error.  status_out
+ * receives the HTTP status code.  Offset and limit map to the server's
+ * /api/v1/roms ?offset=N&limit=N parameters; pass limit=0 for the
+ * server's default page size. */
 int network_fetch_rom_catalog(const SyncState *state,
                               const char *system_code,
+                              int offset, int limit,
                               char *out, uint32_t out_size,
                               int *status_out);
 
@@ -105,6 +109,17 @@ int network_download_rom_resumable(const SyncState *state,
                                    const char *target_path,
                                    uint64_t start_offset,
                                    uint64_t *total_out);
+
+/* Same as network_download_rom_resumable, but appends ``?extract=<fmt>``
+ * to the request URL when ``extract_format`` is non-empty.  Used for PS1
+ * CHDs which the server converts to CUE/BIN on the fly and serves as a
+ * ZIP_STORED archive. */
+int network_download_rom_resumable_ex(const SyncState *state,
+                                      const char *rom_id,
+                                      const char *extract_format,
+                                      const char *target_path,
+                                      uint64_t start_offset,
+                                      uint64_t *total_out);
 
 /* Optional 64-bit progress variant — same NetProgressFn callback, but the
  * download streamer reports cumulative bytes written via this.  Set NULL to

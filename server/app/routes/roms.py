@@ -261,6 +261,22 @@ _XBOX_EXTRACT_SPECS = {
 }
 _XBOX_EXTRACT_FORMATS = list(_XBOX_EXTRACT_SPECS.keys())
 
+# PS1 → PSP EBOOT.PBP conversion (popstation-style).  Used by the PSP
+# client's ROM Catalog so PS1 games convert into a PBP installable
+# under ms0:/PSP/GAME/<id>/.  Spec mirrors the 3DS/Xbox layout so the
+# templated command runner + cache code paths handle it without special
+# casing.  Output is a single .pbp file served raw (Content-Type
+# application/octet-stream) — no zip, no archive, the client writes it
+# directly as EBOOT.PBP at the target path.
+_PS1_EBOOT_SYSTEMS = frozenset({'PS1', 'PSX'})
+_PS1_EBOOT_SPEC = {
+    'setting': 'rom_ps1_eboot_command',
+    'env': 'SYNC_ROM_PS1_EBOOT_COMMAND',
+    'label': 'PSP EBOOT.PBP',
+    'output_ext': '.pbp',
+    'mime': 'application/octet-stream',
+}
+
 # All systems that support any CHD extraction
 _CD_SYSTEMS   = _CUE_SYSTEMS | _GDI_SYSTEMS
 _ALL_EXTRACT  = _CD_SYSTEMS | _PSP_SYSTEMS
@@ -681,6 +697,11 @@ async def download_rom(
             return await _extract_xbox(file_path, sys_up, fmt)
         elif fmt in _3DS_EXTRACT_SPECS:
             return await _extract_3ds(file_path, sys_up, fmt)
+        elif fmt == 'eboot' and sys_up in _PS1_EBOOT_SYSTEMS:
+            # PS1 → PSP EBOOT.PBP via popstation; check before the
+            # generic CUE/BIN ``_extract_cd`` branch so PS1 doesn't
+            # silently fall through to the wrong handler.
+            return await _extract_ps1_eboot(file_path, sys_up)
         elif fmt == 'rvz' or (fmt == 'iso' and file_path.suffix.lower() == '.rvz'):
             return await _extract_rvz(file_path, file_path.stem)
         elif fmt == 'iso' and sys_up in _PS2_SYSTEMS:
@@ -999,6 +1020,112 @@ async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
         return Response(status_code=504, content="Conversion timed out (>60 min)")
 
     cached_path = _save_to_cache(final_path, source_path, fmt, spec['output_ext'])
+    return _stream_file_response(cached_path, spec['mime'], cleanup_dir=tmpdir)
+
+
+# ── PS1 → PSP EBOOT.PBP ──────────────────────────────────────────────────────
+
+async def _extract_ps1_eboot(source_path: Path, system: str) -> Response:
+    """Convert a PS1 disc image to a PSP-installable EBOOT.PBP.
+
+    Used by the PSP client's ROM Catalog so PS1 games convert into a PBP
+    installable under ``ms0:/PSP/GAME/<id>/`` and play on real PSP
+    hardware (popstation route).  Output is the raw .pbp — no zip
+    wrapper — so the client can stream it straight to the target path
+    without an extra extraction step.
+
+    Mirrors :func:`_extract_xbox` / :func:`_extract_3ds` for the command
+    template + cache fast-path.  Until the operator wires up
+    ``SYNC_ROM_PS1_EBOOT_COMMAND``, the route returns 503 with a hint.
+    """
+    if system not in _PS1_EBOOT_SYSTEMS:
+        return Response(
+            status_code=400,
+            content=(
+                "EBOOT extraction is only supported for PS1 ROMs "
+                f"(got {system})"
+            ),
+        )
+
+    spec = _PS1_EBOOT_SPEC
+
+    # Cache fast-path — the same source ROM always produces the same PBP
+    # (popstation is deterministic for a given input + version).
+    cached = _lookup_cached_output(source_path, 'eboot', spec['output_ext'])
+    if cached is not None:
+        return _stream_file_response(cached, spec['mime'])
+
+    command_template = getattr(settings, spec['setting'])
+    if not command_template:
+        return Response(
+            status_code=503,
+            content=(
+                f"PS1 → {spec['label']} conversion is not configured on the server.\n"
+                f"\n"
+                f"To enable this conversion, set {spec['env']} to a command template that "
+                f"reads {{input}} (a PS1 .cue/.bin/.chd/.iso) and writes the output to "
+                f"{{output}} (an EBOOT.PBP).  ``{{output_dir}}`` is a fresh scratch dir "
+                f"and ``{{stem}}`` is the input filename without extension.\n"
+                f"\n"
+                f"Pi-friendly examples:\n"
+                f"  popstation_md (https://github.com/dots-tb/popstation_md):\n"
+                f"    popstation_md -i {{input}} -o {{output}}\n"
+                f"  psx2psp (Python, no compile):\n"
+                f"    python3 psx2psp.py -i {{input}} -o {{output}}\n"
+            ),
+        )
+
+    tmpdir = tempfile.mkdtemp(prefix='ps1_eboot_', dir=_conversion_tmp_dir())
+
+    def _run() -> Path:
+        tmp = Path(tmpdir)
+        stem = source_path.stem
+        output_name = f"{stem}{spec['output_ext']}"
+        output_path = tmp / output_name
+
+        cmd = _expand_command_template(
+            command_template,
+            input=str(source_path),
+            output=str(output_path),
+            output_dir=str(tmp),
+            stem=stem,
+        )
+        # popstation runs are I/O-bound on the Pi; cap at 30 min for a
+        # ~700 MB CD image — generous enough for old SD cards.
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=1800,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                result.stderr.strip()
+                or result.stdout.strip()
+                or 'PS1 → EBOOT conversion failed'
+            )
+
+        final_path = (
+            output_path
+            if output_path.is_file()
+            else _find_single_output(tmp, spec['output_ext'])
+        )
+        if final_path is None or not final_path.is_file():
+            raise RuntimeError(
+                "popstation completed but did not produce an EBOOT.PBP"
+            )
+        return final_path
+
+    try:
+        final_path = await asyncio.get_event_loop().run_in_executor(None, _run)
+    except RuntimeError as exc:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=500, content=f"Conversion failed: {exc}")
+    except subprocess.TimeoutExpired:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=504, content="Conversion timed out (>30 min)")
+
+    cached_path = _save_to_cache(final_path, source_path, 'eboot', spec['output_ext'])
     return _stream_file_response(cached_path, spec['mime'], cleanup_dir=tmpdir)
 
 
@@ -1333,8 +1460,18 @@ def _extract_formats_for_entry(system: str, filename: str) -> tuple[str | None, 
             return None, []
         if sys_up in _GDI_SYSTEMS:
             return 'gdi', ['gdi']
+        if sys_up in _PS1_EBOOT_SYSTEMS:
+            # PS1 CHD: PS3 client wants CUE/BIN, PSP client wants
+            # EBOOT.PBP.  Advertise both so each client picks its
+            # native format from extract_formats[].
+            return 'cue', ['cue', 'eboot']
         if sys_up in _CUE_SYSTEMS:
             return 'cue', ['cue']
+    elif sys_up in _PS1_EBOOT_SYSTEMS and suffix in {'.cue', '.bin', '.iso', '.img'}:
+        # PS1 native disc images (no CHD) — no extract needed for the
+        # PS3 client (raw CUE/BIN is fine), but the PSP client needs
+        # an EBOOT, so advertise that as the only option.
+        return None, ['eboot']
     elif suffix == '.rvz' and sys_up in _GC_SYSTEMS:
         return 'rvz', ['iso']
     elif sys_up in _3DS_SYSTEMS and suffix in _3DS_CART_EXTENSIONS.union({'.zip'}):

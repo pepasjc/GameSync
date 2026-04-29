@@ -130,35 +130,26 @@ static bool object_bounds(const char *p, const char *end, const char **end_out) 
 
 /* --- Catalog fetch + parse --- */
 
-bool roms_fetch_ps3_catalog(const SyncState *state,
-                            char *scratch_buf, uint32_t scratch_buf_size,
-                            RomCatalog *catalog) {
-    if (!state || !catalog || !scratch_buf) return false;
-    catalog->count = 0;
-    catalog->last_error[0] = '\0';
+/* Parse one catalog page already buffered in ``scratch_buf`` and append
+ * its entries to ``catalog``.  Sets ``has_more_out`` from the response
+ * (false on absent field — i.e. server returned everything in one shot).
+ * Returns false only on parse error (response shape unexpected); a page
+ * with zero entries is a normal end-of-list and returns true. */
+static bool parse_catalog_page(const char *scratch_buf, int n,
+                               RomCatalog *catalog,
+                               bool *has_more_out) {
+    if (has_more_out) *has_more_out = false;
 
-    int status = 0;
-    int n = network_fetch_rom_catalog(state, "PS3",
-                                      scratch_buf, scratch_buf_size, &status);
-    if (n <= 0 || status != 200) {
-        snprintf(catalog->last_error, sizeof(catalog->last_error),
-                 "Catalog fetch failed (HTTP %d, n=%d)", status, n);
-        debug_log("roms: %s", catalog->last_error);
-        return false;
-    }
-
-    /* Walk into the "roms" array and extract each entry.
-     *
-     * find_key counts brace depth and only matches at the *current* top
-     * level (depth 0 from the caller's POV), mirroring how the per-
-     * object lookups below pass ``p + 1`` past their object's opening
-     * brace.  The catalog response is wrapped in ``{ ... }`` so we have
-     * to advance past that outer ``{`` too — otherwise the very first
-     * char bumps depth to 1 and find_key never matches the top-level
-     * "roms" key. */
     const char *body_end = scratch_buf + n;
     const char *body = skip_ws(scratch_buf);
     if (body < body_end && *body == '{') body++;
+
+    /* Top-level has_more flag tells us when to stop the page loop. */
+    const char *more_v = find_key(body, body_end, "has_more");
+    if (more_v && has_more_out) {
+        const char *q = skip_ws(more_v);
+        *has_more_out = (q < body_end && *q == 't');
+    }
 
     const char *roms_v = find_key(body, body_end, "roms");
     if (!roms_v || *roms_v != '[') {
@@ -193,10 +184,12 @@ bool roms_fetch_ps3_catalog(const SyncState *state,
         if (v) extract_str(v, obj_end, e->system, sizeof(e->system));
         v = find_key(p + 1, obj_end, "size");
         if (v) extract_u64(v, obj_end, &e->size);
-        /* Bundle metadata — parse_json_str-style scalar lookups.  The
-         * server returns ``is_bundle`` as a JSON boolean (true/false);
-         * the find_key helper positions us right after the colon, so
-         * we only need to peek at the first non-space char. */
+        /* Server hint: when set, catalog row needs ``?extract=<fmt>``
+         * appended on download.  Used by PS1 .chd entries that should
+         * be served as CUE/BIN ZIP rather than raw CHD. */
+        v = find_key(p + 1, obj_end, "extract_format");
+        if (v) extract_str(v, obj_end, e->extract_format,
+                           sizeof(e->extract_format));
         v = find_key(p + 1, obj_end, "is_bundle");
         if (v) {
             const char *q = skip_ws(v);
@@ -210,11 +203,8 @@ bool roms_fetch_ps3_catalog(const SyncState *state,
             }
         }
 
-        /* Skip entries with missing required fields rather than crashing
-         * the UI later. */
         if (e->rom_id[0] && e->filename[0]) {
             if (!e->name[0]) {
-                /* Fallback so the user always sees *something*. */
                 strncpy(e->name, e->filename, sizeof(e->name) - 1);
             }
             catalog->count++;
@@ -222,8 +212,70 @@ bool roms_fetch_ps3_catalog(const SyncState *state,
 
         p = obj_end + 1;
     }
+    return true;
+}
 
-    debug_log("roms: parsed %d catalog entries (PS3)", catalog->count);
+bool roms_fetch_catalog(const SyncState *state,
+                        const char *system_code,
+                        char *scratch_buf, uint32_t scratch_buf_size,
+                        RomCatalog *catalog) {
+    if (!state || !catalog || !scratch_buf) return false;
+    catalog->count = 0;
+    catalog->last_error[0] = '\0';
+
+    /* Walk pages of 500 rows each until the server says ``has_more=false``
+     * or we hit ROM_CATALOG_MAX.  Server caps at 20 000 per request but
+     * the PS3 client's RAM budget — and the perceived latency of a single
+     * giant fetch — make smaller pages a better trade.  500 rows of
+     * typical catalog JSON sits well under 1 MB so the same scratch
+     * buffer is reused per page. */
+    const int page_size = 500;
+    int offset = 0;
+    int pages = 0;
+    while (catalog->count < ROM_CATALOG_MAX) {
+        int status = 0;
+        int n = network_fetch_rom_catalog(
+            state,
+            (system_code && system_code[0]) ? system_code : "PS3",
+            offset, page_size,
+            scratch_buf, scratch_buf_size, &status);
+        if (n <= 0 || status != 200) {
+            /* Network or server error.  Keep entries we already
+             * parsed so the user sees something rather than nothing,
+             * and surface the page-specific error. */
+            if (catalog->count == 0) {
+                snprintf(catalog->last_error, sizeof(catalog->last_error),
+                         "Catalog fetch failed (HTTP %d, n=%d)", status, n);
+                debug_log("roms: %s", catalog->last_error);
+                return false;
+            }
+            debug_log("roms: page %d at offset %d failed (status=%d n=%d) "
+                      "— keeping %d entries already parsed",
+                      pages, offset, status, n, catalog->count);
+            break;
+        }
+
+        int before = catalog->count;
+        bool has_more = false;
+        if (!parse_catalog_page(scratch_buf, n, catalog, &has_more)) {
+            return false;
+        }
+        int parsed = catalog->count - before;
+        pages++;
+        debug_log("roms: page %d offset=%d parsed=%d total=%d has_more=%d",
+                  pages, offset, parsed, catalog->count, (int)has_more);
+
+        if (!has_more || parsed == 0) break;
+        offset += page_size;
+        /* Safety net: server should send has_more=false eventually,
+         * but cap the page count anyway so a buggy server can't loop
+         * us forever. */
+        if (pages >= (ROM_CATALOG_MAX / page_size) + 2) break;
+    }
+
+    debug_log("roms: parsed %d catalog entries (%s) across %d pages",
+              catalog->count,
+              system_code && system_code[0] ? system_code : "all", pages);
     return true;
 }
 
@@ -234,14 +286,66 @@ static const char *file_extension(const char *filename) {
     return dot ? dot : "";
 }
 
+/* Sanitize a game name into a valid PS3 filesystem path component.
+ *
+ * Strips characters real-PS3 vfat can choke on (`<>:"/\|?*` plus
+ * NUL/control); collapses runs of whitespace to single spaces; trims
+ * leading/trailing spaces and dots so we never produce a directory name
+ * Windows refuses to display when the user mounts the drive elsewhere.
+ *
+ * Output is written to ``out`` and is guaranteed NUL-terminated.  At
+ * least 1 byte of payload is emitted ("game" fallback) when the input
+ * sanitizes down to nothing, so callers don't have to handle empty
+ * directory names. */
+static void sanitize_game_name(const char *in, char *out, size_t out_size) {
+    if (!out || out_size == 0) return;
+    if (!in || !*in) {
+        snprintf(out, out_size, "game");
+        return;
+    }
+    size_t j = 0;
+    bool last_space = false;
+    for (size_t i = 0; in[i] && j + 1 < out_size; i++) {
+        unsigned char c = (unsigned char)in[i];
+        if (c < 0x20) continue;
+        if (c == '<' || c == '>' || c == ':' || c == '"' ||
+            c == '/' || c == '\\' || c == '|' || c == '?' || c == '*') {
+            continue;
+        }
+        if (c == ' ' || c == '\t') {
+            if (last_space || j == 0) continue;
+            out[j++] = ' ';
+            last_space = true;
+            continue;
+        }
+        out[j++] = (char)c;
+        last_space = false;
+    }
+    /* Trim trailing whitespace + dots (Windows reads the SD card too). */
+    while (j > 0 && (out[j - 1] == ' ' || out[j - 1] == '.')) j--;
+    out[j] = '\0';
+    if (j == 0) snprintf(out, out_size, "game");
+}
+
 bool roms_resolve_target_path(const RomEntry *rom,
                               char *out_path, size_t out_size) {
     if (!rom || !out_path || out_size < 32) return false;
 
     const char *ext = file_extension(rom->filename);
-    const char *dir;
 
-    /* Lowercase compare so ".ISO"/".PKG"-named uploads still route. */
+    /* PS1 single-file ROMs always go inside a per-game subfolder so
+     * webMAN's PS1 emulator can find them at /dev_hdd0/PSXISO/<game>/. */
+    if (strcasecmp(rom->system, "PS1") == 0) {
+        char safe_name[160];
+        sanitize_game_name(rom->name[0] ? rom->name : rom->filename,
+                           safe_name, sizeof(safe_name));
+        int n = snprintf(out_path, out_size,
+                         "%s/%s/%s",
+                         ROM_TARGET_PSXISO_DIR, safe_name, rom->filename);
+        return n > 0 && (size_t)n < out_size;
+    }
+
+    const char *dir;
     if (strcasecmp(ext, ".iso") == 0)      dir = ROM_TARGET_ISO_DIR;
     else if (strcasecmp(ext, ".pkg") == 0) dir = ROM_TARGET_PKG_DIR;
     else                                   dir = ROM_TARGET_FALLBACK_DIR;
@@ -250,7 +354,9 @@ bool roms_resolve_target_path(const RomEntry *rom,
     return n > 0 && (size_t)n < out_size;
 }
 
-bool roms_resolve_bundle_file_target(const char *bundle_file_name,
+bool roms_resolve_bundle_file_target(const char *system,
+                                     const char *game_name,
+                                     const char *bundle_file_name,
                                      char *out_path, size_t out_size) {
     if (!bundle_file_name || !out_path || out_size < 32) return false;
 
@@ -262,6 +368,16 @@ bool roms_resolve_bundle_file_target(const char *bundle_file_name,
     const char *slash = strrchr(bundle_file_name, '/');
     const char *base = slash ? slash + 1 : bundle_file_name;
     if (!*base) return false;
+
+    /* PS1 bundles always route to /dev_hdd0/PSXISO/<game name>/<file>. */
+    if (system && strcasecmp(system, "PS1") == 0) {
+        char safe_name[160];
+        sanitize_game_name(game_name, safe_name, sizeof(safe_name));
+        int n = snprintf(out_path, out_size,
+                         "%s/%s/%s",
+                         ROM_TARGET_PSXISO_DIR, safe_name, base);
+        return n > 0 && (size_t)n < out_size;
+    }
 
     const char *ext = file_extension(base);
     const char *dir;
@@ -376,8 +492,14 @@ void roms_ensure_target_dirs(void) {
     mkdir_p(ROM_TARGET_ISO_DIR);
     mkdir_p(ROM_TARGET_PKG_DIR);
     mkdir_p(ROM_TARGET_EXDATA_DIR);
+    mkdir_p(ROM_TARGET_PSXISO_DIR);
     mkdir_p(ROM_TARGET_FALLBACK_DIR);
 }
+
+/* Public mkdir_p so main.c can ensure a per-game PS1 subfolder exists
+ * right before running the download streamer (the streamer fopen's a
+ * .part file inside it). */
+void roms_mkdir_p(const char *path) { mkdir_p(path); }
 
 /* --- Free-space check --- */
 

@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     # returns 503 with a hint pointing at SYNC_ROM_XBOX_*.
     rom_xbox_iso_command: str = ""
     rom_xbox_folder_command: str = ""
+    # Optional command template for converting a PS1 disc image to a PSP
+    # EBOOT.PBP (popstation-style) so the PSP client can drop the result
+    # into ms0:/PSP/GAME/<id>/ and play PS1 games on real PSP hardware.
+    # Same placeholder set as the other extract commands: {input},
+    # {output}, {output_dir}, {stem}.  Expected output is a single file
+    # at {output} (an EBOOT.PBP).  Recommended Pi-friendly tools:
+    #   - ``psx2psp`` (Python, no compile)
+    #   - ``popstation_md`` (C, builds with ``make``)
+    # Empty by default; until set the server returns 503 with a hint
+    # pointing at SYNC_ROM_PS1_EBOOT_COMMAND.
+    rom_ps1_eboot_command: str = ""
     api_key: str = "anything"
     host: str = "0.0.0.0"
     port: int = 8000
