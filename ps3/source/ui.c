@@ -492,8 +492,6 @@ void ui_message(const char *fmt, ...) {
 
     if (!g_screen) return;
 
-    drain_buttons();
-
     ui_clear();
     boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
     draw_text(24, 18, (UiColor){88, 208, 255}, "GameSync PS3");

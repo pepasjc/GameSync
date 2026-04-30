@@ -1,0 +1,18 @@
+# nxdk build artefacts
+bin/
+obj/
+*.exe
+*.xbe
+*.iso
+*.lib
+*.obj
+*.o
+*.d
+*.map
+*.pdb
+*.ilk
+
+# editor
+.vscode/
+.idea/
+*.swp

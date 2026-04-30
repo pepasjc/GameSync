@@ -108,6 +108,14 @@ static int tcp_connect(const char *host, int port) {
     int s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (s < 0) { debug_log("net: socket() failed %d", s); return -1; }
 
+    /* Enlarge socket buffers — PS3 defaults are tiny (likely 8-16 KB)
+     * which limits TCP window size and tanks throughput on wired LAN.
+     * 256 KB each lets the kernel pipeline enough data to keep wired
+     * 100 Mbit saturated without the sender stalling on window pressure. */
+    int bufsize = 256 * 1024;
+    setsockopt(s, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+    setsockopt(s, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+
     /* Set send timeout so blocking connect doesn't hang indefinitely.
      * On LAN, ENETUNREACH comes back immediately anyway; this covers the
      * rare case where a SYN is dropped with no RST. */
@@ -136,7 +144,7 @@ static int tcp_connect(const char *host, int port) {
 
 /* ---- Send all bytes (with callback pumping) ----
  *
- * Sends in 64KB chunks.  Between chunks (and on SO_SNDTIMEO timeouts)
+ * Sends in 128KB chunks.  Between chunks (and on SO_SNDTIMEO timeouts)
  * the progress callback is invoked so sysUtilCheckCallback() gets called.
  * On real PS3 firmware, failing to pump sysutil for several seconds while
  * blocking in send() makes the system consider the app frozen — this does
@@ -146,7 +154,7 @@ static bool send_all(int s, const uint8_t *buf, uint32_t size) {
     uint32_t sent = 0;
     while (sent < size) {
         uint32_t chunk = size - sent;
-        if (chunk > 65536) chunk = 65536;
+        if (chunk > 131072) chunk = 131072;
 
         int n = (int)send(s, buf + sent, chunk, 0);
         if (n > 0) {
@@ -314,7 +322,7 @@ static int http_request(const SyncState *state,
 
         while ((uint32_t)total < want) {
             uint32_t chunk = want - (uint32_t)total;
-            if (chunk > 65536) chunk = 65536;
+            if (chunk > 262144) chunk = 262144;
             int n = (int)recv(s, resp_buf + total, chunk, 0);
             if (n > 0) {
                 total += n;
@@ -1211,9 +1219,10 @@ static int download_stream_to_file(const SyncState *state,
         return -2;
     }
 
-    /* 64 KB recv chunk — same as send_all, balances syscall overhead with
-     * the 1-second SO_RCVTIMEO so we pump sysutil often enough. */
-    static uint8_t chunk[65536];
+    /* 256 KB recv chunk — larger than the old 64 KB to reduce syscall
+     * overhead on wired LAN.  Still well within PS3's BSS budget and
+     * the 1-second SO_RCVTIMEO ensures sysutil gets pumped regularly. */
+    static uint8_t chunk[262144];
     int rc = 0;
     while (1) {
         int n = (int)recv(s, chunk, sizeof(chunk), 0);
@@ -1298,6 +1307,38 @@ static int download_stream_to_file(const SyncState *state,
     return 0;
 }
 
+static bool is_url_path_safe(unsigned char c) {
+    return (c >= 'A' && c <= 'Z') ||
+           (c >= 'a' && c <= 'z') ||
+           (c >= '0' && c <= '9') ||
+           c == '-' || c == '.' || c == '_' || c == '~' ||
+           c == '/';
+}
+
+static bool url_encode_path(const char *in, char *out, size_t out_size) {
+    static const char hex[] = "0123456789ABCDEF";
+    size_t j = 0;
+
+    if (!in || !out || out_size == 0) return false;
+
+    for (size_t i = 0; in[i] != '\0'; i++) {
+        unsigned char c = (unsigned char)in[i];
+        if (is_url_path_safe(c)) {
+            if (j + 1 >= out_size) return false;
+            out[j++] = (char)c;
+            continue;
+        }
+
+        if (j + 3 >= out_size) return false;
+        out[j++] = '%';
+        out[j++] = hex[(c >> 4) & 0x0F];
+        out[j++] = hex[c & 0x0F];
+    }
+
+    out[j] = '\0';
+    return true;
+}
+
 /* Public wrappers for the two endpoints clients hit. */
 
 int network_download_rom_resumable(const SyncState *state,
@@ -1335,14 +1376,20 @@ int network_download_bundle_file_resumable(const SyncState *state,
                                            uint64_t start_offset,
                                            uint64_t *total_out) {
     if (!state || !rom_id || !bundle_file || !target_path) return -1;
-    /* Relative paths inside the bundle may have spaces or other URL-
-     * unsafe characters.  We don't have a dependency on a URL encoder so
-     * we copy the relative path verbatim — works for the typical PSN
-     * dump layouts (single-segment names, no spaces).  If a future
-     * deployment uses spaces we'll add a tiny percent-encoder here. */
+    /* Relative paths inside the bundle commonly contain spaces,
+     * parentheses, brackets, and translation tags.  These must be escaped
+     * before they are placed in the HTTP request line; otherwise the
+     * server rejects the request as malformed before it reaches FastAPI. */
+    char encoded_file[512];
+    if (!url_encode_path(bundle_file, encoded_file, sizeof(encoded_file))) {
+        debug_log("net: bundle file path too long to URL-encode: %s",
+                  bundle_file);
+        return -1;
+    }
+
     char api_path[768];
     snprintf(api_path, sizeof(api_path),
-             "/api/v1/roms/%s/file/%s", rom_id, bundle_file);
+             "/api/v1/roms/%s/file/%s", rom_id, encoded_file);
     return download_stream_to_file(state, api_path, target_path,
                                    start_offset, total_out);
 }

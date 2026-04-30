@@ -200,11 +200,22 @@ bool downloads_save(const DownloadList *list) {
     fclose(fp);
 
     if (rename(tmp_path, DOWNLOADS_FILE) != 0) {
-        debug_log("downloads: rename %s -> %s failed errno=%d",
-                  tmp_path, DOWNLOADS_FILE, errno);
-        unlink(DOWNLOADS_FILE);
+        int first_errno = errno;
+        if (first_errno != EEXIST) {
+            debug_log("downloads: rename %s -> %s failed errno=%d",
+                      tmp_path, DOWNLOADS_FILE, first_errno);
+            unlink(tmp_path);
+            return false;
+        }
+        if (unlink(DOWNLOADS_FILE) != 0 && errno != ENOENT) {
+            debug_log("downloads: unlink %s failed errno=%d",
+                      DOWNLOADS_FILE, errno);
+            return false;
+        }
         if (rename(tmp_path, DOWNLOADS_FILE) != 0) {
-            debug_log("downloads: rename retry failed errno=%d", errno);
+            debug_log("downloads: rename %s -> %s retry failed errno=%d "
+                      "(first errno=%d)",
+                      tmp_path, DOWNLOADS_FILE, errno, first_errno);
             return false;
         }
     }
