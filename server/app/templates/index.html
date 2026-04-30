@@ -856,6 +856,12 @@ const STAGES = {
     'Building CCI archive…',
     'Packaging ZIP archive…',
   ],
+  folder: [
+    'Starting extraction…',
+    'Opening Xbox disc image…',
+    'Extracting game files…',
+    'Packaging ZIP archive…',
+  ],
 };
 
 // Labels and filename suffixes per format
@@ -868,6 +874,7 @@ const FMT_META = {
   cia:           { badge:'CIA',  source:'3DS CART', suffix:' · decrypted',   ext:'.cia',  errHint:'Configure SYNC_ROM_3DS_CIA_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
   decrypted_cci: { badge:'CCI',  source:'3DS CART', suffix:' · decrypted',   ext:'.cci',  errHint:'Configure SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
   cci: { badge:'CCI',           source:'Xbox',    suffix:' · ZIP',              ext:'.zip',  errHint:'Configure SYNC_ROM_XBOX_CCI_COMMAND on the server.' },
+  folder: { badge:'FOLDER',     source:'Xbox',    suffix:' · ZIP',              ext:'.zip',  errHint:'Configure SYNC_ROM_XBOX_FOLDER_COMMAND on the server.' },
 };
 
 function queueKey(titleId, fmt) {
@@ -1577,14 +1584,19 @@ function romCardHtml(rom) {
         data-url="${rawUrl}" data-fn="${fn}"
         title="Download original ${rawLabel} cart image">3DS</button>`);
     btnHtml = `<div class="rom-btns rom-btns-3ds">${cartButtons.join('')}</div>`;
-  } else if (extractFormats.some(f => ['cci', 'iso'].includes(f))) {
-    // Xbox / Xbox 360 disc image.  Always show the two target formats; the
+  } else if (extractFormats.some(f => ['cci', 'iso', 'folder'].includes(f))) {
+    // Xbox / Xbox 360 disc image.  Show the target formats; the
     // server decides whether that is a direct stream/ZIP or a conversion.
     const xboxButtons = [];
     if (extractFormats.includes('cci')) {
       xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
         data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cci"
         title="Download or convert to CCI ZIP">CCI</button>`);
+    }
+    if (extractFormats.includes('folder')) {
+      xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="folder"
+        title="Extract Xbox disc files and download as ZIP">FOLDER</button>`);
     }
     if (extractFormats.includes('iso')) {
       xboxButtons.push(`<button class="dl-btn extract" data-action="extract"

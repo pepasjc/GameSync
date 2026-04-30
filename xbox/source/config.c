@@ -24,6 +24,8 @@ static const char *CONFIG_PATH = "E:\\UDATA\\TDSV0000\\config.txt";
 
 static const char *DEFAULT_SERVER = "http://192.168.1.201:8000";
 static const char *DEFAULT_API_KEY = "anything";
+static const char *DEFAULT_GAME_FORMAT = "cci";
+static const char *DEFAULT_GAME_DIR = "F:\\Games";
 
 // Best-effort directory creation. Idempotent: returns 0 even if dir exists.
 static int ensure_dir_one(const char *path)
@@ -99,6 +101,7 @@ static int write_default(const XboxConfig *seed)
         "# Edit server_url and api_key, then re-launch the app.\r\n"
         "# Network: auto uses the Xbox dashboard config; dhcp forces DHCP.\r\n"
         "# If DHCP times out, use network_mode=static and fill the static_* values.\r\n"
+        "# game_format: cci or folder. Games install under game_install_dir\\<name>.\r\n"
         "\r\n"
         "server_url=%s\r\n"
         "api_key=%s\r\n"
@@ -108,11 +111,15 @@ static int write_default(const XboxConfig *seed)
         "static_netmask=255.255.255.0\r\n"
         "static_gateway=\r\n"
         "static_dns1=\r\n"
-        "static_dns2=\r\n",
+        "static_dns2=\r\n"
+        "game_format=%s\r\n"
+        "game_install_dir=%s\r\n",
         seed->server_url[0] ? seed->server_url : DEFAULT_SERVER,
         seed->api_key[0]    ? seed->api_key    : DEFAULT_API_KEY,
         seed->console_id,
-        seed->network_mode[0] ? seed->network_mode : "auto");
+        seed->network_mode[0] ? seed->network_mode : "auto",
+        seed->game_format[0] ? seed->game_format : DEFAULT_GAME_FORMAT,
+        seed->game_install_dir[0] ? seed->game_install_dir : DEFAULT_GAME_DIR);
 
     DWORD written = 0;
     BOOL ok = WriteFile(h, buf, (DWORD)n, &written, NULL);
@@ -157,6 +164,8 @@ int config_load(XboxConfig *cfg, char *err, int err_len)
         // without forcing the user to relaunch.
         snprintf(cfg->server_url, sizeof(cfg->server_url), "%s", DEFAULT_SERVER);
         snprintf(cfg->api_key,    sizeof(cfg->api_key),    "%s", DEFAULT_API_KEY);
+        snprintf(cfg->game_format, sizeof(cfg->game_format), "%s", DEFAULT_GAME_FORMAT);
+        snprintf(cfg->game_install_dir, sizeof(cfg->game_install_dir), "%s", DEFAULT_GAME_DIR);
         if (err) snprintf(err, err_len,
                           "Default config written to %s.", CONFIG_PATH);
         return 0;
@@ -176,6 +185,8 @@ int config_load(XboxConfig *cfg, char *err, int err_len)
     // buffer manually.
     int has_url = 0, has_key = 0, has_cid = 0;
     snprintf(cfg->network_mode, sizeof(cfg->network_mode), "auto");
+    snprintf(cfg->game_format, sizeof(cfg->game_format), "%s", DEFAULT_GAME_FORMAT);
+    snprintf(cfg->game_install_dir, sizeof(cfg->game_install_dir), "%s", DEFAULT_GAME_DIR);
     char *line = buf;
     while (*line) {
         char *nl = strchr(line, '\n');
@@ -209,6 +220,10 @@ int config_load(XboxConfig *cfg, char *err, int err_len)
                     snprintf(cfg->static_dns1, sizeof(cfg->static_dns1), "%s", v);
                 } else if (strcmp(k, "static_dns2") == 0) {
                     snprintf(cfg->static_dns2, sizeof(cfg->static_dns2), "%s", v);
+                } else if (strcmp(k, "game_format") == 0) {
+                    snprintf(cfg->game_format, sizeof(cfg->game_format), "%s", v);
+                } else if (strcmp(k, "game_install_dir") == 0) {
+                    snprintf(cfg->game_install_dir, sizeof(cfg->game_install_dir), "%s", v);
                 }
             }
         }
@@ -251,14 +266,18 @@ int config_save(const XboxConfig *cfg)
         "static_netmask=%s\r\n"
         "static_gateway=%s\r\n"
         "static_dns1=%s\r\n"
-        "static_dns2=%s\r\n",
+        "static_dns2=%s\r\n"
+        "game_format=%s\r\n"
+        "game_install_dir=%s\r\n",
         cfg->server_url, cfg->api_key, cfg->console_id,
         cfg->network_mode[0] ? cfg->network_mode : "auto",
         cfg->static_ip,
         cfg->static_netmask,
         cfg->static_gateway,
         cfg->static_dns1,
-        cfg->static_dns2);
+        cfg->static_dns2,
+        cfg->game_format[0] ? cfg->game_format : DEFAULT_GAME_FORMAT,
+        cfg->game_install_dir[0] ? cfg->game_install_dir : DEFAULT_GAME_DIR);
 
     DWORD written = 0;
     BOOL ok = WriteFile(h, buf, (DWORD)n, &written, NULL);

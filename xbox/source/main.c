@@ -8,6 +8,7 @@
 #include <hal/video.h>
 #include <hal/xbox.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,7 @@
 
 #include "bundle.h"
 #include "config.h"
+#include "games.h"
 #include "network.h"
 #include "saves.h"
 #include "state.h"
@@ -29,6 +31,7 @@
 #define LIST_VISIBLE   9   // rows the body can show with the top status bar
 
 static XboxSaveList g_list;
+static XboxRomList  g_roms;
 static XboxConfig   g_cfg;
 static SyncPlan     g_plan;
 static int          g_plan_loaded = 0;
@@ -43,6 +46,14 @@ static StatusKind   g_status_kind = UI_STATUS_INFO_KIND;
 static char         g_local_ip[16] = "0.0.0.0";
 static char         g_server_text[64] = "";
 
+typedef enum {
+    TAB_SAVES = 0,
+    TAB_GAMES = 1,
+    TAB_CONFIG = 2,
+} UiTab;
+static UiTab g_tab = TAB_SAVES;
+static int   g_roms_loaded = 0;
+
 static void set_status_kind(StatusKind kind, const char *fmt, ...)
 {
     va_list ap;
@@ -52,9 +63,9 @@ static void set_status_kind(StatusKind kind, const char *fmt, ...)
     va_end(ap);
 }
 
-static const char *fmt_kb(uint32_t bytes, char *buf, size_t buflen)
+static const char *fmt_kb(uint64_t bytes, char *buf, size_t buflen)
 {
-    snprintf(buf, buflen, "%u KB", (unsigned)(bytes / 1024));
+    snprintf(buf, buflen, "%llu KB", (unsigned long long)(bytes / 1024));
     return buf;
 }
 
@@ -175,11 +186,24 @@ static void draw_header(void)
     int w = ui_text_width(info, UI_FONT_SMALL);
     ui_text(UI_W - UI_SAFE_X - w, 14, info, UI_TEXT_DIM, UI_FONT_SMALL);
 
-    // Plan summary line.
+    char tabs[96];
+    snprintf(tabs, sizeof(tabs), "%s  %s  %s",
+             g_tab == TAB_SAVES ? "[Saves]" : "Saves",
+             g_tab == TAB_GAMES ? "[Games]" : "Games",
+             g_tab == TAB_CONFIG ? "[Config]" : "Config");
+
+    // Summary line.
     char plan[160];
-    if (g_plan_loaded) {
+    if (g_tab == TAB_GAMES) {
+        snprintf(plan, sizeof(plan), "%s   ROMs: %d   format: %s",
+                 tabs, g_roms_loaded ? g_roms.count : 0,
+                 games_format_name(games_config_format(&g_cfg)));
+    } else if (g_tab == TAB_CONFIG) {
+        snprintf(plan, sizeof(plan), "%s   A toggles values, X saves", tabs);
+    } else if (g_plan_loaded) {
         snprintf(plan, sizeof(plan),
-                 "Plan: up %d   down %d   new %d   ok %d   conflict %d",
+                 "%s   Plan: up %d   down %d   new %d   ok %d   conflict %d",
+                 tabs,
                  g_plan.upload_count,
                  g_plan.download_count,
                  g_plan.server_only_count,
@@ -187,7 +211,7 @@ static void draw_header(void)
                  g_plan.conflict_count);
     } else {
         snprintf(plan, sizeof(plan),
-                 "Plan: not fetched yet - press LB");
+                 "%s   Plan: not fetched yet - press LB", tabs);
     }
     ui_text(UI_SAFE_X, 38, plan, UI_TEXT, UI_FONT_BODY);
 }
@@ -197,12 +221,28 @@ static void draw_footer(void)
     int y0 = UI_H - FOOTER_H;
     ui_rect(0, y0, UI_W, FOOTER_H, UI_FOOTER_BG);
 
-    ui_text(UI_SAFE_X, y0 + 6,
-            "A smart  X upload  Y download  B clear cache",
-            UI_TEXT, UI_FONT_BODY);
-    ui_text(UI_SAFE_X, y0 + 28,
-            "D-pad/Stick L/R page  LB refresh  RB sync-all  START exit",
-            UI_TEXT_DIM, UI_FONT_SMALL);
+    if (g_tab == TAB_GAMES) {
+        ui_text(UI_SAFE_X, y0 + 6,
+                "A download game  LB refresh catalog  BACK tab",
+                UI_TEXT, UI_FONT_BODY);
+        ui_text(UI_SAFE_X, y0 + 28,
+                "D-pad/Stick L/R page  START exit",
+                UI_TEXT_DIM, UI_FONT_SMALL);
+    } else if (g_tab == TAB_CONFIG) {
+        ui_text(UI_SAFE_X, y0 + 6,
+                "A toggle  X save config  LB reload config  BACK tab",
+                UI_TEXT, UI_FONT_BODY);
+        ui_text(UI_SAFE_X, y0 + 28,
+                "D-pad/Stick select  START exit",
+                UI_TEXT_DIM, UI_FONT_SMALL);
+    } else {
+        ui_text(UI_SAFE_X, y0 + 6,
+                "A smart  X upload  Y download  B clear cache  BACK tab",
+                UI_TEXT, UI_FONT_BODY);
+        ui_text(UI_SAFE_X, y0 + 28,
+                "D-pad/Stick L/R page  LB refresh  RB sync-all  START exit",
+                UI_TEXT_DIM, UI_FONT_SMALL);
+    }
 }
 
 static void draw_status_bar(void)
@@ -224,7 +264,7 @@ static void draw_status_bar(void)
             status_bar_text_color(), UI_FONT_SMALL);
 }
 
-static void draw_row(int row_idx, int local_count, int cursor, int y)
+static void draw_save_row(int row_idx, int local_count, int cursor, int y)
 {
     int  selected = (row_idx == cursor);
     int  is_local = (row_idx < local_count);
@@ -283,9 +323,94 @@ static void draw_row(int row_idx, int local_count, int cursor, int y)
 
 static int total_rows(void)
 {
+    if (g_tab == TAB_GAMES) return g_roms_loaded ? g_roms.count : 0;
+    if (g_tab == TAB_CONFIG) return 11;
     int n = g_list.title_count;
     if (g_plan_loaded) n += g_plan.server_only_count;
     return n;
+}
+
+static void draw_game_row(int row_idx, int cursor, int y)
+{
+    int selected = (row_idx == cursor);
+    if (selected) {
+        ui_rect(UI_SAFE_X - 4, y - 2, UI_W - 2 * UI_SAFE_X + 8, ROW_H,
+                UI_ROW_BG_SEL);
+    }
+    if (row_idx < 0 || row_idx >= g_roms.count) return;
+    const XboxRomEntry *r = &g_roms.roms[row_idx];
+    UiColor sc = r->is_bundle ? UI_STATUS_NEW : UI_STATUS_DOWNLOAD;
+    ui_rect(COL_BADGE_X, y + 2, COL_BADGE_W, ROW_H - 6, sc);
+    {
+        const char *lbl = r->is_bundle ? "CCI " : "ISO ";
+        UiColor dark = { 0x10, 0x20, 0x18, 0xFF };
+        ui_text(COL_BADGE_X + 8, y + 5, lbl, dark, UI_FONT_SMALL);
+    }
+    char name_short[72];
+    short_str(r->name, name_short, 58);
+    ui_text(COL_TID_X, y + 4, name_short, UI_TEXT, UI_FONT_BODY);
+    char sz[24];
+    fmt_kb(r->size, sz, sizeof(sz));
+    int sw = ui_text_width(sz, UI_FONT_BODY);
+    ui_text(UI_W - UI_SAFE_X - sw, y + 4, sz, UI_TEXT_DIM, UI_FONT_BODY);
+}
+
+static const char *config_label(int row)
+{
+    switch (row) {
+    case 0: return "server_url";
+    case 1: return "api_key";
+    case 2: return "console_id";
+    case 3: return "network_mode";
+    case 4: return "game_format";
+    case 5: return "game_install_dir";
+    case 6: return "static_ip";
+    case 7: return "static_netmask";
+    case 8: return "static_gateway";
+    case 9: return "static_dns1";
+    default:return "static_dns2";
+    }
+}
+
+static const char *config_value(int row)
+{
+    switch (row) {
+    case 0: return g_cfg.server_url;
+    case 1: return g_cfg.api_key[0] ? "********" : "";
+    case 2: return g_cfg.console_id;
+    case 3: return g_cfg.network_mode;
+    case 4: return games_format_name(games_config_format(&g_cfg));
+    case 5: return g_cfg.game_install_dir;
+    case 6: return g_cfg.static_ip;
+    case 7: return g_cfg.static_netmask;
+    case 8: return g_cfg.static_gateway;
+    case 9: return g_cfg.static_dns1;
+    default:return g_cfg.static_dns2;
+    }
+}
+
+static void draw_config_row(int row_idx, int cursor, int y)
+{
+    int selected = (row_idx == cursor);
+    if (selected) {
+        ui_rect(UI_SAFE_X - 4, y - 2, UI_W - 2 * UI_SAFE_X + 8, ROW_H,
+                UI_ROW_BG_SEL);
+    }
+    ui_text(COL_BADGE_X, y + 4, config_label(row_idx), UI_ACCENT, UI_FONT_BODY);
+    char val[96];
+    short_str(config_value(row_idx), val, 56);
+    ui_text(COL_NAME_X, y + 4, val, UI_TEXT, UI_FONT_BODY);
+}
+
+static void draw_row(int row_idx, int local_count, int cursor, int y)
+{
+    if (g_tab == TAB_GAMES) {
+        draw_game_row(row_idx, cursor, y);
+    } else if (g_tab == TAB_CONFIG) {
+        draw_config_row(row_idx, cursor, y);
+    } else {
+        draw_save_row(row_idx, local_count, cursor, y);
+    }
 }
 
 static void redraw(int cursor, int scroll)
@@ -301,9 +426,12 @@ static void redraw(int cursor, int scroll)
     if (end > total) end = total;
 
     if (total == 0) {
-        ui_text(UI_SAFE_X, y + 24,
-                "No saves on Xbox or server.",
-                UI_TEXT_DIM, UI_FONT_BODY);
+        const char *msg = "No saves on Xbox or server.";
+        if (g_tab == TAB_GAMES) {
+            msg = g_roms_loaded ? "No Xbox ROMs in server catalog."
+                                : "Press LB to load Xbox ROM catalog.";
+        }
+        ui_text(UI_SAFE_X, y + 24, msg, UI_TEXT_DIM, UI_FONT_BODY);
     } else {
         for (int i = scroll; i < end; i++) {
             draw_row(i, g_list.title_count, cursor, y);
@@ -673,6 +801,156 @@ static void clear_hash_cache(void)
                     "Hash cache cleared; press LB to refresh plan");
 }
 
+static void load_rom_catalog(void)
+{
+    char err[180] = "";
+    set_status_kind(UI_STATUS_BUSY_KIND, "Loading Xbox ROM catalog...");
+    if (games_fetch_catalog(&g_cfg, &g_roms, err, sizeof(err)) != 0) {
+        g_roms_loaded = 0;
+        set_status_kind(UI_STATUS_ERROR_KIND, "%s",
+                        err[0] ? err : "ROM catalog failed");
+        return;
+    }
+    g_roms_loaded = 1;
+    set_status_kind(UI_STATUS_SUCCESS_KIND, "Loaded %d Xbox ROM(s)", g_roms.count);
+}
+
+typedef struct {
+    int cursor;
+    int scroll;
+} GameRedrawCtx;
+
+static void game_progress_cb(const char *msg, uint64_t done, uint64_t total,
+                             void *user)
+{
+    GameRedrawCtx *ctx = (GameRedrawCtx *)user;
+    if (total > 0) {
+        set_status_kind(UI_STATUS_BUSY_KIND, "%s %llu/%llu MB",
+                        msg,
+                        (unsigned long long)(done / (1024 * 1024)),
+                        (unsigned long long)(total / (1024 * 1024)));
+    } else {
+        set_status_kind(UI_STATUS_BUSY_KIND, "%s", msg);
+    }
+    redraw(ctx->cursor, ctx->scroll);
+    ui_pump();
+}
+
+static int confirm_game_download(int cursor, int scroll,
+                                 const XboxRomEntry *rom,
+                                 XboxGameFormat fmt)
+{
+    redraw(cursor, scroll);
+    UiColor border = { 0x7E, 0xE8, 0xA1, 0xFF };
+    UiColor panel  = { 0x08, 0x1A, 0x13, 0xFF };
+    UiColor head   = { 0x10, 0x36, 0x25, 0xFF };
+    UiColor dark   = { 0x0B, 0x18, 0x10, 0xFF };
+
+    const int x = 54, y = 132, w = 532, h = 190;
+    ui_rect(x - 2, y - 2, w + 4, h + 4, border);
+    ui_rect(x, y, w, h, panel);
+    ui_rect(x, y, w, 34, head);
+    ui_text(x + 14, y + 7, "Confirm game download", UI_ACCENT, UI_FONT_BODY);
+
+    char line[180];
+    char short_name[80];
+    short_str(rom->name, short_name, 64);
+    snprintf(line, sizeof(line), "%s", short_name);
+    ui_text(x + 14, y + 50, line, UI_TEXT, UI_FONT_BODY);
+    snprintf(line, sizeof(line), "Format: %s   Destination: %s\\<game>",
+             games_format_name(fmt), g_cfg.game_install_dir);
+    ui_text(x + 14, y + 80, line, UI_TEXT_DIM, UI_FONT_SMALL);
+    snprintf(line, sizeof(line), "This will overwrite matching files in the game folder.");
+    ui_text(x + 14, y + 108, line, UI_TEXT_DIM, UI_FONT_SMALL);
+
+    ui_rect(x + 14, y + h - 44, 150, 28, UI_STATUS_OK);
+    ui_text(x + 36, y + h - 39, "A confirm", dark, UI_FONT_SMALL);
+    ui_rect(x + 184, y + h - 44, 130, 28, UI_STATUS_CONFLICT);
+    ui_text(x + 210, y + h - 39, "B cancel", dark, UI_FONT_SMALL);
+    ui_present();
+
+    while (1) {
+        ui_pump();
+        UiKey k = ui_poll_key();
+        if (k == UI_KEY_A) return 1;
+        if (k == UI_KEY_B || k == UI_KEY_BACK || k == UI_KEY_START) {
+            set_status_kind(UI_STATUS_INFO_KIND, "Game download cancelled");
+            return 0;
+        }
+        ui_sleep(20);
+    }
+}
+
+static void run_game_download(int cursor, int scroll)
+{
+    if (!g_roms_loaded || g_roms.count <= 0) {
+        set_status_kind(UI_STATUS_ERROR_KIND, "Load ROM catalog first (LB)");
+        return;
+    }
+    if (cursor < 0 || cursor >= g_roms.count) return;
+
+    XboxRomEntry *rom = &g_roms.roms[cursor];
+    XboxGameFormat fmt = games_config_format(&g_cfg);
+    if (!confirm_game_download(cursor, scroll, rom, fmt)) return;
+
+    char err[180] = "";
+    GameRedrawCtx ctx = { cursor, scroll };
+    set_status_kind(UI_STATUS_BUSY_KIND, "Starting game download...");
+    redraw(cursor, scroll);
+    int rc = games_download_rom(&g_cfg, rom, fmt, game_progress_cb, &ctx,
+                                err, sizeof(err));
+    if (rc == 0) {
+        set_status_kind(UI_STATUS_SUCCESS_KIND, "Game installed: %s", rom->name);
+    } else {
+        set_status_kind(UI_STATUS_ERROR_KIND, "%s",
+                        err[0] ? err : "Game download failed");
+    }
+}
+
+static void config_cycle_selected(int row)
+{
+    if (row == 3) {
+        if (strcmp(g_cfg.network_mode, "auto") == 0) {
+            snprintf(g_cfg.network_mode, sizeof(g_cfg.network_mode), "dhcp");
+        } else if (strcmp(g_cfg.network_mode, "dhcp") == 0) {
+            snprintf(g_cfg.network_mode, sizeof(g_cfg.network_mode), "static");
+        } else {
+            snprintf(g_cfg.network_mode, sizeof(g_cfg.network_mode), "auto");
+        }
+        set_status_kind(UI_STATUS_INFO_KIND, "network_mode=%s", g_cfg.network_mode);
+    } else if (row == 4) {
+        if (games_config_format(&g_cfg) == XBOX_GAME_FORMAT_FOLDER) {
+            snprintf(g_cfg.game_format, sizeof(g_cfg.game_format), "cci");
+        } else {
+            snprintf(g_cfg.game_format, sizeof(g_cfg.game_format), "folder");
+        }
+        set_status_kind(UI_STATUS_INFO_KIND, "game_format=%s", g_cfg.game_format);
+    } else {
+        set_status_kind(UI_STATUS_INFO_KIND,
+                        "Edit text fields in E:\\UDATA\\TDSV0000\\config.txt");
+    }
+}
+
+static void config_reload(void)
+{
+    char err[180] = "";
+    if (config_load(&g_cfg, err, sizeof(err)) == 0) {
+        set_status_kind(UI_STATUS_SUCCESS_KIND, "Config reloaded");
+    } else {
+        set_status_kind(UI_STATUS_ERROR_KIND, "%s",
+                        err[0] ? err : "Config reload failed");
+    }
+}
+
+static void config_save_now(void)
+{
+    if (config_save(&g_cfg) == 0) {
+        set_status_kind(UI_STATUS_SUCCESS_KIND, "Config saved");
+    } else {
+        set_status_kind(UI_STATUS_ERROR_KIND, "Config save failed");
+    }
+}
+
 static void run_sync_one(int cursor, int scroll, UiKey op)
 {
     const char *tid = NULL;
@@ -880,7 +1158,7 @@ int main(void)
         ui_pump();
         UiKey k = ui_poll_key();
 
-        if (k == UI_KEY_START || k == UI_KEY_BACK) {
+        if (k == UI_KEY_START) {
             ui_shutdown();
             HalReturnToFirmware(HalQuickRebootRoutine);
         }
@@ -906,24 +1184,61 @@ int main(void)
             if (page_rows(1, &cursor, &scroll)) redraw_needed = 1;
             break;
         case UI_KEY_LB:
-            // Refresh plan: rescan local UDATA first (catches new saves
-            // from games run in this session), then ask the server.
-            rescan();
-            cursor = 0; scroll = 0;
-            redraw(cursor, scroll);
-            refresh_plan();
+            if (g_tab == TAB_GAMES) {
+                load_rom_catalog();
+            } else if (g_tab == TAB_CONFIG) {
+                config_reload();
+            } else {
+                // Refresh plan: rescan local UDATA first (catches new saves
+                // from games run in this session), then ask the server.
+                rescan();
+                cursor = 0; scroll = 0;
+                redraw(cursor, scroll);
+                refresh_plan();
+            }
             redraw_needed = 1; break;
         case UI_KEY_RB:
-            redraw(cursor, scroll);
-            run_sync_all(cursor, scroll);
-            clamp_cursor_scroll(&cursor, &scroll);
+            if (g_tab == TAB_SAVES) {
+                redraw(cursor, scroll);
+                run_sync_all(cursor, scroll);
+                clamp_cursor_scroll(&cursor, &scroll);
+            }
             redraw_needed = 1; break;
         case UI_KEY_B:
-            clear_hash_cache();
+            if (g_tab == TAB_SAVES) clear_hash_cache();
+            redraw_needed = 1; break;
+        case UI_KEY_BACK:
+            g_tab = (UiTab)(((int)g_tab + 1) % 3);
+            cursor = 0;
+            scroll = 0;
+            if (g_tab == TAB_GAMES && !g_roms_loaded) {
+                redraw(cursor, scroll);
+                load_rom_catalog();
+            }
             redraw_needed = 1; break;
         case UI_KEY_A:
+            if (g_tab == TAB_GAMES) {
+                run_game_download(cursor, scroll);
+                redraw_needed = 1; break;
+            }
+            if (g_tab == TAB_CONFIG) {
+                config_cycle_selected(cursor);
+                redraw_needed = 1; break;
+            }
+            run_sync_one(cursor, scroll, k);
+            clamp_cursor_scroll(&cursor, &scroll);
+            redraw_needed = 1; break;
         case UI_KEY_X:
+            if (g_tab == TAB_CONFIG) {
+                config_save_now();
+                redraw_needed = 1; break;
+            }
+            if (g_tab != TAB_SAVES) { redraw_needed = 1; break; }
+            run_sync_one(cursor, scroll, k);
+            clamp_cursor_scroll(&cursor, &scroll);
+            redraw_needed = 1; break;
         case UI_KEY_Y:
+            if (g_tab != TAB_SAVES) { redraw_needed = 1; break; }
             run_sync_one(cursor, scroll, k);
             clamp_cursor_scroll(&cursor, &scroll);
             redraw_needed = 1; break;

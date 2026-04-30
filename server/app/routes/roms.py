@@ -251,10 +251,10 @@ _PS2_SYSTEMS = frozenset({'PS2'})
 # GameCube / Wii use RVZ (Dolphin compressed) — convert with DolphinTool
 _GC_SYSTEMS = frozenset({'GC', 'WII'})
 
-# Xbox / Xbox 360 disc images.  The server exposes exactly two user-facing
-# variants for Xbox catalog rows: CCI and ISO.  CCI source folders are served
-# as ZIPs because the .cci image can travel with attach launchers; ISO source
-# files are streamed raw unless the user requests CCI conversion.
+# Xbox / Xbox 360 disc images.  The server exposes CCI, ISO, and extracted
+# folder ZIP variants.  CCI source folders are served as ZIPs because the .cci
+# image can travel with attach launchers; ISO source files are streamed raw
+# unless the user requests CCI/folder conversion.
 _XBOX_SYSTEMS = frozenset({'XBOX', 'X360', 'XBOX360'})
 _XBOX_DISC_EXTENSIONS = frozenset({'.cci', '.iso'})
 
@@ -302,6 +302,14 @@ _XBOX_EXTRACT_SPECS = {
         'output_ext': '.iso',
         'tool_output_ext': '.iso',
         'mime': 'application/x-iso9660-image',
+    },
+    'folder': {
+        'setting': 'rom_xbox_folder_command',
+        'env': 'SYNC_ROM_XBOX_FOLDER_COMMAND',
+        'label': 'extracted folder ZIP',
+        'output_ext': '.zip',
+        'tool_output_ext': '',
+        'mime': 'application/zip',
     },
 }
 _XBOX_EXTRACT_FORMATS = list(_XBOX_EXTRACT_SPECS.keys())
@@ -1087,6 +1095,7 @@ async def _extract_xbox(
       * ``'iso'`` — direct stream for .iso input, or CCI → ISO conversion.
       * ``'cci'`` — direct ZIP for .cci input, or ISO → CCI conversion
                     followed by a ZIP wrapper.
+      * ``'folder'`` — CCI/ISO → extracted game folder ZIP.
 
     Conversions shell out to configurable command templates.  XGDTool is the
     intended backend, but the route only depends on the template producing the
@@ -1143,13 +1152,13 @@ async def _extract_xbox(
                 f"Xbox {spec['label']} conversion is not configured on the server.\n"
                 f"\n"
                 f"To enable this conversion, set {spec['env']} to a command template that "
-                f"reads {{input}} and writes a {spec['tool_output_ext']} output file. "
-                f"The server will look at {{output}} first, then scan {{output_dir}} for "
-                f"the produced {spec['tool_output_ext']} file(s). ``{{stem}}`` is the "
-                f"input filename without extension.\n"
+                f"reads {{input}}. For CCI/ISO outputs it should write the requested "
+                f"file under {{output_dir}}; for folder output it should extract files "
+                f"into {{output_dir}}. ``{{stem}}`` is the input filename without "
+                f"extension.\n"
                 f"\n"
-                f"XGDTool CLI supports format targets like --xiso and --cci; point this "
-                f"template at your XGDTool executable and include {{input}} + {{output_dir}}."
+                f"XGDTool CLI supports --xiso, --cci, and --extract; point this "
+                f"template at your XGDTool executable with --offline."
             ),
         )
 
@@ -1158,14 +1167,20 @@ async def _extract_xbox(
     def _run() -> Path:
         tmp = Path(tmpdir)
         tool_output_ext = spec['tool_output_ext']
-        output_name = f"{stem}{tool_output_ext}"
-        output_path = tmp / output_name
+        output_dir = tmp
+        if fmt == 'folder':
+            output_dir = tmp / 'extract'
+            output_dir.mkdir()
+            output_path = tmp / f"{stem}.zip"
+        else:
+            output_name = f"{stem}{tool_output_ext}"
+            output_path = tmp / output_name
 
         cmd = _expand_command_template(
             command_template,
             input=str(source_path),
             output=str(output_path),
-            output_dir=str(tmp),
+            output_dir=str(output_dir),
             stem=stem,
         )
         # Xbox 360 disc images can hit ~7 GB; leave generous room for
@@ -1180,6 +1195,18 @@ async def _extract_xbox(
             raise RuntimeError(
                 result.stderr.strip() or result.stdout.strip() or 'Xbox conversion failed'
             )
+
+        if fmt == 'folder':
+            zip_root = _zip_root_for_extracted_folder(output_dir)
+            if zip_root is None:
+                raise RuntimeError(
+                    f"converter completed but extracted no files; "
+                    f"{_describe_converter_outputs(output_dir)}{_format_converter_log(result)}"
+                )
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
+                for out in sorted(p for p in zip_root.rglob('*') if p.is_file()):
+                    zf.write(out, arcname=out.relative_to(zip_root).as_posix())
+            return output_path
 
         if fmt == 'cci':
             if output_path.is_file():
@@ -1967,6 +1994,20 @@ def _format_converter_log(result: subprocess.CompletedProcess, max_chars: int = 
     if len(text) > max_chars:
         text = "..." + text[-max_chars:]
     return f"; converter log: {text}"
+
+
+def _zip_root_for_extracted_folder(output_dir: Path) -> Path | None:
+    files = [p for p in output_dir.rglob('*') if p.is_file()]
+    if not files:
+        return None
+
+    root_files = [p for p in output_dir.iterdir() if p.is_file()]
+    root_dirs = [p for p in output_dir.iterdir() if p.is_dir()]
+    if not root_files and len(root_dirs) == 1:
+        only = root_dirs[0]
+        if any(p.is_file() for p in only.rglob('*')):
+            return only
+    return output_dir
 
 
 _CONTENT_TYPES = {

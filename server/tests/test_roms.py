@@ -67,9 +67,11 @@ def rom_client_ps1_eboot(rom_dir, client, auth_headers):
     original_rom_dir = settings.rom_dir
     original_interval = settings.rom_scan_interval
     original_cmd = settings.rom_ps1_eboot_command
+    original_cwd = settings.rom_ps1_eboot_cwd
 
     settings.rom_dir = rom_dir
     settings.rom_scan_interval = 0
+    settings.rom_ps1_eboot_cwd = ""
     settings.rom_ps1_eboot_command = json.dumps(
         [
             sys.executable,
@@ -97,6 +99,7 @@ def rom_client_ps1_eboot(rom_dir, client, auth_headers):
     settings.rom_dir = original_rom_dir
     settings.rom_scan_interval = original_interval
     settings.rom_ps1_eboot_command = original_cmd
+    settings.rom_ps1_eboot_cwd = original_cwd
     rom_scanner._catalog = None
 
 
@@ -682,8 +685,8 @@ class TestRomCatalog:
             assert resp.status_code == 200
             roms = sorted(resp.json()["roms"], key=lambda r: r["name"])
             assert len(roms) == 2
-            assert roms[0]["extract_formats"] == ["cci", "iso"]
-            assert roms[1]["extract_formats"] == ["cci", "iso"]
+            assert roms[0]["extract_formats"] == ["cci", "iso", "folder"]
+            assert roms[1]["extract_formats"] == ["cci", "iso", "folder"]
         finally:
             settings.rom_dir = original
             rom_scanner._catalog = None
@@ -1055,6 +1058,60 @@ class TestRomDownload:
             settings.rom_dir = original_rom_dir
             settings.rom_scan_interval = original_interval
             settings.rom_xbox_iso_command = original_cmd
+            rom_scanner._catalog = None
+
+    def test_download_xbox_cci_bundle_as_folder_zip(self, tmp_path, client, auth_headers):
+        """CCI bundle + ?extract=folder runs XGDTool's extracted-files flow
+        and returns a ZIP of the resulting game directory.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+        import io
+        import zipfile as zf_mod
+
+        original_rom_dir = settings.rom_dir
+        original_interval = settings.rom_scan_interval
+        original_cmd = settings.rom_xbox_folder_command
+        try:
+            settings.rom_scan_interval = 0
+            settings.rom_xbox_folder_command = json.dumps(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "out=Path(sys.argv[2]); out.mkdir(exist_ok=True); "
+                        "(out/'default.xbe').write_bytes(b'XBE:' + Path(sys.argv[1]).read_bytes()); "
+                        "(out/'media').mkdir(exist_ok=True); "
+                        "(out/'media'/'asset.bin').write_bytes(b'ASSET')"
+                    ),
+                    "{input}",
+                    "{output_dir}",
+                ]
+            )
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+            bundle = rom_dir / "xbox" / "Halo"
+            bundle.mkdir(parents=True)
+            (bundle / "Halo.cci").write_bytes(b"CCIDISC")
+
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("XBOX")[0].rom_id
+
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}?extract=folder", headers=auth_headers
+            )
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "application/zip"
+            with zf_mod.ZipFile(io.BytesIO(resp.content)) as zf:
+                assert sorted(zf.namelist()) == ["default.xbe", "media/asset.bin"]
+                assert zf.read("default.xbe") == b"XBE:CCIDISC"
+                assert zf.read("media/asset.bin") == b"ASSET"
+        finally:
+            settings.rom_dir = original_rom_dir
+            settings.rom_scan_interval = original_interval
+            settings.rom_xbox_folder_command = original_cmd
             rom_scanner._catalog = None
 
 

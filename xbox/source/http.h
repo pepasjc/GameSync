@@ -44,6 +44,16 @@ HttpResponse http_post_chunked(const char *url,
                                HttpStreamProducer producer,
                                void *producer_user);
 
+// Stream a GET response body to a callback. This is for multi-GB ROM ZIPs:
+// the body is never accumulated in RAM. Returns the HTTP status code on a
+// completed request, or a negative value for transport / writer failure.
+int http_get_stream(const char *url,
+                    const char *api_key,
+                    const char *console_id,
+                    HttpWriteFn write,
+                    void *write_ctx,
+                    uint64_t *out_content_length);
+
 void http_response_free(HttpResponse *r);
 
 #endif // XBOX_HTTP_H

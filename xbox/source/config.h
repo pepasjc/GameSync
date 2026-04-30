@@ -9,6 +9,8 @@
 #define XBOX_CFG_CONSOLE_ID_LEN   48
 #define XBOX_CFG_IP_LEN           16
 #define XBOX_CFG_NET_MODE_LEN     12
+#define XBOX_CFG_GAME_FORMAT_LEN  12
+#define XBOX_CFG_PATH_LEN         128
 
 typedef struct {
     char server_url[XBOX_CFG_URL_LEN];
@@ -20,6 +22,8 @@ typedef struct {
     char static_gateway[XBOX_CFG_IP_LEN];
     char static_dns1[XBOX_CFG_IP_LEN];
     char static_dns2[XBOX_CFG_IP_LEN];
+    char game_format[XBOX_CFG_GAME_FORMAT_LEN];  // cci or folder
+    char game_install_dir[XBOX_CFG_PATH_LEN];     // default F:\Games
 } XboxConfig;
 
 // Return codes for config_load:

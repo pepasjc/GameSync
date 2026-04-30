@@ -436,6 +436,165 @@ HttpResponse http_post_chunked(const char *url,
     return rsp;
 }
 
+int http_get_stream(const char *url,
+                    const char *api_key,
+                    const char *console_id,
+                    HttpWriteFn write,
+                    void *write_ctx,
+                    uint64_t *out_content_length)
+{
+    char host[256] = {0};
+    char path[512] = {0};
+    int  port = 80;
+    int  s = -1;
+    int  status = 0;
+
+    if (out_content_length) *out_content_length = 0;
+    if (!write ||
+        parse_url(url, host, sizeof(host), &port, path, sizeof(path)) != 0) {
+        debugPrint("http: bad stream url %s\n", url ? url : "");
+        return -1;
+    }
+
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    char port_str[8];
+    snprintf(port_str, sizeof(port_str), "%d", port);
+
+    struct addrinfo *res = NULL;
+    int gai = getaddrinfo(host, port_str, &hints, &res);
+    if (gai != 0 || !res) {
+        debugPrint("http: dns fail (%d) %s\n", gai, host);
+        return -1;
+    }
+
+    s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (s < 0) {
+        freeaddrinfo(res);
+        return -1;
+    }
+
+    struct timeval tv;
+    tv.tv_sec = HTTP_TIMEOUT_SEC;
+    tv.tv_usec = 0;
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv));
+
+    if (connect(s, res->ai_addr, res->ai_addrlen) < 0) {
+        debugPrint("http: connect fail %s:%d\n", host, port);
+        freeaddrinfo(res);
+        close(s);
+        return -1;
+    }
+    freeaddrinfo(res);
+
+    char req[HTTP_HEADER_BUF];
+    int hdr_len = snprintf(req, sizeof(req),
+        "GET %s HTTP/1.0\r\n"
+        "Host: %s:%d\r\n"
+        "User-Agent: XboxSync/1.0\r\n"
+        "X-API-Key: %s\r\n",
+        path, host, port, api_key ? api_key : "");
+
+    if (console_id && console_id[0]) {
+        hdr_len += snprintf(req + hdr_len, sizeof(req) - hdr_len,
+                            "X-Console-ID: %s\r\n", console_id);
+    }
+    hdr_len += snprintf(req + hdr_len, sizeof(req) - hdr_len,
+                        "Connection: close\r\n\r\n");
+
+    if (hdr_len <= 0 || hdr_len >= (int)sizeof(req) ||
+        send_all(s, req, (size_t)hdr_len) != 0) {
+        close(s);
+        return -1;
+    }
+
+    char hbuf[HTTP_HEADER_BUF];
+    int  total = 0;
+    char *body_sep = NULL;
+    uint64_t content_length = 0;
+    int have_content_length = 0;
+
+    while (total < (int)sizeof(hbuf) - 1) {
+        int n = recv(s, hbuf + total, (int)sizeof(hbuf) - 1 - total, 0);
+        if (n <= 0) {
+            close(s);
+            return -1;
+        }
+        total += n;
+        hbuf[total] = '\0';
+        body_sep = strstr(hbuf, "\r\n\r\n");
+        if (body_sep) {
+            body_sep += 4;
+            break;
+        }
+    }
+
+    sscanf(hbuf, "HTTP/%*d.%*d %d", &status);
+    {
+        char *cl = strstr(hbuf, "Content-Length:");
+        if (!cl) cl = strstr(hbuf, "content-length:");
+        if (cl) {
+            unsigned long long parsed = 0;
+            if (sscanf(cl + 15, " %llu", &parsed) == 1) {
+                content_length = (uint64_t)parsed;
+                have_content_length = 1;
+            }
+        }
+    }
+    if (out_content_length && have_content_length) {
+        *out_content_length = content_length;
+    }
+
+    if (status < 200 || status >= 300) {
+        shutdown(s, SHUT_RDWR);
+        close(s);
+        return status > 0 ? status : -1;
+    }
+
+    if (!body_sep) {
+        shutdown(s, SHUT_RDWR);
+        close(s);
+        return -1;
+    }
+
+    int body_off = (int)(body_sep - hbuf);
+    int in_buf = total - body_off;
+    uint64_t received = 0;
+    if (in_buf > 0) {
+        if (write(write_ctx, (const uint8_t *)body_sep, (size_t)in_buf) != 0) {
+            shutdown(s, SHUT_RDWR);
+            close(s);
+            return -2;
+        }
+        received += (uint64_t)in_buf;
+    }
+
+    uint8_t buf[8192];
+    for (;;) {
+        if (have_content_length && received >= content_length) {
+            break;
+        }
+        int n = recv(s, buf, sizeof(buf), 0);
+        if (n <= 0) break;
+        if (write(write_ctx, buf, (size_t)n) != 0) {
+            shutdown(s, SHUT_RDWR);
+            close(s);
+            return -2;
+        }
+        received += (uint64_t)n;
+    }
+
+    shutdown(s, SHUT_RDWR);
+    close(s);
+    if (have_content_length && received != content_length) {
+        return -3;
+    }
+    return status;
+}
+
 void http_response_free(HttpResponse *r)
 {
     if (r && r->body) {
