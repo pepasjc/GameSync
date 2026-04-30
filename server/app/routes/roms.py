@@ -1185,13 +1185,11 @@ async def _extract_xbox(
             if output_path.is_file():
                 cci_outputs = [output_path]
             else:
-                cci_outputs = sorted(
-                    p for p in tmp.rglob(f'*{tool_output_ext}')
-                    if p.is_file() and p.suffix.lower() == tool_output_ext
-                )
+                cci_outputs = _find_outputs(tmp, {tool_output_ext})
             if not cci_outputs:
                 raise RuntimeError(
-                    f"converter completed but did not produce a {tool_output_ext} file"
+                    f"converter completed but did not produce a {tool_output_ext} file; "
+                    f"{_describe_converter_outputs(tmp)}{_format_converter_log(result)}"
                 )
             zip_path = tmp / f"{stem}.zip"
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
@@ -1203,12 +1201,20 @@ async def _extract_xbox(
         final_path = (
             output_path
             if output_path.is_file()
-            else _find_single_output(tmp, tool_output_ext)
+            else _find_single_output_any(tmp, {tool_output_ext, '.xiso'})
         )
         if final_path is None or not final_path.is_file():
             raise RuntimeError(
-                f"converter completed but did not produce a {tool_output_ext} file"
+                f"converter completed but did not produce a {tool_output_ext} file; "
+                f"{_describe_converter_outputs(tmp)}{_format_converter_log(result)}"
             )
+        if final_path.suffix.lower() == '.xiso':
+            renamed = tmp / f"{stem}.iso"
+            try:
+                shutil.move(str(final_path), str(renamed))
+                final_path = renamed
+            except OSError:
+                pass
         return final_path
 
     try:
@@ -1914,13 +1920,53 @@ def _expand_command_template(template: str, **values) -> list[str]:
     return expanded
 
 
-def _find_single_output(tmp_dir: Path, extension: str) -> Path | None:
+def _find_outputs(tmp_dir: Path, extensions: set[str] | frozenset[str]) -> list[Path]:
+    exts = {ext.lower() for ext in extensions}
     outputs = sorted(
-        p for p in tmp_dir.rglob(f'*{extension}') if p.is_file() and p.suffix.lower() == extension
+        p for p in tmp_dir.rglob('*') if p.is_file() and p.suffix.lower() in exts
     )
+    return outputs
+
+
+def _find_single_output_any(tmp_dir: Path, extensions: set[str] | frozenset[str]) -> Path | None:
+    outputs = _find_outputs(tmp_dir, extensions)
     if len(outputs) == 1:
         return outputs[0]
     return None
+
+
+def _find_single_output(tmp_dir: Path, extension: str) -> Path | None:
+    return _find_single_output_any(tmp_dir, {extension})
+
+
+def _describe_converter_outputs(tmp_dir: Path, limit: int = 20) -> str:
+    files = sorted(p for p in tmp_dir.rglob('*') if p.is_file())
+    if not files:
+        return "output directory is empty"
+
+    pieces = []
+    for path in files[:limit]:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            size = 0
+        pieces.append(f"{path.relative_to(tmp_dir).as_posix()} ({size} bytes)")
+    if len(files) > limit:
+        pieces.append(f"... {len(files) - limit} more")
+    return "output files: " + ", ".join(pieces)
+
+
+def _format_converter_log(result: subprocess.CompletedProcess, max_chars: int = 2000) -> str:
+    text = "\n".join(
+        part.strip()
+        for part in (result.stdout or "", result.stderr or "")
+        if part and part.strip()
+    )
+    if not text:
+        return ""
+    if len(text) > max_chars:
+        text = "..." + text[-max_chars:]
+    return f"; converter log: {text}"
 
 
 _CONTENT_TYPES = {

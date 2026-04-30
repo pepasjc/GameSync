@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     # and ``rom_xbox_cci_command`` must write one .cci; the server wraps CCI
     # downloads in a .zip because CCI libraries may also carry launcher files.
     # XGDTool is the intended converter:
-    #   XGDTool --xiso --quiet {input} {output_dir}
-    #   XGDTool --cci --quiet {input} {output_dir}
+    #   XGDTool --xiso --offline --quiet {input} {output_dir}
+    #   XGDTool --cci --offline --quiet {input} {output_dir}
     # Both stay empty until the operator configures the toolchain — until
     # then the server returns 503 with a hint pointing at SYNC_ROM_XBOX_*.
     rom_xbox_iso_command: str = ""
