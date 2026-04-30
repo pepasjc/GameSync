@@ -2,6 +2,7 @@ import json
 import sys
 import zipfile
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -577,6 +578,11 @@ class TestRomCatalog:
             bundle.mkdir(parents=True)
             (bundle / "Journey.pkg").write_bytes(b"P" * 100)
             (bundle / "Journey.rap").write_bytes(b"R" * 50)
+            translated_dlc = (
+                "Dengeki Bunko - Fighting Climax Ignition (Japan) "
+                "[T-En by Tsukimori v1.03] (DLC).pkg"
+            )
+            (bundle / translated_dlc).write_bytes(b"DLC")
 
             rom_scanner.init(rom_dir)
             rom_id = rom_scanner.get().list_by_system("PS3")[0].rom_id
@@ -595,12 +601,20 @@ class TestRomCatalog:
             assert r2.status_code == 200
             assert r2.content == b"R" * 50
 
-            # Path traversal guard.
+            encoded_dlc = quote(translated_dlc, safe="/")
             r3 = client.get(
+                f"/api/v1/roms/{rom_id}/file/{encoded_dlc}",
+                headers=auth_headers,
+            )
+            assert r3.status_code == 200
+            assert r3.content == b"DLC"
+
+            # Path traversal guard.
+            r4 = client.get(
                 f"/api/v1/roms/{rom_id}/file/../escape.txt",
                 headers=auth_headers,
             )
-            assert r3.status_code in (400, 404)
+            assert r4.status_code in (400, 404)
         finally:
             settings.rom_dir = original
             rom_scanner._catalog = None

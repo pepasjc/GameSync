@@ -19,6 +19,9 @@ typedef struct {
     int       body_size;
 } HttpResponse;
 
+typedef int (*HttpWriteFn)(void *ctx, const uint8_t *data, size_t size);
+typedef int (*HttpStreamProducer)(HttpWriteFn write, void *write_ctx, void *user);
+
 // Issue a single HTTP request. ``body``/``body_size`` are optional and
 // only used for POST. ``console_id`` (optional, NULL to skip) is sent as
 // ``X-Console-ID`` header. ``content_type`` (NULL = "application/octet-stream")
@@ -31,6 +34,15 @@ HttpResponse http_request(const char *url,
                           const char *content_type,
                           const uint8_t *body,
                           size_t body_size);
+
+// POST a body produced incrementally. Uses HTTP/1.1 chunked transfer so the
+// caller does not need to know the compressed body size up front.
+HttpResponse http_post_chunked(const char *url,
+                               const char *api_key,
+                               const char *console_id,
+                               const char *content_type,
+                               HttpStreamProducer producer,
+                               void *producer_user);
 
 void http_response_free(HttpResponse *r);
 

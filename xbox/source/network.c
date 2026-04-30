@@ -189,6 +189,47 @@ static void join_url(const char *base, const char *path,
     snprintf(buf, buf_len, "%.*s%s", blen, base, path);
 }
 
+static const char *json_value_start(const char *body, const char *key)
+{
+    if (!body || !key) return NULL;
+    char needle[64];
+    snprintf(needle, sizeof(needle), "\"%s\"", key);
+    const char *p = strstr(body, needle);
+    if (!p) return NULL;
+    p = strchr(p, ':');
+    if (!p) return NULL;
+    p++;
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+    return p;
+}
+
+static int json_copy_string(const char *body, const char *key,
+                            char *out, int out_len)
+{
+    if (!out || out_len <= 0) return -1;
+    out[0] = '\0';
+    const char *p = json_value_start(body, key);
+    if (!p || *p != '"') return -1;
+    p++;
+
+    int i = 0;
+    while (*p && *p != '"' && i < out_len - 1) {
+        if (*p == '\\' && p[1]) p++;
+        out[i++] = *p++;
+    }
+    out[i] = '\0';
+    return i > 0 ? 0 : -1;
+}
+
+static int json_read_u32(const char *body, const char *key, uint32_t *out)
+{
+    const char *p = json_value_start(body, key);
+    unsigned v = 0;
+    if (!p || sscanf(p, "%u", &v) != 1) return -1;
+    if (out) *out = (uint32_t)v;
+    return 0;
+}
+
 int network_status_check(const XboxConfig *cfg,
                          char *out_text, int out_text_len)
 {
@@ -240,15 +281,81 @@ int network_status_check(const XboxConfig *cfg,
     return code > 0 ? code : -1;
 }
 
-int network_upload_save(const XboxConfig *cfg,
-                        const char *title_id,
-                        const uint8_t *bundle,
-                        uint32_t bundle_size)
+int network_get_save_meta(const XboxConfig *cfg,
+                          const char *title_id,
+                          NetworkSaveMeta *out)
+{
+    net_err_clear();
+    if (!cfg || !title_id || !out) return -1;
+    memset(out, 0, sizeof(*out));
+
+    char path[160];
+    snprintf(path, sizeof(path), "/api/v1/saves/%s/meta", title_id);
+    char url[512];
+    join_url(cfg->server_url, path, url, sizeof(url));
+
+    HttpResponse rsp = http_request(url, HTTP_GET,
+                                    cfg->api_key, cfg->console_id,
+                                    NULL, NULL, 0);
+    int code = rsp.status_code;
+    if (code == 404) {
+        out->exists = 0;
+        http_response_free(&rsp);
+        return 0;
+    }
+
+    if (!rsp.success || !rsp.body) {
+        char preview[160] = "";
+        if (rsp.body && rsp.body_size > 0) {
+            int n = rsp.body_size < (int)sizeof(preview) - 1
+                        ? rsp.body_size : (int)sizeof(preview) - 1;
+            memcpy(preview, rsp.body, n);
+            preview[n] = '\0';
+        }
+        if (code <= 0) {
+            net_err_set("meta %s: transport fail", title_id);
+        } else {
+            net_err_set("meta %s: HTTP %d %s",
+                        title_id, code, preview);
+        }
+        http_response_free(&rsp);
+        return -1;
+    }
+
+    const char *body = (const char *)rsp.body;
+    out->exists = 1;
+    if (json_copy_string(body, "save_hash",
+                         out->save_hash, sizeof(out->save_hash)) != 0) {
+        net_err_set("meta %s: malformed response", title_id);
+        http_response_free(&rsp);
+        return -1;
+    }
+    json_read_u32(body, "client_timestamp", &out->client_timestamp);
+    json_read_u32(body, "save_size", &out->save_size);
+    {
+        uint32_t fc = 0;
+        if (json_read_u32(body, "file_count", &fc) == 0) {
+            out->file_count = (int)fc;
+        }
+    }
+    json_copy_string(body, "server_timestamp",
+                     out->server_timestamp, sizeof(out->server_timestamp));
+
+    http_response_free(&rsp);
+    return 0;
+}
+
+static int network_upload_save_impl(const XboxConfig *cfg,
+                                    const char *title_id,
+                                    const uint8_t *bundle,
+                                    uint32_t bundle_size,
+                                    int force)
 {
     net_err_clear();
 
     char path[128];
-    snprintf(path, sizeof(path), "/api/v1/saves/%s", title_id);
+    snprintf(path, sizeof(path), "/api/v1/saves/%s%s",
+             title_id, force ? "?force=true" : "");
     char url[512];
     join_url(cfg->server_url, path, url, sizeof(url));
 
@@ -270,6 +377,95 @@ int network_upload_save(const XboxConfig *cfg,
         } else {
             net_err_set("upload %s: HTTP %d %s",
                         title_id, code, preview);
+        }
+    }
+    http_response_free(&rsp);
+    return code > 0 ? code : -1;
+}
+
+int network_upload_save(const XboxConfig *cfg,
+                        const char *title_id,
+                        const uint8_t *bundle,
+                        uint32_t bundle_size)
+{
+    return network_upload_save_impl(cfg, title_id, bundle, bundle_size, 0);
+}
+
+int network_upload_save_force(const XboxConfig *cfg,
+                              const char *title_id,
+                              const uint8_t *bundle,
+                              uint32_t bundle_size)
+{
+    return network_upload_save_impl(cfg, title_id, bundle, bundle_size, 1);
+}
+
+typedef struct {
+    const XboxSaveTitle *title;
+    uint32_t             timestamp;
+    char                *save_hash_hex;
+} StreamUploadCtx;
+
+typedef struct {
+    HttpWriteFn write;
+    void       *write_ctx;
+} BundleHttpWriter;
+
+static int bundle_http_write(void *ctx, const uint8_t *data, size_t size)
+{
+    BundleHttpWriter *w = (BundleHttpWriter *)ctx;
+    return w->write(w->write_ctx, data, size);
+}
+
+static int upload_stream_producer(HttpWriteFn write,
+                                  void *write_ctx,
+                                  void *user)
+{
+    StreamUploadCtx *u = (StreamUploadCtx *)user;
+    BundleHttpWriter bw = { write, write_ctx };
+    return bundle_stream_create(u->title,
+                                u->timestamp,
+                                bundle_http_write,
+                                &bw,
+                                u->save_hash_hex);
+}
+
+int network_upload_save_stream(const XboxConfig *cfg,
+                               const XboxSaveTitle *title,
+                               uint32_t timestamp,
+                               int force,
+                               char *save_hash_hex)
+{
+    net_err_clear();
+    if (!cfg || !title) return -1;
+    if (save_hash_hex) save_hash_hex[0] = '\0';
+
+    char path[128];
+    snprintf(path, sizeof(path), "/api/v1/saves/%s%s",
+             title->title_id, force ? "?force=true" : "");
+    char url[512];
+    join_url(cfg->server_url, path, url, sizeof(url));
+
+    StreamUploadCtx ctx = { title, timestamp, save_hash_hex };
+    HttpResponse rsp = http_post_chunked(url,
+                                         cfg->api_key,
+                                         cfg->console_id,
+                                         "application/octet-stream",
+                                         upload_stream_producer,
+                                         &ctx);
+    int code = rsp.status_code;
+    if (!rsp.success) {
+        char preview[160] = "";
+        if (rsp.body && rsp.body_size > 0) {
+            int n = rsp.body_size < (int)sizeof(preview) - 1
+                        ? rsp.body_size : (int)sizeof(preview) - 1;
+            memcpy(preview, rsp.body, n);
+            preview[n] = '\0';
+        }
+        if (code <= 0) {
+            net_err_set("upload %s: stream/bundle fail", title->title_id);
+        } else {
+            net_err_set("upload %s: HTTP %d %s",
+                        title->title_id, code, preview);
         }
     }
     http_response_free(&rsp);
@@ -536,9 +732,12 @@ int network_sync_plan(const XboxConfig *cfg,
 
         char hash_hex[XBOX_HASH_BUF];
         uint8_t hash_raw[32];
-        if (bundle_compute_save_hash(t, hash_raw, hash_hex) != 0) {
-            debugPrint("sync: hash fail for %s\n", t->title_id);
-            goto fail;
+        if (!state_get_cached_save_hash(t, hash_hex)) {
+            if (bundle_compute_save_hash(t, hash_raw, hash_hex) != 0) {
+                debugPrint("sync: hash fail for %s\n", t->title_id);
+                goto fail;
+            }
+            state_set_cached_save_hash(t, hash_hex);
         }
 
         char last_hex[XBOX_HASH_BUF] = "";

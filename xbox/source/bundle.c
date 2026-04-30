@@ -12,7 +12,7 @@
 #include <windows.h>
 #include <zlib.h>
 
-#define ZLIB_CHUNK 32768U
+#define ZLIB_CHUNK 8192U
 
 // nxdk's zlib is built with Z_SOLO so the convenience helpers (compress(),
 // uncompress(), compressBound()) are excluded. Replicate the worst-case
@@ -106,6 +106,17 @@ static void zlib_free(voidpf opaque, voidpf ptr)
     free(ptr);
 }
 
+static void hash_to_hex(const uint8_t hash[32], char *hash_hex)
+{
+    static const char H[] = "0123456789abcdef";
+    if (!hash_hex) return;
+    for (int i = 0; i < 32; i++) {
+        hash_hex[i * 2]     = H[(hash[i] >> 4) & 0xF];
+        hash_hex[i * 2 + 1] = H[hash[i] & 0xF];
+    }
+    hash_hex[64] = '\0';
+}
+
 static int compress_payload(const uint8_t *payload, uint32_t payload_size,
                             uint8_t *compressed, uLongf *compressed_size)
 {
@@ -161,6 +172,55 @@ static int compress_payload(const uint8_t *payload, uint32_t payload_size,
             deflateEnd(&zs);
             return -1;
         }
+    }
+}
+
+typedef struct {
+    z_stream      zs;
+    BundleWriteFn write;
+    void         *write_ctx;
+    uint8_t       out[ZLIB_CHUNK];
+} BundleDeflater;
+
+static int deflater_write_pending(BundleDeflater *d)
+{
+    uint32_t produced = ZLIB_CHUNK - d->zs.avail_out;
+    if (produced == 0) return 0;
+    return d->write(d->write_ctx, d->out, produced);
+}
+
+static int deflater_feed(BundleDeflater *d,
+                         const uint8_t *data,
+                         uint32_t size)
+{
+    d->zs.next_in = (Bytef *)data;
+    d->zs.avail_in = size;
+
+    while (d->zs.avail_in > 0) {
+        d->zs.next_out = d->out;
+        d->zs.avail_out = ZLIB_CHUNK;
+        int zr = deflate(&d->zs, Z_NO_FLUSH);
+        if (zr != Z_OK) {
+            debugPrint("bundle: stream deflate zr=%d\n", zr);
+            return -1;
+        }
+        if (deflater_write_pending(d) != 0) return -1;
+    }
+    return 0;
+}
+
+static int deflater_finish(BundleDeflater *d)
+{
+    for (;;) {
+        d->zs.next_out = d->out;
+        d->zs.avail_out = ZLIB_CHUNK;
+        int zr = deflate(&d->zs, Z_FINISH);
+        if (zr != Z_OK && zr != Z_STREAM_END) {
+            debugPrint("bundle: stream finish zr=%d\n", zr);
+            return -1;
+        }
+        if (deflater_write_pending(d) != 0) return -1;
+        if (zr == Z_STREAM_END) return 0;
     }
 }
 
@@ -331,6 +391,199 @@ done:
     return rc;
 }
 
+static int prehash_title_files(const XboxSaveTitle *title,
+                               uint8_t *file_hashes,
+                               uint8_t save_hash[32])
+{
+    int rc = -1;
+    SHA256_CTX save_ctx;
+    sha256_init(&save_ctx);
+
+    char fullpath[XBOX_PATH_MAX * 2];
+    uint8_t *chunk = (uint8_t *)malloc(ZLIB_CHUNK);
+    if (!chunk) {
+        debugPrint("stream hash: malloc chunk fail\n");
+        return -1;
+    }
+
+    for (int i = 0; i < title->file_count; i++) {
+        const XboxSaveFile *f = &title->files[i];
+        SHA256_CTX file_ctx;
+        sha256_init(&file_ctx);
+
+        if (f->file_size > 0) {
+            snprintf(fullpath, sizeof(fullpath),
+                     "E:\\UDATA\\%s\\%s",
+                     title->title_id, f->relative_path);
+
+            HANDLE h = CreateFileA(fullpath, GENERIC_READ, FILE_SHARE_READ, NULL,
+                                   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (h == INVALID_HANDLE_VALUE) {
+                debugPrint("stream hash: open fail %s\n", fullpath);
+                goto done;
+            }
+
+            DWORD got = 0;
+            BOOL ok;
+            do {
+                ok = ReadFile(h, chunk, ZLIB_CHUNK, &got, NULL);
+                if (!ok) break;
+                if (got > 0) {
+                    sha256_update(&file_ctx, chunk, got);
+                    sha256_update(&save_ctx, chunk, got);
+                }
+            } while (got > 0);
+            CloseHandle(h);
+            if (!ok) goto done;
+        }
+
+        sha256_final(&file_ctx, file_hashes + i * 32);
+    }
+
+    sha256_final(&save_ctx, save_hash);
+    rc = 0;
+
+done:
+    free(chunk);
+    return rc;
+}
+
+int bundle_stream_create(const XboxSaveTitle *title,
+                         uint32_t timestamp,
+                         BundleWriteFn write,
+                         void *write_ctx,
+                         char *save_hash_hex)
+{
+    if (!title || !write || title->file_count <= 0) {
+        debugPrint("bundle stream: bad args\n");
+        return -1;
+    }
+
+    int n = title->file_count;
+    uint8_t *file_hashes = (uint8_t *)malloc((size_t)n * 32);
+    if (!file_hashes) {
+        debugPrint("bundle stream: malloc(file_hashes) fail\n");
+        return -1;
+    }
+
+    uint8_t save_hash[32];
+    if (prehash_title_files(title, file_hashes, save_hash) != 0) {
+        free(file_hashes);
+        return -1;
+    }
+    hash_to_hex(save_hash, save_hash_hex);
+
+    uint32_t payload_size = 0;
+    for (int i = 0; i < n; i++) {
+        const XboxSaveFile *f = &title->files[i];
+        uint32_t path_len = (uint32_t)strlen(f->relative_path);
+        payload_size += 2 + path_len + 4 + 32 + f->file_size;
+    }
+
+    uint8_t header[BUNDLE_HEADER_SIZE_V5];
+    memcpy(header, BUNDLE_MAGIC, 4);
+    write_le32(header + 4, BUNDLE_VERSION_V5);
+    memset(header + 8, 0, 64);
+    size_t tid_len = strlen(title->title_id);
+    if (tid_len > 63) tid_len = 63;
+    memcpy(header + 8, title->title_id, tid_len);
+    write_le32(header + 72, timestamp);
+    write_le32(header + 76, (uint32_t)n);
+    write_le32(header + 80, payload_size);
+
+    if (write(write_ctx, header, sizeof(header)) != 0) {
+        free(file_hashes);
+        return -1;
+    }
+
+    BundleDeflater *d = (BundleDeflater *)calloc(1, sizeof(*d));
+    if (!d) {
+        debugPrint("bundle stream: malloc deflater fail\n");
+        free(file_hashes);
+        return -1;
+    }
+    d->zs.zalloc = zlib_alloc;
+    d->zs.zfree  = zlib_free;
+    d->zs.opaque = NULL;
+    d->write = write;
+    d->write_ctx = write_ctx;
+
+    int deflater_ready = 0;
+    if (deflateInit(&d->zs, 6) != Z_OK) {
+        debugPrint("bundle stream: deflateInit fail\n");
+        free(d);
+        free(file_hashes);
+        return -1;
+    }
+    deflater_ready = 1;
+
+    int rc = -1;
+    uint8_t *chunk = NULL;
+    uint8_t entry[2 + XBOX_PATH_MAX + 4 + 32];
+    for (int i = 0; i < n; i++) {
+        const XboxSaveFile *f = &title->files[i];
+        uint16_t path_len = (uint16_t)strlen(f->relative_path);
+        uint32_t off = 0;
+
+        if (path_len >= XBOX_PATH_MAX) goto done_stream;
+        write_le16(entry + off, path_len);
+        off += 2;
+        memcpy(entry + off, f->relative_path, path_len);
+        off += path_len;
+        write_le32(entry + off, f->file_size);
+        off += 4;
+        memcpy(entry + off, file_hashes + i * 32, 32);
+        off += 32;
+
+        if (deflater_feed(d, entry, off) != 0) goto done_stream;
+    }
+
+    char fullpath[XBOX_PATH_MAX * 2];
+    chunk = (uint8_t *)malloc(ZLIB_CHUNK);
+    if (!chunk) {
+        debugPrint("bundle stream: malloc chunk fail\n");
+        goto done_stream;
+    }
+
+    for (int i = 0; i < n; i++) {
+        const XboxSaveFile *f = &title->files[i];
+        if (f->file_size == 0) continue;
+
+        snprintf(fullpath, sizeof(fullpath),
+                 "E:\\UDATA\\%s\\%s",
+                 title->title_id, f->relative_path);
+        HANDLE h = CreateFileA(fullpath, GENERIC_READ, FILE_SHARE_READ, NULL,
+                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (h == INVALID_HANDLE_VALUE) {
+            debugPrint("bundle stream: open fail %s\n", fullpath);
+            goto done_stream;
+        }
+
+        DWORD got = 0;
+        BOOL ok;
+        do {
+            ok = ReadFile(h, chunk, ZLIB_CHUNK, &got, NULL);
+            if (!ok) break;
+            if (got > 0 && deflater_feed(d, chunk, got) != 0) {
+                ok = FALSE;
+                break;
+            }
+        } while (got > 0);
+        CloseHandle(h);
+        if (!ok) goto done_stream;
+    }
+
+    if (deflater_finish(d) != 0) goto done_stream;
+    rc = 0;
+
+done_stream:
+    if (deflater_ready) deflateEnd(&d->zs);
+    free(d);
+    free(chunk);
+    free(file_hashes);
+    return rc;
+}
+
 // ---------------------------------------------------------------------------
 // Save-hash (concatenated file content; matches server semantics)
 // ---------------------------------------------------------------------------
@@ -375,12 +628,7 @@ int bundle_compute_save_hash(const XboxSaveTitle *title,
     sha256_final(&ctx, hash);
 
     if (hash_hex) {
-        static const char H[] = "0123456789abcdef";
-        for (int i = 0; i < 32; i++) {
-            hash_hex[i * 2]     = H[(hash[i] >> 4) & 0xF];
-            hash_hex[i * 2 + 1] = H[hash[i] & 0xF];
-        }
-        hash_hex[64] = '\0';
+        hash_to_hex(hash, hash_hex);
     }
     return 0;
 }

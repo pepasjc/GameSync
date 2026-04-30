@@ -45,8 +45,11 @@ int sync_one_smart(const XboxConfig *cfg,
                    const char *title_id,
                    const SyncPlan *plan);
 
-// Force-upload a single title regardless of plan.
+// Upload a single title.
 int sync_one_upload(const XboxConfig *cfg, XboxSaveTitle *t);
+
+// Force-upload a single title after an explicit confirmation prompt.
+int sync_one_upload_force(const XboxConfig *cfg, XboxSaveTitle *t);
 
 // Force-download a single title.
 int sync_one_download(const XboxConfig *cfg, XboxSaveList *list,

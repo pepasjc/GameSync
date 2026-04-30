@@ -72,6 +72,32 @@ static int parse_url(const char *url,
     return 0;
 }
 
+static int send_all(int s, const void *data, size_t size)
+{
+    const uint8_t *p = (const uint8_t *)data;
+    size_t off = 0;
+    while (off < size) {
+        int n = send(s, p + off, size - off, 0);
+        if (n <= 0) return -1;
+        off += (size_t)n;
+    }
+    return 0;
+}
+
+static int send_chunk(void *ctx, const uint8_t *data, size_t size)
+{
+    int s = *(int *)ctx;
+    char hdr[24];
+
+    if (size == 0) return 0;
+    int n = snprintf(hdr, sizeof(hdr), "%X\r\n", (unsigned)size);
+    if (n <= 0 || n >= (int)sizeof(hdr)) return -1;
+    if (send_all(s, hdr, (size_t)n) != 0) return -1;
+    if (send_all(s, data, size) != 0) return -1;
+    if (send_all(s, "\r\n", 2) != 0) return -1;
+    return 0;
+}
+
 HttpResponse http_request(const char *url,
                           HttpMethod method,
                           const char *api_key,
@@ -174,6 +200,168 @@ HttpResponse http_request(const char *url,
             }
             off += (size_t)chunk;
         }
+    }
+
+    // Receive headers + first chunk of body.
+    char hbuf[HTTP_HEADER_BUF];
+    int  total = 0;
+    char *body_sep = NULL;
+    int  content_length = -1;
+
+    while (total < (int)sizeof(hbuf) - 1) {
+        int n = recv(s, hbuf + total, (int)sizeof(hbuf) - 1 - total, 0);
+        if (n <= 0) {
+            if (total == 0) {
+                debugPrint("http: recv timeout\n");
+                close(s);
+                return rsp;
+            }
+            break;
+        }
+        total += n;
+        hbuf[total] = '\0';
+
+        if (!body_sep) {
+            body_sep = strstr(hbuf, "\r\n\r\n");
+            if (body_sep) body_sep += 4;
+        }
+        if (body_sep && content_length < 0) {
+            char *cl = strstr(hbuf, "Content-Length:");
+            if (!cl) cl = strstr(hbuf, "content-length:");
+            if (cl) sscanf(cl + 15, " %d", &content_length);
+        }
+        if (body_sep && content_length >= 0) {
+            int body_off = (int)(body_sep - hbuf);
+            int got = total - body_off;
+            if (content_length > (int)(sizeof(hbuf) - body_off - 64)) break;
+            if (got >= content_length) break;
+        }
+    }
+
+    sscanf(hbuf, "HTTP/%*d.%*d %d", &rsp.status_code);
+
+    if (body_sep && content_length > 0) {
+        int body_off = (int)(body_sep - hbuf);
+        int in_buf = total - body_off;
+        rsp.body_size = content_length;
+        rsp.body = (uint8_t *)malloc(content_length + 1);
+        if (!rsp.body) {
+            close(s);
+            return rsp;
+        }
+        if (in_buf > 0) {
+            int copy = in_buf < content_length ? in_buf : content_length;
+            memcpy(rsp.body, body_sep, copy);
+        }
+        int received = in_buf < content_length ? in_buf : content_length;
+        while (received < content_length) {
+            int n = recv(s, rsp.body + received, content_length - received, 0);
+            if (n <= 0) break;
+            received += n;
+        }
+        if (received != content_length) {
+            free(rsp.body);
+            rsp.body = NULL;
+            rsp.body_size = 0;
+        } else {
+            rsp.body[content_length] = '\0';
+        }
+    }
+
+    shutdown(s, SHUT_RDWR);
+    close(s);
+    rsp.success = (rsp.status_code >= 200 && rsp.status_code < 300);
+    return rsp;
+}
+
+HttpResponse http_post_chunked(const char *url,
+                               const char *api_key,
+                               const char *console_id,
+                               const char *content_type,
+                               HttpStreamProducer producer,
+                               void *producer_user)
+{
+    HttpResponse rsp = {0};
+    char host[256] = {0};
+    char path[512] = {0};
+    int  port = 80;
+    int  s = -1;
+
+    if (!producer ||
+        parse_url(url, host, sizeof(host), &port, path, sizeof(path)) != 0) {
+        debugPrint("http: bad chunked url %s\n", url ? url : "");
+        return rsp;
+    }
+
+    HLOG("http: POST chunked %s:%d%s\n", host, port, path);
+
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    char port_str[8];
+    snprintf(port_str, sizeof(port_str), "%d", port);
+
+    struct addrinfo *res = NULL;
+    int gai = getaddrinfo(host, port_str, &hints, &res);
+    if (gai != 0 || !res) {
+        debugPrint("http: dns fail (%d) %s\n", gai, host);
+        return rsp;
+    }
+
+    s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (s < 0) {
+        debugPrint("http: socket fail\n");
+        freeaddrinfo(res);
+        return rsp;
+    }
+
+    struct timeval tv;
+    tv.tv_sec = HTTP_TIMEOUT_SEC;
+    tv.tv_usec = 0;
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv));
+
+    if (connect(s, res->ai_addr, res->ai_addrlen) < 0) {
+        debugPrint("http: connect fail %s:%d\n", host, port);
+        freeaddrinfo(res);
+        close(s);
+        return rsp;
+    }
+    freeaddrinfo(res);
+
+    char req[HTTP_HEADER_BUF];
+    const char *ct = (content_type && content_type[0])
+                         ? content_type
+                         : "application/octet-stream";
+    int hdr_len = snprintf(req, sizeof(req),
+        "POST %s HTTP/1.1\r\n"
+        "Host: %s:%d\r\n"
+        "User-Agent: XboxSync/1.0\r\n"
+        "X-API-Key: %s\r\n",
+        path, host, port, api_key ? api_key : "");
+
+    if (console_id && console_id[0]) {
+        hdr_len += snprintf(req + hdr_len, sizeof(req) - hdr_len,
+                            "X-Console-ID: %s\r\n", console_id);
+    }
+    hdr_len += snprintf(req + hdr_len, sizeof(req) - hdr_len,
+        "Content-Type: %s\r\n"
+        "Transfer-Encoding: chunked\r\n"
+        "Connection: close\r\n\r\n", ct);
+
+    if (hdr_len <= 0 || hdr_len >= (int)sizeof(req) ||
+        send_all(s, req, (size_t)hdr_len) != 0) {
+        debugPrint("http: send chunked headers fail\n");
+        close(s);
+        return rsp;
+    }
+
+    if (producer(send_chunk, &s, producer_user) != 0 ||
+        send_all(s, "0\r\n\r\n", 5) != 0) {
+        debugPrint("http: send chunked body fail\n");
+        close(s);
+        return rsp;
     }
 
     // Receive headers + first chunk of body.

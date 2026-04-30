@@ -11,6 +11,8 @@
 #define XBOX_HASH_HEX_LEN 64       // 32 bytes -> 64 hex chars
 #define XBOX_HASH_BUF     65       // hex chars + NUL
 
+#include "saves.h"
+
 // Ensure the state directory exists. Returns 0 on success.
 int state_init(void);
 
@@ -21,5 +23,12 @@ int state_get_last_hash(const char *title_id, char *out);
 // Persist a hash for a title. Hash must be 64 hex chars (no newline).
 // Returns 0 on success.
 int state_set_last_hash(const char *title_id, const char *hex64);
+
+// Hash-cache helpers used to avoid re-reading unchanged saves during plan
+// creation. These cache only local save hashes; last-synced state is separate.
+int state_get_cached_save_hash(const XboxSaveTitle *title, char *out);
+int state_set_cached_save_hash(const XboxSaveTitle *title, const char *hex64);
+int state_clear_cached_save_hash(const char *title_id);
+int state_clear_hash_cache(void);
 
 #endif // XBOX_STATE_H

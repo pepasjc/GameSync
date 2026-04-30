@@ -14,6 +14,8 @@
 
 #include <hal/debug.h>
 
+#define STREAM_UPLOAD_THRESHOLD (4u * 1024u * 1024u)
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -84,7 +86,8 @@ int sync_compute_plan(const XboxConfig *cfg,
 // Single-title actions
 // ---------------------------------------------------------------------------
 
-int sync_one_upload(const XboxConfig *cfg, XboxSaveTitle *t)
+static int sync_one_upload_impl(const XboxConfig *cfg, XboxSaveTitle *t,
+                                int force)
 {
     if (!cfg || !t) return -1;
 
@@ -92,12 +95,30 @@ int sync_one_upload(const XboxConfig *cfg, XboxSaveTitle *t)
     uint32_t bundle_size = 0;
     uint32_t ts = (uint32_t)time(NULL);
 
+    if (t->total_size >= STREAM_UPLOAD_THRESHOLD) {
+        char hex[XBOX_HASH_BUF] = "";
+        int code = network_upload_save_stream(cfg, t, ts, force, hex);
+        if (code < 200 || code >= 300) {
+            debugPrint("upload %s: streamed HTTP %d\n", t->title_id, code);
+            return -1;
+        }
+        if (hex[0]) {
+            state_set_last_hash(t->title_id, hex);
+            state_set_cached_save_hash(t, hex);
+        }
+        return 0;
+    }
+
     int rc = bundle_create(t, ts, &bundle_data, &bundle_size);
     if (rc != 0 || !bundle_data) {
         debugPrint("upload %s: bundle fail rc=%d\n", t->title_id, rc);
         return -1;
     }
-    int code = network_upload_save(cfg, t->title_id, bundle_data, bundle_size);
+    int code = force
+                   ? network_upload_save_force(cfg, t->title_id,
+                                               bundle_data, bundle_size)
+                   : network_upload_save(cfg, t->title_id,
+                                         bundle_data, bundle_size);
     free(bundle_data);
 
     if (code < 200 || code >= 300) {
@@ -106,10 +127,21 @@ int sync_one_upload(const XboxConfig *cfg, XboxSaveTitle *t)
     }
 
     char hex[XBOX_HASH_BUF];
-    if (local_save_hex(t, hex) == 0) {
+    if (state_get_cached_save_hash(t, hex) || local_save_hex(t, hex) == 0) {
         state_set_last_hash(t->title_id, hex);
+        state_set_cached_save_hash(t, hex);
     }
     return 0;
+}
+
+int sync_one_upload(const XboxConfig *cfg, XboxSaveTitle *t)
+{
+    return sync_one_upload_impl(cfg, t, 0);
+}
+
+int sync_one_upload_force(const XboxConfig *cfg, XboxSaveTitle *t)
+{
+    return sync_one_upload_impl(cfg, t, 1);
 }
 
 int sync_one_download(const XboxConfig *cfg,
@@ -141,6 +173,7 @@ int sync_one_download(const XboxConfig *cfg,
         debugPrint("download %s: apply fail\n", tid);
         return -1;
     }
+    state_clear_cached_save_hash(tid);
 
     XboxSaveTitle *local = find_local(list, tid);
     if (local) {

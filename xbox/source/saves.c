@@ -52,6 +52,17 @@ int saves_init(void)
     return ok ? 0 : -1;
 }
 
+static uint32_t filetime_to_unix(const FILETIME *ft)
+{
+    const unsigned long long unix_epoch_in_filetime = 116444736000000000ULL;
+    unsigned long long ticks =
+        ((unsigned long long)ft->dwHighDateTime << 32) |
+        (unsigned long long)ft->dwLowDateTime;
+
+    if (ticks <= unix_epoch_in_filetime) return 0;
+    return (uint32_t)((ticks - unix_epoch_in_filetime) / 10000000ULL);
+}
+
 static void scan_files_recursive(const char *root,
                                  const char *rel_dir,
                                  XboxSaveTitle *title)
@@ -100,6 +111,10 @@ static void scan_files_recursive(const char *root,
                     sizeof(f->relative_path) - 1);
             f->relative_path[sizeof(f->relative_path) - 1] = '\0';
             title->total_size += sz;
+
+            uint32_t mtime = filetime_to_unix(&fd.ftLastWriteTime);
+            f->mtime = mtime;
+            if (mtime > title->latest_mtime) title->latest_mtime = mtime;
         }
     } while (FindNextFileA(h, &fd));
 

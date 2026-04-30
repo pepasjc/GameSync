@@ -28,6 +28,7 @@ typedef struct {
        swallow the next line). */
     char     relative_path[XBOX_PATH_MAX];
     uint32_t file_size;  // truncated; saves >4 GiB are not realistic
+    uint32_t mtime;      // last write time, Unix epoch
 } XboxSaveFile;
 
 #define XBOX_NAME_MAX 64
@@ -37,6 +38,7 @@ typedef struct {
     char         name[XBOX_NAME_MAX];             // resolved game name; "" if unknown
     int          file_count;
     uint32_t     total_size;
+    uint32_t     latest_mtime;                    // newest file mtime, Unix epoch
     XboxSaveFile files[XBOX_MAX_FILES_PER_TITLE];
 } XboxSaveTitle;
 

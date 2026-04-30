@@ -24,6 +24,7 @@
 #ifndef XBOX_BUNDLE_H
 #define XBOX_BUNDLE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "saves.h"
@@ -42,6 +43,18 @@ int bundle_create(const XboxSaveTitle *title,
                   uint32_t timestamp,
                   uint8_t **out_data,
                   uint32_t *out_size);
+
+typedef int (*BundleWriteFn)(void *ctx, const uint8_t *data, size_t size);
+
+// Streaming variant of bundle_create(). Emits the same v5 compressed bundle
+// to ``write`` without holding the whole save, payload, or compressed bundle
+// in memory. ``save_hash_hex`` may be NULL; when provided it receives the
+// canonical 64-char save hash.
+int bundle_stream_create(const XboxSaveTitle *title,
+                         uint32_t timestamp,
+                         BundleWriteFn write,
+                         void *write_ctx,
+                         char *save_hash_hex);
 
 // Convenience: compute the SHA-256 of a contiguous buffer in `chunk`-sized
 // passes so we never miss a chance to yield. ``chunk`` of 0 means "one

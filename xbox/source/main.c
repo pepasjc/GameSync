@@ -14,9 +14,11 @@
 #include <windows.h>
 #include <xboxkrnl/xboxkrnl.h>
 
+#include "bundle.h"
 #include "config.h"
 #include "network.h"
 #include "saves.h"
+#include "state.h"
 #include "sync.h"
 #include "ui.h"
 
@@ -64,6 +66,32 @@ static void short_str(const char *src, char *out, int max_chars)
         snprintf(out, max_chars + 1, "%s", src);
     } else {
         snprintf(out, max_chars + 1, "%.*s...", max_chars - 3, src);
+    }
+}
+
+static void short_hash(const char *src, char *out, int out_len)
+{
+    if (!out || out_len <= 0) return;
+    if (!src || !src[0]) {
+        snprintf(out, out_len, "n/a");
+        return;
+    }
+
+    int n = (int)strlen(src);
+    if (n <= 30) {
+        snprintf(out, out_len, "%s", src);
+    } else {
+        snprintf(out, out_len, "%.16s...%.8s", src, src + n - 8);
+    }
+}
+
+static void fmt_timestamp(uint32_t ts, char *out, int out_len)
+{
+    if (!out || out_len <= 0) return;
+    if (ts == 0) {
+        snprintf(out, out_len, "n/a");
+    } else {
+        snprintf(out, out_len, "%u", (unsigned)ts);
     }
 }
 
@@ -170,7 +198,8 @@ static void draw_footer(void)
     ui_rect(0, y0, UI_W, FOOTER_H, UI_FOOTER_BG);
 
     ui_text(UI_SAFE_X, y0 + 6,
-            "A smart  X upload  Y download", UI_TEXT, UI_FONT_BODY);
+            "A smart  X upload  Y download  B clear cache",
+            UI_TEXT, UI_FONT_BODY);
     ui_text(UI_SAFE_X, y0 + 28,
             "D-pad/Stick L/R page  LB refresh  RB sync-all  START exit",
             UI_TEXT_DIM, UI_FONT_SMALL);
@@ -343,6 +372,8 @@ static int page_rows(int direction, int *cursor, int *scroll)
 // Side-effect helpers (network/sync ops with status updates)
 // ---------------------------------------------------------------------------
 
+static void resolve_local_names(void);
+
 static int row_to_title(int cursor, const char **out_tid, XboxSaveTitle **out_local)
 {
     if (cursor < g_list.title_count) {
@@ -356,6 +387,227 @@ static int row_to_title(int cursor, const char **out_tid, XboxSaveTitle **out_lo
     *out_tid = g_plan.server_only_ids[idx];
     *out_local = NULL;
     return 0;
+}
+
+static void plan_remove_from_bucket(char (*ids)[XBOX_TITLE_ID_LEN + 1],
+                                    int *count,
+                                    const char *tid)
+{
+    if (!ids || !count || !tid) return;
+    for (int i = 0; i < *count; i++) {
+        if (strcmp(ids[i], tid) != 0) continue;
+        for (int j = i; j + 1 < *count; j++) {
+            snprintf(ids[j], XBOX_TITLE_ID_LEN + 1, "%s", ids[j + 1]);
+        }
+        (*count)--;
+        ids[*count][0] = '\0';
+        i--;
+    }
+}
+
+static void plan_remove_from_server_only(const char *tid)
+{
+    if (!g_plan.server_only_ids || !tid) return;
+    for (int i = 0; i < g_plan.server_only_count; i++) {
+        if (strcmp(g_plan.server_only_ids[i], tid) != 0) continue;
+        for (int j = i; j + 1 < g_plan.server_only_count; j++) {
+            snprintf(g_plan.server_only_ids[j], XBOX_TITLE_ID_LEN + 1, "%s",
+                     g_plan.server_only_ids[j + 1]);
+            if (g_plan.server_only_names) {
+                snprintf(g_plan.server_only_names[j], XBOX_NAME_MAX, "%s",
+                         g_plan.server_only_names[j + 1]);
+            }
+        }
+        g_plan.server_only_count--;
+        g_plan.server_only_ids[g_plan.server_only_count][0] = '\0';
+        if (g_plan.server_only_names) {
+            g_plan.server_only_names[g_plan.server_only_count][0] = '\0';
+        }
+        i--;
+    }
+}
+
+static int plan_contains_ok(const char *tid)
+{
+    if (!g_plan.up_to_date_ids || !tid) return 0;
+    for (int i = 0; i < g_plan.up_to_date_count; i++) {
+        if (strcmp(g_plan.up_to_date_ids[i], tid) == 0) return 1;
+    }
+    return 0;
+}
+
+static void plan_mark_title_ok(const char *tid)
+{
+    if (!g_plan_loaded || !tid) return;
+
+    plan_remove_from_bucket(g_plan.upload_ids, &g_plan.upload_count, tid);
+    plan_remove_from_bucket(g_plan.download_ids, &g_plan.download_count, tid);
+    plan_remove_from_bucket(g_plan.conflict_ids, &g_plan.conflict_count, tid);
+    plan_remove_from_bucket(g_plan.up_to_date_ids, &g_plan.up_to_date_count, tid);
+    plan_remove_from_server_only(tid);
+
+    if (!plan_contains_ok(tid) && g_plan.up_to_date_count < SYNC_MAX_TITLES) {
+        snprintf(g_plan.up_to_date_ids[g_plan.up_to_date_count],
+                 XBOX_TITLE_ID_LEN + 1, "%s", tid);
+        g_plan.up_to_date_count++;
+    }
+}
+
+static void rescan_local_preserve_plan(void)
+{
+    saves_scan(&g_list);
+    resolve_local_names();
+}
+
+static const char *manual_op_name(UiKey op)
+{
+    return op == UI_KEY_X ? "upload" : "download";
+}
+
+static void draw_confirm_dialog(int cursor, int scroll,
+                                UiKey op,
+                                const char *tid,
+                                const XboxSaveTitle *local,
+                                const char *local_hash,
+                                const NetworkSaveMeta *server)
+{
+    redraw(cursor, scroll);
+
+    UiColor border = { 0x7E, 0xE8, 0xA1, 0xFF };
+    UiColor panel  = { 0x08, 0x1A, 0x13, 0xFF };
+    UiColor head   = { 0x10, 0x36, 0x25, 0xFF };
+    UiColor dark   = { 0x0B, 0x18, 0x10, 0xFF };
+
+    const int x = 44;
+    const int y = 96;
+    const int w = 552;
+    const int h = 292;
+    ui_rect(x - 2, y - 2, w + 4, h + 4, border);
+    ui_rect(x, y, w, h, panel);
+    ui_rect(x, y, w, 34, head);
+
+    char line[180];
+    snprintf(line, sizeof(line), "Confirm %s", manual_op_name(op));
+    ui_text(x + 14, y + 7, line, UI_ACCENT, UI_FONT_BODY);
+
+    char display_name[56];
+    if (local && local->name[0]) {
+        short_str(local->name, display_name, 46);
+    } else {
+        snprintf(display_name, sizeof(display_name), "%s", tid);
+    }
+    snprintf(line, sizeof(line), "Title %s  %s", tid, display_name);
+    ui_text(x + 14, y + 44, line, UI_TEXT, UI_FONT_SMALL);
+
+    char local_hash_short[40];
+    char server_hash_short[40];
+    char local_ts[24];
+    char server_ts[24];
+    short_hash(local_hash, local_hash_short, sizeof(local_hash_short));
+    short_hash(server && server->exists ? server->save_hash : "",
+               server_hash_short, sizeof(server_hash_short));
+    fmt_timestamp(local ? local->latest_mtime : 0, local_ts, sizeof(local_ts));
+    fmt_timestamp(server && server->exists ? server->client_timestamp : 0,
+                  server_ts, sizeof(server_ts));
+
+    int ly = y + 72;
+    if (local) {
+        char kb[24];
+        snprintf(line, sizeof(line), "Local: %s, %d file(s)",
+                 fmt_kb(local->total_size, kb, sizeof(kb)),
+                 local->file_count);
+    } else {
+        snprintf(line, sizeof(line), "Local: not present on this Xbox");
+    }
+    ui_text(x + 14, ly, line, UI_TEXT, UI_FONT_SMALL);
+    ly += 24;
+    snprintf(line, sizeof(line), "Local hash: %s", local_hash_short);
+    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
+    ly += 24;
+    snprintf(line, sizeof(line), "Local timestamp: %s", local_ts);
+    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
+
+    ly += 34;
+    if (server && server->exists) {
+        char kb[24];
+        snprintf(line, sizeof(line), "Server: %s, %d file(s)",
+                 fmt_kb(server->save_size, kb, sizeof(kb)),
+                 server->file_count);
+    } else {
+        snprintf(line, sizeof(line), "Server: no save found");
+    }
+    ui_text(x + 14, ly, line, UI_TEXT, UI_FONT_SMALL);
+    ly += 24;
+    snprintf(line, sizeof(line), "Server hash: %s", server_hash_short);
+    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
+    ly += 24;
+    snprintf(line, sizeof(line), "Server timestamp: %s", server_ts);
+    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
+    ly += 24;
+    snprintf(line, sizeof(line), "Server uploaded: %s",
+             (server && server->exists && server->server_timestamp[0])
+                 ? server->server_timestamp
+                 : "n/a");
+    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
+
+    ui_rect(x + 14, y + h - 44, 150, 28, UI_STATUS_OK);
+    ui_text(x + 36, y + h - 39, "A confirm", dark, UI_FONT_SMALL);
+    ui_rect(x + 184, y + h - 44, 130, 28, UI_STATUS_CONFLICT);
+    ui_text(x + 210, y + h - 39, "B cancel", dark, UI_FONT_SMALL);
+
+    ui_present();
+}
+
+static int confirm_manual_transfer(int cursor, int scroll,
+                                   UiKey op,
+                                   const char *tid,
+                                   XboxSaveTitle *local)
+{
+    char local_hash[XBOX_SAVE_HASH_HEX_LEN + 1] = "";
+
+    if (local) {
+        uint8_t raw[32];
+        if (!state_get_cached_save_hash(local, local_hash)) {
+            set_status_kind(UI_STATUS_BUSY_KIND, "Computing local hash: %s", tid);
+            redraw(cursor, scroll);
+            if (bundle_compute_save_hash(local, raw, local_hash) != 0) {
+                set_status_kind(UI_STATUS_ERROR_KIND,
+                                "Could not hash local save: %s", tid);
+                return 0;
+            }
+            state_set_cached_save_hash(local, local_hash);
+        }
+    }
+
+    NetworkSaveMeta server;
+    set_status_kind(UI_STATUS_BUSY_KIND, "Fetching server metadata: %s", tid);
+    redraw(cursor, scroll);
+    if (network_get_save_meta(&g_cfg, tid, &server) != 0) {
+        const char *ne = network_last_error();
+        set_status_kind(UI_STATUS_ERROR_KIND, "%s",
+                        (ne && ne[0]) ? ne : "Server metadata fetch failed");
+        return 0;
+    }
+    if (op == UI_KEY_Y && !server.exists) {
+        set_status_kind(UI_STATUS_ERROR_KIND,
+                        "No server save to download: %s", tid);
+        return 0;
+    }
+
+    draw_confirm_dialog(cursor, scroll, op, tid, local, local_hash, &server);
+    while (1) {
+        ui_pump();
+        UiKey k = ui_poll_key();
+        if (k == UI_KEY_A) {
+            return 1;
+        }
+        if (k == UI_KEY_B || k == UI_KEY_BACK || k == UI_KEY_START) {
+            set_status_kind(UI_STATUS_INFO_KIND, "%s cancelled: %s",
+                            op == UI_KEY_X ? "Upload" : "Download", tid);
+            return 0;
+        }
+        ui_sleep(20);
+    }
 }
 
 static void resolve_local_names(void)
@@ -410,6 +662,17 @@ static void rescan(void)
                     g_list.title_count);
 }
 
+static void clear_hash_cache(void)
+{
+    if (state_clear_hash_cache() != 0) {
+        set_status_kind(UI_STATUS_ERROR_KIND, "Could not clear hash cache");
+        return;
+    }
+    if (g_plan_loaded) { sync_plan_free(&g_plan); g_plan_loaded = 0; }
+    set_status_kind(UI_STATUS_SUCCESS_KIND,
+                    "Hash cache cleared; press LB to refresh plan");
+}
+
 static void run_sync_one(int cursor, int scroll, UiKey op)
 {
     const char *tid = NULL;
@@ -418,6 +681,13 @@ static void run_sync_one(int cursor, int scroll, UiKey op)
         set_status_kind(UI_STATUS_ERROR_KIND, "No row selected");
         return;
     }
+    char tid_copy[XBOX_TITLE_ID_LEN + 1];
+    snprintf(tid_copy, sizeof(tid_copy), "%s", tid);
+    tid = tid_copy;
+
+    TitleStatus prior_status = g_plan_loaded
+                                   ? sync_plan_status(&g_plan, tid)
+                                   : TITLE_STATUS_UNKNOWN;
     int rc = -1;
     switch (op) {
     case UI_KEY_A:
@@ -425,7 +695,7 @@ static void run_sync_one(int cursor, int scroll, UiKey op)
             set_status_kind(UI_STATUS_ERROR_KIND, "Refresh plan first (LB)");
             return;
         }
-        if (sync_plan_status(&g_plan, tid) == TITLE_STATUS_CONFLICT) {
+        if (prior_status == TITLE_STATUS_CONFLICT) {
             set_status_kind(UI_STATUS_ERROR_KIND,
                             "Conflict: use X upload or Y download for %s",
                             tid);
@@ -440,11 +710,17 @@ static void run_sync_one(int cursor, int scroll, UiKey op)
             set_status_kind(UI_STATUS_ERROR_KIND, "No local copy to upload");
             return;
         }
+        if (!confirm_manual_transfer(cursor, scroll, op, tid, local)) {
+            return;
+        }
         set_status_kind(UI_STATUS_BUSY_KIND, "Uploading %s...", tid);
         redraw(cursor, scroll);
-        rc = sync_one_upload(&g_cfg, local);
+        rc = sync_one_upload_force(&g_cfg, local);
         break;
     case UI_KEY_Y:
+        if (!confirm_manual_transfer(cursor, scroll, op, tid, local)) {
+            return;
+        }
         set_status_kind(UI_STATUS_BUSY_KIND, "Downloading %s...", tid);
         redraw(cursor, scroll);
         rc = sync_one_download(&g_cfg, &g_list, tid);
@@ -452,11 +728,16 @@ static void run_sync_one(int cursor, int scroll, UiKey op)
     default: return;
     }
     if (rc == 0) {
+        if (op == UI_KEY_Y ||
+            prior_status == TITLE_STATUS_NEEDS_DOWNLOAD ||
+            prior_status == TITLE_STATUS_SERVER_ONLY) {
+            rescan_local_preserve_plan();
+        }
+        plan_mark_title_ok(tid);
         set_status_kind(UI_STATUS_SUCCESS_KIND, "%s complete: %s",
                         op == UI_KEY_A ? "Smart sync" :
                         op == UI_KEY_X ? "Upload" : "Download",
                         tid);
-        if (g_plan_loaded) { sync_plan_free(&g_plan); g_plan_loaded = 0; }
     } else {
         const char *ne = network_last_error();
         if (ne && ne[0]) {
@@ -636,6 +917,9 @@ int main(void)
             redraw(cursor, scroll);
             run_sync_all(cursor, scroll);
             clamp_cursor_scroll(&cursor, &scroll);
+            redraw_needed = 1; break;
+        case UI_KEY_B:
+            clear_hash_cache();
             redraw_needed = 1; break;
         case UI_KEY_A:
         case UI_KEY_X:
