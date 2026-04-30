@@ -850,17 +850,24 @@ const STAGES = {
     'Building decrypted CCI…',
     'Writing CCI file…',
   ],
+  cci: [
+    'Starting conversion…',
+    'Opening Xbox disc image…',
+    'Building CCI archive…',
+    'Packaging ZIP archive…',
+  ],
 };
 
 // Labels and filename suffixes per format
 const FMT_META = {
   cue: { badge:'CUE/BIN',       source:'CHD',     suffix:' · packaging as ZIP', ext:'.zip',  errHint:'Check that chdman is installed on the server.' },
   gdi: { badge:'GDI',           source:'CHD',     suffix:' · packaging as ZIP', ext:'.zip',  errHint:'Check that chdman is installed on the server.' },
-  iso: { badge:'ISO',           source:'CHD',     suffix:'',                    ext:'.iso',  errHint:'Check that chdman is installed on the server.' },
+  iso: { badge:'ISO',           source:'Disc',    suffix:'',                    ext:'.iso',  errHint:'Check that the server-side converter is configured.' },
   cso: { badge:'CSO',           source:'CHD',     suffix:' · compressing',      ext:'.cso',  errHint:'Check that chdman and ciso/maxcso are installed on the server.' },
   rvz: { badge:'ISO',           source:'RVZ',     suffix:'',                    ext:'.iso',  errHint:'Check that DolphinTool is installed on the server.' },
   cia:           { badge:'CIA',  source:'3DS CART', suffix:' · decrypted',   ext:'.cia',  errHint:'Configure SYNC_ROM_3DS_CIA_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
   decrypted_cci: { badge:'CCI',  source:'3DS CART', suffix:' · decrypted',   ext:'.cci',  errHint:'Configure SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
+  cci: { badge:'CCI',           source:'Xbox',    suffix:' · ZIP',              ext:'.zip',  errHint:'Configure SYNC_ROM_XBOX_CCI_COMMAND on the server.' },
 };
 
 function queueKey(titleId, fmt) {
@@ -1082,7 +1089,7 @@ function startQueueStages(job) {
   const stages = STAGES[job.fmt] || STAGES.cue;
   let stageIdx = 0;
   job.stageText = stages[stageIdx];
-  job.subText = 'Multi-GB 3DS games can take 5–8 minutes the first time (cached after that)';
+  job.subText = 'Large disc conversions can take a few minutes the first time (cached after that)';
   // Tracks how long we've been on the LAST stage so we can append
   // "(still working… N s)" instead of letting the user think we're stuck.
   let lastStageEnteredAt = null;
@@ -1570,23 +1577,20 @@ function romCardHtml(rom) {
         data-url="${rawUrl}" data-fn="${fn}"
         title="Download original ${rawLabel} cart image">3DS</button>`);
     btnHtml = `<div class="rom-btns rom-btns-3ds">${cartButtons.join('')}</div>`;
-  } else if (extractFormats.some(f => ['folder'].includes(f))) {
-    // Xbox / Xbox 360 disc image.  Up to three buttons: ISO (decompress
-    // CCI/CSO), FOLDER (extract-xiso → zipped game directory), and the
-    // raw download.  ``rom-btns-3ds`` reuses the compact 4-button
-    // layout — same visual density we already pay for on 3DS cards.
+  } else if (extractFormats.some(f => ['cci', 'iso'].includes(f))) {
+    // Xbox / Xbox 360 disc image.  Always show the two target formats; the
+    // server decides whether that is a direct stream/ZIP or a conversion.
     const xboxButtons = [];
+    if (extractFormats.includes('cci')) {
+      xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cci"
+        title="Download or convert to CCI ZIP">CCI</button>`);
+    }
     if (extractFormats.includes('iso')) {
       xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
         data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
-        title="Decompress CCI / CSO to a plain ISO">ISO</button>`);
+        title="Download or convert to ISO">ISO</button>`);
     }
-    xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="folder"
-        title="Extract the xiso filesystem and download as a ZIP of the game folder">FOLDER</button>`);
-    xboxButtons.push(`<button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>`);
     btnHtml = `<div class="rom-btns rom-btns-3ds">${xboxButtons.join('')}</div>`;
   } else {
     btnHtml = `<button class="dl-btn" data-action="dl"

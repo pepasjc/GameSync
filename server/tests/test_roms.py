@@ -445,6 +445,42 @@ class TestRomCatalog:
         assert bundle_entry.is_bundle is True
         assert bundle_entry.name == "Journey"
 
+    def test_scan_xbox_cci_bundle_and_iso(self, tmp_path):
+        """Xbox CCI subfolders collapse into one bundle, while ISO files
+        stay regular entries. Loose top-level .cci files are skipped so
+        launchers don't get separated from the game image.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        bundle = rom_dir / "xbox" / "Halo"
+        bundle.mkdir(parents=True)
+        (bundle / "Halo.cci").write_bytes(b"C" * 1024)
+        (bundle / "default.xbe").write_bytes(b"X" * 128)
+
+        (rom_dir / "xbox" / "Skate 3.iso").write_bytes(b"I" * 2048)
+        (rom_dir / "xbox" / "Loose.cci").write_bytes(b"L" * 512)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        xbox = catalog.list_by_system("XBOX")
+        assert len(xbox) == 2
+        bundles = [e for e in xbox if e.is_bundle]
+        loose = [e for e in xbox if not e.is_bundle]
+        assert len(bundles) == 1
+        assert len(loose) == 1
+
+        assert bundles[0].name == "Halo"
+        assert bundles[0].filename == "Halo.zip"
+        assert sorted(f["name"] for f in bundles[0].bundle_files) == [
+            "Halo.cci",
+            "default.xbe",
+        ]
+        assert loose[0].filename == "Skate 3.iso"
+
     def test_scan_ps3_bundle_groups_pkg_and_rap(self, tmp_path):
         """A PS3 subfolder with a .pkg + .rap collapses to one bundle
         entry; the file list is preserved on the catalog row so the
@@ -615,6 +651,75 @@ class TestRomCatalog:
                 headers=auth_headers,
             )
             assert r4.status_code in (400, 404)
+        finally:
+            settings.rom_dir = original
+            rom_scanner._catalog = None
+
+    def test_xbox_roms_advertise_cci_and_iso_options(
+        self, tmp_path, client, auth_headers
+    ):
+        """The WebUI should see exactly the two Xbox target formats for
+        both source layouts: CCI bundle and ISO file.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original = settings.rom_dir
+        try:
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+
+            bundle = rom_dir / "xbox" / "Halo"
+            bundle.mkdir(parents=True)
+            (bundle / "Halo.cci").write_bytes(b"CCIDISC")
+            (bundle / "default.xbe").write_bytes(b"LAUNCHER")
+            (rom_dir / "xbox" / "Skate 3.iso").write_bytes(b"ISODISC")
+
+            rom_scanner.init(rom_dir)
+
+            resp = client.get("/api/v1/roms?system=XBOX", headers=auth_headers)
+            assert resp.status_code == 200
+            roms = sorted(resp.json()["roms"], key=lambda r: r["name"])
+            assert len(roms) == 2
+            assert roms[0]["extract_formats"] == ["cci", "iso"]
+            assert roms[1]["extract_formats"] == ["cci", "iso"]
+        finally:
+            settings.rom_dir = original
+            rom_scanner._catalog = None
+
+    def test_xbox_cci_bundle_downloads_as_zip(
+        self, tmp_path, client, auth_headers
+    ):
+        """A raw WebUI CCI download for a bundled Xbox game is a ZIP that
+        preserves the .cci and launcher files.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+        import io
+        import zipfile as zf_mod
+
+        original = settings.rom_dir
+        try:
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+
+            bundle = rom_dir / "xbox" / "Halo"
+            bundle.mkdir(parents=True)
+            (bundle / "Halo.cci").write_bytes(b"CCIDISC")
+            (bundle / "default.xbe").write_bytes(b"LAUNCHER")
+
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("XBOX")[0].rom_id
+
+            resp = client.get(f"/api/v1/roms/{rom_id}", headers=auth_headers)
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "application/zip"
+            with zf_mod.ZipFile(io.BytesIO(resp.content)) as zf:
+                assert sorted(zf.namelist()) == ["Halo.cci", "default.xbe"]
+                assert zf.read("Halo.cci") == b"CCIDISC"
+                assert zf.read("default.xbe") == b"LAUNCHER"
         finally:
             settings.rom_dir = original
             rom_scanner._catalog = None
@@ -852,6 +957,105 @@ class TestRomDownload:
         assert resp.headers["content-disposition"].endswith(
             'filename="Pilotwings Resort (USA).cci"'
         )
+
+    def test_download_xbox_iso_as_cci_zip(self, tmp_path, client, auth_headers):
+        """ISO source + ?extract=cci runs the configured converter, then
+        wraps the produced .cci in a ZIP for WebUI downloads.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+        import io
+        import zipfile as zf_mod
+
+        original_rom_dir = settings.rom_dir
+        original_interval = settings.rom_scan_interval
+        original_cmd = settings.rom_xbox_cci_command
+        try:
+            settings.rom_scan_interval = 0
+            settings.rom_xbox_cci_command = json.dumps(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "Path(sys.argv[2]).write_bytes(b'CCI:' + Path(sys.argv[1]).read_bytes())"
+                    ),
+                    "{input}",
+                    "{output}",
+                ]
+            )
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+            (rom_dir / "xbox").mkdir(parents=True)
+            (rom_dir / "xbox" / "Skate 3.iso").write_bytes(b"ISODISC")
+
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("XBOX")[0].rom_id
+
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}?extract=cci", headers=auth_headers
+            )
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "application/zip"
+            with zf_mod.ZipFile(io.BytesIO(resp.content)) as zf:
+                assert zf.namelist() == ["Skate 3.cci"]
+                assert zf.read("Skate 3.cci") == b"CCI:ISODISC"
+        finally:
+            settings.rom_dir = original_rom_dir
+            settings.rom_scan_interval = original_interval
+            settings.rom_xbox_cci_command = original_cmd
+            rom_scanner._catalog = None
+
+    def test_download_xbox_cci_bundle_as_iso(self, tmp_path, client, auth_headers):
+        """CCI bundle + ?extract=iso converts the embedded .cci while the
+        plain bundle download stays ZIP-based.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original_rom_dir = settings.rom_dir
+        original_interval = settings.rom_scan_interval
+        original_cmd = settings.rom_xbox_iso_command
+        try:
+            settings.rom_scan_interval = 0
+            settings.rom_xbox_iso_command = json.dumps(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "Path(sys.argv[2]).write_bytes(b'ISO:' + Path(sys.argv[1]).read_bytes())"
+                    ),
+                    "{input}",
+                    "{output}",
+                ]
+            )
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+            bundle = rom_dir / "xbox" / "Halo"
+            bundle.mkdir(parents=True)
+            (bundle / "Halo.cci").write_bytes(b"CCIDISC")
+            (bundle / "default.xbe").write_bytes(b"LAUNCHER")
+
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("XBOX")[0].rom_id
+
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}?extract=iso", headers=auth_headers
+            )
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "application/x-iso9660-image"
+            assert resp.content == b"ISO:CCIDISC"
+            assert resp.headers["content-disposition"].endswith(
+                'filename="Halo.iso"'
+            )
+        finally:
+            settings.rom_dir = original_rom_dir
+            settings.rom_scan_interval = original_interval
+            settings.rom_xbox_iso_command = original_cmd
+            rom_scanner._catalog = None
 
 
 class TestRomRescan:

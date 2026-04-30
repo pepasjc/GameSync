@@ -39,6 +39,14 @@ single bundle entry whose ``name`` is the subfolder name.  Top-level PS1
 files (loose ``.chd`` etc) are still scanned as individual entries —
 unlike PS3 we don't reject them, because per-disc-format PS1 layouts at
 the top level are common in existing libraries.
+
+Xbox CCI bundles
+----------------
+Xbox CCI releases are stored as per-game subfolders because the compressed
+disc image often travels with one or more launcher files.  Any subfolder of
+``<rom_dir>/xbox/`` containing a ``.cci`` is collapsed into one catalog
+entry and downloaded as a ZIP.  Loose top-level ``.iso`` files remain
+single-file entries and can be converted to CCI on demand.
 """
 
 import binascii
@@ -82,6 +90,13 @@ _PS1_BUNDLE_TRIGGER_EXTS = frozenset({
 _PS1_BUNDLE_COMPANION_EXTS = frozenset({
     ".sub", ".ccd", ".toc", ".sbi", ".m3u",
 })
+
+# Xbox CCI bundles preserve their whole per-game directory because attach
+# launchers and emulator helper files do not have one stable extension across
+# every library.  The scanner still ignores the same metadata sidecars as the
+# other bundle paths.
+_XBOX_BUNDLE_TRIGGER_EXTS = frozenset({".cci"})
+_XBOX_FILE_EXTS = frozenset({".iso", ".cci"})
 
 
 class RomEntry:
@@ -437,6 +452,10 @@ class RomCatalog:
             self._scan_ps3_folder(folder, norm, rom_dir, use_crc32, scanned)
             return
 
+        if system.upper() == "XBOX":
+            self._scan_xbox_folder(folder, norm, rom_dir, use_crc32, scanned)
+            return
+
         if system.upper() == "PS1":
             self._scan_ps1_folder(folder, norm, rom_dir, use_crc32, scanned)
             return
@@ -447,6 +466,126 @@ class RomCatalog:
             if file_path.name.lower() in SKIP_NAMES:
                 continue
             if file_path.suffix.lower() not in ROM_EXTENSIONS:
+                continue
+
+            crc32 = ""
+            if use_crc32:
+                title_id, canonical_name, source, crc32 = _identify_rom_crc32(
+                    system, file_path, norm
+                )
+            else:
+                title_id, canonical_name, source = _identify_rom_slug(
+                    system, file_path, norm
+                )
+
+            rel_path = str(file_path.relative_to(rom_dir).as_posix())
+            size = file_path.stat().st_size
+            scanned.append(
+                {
+                    "title_id": title_id,
+                    "system": system,
+                    "name": canonical_name,
+                    "filename": file_path.name,
+                    "path": rel_path,
+                    "size": size,
+                    "crc32": crc32,
+                    "source": source,
+                    "is_bundle": 0,
+                    "bundle_files": "",
+                }
+            )
+
+    def _scan_xbox_folder(
+        self,
+        folder: Path,
+        norm: Optional[object],
+        rom_dir: Path,
+        use_crc32: bool,
+        scanned: list[dict],
+    ) -> None:
+        """Xbox-specific scan with CCI bundle detection.
+
+        CCI games must live under a per-game subfolder so launchers can
+        travel with the compressed image.  ISO files are standalone entries
+        and may live anywhere below the Xbox folder as long as they are not
+        inside a CCI bundle directory.
+        """
+        system = "XBOX"
+
+        bundle_dirs: list[Path] = []
+        bundled_paths: set[Path] = set()
+
+        for sub in sorted(folder.iterdir()):
+            if not sub.is_dir():
+                continue
+            has_cci = any(
+                f.is_file() and f.suffix.lower() in _XBOX_BUNDLE_TRIGGER_EXTS
+                for f in sub.rglob("*")
+            )
+            if has_cci:
+                bundle_dirs.append(sub)
+                for f in sub.rglob("*"):
+                    if f.is_file():
+                        bundled_paths.add(f.resolve())
+
+        # ── Pass 1: CCI bundles ───────────────────────────────────────
+        for bundle_dir in bundle_dirs:
+            files: list[tuple[str, int]] = []
+            total_size = 0
+            for f in sorted(bundle_dir.rglob("*")):
+                if not f.is_file():
+                    continue
+                if f.name.lower() in SKIP_NAMES:
+                    continue
+                rel = f.relative_to(bundle_dir).as_posix()
+                size = f.stat().st_size
+                files.append((rel, size))
+                total_size += size
+
+            if not files:
+                continue
+
+            display_name = bundle_dir.name
+            slug = normalize_rom_name(display_name)
+            serial = game_names.lookup_disc_serial(system, display_name)
+            title_id = serial if serial else f"XBOX_BUNDLE_{slug}"
+            rel_dir = str(bundle_dir.relative_to(rom_dir).as_posix())
+
+            scanned.append(
+                {
+                    "title_id": title_id,
+                    "system": system,
+                    "name": display_name,
+                    "filename": f"{display_name}.zip",
+                    "path": rel_dir,
+                    "size": total_size,
+                    "crc32": "",
+                    "source": "bundle",
+                    "is_bundle": 1,
+                    "bundle_files": json.dumps(
+                        [{"name": rel, "size": sz} for rel, sz in files]
+                    ),
+                }
+            )
+
+        # ── Pass 2: ISO files outside CCI bundles ─────────────────────
+        for file_path in sorted(folder.rglob("*")):
+            if not file_path.is_file():
+                continue
+            if file_path.resolve() in bundled_paths:
+                continue
+            if file_path.name.lower() in SKIP_NAMES:
+                continue
+
+            ext = file_path.suffix.lower()
+            if ext not in _XBOX_FILE_EXTS:
+                continue
+
+            if ext == ".cci":
+                logger.info(
+                    "[rom_scanner] Xbox: skipping loose .cci outside a "
+                    "bundle subfolder: %s", file_path.name
+                )
                 continue
 
             crc32 = ""

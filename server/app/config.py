@@ -32,15 +32,16 @@ class Settings(BaseSettings):
     rom_3ds_decrypted_cci_command: str = ""
     # Optional command templates for Xbox / Xbox 360 ROM conversion.
     # Same placeholder set as the 3DS commands: {input}, {output},
-    # {output_dir}, {stem}.  The expected outputs are a single .iso
-    # for ``rom_xbox_iso_command`` (decompresses Xbox CCI / xiso to a
-    # plain ISO) and a .zip of the extracted game-folder layout for
-    # ``rom_xbox_folder_command`` (e.g. ``extract-xiso -x`` followed
-    # by zipping the resulting directory).  Both stay empty until the
-    # operator configures the toolchain — until then the server
-    # returns 503 with a hint pointing at SYNC_ROM_XBOX_*.
+    # {output_dir}, {stem}.  ``rom_xbox_iso_command`` must write one .iso,
+    # and ``rom_xbox_cci_command`` must write one .cci; the server wraps CCI
+    # downloads in a .zip because CCI libraries may also carry launcher files.
+    # XGDTool is the intended converter:
+    #   XGDTool --xiso --quiet {input} {output_dir}
+    #   XGDTool --cci --quiet {input} {output_dir}
+    # Both stay empty until the operator configures the toolchain — until
+    # then the server returns 503 with a hint pointing at SYNC_ROM_XBOX_*.
     rom_xbox_iso_command: str = ""
-    rom_xbox_folder_command: str = ""
+    rom_xbox_cci_command: str = ""
     # Optional command template for converting a PS1 disc image to a PSP
     # EBOOT.PBP so the PSP client can drop the result into
     # ms0:/PSP/GAME/<id>/ and play PS1 games on real PSP hardware.  The

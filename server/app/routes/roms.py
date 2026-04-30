@@ -17,6 +17,9 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                   .pkg at <rom_dir>/ps3/ root are skipped — operators must
                                   drop PSN content into a per-game subfolder so the catalog
                                   can derive the game name + group .pkg + .rap files.
+                                  Xbox .iso files: streamed raw or converted to CCI ZIP.
+                                  Xbox CCI bundles: subfolder ZIP by default, or converted
+                                  to ISO on demand.
 GET  /api/v1/roms/{rom_id}/manifest
                               — Bundle file list (returns single-element list for non-bundle)
 GET  /api/v1/roms/{rom_id}/file/{rel_path}
@@ -248,13 +251,12 @@ _PS2_SYSTEMS = frozenset({'PS2'})
 # GameCube / Wii use RVZ (Dolphin compressed) — convert with DolphinTool
 _GC_SYSTEMS = frozenset({'GC', 'WII'})
 
-# Xbox / Xbox 360 disc images.  Both share the same CCI/CSO compressed
-# format (``ciso``-derived) plus the plain xiso .iso layout, and both
-# emulators (xemu, xenia) consume either a decompressed .iso or an
-# extracted game-folder structure.  We support both targets via the
-# server's configurable command templates.
+# Xbox / Xbox 360 disc images.  The server exposes exactly two user-facing
+# variants for Xbox catalog rows: CCI and ISO.  CCI source folders are served
+# as ZIPs because the .cci image can travel with attach launchers; ISO source
+# files are streamed raw unless the user requests CCI conversion.
 _XBOX_SYSTEMS = frozenset({'XBOX', 'X360', 'XBOX360'})
-_XBOX_DISC_EXTENSIONS = frozenset({'.cci', '.cso', '.iso'})
+_XBOX_DISC_EXTENSIONS = frozenset({'.cci', '.iso'})
 
 # 3DS cartridge images can be converted to CIA variants
 _3DS_SYSTEMS = frozenset({'3DS'})
@@ -281,24 +283,25 @@ _3DS_EXTRACT_FORMATS = list(_3DS_EXTRACT_SPECS.keys())
 
 # Xbox conversion specs — same shape as the 3DS table so the shared
 # ``_expand_command_template`` / cache machinery handles them without
-# special-casing.  ``iso`` decompresses CCI/CSO to a single .iso file;
-# ``folder`` runs ``extract-xiso -x`` (or equivalent) and ZIPs the
-# resulting game directory so the download is a single archive the
-# user can drop into xemu / xenia.
+# special-casing.  XGDTool's CLI can create ``--xiso`` and ``--cci`` outputs
+# from the opposite source format; the server wraps CCI outputs in a ZIP for
+# consistent WebUI downloads.
 _XBOX_EXTRACT_SPECS = {
+    'cci': {
+        'setting': 'rom_xbox_cci_command',
+        'env': 'SYNC_ROM_XBOX_CCI_COMMAND',
+        'label': 'CCI ZIP',
+        'output_ext': '.zip',
+        'tool_output_ext': '.cci',
+        'mime': 'application/zip',
+    },
     'iso': {
         'setting': 'rom_xbox_iso_command',
         'env': 'SYNC_ROM_XBOX_ISO_COMMAND',
         'label': 'ISO',
         'output_ext': '.iso',
+        'tool_output_ext': '.iso',
         'mime': 'application/x-iso9660-image',
-    },
-    'folder': {
-        'setting': 'rom_xbox_folder_command',
-        'env': 'SYNC_ROM_XBOX_FOLDER_COMMAND',
-        'label': 'extracted folder ZIP',
-        'output_ext': '.zip',
-        'mime': 'application/zip',
     },
 }
 _XBOX_EXTRACT_FORMATS = list(_XBOX_EXTRACT_SPECS.keys())
@@ -376,7 +379,7 @@ async def list_roms(
     result = []
     for e in page:
         d = e.to_dict()
-        extract_format, extract_formats = _extract_formats_for_entry(e.system or '', e.filename)
+        extract_format, extract_formats = _extract_formats_for_entry(e)
         if extract_format:
             d['extract_format'] = extract_format
         if extract_formats:
@@ -492,12 +495,13 @@ async def trigger_scan(request: Request, use_crc32: bool = Query(False)):
     return {"status": "ok", "count": len(catalog.entries)}
 
 
-# ── PS3 bundle helpers ───────────────────────────────────────────────────────
+# ── ROM bundle helpers ───────────────────────────────────────────────────────
 #
-# A bundle entry corresponds to ``<rom_dir>/ps3/<subfolder>/`` containing one
-# or more .pkg files (and optionally .rap activations).  The catalog row's
-# ``path`` field stores the relative subfolder so the routes below can find
-# the on-disk source without a second DB lookup.
+# A bundle entry corresponds to ``<rom_dir>/<system>/<subfolder>/`` containing
+# multiple files that must travel together (PS3 .pkg + .rap, Xbox .cci +
+# launchers, PS1 cue/bin folders, etc.).  The catalog row's ``path`` field
+# stores the relative subfolder so the routes below can find the on-disk
+# source without a second DB lookup.
 
 
 def _bundle_dir_for(entry, rom_dir: Path) -> Path | None:
@@ -536,23 +540,87 @@ def _bundle_manifest_files(entry) -> list[dict]:
     if bundle_dir is None:
         return []
 
+    sys_up = (getattr(entry, 'system', '') or '').upper()
     out: list[dict] = []
     for f in sorted(bundle_dir.rglob('*')):
         if not f.is_file():
             continue
-        ext = f.suffix.lower()
-        keep = (
-            ext == '.pkg'
-            or ext in {'.rap', '.edat'}
-            or ext in {'.iso', '.pbp'}
-        )
-        if not keep:
+        if f.name.lower() in {'metadata.txt', 'systeminfo.txt'}:
             continue
+        if sys_up in _XBOX_SYSTEMS:
+            keep = True
+        else:
+            ext = f.suffix.lower()
+            keep = (
+                ext == '.pkg'
+                or ext in {'.rap', '.edat'}
+                or ext in {'.iso', '.pbp', '.cci', '.xbe'}
+            )
+            if not keep:
+                continue
         out.append({
             'name': f.relative_to(bundle_dir).as_posix(),
             'size': f.stat().st_size,
         })
     return out
+
+
+def _safe_archive_stem(value: str, fallback: str = "bundle") -> str:
+    return re.sub(r'[^A-Za-z0-9_.\- ]+', '_', value).strip('_ ') or fallback
+
+
+def _xbox_bundle_cci_path(entry, bundle_dir: Path) -> Path | None:
+    files = _bundle_manifest_files(entry)
+    cci_files = [
+        bundle_dir / f['name']
+        for f in files
+        if Path(str(f.get('name', ''))).suffix.lower() == '.cci'
+    ]
+    cci_files = [p for p in cci_files if p.is_file()]
+    if not cci_files:
+        # Stale manifest fallback: scan the directory directly.
+        cci_files = sorted(p for p in bundle_dir.rglob('*.cci') if p.is_file())
+    if not cci_files:
+        return None
+    # Libraries should have one CCI per game folder. If an operator drops
+    # multiple parts in there, choosing the largest is the least surprising
+    # deterministic fallback for the ISO conversion path.
+    return max(cci_files, key=lambda p: p.stat().st_size)
+
+
+async def _serve_single_file_zip(
+    source_path: Path,
+    zip_stem: str,
+    arcname: str | None = None,
+    cache_source: Path | None = None,
+    cache_fmt: str | None = None,
+) -> Response:
+    """Wrap a single file in a ZIP_STORED archive and stream it."""
+    output_ext = '.zip'
+    if cache_source is not None and cache_fmt:
+        cached = _lookup_cached_output(cache_source, cache_fmt, output_ext)
+        if cached is not None:
+            return _stream_file_response(cached, 'application/zip')
+
+    tmpdir = tempfile.mkdtemp(prefix='single_file_zip_', dir=_conversion_tmp_dir())
+    safe_stem = _safe_archive_stem(zip_stem)
+    zip_path = Path(tmpdir) / f'{safe_stem}.zip'
+    member_name = arcname or source_path.name
+
+    def _build_zip() -> Path:
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
+            zf.write(source_path, arcname=member_name)
+        return zip_path
+
+    try:
+        out_path = await asyncio.get_event_loop().run_in_executor(None, _build_zip)
+    except Exception as exc:  # pragma: no cover — disk error path
+        _cleanup_dir(tmpdir)
+        return Response(status_code=500, content=f"ZIP failed: {exc}")
+
+    if cache_source is not None and cache_fmt:
+        out_path = _save_to_cache(out_path, cache_source, cache_fmt, output_ext)
+    return _stream_file_response(out_path, 'application/zip', cleanup_dir=tmpdir)
 
 
 async def _serve_bundle_zip(entry, bundle_dir: Path) -> Response:
@@ -569,8 +637,8 @@ async def _serve_bundle_zip(entry, bundle_dir: Path) -> Response:
     if not files:
         return Response(status_code=404, content="Bundle is empty on disk")
 
-    tmpdir = tempfile.mkdtemp(prefix='ps3_bundle_', dir=_conversion_tmp_dir())
-    safe_stem = re.sub(r'[^A-Za-z0-9_.\- ]+', '_', entry.name).strip('_ ') or 'bundle'
+    tmpdir = tempfile.mkdtemp(prefix='rom_bundle_', dir=_conversion_tmp_dir())
+    safe_stem = _safe_archive_stem(entry.name)
     zip_path = Path(tmpdir) / f'{safe_stem}.zip'
 
     def _build_zip() -> Path:
@@ -723,7 +791,8 @@ async def download_rom(
             "Extract format: 'cue' (CUE/BIN zip), 'gdi' (GDI zip), "
             "'iso' (PSP ISO), 'cso' (PSP compressed ISO), "
             "'cia' (3DS decrypted CIA, also installable on CFW hardware), "
-            "'decrypted_cci' (3DS decrypted CCI for emulators)"
+            "'decrypted_cci' (3DS decrypted CCI for emulators), "
+            "'cci' (Xbox CCI ZIP), 'iso' (Xbox ISO)"
         ),
     ),
     range_header: Optional[str] = Header(None, alias="Range"),
@@ -753,14 +822,31 @@ async def download_rom(
     if not rom_dir:
         return Response(status_code=404, content="ROM directory not configured")
 
-    # PS3 bundle entry → /ps3/<subfolder> on disk holds many files.  Serve
-    # the whole subfolder as a ZIP (PS3 bundle files are already
-    # incompressible PSN packages, so use ZIP_STORED for instant streaming).
+    sys_up = (entry.system or '').upper()
+
+    # Bundle entry → /<system>/<subfolder> on disk holds many files.  Serve
+    # the whole subfolder as a ZIP by default.  Xbox bundles additionally
+    # support ``?extract=iso`` by converting the source .cci inside the
+    # bundle, while ``?extract=cci`` remains the bundle ZIP.
     if getattr(entry, 'is_bundle', False):
-        bundle_dir = rom_dir / entry.path
-        if not bundle_dir.is_dir():
+        bundle_dir = _bundle_dir_for(entry, rom_dir)
+        if bundle_dir is None:
             return Response(status_code=404,
                             content="Bundle directory not found on disk")
+        if extract:
+            fmt = extract.lower()
+            if sys_up in _XBOX_SYSTEMS and fmt in _XBOX_EXTRACT_SPECS:
+                if fmt == 'cci':
+                    return await _serve_bundle_zip(entry, bundle_dir)
+                cci_path = _xbox_bundle_cci_path(entry, bundle_dir)
+                if cci_path is None:
+                    return Response(
+                        status_code=404,
+                        content="Xbox CCI bundle has no .cci file",
+                    )
+                return await _extract_xbox(
+                    cci_path, sys_up, fmt, display_stem=entry.name
+                )
         return await _serve_bundle_zip(entry, bundle_dir)
 
     file_path = rom_dir / entry.path
@@ -769,11 +855,10 @@ async def download_rom(
 
     if extract:
         fmt = extract.lower()
-        sys_up = (entry.system or '').upper()
         if sys_up in _XBOX_SYSTEMS and fmt in _XBOX_EXTRACT_SPECS:
-            # Xbox CCI/CSO/ISO conversions go through the templated
-            # command runner.  Must check this BEFORE the generic
-            # ``iso``/``cso`` branch so PSP doesn't claim Xbox CCIs.
+            # Xbox CCI/ISO conversions go through the templated command
+            # runner or a no-op direct stream when the source already
+            # matches the requested target.
             return await _extract_xbox(file_path, sys_up, fmt)
         elif fmt in _3DS_EXTRACT_SPECS:
             return await _extract_3ds(file_path, sys_up, fmt)
@@ -988,24 +1073,24 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
     return _stream_file_response(cached_path, 'application/x-3ds-rom', cleanup_dir=tmpdir)
 
 
-# ── Xbox CCI / CSO / ISO → ISO or extracted-folder ZIP ──────────────────────
+# ── Xbox CCI / ISO conversion ────────────────────────────────────────────────
 
-async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
-    """Convert an Xbox / Xbox 360 disc image.
+async def _extract_xbox(
+    source_path: Path,
+    system: str,
+    fmt: str,
+    display_stem: str | None = None,
+) -> Response:
+    """Return an Xbox disc image in the requested CCI or ISO form.
 
     ``fmt`` is one of:
-      * ``'iso'``    — decompress CCI / CSO into a raw .iso.  No-op for
-                       inputs that are already .iso, but the route lets
-                       the user trigger it anyway in case they want a
-                       fresh deterministic copy.
-      * ``'folder'`` — extract the xiso filesystem (game directory
-                       layout) and return a single .zip of the result so
-                       it's one download.
+      * ``'iso'`` — direct stream for .iso input, or CCI → ISO conversion.
+      * ``'cci'`` — direct ZIP for .cci input, or ISO → CCI conversion
+                    followed by a ZIP wrapper.
 
-    Both paths shell out to a configurable command template (see
-    ``settings.rom_xbox_iso_command`` / ``rom_xbox_folder_command``).
-    Until the operator wires those up the route returns 503 with a hint
-    pointing at the SYNC_ROM_XBOX_* env vars — same UX as the 3DS one.
+    Conversions shell out to configurable command templates.  XGDTool is the
+    intended backend, but the route only depends on the template producing the
+    requested output file somewhere under ``{output_dir}``.
     """
     if system not in _XBOX_SYSTEMS:
         return Response(
@@ -1026,7 +1111,27 @@ async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
             ),
         )
 
-    cached = _lookup_cached_output(source_path, fmt, spec['output_ext'])
+    source_ext = source_path.suffix.lower()
+    stem = display_stem or source_path.stem
+
+    if fmt == 'iso' and source_ext == '.iso':
+        return _stream_file_response(source_path, spec['mime'])
+
+    if fmt == 'cci' and source_ext == '.cci':
+        return await _serve_single_file_zip(
+            source_path,
+            zip_stem=stem,
+            arcname=f"{stem}.cci",
+            cache_source=source_path,
+            cache_fmt='xbox_cci_direct',
+        )
+
+    if fmt == 'iso' and source_ext != '.cci':
+        return Response(status_code=400, content="Xbox ISO output expects a .cci or .iso source")
+    if fmt == 'cci' and source_ext != '.iso':
+        return Response(status_code=400, content="Xbox CCI output expects a .iso or .cci source")
+
+    cached = _lookup_cached_output(source_path, f'xbox_{fmt}', spec['output_ext'])
     if cached is not None:
         return _stream_file_response(cached, spec['mime'])
 
@@ -1038,16 +1143,13 @@ async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
                 f"Xbox {spec['label']} conversion is not configured on the server.\n"
                 f"\n"
                 f"To enable this conversion, set {spec['env']} to a command template that "
-                f"reads {{input}} (an Xbox CCI / CSO / xiso image) and writes the output to "
-                f"{{output}} (a {spec['output_ext']} file).  ``{{output_dir}}`` is a fresh "
-                f"scratch directory the command can stage intermediate files in, and "
-                f"``{{stem}}`` is the input filename without extension.\n"
+                f"reads {{input}} and writes a {spec['tool_output_ext']} output file. "
+                f"The server will look at {{output}} first, then scan {{output_dir}} for "
+                f"the produced {spec['tool_output_ext']} file(s). ``{{stem}}`` is the "
+                f"input filename without extension.\n"
                 f"\n"
-                f"Typical wiring with extract-xiso (https://github.com/XboxDev/extract-xiso):\n"
-                f"  iso     : extract-xiso -r {{input}} -d {{output_dir}} && "
-                f"mv {{output_dir}}/{{stem}}.iso {{output}}\n"
-                f"  folder  : extract-xiso -x {{input}} -d {{output_dir}}/{{stem}} && "
-                f"cd {{output_dir}} && zip -r {{output}} {{stem}}"
+                f"XGDTool CLI supports format targets like --xiso and --cci; point this "
+                f"template at your XGDTool executable and include {{input}} + {{output_dir}}."
             ),
         )
 
@@ -1055,8 +1157,8 @@ async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
 
     def _run() -> Path:
         tmp = Path(tmpdir)
-        stem = source_path.stem
-        output_name = f"{stem}{spec['output_ext']}"
+        tool_output_ext = spec['tool_output_ext']
+        output_name = f"{stem}{tool_output_ext}"
         output_path = tmp / output_name
 
         cmd = _expand_command_template(
@@ -1066,10 +1168,8 @@ async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
             output_dir=str(tmp),
             stem=stem,
         )
-        # Xbox 360 disc images can hit ~7 GB extracted; bump the
-        # subprocess timeout vs the 3DS path's 30 min so a slow Pi
-        # doesn't get killed mid-extract.  ``extract-xiso`` itself is
-        # fast — the bottleneck is the zip step on a large folder.
+        # Xbox 360 disc images can hit ~7 GB; leave generous room for
+        # compression/decompression on a slow Pi or USB drive.
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -1081,14 +1181,33 @@ async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
                 result.stderr.strip() or result.stdout.strip() or 'Xbox conversion failed'
             )
 
+        if fmt == 'cci':
+            if output_path.is_file():
+                cci_outputs = [output_path]
+            else:
+                cci_outputs = sorted(
+                    p for p in tmp.rglob(f'*{tool_output_ext}')
+                    if p.is_file() and p.suffix.lower() == tool_output_ext
+                )
+            if not cci_outputs:
+                raise RuntimeError(
+                    f"converter completed but did not produce a {tool_output_ext} file"
+                )
+            zip_path = tmp / f"{stem}.zip"
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
+                for out in cci_outputs:
+                    arcname = f"{stem}.cci" if len(cci_outputs) == 1 else out.name
+                    zf.write(out, arcname=arcname)
+            return zip_path
+
         final_path = (
             output_path
             if output_path.is_file()
-            else _find_single_output(tmp, spec['output_ext'])
+            else _find_single_output(tmp, tool_output_ext)
         )
         if final_path is None or not final_path.is_file():
             raise RuntimeError(
-                f"converter completed but did not produce a {spec['output_ext']} file"
+                f"converter completed but did not produce a {tool_output_ext} file"
             )
         return final_path
 
@@ -1101,7 +1220,7 @@ async def _extract_xbox(source_path: Path, system: str, fmt: str) -> Response:
         _cleanup_dir(tmpdir)
         return Response(status_code=504, content="Conversion timed out (>60 min)")
 
-    cached_path = _save_to_cache(final_path, source_path, fmt, spec['output_ext'])
+    cached_path = _save_to_cache(final_path, source_path, f'xbox_{fmt}', spec['output_ext'])
     return _stream_file_response(cached_path, spec['mime'], cleanup_dir=tmpdir)
 
 
@@ -1660,9 +1779,14 @@ def _parse_range(range_header: str, file_size: int) -> tuple[int | None, int | N
         return None, None
 
 
-def _extract_formats_for_entry(system: str, filename: str) -> tuple[str | None, list[str]]:
+def _extract_formats_for_entry(entry) -> tuple[str | None, list[str]]:
+    system = getattr(entry, 'system', '') or ''
+    filename = getattr(entry, 'filename', '') or ''
     sys_up = system.upper()
     suffix = Path(filename).suffix.lower()
+
+    if sys_up in _XBOX_SYSTEMS and getattr(entry, 'is_bundle', False):
+        return 'xbox', list(_XBOX_EXTRACT_FORMATS)
 
     if suffix == '.chd':
         if sys_up in _PSP_SYSTEMS:
@@ -1702,13 +1826,7 @@ def _extract_formats_for_entry(system: str, filename: str) -> tuple[str | None, 
     elif sys_up in _3DS_SYSTEMS and suffix in _3DS_CART_EXTENSIONS.union({'.zip'}):
         return '3ds', list(_3DS_EXTRACT_FORMATS)
     elif sys_up in _XBOX_SYSTEMS and suffix in _XBOX_DISC_EXTENSIONS:
-        # CCI / CSO compressed images expose both decompress-to-ISO and
-        # extract-to-folder targets.  A plain .iso is already
-        # decompressed, so only the folder target is meaningful — the
-        # raw .iso button covers the "give me the ISO" case.
-        if suffix in ('.cci', '.cso'):
-            return 'iso', list(_XBOX_EXTRACT_FORMATS)
-        return 'folder', ['folder']
+        return 'xbox', list(_XBOX_EXTRACT_FORMATS)
 
     return None, []
 
