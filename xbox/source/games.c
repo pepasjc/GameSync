@@ -161,6 +161,36 @@ static const char *json_value_start(const char *body, const char *key)
     return p;
 }
 
+static const char *json_object_end(const char *open)
+{
+    int depth = 0;
+    int in_string = 0;
+    int escaped = 0;
+    for (const char *p = open; p && *p; p++) {
+        char c = *p;
+        if (in_string) {
+            if (escaped) {
+                escaped = 0;
+            } else if (c == '\\') {
+                escaped = 1;
+            } else if (c == '"') {
+                in_string = 0;
+            }
+            continue;
+        }
+        if (c == '"') {
+            in_string = 1;
+        } else if (c == '{') {
+            depth++;
+        } else if (c == '}') {
+            depth--;
+            if (depth == 0) return p;
+            if (depth < 0) return NULL;
+        }
+    }
+    return NULL;
+}
+
 static int json_copy_string_obj(const char *obj, const char *key,
                                 char *out, int out_len)
 {
@@ -231,9 +261,11 @@ int games_fetch_catalog(const XboxConfig *cfg, XboxRomList *out,
     p++;
 
     while (*p && out->count < XBOX_MAX_ROMS) {
-        const char *open = strchr(p, '{');
-        const char *close = strchr(p, '}');
-        if (!open || !close || close < open) break;
+        while (*p && *p != '{' && *p != ']') p++;
+        if (*p == ']' || *p == '\0') break;
+        const char *open = p;
+        const char *close = json_object_end(open);
+        if (!close || close < open) break;
 
         XboxRomEntry *r = &out->roms[out->count];
         json_copy_string_obj(open, "rom_id", r->rom_id, sizeof(r->rom_id));

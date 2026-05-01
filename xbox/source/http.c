@@ -15,6 +15,7 @@
 
 #define HTTP_HEADER_BUF  4096
 #define HTTP_TIMEOUT_SEC 30
+#define HTTP_STREAM_TIMEOUT_SEC 600
 
 // Quieter diagnostic output by default. Flip to 1 while debugging the wire.
 #ifndef HTTP_VERBOSE
@@ -317,7 +318,7 @@ HttpResponse http_post_chunked(const char *url,
     }
 
     struct timeval tv;
-    tv.tv_sec = HTTP_TIMEOUT_SEC;
+    tv.tv_sec = HTTP_STREAM_TIMEOUT_SEC;
     tv.tv_usec = 0;
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
     setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv));
@@ -439,7 +440,7 @@ HttpResponse http_post_chunked(const char *url,
 int http_get_stream(const char *url,
                     const char *api_key,
                     const char *console_id,
-                    HttpWriteFn write,
+                    HttpWriteFn writer,
                     void *write_ctx,
                     uint64_t *out_content_length)
 {
@@ -450,7 +451,7 @@ int http_get_stream(const char *url,
     int  status = 0;
 
     if (out_content_length) *out_content_length = 0;
-    if (!write ||
+    if (!writer ||
         parse_url(url, host, sizeof(host), &port, path, sizeof(path)) != 0) {
         debugPrint("http: bad stream url %s\n", url ? url : "");
         return -1;
@@ -477,7 +478,7 @@ int http_get_stream(const char *url,
     }
 
     struct timeval tv;
-    tv.tv_sec = HTTP_TIMEOUT_SEC;
+    tv.tv_sec = HTTP_STREAM_TIMEOUT_SEC;
     tv.tv_usec = 0;
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
     setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv));
@@ -564,7 +565,7 @@ int http_get_stream(const char *url,
     int in_buf = total - body_off;
     uint64_t received = 0;
     if (in_buf > 0) {
-        if (write(write_ctx, (const uint8_t *)body_sep, (size_t)in_buf) != 0) {
+        if (writer(write_ctx, (const uint8_t *)body_sep, (size_t)in_buf) != 0) {
             shutdown(s, SHUT_RDWR);
             close(s);
             return -2;
@@ -579,7 +580,7 @@ int http_get_stream(const char *url,
         }
         int n = recv(s, buf, sizeof(buf), 0);
         if (n <= 0) break;
-        if (write(write_ctx, buf, (size_t)n) != 0) {
+        if (writer(write_ctx, buf, (size_t)n) != 0) {
             shutdown(s, SHUT_RDWR);
             close(s);
             return -2;

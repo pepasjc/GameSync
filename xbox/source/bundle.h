@@ -107,4 +107,8 @@ void bundle_parsed_free(ParsedBundle *pb);
 // Returns 0 on success.
 int bundle_apply_to_disk(const ParsedBundle *pb, const char *udata_title_id);
 
+// Apply a downloaded bundle from disk without materialising the compressed
+// bundle, decompressed payload, or file data in RAM. Intended for large saves.
+int bundle_apply_file_to_disk(const char *bundle_path, const char *udata_title_id);
+
 #endif // XBOX_BUNDLE_H

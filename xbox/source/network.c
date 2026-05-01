@@ -514,6 +514,89 @@ int network_download_save(const XboxConfig *cfg,
     return code > 0 ? code : -1;
 }
 
+typedef struct {
+    HANDLE h;
+    uint64_t written;
+    char err[128];
+} DownloadFileCtx;
+
+static int download_file_writer(void *ctx, const uint8_t *data, size_t size)
+{
+    DownloadFileCtx *d = (DownloadFileCtx *)ctx;
+    size_t off = 0;
+    while (off < size) {
+        DWORD want = (DWORD)(size - off);
+        if (want > 64 * 1024) want = 64 * 1024;
+        DWORD wrote = 0;
+        if (!WriteFile(d->h, data + off, want, &wrote, NULL) || wrote == 0) {
+            snprintf(d->err, sizeof(d->err), "write failed err=%lu",
+                     (unsigned long)GetLastError());
+            return -1;
+        }
+        off += wrote;
+        d->written += wrote;
+    }
+    return 0;
+}
+
+int network_download_save_to_file(const XboxConfig *cfg,
+                                  const char *title_id,
+                                  const char *dest_path,
+                                  uint64_t *out_size)
+{
+    net_err_clear();
+    if (out_size) *out_size = 0;
+    if (!cfg || !title_id || !dest_path) return -1;
+
+    CreateDirectoryA("E:\\UDATA\\TDSV0000", NULL);
+    DeleteFileA(dest_path);
+    HANDLE h = CreateFileA(dest_path, GENERIC_WRITE, 0, NULL,
+                           CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        net_err_set("download %s: temp open err=%lu",
+                    title_id, (unsigned long)GetLastError());
+        return -1;
+    }
+
+    char path[128];
+    snprintf(path, sizeof(path), "/api/v1/saves/%s", title_id);
+    char url[512];
+    join_url(cfg->server_url, path, url, sizeof(url));
+
+    DownloadFileCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.h = h;
+    uint64_t content_length = 0;
+    int code = http_get_stream(url, cfg->api_key, cfg->console_id,
+                               download_file_writer, &ctx, &content_length);
+    CloseHandle(h);
+
+    if (code < 200 || code >= 300) {
+        DeleteFileA(dest_path);
+        if (code == -2 && ctx.err[0]) {
+            net_err_set("download %s: %s", title_id, ctx.err);
+        } else if (code == -3) {
+            net_err_set("download %s: incomplete transfer", title_id);
+        } else if (code <= 0) {
+            net_err_set("download %s: transport/timeout fail", title_id);
+        } else {
+            net_err_set("download %s: HTTP %d", title_id, code);
+        }
+        return code > 0 ? code : -1;
+    }
+
+    if (out_size) *out_size = ctx.written;
+    if (content_length > 0 && ctx.written != content_length) {
+        DeleteFileA(dest_path);
+        net_err_set("download %s: short file %llu/%llu",
+                    title_id,
+                    (unsigned long long)ctx.written,
+                    (unsigned long long)content_length);
+        return -1;
+    }
+    return code;
+}
+
 // ---------------------------------------------------------------------------
 // Sync plan
 // ---------------------------------------------------------------------------

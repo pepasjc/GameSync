@@ -50,7 +50,7 @@ HttpResponse http_post_chunked(const char *url,
 int http_get_stream(const char *url,
                     const char *api_key,
                     const char *console_id,
-                    HttpWriteFn write,
+                    HttpWriteFn writer,
                     void *write_ctx,
                     uint64_t *out_content_length);
 

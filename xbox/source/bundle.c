@@ -856,6 +856,296 @@ static int make_parents(const char *path)
     return 0;
 }
 
+static int read_exact(HANDLE h, void *buf, DWORD size)
+{
+    uint8_t *p = (uint8_t *)buf;
+    DWORD off = 0;
+    while (off < size) {
+        DWORD got = 0;
+        if (!ReadFile(h, p + off, size - off, &got, NULL) || got == 0) {
+            return -1;
+        }
+        off += got;
+    }
+    return 0;
+}
+
+static int write_exact(HANDLE h, const void *buf, DWORD size)
+{
+    const uint8_t *p = (const uint8_t *)buf;
+    DWORD off = 0;
+    while (off < size) {
+        DWORD wrote = 0;
+        if (!WriteFile(h, p + off, size - off, &wrote, NULL) || wrote == 0) {
+            return -1;
+        }
+        off += wrote;
+    }
+    return 0;
+}
+
+static int bundle_header_read_file(HANDLE h,
+                                   uint32_t *out_version,
+                                   uint32_t *out_file_count,
+                                   uint32_t *out_payload_size)
+{
+    uint8_t first[8];
+    if (read_exact(h, first, sizeof(first)) != 0) return -1;
+    if (memcmp(first, BUNDLE_MAGIC, 4) != 0) return -1;
+    uint32_t version = read_le32(first + 4);
+
+    DWORD skip = 0;
+    if (version == BUNDLE_VERSION_V5) {
+        skip = 64;
+    } else if (version == 4) {
+        skip = 32;
+    } else if (version == 3) {
+        skip = 16;
+    } else if (version == 2 || version == 1) {
+        skip = 8;
+    } else {
+        return -1;
+    }
+
+    uint8_t tmp[64];
+    if (skip > sizeof(tmp)) return -1;
+    if (read_exact(h, tmp, skip) != 0) return -1;
+
+    uint8_t tail[12];
+    if (read_exact(h, tail, sizeof(tail)) != 0) return -1;
+    if (out_version) *out_version = version;
+    if (out_file_count) *out_file_count = read_le32(tail + 4);
+    if (out_payload_size) *out_payload_size = read_le32(tail + 8);
+    return 0;
+}
+
+static int inflate_bundle_payload_to_file(HANDLE in,
+                                          HANDLE out,
+                                          uint32_t expected_size)
+{
+    z_stream zs;
+    memset(&zs, 0, sizeof(zs));
+    zs.zalloc = zlib_alloc;
+    zs.zfree  = zlib_free;
+    zs.opaque = NULL;
+    if (inflateInit(&zs) != Z_OK) return -1;
+
+    uint8_t *inbuf = (uint8_t *)malloc(ZLIB_CHUNK);
+    uint8_t *outbuf = (uint8_t *)malloc(ZLIB_CHUNK);
+    if (!inbuf || !outbuf) {
+        free(inbuf);
+        free(outbuf);
+        inflateEnd(&zs);
+        return -1;
+    }
+
+    int rc = -1;
+    int done = 0;
+    uint32_t total_out = 0;
+    while (!done) {
+        DWORD got = 0;
+        if (!ReadFile(in, inbuf, ZLIB_CHUNK, &got, NULL)) goto finish;
+        if (got == 0) break;
+        zs.next_in = inbuf;
+        zs.avail_in = got;
+
+        while (zs.avail_in > 0) {
+            zs.next_out = outbuf;
+            zs.avail_out = ZLIB_CHUNK;
+            int zr = inflate(&zs, Z_NO_FLUSH);
+            if (zr != Z_OK && zr != Z_STREAM_END) goto finish;
+            DWORD have = ZLIB_CHUNK - zs.avail_out;
+            if (have > 0) {
+                if (write_exact(out, outbuf, have) != 0) goto finish;
+                total_out += have;
+            }
+            if (zr == Z_STREAM_END) {
+                done = 1;
+                break;
+            }
+            if (have == 0 && zs.avail_in == 0) break;
+        }
+    }
+
+    rc = (done && total_out == expected_size) ? 0 : -1;
+
+finish:
+    inflateEnd(&zs);
+    free(inbuf);
+    free(outbuf);
+    return rc;
+}
+
+typedef struct {
+    char relative_path[XBOX_PATH_MAX];
+    uint32_t size;
+    uint8_t sha256[32];
+} StreamBundleFile;
+
+int bundle_apply_file_to_disk(const char *bundle_path, const char *udata_title_id)
+{
+    if (!bundle_path || !udata_title_id || !udata_title_id[0]) return -1;
+
+    HANDLE in = CreateFileA(bundle_path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (in == INVALID_HANDLE_VALUE) {
+        debugPrint("apply-file: open bundle err=%lu\n",
+                   (unsigned long)GetLastError());
+        return -1;
+    }
+
+    uint32_t version = 0;
+    uint32_t file_count = 0;
+    uint32_t payload_size = 0;
+    if (bundle_header_read_file(in, &version, &file_count, &payload_size) != 0 ||
+        file_count == 0 ||
+        file_count > XBOX_MAX_FILES_PER_TITLE) {
+        debugPrint("apply-file: bad bundle header\n");
+        CloseHandle(in);
+        return -1;
+    }
+    if (version == 1) {
+        debugPrint("apply-file: uncompressed v1 bundle not supported here\n");
+        CloseHandle(in);
+        return -1;
+    }
+
+    mkdir_one("E:\\UDATA\\TDSV0000");
+    const char *payload_path = "E:\\UDATA\\TDSV0000\\download_payload.tmp";
+    DeleteFileA(payload_path);
+    HANDLE payload = CreateFileA(payload_path,
+                                 GENERIC_READ | GENERIC_WRITE,
+                                 0, NULL, CREATE_ALWAYS,
+                                 FILE_ATTRIBUTE_NORMAL, NULL);
+    if (payload == INVALID_HANDLE_VALUE) {
+        debugPrint("apply-file: payload open err=%lu\n",
+                   (unsigned long)GetLastError());
+        CloseHandle(in);
+        return -1;
+    }
+
+    int rc = inflate_bundle_payload_to_file(in, payload, payload_size);
+    CloseHandle(in);
+    if (rc != 0) {
+        debugPrint("apply-file: inflate failed\n");
+        CloseHandle(payload);
+        DeleteFileA(payload_path);
+        return -1;
+    }
+    SetFilePointer(payload, 0, NULL, FILE_BEGIN);
+
+    StreamBundleFile *files = (StreamBundleFile *)calloc(
+        file_count, sizeof(StreamBundleFile));
+    if (!files) {
+        CloseHandle(payload);
+        DeleteFileA(payload_path);
+        return -1;
+    }
+
+    rc = -1;
+    for (uint32_t i = 0; i < file_count; i++) {
+        uint8_t lenbuf[2];
+        if (read_exact(payload, lenbuf, sizeof(lenbuf)) != 0) goto done;
+        uint16_t plen = read_le16(lenbuf);
+        if (plen == 0 || plen >= XBOX_PATH_MAX) goto done;
+        if (read_exact(payload, files[i].relative_path, plen) != 0) goto done;
+        files[i].relative_path[plen] = '\0';
+
+        uint8_t sizebuf[4];
+        if (read_exact(payload, sizebuf, sizeof(sizebuf)) != 0) goto done;
+        files[i].size = read_le32(sizebuf);
+        if (read_exact(payload, files[i].sha256, 32) != 0) goto done;
+    }
+
+    char title_root[XBOX_PATH_MAX];
+    snprintf(title_root, sizeof(title_root),
+             "E:\\UDATA\\%s", udata_title_id);
+    mkdir_one(title_root);
+
+    uint8_t *chunk = (uint8_t *)malloc(ZLIB_CHUNK);
+    if (!chunk) goto done;
+
+    for (uint32_t i = 0; i < file_count; i++) {
+        StreamBundleFile *f = &files[i];
+        char fullpath[XBOX_PATH_MAX * 2];
+        snprintf(fullpath, sizeof(fullpath),
+                 "%s\\%s", title_root, f->relative_path);
+
+        if (make_parents(fullpath) != 0) {
+            debugPrint("apply-file: make_parents %s failed\n", fullpath);
+            free(chunk);
+            goto done;
+        }
+
+        DWORD attrs = GetFileAttributesA(fullpath);
+        if (attrs != INVALID_FILE_ATTRIBUTES &&
+            (attrs & (FILE_ATTRIBUTE_READONLY |
+                      FILE_ATTRIBUTE_HIDDEN |
+                      FILE_ATTRIBUTE_SYSTEM))) {
+            SetFileAttributesA(fullpath, FILE_ATTRIBUTE_NORMAL);
+        }
+
+        HANDLE out = CreateFileA(fullpath,
+                                 GENERIC_READ | GENERIC_WRITE,
+                                 FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                 NULL,
+                                 OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (out == INVALID_HANDLE_VALUE) {
+            debugPrint("apply-file: open %s err=%lu\n",
+                       fullpath, (unsigned long)GetLastError());
+            free(chunk);
+            goto done;
+        }
+        SetFilePointer(out, 0, NULL, FILE_BEGIN);
+        if (!SetEndOfFile(out)) {
+            debugPrint("apply-file: trunc %s err=%lu\n",
+                       fullpath, (unsigned long)GetLastError());
+            CloseHandle(out);
+            free(chunk);
+            goto done;
+        }
+
+        SHA256_CTX hash_ctx;
+        sha256_init(&hash_ctx);
+        uint32_t remaining = f->size;
+        while (remaining > 0) {
+            DWORD want = remaining > ZLIB_CHUNK ? ZLIB_CHUNK : remaining;
+            if (read_exact(payload, chunk, want) != 0) {
+                CloseHandle(out);
+                free(chunk);
+                goto done;
+            }
+            if (write_exact(out, chunk, want) != 0) {
+                debugPrint("apply-file: write %s err=%lu\n",
+                           fullpath, (unsigned long)GetLastError());
+                CloseHandle(out);
+                free(chunk);
+                goto done;
+            }
+            sha256_update(&hash_ctx, chunk, want);
+            remaining -= want;
+        }
+        CloseHandle(out);
+
+        uint8_t got_hash[32];
+        sha256_final(&hash_ctx, got_hash);
+        if (memcmp(got_hash, f->sha256, 32) != 0) {
+            debugPrint("apply-file: sha mismatch %s\n", f->relative_path);
+            free(chunk);
+            goto done;
+        }
+    }
+
+    free(chunk);
+    rc = 0;
+
+done:
+    free(files);
+    CloseHandle(payload);
+    DeleteFileA(payload_path);
+    return rc;
+}
+
 int bundle_apply_to_disk(const ParsedBundle *pb, const char *udata_title_id)
 {
     if (!pb || !udata_title_id || !udata_title_id[0]) return -1;

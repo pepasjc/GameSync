@@ -13,6 +13,7 @@
 #include <time.h>
 
 #include <hal/debug.h>
+#include <windows.h>
 
 #define STREAM_UPLOAD_THRESHOLD (4u * 1024u * 1024u)
 
@@ -150,25 +151,17 @@ int sync_one_download(const XboxConfig *cfg,
 {
     if (!cfg || !tid) return -1;
 
-    uint8_t *bundle_data = NULL;
-    uint32_t bundle_size = 0;
-    int code = network_download_save(cfg, tid, &bundle_data, &bundle_size);
-    if (code < 200 || code >= 300 || !bundle_data) {
+    const char *bundle_path = "E:\\UDATA\\TDSV0000\\download_bundle.tmp";
+    uint64_t bundle_size = 0;
+    int code = network_download_save_to_file(cfg, tid, bundle_path, &bundle_size);
+    if (code < 200 || code >= 300 || bundle_size == 0) {
         debugPrint("download %s: HTTP %d\n", tid, code);
-        free(bundle_data);
+        DeleteFileA(bundle_path);
         return -1;
     }
 
-    ParsedBundle pb;
-    int rc = bundle_parse(bundle_data, bundle_size, &pb);
-    free(bundle_data);
-    if (rc != 0) {
-        debugPrint("download %s: parse fail\n", tid);
-        return -1;
-    }
-
-    rc = bundle_apply_to_disk(&pb, tid);
-    bundle_parsed_free(&pb);
+    int rc = bundle_apply_file_to_disk(bundle_path, tid);
+    DeleteFileA(bundle_path);
     if (rc != 0) {
         debugPrint("download %s: apply fail\n", tid);
         return -1;

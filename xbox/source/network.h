@@ -78,6 +78,13 @@ int network_download_save(const XboxConfig *cfg,
                           uint8_t **out_data,
                           uint32_t *out_size);
 
+// Stream GET /api/v1/saves/<title_id> directly to ``dest_path``. This is
+// used for large Xbox saves so the compressed bundle never lives in RAM.
+int network_download_save_to_file(const XboxConfig *cfg,
+                                  const char *title_id,
+                                  const char *dest_path,
+                                  uint64_t *out_size);
+
 // GET /api/v1/saves/<title_id>/meta. Returns 0 on a successful lookup or
 // clean 404 (``out->exists`` tells which); negative on transport/server error.
 int network_get_save_meta(const XboxConfig *cfg,
