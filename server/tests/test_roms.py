@@ -484,6 +484,40 @@ class TestRomCatalog:
         ]
         assert loose[0].filename == "Skate 3.iso"
 
+    def test_scan_xbox_xbe_iso_bundle(self, tmp_path):
+        """Xbox subfolders with default.xbe + .iso are treated as bundles
+        (same as .cci bundles) so clients can request ?extract=iso and
+        get the disc image directly without downloading the whole ZIP.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        bundle = rom_dir / "xbox" / "Fable"
+        bundle.mkdir(parents=True)
+        (bundle / "Fable.iso").write_bytes(b"I" * 2048)
+        (bundle / "default.xbe").write_bytes(b"X" * 128)
+
+        # A loose ISO should NOT become a bundle (no default.xbe).
+        (rom_dir / "xbox" / "Jet Set Radio Future.iso").write_bytes(b"J" * 1024)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        xbox = catalog.list_by_system("XBOX")
+        assert len(xbox) == 2
+        bundles = [e for e in xbox if e.is_bundle]
+        loose = [e for e in xbox if not e.is_bundle]
+        assert len(bundles) == 1
+        assert len(loose) == 1
+
+        assert bundles[0].name == "Fable"
+        file_names = sorted(f["name"] for f in bundles[0].bundle_files)
+        assert "Fable.iso" in file_names
+        assert "default.xbe" in file_names
+        assert loose[0].filename == "Jet Set Radio Future.iso"
+
     def test_scan_ps3_bundle_groups_pkg_and_rap(self, tmp_path):
         """A PS3 subfolder with a .pkg + .rap collapses to one bundle
         entry; the file list is preserved on the catalog row so the
@@ -1112,6 +1146,44 @@ class TestRomDownload:
             settings.rom_dir = original_rom_dir
             settings.rom_scan_interval = original_interval
             settings.rom_xbox_folder_command = original_cmd
+            rom_scanner._catalog = None
+
+
+    def test_download_xbox_xbe_iso_bundle_streams_iso_directly(
+        self, tmp_path, client, auth_headers
+    ):
+        """Xbox bundle with default.xbe + .iso streams the ISO directly
+        when ?extract=iso is requested — no CCI conversion needed.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original_rom_dir = settings.rom_dir
+        original_interval = settings.rom_scan_interval
+        try:
+            settings.rom_scan_interval = 0
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+            bundle = rom_dir / "xbox" / "Fable"
+            bundle.mkdir(parents=True)
+            (bundle / "Fable.iso").write_bytes(b"ISODISC_FABLE")
+            (bundle / "default.xbe").write_bytes(b"LAUNCHER")
+
+            rom_scanner.init(rom_dir)
+            entries = rom_scanner.get().list_by_system("XBOX")
+            bundles = [e for e in entries if e.is_bundle]
+            assert len(bundles) == 1
+            rom_id = bundles[0].rom_id
+
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}?extract=iso", headers=auth_headers
+            )
+            assert resp.status_code == 200
+            assert resp.content == b"ISODISC_FABLE"
+        finally:
+            settings.rom_dir = original_rom_dir
+            settings.rom_scan_interval = original_interval
             rom_scanner._catalog = None
 
 

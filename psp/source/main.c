@@ -342,7 +342,14 @@ int main(int argc, char *argv[]) {
 
     if (has_wifi) {
         ui_status("Checking server saves...");
-        network_merge_server_titles(&g_state);
+        int srv_added = 0, srv_seen = 0;
+        int merge_rc = network_merge_server_titles(&g_state, &srv_added, &srv_seen);
+        if (merge_rc < 0) {
+            ui_status("Server titles fetch failed.");
+        } else {
+            ui_status("Server saves: %d listed, %d new (server-only).",
+                      srv_seen, srv_added);
+        }
     }
 
     if (has_wifi && g_state.num_titles > 0) {

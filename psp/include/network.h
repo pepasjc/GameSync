@@ -78,8 +78,13 @@ int network_download_save(const SyncState *state, const char *game_id,
 void network_fetch_names(SyncState *state);
 
 /* Merge downloadable PSP/PS1 titles from the server into state->titles.
- * Existing local entries are preserved; only missing titles are added. */
-void network_merge_server_titles(SyncState *state);
+ * Existing local entries are preserved; only missing titles are added.
+ *
+ * out_added (optional): number of new server-only entries added to state.
+ * out_seen  (optional): total titles parsed from server response.
+ * Returns 0 on success, negative on transport/parse failure. */
+int network_merge_server_titles(SyncState *state,
+                                int *out_added, int *out_seen);
 
 /* ----- ROM catalog + streaming downloads (mirror of PS3 client) -----
  *

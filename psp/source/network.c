@@ -683,18 +683,62 @@ static void add_server_title(SyncState *state, const char *game_id, const char *
 }
 
 /* Merge the server title catalog into the local list so PSP/PS1 saves remain
- * visible and downloadable even when there is no local save directory yet. */
-void network_merge_server_titles(SyncState *state) {
-    if (!state) return;
+ * visible and downloadable even when there is no local save directory yet.
+ *
+ * Filters server-side via ?console_type so the response stays small
+ * (avoids the 256 KB buffer truncating tail entries on a server with
+ * many non-PSP/PS1 saves) and so we don't waste cycles parsing 3DS /
+ * NDS / MiSTer rows that ``saves_is_valid_game_id`` would reject. */
+int network_merge_server_titles(SyncState *state,
+                                int *out_added, int *out_seen) {
+    if (out_added) *out_added = 0;
+    if (out_seen)  *out_seen  = 0;
+    if (!state) return -1;
 
-    static uint8_t resp[256 * 1024];
-    int r = network_http_get(state, "/api/v1/titles", resp, sizeof(resp) - 1);
-    if (r <= 0) return;
+    /* 512 KB resp buffer — saves response with PSP+PS1 filter rarely
+     * exceeds 64 KB, but oversize so future growth doesn't silently
+     * truncate the tail (which is exactly how new uploads vanish from
+     * the merge). */
+    static uint8_t resp[512 * 1024];
+    int r = network_http_get(state,
+                             "/api/v1/titles?console_type=PSP&console_type=PSX&console_type=PS1",
+                             resp, sizeof(resp) - 1);
+    if (r <= 0) return -1;
     resp[r] = '\0';
+
+    int seen = 0;
+    int before_count = state->num_titles;
 
     char *p = (char *)resp;
     while ((p = strstr(p, "\"title_id\"")) != NULL) {
-        char *object_end = strchr(p, '}');
+        /* Find the enclosing object's bounds.  Walk forward from the
+         * key, balancing { / } across nested arrays so a stray '}'
+         * inside a string value doesn't cut us off early. */
+        char *object_end = NULL;
+        {
+            int depth = 1;
+            char *q = p;
+            /* Backtrack to find object opener. */
+            while (q > (char *)resp && *q != '{') q--;
+            if (*q != '{') break;
+            char *scan = q + 1;
+            bool in_string = false;
+            while (*scan) {
+                if (in_string) {
+                    if (*scan == '\\' && scan[1]) { scan += 2; continue; }
+                    if (*scan == '"') in_string = false;
+                } else {
+                    if (*scan == '"') in_string = true;
+                    else if (*scan == '{') depth++;
+                    else if (*scan == '}') {
+                        depth--;
+                        if (depth == 0) { object_end = scan; break; }
+                    }
+                }
+                scan++;
+            }
+        }
+
         p = strchr(p, ':');
         if (!p) break;
         p++;
@@ -728,8 +772,13 @@ void network_merge_server_titles(SyncState *state) {
             }
         }
 
+        seen++;
         add_server_title(state, game_id, console_type);
     }
+
+    if (out_seen)  *out_seen  = seen;
+    if (out_added) *out_added = state->num_titles - before_count;
+    return 0;
 }
 
 /* ============================================================

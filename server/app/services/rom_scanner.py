@@ -40,13 +40,15 @@ files (loose ``.chd`` etc) are still scanned as individual entries —
 unlike PS3 we don't reject them, because per-disc-format PS1 layouts at
 the top level are common in existing libraries.
 
-Xbox CCI bundles
-----------------
-Xbox CCI releases are stored as per-game subfolders because the compressed
-disc image often travels with one or more launcher files.  Any subfolder of
-``<rom_dir>/xbox/`` containing a ``.cci`` is collapsed into one catalog
-entry and downloaded as a ZIP.  Loose top-level ``.iso`` files remain
-single-file entries and can be converted to CCI on demand.
+Xbox bundles
+------------
+Xbox releases are stored as per-game subfolders because the disc image
+often travels with one or more launcher files.  Any subfolder of
+``<rom_dir>/xbox/`` containing a ``.cci``, or a ``default.xbe`` alongside
+a ``.iso``, is collapsed into one catalog entry.  By default the bundle is
+served as a ZIP; clients can request ``?extract=iso`` to get just the disc
+image (converted from CCI or streamed directly if already ISO).  Loose
+top-level ``.iso`` files remain single-file entries.
 """
 
 import binascii
@@ -91,11 +93,12 @@ _PS1_BUNDLE_COMPANION_EXTS = frozenset({
     ".sub", ".ccd", ".toc", ".sbi", ".m3u",
 })
 
-# Xbox CCI bundles preserve their whole per-game directory because attach
+# Xbox bundles preserve their whole per-game directory because attach
 # launchers and emulator helper files do not have one stable extension across
 # every library.  The scanner still ignores the same metadata sidecars as the
 # other bundle paths.
 _XBOX_BUNDLE_TRIGGER_EXTS = frozenset({".cci"})
+_XBOX_BUNDLE_XBE_NAME = "default.xbe"
 _XBOX_FILE_EXTS = frozenset({".iso", ".cci"})
 
 
@@ -503,12 +506,15 @@ class RomCatalog:
         use_crc32: bool,
         scanned: list[dict],
     ) -> None:
-        """Xbox-specific scan with CCI bundle detection.
+        """Xbox-specific scan with bundle detection.
 
-        CCI games must live under a per-game subfolder so launchers can
-        travel with the compressed image.  ISO files are standalone entries
-        and may live anywhere below the Xbox folder as long as they are not
-        inside a CCI bundle directory.
+        A subfolder is treated as a bundle when it contains either:
+          * a ``.cci`` file (compressed disc image + launcher), OR
+          * a ``default.xbe`` alongside a ``.iso`` (extracted disc with
+            XBE launcher — functionally identical to CCI for emulators).
+
+        ISO files that are standalone (not inside a bundle directory) are
+        indexed as individual catalog entries.
         """
         system = "XBOX"
 
@@ -522,7 +528,17 @@ class RomCatalog:
                 f.is_file() and f.suffix.lower() in _XBOX_BUNDLE_TRIGGER_EXTS
                 for f in sub.rglob("*")
             )
-            if has_cci:
+            # Also treat as bundle: subfolder with default.xbe + .iso
+            has_xbe_iso = False
+            if not has_cci:
+                sub_files = [f for f in sub.rglob("*") if f.is_file()]
+                has_xbe = any(
+                    f.name.lower() == _XBOX_BUNDLE_XBE_NAME for f in sub_files
+                )
+                has_iso = any(f.suffix.lower() == ".iso" for f in sub_files)
+                has_xbe_iso = has_xbe and has_iso
+
+            if has_cci or has_xbe_iso:
                 bundle_dirs.append(sub)
                 for f in sub.rglob("*"):
                     if f.is_file():

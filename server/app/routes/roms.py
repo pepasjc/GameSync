@@ -18,8 +18,8 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                   drop PSN content into a per-game subfolder so the catalog
                                   can derive the game name + group .pkg + .rap files.
                                   Xbox .iso files: streamed raw or converted to CCI ZIP.
-                                  Xbox CCI bundles: subfolder ZIP by default, or converted
-                                  to ISO on demand.
+                                  Xbox bundles (.cci or default.xbe+.iso subfolders):
+                                  ZIP by default, or ?extract=iso streams the disc image.
 GET  /api/v1/roms/{rom_id}/manifest
                               — Bundle file list (returns single-element list for non-bundle)
 GET  /api/v1/roms/{rom_id}/file/{rel_path}
@@ -596,6 +596,28 @@ def _xbox_bundle_cci_path(entry, bundle_dir: Path) -> Path | None:
     return max(cci_files, key=lambda p: p.stat().st_size)
 
 
+def _xbox_bundle_iso_path(entry, bundle_dir: Path) -> Path | None:
+    """Find the .iso file inside an Xbox bundle directory.
+
+    Some Xbox game bundles contain a ``default.xbe`` launcher alongside a
+    raw ``.iso`` instead of a ``.cci``.  These should be treated the same
+    as CCI bundles — when the client requests ``?extract=iso``, we stream
+    the ISO directly (no conversion needed).
+    """
+    files = _bundle_manifest_files(entry)
+    iso_files = [
+        bundle_dir / f['name']
+        for f in files
+        if Path(str(f.get('name', ''))).suffix.lower() == '.iso'
+    ]
+    iso_files = [p for p in iso_files if p.is_file()]
+    if not iso_files:
+        iso_files = sorted(p for p in bundle_dir.rglob('*.iso') if p.is_file())
+    if not iso_files:
+        return None
+    return max(iso_files, key=lambda p: p.stat().st_size)
+
+
 async def _serve_single_file_zip(
     source_path: Path,
     zip_stem: str,
@@ -846,14 +868,22 @@ async def download_rom(
             if sys_up in _XBOX_SYSTEMS and fmt in _XBOX_EXTRACT_SPECS:
                 if fmt == 'cci':
                     return await _serve_bundle_zip(entry, bundle_dir)
+                # Try CCI first (needs conversion to ISO).
                 cci_path = _xbox_bundle_cci_path(entry, bundle_dir)
-                if cci_path is None:
-                    return Response(
-                        status_code=404,
-                        content="Xbox CCI bundle has no .cci file",
+                if cci_path is not None:
+                    return await _extract_xbox(
+                        cci_path, sys_up, fmt, display_stem=entry.name
                     )
-                return await _extract_xbox(
-                    cci_path, sys_up, fmt, display_stem=entry.name
+                # Fallback: bundle may contain a raw .iso alongside a
+                # default.xbe launcher.  Stream the ISO directly — no
+                # conversion needed, xemu loads it as-is.
+                if fmt == 'iso':
+                    iso_path = _xbox_bundle_iso_path(entry, bundle_dir)
+                    if iso_path is not None:
+                        return _stream_file_response(iso_path, 'application/octet-stream')
+                return Response(
+                    status_code=404,
+                    content="Xbox bundle has no .cci or .iso disc image",
                 )
         return await _serve_bundle_zip(entry, bundle_dir)
 

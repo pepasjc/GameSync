@@ -521,3 +521,56 @@ def test_find_roms_for_title_filters_by_title_id(monkeypatch):
     client = SyncClient("localhost", 8000, "key")
     roms = client.find_roms_for_title("SAT_T-4507G", "SAT")
     assert [r["rom_id"] for r in roms] == ["a", "b"]
+
+
+# ---------------------------------------------------------------------------
+# plan_rom_download — Xbox ISO for xemu
+# ---------------------------------------------------------------------------
+
+
+def test_plan_rom_download_xbox_cci_requests_iso():
+    """Xbox .cci source must be converted to ISO since xemu can't load CCI."""
+    client = SyncClient("localhost", 8000, "key")
+    filename, extract = client.plan_rom_download(
+        {
+            "rom_id": "xbox-halo",
+            "system": "XBOX",
+            "filename": "Halo - Combat Evolved.cci",
+            "extract_format": "xbox",
+            "extract_formats": ["cci", "iso", "folder"],
+        },
+        "XBOX",
+    )
+    assert filename == "Halo - Combat Evolved.iso"
+    assert extract == "iso"
+
+
+def test_plan_rom_download_xbox_iso_source_no_conversion():
+    """Xbox .iso source needs no conversion — download raw."""
+    client = SyncClient("localhost", 8000, "key")
+    filename, extract = client.plan_rom_download(
+        {
+            "rom_id": "xbox-halo",
+            "system": "XBOX",
+            "filename": "Halo - Combat Evolved.iso",
+        },
+        "XBOX",
+    )
+    assert filename == "Halo - Combat Evolved.iso"
+    assert extract is None
+
+
+def test_plan_rom_download_x360_requests_iso():
+    """X360 entries also request ISO for xemu compatibility."""
+    client = SyncClient("localhost", 8000, "key")
+    filename, extract = client.plan_rom_download(
+        {
+            "rom_id": "x360-gears",
+            "system": "X360",
+            "filename": "Gears of War.cci",
+            "extract_formats": ["cci", "iso", "folder"],
+        },
+        "X360",
+    )
+    assert filename == "Gears of War.iso"
+    assert extract == "iso"
