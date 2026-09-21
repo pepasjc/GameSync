@@ -63,7 +63,9 @@ _WEIRD_RE = re.compile(
     r"|Custom Boss|FXPak Pro"
     # NES games ported to the SNES: not SNES releases, whatever the tag says.
     r"|^Metroid \(|^Mega Man \(|^Mega Man 4 |^Legend of Zelda, The \(|^DuckTales"
-    r"|^Chip 'n Dale",
+    r"|^Chip 'n Dale"
+    # Mega Drive: Streets of Rage / TMNT crossover hacks, an unfinished pack.
+    r"|Re-Shelled|Re-Revenge|Intro-test|intro test",
     re.IGNORECASE,
 )
 #: Bracket tags that mean the ROM itself was changed beyond the MSU patch.
@@ -90,7 +92,11 @@ def region_class(name: str) -> int:
         r.strip().lower() for paren in parens for r in paren.split(",")
         if re.fullmatch(r"[A-Z][a-z](?:-[A-Za-z]+)?", r.strip())
     }
-    if _TRANSLATION_RE.search(tidy) or "en" in languages:
+    if _PATCHED_TRANSLATION_RE.search(tidy):
+        return 1
+    # An English-language import counts, but not a European release - the
+    # (En) / (En,Ja) on a PAL cart is a language list, not a translation.
+    if "en" in languages and "europe" not in regions:
         return 1
     if regions == {"japan"} or regions == {"japan", "unl"}:
         return 2
@@ -121,6 +127,7 @@ _REGIONS = {
     "unl", "arcade",
 }
 _TRANSLATION_RE = re.compile(r"\[T-[A-Za-z]{2}\b|\(Traducido|\(En\)|\(Fr\)|\(De\)|\(Es\)")
+_PATCHED_TRANSLATION_RE = re.compile(r"\[T-[A-Za-z]{2}\b|\(Traducido")
 
 #: Messy-set spellings of a title, folded onto the No-Intro title's key so a
 #: proper copy of the game shadows them.
@@ -138,6 +145,11 @@ _TITLE_ALIASES = {
     "finalfantasyvi": "finalfantasyiii",
     # Same game, Japanese and translated titles.
     "jikkyouoshaberiparodius": "chattingparodiuslive",
+    "daimakaimuraghoulsnghosts": "ghoulsnghosts",
+    "langrisser": "warsong",  # Warsong (USA) retranslated under its Japanese title
+    # Hack editions of a game that also has a plain pack.
+    "mortalkombatiiunlimited": "mortalkombatii",
+    "terminatorremasterededition": "terminator",
 }
 
 #: Messy names whose No-Intro form the tidy rules can't derive.
