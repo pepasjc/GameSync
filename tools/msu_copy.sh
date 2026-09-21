@@ -26,7 +26,10 @@ while IFS=$'\t' read -r src dest; do
     drive=$(printf '%s' "$src" | cut -c1 | tr 'A-Z' 'a-z')
     wsl_src="/mnt/$drive${src:2}"
     printf '[%d/%d] %s\n' "$n" "$total" "$dest"
-    if ! rsync --partial --inplace --times --info=progress2 \
+    # A loose-folder pack copies as a folder (trailing slash: contents into
+    # the destination name, not nested under the source folder's name).
+    if [ -d "$wsl_src" ]; then wsl_src="$wsl_src/"; dest="$dest/"; fi
+    if ! rsync -r --partial --inplace --times --info=progress2 \
             -e "ssh -o ControlPath=$SSH_CTL" \
             "$wsl_src" "$host:$remote/$dest"; then
         failed=$((failed + 1))

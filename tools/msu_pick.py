@@ -12,11 +12,24 @@ for the two to share a save slot.
         --baseline /tmp/snes_server_list.txt --system SNES \
         --report msu_report.md --plan msu_plan.txt
 
-Later sets win ties (list the curated set last).  Within one set, several
-variants of the same game are ranked: anything marked BETA / Demo loses, then
-the name with the fewest bracket tags wins.  Every decision is in the report;
-the plan is one ``<source path>\t<destination name>`` line per chosen pack
-and is what ``msu_copy.sh`` / rsync consumes.
+Policy, in order:
+
+* US releases - ``(USA)`` / ``(World)`` / ``(Japan, USA)`` - or a translated
+  import (``[T-En …]``).  A plain Japanese release is taken only when the
+  game has neither.  Europe / FR / DE / ES releases are reported, not
+  copied.
+* No fan games or ports: Project Nested / Infidelity NES ports, SGB packs,
+  Satellaview, "Deluxe" / "Parallel Worlds" / "Final" / NBA Jam 2K
+  rebuilds and the like are skipped outright (``_WEIRD_RE``).
+* One copy per game.  Preferred: the pack whose ROM is otherwise unmodified
+  (FastROM and translation tags don't count as modification; ``[Add by …]``,
+  ``[SA1 hack …]``, ``[Bugfix …]``, ``[Restoration …]`` do), then a properly
+  named pack over a hand-named custom-soundtrack one, then the later set,
+  then the shortest name.  A modified ROM still copies when it is the only
+  entry for its game.
+
+Every decision is in the report; the plan is one ``<source path>\t<destination
+name>`` line per chosen pack and is what ``msu_copy.sh`` / rsync consumes.
 """
 
 from __future__ import annotations
@@ -41,6 +54,56 @@ from app.services.rom_scanner import (  # noqa: E402
 )
 
 _LOSER_RE = re.compile(r"\bBETA\b|\(Demo\)|\bWIP\b", re.IGNORECASE)
+
+#: Fan games, ports and rebuilds - not a soundtrack for a real release.
+_WEIRD_RE = re.compile(
+    r"Project Nested|Infidelity|\(SGB\)|^BS |\(Arcade\)|^[^(\[]*Deluxe|\[Deluxe|Parallel Worlds"
+    r"|F-Zero Final|High Rule Tail|Hyper Street Kart|NBA Jam|Mother 2"
+    r"|New Super Mario Land|Aftermarket|ProjectXVIII|Shi Kong|FMV BETA|\(Demo\)"
+    r"|Custom Boss|FXPak Pro"
+    # NES games ported to the SNES: not SNES releases, whatever the tag says.
+    r"|^Metroid \(|^Mega Man \(|^Mega Man 4 |^Legend of Zelda, The \(|^DuckTales"
+    r"|^Chip 'n Dale",
+    re.IGNORECASE,
+)
+#: Bracket tags that mean the ROM itself was changed beyond the MSU patch.
+_MODIFIED_TAG_RE = re.compile(
+    r"\[(?:Add by|SA1 hack|Restoration hack|Bugfix|Fix by|Deluxe)[^\]]*\]"
+    r"|\[[^\]]*(?:Rebuilt|version)\]",
+    re.IGNORECASE,
+)
+_US_REGIONS = {"usa", "world"}
+
+
+def region_class(name: str) -> int:
+    """0 US/World, 1 translated or English-language import, 2 plain Japan,
+    3 anything else (Europe, FR/DE/ES, no region at all)."""
+    tidy = tidy_name(name)
+    parens = [paren for paren in re.findall(r"\(([^)]*)\)", tidy)]
+    regions = {
+        r.strip().lower() for paren in parens for r in paren.split(",")
+        if r.strip().lower() in _REGIONS
+    }
+    if regions & _US_REGIONS:
+        return 0
+    languages = {
+        r.strip().lower() for paren in parens for r in paren.split(",")
+        if re.fullmatch(r"[A-Z][a-z](?:-[A-Za-z]+)?", r.strip())
+    }
+    if _TRANSLATION_RE.search(tidy) or "en" in languages:
+        return 1
+    if regions == {"japan"} or regions == {"japan", "unl"}:
+        return 2
+    return 3
+
+
+def is_weird(name: str) -> bool:
+    return bool(_WEIRD_RE.search(name))
+
+
+def modification_count(name: str) -> int:
+    """Tags saying the cart was hacked beyond MSU (FastROM / T-En excluded)."""
+    return len(_MODIFIED_TAG_RE.findall(name))
 _PAREN_RE = re.compile(r"\s*\([^)]*\)")
 _BRACKET_RE = re.compile(r"\s*\[[^\]]*\]")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
@@ -72,6 +135,9 @@ _TITLE_ALIASES = {
     "ys5kefinthelostcityofsand": "ysvkefinlostkingdomofsand",
     "megamanbass": "rockmanforte",
     "supermariorpg": "supermariorpglegendofthesevenstars",
+    "finalfantasyvi": "finalfantasyiii",
+    # Same game, Japanese and translated titles.
+    "jikkyouoshaberiparodius": "chattingparodiuslive",
 }
 
 #: Messy names whose No-Intro form the tidy rules can't derive.
@@ -82,6 +148,11 @@ _EXPLICIT_RENAMES = {
     "Super Mario RPG (USA) (MSU1).zip":
         "Super Mario RPG - Legend of the Seven Stars (USA) (MSU1).zip",
     "Wolfenstein 3-D (USA) (MSU1).zip": "Wolfenstein 3D (USA) (MSU1).zip",
+    # The US cart is Final Fantasy III; the pack authors named it by its
+    # Japanese number.  Keyed like the baseline ROM or the save won't share.
+    "Final Fantasy VI (USA) (MSU1).zip": "Final Fantasy III (USA) (MSU1).zip",
+    "Final Fantasy VI (USA) (MSU1) [Hack by Insidious611 Final Beta Hotfix Four 20190106] [n].zip":
+        "Final Fantasy III (USA) (MSU1) [Hack by Insidious611 Final Beta Hotfix Four 20190106] [n].zip",
     "Flashback (USA) (MSU1) [Hack by LuigiBlood v1.0].zip":
         "Flashback - The Quest for Identity (USA) (MSU1) [Hack by LuigiBlood v1.0].zip",
 }
@@ -195,6 +266,14 @@ def main() -> int:
             row["set_index"] = index
             row["set"] = folder
             row["abs_path"] = str(folder_path.parent / row["path"])
+            if Path(row["abs_path"]).is_dir():
+                # A loose-folder pack is judged by its cart's name - the
+                # folder ("Daimakaimura") carries no region or tags.
+                cart = msu.rom_member(
+                    row["bundle_kind"], [m["name"] for m in json.loads(row["bundle_files"])])
+                if cart and "(" in Path(cart).stem:
+                    row["filename"] = Path(cart).stem + ".zip"
+                    row["name"] = Path(cart).stem
             packs[row["title_id"]].append(row)
 
     chosen: list[dict] = []
@@ -208,6 +287,30 @@ def main() -> int:
     dat_miss: list[dict] = []
     ambiguous: list[tuple[dict, list[dict]]] = []
 
+    # Policy gates first: region and fan-game filters drop rows before any
+    # dedup, so a Europe copy never shadows a US one and a Deluxe rebuild
+    # never counts as "the" copy of a game.
+    rejected_region: list[dict] = []
+    rejected_weird: list[dict] = []
+    english_titles = {
+        title_key(r["filename"]) for rows in packs.values() for r in rows
+        if not is_weird(r["filename"]) and region_class(r["filename"]) < 2
+    }
+    for tid in list(packs):
+        kept = []
+        for r in packs[tid]:
+            cls = region_class(r["filename"])
+            if is_weird(r["filename"]):
+                rejected_weird.append(r)
+            elif cls == 3 or (cls == 2 and title_key(r["filename"]) in english_titles):
+                rejected_region.append(r)
+            else:
+                kept.append(r)
+        if kept:
+            packs[tid] = kept
+        else:
+            del packs[tid]
+
     # One copy per game, across sets and across spellings.  Proper copies
     # dedupe on title+region+translation, later set wins; a messy (hand
     # named) copy only survives when *no* proper copy of the title exists.
@@ -216,7 +319,12 @@ def main() -> int:
                      if not is_messy(r["filename"])}
     best_by_key: dict[str, dict] = {}
     shadowed: list[dict] = []
-    for r in sorted(all_rows, key=lambda r: (-r["set_index"], _rank(r["filename"]))):
+    def _policy_rank(r):
+        name = r["filename"]
+        beta = 1 if _LOSER_RE.search(name) else 0
+        return (modification_count(name), is_messy(name), beta, -r["set_index"], _rank(name))
+
+    for r in sorted(all_rows, key=_policy_rank):
         name = r["filename"]
         if is_messy(name) and title_key(name) in proper_titles:
             shadowed.append(r)
@@ -234,16 +342,37 @@ def main() -> int:
     for tid in sorted(packs):
         rows = packs[tid]
         # Later sets win; within a set, rank the name.
-        rows.sort(key=lambda r: (-r["set_index"], _rank(r["filename"])))
+        rows.sort(key=_policy_rank)
         pick = rows[0]
         pick["dest"] = tidy_name(pick["filename"])
+        # The zip takes the cart's own name: what the pack unpacks to on a
+        # device is then the same string inside and out.  A cart named by
+        # hand (``bb_msu1.smc``, no region tag) keeps the tidied zip name.
+        cart = msu.rom_member(
+            pick["bundle_kind"], [m["name"] for m in json.loads(pick["bundle_files"])])
+        if cart and "(" in Path(cart).stem and pick["filename"] not in _EXPLICIT_RENAMES:
+            stem = Path(cart).stem
+            if re.search(r"\[T-[A-Za-z]{2}\]", stem):
+                # The cart abbreviates the translation tag; the baseline ROM
+                # is keyed by translator and version, so keep the zip's full
+                # tag and drop only the MSU author's bracket.
+                stem = msu.strip_hack_tags(Path(tidy_name(pick["filename"])).stem)
+            pick["dest"] = stem + ".zip"
+        if Path(pick["abs_path"]).is_dir():
+            # A loose-folder pack copies as a folder, named after its cart
+            # so the list shows "Daimakaimura ~ Ghouls'n Ghosts (World)…",
+            # not the bare folder the set author typed.
+            cart = msu.rom_member(
+                pick["bundle_kind"], [m["name"] for m in json.loads(pick["bundle_files"])])
+            pick["dest"] = (Path(cart).stem if cart else pick["name"])
         if pick["dest"] != pick["filename"]:
             renamed.append((pick["filename"], pick["dest"]))
             # The server will key the copy by its new name.
-            renamed_row = dict(pick, filename=pick["dest"], name=pick["dest"][:-4])
+            new_name = pick["dest"][:-4] if pick["dest"].endswith(".zip") else pick["dest"]
+            renamed_row = dict(pick, filename=pick["dest"], name=new_name)
             cands = []
             for cand in msu.identity_candidates(renamed_row["name"], msu.rom_member(
-                    "msu1", [m["name"] for m in json.loads(pick["bundle_files"])])):
+                    pick["bundle_kind"], [m["name"] for m in json.loads(pick["bundle_files"])])):
                 tid_c, _c, src_c = _identify_rom_slug(system, Path(f"{cand}.zip"), norm)
                 if tid_c not in {c[0] for c in cands}:
                     cands.append((tid_c, src_c))
@@ -258,7 +387,7 @@ def main() -> int:
         same_set = [r for r in rows if r["set_index"] == pick["set_index"]]
         if len(same_set) > 1:
             ambiguous.append((pick, same_set))
-        if tid not in baseline:
+        if pick["title_id"] not in baseline:
             unmatched.append(pick)
         if pick["source"] == "filename":
             dat_miss.append(pick)
@@ -284,6 +413,19 @@ def main() -> int:
         lines.append(f"- `{pick['title_id']}` → **{pick['filename']}**")
         for r in rows[1:]:
             lines.append(f"    - dropped: {r['filename']}")
+
+    japan_only = [p for p in chosen if region_class(p["filename"]) == 2]
+    lines += ["", f"## Japan-only (no English version or translation): {len(japan_only)}", ""]
+    lines += [f"- {p['filename']}" for p in japan_only]
+    lines += ["", f"## Skipped: not US, not translated, or Japan with an English copy: {len(rejected_region)}", ""]
+    lines += [f"- {r['filename']} (set {r['set_index']})"
+              for r in sorted(rejected_region, key=lambda r: r["filename"])]
+    lines += ["", f"## Skipped: fan game / port / rebuild: {len(rejected_weird)}", ""]
+    lines += [f"- {r['filename']} (set {r['set_index']})"
+              for r in sorted(rejected_weird, key=lambda r: r["filename"])]
+    modified = [p for p in chosen if modification_count(p["filename"])]
+    lines += ["", f"## Copied although the ROM is modified (only entry): {len(modified)}", ""]
+    lines += [f"- {p['filename']}" for p in modified]
 
     lines += ["", f"## Renamed on copy (messy set spelling): {len(renamed)}", ""]
     lines += [f"- {old}  →  **{new}**" for old, new in renamed]
