@@ -18,6 +18,11 @@ of how MiSTer cores actually behave:
   exists.
 * CD cores read CHD natively, so a CHD is installed byte-for-byte with no
   server-side conversion.
+* An MSU pack is a folder, and which core plays it depends on its audio
+  container: MSU-1 and MD+ packs go under their own system's folder and are
+  loaded as the ROM they contain, while an MSU-MD pack is a *MegaCD* core
+  title - it lives under ``games/MegaCD/<Game>/`` with the cart renamed
+  ``cart.rom`` beside its cue/bin, as the core documents.
 """
 
 from __future__ import annotations
@@ -26,6 +31,7 @@ import posixpath
 import re
 from typing import List, Optional
 
+from shared import msu
 from shared.mister import (
     MISTER_CD_SYSTEMS,
     MISTER_GAMES_ROOTS,
@@ -38,6 +44,8 @@ __all__ = [
     "games_root",
     "install_target",
     "is_cd_system",
+    "msu_pack_layout",
+    "msu_pack_target",
     "needs_extract",
     "safe_file_name",
     "safe_folder_name",
@@ -141,6 +149,46 @@ def install_target(provider, system: str, filename: str, display_name: str = "",
     base = display_name or filename
     folder = safe_folder_name(strip_disc_tag(base))
     return posixpath.join(system_dir, folder), safe_name
+
+
+#: The MegaCD core insists on this name for the cartridge of an MSU-MD title.
+MEGACD_CART_NAME = "cart.rom"
+
+
+def msu_pack_layout(kind: str, system: str):
+    """``(system whose folder the pack lives in, cart rename or None)``.
+
+    Returns ``None`` when the kind is not one this MiSTer knows how to play.
+    """
+    kind = (kind or "").lower()
+    system = (system or "").upper()
+    if kind == msu.MSU1:
+        return system or "SNES", None
+    if kind == msu.MD_PLUS:
+        return system or "MD", None
+    if kind == msu.MSU_MD:
+        return "SEGACD", MEGACD_CART_NAME
+    return None
+
+
+def msu_pack_target(provider, system: str, kind: str, display_name: str,
+                    rom_target: str = "sd"):
+    """Folder an MSU pack unpacks into, and the cart rename it needs.
+
+    Returns ``(directory, cart_rename)``, or ``("", None)`` when the pack
+    kind is unknown or its core has no folder here.  Every pack gets its own
+    subfolder - the audio has to sit beside the ROM, and a MegaCD title's
+    backup RAM is named after that folder.
+    """
+    layout = msu_pack_layout(kind, system)
+    if layout is None:
+        return "", None
+    target_system, rename = layout
+    system_dir = system_games_dir(provider, target_system, rom_target)
+    if not system_dir:
+        return "", None
+    folder = safe_folder_name(display_name or "pack")
+    return posixpath.join(system_dir, folder), rename
 
 
 def needs_extract(system: str, filename: str) -> Optional[str]:

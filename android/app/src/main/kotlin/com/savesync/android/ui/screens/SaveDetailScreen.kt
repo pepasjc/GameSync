@@ -72,6 +72,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.savesync.android.api.msuPackKind
 import com.savesync.android.api.preferredDownloadExtractFormat
 import com.savesync.android.api.preferredDownloadFilename
 import com.savesync.android.emulators.SaveEntry
@@ -391,6 +392,7 @@ fun SaveDetailScreen(
                                     system = rom.system,
                                     filename = rom.preferredDownloadFilename(extract),
                                     extractFormat = extract,
+                                    bundleKind = rom.msuPackKind,
                                 )
                             }
                         }
@@ -415,6 +417,7 @@ fun SaveDetailScreen(
                                     system = rom.system,
                                     filename = rom.preferredDownloadFilename(extract),
                                     extractFormat = extract,
+                                    bundleKind = rom.msuPackKind,
                                 )
                             }
                         ))

@@ -558,6 +558,7 @@ QLabel#detailLabel {{
                 ),
                 expected_size=size,
                 is_bundle=is_bundle,
+                bundle_kind=str(rom.get("bundle_kind") or "") if is_bundle else "",
             )
             # Queue the update / DLC behind the base game.  ``extras`` is
             # already in install order, and the queue is FIFO, so the base
@@ -643,6 +644,7 @@ QLabel#detailLabel {{
             extract_format=extract_format,
             expected_size=int(rom.get("size") or 0),
             is_bundle=is_bundle,
+            bundle_kind=str(rom.get("bundle_kind") or "") if is_bundle else "",
         )
 
     def _rom_roots_base(self) -> Path:

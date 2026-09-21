@@ -32,6 +32,7 @@ SHARED_MODULES = [
     "mister_saves.py",
     "mister_scan.py",
     "mister_install.py",
+    "msu.py",
     "title_match.py",
     "saturn_format.py",
     "rom_id/__init__.py",

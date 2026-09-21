@@ -24,7 +24,8 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
 GET  /api/v1/roms/{rom_id}/manifest
                               — Bundle file list (returns single-element list for non-bundle)
 GET  /api/v1/roms/{rom_id}/file/{rel_path}
-                              — Stream a single file out of a bundle (Range support).
+                              — Stream a single file out of a bundle (Range support;
+                                members of a zipped MSU pack stream without Range).
                                 Used by the PS3 client to route .pkg → /dev_hdd0/packages
                                 and .rap → /dev_hdd0/exdata.
 POST /api/v1/roms/scan         — Trigger rescan of ROM directory
@@ -710,6 +711,75 @@ def _bundle_dir_for(entry, rom_dir: Path) -> Path | None:
     return bundle_dir
 
 
+def _bundle_zip_for(entry, rom_dir: Path) -> Path | None:
+    """The archive behind a *file*-backed bundle — a zipped MSU pack.
+
+    Same containment guard as :func:`_bundle_dir_for`; returns None for
+    directory bundles and for anything that is not a plain file.
+    """
+    if not getattr(entry, 'is_bundle', False):
+        return None
+    zip_path = (rom_dir / entry.path).resolve()
+    try:
+        zip_path.relative_to(rom_dir.resolve())
+    except ValueError:
+        return None
+    if not zip_path.is_file():
+        return None
+    return zip_path
+
+
+def _serve_zip_member(zip_path: Path, rel_path: str) -> Response:
+    """Stream one member out of a zipped pack.
+
+    Members are addressed the way the manifest lists them — without the
+    single wrapping folder the pack may have been zipped with — so both
+    spellings are tried.  Deflated members stream through the decompressor;
+    no Range, since a compressed offset can't be seeked to.
+    """
+    try:
+        zf = zipfile.ZipFile(zip_path)
+    except (OSError, zipfile.BadZipFile):
+        return Response(status_code=404, content="Bundle archive unreadable")
+    from shared import msu
+    root, _names = msu.strip_common_root(
+        i.filename for i in zf.infolist() if not i.is_dir()
+    )
+    candidates = [rel_path] + ([f"{root}/{rel_path}"] if root else [])
+    info = None
+    for name in candidates:
+        try:
+            info = zf.getinfo(name)
+            break
+        except KeyError:
+            continue
+    if info is None or info.is_dir():
+        zf.close()
+        return Response(status_code=404,
+                        content=f"Bundle file not found: {rel_path}")
+
+    def _iter():
+        try:
+            with zf.open(info) as fh:
+                while True:
+                    buf = fh.read(_STREAM_CHUNK)
+                    if not buf:
+                        break
+                    yield buf
+        finally:
+            zf.close()
+
+    return StreamingResponse(
+        _iter(),
+        media_type=_content_type(info.filename),
+        headers={
+            'Content-Length': str(info.file_size),
+            'Content-Disposition':
+                f'attachment; filename="{Path(info.filename).name}"',
+        },
+    )
+
+
 def _bundle_manifest_files(entry) -> list[dict]:
     """Return the [{name, size}] list stored in the catalog row.
 
@@ -966,6 +1036,11 @@ async def download_bundle_file(
 
     bundle_dir = _bundle_dir_for(entry, rom_dir)
     if bundle_dir is None:
+        zip_path = _bundle_zip_for(entry, rom_dir)
+        if zip_path is not None:
+            if rel_path.startswith("/") or ".." in Path(rel_path).parts:
+                return Response(status_code=400, content="Bad bundle file path")
+            return _serve_zip_member(zip_path, rel_path)
         return Response(status_code=404,
                         content="Bundle directory missing on disk")
 
@@ -1137,6 +1212,16 @@ async def download_rom(
     if getattr(entry, 'is_bundle', False):
         bundle_dir = _bundle_dir_for(entry, rom_dir)
         if bundle_dir is None:
+            # A zipped MSU pack is already the archive a client wants:
+            # stream it as-is, Range included, rather than re-zipping
+            # hundreds of MB of PCM through a tempfile.
+            zip_path = _bundle_zip_for(entry, rom_dir)
+            if zip_path is not None:
+                file_size = zip_path.stat().st_size
+                if range_header:
+                    return _serve_range(zip_path, file_size,
+                                        'application/zip', range_header)
+                return _serve_full(zip_path, file_size, 'application/zip')
             return Response(status_code=404,
                             content="Bundle directory not found on disk")
         if extract:

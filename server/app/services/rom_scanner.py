@@ -60,6 +60,26 @@ emulator images (``.wua``, ``.wud``, ``.wux``) and archives wrapping either
 layout stay individual entries.  When the name embeds a Wii U title id —
 ``Super Mario 3D World [0005000010145C00]`` — that id becomes the catalog
 ``title_id``, matching the key Wii U *saves* are stored under.
+
+MSU packs (SNES MSU-1, Mega Drive MSU-MD / MD+)
+-----------------------------------------------
+An enhanced-audio pack is a patched ROM plus the PCM / WAV / raw audio it
+streams from beside itself, so it must land on a device as a folder.  Under
+``<rom_dir>/snes/`` and ``<rom_dir>/genesis/`` (any depth) two shapes become
+one bundle entry each, recognised by *contents* — see ``shared/msu.py``:
+
+* a per-game subfolder holding the pack's files, or
+* a ``.zip`` of one (with or without a single wrapping folder).  Only zips
+  big enough to plausibly hold audio, or with ``msu`` in the name, are
+  opened; the rest keep scanning as ordinary zipped ROMs.
+
+The entry's ``bundle_kind`` (``msu1`` / ``msu-md`` / ``mdplus``) tells the
+client what layout the target wants.  A zipped pack is served as the zip it
+is (``path`` points at the file, Range works), never re-archived; the
+manifest lists members with the wrapping folder stripped and clients hoist
+that folder away when extracting.  Its ``title_id`` is resolved from the
+pack's name with the tag folded out, so ``ActRaiser (USA) (MSU1)`` shares
+the save slot of ``ActRaiser (USA)``.
 """
 
 import binascii
@@ -67,6 +87,7 @@ import hashlib
 import json
 import logging
 import re
+import zipfile
 from collections import Counter
 from pathlib import Path
 from typing import Optional
@@ -80,7 +101,7 @@ from app.services.rom_id import (
 )
 from shared.systems import SYSTEM_ALIASES
 # rom_id imports `shared` onto sys.path for us, so this stays a plain import.
-from shared import wiiu_meta
+from shared import msu, wiiu_meta
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +192,7 @@ class RomEntry:
         "source",
         "is_bundle",
         "bundle_files",
+        "bundle_kind",
     )
 
     def __init__(
@@ -186,6 +208,7 @@ class RomEntry:
         source: str = "filename",
         is_bundle: bool = False,
         bundle_files: Optional[list[dict]] = None,
+        bundle_kind: str = "",
     ):
         self.rom_id = rom_id
         self.title_id = title_id
@@ -201,6 +224,10 @@ class RomEntry:
         # dicts.  None and [] are both treated as "not a bundle" so the
         # client doesn't have to handle two empty representations.
         self.bundle_files = bundle_files or []
+        # What kind of folder-shaped thing this is, when the client has to
+        # lay it out a particular way: an MSU pack kind (``shared/msu.py``),
+        # or "" for the ordinary "unzip into a folder" bundle.
+        self.bundle_kind = bundle_kind or ""
 
     def to_dict(self) -> dict:
         d = {
@@ -218,6 +245,8 @@ class RomEntry:
         if self.is_bundle:
             d["file_count"] = len(self.bundle_files)
             d["files"] = self.bundle_files
+            if self.bundle_kind:
+                d["bundle_kind"] = self.bundle_kind
         return d
 
     @classmethod
@@ -248,6 +277,7 @@ class RomEntry:
             source=row.get("source", "filename"),
             is_bundle=bool(row.get("is_bundle", 0)),
             bundle_files=bundle_files,
+            bundle_kind=row.get("bundle_kind", "") or "",
         )
 
 
@@ -461,6 +491,65 @@ def _wiiu_bundle_dirs(folder: Path, depth: int = 0) -> list[Path]:
     return found
 
 
+def _resolve_msu_identities(scanned: list[dict]) -> None:
+    """Settle each MSU pack on the id of the plain ROM it patches.
+
+    Runs once every folder is scanned, so the plain ROMs are all known.
+    Candidates come in preference order from ``_msu_row``; the first whose
+    id belongs to a non-pack entry of the same system wins.  With no such
+    ROM in the catalog the pick is the first DAT-recognised candidate, else
+    the pack name without its ``[Hack by …]`` tag — the form a plain ROM
+    would most likely be filed under if one turns up later.
+    """
+    plain: set[tuple[str, str]] = {
+        (row["system"], row["title_id"]) for row in scanned
+        if not row.get("bundle_kind")
+    }
+    for row in scanned:
+        candidates = row.pop("_msu_candidates", None)
+        if not candidates:
+            row.pop("_msu_fallback", None)
+            continue
+        pick = next(
+            (c for c in candidates if (row["system"], c[0]) in plain), None
+        ) or next((c for c in candidates if c[1] != "filename"), None)
+        if pick is None:
+            pick = row.get("_msu_fallback") or candidates[0]
+        row.pop("_msu_fallback", None)
+        row["title_id"], row["source"] = pick
+
+
+def _peek_msu_zip(system: str, zip_path: Path) -> tuple[str, list[dict]] | None:
+    """``(kind, manifest)`` when the zip holds an MSU pack, else None.
+
+    Reads only the central directory plus any cue sheet — a few KB off the
+    end of the file, cheap even on a network share.  The manifest is what a
+    client will find *after* hoisting the single wrapping folder most packs
+    are zipped with, so it matches a loose-folder pack's manifest exactly.
+    """
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            infos = [i for i in zf.infolist() if not i.is_dir()]
+            root, names = msu.strip_common_root(i.filename for i in infos)
+            prefix = f"{root}/" if root else ""
+
+            def _read(name: str) -> str:
+                return zf.read(prefix + name).decode("utf-8", "replace")
+
+            kind = msu.detect_kind(system, names, _read)
+            if not kind:
+                return None
+            manifest = [
+                {"name": name, "size": info.file_size}
+                for name, info in zip(names, infos)
+                if name.lower() not in SKIP_NAMES and not msu.is_junk(name)
+            ]
+    except (OSError, zipfile.BadZipFile, RuntimeError, UnicodeDecodeError) as exc:
+        logger.debug("[rom_scanner] not an MSU pack: %s (%s)", zip_path.name, exc)
+        return None
+    return (kind, manifest) if manifest else None
+
+
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 _MULTI_UNDERSCORE_RE = re.compile(r"_+")
 
@@ -591,6 +680,8 @@ class RomCatalog:
 
             self._scan_folder(folder, system, norm, rom_dir, use_crc32, scanned)
 
+        _resolve_msu_identities(scanned)
+
         title_counts: Counter[str] = Counter(entry["title_id"] for entry in scanned)
         used_rom_ids: set[str] = set()
         batch: list[dict] = []
@@ -624,6 +715,7 @@ class RomCatalog:
                 source=raw_entry["source"],
                 is_bundle=bool(raw_entry.get("is_bundle", 0)),
                 bundle_files=parsed_files,
+                bundle_kind=raw_entry.get("bundle_kind", ""),
             )
             self._add(entry)
             # Keep the JSON-encoded shape for SQLite (the upsert helper
@@ -631,6 +723,7 @@ class RomCatalog:
             db_row = entry.to_dict()
             db_row["is_bundle"] = 1 if entry.is_bundle else 0
             db_row["bundle_files"] = bundle_raw
+            db_row["bundle_kind"] = entry.bundle_kind
             db_row["files"] = None  # not a column; .pop avoids strict-keys
             db_row.pop("files", None)
             db_row.pop("file_count", None)
@@ -671,6 +764,10 @@ class RomCatalog:
             self._scan_wiiu_folder(folder, norm, rom_dir, use_crc32, scanned)
             return
 
+        claimed: set[Path] = set()
+        if system.upper() in msu.MSU_SYSTEMS:
+            claimed = self._scan_msu_packs(folder, system, norm, rom_dir, scanned)
+
         for file_path in sorted(folder.rglob("*")):
             if not file_path.is_file():
                 continue
@@ -679,6 +776,8 @@ class RomCatalog:
             if file_path.name.lower() in SKIP_NAMES:
                 continue
             if file_path.suffix.lower() not in ROM_EXTENSIONS:
+                continue
+            if claimed and file_path.resolve() in claimed:
                 continue
 
             crc32 = ""
@@ -707,6 +806,124 @@ class RomCatalog:
                     "bundle_files": "",
                 }
             )
+
+    def _scan_msu_packs(
+        self,
+        folder: Path,
+        system: str,
+        norm: Optional[object],
+        rom_dir: Path,
+        scanned: list[dict],
+    ) -> set[Path]:
+        """Collapse MSU-1 / MSU-MD / MD+ packs into bundle entries.
+
+        Walks every subfolder and every worthwhile ``.zip`` under ``folder``
+        and asks :func:`shared.msu.detect_kind` about its files.  Returns the
+        resolved paths the packs own so the plain per-file scan that follows
+        leaves them alone — otherwise a pack's ``.sfc`` would show up a
+        second time as a bare ROM, and its zip as an 800 MB "zipped ROM".
+        """
+        claimed: set[Path] = set()
+
+        for sub in sorted(p for p in folder.rglob("*") if p.is_dir()):
+            if _is_inside_skipped_dir(sub) or sub.name in SKIP_DIR_NAMES:
+                continue
+            try:
+                files = sorted(f for f in sub.iterdir() if f.is_file())
+            except OSError:
+                continue
+            names = [f.name for f in files]
+            kind = msu.detect_kind(
+                system, names,
+                lambda n, _d=sub: (_d / n).read_text(errors="replace"),
+            )
+            if not kind:
+                continue
+            manifest: list[dict] = []
+            total = 0
+            for f in files:
+                claimed.add(f.resolve())
+                if f.name.lower() in SKIP_NAMES or msu.is_junk(f.name):
+                    continue
+                size = f.stat().st_size
+                manifest.append({"name": f.name, "size": size})
+                total += size
+            if not manifest:
+                continue
+            scanned.append(self._msu_row(
+                system, norm, kind, msu.display_name_for(sub.name),
+                f"{sub.name}.zip", sub.relative_to(rom_dir).as_posix(),
+                total, manifest,
+            ))
+
+        for zip_path in sorted(folder.rglob("*.zip")):
+            if not zip_path.is_file() or _is_inside_skipped_dir(zip_path):
+                continue
+            if zip_path.resolve() in claimed:
+                continue
+            try:
+                size = zip_path.stat().st_size
+            except OSError:
+                continue
+            if not msu.archive_worth_peeking(zip_path.name, size):
+                continue
+            packed = _peek_msu_zip(system, zip_path)
+            if packed is None:
+                continue
+            kind, manifest = packed
+            claimed.add(zip_path.resolve())
+            scanned.append(self._msu_row(
+                system, norm, kind, msu.display_name_for(zip_path.name),
+                zip_path.name, zip_path.relative_to(rom_dir).as_posix(),
+                sum(m["size"] for m in manifest), manifest,
+            ))
+
+        return claimed
+
+    @staticmethod
+    def _msu_row(
+        system: str,
+        norm: Optional[object],
+        kind: str,
+        display_name: str,
+        filename: str,
+        rel_path: str,
+        total_size: int,
+        manifest: list[dict],
+    ) -> dict:
+        # A pack is a pack *of* some ROM, and it must share that ROM's save
+        # slot.  Its name folds the (MSU1) tag away but keeps the MSU
+        # author's ``[Hack by …]``, which no plain ROM carries — so several
+        # spellings are tried (the name, the name without hack tags, the
+        # cart member, likewise stripped) and settled once the whole scan is
+        # in: the first that names a ROM actually in the catalog wins.  See
+        # :meth:`_resolve_msu_identities`.  The display name keeps every
+        # tag so a list shows which pack this is.
+        rom = msu.rom_member(kind, [m["name"] for m in manifest])
+        candidates = []
+        for name in msu.identity_candidates(display_name, rom):
+            tid, _canonical, src = _identify_rom_slug(system, Path(f"{name}.zip"), norm)
+            if tid not in {c[0] for c in candidates}:
+                candidates.append((tid, src))
+        title_id, source = candidates[0]
+        fallback, _c, fallback_src = _identify_rom_slug(
+            system, Path(f"{msu.strip_hack_tags(display_name)}.zip"), norm
+        )
+        return {
+            "_msu_candidates": candidates,
+            "_msu_fallback": (fallback, fallback_src),
+            "title_id": title_id,
+            "system": system,
+            "name": display_name,
+            "filename": filename,
+            "path": rel_path,
+            "size": total_size,
+            "crc32": "",
+            "source": source,
+            "is_bundle": 1,
+            "bundle_files": json.dumps(manifest),
+            "bundle_kind": kind,
+        }
 
     def _scan_xbox_folder(
         self,
@@ -1320,8 +1537,8 @@ def cleanup_missing() -> int:
         try:
             # Bundle rows store ``path`` as the bundle *directory*, not a
             # file, so ``is_file()`` would (wrongly) flag every bundle as
-            # missing. Check existence by the right kind.
-            exists = full.is_dir() if entry.is_bundle else full.is_file()
+            # missing — except a zipped MSU pack, whose bundle *is* a file.
+            exists = full.is_dir() or full.is_file() if entry.is_bundle else full.is_file()
             if not exists:
                 to_remove.append(entry.rom_id)
         except OSError:

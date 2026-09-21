@@ -159,6 +159,12 @@ data class RomEntry(
     /** True for folder-shaped catalog entries (PS3 packages, Wii U WUP sets). */
     @SerializedName("is_bundle")
     val isBundle: Boolean = false,
+    /**
+     * `msu1` / `msu-md` / `mdplus` when the bundle is an enhanced-audio pack
+     * (see [com.savesync.android.sync.MsuPack]); absent for every other entry.
+     */
+    @SerializedName("bundle_kind")
+    val bundleKind: String? = null,
     /** Wii U only: `game` / `update` / `dlc` / `demo`. */
     @SerializedName("content_type")
     val contentType: String? = null,
@@ -173,6 +179,14 @@ data class RomEntry(
     @SerializedName("related_rom_ids")
     val relatedRomIds: List<String>? = null
 )
+
+/**
+ * The MSU pack kind of this entry, or null when it is not a pack.  Only a
+ * bundle can be one, and only kinds this client knows how to lay out count.
+ */
+val RomEntry.msuPackKind: String?
+    get() = bundleKind?.trim()?.lowercase()
+        ?.takeIf { isBundle && it in com.savesync.android.sync.MsuPack.KINDS }
 
 /**
  * Install order for a Wii U title's pieces.  MCP rejects an update or DLC

@@ -2573,3 +2573,252 @@ class TestWbfsExtract:
             headers=auth_headers,
         )
         assert r.status_code in (400, 404)
+
+
+# ── MSU packs ────────────────────────────────────────────────────────────────
+
+_MSU_MD_CUE = b'FILE "Game (MSU-MD).bin" BINARY\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n'
+_MD_PLUS_CUE = b'FILE "Game - Track 02.wav" WAVE\n  TRACK 02 AUDIO\n    INDEX 01 00:00:00\n'
+
+
+def _write_msu1_zip(path: Path, root: str | None, stem: str = "Game (USA) (MSU1)") -> None:
+    """A pack zipped the way the SNES sets come: one wrapping folder."""
+    prefix = f"{root}/" if root else ""
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as zf:
+        if root:
+            zf.writestr(f"{root}/", b"")
+        zf.writestr(f"{prefix}{stem}.sfc", b"R" * 300)
+        zf.writestr(f"{prefix}{stem}.msu", b"")
+        zf.writestr(f"{prefix}{stem}-1.pcm", b"P" * 1000)
+        zf.writestr(f"{prefix}{stem}-2.pcm", b"Q" * 500)
+        zf.writestr(f"{prefix}{stem}.srm", b"S" * 64)  # junk: author's save
+
+
+class TestMsuPacks:
+    def test_loose_folder_packs_become_kinded_bundles(self, tmp_path):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        snes = rom_dir / "snes" / "ActRaiser (USA) (MSU1)"
+        snes.mkdir(parents=True)
+        (snes / "ActRaiser (USA) (MSU1).sfc").write_bytes(b"R" * 100)
+        (snes / "ActRaiser (USA) (MSU1).msu").write_bytes(b"")
+        (snes / "ActRaiser (USA) (MSU1)-1.pcm").write_bytes(b"P" * 200)
+        (snes / "ActRaiser (USA) (MSU1).srm").write_bytes(b"S" * 8)
+        # Plain ROM of the same game sits beside it.
+        (rom_dir / "snes" / "ActRaiser (USA).sfc").write_bytes(b"R" * 100)
+
+        md = rom_dir / "genesis" / "Game (USA) (MSU-MD)"
+        md.mkdir(parents=True)
+        (md / "Game (MSU-MD).md").write_bytes(b"M" * 100)
+        (md / "Game (MSU-MD).cue").write_bytes(_MSU_MD_CUE)
+        (md / "Game (MSU-MD).bin").write_bytes(b"A" * 400)
+
+        plus = rom_dir / "genesis" / "Other (USA) (MD+)"
+        plus.mkdir(parents=True)
+        (plus / "Game.md").write_bytes(b"M" * 100)
+        (plus / "Game.cue").write_bytes(_MD_PLUS_CUE)
+        (plus / "Game - Track 02.wav").write_bytes(b"W" * 400)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        snes_entries = catalog.list_by_system("SNES")
+        assert len(snes_entries) == 2, [e.filename for e in snes_entries]
+        pack = next(e for e in snes_entries if e.is_bundle)
+        plain = next(e for e in snes_entries if not e.is_bundle)
+        assert pack.bundle_kind == "msu1"
+        assert pack.name == "ActRaiser (USA) (MSU1)"
+        assert pack.path == "snes/ActRaiser (USA) (MSU1)"
+        names = sorted(f["name"] for f in pack.bundle_files)
+        assert names == [
+            "ActRaiser (USA) (MSU1)-1.pcm",
+            "ActRaiser (USA) (MSU1).msu",
+            "ActRaiser (USA) (MSU1).sfc",
+        ]
+        assert pack.size == 300
+        # The tag folds away so pack and plain ROM share a save slot...
+        assert pack.title_id == plain.title_id
+        # ...while the catalog still keys them apart.
+        assert pack.rom_id != plain.rom_id
+        assert pack.to_dict()["bundle_kind"] == "msu1"
+        assert "bundle_kind" not in plain.to_dict()
+
+        md_entries = {e.name: e for e in catalog.list_by_system("MD")}
+        assert set(md_entries) == {"Game (USA) (MSU-MD)", "Other (USA) (MD+)"}
+        assert md_entries["Game (USA) (MSU-MD)"].bundle_kind == "msu-md"
+        assert md_entries["Other (USA) (MD+)"].bundle_kind == "mdplus"
+
+        # Round-trips through SQLite.
+        reloaded = rom_scanner.RomCatalog()
+        reloaded.load_from_db()
+        assert reloaded.get(pack.rom_id).bundle_kind == "msu1"
+
+    def test_pack_named_without_region_keys_off_its_cart(self, tmp_path):
+        """``genesis/Sonic The Hedgehog 2/`` holds ``Sonic The Hedgehog 2
+        (World) (MSU-MD).md``: the folder misses the DAT, the cart hits it,
+        so the pack still shares the plain ROM's save slot."""
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        pack = rom_dir / "genesis" / "Sonic The Hedgehog 2"
+        pack.mkdir(parents=True)
+        (pack / "Sonic The Hedgehog 2 (World) (MSU-MD).md").write_bytes(b"M")
+        (pack / "Sonic The Hedgehog 2 (World) (MSU-MD).cue").write_bytes(
+            b'FILE "Sonic The Hedgehog 2 (World) (MSU-MD).bin" BINARY\n  TRACK 01 AUDIO\n'
+        )
+        (pack / "Sonic The Hedgehog 2 (World) (MSU-MD).bin").write_bytes(b"A")
+        (rom_dir / "genesis" / "Sonic The Hedgehog 2 (World).md").write_bytes(b"M")
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+        entries = catalog.list_by_system("MD")
+        assert len(entries) == 2
+        assert len({e.title_id for e in entries}) == 1
+        assert next(e for e in entries if e.is_bundle).name == "Sonic The Hedgehog 2"
+
+    def test_pack_hack_tag_folds_onto_the_plain_rom(self, tmp_path):
+        """``[Hack by …]`` names the MSU author; the pack shares the save of
+        the ROM it patched.  A translated baseline keeps its own tags, and
+        the pack must land on *that* id, not the untranslated one."""
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        snes = rom_dir / "snes"
+        snes.mkdir(parents=True)
+        (snes / "ActRaiser (USA).sfc").write_bytes(b"R")
+        (snes / "Area 88 (USA) [T-En by Blizzz v1.03] [FastROM hack by Vitor Vilela v1.0] [n].sfc").write_bytes(b"R")
+        (snes / "Area 88 (Japan).sfc").write_bytes(b"R")
+
+        def pack(name: str, stem: str) -> None:
+            with zipfile.ZipFile(snes / f"{name}.zip", "w") as zf:
+                zf.writestr(f"{stem}.sfc", b"R")
+                zf.writestr(f"{stem}.msu", b"")
+                zf.writestr(f"{stem}-1.pcm", b"P")
+
+        pack("ActRaiser (USA) (MSU1) [Hack by DarkShock v1.0]", "ActRaiser (USA) (MSU1)")
+        pack("Area 88 (USA) (MSU1) [T-En by Blizzz v1.03] [Hack by Kurrono & Conn v2] "
+             "[FastROM hack by Vitor Vilela v1.0] [n]", "Area 88 (USA) (MSU1) [T-En by Blizzz v1.03]")
+        # No plain ROM at all: the stripped name is the fallback key.
+        pack("Aerobiz (USA) (MSU1) [Hack by PepilloPev v1.0]", "Aerobiz (USA) (MSU1)")
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+        by_name = {e.name: e for e in catalog.list_by_system("SNES")}
+
+        assert (by_name["ActRaiser (USA) (MSU1) [Hack by DarkShock v1.0]"].title_id
+                == by_name["ActRaiser (USA)"].title_id)
+        area_pack = next(e for e in by_name.values() if e.is_bundle and "Area 88" in e.name)
+        assert area_pack.title_id == by_name[
+            "Area 88 (USA) [T-En by Blizzz v1.03] [FastROM hack by Vitor Vilela v1.0] [n]"
+        ].title_id
+        assert area_pack.title_id != by_name["Area 88 (Japan)"].title_id
+        assert by_name["Aerobiz (USA) (MSU1) [Hack by PepilloPev v1.0]"].title_id == "SNES_aerobiz_usa"
+
+    def test_zipped_pack_is_a_file_bundle_with_root_stripped(self, tmp_path):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        (rom_dir / "snes" / "msu1").mkdir(parents=True)
+        _write_msu1_zip(rom_dir / "snes" / "msu1" / "Game (USA) (MSU1).zip",
+                        root="Game (USA) (MSU1)")
+        # Ordinary zipped ROM: small, no hint in the name — never opened.
+        with zipfile.ZipFile(rom_dir / "snes" / "Plain (USA).zip", "w") as zf:
+            zf.writestr("Plain (USA).sfc", b"R" * 100)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        entries = {e.filename: e for e in catalog.list_by_system("SNES")}
+        assert set(entries) == {"Game (USA) (MSU1).zip", "Plain (USA).zip"}
+        pack = entries["Game (USA) (MSU1).zip"]
+        assert pack.is_bundle and pack.bundle_kind == "msu1"
+        assert pack.path == "snes/msu1/Game (USA) (MSU1).zip"
+        assert sorted(f["name"] for f in pack.bundle_files) == [
+            "Game (USA) (MSU1)-1.pcm",
+            "Game (USA) (MSU1)-2.pcm",
+            "Game (USA) (MSU1).msu",
+            "Game (USA) (MSU1).sfc",
+        ]
+        assert pack.size == 300 + 1000 + 500
+        assert not entries["Plain (USA).zip"].is_bundle
+
+    def test_zipped_pack_downloads_as_is_and_streams_members(
+        self, tmp_path, client, auth_headers
+    ):
+        from app.services import rom_db, rom_scanner
+
+        original = settings.rom_dir
+        try:
+            rom_db.init_db(tmp_path)
+            rom_dir = tmp_path / "roms"
+            (rom_dir / "snes").mkdir(parents=True)
+            zip_path = rom_dir / "snes" / "Game (USA) (MSU1).zip"
+            _write_msu1_zip(zip_path, root="Game (USA) (MSU1)")
+            settings.rom_dir = rom_dir
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("SNES")[0].rom_id
+            key = quote(rom_id, safe="")
+
+            listed = client.get("/api/v1/roms", headers=auth_headers).json()["roms"]
+            assert listed[0]["bundle_kind"] == "msu1"
+            assert listed[0]["is_bundle"] is True
+
+            # Whole pack: the very bytes on disk, resumable.
+            r = client.get(f"/api/v1/roms/{key}", headers=auth_headers)
+            assert r.status_code == 200
+            assert r.content == zip_path.read_bytes()
+            r = client.get(f"/api/v1/roms/{key}",
+                           headers={**auth_headers, "Range": "bytes=10-19"})
+            assert r.status_code == 206
+            assert r.content == zip_path.read_bytes()[10:20]
+
+            manifest = client.get(f"/api/v1/roms/{key}/manifest",
+                                  headers=auth_headers).json()
+            assert manifest["is_bundle"] is True
+            assert {f["name"] for f in manifest["files"]} == {
+                "Game (USA) (MSU1)-1.pcm", "Game (USA) (MSU1)-2.pcm",
+                "Game (USA) (MSU1).msu", "Game (USA) (MSU1).sfc",
+            }
+
+            # One member, addressed without the wrapping folder.
+            member = quote("Game (USA) (MSU1)-2.pcm", safe="")
+            r = client.get(f"/api/v1/roms/{key}/file/{member}", headers=auth_headers)
+            assert r.status_code == 200
+            assert r.content == b"Q" * 500
+            r = client.get(f"/api/v1/roms/{key}/file/missing.pcm", headers=auth_headers)
+            assert r.status_code == 404
+            r = client.get(f"/api/v1/roms/{key}/file/..%2Fescape", headers=auth_headers)
+            assert r.status_code in (400, 404)
+
+            # cleanup_missing must not think a file-backed bundle is gone.
+            assert rom_scanner.cleanup_missing() == 0
+            zip_path.unlink()
+            assert rom_scanner.cleanup_missing() == 1
+        finally:
+            settings.rom_dir = original
+            rom_scanner._catalog = None
+
+    def test_rootless_zip_and_bad_zip(self, tmp_path):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        (rom_dir / "genesis").mkdir(parents=True)
+        with zipfile.ZipFile(rom_dir / "genesis" / "Game (MSU-MD).zip", "w") as zf:
+            zf.writestr("Game (MSU-MD).md", b"M" * 10)
+            zf.writestr("Game (MSU-MD).cue", _MSU_MD_CUE)
+            zf.writestr("Game (MSU-MD).bin", b"A" * 10)
+        # Name says MSU, contents are garbage: falls back to a plain zip row.
+        (rom_dir / "genesis" / "Broken (MSU-MD).zip").write_bytes(b"not a zip")
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+        entries = {e.filename: e for e in catalog.list_by_system("MD")}
+        assert entries["Game (MSU-MD).zip"].bundle_kind == "msu-md"
+        assert not entries["Broken (MSU-MD).zip"].is_bundle

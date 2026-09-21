@@ -138,6 +138,10 @@ class DownloadEntity:
     # (treated as a directory), then unlinks the .zip.  Single-file
     # downloads keep the legacy path.
     is_bundle: bool = False
+    # MSU pack kind (``shared/msu.py``) when the bundle is one: the zip is
+    # the operator's own, usually wrapping a folder, so extraction goes
+    # through ``msu.plan_extraction`` instead of being taken verbatim.
+    bundle_kind: str = ""
 
     @property
     def is_terminal(self) -> bool:
@@ -168,6 +172,7 @@ CREATE TABLE IF NOT EXISTS downloads (
     error_message    TEXT NOT NULL DEFAULT '',
     extract_format   TEXT NOT NULL DEFAULT '',
     is_bundle        INTEGER NOT NULL DEFAULT 0,
+    bundle_kind      TEXT NOT NULL DEFAULT '',
     created_at       REAL NOT NULL DEFAULT 0,
     updated_at       REAL NOT NULL DEFAULT 0
 );
@@ -180,6 +185,7 @@ CREATE INDEX IF NOT EXISTS idx_downloads_updated ON downloads(updated_at DESC);
 # being dropped — local download history is too painful to lose.
 _REQUIRED_COLUMNS = {
     "is_bundle": "INTEGER NOT NULL DEFAULT 0",
+    "bundle_kind": "TEXT NOT NULL DEFAULT ''",
 }
 
 
@@ -188,6 +194,7 @@ def _row_to_entity(row: sqlite3.Row) -> DownloadEntity:
     # default to False so legacy single-file downloads keep working.
     keys = row.keys() if hasattr(row, "keys") else []
     is_bundle = bool(row["is_bundle"]) if "is_bundle" in keys else False
+    bundle_kind = str(row["bundle_kind"] or "") if "bundle_kind" in keys else ""
     return DownloadEntity(
         id=row["id"],
         rom_id=row["rom_id"],
@@ -204,10 +211,33 @@ def _row_to_entity(row: sqlite3.Row) -> DownloadEntity:
         created_at=float(row["created_at"]),
         updated_at=float(row["updated_at"]),
         is_bundle=is_bundle,
+        bundle_kind=bundle_kind,
     )
 
 
 # ── Worker thread ────────────────────────────────────────────────────────────
+
+
+def _bundle_layout(zf, bundle_kind: str) -> list[tuple[str, str]]:
+    """``[(member, destination relative path)]`` for a downloaded bundle ZIP.
+
+    Server-built bundles extract verbatim.  An MSU pack is the zip the
+    operator dropped on the server — usually wrapping one folder — so its
+    members go through ``shared.msu.plan_extraction``, which hoists that
+    folder and drops the junk a pack ships (author saves, patch sources).
+    RetroArch loads the pack as a plain ROM, so nothing is renamed.
+    """
+    members = [i.filename for i in zf.infolist() if not i.is_dir()]
+    if not bundle_kind:
+        return [(m, m) for m in members]
+    from shared import msu
+
+    root, _ = msu.strip_common_root(members)
+
+    def _read(name: str) -> str:
+        return zf.read(f"{root}/{name}" if root else name).decode("utf-8", "replace")
+
+    return msu.plan_extraction(bundle_kind, members, None, _read)
 
 
 class _Cancelled(Exception):
@@ -419,16 +449,23 @@ class _DownloadWorker(QObject):
                     final_path.mkdir(parents=True, exist_ok=True)
                     try:
                         with _zf.ZipFile(str(part_path), "r") as zf:
-                            for member in zf.namelist():
+                            for member, rel in _bundle_layout(zf, ent.bundle_kind):
                                 # Path-traversal guard — match the
                                 # server-side check.  zipfile happily
                                 # creates ../escape directories on
                                 # most platforms otherwise.
-                                if member.startswith("/") or ".." in Path(member).parts:
+                                if rel.startswith("/") or ".." in Path(rel).parts:
                                     raise RuntimeError(
                                         f"Refusing unsafe ZIP member: {member}"
                                     )
-                                zf.extract(member, str(final_path))
+                                if member == rel:
+                                    zf.extract(member, str(final_path))
+                                    continue
+                                dest = final_path / rel
+                                dest.parent.mkdir(parents=True, exist_ok=True)
+                                with zf.open(member) as src, open(dest, "wb") as dst:
+                                    import shutil as _shutil
+                                    _shutil.copyfileobj(src, dst)
                     except Exception as exc:  # noqa: BLE001
                         self.finished.emit(
                             eid,
@@ -623,6 +660,7 @@ class DownloadManager(QObject):
         extract_format: Optional[str] = None,
         expected_size: int = 0,
         is_bundle: bool = False,
+        bundle_kind: str = "",
     ) -> str:
         """Create a new row in QUEUED state and kick the worker.
 
@@ -654,8 +692,8 @@ class DownloadManager(QObject):
                 "(id, rom_id, system, display_name, filename, "
                 "part_file_path, final_file_path, total_bytes, "
                 "downloaded_bytes, status, error_message, "
-                "extract_format, is_bundle, created_at, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "extract_format, is_bundle, bundle_kind, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     eid,
                     rom_id,
@@ -670,6 +708,7 @@ class DownloadManager(QObject):
                     "",
                     extract_format or "",
                     1 if is_bundle else 0,
+                    bundle_kind or "",
                     now,
                     now,
                 ),

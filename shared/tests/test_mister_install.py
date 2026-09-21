@@ -206,3 +206,26 @@ def test_one_group_installs_into_exactly_one_folder():
     folders = {safe_folder_name(strip_disc_tag(row["name"]))
                for group in groups for row in group.rows}
     assert len(folders) == 3
+
+
+def test_msu_pack_layout_routes_msu_md_to_the_megacd_core():
+    from shared.mister_install import msu_pack_layout, msu_pack_target
+
+    assert msu_pack_layout("msu1", "SNES") == ("SNES", None)
+    assert msu_pack_layout("mdplus", "MD") == ("MD", None)
+    assert msu_pack_layout("msu-md", "MD") == ("SEGACD", "cart.rom")
+    assert msu_pack_layout("weird", "MD") is None
+
+    provider = FakeProvider({
+        "/media/fat/games": ["SNES", "MegaCD", "Genesis"],
+        "/media/fat/games/SNES": [],
+        "/media/fat/games/MegaCD": [],
+        "/media/fat/games/Genesis": [],
+    })
+    assert msu_pack_target(provider, "SNES", "msu1", "ActRaiser (USA) (MSU1)") == (
+        "/media/fat/games/SNES/ActRaiser (USA) (MSU1)", None)
+    assert msu_pack_target(provider, "MD", "msu-md", "Sonic 2 (MSU-MD)") == (
+        "/media/fat/games/MegaCD/Sonic 2 (MSU-MD)", "cart.rom")
+    assert msu_pack_target(provider, "MD", "mdplus", "Sonic 2 (MD+)") == (
+        "/media/fat/games/Genesis/Sonic 2 (MD+)", None)
+    assert msu_pack_target(provider, "MD", "nope", "x") == ("", None)

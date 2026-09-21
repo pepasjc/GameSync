@@ -64,6 +64,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.savesync.android.MainActivity
 import com.savesync.android.api.RomEntry
 import com.savesync.android.api.preferredDownloadExtractFormat
+import com.savesync.android.api.msuPackKind
+import com.savesync.android.sync.MsuPack
 import com.savesync.android.api.preferredDownloadFilename
 import com.savesync.android.api.withRelated
 import com.savesync.android.catalog.RomCatalogFilter
@@ -517,6 +519,11 @@ fun RomCatalogScreen(
                             "Total: ${formatBytes(group.sumOf { it.size })}",
                             fontWeight = FontWeight.Bold,
                         )
+                    } else if (rom.msuPackKind != null) {
+                        // Unpacked into its own folder: the ROM plus the
+                        // audio it streams from beside itself.
+                        Text("Type: ${MsuPack.label(rom.msuPackKind)}, unpacked into a folder")
+                        if (rom.size > 0) Text("Size: ${formatBytes(rom.size)}")
                     } else {
                         Text("File: ${rom.filename}")
                         if (rom.size > 0) Text("Size: ${formatBytes(rom.size)}")
@@ -539,6 +546,7 @@ fun RomCatalogScreen(
                             system = part.system,
                             filename = part.preferredDownloadFilename(extract),
                             extractFormat = extract,
+                            bundleKind = part.msuPackKind,
                         )
                     }
                     confirmTarget = null

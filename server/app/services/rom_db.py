@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS roms (
     crc32         TEXT NOT NULL DEFAULT '',
     source        TEXT NOT NULL DEFAULT '',
     is_bundle     INTEGER NOT NULL DEFAULT 0,
-    bundle_files  TEXT NOT NULL DEFAULT ''
+    bundle_files  TEXT NOT NULL DEFAULT '',
+    bundle_kind   TEXT NOT NULL DEFAULT ''
 )
 """
 
@@ -60,6 +61,7 @@ def _needs_rebuild(conn: sqlite3.Connection) -> bool:
         "source",
         "is_bundle",
         "bundle_files",
+        "bundle_kind",
     ]
 
 
@@ -109,15 +111,18 @@ def upsert(entries: list[dict]) -> int:
         d = dict(e)
         d.setdefault("is_bundle", 0)
         d.setdefault("bundle_files", "")
+        d.setdefault("bundle_kind", "")
         normalized.append(d)
     with _lock:
         conn.execute("DELETE FROM roms")
         conn.executemany(
             """
             INSERT INTO roms (rom_id, title_id, system, name, filename, path,
-                              size, crc32, source, is_bundle, bundle_files)
+                              size, crc32, source, is_bundle, bundle_files,
+                              bundle_kind)
             VALUES (:rom_id, :title_id, :system, :name, :filename, :path,
-                    :size, :crc32, :source, :is_bundle, :bundle_files)
+                    :size, :crc32, :source, :is_bundle, :bundle_files,
+                    :bundle_kind)
             """,
             normalized,
         )

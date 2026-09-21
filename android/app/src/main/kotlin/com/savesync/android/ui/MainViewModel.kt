@@ -2775,6 +2775,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         system: String,
         filename: String? = null,
         extractFormat: String? = null,
+        bundleKind: String? = null,
     ) {
         // Run on viewModelScope only long enough to read settings; the
         // actual enqueue hops onto appScope inside enqueueAsync so it
@@ -2813,6 +2814,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // DownloadEntity's path fields, so flipping the toggle
                     // mid-download doesn't move an in-flight transfer.
                     cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder,
+                    bundleKind = bundleKind,
                 )
                 _romDownloadState.value = RomDownloadState.Downloading(displayName)
             } catch (e: Exception) {

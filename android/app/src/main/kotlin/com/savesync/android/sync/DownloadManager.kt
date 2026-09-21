@@ -166,6 +166,7 @@ class DownloadManager(
         romDirOverrides: Map<String, String> = emptyMap(),
         extractFormat: String? = null,
         cdGamesPerContentFolder: Boolean = false,
+        bundleKind: String? = null,
     ): Deferred<String> = appScope.async {
         enqueue(
             api = api,
@@ -177,6 +178,7 @@ class DownloadManager(
             romDirOverrides = romDirOverrides,
             extractFormat = extractFormat,
             cdGamesPerContentFolder = cdGamesPerContentFolder,
+            bundleKind = bundleKind,
         )
     }
 
@@ -212,13 +214,16 @@ class DownloadManager(
         romDirOverrides: Map<String, String> = emptyMap(),
         extractFormat: String? = null,
         cdGamesPerContentFolder: Boolean = false,
+        bundleKind: String? = null,
     ): String {
         val (finalFile, partFile) = resolveTargetFiles(
             romScanDir = romScanDir,
             system = system,
-            filename = filename,
+            // An MSU pack downloads as `<name>.zip` beside the folder it
+            // will unpack into; never into a per-game CD folder.
+            filename = if (bundleKind != null) filename.removeSuffix(".zip") + ".zip" else filename,
             romDirOverrides = romDirOverrides,
-            cdGamesPerContentFolder = cdGamesPerContentFolder,
+            cdGamesPerContentFolder = cdGamesPerContentFolder && bundleKind == null,
         )
         val now = nowMillis()
         val entity = DownloadEntity(
@@ -241,6 +246,7 @@ class DownloadManager(
             extractFormat = extractFormat,
             createdAt = now,
             updatedAt = now,
+            bundleKind = bundleKind,
         )
         dao.upsert(entity)
         // Pre-seed a progress event so the UI shows the row immediately
@@ -641,6 +647,10 @@ class DownloadManager(
             unpackWiiuBundle(entity, partFile)
             return
         }
+        if (entity.bundleKind != null) {
+            unpackMsuPack(entity, partFile)
+            return
+        }
 
         val finalFile = File(entity.finalFilePath)
         finalFile.parentFile?.mkdirs()
@@ -691,6 +701,41 @@ class DownloadManager(
                     out.outputStream().use { output -> zis.copyTo(output) }
                 }
                 zis.closeEntry()
+            }
+        }
+        partFile.delete()
+    }
+
+    /**
+     * Lay an MSU pack out in `<finalFilePath minus .zip>/`.
+     *
+     * The zip is the operator's own, so its members go through
+     * [MsuPack.planExtraction]: the wrapping folder is hoisted away and the
+     * pack's junk dropped, leaving the ROM with its audio beside it — the
+     * shape every MSU-capable core finds the tracks in.  A half-written
+     * folder from an interrupted run is wiped first, as for Wii U.
+     */
+    private fun unpackMsuPack(entity: DownloadEntity, partFile: File) {
+        val targetDir = File(entity.finalFilePath.removeSuffix(".zip"))
+        if (targetDir.exists()) {
+            runCatching { targetDir.deleteRecursively() }
+        }
+        targetDir.mkdirs()
+
+        val canonicalRoot = targetDir.canonicalPath
+        java.util.zip.ZipFile(partFile).use { zip ->
+            val members = zip.entries().asSequence().map { it.name }.toList()
+            val layout = MsuPack.planExtraction(members)
+            if (layout.isEmpty()) throw IOException("Pack archive holds no files")
+            for ((member, rel) in layout) {
+                val out = File(targetDir, rel)
+                if (!out.canonicalPath.startsWith(canonicalRoot + File.separator)) {
+                    throw IOException("Refusing unsafe ZIP member: $member")
+                }
+                out.parentFile?.mkdirs()
+                zip.getInputStream(zip.getEntry(member)).use { input ->
+                    out.outputStream().use { output -> input.copyTo(output) }
+                }
             }
         }
         partFile.delete()

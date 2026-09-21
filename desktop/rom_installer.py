@@ -19,6 +19,9 @@ from systems import (
     MISTER_GAMES_ROOTS,
     mister_system_folder_candidates,
 )
+# ``systems`` has already put the repo root on sys.path.
+from shared import msu  # noqa: E402
+from shared.mister_install import msu_pack_layout  # noqa: E402
 
 
 ROM_FORMAT_OPTIONS: list[tuple[str, str]] = [
@@ -37,6 +40,7 @@ ROM_FORMAT_OPTIONS: list[tuple[str, str]] = [
     ("folder", "Extracted Folder"),
 ]
 ROM_FORMAT_LABELS = dict(ROM_FORMAT_OPTIONS)
+MSU_PACK_LABELS = {msu.MSU1: "MSU-1 pack", msu.MSU_MD: "MSU-MD pack", msu.MD_PLUS: "MD+ pack"}
 
 ARCHIVE_EXTRACT_FORMATS = {"cue", "psio", "gdi", "cci", "folder"}
 # Formats where the server stitches every disc of a multi-disc game into a
@@ -163,9 +167,17 @@ class InstallPlan:
     # GDEMU / openMenu: display name to write into the folder's name.txt after
     # the image lands.  Empty for every other device.
     gdemu_name: str = ""
+    # MSU pack (``shared/msu.py`` kind) being unpacked, and the name its
+    # cartridge must take on the target — MiSTer's MegaCD core wants an
+    # MSU-MD cart as ``cart.rom``.  Empty / None for everything else.
+    bundle_kind: str = ""
+    rom_rename: str | None = None
 
     @property
     def format_label(self) -> str:
+        if self.bundle_kind:
+            label = MSU_PACK_LABELS.get(self.bundle_kind, self.bundle_kind)
+            return f"{label} (MegaCD)" if self.rom_rename else label
         return ROM_FORMAT_LABELS.get(self.extract_format or "raw", "Raw")
 
 
@@ -1121,12 +1133,29 @@ def build_install_plan(
     extract = choose_extract_format(profile, rom, system_up, override_format)
     remote = mister_remote_target(profile)
     remote_ssh = mister_ssh_config(profile) if remote else None
-    target_root = (
-        mister_remote_rom_dir(profile, system_up)
-        if remote
-        else resolve_profile_rom_folder(profile, system_up)
-    )
     display_name = str(rom.get("name") or Path(filename).stem or rom_id)
+
+    # An MSU pack is a folder wherever it goes.  On a MiSTer the folder's
+    # parent depends on which core plays the pack (an MSU-MD title belongs to
+    # the MegaCD core, cart renamed), so the system folder is chosen by the
+    # pack kind rather than the catalog system.
+    bundle_kind = str(rom.get("bundle_kind") or "").lower()
+    rom_rename: str | None = None
+    folder_system = system_up
+    if bundle_kind in msu.MSU_SYSTEMS.get(system_up, ()) and bool(rom.get("is_bundle")):
+        if str(profile.get("device_type", "")).strip() == "MiSTer":
+            layout = msu_pack_layout(bundle_kind, system_up)
+            if layout is None:
+                raise ValueError(f"MiSTer cannot play a {bundle_kind} pack.")
+            folder_system, rom_rename = layout
+    else:
+        bundle_kind = ""
+
+    target_root = (
+        mister_remote_rom_dir(profile, folder_system)
+        if remote
+        else resolve_profile_rom_folder(profile, folder_system)
+    )
     target_filename = derive_download_filename(filename, extract)
 
     if extract == "eboot":
@@ -1171,6 +1200,8 @@ def build_install_plan(
             target_is_directory=True,
             mister_remote=remote,
             mister_ssh=remote_ssh,
+            bundle_kind=bundle_kind,
+            rom_rename=rom_rename,
         )
 
     if cd_game_folder:
@@ -1211,15 +1242,39 @@ def build_install_plans(
     return [build_install_plan(profile, rom, system, override_format)]
 
 
-def _safe_extract_zip(zip_path: Path, target_dir: Path) -> list[Path]:
+def _safe_extract_zip(
+    zip_path: Path,
+    target_dir: Path,
+    bundle_kind: str = "",
+    rom_rename: str | None = None,
+) -> list[Path]:
+    """Unpack a downloaded bundle into ``target_dir``.
+
+    Server-built bundles are flat.  An MSU pack is the zip the operator
+    dropped on the server, usually wrapping one folder, so its members go
+    through :func:`shared.msu.plan_extraction`, which hoists that folder,
+    drops junk and applies the cart rename.
+    """
     written: list[Path] = []
     target_root = target_dir.resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path, "r") as zf:
-        for info in zf.infolist():
-            if info.is_dir():
-                continue
-            destination = (target_dir / info.filename).resolve()
+        infos = [i for i in zf.infolist() if not i.is_dir()]
+        if bundle_kind:
+            root, _ = msu.strip_common_root(i.filename for i in infos)
+
+            def _read(name: str) -> str:
+                member = f"{root}/{name}" if root else name
+                return zf.read(member).decode("utf-8", "replace")
+
+            layout = msu.plan_extraction(
+                bundle_kind, [i.filename for i in infos], rom_rename, _read
+            )
+        else:
+            layout = [(i.filename, i.filename) for i in infos]
+        for member, rel in layout:
+            info = zf.getinfo(member)
+            destination = (target_dir / rel).resolve()
             try:
                 destination.relative_to(target_root)
             except ValueError as exc:
@@ -1296,7 +1351,7 @@ def _install_archive_local(
         _download_rom(plan, zip_path, progress_callback)
 
         extract_dir = (tmp_dir / "extracted").resolve()
-        _safe_extract_zip(zip_path, extract_dir)
+        _safe_extract_zip(zip_path, extract_dir, plan.bundle_kind, plan.rom_rename)
         zip_path.unlink(missing_ok=True)  # free the space before the copy
 
         target.mkdir(parents=True, exist_ok=True)
@@ -1423,7 +1478,9 @@ def _install_rom_mister_remote(
                 _prepare_mister_usb_game_dir(ssh, sys_dir)
             if plan.extract_archive:
                 extract_dir = tmp_dir / "extracted"
-                files = _safe_extract_zip(tmp_path, extract_dir)
+                files = _safe_extract_zip(
+                    tmp_path, extract_dir, plan.bundle_kind, plan.rom_rename
+                )
                 written: list[Path] = []
                 for f in files:
                     rel = f.relative_to(extract_dir.resolve())

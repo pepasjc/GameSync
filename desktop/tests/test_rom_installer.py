@@ -1044,3 +1044,78 @@ def test_install_tmp_dir_config_override(tmp_path, monkeypatch):
 
     monkeypatch.setattr(rom_installer, "load_config", lambda: {})
     assert rom_installer._install_tmp_dir() is None
+
+
+# ── MSU packs ────────────────────────────────────────────────────────────────
+
+
+def _msu_rom(kind: str, system: str, name: str) -> dict:
+    return {
+        "rom_id": f"{system}_{name}",
+        "title_id": f"{system}_x",
+        "system": system,
+        "name": name,
+        "filename": f"{name}.zip",
+        "is_bundle": True,
+        "bundle_kind": kind,
+        "files": [],
+    }
+
+
+def test_msu_pack_installs_into_its_own_folder_on_a_generic_device(tmp_path):
+    profile = {
+        "name": "FXPak",
+        "device_type": "Everdrive",
+        "path": str(tmp_path),
+        "systems": [{"system": "SNES", "enabled": True}],
+    }
+    rom = _msu_rom("msu1", "SNES", "ActRaiser (USA) (MSU1)")
+    plan = build_install_plan(profile, rom, "SNES")
+    assert plan.extract_archive and plan.target_is_directory
+    assert plan.target_path == tmp_path / "ActRaiser (USA) (MSU1)"
+    assert plan.bundle_kind == "msu1"
+    assert plan.rom_rename is None
+
+
+def test_msu_md_pack_goes_to_the_megacd_core_on_mister(tmp_path):
+    (tmp_path / "MegaCD").mkdir()
+    (tmp_path / "Genesis").mkdir()
+    profile = _mister_profile(str(tmp_path))
+
+    plan = build_install_plan(profile, _msu_rom("msu-md", "MD", "Sonic 2 (MSU-MD)"), "MD")
+    assert plan.target_path == tmp_path / "MegaCD" / "Sonic 2 (MSU-MD)"
+    assert plan.rom_rename == "cart.rom"
+    assert plan.bundle_kind == "msu-md"
+
+    plan = build_install_plan(profile, _msu_rom("mdplus", "MD", "Sonic 2 (MD+)"), "MD")
+    assert plan.target_path == tmp_path / "Genesis" / "Sonic 2 (MD+)"
+    assert plan.rom_rename is None
+
+    remote = _mister_profile("", target="usb")
+    plan = build_install_plan(remote, _msu_rom("msu-md", "MD", "Sonic 2 (MSU-MD)"), "MD")
+    assert str(plan.target_path) == "/media/usb0/games/MegaCD/Sonic 2 (MSU-MD)"
+    assert plan.mister_remote == "usb"
+
+
+def test_safe_extract_zip_hoists_pack_folder_and_renames_cart(tmp_path):
+    zip_path = tmp_path / "pack.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("Sonic 2 (MSU-MD)/", b"")
+        zf.writestr("Sonic 2 (MSU-MD)/Sonic 2 (MSU-MD).md", b"ROM")
+        zf.writestr("Sonic 2 (MSU-MD)/Sonic 2 (MSU-MD).cue",
+                    'FILE "Sonic 2 (MSU-MD).bin" BINARY\n  TRACK 01 AUDIO\n')
+        zf.writestr("Sonic 2 (MSU-MD)/Sonic 2 (MSU-MD).bin", b"AUDIO")
+        zf.writestr("Sonic 2 (MSU-MD)/Sonic 2 (MSU-MD).srm", b"junk")
+
+    target = tmp_path / "out"
+    written = _safe_extract_zip(zip_path, target, "msu-md", "cart.rom")
+    assert sorted(p.name for p in written) == [
+        "Sonic 2 (MSU-MD).bin", "Sonic 2 (MSU-MD).cue", "cart.rom",
+    ]
+    assert (target / "cart.rom").read_bytes() == b"ROM"
+    assert not (target / "Sonic 2 (MSU-MD)").exists()
+
+    # Plain bundles keep the old byte-for-byte behaviour.
+    plain = tmp_path / "plain"
+    written = _safe_extract_zip(zip_path, plain)
+    assert (plain / "Sonic 2 (MSU-MD)" / "Sonic 2 (MSU-MD).srm").exists()

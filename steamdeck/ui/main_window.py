@@ -83,6 +83,13 @@ from .confirm_dialog import ConfirmDialog, ResultDialog
 from .downloads_view import DownloadsView
 from .detail_dialog import _NATIVE_COMPRESSED_FORMAT_SYSTEMS as _NATIVE_EXTRACT_SKIP
 
+# What the confirm prompt calls a bundle, by the server's ``bundle_kind``.
+_BUNDLE_KIND_LABELS = {
+    "msu1": "MSU-1 pack",
+    "msu-md": "MSU-MD pack",
+    "mdplus": "MD+ pack",
+}
+
 try:
     import pygame
 
@@ -1162,10 +1169,12 @@ class MainWindow(QMainWindow):
         else:
             target_path = target_dir / target_filename
 
+        bundle_kind = str(rom.get("bundle_kind") or "") if is_bundle else ""
         if is_bundle:
             file_count = len(rom.get("files") or [])
+            what = _BUNDLE_KIND_LABELS.get(bundle_kind, "bundle")
             msg = (
-                f"Download PS3 bundle '{display}'?\n"
+                f"Download {what} '{display}'?\n"
                 f"System: {system or 'unknown'}\n"
                 f"Files: {file_count}{size_txt}\n"
                 f"Destination: {target_path}"
@@ -1202,6 +1211,7 @@ class MainWindow(QMainWindow):
             extract_format=None if is_bundle else extract_format,
             expected_size=size,
             is_bundle=is_bundle,
+            bundle_kind=bundle_kind,
         )
         # Surface a quick acknowledgement and jump to the Downloads
         # tab so the user can see the new row immediately.
