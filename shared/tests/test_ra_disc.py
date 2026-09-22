@@ -202,8 +202,83 @@ def test_missing_executable_raises():
 # --- dispatch -----------------------------------------------------------------
 
 
-def test_only_playstation_is_readable_so_far():
+def test_readable_disc_systems():
     assert disc_hash_supported("PS1")
     assert disc_hash_supported("ps1")
     assert not disc_hash_supported("SAT")
     assert not disc_hash_supported("SNES")
+
+
+# --- PS2 and PSP ---------------------------------------------------------------
+
+from shared.ra_disc import DvdTrack, hash_ps2_track, hash_psp_track  # noqa: E402
+
+
+def test_ps2_boot_key_uses_boot2_and_cdrom0():
+    cnf = b"BOOT2 = cdrom0:\\SLUS_203.12;1\r\nVER = 1.00\r\nVMODE = NTSC\r\n"
+    assert parse_boot_key(cnf, key="BOOT2", prefix="cdrom0:") == "SLUS_203.12"
+
+
+def test_ps1_lookup_never_takes_a_boot2_line():
+    """'BOOT' is a prefix of 'BOOT2' - it must still not match it."""
+    assert parse_boot_key(b"BOOT2 = cdrom0:\\SLUS_203.12;1\r\n") == ""
+
+
+def test_boot_key_must_start_a_line():
+    assert parse_boot_key(b"XBOOT = cdrom:\\NOPE.EXE;1\r\n") == ""
+
+
+def test_ps2_hash_is_boot_name_then_executable():
+    elf = b"\x7fELF" + b"\x42" * 5000
+    disc = build_disc({
+        "SYSTEM.CNF;1": (30, b"BOOT2 = cdrom0:\\SLUS_203.12;1\r\n"),
+        "SLUS_203.12;1": (40, elf),
+    })
+    assert hash_ps2_track(disc) == hashlib.md5(b"SLUS_203.12" + elf).hexdigest()
+
+
+def test_ps2_without_boot2_is_an_error():
+    import pytest
+    from shared.ra_disc import DiscError
+    disc = build_disc({"SYSTEM.CNF;1": (30, b"BOOT = cdrom:\\PSX.EXE;1")})
+    with pytest.raises(DiscError):
+        hash_ps2_track(disc)
+
+
+def _psp_disc(sfo, eboot):
+    """PSP_GAME/PARAM.SFO and PSP_GAME/SYSDIR/EBOOT.BIN under the root."""
+    root, psp_game, sysdir = 20, 21, 22
+    pvd = bytearray(SECTOR); pvd[0] = 1; pvd[1:6] = b"CD001"
+    rr = dir_record("", root, SECTOR, is_dir=True); pvd[156:156 + len(rr)] = rr
+    sectors = {16: bytes(pvd),
+               root: dir_record("", root, SECTOR, True) + dir_record("PSP_GAME", psp_game, SECTOR, True),
+               psp_game: dir_record("", psp_game, SECTOR, True) + dir_record("PARAM.SFO;1", 30, len(sfo))
+                         + dir_record("SYSDIR", sysdir, SECTOR, True),
+               sysdir: dir_record("", sysdir, SECTOR, True) + dir_record("EBOOT.BIN;1", 40, len(eboot))}
+    for base, data in ((30, sfo), (40, eboot)):
+        for i in range(0, len(data), SECTOR):
+            sectors[base + i // SECTOR] = data[i:i + SECTOR]
+    return FakeTrack(sectors)
+
+
+def test_psp_hash_is_param_sfo_then_eboot_with_no_name():
+    sfo = b"\x00PSF" + b"\x11" * 300
+    eboot = b"~PSP" + b"\x22" * 9000
+    assert hash_psp_track(_psp_disc(sfo, eboot)) == hashlib.md5(sfo + eboot).hexdigest()
+
+
+def test_psp_disc_without_param_sfo_is_an_error():
+    import pytest
+    from shared.ra_disc import DiscError
+    with pytest.raises(DiscError):
+        hash_psp_track(build_disc({"SYSTEM.CNF;1": (30, b"x")}))
+
+
+def test_dvd_track_reads_plain_2048_byte_sectors():
+    class Chd:
+        def read(self, offset, length): return bytes([offset // 2048 % 256]) * length
+    assert DvdTrack(Chd()).read_sector(5, 4) == b"\x05" * 4
+
+
+def test_ps2_and_psp_are_now_readable():
+    assert disc_hash_supported("PS2") and disc_hash_supported("PSP")

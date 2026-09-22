@@ -5,10 +5,11 @@ Identifying a disc game means reading its boot executable out of the
 image's filesystem, not hashing the file — so this walks ISO9660 inside a
 CHD (:mod:`shared.chd`) and hashes what RetroAchievements hashes.
 
-PlayStation is implemented: ``SYSTEM.CNF`` gives the boot executable's
-name, and the hash is that name followed by the executable itself.  The
-ISO9660 and track plumbing underneath is system-agnostic, so the other
-disc systems are additions rather than rewrites.
+Implemented: PlayStation (``SYSTEM.CNF`` names the boot executable, and
+the hash is that name followed by the executable) and PSP (``PARAM.SFO``
+followed by ``PSP_GAME/SYSDIR/EBOOT.BIN``).  The ISO9660 walk underneath
+is system-agnostic and reads both CD images and DVD-type (UMD) CHDs, so
+the other disc systems are additions rather than rewrites.
 
 Hashing rules ported from rcheevos (``src/rhash/hash_disc.c``) by the
 RetroAchievements team — https://github.com/RetroAchievements/rcheevos —
@@ -73,6 +74,24 @@ class DataTrack:
             length -= len(chunk)
             sector += 1
         return bytes(out)
+
+
+class DvdTrack:
+    """A DVD-type CHD (a PSP UMD, a PS2 DVD): plain 2048-byte sectors.
+
+    No frames, subcode or sector headers - the logical bytes *are* the
+    ISO image, so a sector is simply ``sector * 2048`` in.
+    """
+
+    def __init__(self, chd: ChdFile):
+        self._chd = chd
+
+    def read_sector(self, sector: int, length: int = SECTOR_USER_DATA) -> bytes:
+        return self._chd.read(sector * SECTOR_USER_DATA, length)
+
+
+def is_dvd(chd: ChdFile) -> bool:
+    return any(tag == b"DVD " for tag, _ in chd.metadata())
 
 
 def _track_mode(chd: ChdFile) -> str:
@@ -182,23 +201,22 @@ def _find_in_directory(
 # PlayStation
 # ---------------------------------------------------------------------------
 
-_BOOT_RE = re.compile(rb"BOOT\s*=\s*([^\r\n]*)", re.IGNORECASE)
-
-
-def parse_boot_key(system_cnf: bytes) -> str:
-    """Executable name from a ``SYSTEM.CNF`` ``BOOT=`` line.
+def parse_boot_key(system_cnf: bytes, key: str = "BOOT", prefix: str = "cdrom:") -> str:
+    """Executable name from a ``SYSTEM.CNF`` boot line.
 
     ``"BOOT = cdrom:\\SLUS_007.57;1"`` gives ``"SLUS_007.57"``: the
     ``cdrom:`` prefix and any leading separators go, and the name ends at
-    the first whitespace or ``;``.
+    the first whitespace or ``;``.  PS2 discs use ``BOOT2`` and
+    ``cdrom0:``; the key must be followed by ``=`` (after spaces), so a
+    PS1 lookup for ``BOOT`` never mistakes a ``BOOT2`` line for its own.
     """
-    match = _BOOT_RE.search(system_cnf)
+    pattern = rb"(?:^|[\r\n])[ \t]*" + re.escape(key.encode()) + rb"[ \t]*=[ \t]*([^\r\n]*)"
+    match = re.search(pattern, system_cnf, re.IGNORECASE)
     if not match:
         return ""
     value = match.group(1).decode("ascii", "replace").strip()
-    lowered = value.lower()
-    if lowered.startswith("cdrom:"):
-        value = value[len("cdrom:") :]
+    if value.lower().startswith(prefix):
+        value = value[len(prefix):]
     value = value.lstrip("\\/")
     for index, char in enumerate(value):
         if char.isspace() or char == ";":
@@ -253,10 +271,86 @@ def hash_playstation_track(track) -> str:
     return md5.hexdigest()
 
 
+#: RetroAchievements hashes at most this much of any one file.
+MAX_FILE_BYTES = 64 * 1024 * 1024
+
+
+def _hash_iso_file(md5, track, located: tuple[int, int]) -> None:
+    sector, size = located
+    remaining = min(size, MAX_FILE_BYTES)
+    while remaining > 0:
+        take = min(remaining, SECTOR_USER_DATA)
+        chunk = track.read_sector(sector, take)
+        if not chunk:
+            break
+        md5.update(chunk)
+        remaining -= len(chunk)
+        sector += 1
+
+
+def _open_track(chd: ChdFile):
+    return DvdTrack(chd) if is_dvd(chd) else DataTrack(chd, _data_offset(chd))
+
+
+def hash_ps2_track(track) -> str:
+    """RetroAchievements MD5 for a PS2 disc: boot name, then the executable.
+
+    ``SYSTEM.CNF``'s ``BOOT2`` line names the ELF.  Unlike PS1 there is no
+    size in the executable's header to trust, so the directory entry's size
+    is hashed (capped as RA caps every file).
+    """
+    cnf = find_file(track, "SYSTEM.CNF")
+    if not cnf:
+        raise DiscError("no SYSTEM.CNF - not a PS2 game disc")
+    exe_name = parse_boot_key(track.read_sector(cnf[0], min(cnf[1], SECTOR_USER_DATA)),
+                              key="BOOT2", prefix="cdrom0:")
+    if not exe_name:
+        raise DiscError("SYSTEM.CNF has no BOOT2 line")
+    located = find_file(track, exe_name)
+    if not located:
+        raise DiscError(f"boot executable {exe_name} not found")
+    md5 = hashlib.md5()
+    md5.update(exe_name.encode("ascii", "replace"))
+    _hash_iso_file(md5, track, located)
+    return md5.hexdigest()
+
+
+def hash_ps2(chd: ChdFile) -> str:
+    """RetroAchievements MD5 for a PS2 disc image (DVD or CD)."""
+    return hash_ps2_track(_open_track(chd))
+
+
+def hash_psp_track(track) -> str:
+    """RetroAchievements MD5 for a PSP disc track: PARAM.SFO then EBOOT.BIN.
+
+    PARAM.SFO carries the serial, title and version; EBOOT.BIN is the
+    (encrypted) primary executable.  Nothing else on the disc counts, so a
+    translation patch that rewrites both is identified the same way
+    whichever regional base it was applied to.
+    """
+    sfo = find_file(track, "PSP_GAME/PARAM.SFO")
+    if not sfo:
+        raise DiscError("not a PSP game disc (no PSP_GAME/PARAM.SFO)")
+    eboot = find_file(track, "PSP_GAME/SYSDIR/EBOOT.BIN")
+    if not eboot:
+        raise DiscError("could not find the primary executable")
+    md5 = hashlib.md5()
+    _hash_iso_file(md5, track, sfo)
+    _hash_iso_file(md5, track, eboot)
+    return md5.hexdigest()
+
+
+def hash_psp(chd: ChdFile) -> str:
+    """RetroAchievements MD5 for a PSP UMD image."""
+    return hash_psp_track(_open_track(chd))
+
+
 #: System code -> the function that hashes it.
 _DISC_HASHERS = {
     "PS1": hash_playstation,
     "PSX": hash_playstation,
+    "PSP": hash_psp,
+    "PS2": hash_ps2,
 }
 
 

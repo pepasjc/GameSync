@@ -12,10 +12,14 @@ Format decoded from the layout documented by libchdr
 MAME's chd.c, which it derives from.  Structure and field offsets only —
 no code copied; this is an independent Python implementation.
 
-Supported: v5 only, codecs ``zlib``/``lzma``/``cdzl``/``cdlz``/``none``
-and self-referencing hunks.  Parent CHDs are rejected rather than guessed
-at, and FLAC (``cdfl``) is not decoded — it only ever carries CD audio,
-which nothing here needs to read.
+Supported: v5 only, codecs ``zlib``/``lzma``/``huff``/``flac``/``cdzl``/
+``cdlz``/``cdfl``/``none`` and self-referencing hunks.  FLAC matters more
+than it sounds: chdman keeps whichever codec is smallest per hunk, and
+FLAC wins on zero padding, so ordinary data reads land in FLAC hunks (see
+:mod:`shared.chd_flac`).  Parent CHDs are rejected rather than guessed at,
+and ``zstd`` is not decoded - Python's standard library only gained it in
+3.14.  A hunk in an unsupported codec
+raises :class:`ChdError`, so a caller can fall back rather than misread.
 
 Deliberately standard-library only, so the server and the MiSTer client
 can both use it.
@@ -27,6 +31,8 @@ import lzma
 import struct
 import zlib
 from typing import BinaryIO, Optional
+
+from shared.chd_flac import FlacError, decode_frames
 
 CHD_MAGIC = b"MComprHD"
 V5_HEADER_SIZE = 124
@@ -100,13 +106,17 @@ class _BitReader:
 class _Huffman:
     """Canonical Huffman decoder for the hunk-map compression codes."""
 
-    __slots__ = ("_lengths", "_lookup", "numcodes", "maxbits")
+    __slots__ = ("_lengths", "_lookup", "_first", "_symbols", "numcodes", "maxbits")
 
     def __init__(self, numcodes: int, maxbits: int):
         self.numcodes = numcodes
         self.maxbits = maxbits
         self._lengths = [0] * numcodes
         self._lookup: dict[tuple[int, int], int] = {}
+        #: Per code length: the first code, and the symbols holding codes of
+        #: that length in ascending code order.
+        self._first: list[int] = []
+        self._symbols: list[list[int]] = []
 
     def import_tree_rle(self, bits: _BitReader) -> None:
         """Read the run-length-encoded table of code lengths."""
@@ -152,19 +162,67 @@ class _Huffman:
             start = next_start
 
         self._lookup = {}
+        self._first = [0] * 33
+        self._symbols = [[] for _ in range(33)]
+        for length in range(1, 33):
+            self._first[length] = histogram[length]
         for symbol, length in enumerate(self._lengths):
             if length > 0:
                 self._lookup[(length, histogram[length])] = symbol
+                self._symbols[length].append(symbol)
                 histogram[length] += 1
+
+    def import_tree_huffman(self, bits: "_BitReader") -> None:
+        """Read the code lengths the ``huff`` codec stores for each hunk.
+
+        Unlike the map's table these are themselves Huffman-coded: a small
+        24-symbol tree comes first, and its symbols are either a length
+        (value - 1) or, at 0, a run of the previous length.
+        """
+        small = _Huffman(24, 6)
+        small._lengths[0] = bits.read(3)
+        start = bits.read(3) + 1
+        count = 0
+        for index in range(1, 24):
+            if index < start or count == 7:
+                small._lengths[index] = 0
+            else:
+                count = bits.read(3)
+                small._lengths[index] = 0 if count == 7 else count
+        small._assign_canonical_codes()
+
+        rle_bits = 0
+        temp = self.numcodes - 9
+        while temp:
+            temp >>= 1
+            rle_bits += 1
+
+        index = last = 0
+        while index < self.numcodes:
+            value = small.decode_one(bits)
+            if value != 0:
+                last = value - 1
+                self._lengths[index] = last
+                index += 1
+            else:
+                run = bits.read(3) + 2
+                if run == 9:
+                    run += bits.read(rle_bits)
+                while run and index < self.numcodes:
+                    self._lengths[index] = last
+                    index += 1
+                    run -= 1
+        self._assign_canonical_codes()
 
     def decode_one(self, bits: _BitReader) -> int:
         code = 0
+        first, symbols = self._first, self._symbols
         for length in range(1, self.maxbits + 1):
             code = (code << 1) | bits.read(1)
-            symbol = self._lookup.get((length, code))
-            if symbol is not None:
-                return symbol
-        raise ChdError("corrupt hunk map: no code matched")
+            offset = code - first[length]
+            if 0 <= offset < len(symbols[length]):
+                return symbols[length][offset]
+        raise ChdError("corrupt Huffman data: no code matched")
 
 
 # ---------------------------------------------------------------------------
@@ -379,11 +437,37 @@ class ChdFile:
             raise ChdError("zstd-compressed CHDs are not supported")
         if codec == b"lzma":
             return _unlzma(raw, out_len, self.hunk_bytes)
+        if codec == b"huff":
+            return _unhuff(raw, out_len)
+        if codec == b"flac":
+            # The first byte says which byte order the samples were read in.
+            if raw[:1] not in (b"L", b"B"):
+                raise ChdError("flac hunk without a byte-order marker")
+            try:
+                return decode_frames(raw[1:], out_len // 4, big_endian=raw[:1] == b"B")
+            except FlacError as exc:
+                raise ChdError(f"flac hunk: {exc}") from exc
         if codec in (b"cdzl", b"cdlz"):
             return self._decompress_cd(codec, raw, out_len)
         if codec == b"cdfl":
-            raise ChdError("FLAC-compressed hunks are not supported")
+            return self._decompress_cdfl(raw, out_len)
         raise ChdError(f"unsupported codec {codec!r}")
+
+    def _decompress_cdfl(self, raw: bytes, out_len: int) -> bytes:
+        """A CD hunk stored as FLAC: every frame's 2352 sector bytes are one
+        run of big-endian 16-bit stereo samples.  The zlib subcode after the
+        FLAC frames is not needed and not decoded."""
+        frames = out_len // CD_FRAME_SIZE
+        try:
+            sectors = decode_frames(raw, frames * CD_MAX_SECTOR_DATA // 4, big_endian=True)
+        except FlacError as exc:
+            raise ChdError(f"cdfl hunk: {exc}") from exc
+        out = bytearray(out_len)
+        for frame in range(frames):
+            src = frame * CD_MAX_SECTOR_DATA
+            dst = frame * CD_FRAME_SIZE
+            out[dst:dst + CD_MAX_SECTOR_DATA] = sectors[src:src + CD_MAX_SECTOR_DATA]
+        return bytes(out)
 
     def _decompress_cd(self, codec: bytes, raw: bytes, out_len: int) -> bytes:
         """A CD hunk: sector data and subcode are compressed separately.
@@ -486,6 +570,20 @@ def _inflate(raw: bytes, out_len: int) -> bytes:
     if len(data) < out_len:
         data += obj.flush()
     return data
+
+
+def _unhuff(raw: bytes, out_len: int) -> bytes:
+    """The ``huff`` codec: a per-hunk 256-symbol Huffman tree, then bytes."""
+    bits = _BitReader(raw)
+    decoder = _Huffman(256, 16)
+    decoder.import_tree_huffman(bits)
+    decode = decoder.decode_one
+    out = bytearray(out_len)
+    for index in range(out_len):
+        out[index] = decode(bits)
+    if bits.overflowed:
+        raise ChdError("huff hunk ran past its data")
+    return bytes(out)
 
 
 def _unlzma(raw: bytes, out_len: int, dict_size: int) -> bytes:
