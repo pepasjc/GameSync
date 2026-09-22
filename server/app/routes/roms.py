@@ -39,6 +39,7 @@ import os
 import re
 import shlex
 import shutil
+import struct
 import subprocess
 import tempfile
 import unicodedata
@@ -3163,14 +3164,24 @@ def _extract_formats_for_entry(entry) -> tuple[str | None, list[str]]:
         if sys_up in _PS2_SYSTEMS:
             # PS2 is split media: DVD CHDs extract to a single ISO,
             # CD CHDs extract to a CUE/BIN zip.  Ask the DAT what the
-            # original disc was.  When the DAT can't answer (game not
-            # in any loaded DAT, or DAT only listed cart entries) we
-            # fall back to no extract option — the user still gets the
-            # raw CHD download.
+            # original disc was — the libretro PS2 DAT names the media in
+            # every entry's rom line (``…(Japan).iso`` vs ``…(USA).bin``),
+            # which covers ~11k titles by CRC, name slug or serial.
             normalizer = _dat_normalizer_get()
             disc_ext = (
-                normalizer.lookup_disc_format('PS2', filename) if normalizer else None
+                normalizer.lookup_disc_format(
+                    'PS2',
+                    filename,
+                    crc32=getattr(entry, 'crc32', None) or None,
+                    serial=getattr(entry, 'title_id', None) or None,
+                )
+                if normalizer else None
             )
+            if disc_ext is None:
+                # Renamed rip, hack, or a disc the DAT has never seen.
+                # The CHD itself still knows: chdman createcd writes CD
+                # track metadata, createdvd doesn't.
+                disc_ext = _chd_disc_ext(entry)
             if disc_ext == 'iso':
                 return 'iso', ['iso']
             if disc_ext in ('bin', 'cue'):
@@ -3202,6 +3213,84 @@ def _extract_formats_for_entry(entry) -> tuple[str | None, list[str]]:
         return 'xbox', list(_XBOX_EXTRACT_FORMATS)
 
     return None, []
+
+
+# ── CHD media sniffing ──────────────────────────────────────────────────────
+#
+# Last-resort answer to "is this PS2 CHD a CD or a DVD" when no DAT entry
+# matches.  A v5 CHD built by ``chdman createcd`` carries per-track metadata;
+# ``createdvd`` output carries none and uses 2048-byte units, while CD CHDs
+# use 2448-byte frames.  Reading the header is a couple of seeks, and the
+# result is cached per (path, size, mtime) so a catalog listing doesn't
+# re-open the same multi-GB file on every request.
+_CHD_MAGIC = b'MComprHD'
+# CDROM_TRACK_METADATA / _2, CDROM_OLD, GD-ROM track metadata (MAME chd.h).
+_CHD_CD_METADATA_TAGS = frozenset({b'CHTR', b'CHT2', b'CHCD', b'CHGT', b'CHGD'})
+_CD_FRAME_UNIT_BYTES = 2448
+_chd_media_cache: dict[tuple[str, int, int], Optional[str]] = {}
+
+
+def _chd_disc_ext(entry) -> Optional[str]:
+    """'iso' (DVD) / 'cue' (CD) for a CHD catalog entry, else None."""
+    rom_dir = settings.rom_dir
+    rel = getattr(entry, 'path', None)
+    if not rom_dir or not rel:
+        return None
+    path = Path(rom_dir) / rel
+    kind = _chd_media_kind(path)
+    if kind == 'dvd':
+        return 'iso'
+    if kind == 'cd':
+        return 'cue'
+    return None
+
+
+def _chd_media_kind(path: Path) -> Optional[str]:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    key = (str(path), st.st_size, int(st.st_mtime))
+    if key in _chd_media_cache:
+        return _chd_media_cache[key]
+    kind = _read_chd_media_kind(path)
+    _chd_media_cache[key] = kind
+    return kind
+
+
+def _read_chd_media_kind(path: Path) -> Optional[str]:
+    """Parse a v5 CHD header + metadata chain. Returns 'cd', 'dvd' or None."""
+    try:
+        with open(path, 'rb') as fh:
+            head = fh.read(64)
+            if len(head) < 64 or head[:8] != _CHD_MAGIC:
+                return None
+            version = struct.unpack('>I', head[12:16])[0]
+            if version != 5:
+                # v4 and older have a different header layout; the DAT is
+                # the only answer for those.
+                return None
+            meta_offset = struct.unpack('>Q', head[48:56])[0]
+            unit_bytes = struct.unpack('>I', head[60:64])[0]
+
+            # Metadata entry header: tag[4], flags+length[4], next[8].
+            # Bounded walk — a corrupt chain must not spin forever.
+            seen = 0
+            while meta_offset and seen < 256:
+                fh.seek(meta_offset)
+                header = fh.read(16)
+                if len(header) < 16:
+                    break
+                if header[:4] in _CHD_CD_METADATA_TAGS:
+                    return 'cd'
+                meta_offset = struct.unpack('>Q', header[8:16])[0]
+                seen += 1
+
+            return 'cd' if unit_bytes == _CD_FRAME_UNIT_BYTES else 'dvd'
+    except OSError:
+        return None
+    except struct.error:
+        return None
 
 
 def _dat_normalizer_get():

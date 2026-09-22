@@ -956,6 +956,11 @@ const FMT_META = {
   decrypted_cci: { badge:'CCI',  source:'3DS CART', suffix:' · decrypted',   ext:'.cci',  errHint:'Configure SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
   cci: { badge:'CCI',           source:'Xbox',    suffix:' · ZIP',              ext:'.zip',  errHint:'Configure SYNC_ROM_XBOX_CCI_COMMAND on the server.' },
   folder: { badge:'FOLDER',     source:'Xbox',    suffix:' · ZIP',              ext:'.zip',  errHint:'Configure SYNC_ROM_XBOX_FOLDER_COMMAND on the server.' },
+  eboot: { badge:'EBOOT',       source:'PS1 disc', suffix:' · building PBP', ext:'.PBP', errHint:'Configure SYNC_ROM_PS1_EBOOT_COMMAND (pop-fe) on the server.' },
+  vcd: { badge:'VCD',           source:'PS1 disc', suffix:' · POPStarter',   ext:'.VCD', errHint:'Configure SYNC_ROM_PS1_VCD_COMMAND on the server.' },
+  psio: { badge:'PSIO',         source:'PS1 disc', suffix:' · BIN/CU2 ZIP',  ext:'.zip', errHint:'Check that chdman is installed on the server.' },
+  loadiine: { badge:'LOADIINE', source:'Wii U WUP', suffix:' · decrypting',  ext:'.zip', errHint:'Configure SYNC_ROM_WIIU_LOADIINE_COMMAND (CDecrypt) on the server.' },
+  wua: { badge:'WUA',           source:'Wii U WUP', suffix:' · packing',     ext:'.wua', errHint:'Configure SYNC_ROM_WIIU_WUA_COMMAND on the server.' },
 };
 
 function queueKey(titleId, fmt) {
@@ -1585,6 +1590,40 @@ function disposeLazy() {
 // ═══════════════════════════════════════════════════════
 //  ROM CARD — HTML builder (same markup as before, now per-item)
 // ═══════════════════════════════════════════════════════
+// Every extract format the server can advertise, with the button label and
+// tooltip the WebUI shows for it.  Driving the buttons off this table instead
+// of a chain of per-system `if` branches is deliberate: the old chain only
+// matched a handful of exact format combinations, so anything else — PS1's
+// ['cue','eboot','psio','vcd'], a PS1 folder bundle's ['psio'], Wii U's
+// ['loadiine','wua'] — silently fell through to a bare "↓" and the
+// conversions became unreachable from the web UI.
+const EXTRACT_BTN = {
+  cue:           { label: 'CUE/BIN',  tip: 'Convert to CUE/BIN ZIP' },
+  gdi:           { label: 'GDI',      tip: 'Convert to GDI (Dreamcast) ZIP' },
+  iso:           { label: 'ISO',      tip: 'Convert to ISO' },
+  cso:           { label: 'CSO',      tip: 'Convert and compress to CSO' },
+  eboot:         { label: 'EBOOT',    tip: 'Convert to PSP EBOOT.PBP (PSP / Adrenaline)' },
+  vcd:           { label: 'VCD',      tip: 'Convert to POPStarter VCD (OPL on PS2)' },
+  psio:          { label: 'PSIO',     tip: 'Convert to PSIO BIN/CU2 ZIP' },
+  cia:           { label: 'CIA',      tip: 'Convert to decrypted CIA (installable on CFW 3DS, works in emulators)' },
+  decrypted_cci: { label: 'CCI',      tip: 'Convert to decrypted CCI (for emulators)' },
+  cci:           { label: 'CCI',      tip: 'Download or convert to CCI ZIP' },
+  folder:        { label: 'FOLDER',   tip: 'Extract disc files and download as ZIP' },
+  loadiine:      { label: 'LOADIINE', tip: 'Decrypt to a code/content/meta folder ZIP' },
+  wua:           { label: 'WUA',      tip: 'Convert to a Cemu .wua archive' },
+};
+
+// Label for the "download what's on disk" button.  Bundles are folders, so
+// their filename has no usable extension — call those ZIP, which is what the
+// server actually sends.
+function rawDownloadLabel(rom) {
+  const name = rom.filename || '';
+  const dot = name.lastIndexOf('.');
+  const ext = dot > 0 ? name.slice(dot + 1) : '';
+  if (ext && ext.length <= 5) return ext.toUpperCase();
+  return rom.is_bundle ? 'ZIP' : 'ROM';
+}
+
 // Build the download/extract button group + share metadata for a ROM.
 // Shared by the card (grid) and row (list) renderers so both stay in sync.
 function romActions(rom) {
@@ -1601,94 +1640,39 @@ function romActions(rom) {
   const fmt  = rom.extract_format;
   const extractFormats = Array.isArray(rom.extract_formats) ? rom.extract_formats : [];
   const rawUrl = `/api/v1/roms/${encodeURIComponent(dlId)}`;
-  const rawLabel = (rom.filename?.split('.').pop() || 'ROM').toUpperCase();
+  const rawLabel = rawDownloadLabel(rom);
+  const name = esc(rom.name);
+
+  // Unknown formats are dropped rather than rendered blank — this page can be
+  // older than the server it talks to.
+  const opts = extractFormats
+    .map(f => ({ fmt: f, meta: EXTRACT_BTN[f] }))
+    .filter(o => o.meta);
 
   let btnHtml;
-  if (extractFormats.length && extractFormats.includes('iso') && extractFormats.includes('cso')) {
-    // PSP: three options — ISO, CSO, CHD
-    btnHtml = `<div class="rom-btns">
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
-        title="Extract to ISO">ISO</button>
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cso"
-        title="Extract and compress to CSO">CSO</button>
-      <button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>
-    </div>`;
-  } else if (extractFormats.length === 1 && (extractFormats[0] === 'gdi' || extractFormats[0] === 'cue')) {
-    const singleFmt = extractFormats[0];
-    const label = singleFmt === 'gdi' ? 'GDI' : 'CUE/BIN';
-    const tip   = singleFmt === 'gdi' ? 'GDI (Dreamcast) ZIP' : 'CUE/BIN ZIP';
-    btnHtml = `<div class="rom-btns">
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="${singleFmt}"
-        title="Convert to ${tip}">${label}</button>
-      <button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>
-    </div>`;
-  } else if (extractFormats.length === 1 && extractFormats[0] === 'iso' && fmt === 'rvz') {
-    btnHtml = `<div class="rom-btns">
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="rvz"
-        title="Convert RVZ to ISO">ISO</button>
-      <button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>
-    </div>`;
-  } else if (extractFormats.length === 1 && extractFormats[0] === 'iso') {
-    // PS2 DVD: CHD source, server runs ``chdman extractdvd`` to a single
-    // ISO.  Order matters — this branch must come AFTER the rvz one so
-    // GC / Wii cards keep the "Convert RVZ to ISO" tooltip.
-    btnHtml = `<div class="rom-btns">
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
-        title="Convert CHD to ISO">ISO</button>
-      <button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>
-    </div>`;
-  } else if (extractFormats.some(f => ['cia', 'decrypted_cci'].includes(f))) {
-    const cartButtons = [];
-    if (extractFormats.includes('cia')) {
-      cartButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cia"
-        title="Convert to decrypted CIA (installable on CFW 3DS, works in emulators)">CIA</button>`);
-    }
-    if (extractFormats.includes('decrypted_cci')) {
-      cartButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cci"
-        title="Convert to decrypted CCI (for emulators)">CCI</button>`);
-    }
-    cartButtons.push(`<button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel} cart image">3DS</button>`);
-    btnHtml = `<div class="rom-btns rom-btns-3ds">${cartButtons.join('')}</div>`;
-  } else if (extractFormats.some(f => ['cci', 'iso', 'folder'].includes(f))) {
-    // Xbox / Xbox 360 disc image.  Show the target formats; the
-    // server decides whether that is a direct stream/ZIP or a conversion.
-    const xboxButtons = [];
-    if (extractFormats.includes('cci')) {
-      xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cci"
-        title="Download or convert to CCI ZIP">CCI</button>`);
-    }
-    if (extractFormats.includes('folder')) {
-      xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="folder"
-        title="Extract Xbox disc files and download as ZIP">FOLDER</button>`);
-    }
-    if (extractFormats.includes('iso')) {
-      xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
-        title="Download or convert to ISO">ISO</button>`);
-    }
-    btnHtml = `<div class="rom-btns rom-btns-3ds">${xboxButtons.join('')}</div>`;
-  } else {
+  if (!opts.length) {
     btnHtml = `<button class="dl-btn" data-action="dl"
       data-url="${rawUrl}" data-fn="${fn}">↓</button>`;
+  } else {
+    const buttons = opts.map(o => {
+      // RVZ sources advertise 'iso', but ?extract=rvz is the form the queue
+      // UI has a DolphinTool-specific error hint for.  Both reach the same
+      // handler server-side.
+      const reqFmt = (o.fmt === 'iso' && fmt === 'rvz') ? 'rvz' : o.fmt;
+      return `<button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${name}" data-fmt="${esc(reqFmt)}"
+        title="${esc(o.meta.tip)}">${o.meta.label}</button>`;
+    });
+    // Skip the raw button when a conversion button already wears the same
+    // label — an Xbox .cci offering ?extract=cci would otherwise show two
+    // "CCI" buttons that do different things.
+    if (!opts.some(o => o.meta.label === rawLabel)) {
+      buttons.push(`<button class="dl-btn" data-action="dl"
+        data-url="${rawUrl}" data-fn="${fn}"
+        title="Download original ${rawLabel}">${rawLabel}</button>`);
+    }
+    const cls = buttons.length > 2 ? 'rom-btns rom-btns-3ds' : 'rom-btns';
+    btnHtml = `<div class="${cls}">${buttons.join('')}</div>`;
   }
 
   return { btnHtml, rawUrl, rawLabel, c, sys };

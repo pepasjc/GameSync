@@ -2822,3 +2822,153 @@ class TestMsuPacks:
         entries = {e.filename: e for e in catalog.list_by_system("MD")}
         assert entries["Game (MSU-MD).zip"].bundle_kind == "msu-md"
         assert not entries["Broken (MSU-MD).zip"].is_bundle
+
+
+# ── PS2 disc media resolution ───────────────────────────────────────────────
+#
+# A PS2 CHD is either a DVD rip (extracts to one ISO) or a CD rip (extracts to
+# a CUE/BIN zip), and the WebUI has to pick the right button before any
+# conversion runs.  The libretro PS2 DAT answers for every listed title; the
+# CHD header answers for everything else.
+
+_PS2_DAT = """clrmamepro (
+\tname "Sony - PlayStation 2"
+)
+
+game (
+\tname "Zero (Japan)"
+\tregion "Japan"
+\tserial "SLPS-25074"
+\trom ( name "Zero (Japan).iso" size 2828369920 crc 26A9A7AB serial "SLPS-25074" )
+)
+game (
+\tname "Ridge Racer V (USA)"
+\tregion "USA"
+\tserial "SLUS-20002"
+\trom ( name "Ridge Racer V (USA).cue" size 1000 crc AABBCCDD serial "SLUS-20002" )
+\trom ( name "Ridge Racer V (USA).bin" size 600000000 crc 11223344 serial "SLUS-20002" )
+)
+"""
+
+
+def _write_ps2_dat(tmp_path):
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    (dats / "Sony - PlayStation 2.dat").write_text(_PS2_DAT, encoding="utf-8")
+    return dats
+
+
+class TestPs2DiscFormatLookup:
+    def test_dat_declares_media_per_title(self, tmp_path):
+        from app.services.dat_normalizer import DatNormalizer
+
+        n = DatNormalizer(_write_ps2_dat(tmp_path))
+        assert n.lookup_disc_format("PS2", "Zero (Japan).chd") == "iso"
+        assert n.lookup_disc_format("PS2", "Ridge Racer V (USA).chd") == "cue"
+
+    def test_renamed_rip_resolves_by_serial_or_crc(self, tmp_path):
+        from app.services.dat_normalizer import DatNormalizer
+
+        n = DatNormalizer(_write_ps2_dat(tmp_path))
+        # Filename tells us nothing — the catalog's serial does.
+        assert n.lookup_disc_format("PS2", "my dump.chd") is None
+        assert (
+            n.lookup_disc_format("PS2", "my dump.chd", serial="SLPS25074") == "iso"
+        )
+        assert (
+            n.lookup_disc_format("PS2", "my dump.chd", serial="SLUS-20002") == "cue"
+        )
+        assert n.lookup_disc_format("PS2", "x.chd", crc32="26a9a7ab") == "iso"
+
+    def test_unknown_title_stays_none(self, tmp_path):
+        from app.services.dat_normalizer import DatNormalizer
+
+        n = DatNormalizer(_write_ps2_dat(tmp_path))
+        assert n.lookup_disc_format("PS2", "Some Hack (v1.2).chd") is None
+
+
+def _fake_chd(path, unit_bytes, meta_tags=()):
+    """Minimal v5 CHD: header + a linked metadata chain."""
+    import struct
+
+    body = bytearray(124)
+    body[0:8] = b"MComprHD"
+    struct.pack_into(">I", body, 8, 124)     # header length
+    struct.pack_into(">I", body, 12, 5)      # version
+    struct.pack_into(">I", body, 56, 4096)   # hunkbytes
+    struct.pack_into(">I", body, 60, unit_bytes)
+
+    offsets = []
+    for tag in meta_tags:
+        offsets.append(len(body))
+        entry = bytearray(24)
+        entry[0:4] = tag
+        struct.pack_into(">I", entry, 4, (1 << 24) | 8)  # flags | length
+        body += entry
+    for i, off in enumerate(offsets):
+        nxt = offsets[i + 1] if i + 1 < len(offsets) else 0
+        struct.pack_into(">Q", body, off + 8, nxt)
+    if offsets:
+        struct.pack_into(">Q", body, 48, offsets[0])
+
+    path.write_bytes(bytes(body))
+    return path
+
+
+class TestChdMediaSniff:
+    def test_cd_and_dvd_chds(self, tmp_path):
+        from app.routes.roms import _read_chd_media_kind
+
+        # chdman createcd → CD track metadata present.
+        cd = _fake_chd(tmp_path / "cd.chd", 2448, (b"GDDD", b"CHT2"))
+        assert _read_chd_media_kind(cd) == "cd"
+        # Pre-CHT2 dumps used CHTR / CHCD.
+        old = _fake_chd(tmp_path / "old.chd", 2448, (b"CHCD",))
+        assert _read_chd_media_kind(old) == "cd"
+        # chdman createdvd → no track metadata, 2048-byte units.
+        dvd = _fake_chd(tmp_path / "dvd.chd", 2048, (b"GDDD",))
+        assert _read_chd_media_kind(dvd) == "dvd"
+        # Frame size is the tiebreak when metadata is missing entirely.
+        assert _read_chd_media_kind(_fake_chd(tmp_path / "bare.chd", 2448)) == "cd"
+        assert _read_chd_media_kind(_fake_chd(tmp_path / "raw.chd", 2048)) == "dvd"
+
+    def test_non_chd_and_missing_file(self, tmp_path):
+        from app.routes.roms import _chd_media_kind, _read_chd_media_kind
+
+        junk = tmp_path / "junk.chd"
+        junk.write_bytes(b"not a chd at all" * 8)
+        assert _read_chd_media_kind(junk) is None
+        assert _chd_media_kind(tmp_path / "missing.chd") is None
+
+    def test_extract_formats_fall_back_to_the_chd(self, tmp_path, monkeypatch):
+        from app.routes import roms
+        from app.services.rom_scanner import RomEntry
+
+        rom_dir = tmp_path / "roms"
+        (rom_dir / "ps2").mkdir(parents=True)
+        _fake_chd(rom_dir / "ps2" / "Unlisted Hack.chd", 2048, (b"GDDD",))
+        _fake_chd(rom_dir / "ps2" / "Unlisted CD Hack.chd", 2448, (b"CHT2",))
+
+        monkeypatch.setattr(settings, "rom_dir", rom_dir)
+        monkeypatch.setattr(roms, "_dat_normalizer_get", lambda: None)
+        roms._chd_media_cache.clear()
+
+        def entry(filename):
+            return RomEntry(
+                rom_id=filename,
+                title_id="SLUS99999",
+                system="PS2",
+                name=filename,
+                filename=filename,
+                path=f"ps2/{filename}",
+                size=124,
+                crc32="",
+                source="scan",
+            )
+
+        assert roms._extract_formats_for_entry(entry("Unlisted Hack.chd")) == (
+            "iso", ["iso"],
+        )
+        assert roms._extract_formats_for_entry(entry("Unlisted CD Hack.chd")) == (
+            "cue", ["cue"],
+        )
