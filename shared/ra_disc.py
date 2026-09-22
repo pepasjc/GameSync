@@ -5,9 +5,11 @@ Identifying a disc game means reading its boot executable out of the
 image's filesystem, not hashing the file — so this walks ISO9660 inside a
 CHD (:mod:`shared.chd`) and hashes what RetroAchievements hashes.
 
-Implemented: PlayStation (``SYSTEM.CNF`` names the boot executable, and
-the hash is that name followed by the executable) and PSP (``PARAM.SFO``
-followed by ``PSP_GAME/SYSDIR/EBOOT.BIN``).  The ISO9660 walk underneath
+Implemented: PlayStation and PS2 (``SYSTEM.CNF`` names the boot
+executable; the hash is that name followed by the executable), PSP
+(``PARAM.SFO`` then ``EBOOT.BIN``), Sega CD and Saturn (the 512-byte volume
+and ROM header at sector 0) and PC Engine CD (the title and boot program
+named by the header sector of the first data track).  The ISO9660 walk underneath
 is system-agnostic and reads both CD images and DVD-type (UMD) CHDs, so
 the other disc systems are additions rather than rewrites.
 
@@ -47,6 +49,10 @@ _MODE_OFFSETS = {
 _PROBE_OFFSETS = (24, 16, 0, 8)
 
 _TRACK_RE = re.compile(rb"TRACK:(\d+)\s+TYPE:(\S+)")
+_FIELD_RE = re.compile(rb"([A-Z]+):(\S+)")
+
+#: chdman pads every track to a multiple of this many frames.
+_TRACK_PADDING = 4
 
 
 class DiscError(Exception):
@@ -92,6 +98,33 @@ class DvdTrack:
 
 def is_dvd(chd: ChdFile) -> bool:
     return any(tag == b"DVD " for tag, _ in chd.metadata())
+
+
+def cd_tracks(chd: ChdFile) -> list[dict]:
+    """Every track's type and where its first sector sits in the CHD.
+
+    Tracks are stored back to back, each padded to a multiple of four
+    frames.  A pregap is only *stored* when its type is marked ``V``
+    (``PGTYPE:VAUDIO``); then the track's ``FRAMES`` include it and its data
+    - what a disc's sector 0 means - starts after it.
+    """
+    tracks = []
+    offset = 0
+    for tag, payload in chd.metadata():
+        if tag not in (b"CHTR", b"CHT2"):
+            continue
+        fields = {k.decode(): v.decode("ascii", "replace") for k, v in _FIELD_RE.findall(payload)}
+        frames = int(fields.get("FRAMES", "0"))
+        pregap = int(fields.get("PREGAP", "0"))
+        stored_pregap = pregap if fields.get("PGTYPE", "").startswith("V") else 0
+        tracks.append({
+            "number": int(fields.get("TRACK", "0")),
+            "type": fields.get("TYPE", "").upper(),
+            "start": offset + stored_pregap,
+        })
+        offset += frames + (-frames % _TRACK_PADDING)
+    tracks.sort(key=lambda t: t["number"])
+    return tracks
 
 
 def _track_mode(chd: ChdFile) -> str:
@@ -271,6 +304,69 @@ def hash_playstation_track(track) -> str:
     return md5.hexdigest()
 
 
+# ---------------------------------------------------------------------------
+# Sega CD / Saturn
+# ---------------------------------------------------------------------------
+
+_SEGA_MAGIC = (b"SEGADISCSYSTEM  ", b"SEGA SEGASATURN ")
+
+
+def hash_sega(chd: ChdFile) -> str:
+    """RetroAchievements MD5 for a Sega CD or Saturn disc.
+
+    RA hashes only the first 512 bytes of sector 0 - the volume header and
+    ROM header - because the executables that follow are neither fixed nor
+    single.  The header sits at the start of the sector's user data, whose
+    offset depends on how the track was stored, so each is tried.
+    """
+    tracks = cd_tracks(chd)
+    base = tracks[0]["start"] * CD_FRAME_SIZE if tracks else 0
+    for offset in (16, 0, 24):
+        header = chd.read(base + offset, 512)
+        if header[:16] in _SEGA_MAGIC:
+            return hashlib.md5(header).hexdigest()
+    raise DiscError("not a Sega CD or Saturn disc")
+
+
+# ---------------------------------------------------------------------------
+# PC Engine CD
+# ---------------------------------------------------------------------------
+
+
+def hash_pce_cd(chd: ChdFile) -> str:
+    """RetroAchievements MD5 for a PC Engine CD.
+
+    The first *data* track's sector 1 names the boot program: its first
+    three bytes are the program's sector (relative to the track), the fourth
+    the sector count, and bytes 106-127 the title.  The hash is that title
+    followed by the program.  Game Express discs use a plain filesystem
+    instead, and hash BOOT.BIN.
+    """
+    data = [t for t in cd_tracks(chd) if t["type"] != "AUDIO"]
+    if not data:
+        raise DiscError("no data track")
+    first = data[0]
+    offset = _MODE_OFFSETS.get(first["type"])
+    candidates = ([offset] if offset is not None else []) + [o for o in (16, 0, 24) if o != offset]
+    for offset in candidates:
+        track = DataTrack(chd, offset, first["start"])
+        head = track.read_sector(1, 128)
+        if head[32:55] == b"PC Engine CD-ROM SYSTEM":
+            md5 = hashlib.md5(head[106:128])
+            start = (head[0] << 16) | (head[1] << 8) | head[2]
+            for sector in range(start, start + head[3]):
+                md5.update(track.read_sector(sector))
+            return md5.hexdigest()
+    for offset in candidates:
+        track = DataTrack(chd, offset, first["start"])
+        boot = find_file(track, "BOOT.BIN")
+        if boot and boot[1] < MAX_FILE_BYTES:
+            md5 = hashlib.md5()
+            _hash_iso_file(md5, track, boot)
+            return md5.hexdigest()
+    raise DiscError("not a PC Engine CD")
+
+
 #: RetroAchievements hashes at most this much of any one file.
 MAX_FILE_BYTES = 64 * 1024 * 1024
 
@@ -351,6 +447,10 @@ _DISC_HASHERS = {
     "PSX": hash_playstation,
     "PSP": hash_psp,
     "PS2": hash_ps2,
+    "SEGACD": hash_sega,
+    "SCD": hash_sega,
+    "SAT": hash_sega,
+    "PCECD": hash_pce_cd,
 }
 
 

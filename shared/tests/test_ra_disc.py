@@ -203,10 +203,10 @@ def test_missing_executable_raises():
 
 
 def test_readable_disc_systems():
-    assert disc_hash_supported("PS1")
-    assert disc_hash_supported("ps1")
-    assert not disc_hash_supported("SAT")
-    assert not disc_hash_supported("SNES")
+    for system in ("PS1", "ps1", "PS2", "PSP", "SAT", "SEGACD", "PCECD"):
+        assert disc_hash_supported(system), system
+    assert not disc_hash_supported("SNES")      # a cartridge, hashed elsewhere
+    assert not disc_hash_supported("DC")        # GD-ROM: not implemented
 
 
 # --- PS2 and PSP ---------------------------------------------------------------
@@ -282,3 +282,94 @@ def test_dvd_track_reads_plain_2048_byte_sectors():
 
 def test_ps2_and_psp_are_now_readable():
     assert disc_hash_supported("PS2") and disc_hash_supported("PSP")
+
+
+# --- Sega CD / Saturn / PC Engine CD --------------------------------------------
+
+from shared.chd import CD_FRAME_SIZE  # noqa: E402
+from shared.ra_disc import cd_tracks, hash_pce_cd, hash_sega  # noqa: E402
+
+
+class FakeCd:
+    """A CD CHD: frames of 2448 bytes, user data at `offset` in each frame."""
+
+    def __init__(self, tracks, offset=16):
+        self.tracks, self.offset = tracks, offset
+        self.frames = {}
+
+    def put(self, frame, data):
+        for i in range(0, len(data), 2048):
+            self.frames[frame + i // 2048] = data[i:i + 2048]
+
+    def metadata(self):
+        return [(b"CHT2", (f"TRACK:{n} TYPE:{t} SUBTYPE:NONE FRAMES:{fr} PREGAP:{pg} "
+                           f"PGTYPE:{pgt} PGSUB:NONE POSTGAP:0").encode())
+                for n, t, fr, pg, pgt in self.tracks]
+
+    def read(self, pos, length):
+        out = bytearray()
+        while length > 0:
+            frame, within = divmod(pos, CD_FRAME_SIZE)
+            buf = bytearray(CD_FRAME_SIZE)
+            data = self.frames.get(frame, b"")
+            buf[self.offset:self.offset + len(data)] = data
+            take = min(length, CD_FRAME_SIZE - within)
+            out += buf[within:within + take]
+            pos += take; length -= take
+        return bytes(out)
+
+
+def test_cd_tracks_pad_each_track_to_four_frames():
+    cd = FakeCd([(1, "AUDIO", 150, 0, "MODE1"), (2, "MODE1_RAW", 1000, 0, "MODE1")])
+    assert [t["start"] for t in cd_tracks(cd)] == [0, 152]
+
+
+def test_cd_tracks_skip_a_stored_pregap():
+    """A 'V' pregap is in the file, so the track's sector 0 comes after it."""
+    cd = FakeCd([(1, "AUDIO", 100, 0, "MODE1"), (2, "MODE1_RAW", 400, 150, "VAUDIO")])
+    assert cd_tracks(cd)[1]["start"] == 100 + 150
+
+
+def test_sega_cd_hashes_the_512_byte_header():
+    header = b"SEGADISCSYSTEM  " + bytes(range(256)) * 2
+    cd = FakeCd([(1, "MODE1_RAW", 1000, 0, "MODE1")])
+    cd.put(0, header + b"\xEE" * 1000)
+    assert hash_sega(cd) == hashlib.md5(header[:512]).hexdigest()
+
+
+def test_saturn_uses_the_same_rule():
+    header = b"SEGA SEGASATURN " + b"\x33" * 600
+    cd = FakeCd([(1, "MODE1_RAW", 1000, 0, "MODE1")])
+    cd.put(0, header)
+    assert hash_sega(cd) == hashlib.md5(header[:512]).hexdigest()
+
+
+def test_non_sega_disc_is_rejected():
+    import pytest
+    from shared.ra_disc import DiscError
+    cd = FakeCd([(1, "MODE1_RAW", 1000, 0, "MODE1")])
+    cd.put(0, b"PLAYSTATION" + b"\x00" * 600)
+    with pytest.raises(DiscError):
+        hash_sega(cd)
+
+
+def test_pce_cd_hashes_title_then_boot_program_on_the_first_data_track():
+    cd = FakeCd([(1, "AUDIO", 150, 0, "MODE1"), (2, "MODE1_RAW", 1000, 0, "MODE1")])
+    data_start = cd_tracks(cd)[1]["start"]          # 152, after track 1's padding
+    head = bytearray(2048)
+    head[0:3] = (5).to_bytes(3, "big")               # program at track sector 5
+    head[3] = 2                                      # two sectors long
+    head[32:55] = b"PC Engine CD-ROM SYSTEM"
+    head[106:128] = b"MY GAME TITLE         "
+    cd.put(data_start + 1, bytes(head))
+    program = b"\xAA" * 2048 + b"\xBB" * 2048
+    cd.put(data_start + 5, program)
+    expected = hashlib.md5(bytes(head[106:128]) + program).hexdigest()
+    assert hash_pce_cd(cd) == expected
+
+
+def test_pce_cd_without_a_data_track_is_rejected():
+    import pytest
+    from shared.ra_disc import DiscError
+    with pytest.raises(DiscError):
+        hash_pce_cd(FakeCd([(1, "AUDIO", 150, 0, "MODE1")]))
