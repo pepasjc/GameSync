@@ -255,3 +255,68 @@ def test_an_unindexed_disc_is_read(db, tmp_path):
     rom = tmp_path / "game.chd"
     rom.write_bytes(b"\x00" * 64)
     assert _disc_stat(_Entry(rom, system="PS1"), {}, None) is not None
+
+
+# --- badges have to reach the clients ----------------------------------------
+#
+# Clients cache the catalogue per system against a fingerprint. If the
+# fingerprint ignores the RA data, a system whose ROMs have not moved keeps
+# its old fingerprint, every client decides its cache is current, and a
+# badge earned by a later indexing pass never reaches the device.
+
+
+def test_indexing_moves_the_catalog_fingerprint(db, library, tmp_path):
+    from app.services import rom_scanner
+
+    rom = _rom(tmp_path)
+    entry = rom_scanner.RomEntry(
+        rom_id="r1", title_id="SNES_game", system="SNES", name="Game",
+        filename="game.sfc", path=str(rom), size=rom.stat().st_size,
+    )
+    catalog = rom_scanner.RomCatalog()
+    assert catalog._add(entry)
+
+    before = catalog.fingerprints()
+    assert before["SNES"]["fingerprint"], "a populated catalogue must fingerprint"
+
+    ra_index.refresh([_Entry(rom)], tmp_path / "cache")
+
+    after = catalog.fingerprints()
+    assert after["SNES"]["fingerprint"] != before["SNES"]["fingerprint"], (
+        "a badge earned after the catalogue was cached must move the "
+        "fingerprint, or no client will ever refetch it"
+    )
+
+
+def test_fingerprint_is_stable_when_nothing_changed(db, library, tmp_path):
+    """It must not churn: a fingerprint that moved every call would make
+    every client refetch the whole catalogue on every start."""
+    from app.services import rom_scanner
+
+    rom = _rom(tmp_path)
+    entry = rom_scanner.RomEntry(
+        rom_id="r1", title_id="SNES_game", system="SNES", name="Game",
+        filename="game.sfc", path=str(rom), size=rom.stat().st_size,
+    )
+    catalog = rom_scanner.RomCatalog()
+    catalog._add(entry)
+    ra_index.refresh([_Entry(rom)], tmp_path / "cache")
+
+    first = catalog.fingerprints()["SNES"]["fingerprint"]
+    assert catalog.fingerprints()["SNES"]["fingerprint"] == first
+    # A second pass that finds nothing new must not move it either.
+    ra_index.refresh([_Entry(rom)], tmp_path / "cache")
+    assert catalog.fingerprints()["SNES"]["fingerprint"] == first
+
+
+def test_ra_generation_advances_when_rows_are_written(db, library, tmp_path):
+    rom = _rom(tmp_path)
+    before = ra_index.generation()
+    ra_index.refresh([_Entry(rom)], tmp_path / "cache")
+    assert ra_index.generation() > before
+
+
+def test_ra_generation_advances_on_clear(db):
+    before = ra_index.generation()
+    ra_index.clear()
+    assert ra_index.generation() > before

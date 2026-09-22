@@ -81,6 +81,16 @@ CREATE TABLE IF NOT EXISTS ra_roms (
 _lock = threading.Lock()
 _running = threading.Event()
 
+#: Bumped whenever rows are written.  Lets a cache keyed on the catalog
+#: alone (the fingerprints) notice that the RA data underneath it moved,
+#: without the *values* in a fingerprint ever depending on it - a digest
+#: that changed every restart would make every client refetch everything.
+_generation = 0
+
+
+def generation() -> int:
+    return _generation
+
 
 def _conn():
     conn = rom_db.connection()
@@ -466,8 +476,10 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
 
 
 def _flush(conn, batch: list[tuple]) -> None:
+    global _generation
     if not batch:
         return
+    _generation += 1
     with _lock:
         conn.executemany(
             "INSERT OR REPLACE INTO ra_roms "
@@ -481,6 +493,8 @@ def _flush(conn, batch: list[tuple]) -> None:
 
 def clear() -> int:
     """Drop every cached hash so the next pass re-reads the library."""
+    global _generation
+    _generation += 1
     conn = _conn()
     with _lock:
         count = conn.execute("SELECT COUNT(*) AS c FROM ra_roms").fetchone()["c"]

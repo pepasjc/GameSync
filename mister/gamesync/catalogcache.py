@@ -23,8 +23,9 @@ CACHE_PATH = os.path.join(MISTER_CONFIG_DIR, "catalog_cache.json")
 
 #: Bumped when the meaning of a stored row changes (e.g. a field added that
 #: every row must carry), so an older cache is refetched rather than misread.
-#: 3 added ``ra_achievements`` for the RetroAchievements badge.
-VERSION = 3
+#: 3 added ``ra_achievements`` for the RetroAchievements badge; 4 added
+#: ``ra_match``, which tells an exact hash from a title-only match.
+VERSION = 4
 
 
 class CatalogCache:

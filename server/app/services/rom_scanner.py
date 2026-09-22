@@ -595,7 +595,7 @@ class RomCatalog:
         self._by_system: dict[str, list[RomEntry]] = {}
         # Fingerprints are memoised against this; every mutation bumps it.
         self._generation = 0
-        self._fingerprints: tuple[int, dict[str, dict]] | None = None
+        self._fingerprints: tuple[tuple[int, int], dict[str, dict]] | None = None
 
     def fingerprints(self) -> dict[str, dict]:
         """``{system: {"fingerprint": hex, "count": n}}`` for the catalogue.
@@ -605,8 +605,24 @@ class RomCatalog:
         file changes it while a rescan that found nothing new does not. Per
         system, so a client refetches only the systems that changed - one
         new SNES ROM does not cost a 20,000-row download.
+
+        The RetroAchievements badge is one of those displayed fields, so it
+        is folded in too. Without that, a system whose ROMs have not moved
+        keeps its old fingerprint, every client decides its cache is
+        current, and badges earned by a later indexing pass never reach the
+        device at all.
         """
-        if self._fingerprints and self._fingerprints[0] == self._generation:
+        try:
+            from app.services import ra_index
+
+            ra_generation = ra_index.generation()
+            ra_data = ra_index.lookup([e.path for e in self._entries.values()])
+        except Exception:  # noqa: BLE001 - an unbadged catalogue still serves
+            logger.exception("[rom_scanner] RA lookup for fingerprints failed")
+            ra_generation, ra_data = 0, {}
+
+        key = (self._generation, ra_generation)
+        if self._fingerprints and self._fingerprints[0] == key:
             return self._fingerprints[1]
         result: dict[str, dict] = {}
         for system, entries in self._by_system.items():
@@ -615,9 +631,14 @@ class RomCatalog:
                 digest.update(("%s%s%d%s%s" % (
                     entry.rom_id, entry.title_id, entry.size, entry.name,
                     entry.filename)).encode("utf-8", "replace"))
+                ra = ra_data.get(entry.path)
+                if ra:
+                    digest.update(("%s|%s|%s" % (
+                        ra.get("ra_game_id"), ra.get("ra_achievements"),
+                        ra.get("ra_match"))).encode("utf-8", "replace"))
             result[system] = {"fingerprint": digest.hexdigest(),
                               "count": len(entries)}
-        self._fingerprints = (self._generation, result)
+        self._fingerprints = (key, result)
         return result
 
     @property
