@@ -215,3 +215,43 @@ def test_resolve_path_rules():
     assert ra_index.resolve_path("snes/a.sfc", Path("/roms")) == Path("/roms/snes/a.sfc")
     assert ra_index.resolve_path("/abs/a.sfc", Path("/roms")) == Path("/abs/a.sfc")
     assert ra_index.resolve_path("snes/a.sfc", None) == Path("snes/a.sfc")
+
+
+# --- upgrading a title match once a reader exists -----------------------------
+#
+# A disc indexed before its system had a reader is cached as a title match.
+# The path, size and mtime have not moved, so the ordinary freshness check
+# would skip it forever and the weaker badge would stick.
+
+
+def test_a_cached_title_match_is_reread_when_the_system_gains_a_reader(db, tmp_path):
+    from app.services.ra_index import _disc_stat
+
+    rom = tmp_path / "game.chd"
+    rom.write_bytes(b"\x00" * 64)
+    stat = rom.stat()
+    entry = _Entry(rom, system="PS1")
+
+    title_cached = {str(rom): (stat.st_size, stat.st_mtime, ra_index.MATCH_TITLE)}
+    assert _disc_stat(entry, title_cached, None) is not None
+
+    hash_cached = {str(rom): (stat.st_size, stat.st_mtime, ra_index.MATCH_HASH)}
+    assert _disc_stat(entry, hash_cached, None) is None
+
+
+def test_a_replaced_disc_is_reread_even_when_already_hashed(db, tmp_path):
+    from app.services.ra_index import _disc_stat
+
+    rom = tmp_path / "game.chd"
+    rom.write_bytes(b"\x00" * 64)
+    entry = _Entry(rom, system="PS1")
+    stale = {str(rom): (999999, 0.0, ra_index.MATCH_HASH)}
+    assert _disc_stat(entry, stale, None) is not None
+
+
+def test_an_unindexed_disc_is_read(db, tmp_path):
+    from app.services.ra_index import _disc_stat
+
+    rom = tmp_path / "game.chd"
+    rom.write_bytes(b"\x00" * 64)
+    assert _disc_stat(_Entry(rom, system="PS1"), {}, None) is not None

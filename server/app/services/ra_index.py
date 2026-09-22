@@ -177,9 +177,11 @@ def stats() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
-def _cached_paths(conn) -> dict[str, tuple[int, float]]:
-    rows = conn.execute("SELECT path, size, mtime FROM ra_roms").fetchall()
-    return {r["path"]: (r["size"], r["mtime"]) for r in rows}
+def _cached_paths(conn) -> dict[str, tuple[int, float, str]]:
+    """``path -> (size, mtime, match_kind)`` for everything already indexed."""
+    rows = conn.execute("SELECT path, size, mtime, match_kind FROM ra_roms").fetchall()
+    return {r["path"]: (r["size"], r["mtime"], r["match_kind"] or MATCH_HASH)
+            for r in rows}
 
 
 def resolve_path(path: str, rom_dir: Optional[Path]) -> Path:
@@ -219,8 +221,11 @@ def _needs_hash(
 def _disc_stat(entry, cached, rom_dir) -> Optional[tuple[int, float]]:
     """``(size, mtime)`` when a disc image needs reading, else None.
 
-    Same freshness rule as a cartridge: a disc replaced on disk moves its
-    size or mtime and gets read again.
+    Same freshness rule as a cartridge, plus one more: a row cached as a
+    *title* match predates this system gaining a reader, so it is read
+    again to see whether it can be identified exactly now.  Without that,
+    a library indexed before the reader existed would keep the weaker
+    badge forever.
     """
     path = getattr(entry, "path", "")
     if not path:
@@ -230,7 +235,9 @@ def _disc_stat(entry, cached, rom_dir) -> Optional[tuple[int, float]]:
     except OSError:
         return None
     previous = cached.get(path)
-    if previous is not None and previous[0] == stat.st_size and abs(previous[1] - stat.st_mtime) < 1:
+    if previous is None or previous[2] == MATCH_TITLE:
+        return stat.st_size, stat.st_mtime
+    if previous[0] == stat.st_size and abs(previous[1] - stat.st_mtime) < 1:
         return None
     return stat.st_size, stat.st_mtime
 
