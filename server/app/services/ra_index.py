@@ -12,11 +12,14 @@ result is cached in ``roms.db`` keyed by *path + size + mtime*, so a rescan
 — or a server restart — costs nothing, and a ROM that is replaced on disk is
 re-hashed because its size or mtime moved.
 
-Cartridge-shaped systems are matched by hash, which is exact.  Disc
-systems cannot be: identifying one means reading the boot executable out
-of the image, and in a real library every disc is a CHD.  Those are
-matched by *title* instead (:mod:`shared.ra_titles`) - "RA has a set for
-this game", not "RA will recognise this dump".  The two are stored and
+Cartridge-shaped systems are matched by hash, which is exact.  Some disc
+systems can be too: :mod:`shared.ra_disc` reads the boot executable out
+of a CHD without decompressing the whole image, which is what RA hashes.
+
+When that hash is not one RA registered - most PlayStation games have
+exactly one registered dump, so any other revision misses - the game
+falls back to a *title* match (:mod:`shared.ra_titles`): "RA has a set
+for this game", not "RA will recognise this dump".  The two are stored and
 reported separately as ``ra_match`` = ``hash`` or ``title`` so a client
 never presents the weaker one as a guarantee.
 
@@ -46,6 +49,7 @@ from shared.ra_hash import (
     ra_hash_supported,
     ra_title_match_only,
 )
+from shared.ra_disc import disc_hash_supported, hash_disc_file
 from shared.ra_titles import build_index
 
 logger = logging.getLogger(__name__)
@@ -212,6 +216,25 @@ def _needs_hash(
     return stat.st_size, stat.st_mtime
 
 
+def _disc_stat(entry, cached, rom_dir) -> Optional[tuple[int, float]]:
+    """``(size, mtime)`` when a disc image needs reading, else None.
+
+    Same freshness rule as a cartridge: a disc replaced on disk moves its
+    size or mtime and gets read again.
+    """
+    path = getattr(entry, "path", "")
+    if not path:
+        return None
+    try:
+        stat = resolve_path(path, rom_dir).stat()
+    except OSError:
+        return None
+    previous = cached.get(path)
+    if previous is not None and previous[0] == stat.st_size and abs(previous[1] - stat.st_mtime) < 1:
+        return None
+    return stat.st_size, stat.st_mtime
+
+
 class _Libraries:
     """Lazy per-console hash libraries, fetched once per indexing pass."""
 
@@ -313,8 +336,15 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
 
     todo = []
     by_title = []
+    by_disc = []
     for entry in entries:
-        if ra_title_match_only(getattr(entry, "system", "")):
+        system = getattr(entry, "system", "")
+        if disc_hash_supported(system) and not getattr(entry, "is_bundle", False):
+            stat = _disc_stat(entry, cached, rom_dir)
+            if stat is not None:
+                by_disc.append((entry, stat))
+            continue
+        if ra_title_match_only(system):
             # No file is read for these: the name is the whole input, so a
             # path already in the cache has nothing new to say.
             path = getattr(entry, "path", "")
@@ -339,13 +369,13 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
                 )
             conn.commit()
 
-    if not todo and not by_title:
+    if not todo and not by_title and not by_disc:
         return {"hashed": 0, "known": 0, "titled": 0,
                 "skipped": len(cached), "removed": len(gone)}
 
     logger.info(
-        "[ra_index] %d ROM(s) to hash, %d disc title(s) to match",
-        len(todo), len(by_title),
+        "[ra_index] %d ROM(s) to hash, %d disc(s) to read, %d title(s) to match",
+        len(todo), len(by_disc), len(by_title),
     )
     libraries = _Libraries(cache_dir, api_key, username)
     hashed = known = 0
@@ -374,7 +404,35 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
 
     _flush(conn, batch)
 
-    # Disc systems: matched on the name, so no file is opened at all.
+    # Discs we can read: hash the boot executable, and fall back to the
+    # title when that exact dump is not one RA registered.
+    disc_hashed = 0
+    batch = []
+    for entry, (size, mtime) in by_disc:
+        if should_stop and should_stop():
+            break
+        name = getattr(entry, "name", "") or Path(entry.path).name
+        md5 = hash_disc_file(resolve_path(entry.path, rom_dir), entry.system)
+        game_id = achievements = 0
+        title = ""
+        kind = MATCH_HASH
+        if md5:
+            game_id, achievements, title = libraries.find(md5, entry.system)
+        if not game_id:
+            game_id, achievements, title = libraries.find_by_title(name, entry.system)
+            kind = MATCH_TITLE
+            md5 = ""
+        if game_id and kind == MATCH_HASH:
+            disc_hashed += 1
+        batch.append((entry.path, size, mtime, md5 or "", game_id, achievements,
+                      title, now, kind))
+        if len(batch) >= progress_every:
+            _flush(conn, batch)
+            batch = []
+            logger.info("[ra_index] %d disc(s) read", len(batch))
+    _flush(conn, batch)
+
+    # Disc systems with no reader: matched on the name, no file opened.
     titled = 0
     batch = []
     for entry in by_title:
@@ -391,10 +449,12 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
     _flush(conn, batch)
 
     logger.info(
-        "[ra_index] done: %d hashed (%d known), %d disc titles matched",
-        hashed, known, titled,
+        "[ra_index] done: %d hashed (%d known), %d disc(s) identified exactly, "
+        "%d matched by title",
+        hashed, known, disc_hashed, titled,
     )
     return {"hashed": hashed, "known": known, "titled": titled,
+            "disc_hashed": disc_hashed,
             "skipped": len(cached), "removed": len(gone)}
 
 
