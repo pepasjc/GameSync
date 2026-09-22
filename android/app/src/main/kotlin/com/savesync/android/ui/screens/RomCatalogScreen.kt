@@ -64,6 +64,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.savesync.android.MainActivity
 import com.savesync.android.api.RomEntry
 import com.savesync.android.api.hasRa
+import com.savesync.android.api.raIsTitleOnly
 import com.savesync.android.api.preferredDownloadExtractFormat
 import com.savesync.android.api.msuPackKind
 import com.savesync.android.sync.MsuPack
@@ -597,7 +598,7 @@ private fun CatalogRomCard(
                         maxLines = 1,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    if (rom.hasRa) RaBadge()
+                    if (rom.hasRa) RaBadge(rom.raIsTitleOnly)
                 }
                 val subtitle = buildString {
                     append(rom.filename)

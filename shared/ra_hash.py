@@ -110,14 +110,55 @@ _FBNEO_SUBSYSTEM_FOLDERS = frozenset(
 )
 
 
+# Disc systems RA supports, which this module cannot hash: identifying one
+# means reading the boot executable out of the disc image, and every disc
+# in a real library is a CHD.  They are listed so a caller can still look a
+# game up *by title* (see :mod:`shared.ra_titles`) - a weaker claim, kept
+# deliberately separate from the hash map so it can never be mistaken for
+# one.
+RA_DISC_CONSOLE_IDS: dict[str, tuple[int, ...]] = {
+    "PS1": (12,),
+    "PSX": (12,),
+    "PS2": (21,),
+    "PSP": (41,),
+    "PS3": (82,),
+    "SAT": (39,),
+    "DC": (40,),
+    "SEGACD": (9,),
+    "SCD": (9,),
+    "PCECD": (76,),
+    "3DO": (43,),
+    "NEOCD": (56,),
+    "JAGCD": (77,),
+    "GC": (16,),
+    "WII": (19,),
+    "PCFX": (49,),
+}
+
+
 def ra_console_ids(system: str) -> tuple[int, ...]:
-    """RA console ids to search for a GameSync system code (empty = none)."""
-    return RA_CONSOLE_IDS.get(system.upper(), ())
+    """RA console ids to search for a GameSync system code (empty = none).
+
+    Covers both the systems this module can hash and the disc systems it
+    can only match by title.
+    """
+    code = system.upper()
+    return RA_CONSOLE_IDS.get(code) or RA_DISC_CONSOLE_IDS.get(code, ())
 
 
 def ra_hash_supported(system: str) -> bool:
-    """True when this module can compute an RA hash for ``system``."""
+    """True when this module can compute an RA hash for ``system``.
+
+    False for disc systems even though RA knows them - see
+    :data:`RA_DISC_CONSOLE_IDS`.
+    """
     return system.upper() in RA_CONSOLE_IDS
+
+
+def ra_title_match_only(system: str) -> bool:
+    """True when ``system`` can only be matched by title, not by hash."""
+    code = system.upper()
+    return code not in RA_CONSOLE_IDS and code in RA_DISC_CONSOLE_IDS
 
 
 @dataclass(frozen=True)

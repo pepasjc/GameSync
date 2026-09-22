@@ -749,15 +749,15 @@ fun SystemChip(systemName: String) = SystemBadge(systemName)
  * another sync status.
  */
 @Composable
-fun RaBadge() {
+fun RaBadge(titleOnly: Boolean = false) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFD8A72B))
+            .background(if (titleOnly) Color(0xFF8A712E) else Color(0xFFD8A72B))
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Text(
-            text = "RA",
+            text = if (titleOnly) "RA?" else "RA",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = Color(0xFF161206)

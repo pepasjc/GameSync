@@ -12,9 +12,13 @@ result is cached in ``roms.db`` keyed by *path + size + mtime*, so a rescan
 — or a server restart — costs nothing, and a ROM that is replaced on disk is
 re-hashed because its size or mtime moved.
 
-Only cartridge-shaped systems are covered.  Disc systems need a CD image
-parser to reach the boot executable, which ``shared.ra_hash`` deliberately
-does not do, so they are skipped and simply never carry a badge.
+Cartridge-shaped systems are matched by hash, which is exact.  Disc
+systems cannot be: identifying one means reading the boot executable out
+of the image, and in a real library every disc is a CHD.  Those are
+matched by *title* instead (:mod:`shared.ra_titles`) - "RA has a set for
+this game", not "RA will recognise this dump".  The two are stored and
+reported separately as ``ra_match`` = ``hash`` or ``title`` so a client
+never presents the weaker one as a guarantee.
 
 The hash library comes from :mod:`shared.ra_api`.  With ``SYNC_RA_API_KEY``
 set it carries achievement counts, which is what ``achievements > 0`` — a
@@ -36,13 +40,25 @@ from app.services import rom_db
 # rom_id puts the repo root on sys.path for us, so `shared` imports plainly.
 from app.services import rom_id  # noqa: F401
 from shared.ra_api import RaAuthError, RaLibrary, fetch_library
-from shared.ra_hash import ra_console_ids, ra_hash_file, ra_hash_supported
+from shared.ra_hash import (
+    ra_console_ids,
+    ra_hash_file,
+    ra_hash_supported,
+    ra_title_match_only,
+)
+from shared.ra_titles import build_index
 
 logger = logging.getLogger(__name__)
 
 # Stored in `achievements` when the count could not be determined (no API
 # key).  Distinct from 0, which positively means "registered, no set yet".
 ACHIEVEMENTS_UNKNOWN = -1
+
+#: How a row was identified.  Exact, versus "RA has a set for a game of
+#: this name" - which is all a disc system can offer until a CHD reader
+#: exists.
+MATCH_HASH = "hash"
+MATCH_TITLE = "title"
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS ra_roms (
@@ -53,7 +69,8 @@ CREATE TABLE IF NOT EXISTS ra_roms (
     game_id      INTEGER NOT NULL DEFAULT 0,
     achievements INTEGER NOT NULL DEFAULT 0,
     title        TEXT    NOT NULL DEFAULT '',
-    checked_at   REAL    NOT NULL DEFAULT 0
+    checked_at   REAL    NOT NULL DEFAULT 0,
+    match_kind   TEXT    NOT NULL DEFAULT 'hash'
 )
 """
 
@@ -64,6 +81,12 @@ _running = threading.Event()
 def _conn():
     conn = rom_db.connection()
     conn.execute(_CREATE_TABLE_SQL)
+    # An index built before title matching existed has no match_kind; every
+    # row in it was a hash match, which is what the default says.
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(ra_roms)")}
+    if "match_kind" not in columns:
+        conn.execute("ALTER TABLE ra_roms ADD COLUMN match_kind TEXT NOT NULL DEFAULT 'hash'")
+        conn.commit()
     return conn
 
 
@@ -89,17 +112,20 @@ def lookup(paths: Iterable[str]) -> dict[str, dict]:
         chunk = wanted[i : i + 500]
         placeholders = ",".join("?" * len(chunk))
         rows = conn.execute(
-            f"SELECT path, md5, game_id, achievements, title "
+            f"SELECT path, md5, game_id, achievements, title, match_kind "
             f"FROM ra_roms WHERE game_id != 0 AND path IN ({placeholders})",
             chunk,
         ).fetchall()
         for row in rows:
-            out[row["path"]] = {
+            data = {
                 "ra_game_id": row["game_id"],
                 "ra_achievements": row["achievements"],
                 "ra_title": row["title"],
-                "ra_hash": row["md5"],
+                "ra_match": row["match_kind"] or MATCH_HASH,
             }
+            if row["md5"]:
+                data["ra_hash"] = row["md5"]
+            out[row["path"]] = data
     return out
 
 
@@ -194,6 +220,7 @@ class _Libraries:
         self.api_key = api_key
         self.username = username
         self._cache: dict[int, Optional[RaLibrary]] = {}
+        self._titles: dict[int, object] = {}
 
     def get(self, console_id: int) -> Optional[RaLibrary]:
         if console_id not in self._cache:
@@ -219,6 +246,27 @@ class _Libraries:
                 )
                 self._cache[console_id] = None
         return self._cache[console_id]
+
+    def titles(self, console_id: int):
+        """Lazy title index for a console, or None when the library is missing."""
+        if console_id not in self._titles:
+            library = self.get(console_id)
+            self._titles[console_id] = build_index(library) if library else None
+        return self._titles[console_id]
+
+    def find_by_title(self, name: str, system: str) -> tuple[int, int, str]:
+        """``(game_id, achievements, title)`` from the game's name alone."""
+        for console_id in ra_console_ids(system):
+            index = self.titles(console_id)
+            if index is None:
+                continue
+            found = index.lookup(name)
+            if found:
+                game_id, achievements = found
+                library = self.get(console_id)
+                title = library.titles.get(game_id, "") if library else ""
+                return game_id, achievements, title
+        return 0, 0, ""
 
     def find(self, md5: str, system: str) -> tuple[int, int, str]:
         """``(game_id, achievements, title)``; game_id 0 when RA does not know it."""
@@ -264,7 +312,15 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
     cached = _cached_paths(conn)
 
     todo = []
+    by_title = []
     for entry in entries:
+        if ra_title_match_only(getattr(entry, "system", "")):
+            # No file is read for these: the name is the whole input, so a
+            # path already in the cache has nothing new to say.
+            path = getattr(entry, "path", "")
+            if path and path not in cached and not getattr(entry, "is_bundle", False):
+                by_title.append(entry)
+            continue
         stat = _needs_hash(entry, cached, rom_dir)
         if stat is not None:
             todo.append((entry, stat))
@@ -283,10 +339,14 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
                 )
             conn.commit()
 
-    if not todo:
-        return {"hashed": 0, "known": 0, "skipped": len(cached), "removed": len(gone)}
+    if not todo and not by_title:
+        return {"hashed": 0, "known": 0, "titled": 0,
+                "skipped": len(cached), "removed": len(gone)}
 
-    logger.info("[ra_index] hashing %d ROM(s) for RetroAchievements", len(todo))
+    logger.info(
+        "[ra_index] %d ROM(s) to hash, %d disc title(s) to match",
+        len(todo), len(by_title),
+    )
     libraries = _Libraries(cache_dir, api_key, username)
     hashed = known = 0
     batch: list[tuple] = []
@@ -300,10 +360,11 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
         if not result.ok:
             # Cache the failure too: an unreadable or malformed ROM should
             # not be retried on every single scan.
-            batch.append((entry.path, size, mtime, "", 0, 0, "", now))
+            batch.append((entry.path, size, mtime, "", 0, 0, "", now, MATCH_HASH))
             continue
         game_id, achievements, title = libraries.find(result.md5, entry.system)
-        batch.append((entry.path, size, mtime, result.md5, game_id, achievements, title, now))
+        batch.append((entry.path, size, mtime, result.md5, game_id, achievements,
+                      title, now, MATCH_HASH))
         hashed += 1
         known += bool(game_id)
         if len(batch) >= progress_every:
@@ -312,8 +373,29 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
             logger.info("[ra_index] %d/%d hashed, %d known to RA", index, len(todo), known)
 
     _flush(conn, batch)
-    logger.info("[ra_index] done: %d hashed, %d known to RetroAchievements", hashed, known)
-    return {"hashed": hashed, "known": known, "skipped": len(cached), "removed": len(gone)}
+
+    # Disc systems: matched on the name, so no file is opened at all.
+    titled = 0
+    batch = []
+    for entry in by_title:
+        if should_stop and should_stop():
+            break
+        name = getattr(entry, "name", "") or Path(entry.path).name
+        game_id, achievements, title = libraries.find_by_title(name, entry.system)
+        batch.append((entry.path, 0, 0.0, "", game_id, achievements, title, now,
+                      MATCH_TITLE))
+        titled += bool(game_id)
+        if len(batch) >= progress_every:
+            _flush(conn, batch)
+            batch = []
+    _flush(conn, batch)
+
+    logger.info(
+        "[ra_index] done: %d hashed (%d known), %d disc titles matched",
+        hashed, known, titled,
+    )
+    return {"hashed": hashed, "known": known, "titled": titled,
+            "skipped": len(cached), "removed": len(gone)}
 
 
 def _flush(conn, batch: list[tuple]) -> None:
@@ -322,8 +404,9 @@ def _flush(conn, batch: list[tuple]) -> None:
     with _lock:
         conn.executemany(
             "INSERT OR REPLACE INTO ra_roms "
-            "(path, size, mtime, md5, game_id, achievements, title, checked_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(path, size, mtime, md5, game_id, achievements, title, checked_at, "
+            " match_kind) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             batch,
         )
         conn.commit()

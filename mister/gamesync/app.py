@@ -101,6 +101,9 @@ MARQUEE_INTERVAL = 0.04
 MARQUEE_START_HOLD = 1.2
 MARQUEE_END_HOLD = 1.5
 RA_BADGE_LABEL = "RA"
+#: A disc match is by name only, so it is flagged as a question rather
+#: than a promise - see shared/ra_titles.py.
+RA_BADGE_LABEL_WEAK = "RA?"
 
 
 class Row:
@@ -111,10 +114,11 @@ class Row:
         self.name = name
         self.detail = detail
         self.status = status
-        #: True when RetroAchievements has a published set for this exact
-        #: ROM. Only a live set earns anything, so a hash RA merely knows
-        #: does not get the badge.
-        self.ra = bool(ra)
+        #: "" when there is nothing to show, "hash" when RA has a published
+        #: set for this exact ROM, "title" when a set exists for a game of
+        #: this name but no dump was verified (disc systems). Only a live
+        #: set earns anything, so a hash RA merely knows does not badge.
+        self.ra = ra if isinstance(ra, str) else ("hash" if ra else "")
         #: The object behind the row, when the name alone cannot find it: a
         #: CD card and an ISO card for the same game share a display name.
         self.ref = ref
@@ -316,7 +320,7 @@ class App:
         }
         self.installed_ids = installed_ids
         catalog = []
-        ra_games = set()
+        ra_games = {}
         for group in self.catalog_groups:
             state = ("installed" if self.game_installed(group)
                      else "not installed")
@@ -327,9 +331,9 @@ class App:
                 if group.rows and group.rows[0].get("is_bundle") else ""
             if kind:
                 detail = "%s  %s" % (MSU_KIND_LABELS.get(kind, kind), detail)
-            has_ra = _group_has_achievements(group)
+            has_ra = _group_ra_kind(group)
             if has_ra:
-                ra_games.add((group.system, _normalize(group.name)))
+                ra_games[(group.system, _normalize(group.name))] = has_ra
             catalog.append(Row(group.system, group.name, detail, state,
                                ref=group, ra=has_ra))
         self.ra_games = ra_games
@@ -638,7 +642,7 @@ class App:
 
         # The RA badge sits between the name and the detail, so it survives
         # at 240p where the detail column is the thing that gives way.
-        badge_w = self._ra_badge_width() if row.ra else 0
+        badge_w = self._ra_badge_width(row.ra) if row.ra else 0
 
         # The name always keeps at least half the row. A Settings value like a
         # full config path or a controller name is longer than the label it
@@ -656,7 +660,7 @@ class App:
 
         if badge_w:
             self._draw_ra_badge(x + name_width + int(metrics.pad * 0.4),
-                                y, badge_w, background)
+                                y, badge_w, background, row.ra)
 
         if row.status:
             self.text(self.font_small, right_edge - status_w,
@@ -670,21 +674,28 @@ class App:
 
     # ------------------------------------------------------ RA badge
 
-    def _ra_badge_width(self) -> int:
+    def _ra_badge_width(self, kind: str = "hash") -> int:
         if self._ra_badge_w is None:
-            self._ra_badge_w = self.font_chip.measure(RA_BADGE_LABEL) + 8
-        return self._ra_badge_w
+            self._ra_badge_w = {
+                "hash": self.font_chip.measure(RA_BADGE_LABEL) + 8,
+                "title": self.font_chip.measure(RA_BADGE_LABEL_WEAK) + 8,
+            }
+        return self._ra_badge_w.get(kind, 0)
 
-    def _draw_ra_badge(self, x: int, y: int, width: int, background) -> None:
+    def _draw_ra_badge(self, x: int, y: int, width: int, background,
+                       kind: str = "hash") -> None:
         metrics = self.metrics
+        weak = kind == "title"
+        label = RA_BADGE_LABEL_WEAK if weak else RA_BADGE_LABEL
+        colour = theme.RA_BADGE_WEAK if weak else theme.RA_BADGE
         height = max(self.font_chip.line_height + 2, metrics.chip_h or 0)
         height = min(height, metrics.row_h - 2)
         top = y + (metrics.row_h - height) // 2
-        self.fb.fill_rect(x, top, width, height, theme.RA_BADGE)
-        label_w = self.font_chip.measure(RA_BADGE_LABEL)
+        self.fb.fill_rect(x, top, width, height, colour)
+        label_w = self.font_chip.measure(label)
         self.text(self.font_chip, x + (width - label_w) // 2,
                   top + (height - self.font_chip.line_height) // 2,
-                  RA_BADGE_LABEL, theme.RA_BADGE_TEXT, theme.RA_BADGE)
+                  label, theme.RA_BADGE_TEXT, colour)
 
     # -------------------------------------------------------- marquee
 
@@ -752,11 +763,11 @@ class App:
         self.draw_row(self.selected, self.selected - self.scroll)
         return True
 
-    def has_achievements(self, system: str, name: str) -> bool:
-        """Does the catalogue know a game of this name with an RA set?"""
+    def has_achievements(self, system: str, name: str) -> str:
+        """Match kind for a game of this name in the catalogue, else ""."""
         if not self.ra_games:
-            return False
-        return (system, _normalize(name)) in self.ra_games
+            return ""
+        return self.ra_games.get((system, _normalize(name)), "")
 
     def draw_scrollbar(self, total: int) -> None:
         metrics = self.metrics
@@ -1393,7 +1404,7 @@ class App:
     CATALOG_FIELDS = ("rom_id", "system", "name", "filename", "size",
                       "disc_index", "disc_total", "primary_rom_id",
                       "title_id", "is_bundle", "bundle_kind",
-                      "ra_achievements")
+                      "ra_achievements", "ra_match")
 
     def load_catalog(self, quiet: bool = False, force: bool = False) -> None:
         """The server's ROM list for the systems a MiSTer can run.
@@ -2735,21 +2746,30 @@ def _listdir(path: str) -> list[str]:
 _NORMALIZE_CACHE: dict = {}
 
 
-def _group_has_achievements(group) -> bool:
-    """True when any ROM in this catalogue group has a published RA set.
+def _group_ra_kind(group) -> str:
+    """How this catalogue group is known to RA: "hash", "title", or "".
 
     A multi-disc game is one group; RA registers the discs separately, so
     the badge belongs to the group as soon as one of them earns something.
     ``ra_achievements`` is -1 when the server had no API key and could not
     read the count, which is not a promise of anything and does not badge.
+
+    An exact match wins over a title match when a group somehow carries
+    both - it is the stronger claim.
     """
+    best = ""
     for row in getattr(group, "rows", None) or ():
         try:
-            if int(row.get("ra_achievements") or 0) > 0:
-                return True
+            if int(row.get("ra_achievements") or 0) <= 0:
+                continue
         except (TypeError, ValueError):
             continue
-    return False
+        kind = str(row.get("ra_match") or "hash").lower()
+        if kind == "hash":
+            return "hash"
+        if kind == "title":
+            best = "title"
+    return best
 
 
 def _normalize(name: str) -> str:

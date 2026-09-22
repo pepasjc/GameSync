@@ -156,7 +156,8 @@ class CatalogDelegate(QStyledItemDelegate):
         # RA merely knows (0) or could not count (-1) shows nothing.
         ra_w = 0
         if int(rom.get("ra_achievements") or 0) > 0:
-            ra_text = "RA"
+            ra_title_only = str(rom.get("ra_match") or "hash").lower() == "title"
+            ra_text = "RA?" if ra_title_only else "RA"
             ra_w = fm_badge.horizontalAdvance(ra_text) + 16
             ra_x = (size_x if size_w else card_rect.right() - self.H_PAD + 12) - 12 - ra_w
             ra_rect = QRect(
@@ -166,7 +167,8 @@ class CatalogDelegate(QStyledItemDelegate):
                 self.SYSTEM_BADGE_H,
             )
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(theme.RA_BADGE)))
+            painter.setBrush(QBrush(QColor(
+                theme.RA_BADGE_WEAK if ra_title_only else theme.RA_BADGE)))
             painter.drawRoundedRect(ra_rect, theme.BADGE_RADIUS, theme.BADGE_RADIUS)
             painter.setFont(self._badge_font)
             painter.setPen(QColor(theme.RA_BADGE_TEXT))

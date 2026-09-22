@@ -176,6 +176,13 @@ data class RomEntry(
     /** RA's game id, for linking out to the set. */
     @SerializedName("ra_game_id")
     val raGameId: Int? = null,
+    /**
+     * How the game was identified: `hash` (exact - RA will recognise this
+     * dump) or `title` (a set exists for a game of this name, but nothing
+     * verified this particular disc).  Absent means hash.
+     */
+    @SerializedName("ra_match")
+    val raMatch: String? = null,
     /** Wii U only: `game` / `update` / `dlc` / `demo`. */
     @SerializedName("content_type")
     val contentType: String? = null,
@@ -235,6 +242,14 @@ fun RomEntry.withRelated(catalog: List<RomEntry>): List<RomEntry> {
  */
 val RomEntry.hasRa: Boolean
     get() = (raAchievements ?: 0) > 0
+
+/**
+ * True when the badge rests on a name match rather than the ROM's hash -
+ * see shared/ra_titles.py.  Shown as "RA?" so it is never read as a promise
+ * that this dump works.
+ */
+val RomEntry.raIsTitleOnly: Boolean
+    get() = raMatch?.lowercase() == "title"
 
 /** Server-advertised extract formats, lowercased; empty when none. */
 val RomEntry.extractFormatList: List<String>

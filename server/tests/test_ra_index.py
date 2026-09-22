@@ -60,6 +60,7 @@ def test_refresh_indexes_and_lookup_reports_the_game(db, library, tmp_path):
         "ra_achievements": 7,
         "ra_title": "Test Game",
         "ra_hash": ROM_MD5,
+        "ra_match": ra_index.MATCH_HASH,
     }
 
 
@@ -95,15 +96,20 @@ def test_replaced_rom_is_rehashed(db, library, tmp_path):
     assert ra_index.lookup([str(rom)])[str(rom)]["ra_game_id"] == 42
 
 
-def test_disc_systems_and_bundles_are_skipped(db, library, tmp_path):
+def test_disc_systems_are_never_hashed(db, library, tmp_path):
+    """A CHD is never opened: disc systems go down the title path instead."""
     cd = _rom(tmp_path, "disc.chd")
-    bundle = _rom(tmp_path, "pack.zip")
-    result = ra_index.refresh(
-        [_Entry(cd, system="PS1"), _Entry(bundle, is_bundle=True)],
-        tmp_path / "cache",
-    )
+    result = ra_index.refresh([_Entry(cd, system="PS1")], tmp_path / "cache")
     assert result["hashed"] == 0
-    assert library == []          # no library fetched when there is nothing to hash
+    # It was considered, just not by hashing.
+    assert result["titled"] == 0          # the stub library has no PS1 titles
+
+
+def test_bundles_are_skipped_entirely(db, library, tmp_path):
+    bundle = _rom(tmp_path, "pack.zip")
+    result = ra_index.refresh([_Entry(bundle, is_bundle=True)], tmp_path / "cache")
+    assert result["hashed"] == 0
+    assert library == []          # no library fetched when there is nothing to do
 
 
 def test_missing_file_does_not_raise(db, library, tmp_path):

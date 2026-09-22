@@ -14,6 +14,7 @@ from shared.ra_hash import (  # noqa: E402
     ra_hash_file,
     ra_hash_stream,
     ra_hash_supported,
+    ra_title_match_only,
 )
 
 
@@ -29,9 +30,28 @@ def test_console_ids_cover_common_systems():
     assert ra_console_ids("snes") == (3,)
     assert ra_console_ids("NDS") == (18, 78)
     assert ra_console_ids("FDS")[0] == 81
-    assert ra_console_ids("PS1") == ()
     assert ra_hash_supported("GBA")
     assert not ra_hash_supported("SEGACD")
+
+
+def test_disc_systems_are_known_to_ra_but_not_hashable_here():
+    """RA has sets for these; identifying one needs the disc's boot
+    executable, which this module deliberately does not read."""
+    assert ra_console_ids("PS1") == (12,)
+    assert ra_console_ids("SAT") == (39,)
+    assert not ra_hash_supported("PS1")
+    assert ra_title_match_only("PS1")
+
+
+def test_cartridge_systems_are_not_title_only():
+    assert not ra_title_match_only("SNES")
+    assert not ra_title_match_only("GBA")
+
+
+def test_a_system_ra_does_not_know_has_no_ids_at_all():
+    assert ra_console_ids("X68K") == ()
+    assert not ra_hash_supported("X68K")
+    assert not ra_title_match_only("X68K")
 
 
 def test_unsupported_system_reports_reason():

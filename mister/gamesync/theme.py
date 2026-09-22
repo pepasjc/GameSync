@@ -48,6 +48,10 @@ CHIP_TEXT = (0xFF, 0xFF, 0xFF)
 #: RetroAchievements badge. Gold, so it reads as a reward rather than
 #: as another status, and stays legible on a CRT's smeared colour.
 RA_BADGE = (0xD8, 0xA7, 0x2B)
+#: Title-only match: RA has a set for a game of this name, but nothing has
+#: verified this particular dump. Muted so it cannot be mistaken for the
+#: exact badge at a glance.
+RA_BADGE_WEAK = (0x8A, 0x71, 0x2E)
 RA_BADGE_TEXT = (0x16, 0x12, 0x06)
 
 SCROLL_TRACK = (0x1F, 0x22, 0x2C)
