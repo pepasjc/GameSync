@@ -182,6 +182,8 @@ async def _ra_index_pass(catalog) -> None:
             settings.ra_api_key,
             settings.ra_username,
             _ra_stop.is_set,
+            200,
+            settings.rom_dir,
         )
         if result.get("hashed"):
             logger.info(

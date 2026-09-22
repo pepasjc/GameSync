@@ -152,7 +152,22 @@ def _cached_paths(conn) -> dict[str, tuple[int, float]]:
     return {r["path"]: (r["size"], r["mtime"]) for r in rows}
 
 
-def _needs_hash(entry, cached: dict[str, tuple[int, float]]) -> Optional[tuple[int, float]]:
+def resolve_path(path: str, rom_dir: Optional[Path]) -> Path:
+    """Absolute path on disk for a catalog entry's ``path``.
+
+    Catalog paths are stored *relative to the ROM directory*, so they only
+    resolve against ``settings.rom_dir``.  Absolute ones (older rows, tests)
+    are passed through untouched.
+    """
+    candidate = Path(path)
+    if rom_dir is not None and not candidate.is_absolute():
+        return Path(rom_dir) / candidate
+    return candidate
+
+
+def _needs_hash(
+    entry, cached: dict[str, tuple[int, float]], rom_dir: Optional[Path] = None
+) -> Optional[tuple[int, float]]:
     """``(size, mtime)`` when this entry has to be hashed, else None."""
     path = getattr(entry, "path", "")
     if not path or getattr(entry, "is_bundle", False):
@@ -162,7 +177,7 @@ def _needs_hash(entry, cached: dict[str, tuple[int, float]]) -> Optional[tuple[i
     if not ra_hash_supported(getattr(entry, "system", "")):
         return None
     try:
-        stat = Path(path).stat()
+        stat = resolve_path(path, rom_dir).stat()
     except OSError:
         return None
     previous = cached.get(path)
@@ -225,6 +240,7 @@ def refresh(
     username: str = "",
     should_stop: Optional[Callable[[], bool]] = None,
     progress_every: int = 200,
+    rom_dir: Optional[Path] = None,
 ) -> dict[str, int]:
     """Hash and look up every catalog entry that isn't cached yet.
 
@@ -236,18 +252,20 @@ def refresh(
         return {"hashed": 0, "known": 0, "skipped": 0}
     _running.set()
     try:
-        return _refresh(entries, cache_dir, api_key, username, should_stop, progress_every)
+        return _refresh(entries, cache_dir, api_key, username, should_stop,
+                        progress_every, rom_dir)
     finally:
         _running.clear()
 
 
-def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every) -> dict[str, int]:
+def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
+             rom_dir=None) -> dict[str, int]:
     conn = _conn()
     cached = _cached_paths(conn)
 
     todo = []
     for entry in entries:
-        stat = _needs_hash(entry, cached)
+        stat = _needs_hash(entry, cached, rom_dir)
         if stat is not None:
             todo.append((entry, stat))
 
@@ -278,7 +296,7 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every)
         if should_stop and should_stop():
             logger.info("[ra_index] stopping early at %d/%d", index, len(todo))
             break
-        result = ra_hash_file(entry.path, entry.system)
+        result = ra_hash_file(resolve_path(entry.path, rom_dir), entry.system)
         if not result.ok:
             # Cache the failure too: an unreadable or malformed ROM should
             # not be retried on every single scan.

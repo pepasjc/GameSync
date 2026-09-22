@@ -1,4 +1,5 @@
 import hashlib
+from pathlib import Path
 
 import pytest
 
@@ -165,3 +166,46 @@ def test_lookup_handles_more_paths_than_sqlite_variable_limit(db, library, tmp_p
     ra_index.refresh([_Entry(rom)], tmp_path / "cache")
     paths = [f"/nope/{i}.sfc" for i in range(1200)] + [str(rom)]
     assert list(ra_index.lookup(paths)) == [str(rom)]
+
+
+# --- relative catalog paths ---------------------------------------------------
+#
+# The catalog stores `path` relative to SYNC_ROM_DIR ("snes/game.sfc"), not
+# absolute.  Resolving it against the wrong root silently skips every ROM:
+# stat() fails, _needs_hash returns None, and the pass reports "nothing to do"
+# on a full library.
+
+
+def test_relative_catalog_path_is_resolved_against_the_rom_dir(db, library, tmp_path):
+    rom_dir = tmp_path / "roms"
+    (rom_dir / "snes").mkdir(parents=True)
+    (rom_dir / "snes" / "game.sfc").write_bytes(ROM_BYTES)
+
+    entry = _Entry("snes/game.sfc")
+    result = ra_index.refresh([entry], tmp_path / "cache", rom_dir=rom_dir)
+    assert result["hashed"] == 1 and result["known"] == 1
+
+    # Keyed on the stored relative path, which is what /roms annotates against.
+    found = ra_index.lookup(["snes/game.sfc"])
+    assert found["snes/game.sfc"]["ra_game_id"] == 42
+
+    payloads = [{"rom_id": "r1"}]
+    ra_index.annotate([entry], payloads)
+    assert payloads[0]["ra_achievements"] == 7
+
+
+def test_relative_path_without_a_rom_dir_is_skipped_not_crashed(db, library, tmp_path):
+    result = ra_index.refresh([_Entry("snes/game.sfc")], tmp_path / "cache")
+    assert result["hashed"] == 0
+
+
+def test_absolute_paths_still_work_when_a_rom_dir_is_given(db, library, tmp_path):
+    rom = _rom(tmp_path)
+    result = ra_index.refresh([_Entry(rom)], tmp_path / "cache", rom_dir=tmp_path / "roms")
+    assert result["hashed"] == 1
+
+
+def test_resolve_path_rules():
+    assert ra_index.resolve_path("snes/a.sfc", Path("/roms")) == Path("/roms/snes/a.sfc")
+    assert ra_index.resolve_path("/abs/a.sfc", Path("/roms")) == Path("/abs/a.sfc")
+    assert ra_index.resolve_path("snes/a.sfc", None) == Path("snes/a.sfc")
