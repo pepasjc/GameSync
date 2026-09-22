@@ -214,6 +214,32 @@ def load_state() -> dict:
     return {}
 
 
+UI_STATE_FILE = MISTER_CONFIG_DIR + "/ui_state.json"
+
+
+def load_ui_state() -> dict:
+    """Where the user left off - the catalogue's system and row, for now.
+
+    Separate from state.json, which holds sync hashes and must survive
+    anything; this is a convenience and losing it costs nothing.
+    """
+    try:
+        with open(UI_STATE_FILE, "r") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_ui_state(state: dict) -> None:
+    try:
+        _write_atomic(UI_STATE_FILE,
+                      json.dumps(state, indent=2, sort_keys=True)
+                      .encode("utf-8"))
+    except OSError:
+        pass
+
+
 def save_state(state: dict) -> None:
     _write_atomic(MISTER_STATE_FILE,
                   json.dumps(state, indent=2, sort_keys=True).encode("utf-8"))

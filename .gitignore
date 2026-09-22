@@ -90,6 +90,7 @@ desktop/ps3saves
 desktop/__pycache__/
 desktop/**/__pycache__/
 desktop/*.log
+desktop/.ra_cache/
 
 # others
 *.json

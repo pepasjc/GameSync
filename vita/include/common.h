@@ -25,6 +25,27 @@
 #define STATE_FILE          "ux0:data/vitasync/state.dat"
 #define HASH_CACHE_FILE     "ux0:data/vitasync/hash_cache.dat"
 #define CONSOLE_ID_FILE     "ux0:data/vitasync/console_id.txt"
+#define DOWNLOADS_FILE      "ux0:data/vitasync/downloads.dat"
+
+/* ROM download targets.  The PSP emulator on a Vita (Adrenaline) reads
+ * its ISO/CSO images and PS1 EBOOTs from the same tree the PSP itself
+ * uses, rooted at ``pspemu_root`` (default ux0:pspemu, configurable
+ * because Adrenaline can be pointed at ur0:/uma0:):
+ *   PSP CSO/ISO → <root>/ISO/<filename>
+ *   PS1 EBOOT   → <root>/PSP/GAME/<gameid>/EBOOT.PBP
+ * Anything else lands in the app's own downloads folder so an unknown
+ * system never gets written somewhere the emulator would misread. */
+#define PSPEMU_ROOT_DEFAULT     "ux0:pspemu"
+#define ROM_TARGET_FALLBACK_DIR "ux0:data/vitasync/downloads"
+
+/* Top-level views the user cycles through with START.  Each view has
+ * its own input-dispatch block in main.c. */
+typedef enum {
+    APP_VIEW_SAVES     = 0,
+    APP_VIEW_ROMS      = 1,
+    APP_VIEW_DOWNLOADS = 2,
+    APP_VIEW_COUNT     = 3,
+} AppView;
 
 typedef enum {
     PLATFORM_VITA = 0,  /* native PS Vita save */
@@ -58,6 +79,10 @@ typedef struct {
 
     bool scan_vita_saves;    /* true = scan native Vita saves */
     bool scan_psp_emu_saves; /* true = scan PSP emu saves */
+
+    /* Where Adrenaline keeps its PSP tree (ISO/, PSP/GAME/).  ROM
+     * downloads are routed under here. */
+    char pspemu_root[64];
 } SyncState;
 
 typedef enum {

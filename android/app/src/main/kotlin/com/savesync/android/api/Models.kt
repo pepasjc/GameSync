@@ -165,6 +165,17 @@ data class RomEntry(
      */
     @SerializedName("bundle_kind")
     val bundleKind: String? = null,
+    /**
+     * How many RetroAchievements this exact ROM has.  0 means RA knows the
+     * hash but no set is published, -1 that the server had no API key and
+     * could not read the count, and absent that the server has not indexed
+     * this ROM yet.  Only a positive count is worth a badge — see [hasRa].
+     */
+    @SerializedName("ra_achievements")
+    val raAchievements: Int? = null,
+    /** RA's game id, for linking out to the set. */
+    @SerializedName("ra_game_id")
+    val raGameId: Int? = null,
     /** Wii U only: `game` / `update` / `dlc` / `demo`. */
     @SerializedName("content_type")
     val contentType: String? = null,
@@ -215,6 +226,15 @@ fun RomEntry.withRelated(catalog: List<RomEntry>): List<RomEntry> {
             if (idx < 0) WIIU_CONTENT_ORDER.size else idx
         }
 }
+
+/**
+ * True when RetroAchievements has a *published* set for this exact ROM.
+ *
+ * A registered hash with no set (0) promises nothing, and -1 means the
+ * server could not read the count at all, so neither earns a badge.
+ */
+val RomEntry.hasRa: Boolean
+    get() = (raAchievements ?: 0) > 0
 
 /** Server-advertised extract formats, lowercased; empty when none. */
 val RomEntry.extractFormatList: List<String>

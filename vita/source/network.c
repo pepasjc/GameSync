@@ -15,6 +15,9 @@
 #include <psp2/net/http.h>
 #include <psp2/sysmodule.h>
 #include <psp2/kernel/threadmgr.h>
+#include <psp2/kernel/processmgr.h>
+#include <psp2/io/fcntl.h>
+#include <psp2/io/stat.h>
 
 #include "network.h"
 #include "config.h"
@@ -22,6 +25,9 @@
 
 #define NET_POOL_SIZE   (4 * 1024 * 1024)
 #define HTTP_POOL_SIZE  (1 * 1024 * 1024)
+
+/* Room for a DOWNLOAD_PATH_LEN target plus the ".part" suffix. */
+#define DOWNLOAD_PART_PATH_LEN 336
 
 static bool g_initialized = false;
 static bool g_connected   = false;
@@ -532,4 +538,176 @@ void network_merge_server_titles(SyncState *state) {
         game_id[len] = '\0';
         add_server_title(state, game_id);
     }
+}
+
+/* ============================================================
+ * ROM catalog + streaming download (Range-resumable)
+ * ============================================================ */
+
+static NetProgress64Fn g_progress64_cb = NULL;
+static int g_last_download_status = 0;
+
+void network_set_progress64_cb(NetProgress64Fn cb) { g_progress64_cb = cb; }
+int  network_last_download_status(void) { return g_last_download_status; }
+
+int network_fetch_rom_catalog(const SyncState *state,
+                              const char *system_code,
+                              int offset, int limit,
+                              char *out, uint32_t out_size,
+                              int *status_out) {
+    if (!state || !out || out_size < 2) return -1;
+    if (offset < 0) offset = 0;
+    if (limit  < 0) limit  = 0;
+
+    char url[512];
+    int  pos = snprintf(url, sizeof(url), "%s/api/v1/roms?", state->server_url);
+    if (system_code && system_code[0])
+        pos += snprintf(url + pos, sizeof(url) - pos, "system=%s&", system_code);
+    if (limit > 0)
+        pos += snprintf(url + pos, sizeof(url) - pos, "limit=%d&", limit);
+    snprintf(url + pos, sizeof(url) - pos, "offset=%d", offset);
+
+    int status = 0;
+    int n = http_do_request(state, SCE_HTTP_METHOD_GET, url,
+                            NULL, NULL, 0, (uint8_t *)out, out_size, &status);
+    if (status_out) *status_out = status;
+    if (n < 0 || status != 200) return n < 0 ? n : -1;
+    return n;
+}
+
+int network_trigger_rom_scan(const SyncState *state, int *count_out) {
+    if (count_out) *count_out = -1;
+    if (!state) return -1;
+    char url[512];
+    snprintf(url, sizeof(url), "%s/api/v1/roms/scan", state->server_url);
+
+    static uint8_t resp[4096];
+    int status = 0;
+    int n = http_do_request(state, SCE_HTTP_METHOD_GET, url,
+                            NULL, NULL, 0, resp, sizeof(resp), &status);
+    if (n < 0 || status != 200) return n < 0 ? n : -1;
+    if (count_out) {
+        const char *p = strstr((const char *)resp, "\"count\"");
+        if (p) {
+            const char *colon = strchr(p, ':');
+            if (colon) *count_out = atoi(colon + 1);
+        }
+    }
+    return 0;
+}
+
+/* Conversions (CHD→CSO, PS1→EBOOT) run on the server before the first
+ * body byte arrives, and a 700 MB PS1 disc through pop-fe on a Pi can
+ * take a while — so the recv timeout has to cover that, not just a
+ * stalled socket.  20 minutes, in microseconds. */
+#define ROM_RECV_TIMEOUT_US     (20U * 60U * 1000U * 1000U)
+#define ROM_CONNECT_TIMEOUT_US  (30U * 1000U * 1000U)
+
+int network_download_rom_resumable(const SyncState *state,
+                                   const char *rom_id,
+                                   const char *extract_fmt,
+                                   const char *target_path,
+                                   uint64_t start_offset,
+                                   uint64_t *total_out) {
+    if (!state || !rom_id || !target_path) return -1;
+    if (!g_initialized || g_tmpl < 0) return -1;
+    g_last_download_status = 0;
+
+    char url[768];
+    if (extract_fmt && extract_fmt[0])
+        snprintf(url, sizeof(url), "%s/api/v1/roms/%s?extract=%s",
+                 state->server_url, rom_id, extract_fmt);
+    else
+        snprintf(url, sizeof(url), "%s/api/v1/roms/%s", state->server_url, rom_id);
+
+    int conn = sceHttpCreateConnectionWithURL(g_tmpl, url, 0);
+    if (conn < 0) return -1;
+    int req = sceHttpCreateRequestWithURL(conn, SCE_HTTP_METHOD_GET, url, 0);
+    if (req < 0) { sceHttpDeleteConnection(conn); return -1; }
+
+    sceHttpAddRequestHeader(req, "X-API-Key",    state->api_key,    SCE_HTTP_HEADER_OVERWRITE);
+    sceHttpAddRequestHeader(req, "X-Console-ID", state->console_id, SCE_HTTP_HEADER_OVERWRITE);
+    if (start_offset > 0) {
+        char range[64];
+        snprintf(range, sizeof(range), "bytes=%llu-", (unsigned long long)start_offset);
+        sceHttpAddRequestHeader(req, "Range", range, SCE_HTTP_HEADER_OVERWRITE);
+    }
+    sceHttpSetConnectTimeOut(req, ROM_CONNECT_TIMEOUT_US);
+    sceHttpSetRecvTimeOut(req, ROM_RECV_TIMEOUT_US);
+
+    int ret = sceHttpSendRequest(req, NULL, 0);
+    if (ret < 0) {
+        sceHttpDeleteRequest(req);
+        sceHttpDeleteConnection(conn);
+        return -1;
+    }
+
+    int status = 0;
+    sceHttpGetStatusCode(req, &status);
+    g_last_download_status = status;
+    if (status != 200 && status != 206) {
+        sceHttpDeleteRequest(req);
+        sceHttpDeleteConnection(conn);
+        return -3;
+    }
+
+    /* A 200 to a Range request means the server ignored it — start
+     * the file over rather than appending a second copy. */
+    bool resumed = (status == 206);
+    unsigned long long content_length = 0;
+    bool have_length = (sceHttpGetResponseContentLength(req, &content_length) >= 0);
+    uint64_t written = resumed ? start_offset : 0;
+    uint64_t expected_total = have_length
+        ? (uint64_t)content_length + (resumed ? start_offset : 0) : 0;
+    if (total_out) *total_out = expected_total;
+
+    char part_path[DOWNLOAD_PART_PATH_LEN];
+    snprintf(part_path, sizeof(part_path), "%s.part", target_path);
+
+    SceUID fd = sceIoOpen(part_path,
+                          resumed ? (SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND)
+                                  : (SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC),
+                          0777);
+    if (fd < 0) {
+        sceHttpDeleteRequest(req);
+        sceHttpDeleteConnection(conn);
+        return -2;
+    }
+
+    static uint8_t chunk[64 * 1024];
+    int rc = 0;
+    while (1) {
+        int n = sceHttpReadData(req, chunk, sizeof(chunk));
+        if (n > 0) {
+            int w = sceIoWrite(fd, chunk, (SceSize)n);
+            if (w != n) { rc = -2; break; }
+            written += (uint64_t)n;
+            /* Keep the console from dimming/suspending mid-transfer. */
+            sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DEFAULT);
+            if (g_progress64_cb && g_progress64_cb(written, expected_total)) {
+                rc = 1;
+                break;
+            }
+            if (expected_total > 0 && written >= expected_total) break;
+        } else if (n == 0) {
+            break;
+        } else {
+            rc = -1;
+            break;
+        }
+    }
+
+    sceIoClose(fd);
+    sceHttpDeleteRequest(req);
+    sceHttpDeleteConnection(conn);
+
+    if (rc != 0) return rc;
+    if (expected_total > 0 && written < expected_total) return 1;
+
+    /* Rename refuses to overwrite, so clear any stale target first. */
+    sceIoRemove(target_path);
+    if (sceIoRename(part_path, target_path) < 0) return -2;
+
+    if (total_out) *total_out = written;
+    return 0;
 }

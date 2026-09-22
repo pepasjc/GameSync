@@ -303,19 +303,32 @@ class Framebuffer:
             fb[start:start + span] = row
 
     def blit(self, x: int, y: int, width: int, height: int,
-             pixels: bytes | bytearray) -> None:
-        """Copy a tightly packed BGRA image into the framebuffer."""
+             pixels: bytes | bytearray,
+             crop_x: int = 0, crop_w: int | None = None) -> None:
+        """Copy a tightly packed BGRA image into the framebuffer.
+
+        ``crop_x`` / ``crop_w`` take a window out of the *source* before it
+        lands. That is what lets a marquee slide a long name inside its own
+        column: clipping alone only bounds things at the screen edge, so a
+        name scrolled left would otherwise run over the system chip.
+        """
         assert self._map is not None
         if width <= 0 or height <= 0:
             return
         src_stride = width * self.bytes_per_pixel
 
+        if crop_x or crop_w is not None:
+            crop_x = max(0, min(crop_x, width))
+            width = width - crop_x if crop_w is None else min(crop_w, width - crop_x)
+            if width <= 0:
+                return
+
         # Clip against the screen, adjusting the source window to match.
-        src_x = 0 if x >= 0 else -x
+        src_x = crop_x if x >= 0 else crop_x - x
         src_y = 0 if y >= 0 else -y
         dst_x = max(0, x)
         dst_y = max(0, y)
-        visible_w = min(width - src_x, self.width - dst_x)
+        visible_w = min(width - (src_x - crop_x), self.width - dst_x)
         visible_h = min(height - src_y, self.height - dst_y)
         if visible_w <= 0 or visible_h <= 0:
             return

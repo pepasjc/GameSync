@@ -11,6 +11,7 @@ than the screen - measured at 0.72 ms against 8 ms for a full repaint.
 from __future__ import annotations
 
 import os
+import posixpath
 import pkgutil
 import time
 
@@ -36,22 +37,84 @@ from shared.mister import (  # noqa: E402
     MISTER_GAMES_ROOTS,
     MISTER_SYSTEM_FOLDER_CANDIDATES,
 )
-from shared.mister_scan import installed_game_save_paths  # noqa: E402
-from shared.systems import ROM_EXTENSIONS, SAVE_EXTENSIONS  # noqa: E402
+from shared.mister_scan import (  # noqa: E402
+    installed_game_save_paths,
+    list_installed_games,
+)
+from shared.systems import SAVE_EXTENSIONS  # noqa: E402
 
 GAMES_ROOTS = [MISTER_GAMES_ROOTS["usb"], MISTER_GAMES_ROOTS["sd"]]
 SAVE_SUFFIXES = tuple(SAVE_EXTENSIONS)
-ROM_SUFFIXES = tuple(ROM_EXTENSIONS)
+
+
+#: The catalog's system filter gets one extra stop after a system that has
+#: MSU packs - "SNES: MSU packs" - showing only those.  A pseudo system:
+#: same L1/R1 cycle, no new button.
+MSU_FILTER_SUFFIX = ": MSU packs"
+MSU_KIND_LABELS = {"msu1": "MSU-1", "msu-md": "MSU-MD", "mdplus": "MD+"}
+
+
+def msu_filter_label(system: str) -> str:
+    return system + MSU_FILTER_SUFFIX
+
+
+def msu_filter_base(label: str):
+    """The system behind a pseudo filter label, or None for a real system."""
+    if label.endswith(MSU_FILTER_SUFFIX):
+        return label[: -len(MSU_FILTER_SUFFIX)]
+    return None
+
+
+def _group_pack_kind(group) -> str:
+    rows = getattr(group, "rows", None)
+    if not rows:
+        return ""
+    first = rows[0]
+    if not isinstance(first, dict) or not first.get("is_bundle"):
+        return ""
+    return str(first.get("bundle_kind") or "").lower()
+
+
+def row_pack_kind(row) -> str:
+    """``msu1`` / ``msu-md`` / ``mdplus`` for a catalog row that is a pack."""
+    return _group_pack_kind(getattr(row, "ref", None))
+
+
+def catalog_systems(rows) -> list:
+    """The filter stops for the catalog tab: every system, and after each
+    one that has MSU packs, the packs-only view of it."""
+    systems = sorted({row.system for row in rows if row.system})
+    packed = {row.system for row in rows if row_pack_kind(row)}
+    out = ["All"]
+    for system in systems:
+        out.append(system)
+        if system in packed:
+            out.append(msu_filter_label(system))
+    return out
+
+
+#: Marquee pacing. A step per interval rather than pixels-per-second:
+#: the MiSTer's frame cost varies with the video mode, and a fixed step
+#: keeps the crawl even instead of lurching when a frame runs long.
+MARQUEE_STEP = 2
+MARQUEE_INTERVAL = 0.04
+MARQUEE_START_HOLD = 1.2
+MARQUEE_END_HOLD = 1.5
+RA_BADGE_LABEL = "RA"
 
 
 class Row:
-    __slots__ = ("system", "name", "detail", "status", "ref")
+    __slots__ = ("system", "name", "detail", "status", "ref", "ra")
 
-    def __init__(self, system, name, detail, status, ref=None):
+    def __init__(self, system, name, detail, status, ref=None, ra=False):
         self.system = system
         self.name = name
         self.detail = detail
         self.status = status
+        #: True when RetroAchievements has a published set for this exact
+        #: ROM. Only a live set earns anything, so a hash RA merely knows
+        #: does not get the badge.
+        self.ra = bool(ra)
         #: The object behind the row, when the name alone cannot find it: a
         #: CD card and an ISO card for the same game share a display name.
         self.ref = ref
@@ -60,14 +123,15 @@ class Row:
 class InstalledGame:
     """A game already on the device, with what delete and move need."""
 
-    __slots__ = ("system", "name", "path", "where", "folder")
+    __slots__ = ("system", "name", "path", "where", "folder", "is_pack")
 
-    def __init__(self, system, name, path, where, folder):
+    def __init__(self, system, name, path, where, folder, is_pack=False):
         self.system = system
         self.name = name
         self.path = path
         self.where = where          # "SD" or "USB"
         self.folder = folder        # the core folder, e.g. "PSX"
+        self.is_pack = is_pack      # an MSU pack, not the plain ROM
 
     @property
     def is_folder(self) -> bool:
@@ -80,6 +144,9 @@ class InstalledGame:
 
 
 class App:
+    #: Catalog search text; empty means no filter (see set_search).
+    search = ""
+
     def __init__(self, take_over_console: bool = True):
         self.fb = Framebuffer(take_over_console=take_over_console).open()
         self.input = None
@@ -130,16 +197,42 @@ class App:
                 provider=self.engine.provider,
                 rom_target=self.config.rom_target,
             )
+            # Downloads run on their own thread so the UI stays usable
+            # while games install; see service_downloads().
+            self.worker = gsdownloads.DownloadWorker(self.queue)
+            self._progress_painted = 0.0
+            #: Downloads that landed since the rows were last rebuilt, and
+            #: when the rebuild last ran - see service_downloads().
+            self._landed = []
+            self._landed_painted = 0.0
             self.catalog = []
             self.catalog_groups = []
             self.catalog_cache = gscatalog.CatalogCache()
+            # The engine resolves a slug-system save to the server's key by
+            # exact file name; hand it the rows we already hold so that
+            # never costs a fetch.
+            self.engine.catalog_rows = self.catalog_cache.rows
             self.group_by_title = {}
+            #: (system, normalized name) for every catalogue game with a
+            #: published RA set, so the Saves and Installed tabs can badge
+            #: without walking the catalogue again.
+            self.ra_games = set()
+            self._ra_badge_w = None
             self.installed_ids = set()
+            self.installed_entries = []
             self.server_status = ""
 
             self.tab = 0
             self.selected = 0
             self.scroll = 0
+            #: Marquee state for the selected row - see tick_marquee().
+            self._marquee_offset = 0
+            self._marquee_span = 0
+            self._marquee_next = 0.0
+            #: What the marquee is currently crawling. Keyed on the row
+            #: rather than reset from each navigation path, so a filter
+            #: change or a rebuilt list restarts it too.
+            self._marquee_key = None
             #: (selected, scroll) per tab, restored when you come back to it.
             self.tab_positions: dict[int, tuple[int, int]] = {}
             self.system_filter = 0
@@ -149,6 +242,14 @@ class App:
             self.deadline = None
             self.last_frame_ms = 0.0
             self.last_action = ""
+            #: When a held toast expires; the main loop repaints then. Set by
+            #: toast(hold=...), cleared by a keypress. A programmatic repaint
+            #: puts the strip back so it survives a refresh that follows it.
+            self.toast_until = None
+            self._toast_shown = ("", None)
+            #: Messages raised mid-sequence, shown as one held toast at the
+            #: next full repaint - see notice().
+            self._notices = []
             #: Layout the hints were last drawn for; a press from a different
             #: kind of pad, or a hot-plug, changes it and forces a repaint.
             self.shown_layout = self.input.layout
@@ -160,6 +261,14 @@ class App:
             # carried across tabs that both have it.
             self.tab_systems: dict[int, list[str]] = {}
             self.system_filter_name = "All"
+            #: Catalog search text; empty means no filter. Every word must
+            #: appear in the name, in any order.
+            self.search = ""
+            #: Where the catalogue cursor was last time - restored once the
+            #: catalogue is in, and written back on exit.
+            self.ui_state = gsconfig.load_ui_state()
+            self._catalog_last = ("All", "")
+            self._catalog_restore_pending = True
             self._data_version = 0
             self._rows_key = None
             self._rows_cache = []
@@ -170,7 +279,15 @@ class App:
 
     # ------------------------------------------------------------------ data
 
-    def load_data(self) -> None:
+    def load_data(self, rescan: bool = True) -> None:
+        """Rebuild every tab's rows.
+
+        ``rescan=False`` reuses the last walk of the games folders. That walk
+        is the expensive part - a stat per entry across every core folder on
+        an exfat card mounted ``sync`` - and most refreshes do not need it:
+        queueing a download, clearing the queue, or re-labelling hints for a
+        new pad changes nothing on disk.
+        """
         saves = []
         for entry in self.engine.entries:
             detail = _save_detail(entry)
@@ -181,45 +298,41 @@ class App:
                 if group is not None and not self.game_installed(group):
                     detail = "game not installed"
             saves.append(Row(entry.system, entry.display, detail,
-                             entry.status, ref=entry))
+                             entry.status, ref=entry,
+                             ra=self.has_achievements(entry.system,
+                                                      entry.display)))
 
-        # Kept as objects alongside the rows so delete and move know the real
-        # path, whether it is a folder, and which storage it currently sits on.
-        self.installed_entries = []
-        for root in GAMES_ROOTS:
-            for folder in sorted(_listdir(root)):
-                path = os.path.join(root, folder)
-                if not os.path.isdir(path):
-                    continue
-                system = MISTER_FOLDER_TO_SYSTEM.get(folder, folder.upper())
-                where = "USB" if root.startswith("/media/usb") else "SD"
-                for entry in sorted(_listdir(path)):
-                    full = os.path.join(path, entry)
-                    if os.path.isdir(full):
-                        name = entry
-                    elif entry.lower().endswith(ROM_SUFFIXES):
-                        name = os.path.splitext(entry)[0]
-                    else:
-                        continue
-                    self.installed_entries.append(
-                        InstalledGame(system, name, full, where, folder))
-
-        installed = [Row(item.system, item.name, item.where, "installed")
+        if rescan:
+            self.scan_installed()
+        installed = [Row(item.system, item.name, item.where, "installed",
+                         ra=self.has_achievements(item.system, item.name))
                      for item in self.installed_entries]
-
+        # Keyed with the pack flag: the name key folds "(MSU1)" away so a
+        # pack and its plain ROM share a save, but they are not the same
+        # install - ActRaiser on the card must not tick ActRaiser (MSU1).
         installed_ids = {
-            (row.system, _normalize(row.name)) for row in installed
+            (item.system, _normalize(item.name), bool(item.is_pack))
+            for item in self.installed_entries
         }
         self.installed_ids = installed_ids
         catalog = []
+        ra_games = set()
         for group in self.catalog_groups:
-            state = ("installed"
-                     if (group.system, _normalize(group.name)) in installed_ids
+            state = ("installed" if self.game_installed(group)
                      else "not installed")
             detail = _human_size(group.size)
             if group.disc_count > 1:
                 detail = "%d discs  %s" % (group.disc_count, detail)
-            catalog.append(Row(group.system, group.name, detail, state))
+            kind = str(group.rows[0].get("bundle_kind") or "").lower() \
+                if group.rows and group.rows[0].get("is_bundle") else ""
+            if kind:
+                detail = "%s  %s" % (MSU_KIND_LABELS.get(kind, kind), detail)
+            has_ra = _group_has_achievements(group)
+            if has_ra:
+                ra_games.add((group.system, _normalize(group.name)))
+            catalog.append(Row(group.system, group.name, detail, state,
+                               ref=group, ra=has_ra))
+        self.ra_games = ra_games
 
         queued = [
             Row(item.system, item.name,
@@ -245,6 +358,8 @@ class App:
                 Row("", "Remap buttons",
                     "%d bound" % len(self.config.buttons)
                     if self.config.buttons else "defaults", ""),
+                Row("", "Refresh catalog",
+                    "rescan the server's ROMs and refetch", ""),
                 Row("", "Config file", self.config.path, ""),
                 Row("", "Server status",
                     self.server_status or "not checked", ""),
@@ -254,12 +369,34 @@ class App:
             ],
         }
         self.tab_systems = {
-            tab: ["All"] + sorted({row.system for row in rows if row.system})
+            tab: (catalog_systems(rows) if tab == 1
+                  else ["All"] + sorted({row.system for row in rows if row.system}))
             for tab, rows in self.all_rows.items()
         }
         self._resync_system_filter()
         self._data_version += 1
         self._rows_key = None
+
+    def scan_installed(self) -> None:
+        """Walk every games folder on SD and USB for what is installed."""
+        # Kept as objects alongside the rows so delete and move know the real
+        # path, whether it is a folder, and which storage it currently sits on.
+        self.installed_entries = []
+        for root in GAMES_ROOTS:
+            for folder in sorted(_listdir(root)):
+                path = os.path.join(root, folder)
+                if not os.path.isdir(path):
+                    continue
+                system = MISTER_FOLDER_TO_SYSTEM.get(folder, folder.upper())
+                where = "USB" if root.startswith("/media/usb") else "SD"
+                # A games folder also holds the core's BIOS, blank disks and
+                # support folders; listing those made every system MiSTer
+                # ships a folder for look like it had a game in it.
+                for rom in list_installed_games(
+                        self.engine.provider, path, folder, system):
+                    self.installed_entries.append(
+                        InstalledGame(system, rom.name, rom.path, where,
+                                      folder, is_pack=rom.is_pack))
 
     @property
     def systems(self) -> list[str]:
@@ -300,13 +437,20 @@ class App:
         a catalogue of tens of thousands of entries that many times per repaint
         is the difference between instant and unusable.
         """
-        key = (self.tab, self.system_filter, self._data_version)
+        key = (self.tab, self.system_filter, self._data_version,
+               self.search if self.tab == 1 else "")
         if self._rows_key == key:
             return self._rows_cache
         rows = self.all_rows.get(self.tab, [])
         wanted = self.current_system
-        if wanted != "All":
+        packs_of = msu_filter_base(wanted)
+        if packs_of is not None:
+            rows = [row for row in rows
+                    if row.system == packs_of and row_pack_kind(row)]
+        elif wanted != "All":
             rows = [row for row in rows if row.system == wanted]
+        if self.tab == 1 and self.search:
+            rows = _search_rows(rows, self.search)
         self._rows_key = key
         self._rows_cache = rows
         return rows
@@ -332,6 +476,23 @@ class App:
         # rather than the previous one's.
         self.last_frame_ms = (time.time() - started) * 1000
         self.draw_footer()
+        if self.tab == 1:
+            rows = self.rows()
+            if rows and self.selected < len(rows):
+                self._catalog_last = (self.current_system,
+                                      rows[self.selected].name)
+        if self._notices:
+            notices, self._notices = self._notices, []
+            self.toast("  |  ".join(n[0] for n in notices),
+                       next((n[1] for n in notices if n[1] is not None),
+                            None),
+                       hold=max(n[2] for n in notices))
+        elif self.toast_until is not None:
+            if time.time() < self.toast_until:
+                message, colour = self._toast_shown
+                self.toast(message, colour)
+            else:
+                self.toast_until = None
 
     def draw_header(self) -> None:
         metrics = self.metrics
@@ -348,6 +509,9 @@ class App:
                   "MiSTer", theme.ACCENT, theme.HEADER)
 
         label = "%s  -  %d items" % (self.current_system, len(self.rows()))
+        if self.tab == 1 and self.search:
+            label = '%s  "%s"  -  %d items' % (self.current_system,
+                                                self.search, len(self.rows()))
         width = self.font_small.measure(label)
         self.text(self.font_small, metrics.width - metrics.pad - width,
                   (metrics.header_h - self.font_small.line_height) // 2,
@@ -362,6 +526,8 @@ class App:
         gap = int(metrics.pad * 1.4)
         for index, name in enumerate(TABS):
             active = index == self.tab
+            if name == "Downloads":
+                name = self._downloads_tab_label()
             width = self.font_row.measure(name)
             colour = theme.TEXT_STRONG if active else theme.TEXT_DIM
             self.text(self.font_row, x,
@@ -373,6 +539,18 @@ class App:
             x += width + gap
         self.fb.fill_rect(0, top + metrics.tab_h - 1, metrics.width, 1,
                           theme.DIVIDER)
+
+    def _downloads_tab_label(self) -> str:
+        """"Downloads 43%" while one runs, "Downloads (2)" while some wait."""
+        current = self.worker.current
+        if self.worker.running and current is not None:
+            if current.size:
+                return "Downloads %d%%" % int(current.progress * 100)
+            return "Downloads ..."
+        pending = len(self.queue.pending())
+        if pending:
+            return "Downloads (%d)" % pending
+        return "Downloads"
 
     def draw_list(self) -> None:
         metrics = self.metrics
@@ -407,6 +585,9 @@ class App:
             if not self.catalog:
                 return ("Catalog not loaded - press %s to fetch it"
                         % self.input.label(gsinput.ALT))
+            if self.search:
+                return ('Nothing matches "%s" - %s clears the search'
+                        % (self.search, self.input.label(gsinput.SEARCH)))
             return ("No %s ROMs on the server" % scope) if scope else                 "The server has no ROMs this MiSTer can run"
         if self.tab == 0:
             return ("No %s saves on this MiSTer" % scope) if scope else                 "No saves found in /media/fat/saves"
@@ -455,16 +636,27 @@ class App:
         detail_w = self.font_small.measure(detail) if detail else 0
         right_edge = metrics.width - metrics.pad - metrics.scroll_w
 
+        # The RA badge sits between the name and the detail, so it survives
+        # at 240p where the detail column is the thing that gives way.
+        badge_w = self._ra_badge_width() if row.ra else 0
+
         # The name always keeps at least half the row. A Settings value like a
         # full config path or a controller name is longer than the label it
         # belongs to, and without this it pushes that label out entirely.
-        available = right_edge - x - int(metrics.pad * 2)
+        available = right_edge - x - int(metrics.pad * 2) - badge_w
         if detail_w:
             detail_w = min(detail_w, max(0, available - status_w) // 2)
         name_width = available - status_w - detail_w
-        self.text(self.font_row, x,
-                  y + (metrics.row_h - self.font_row.line_height) // 2,
-                  row.name, theme.TEXT, background, max_width=name_width)
+        name_y = y + (metrics.row_h - self.font_row.line_height) // 2
+        if selected:
+            self._draw_name_marquee(x, name_y, row.name, name_width, background)
+        else:
+            self.text(self.font_row, x, name_y, row.name, theme.TEXT,
+                      background, max_width=name_width)
+
+        if badge_w:
+            self._draw_ra_badge(x + name_width + int(metrics.pad * 0.4),
+                                y, badge_w, background)
 
         if row.status:
             self.text(self.font_small, right_edge - status_w,
@@ -475,6 +667,96 @@ class App:
                       right_edge - status_w - detail_w - int(metrics.pad * 0.8),
                       y + (metrics.row_h - self.font_small.line_height) // 2,
                       detail, theme.TEXT_DIM, background, max_width=detail_w)
+
+    # ------------------------------------------------------ RA badge
+
+    def _ra_badge_width(self) -> int:
+        if self._ra_badge_w is None:
+            self._ra_badge_w = self.font_chip.measure(RA_BADGE_LABEL) + 8
+        return self._ra_badge_w
+
+    def _draw_ra_badge(self, x: int, y: int, width: int, background) -> None:
+        metrics = self.metrics
+        height = max(self.font_chip.line_height + 2, metrics.chip_h or 0)
+        height = min(height, metrics.row_h - 2)
+        top = y + (metrics.row_h - height) // 2
+        self.fb.fill_rect(x, top, width, height, theme.RA_BADGE)
+        label_w = self.font_chip.measure(RA_BADGE_LABEL)
+        self.text(self.font_chip, x + (width - label_w) // 2,
+                  top + (height - self.font_chip.line_height) // 2,
+                  RA_BADGE_LABEL, theme.RA_BADGE_TEXT, theme.RA_BADGE)
+
+    # -------------------------------------------------------- marquee
+
+    def _draw_name_marquee(self, x: int, y: int, name: str,
+                           name_width: int, background) -> None:
+        """Draw the selected row's name, sliding it when it does not fit.
+
+        On a CRT half a long filename is off the end of the column, so the
+        selected row scrolls its own name instead of ellipsizing it: the
+        cursor is the only place a full name is ever needed, and scrolling
+        every row at once would be unreadable.
+        """
+        key = (self.tab, self.selected, name)
+        if key != self._marquee_key:
+            self._marquee_key = key
+            self.reset_marquee()
+
+        full_w = self.font_row.measure(name)
+        overflow = full_w - name_width
+        if overflow <= 0 or name_width <= 0:
+            self._marquee_span = 0
+            self.text(self.font_row, x, y, name, theme.TEXT, background,
+                      max_width=name_width)
+            return
+
+        self._marquee_span = overflow
+        offset = min(self._marquee_offset, overflow)
+        width, height, pixels = self.renderer.render(
+            self.font_row, name, theme.TEXT, background)
+        if width:
+            self.fb.blit(x, y, width, height, pixels,
+                         crop_x=offset, crop_w=name_width)
+
+    def reset_marquee(self) -> None:
+        """Back to the first character, held there before the crawl starts."""
+        self._marquee_offset = 0
+        self._marquee_span = 0
+        self._marquee_next = time.time() + MARQUEE_START_HOLD
+
+    def tick_marquee(self) -> bool:
+        """Advance the selected row's marquee. True when it repainted.
+
+        Driven from the main loop rather than a timer: the loop already
+        wakes every 30ms for input, and a thread here would be repainting
+        the framebuffer from under whatever else is drawing.
+        """
+        if self._marquee_span <= 0:
+            return False
+        now = time.time()
+        if now < self._marquee_next:
+            return False
+        if self._marquee_offset >= self._marquee_span:
+            # Held at the end long enough to read it; snap back to the start.
+            self._marquee_offset = 0
+            self._marquee_next = now + MARQUEE_START_HOLD
+        else:
+            self._marquee_offset = min(self._marquee_span,
+                                       self._marquee_offset + MARQUEE_STEP)
+            self._marquee_next = now + (MARQUEE_END_HOLD
+                                        if self._marquee_offset >= self._marquee_span
+                                        else MARQUEE_INTERVAL)
+        rows = self.rows()
+        if not rows or self.selected >= len(rows):
+            return False
+        self.draw_row(self.selected, self.selected - self.scroll)
+        return True
+
+    def has_achievements(self, system: str, name: str) -> bool:
+        """Does the catalogue know a game of this name with an RA set?"""
+        if not self.ra_games:
+            return False
+        return (system, _normalize(name)) in self.ra_games
 
     def draw_scrollbar(self, total: int) -> None:
         metrics = self.metrics
@@ -510,8 +792,10 @@ class App:
         alt = self.input.label(gsinput.ALT)
 
         if self.tab == 1:
-            hints = [(primary, "Queue"), (back, "Exit"), (sync, "Download all"),
-                     (alt, "Refresh"), (systems, "System"), (tabs, "Tab")]
+            hints = [(primary, "Install"), (back, "Exit"),
+                     (alt, "Search"), (systems, "System"), (tabs, "Tab")]
+            if self.search:
+                hints.insert(4, (self.input.label(gsinput.SEARCH), "Clear"))
         elif self.tab == 2:
             hints = [(primary, "Move SD/USB"), (back, "Exit"), (sync, "Delete"),
                      (alt, "Refresh"), (systems, "System"), (tabs, "Tab")]
@@ -519,9 +803,9 @@ class App:
             rows = self.rows()
             failed = (rows and self.selected < len(rows)
                       and rows[self.selected].status == gsdownloads.FAILED)
-            hints = [(primary, "Retry" if failed else "Download"),
+            hints = [(primary, "Retry" if failed else "Start"),
                      (back, "Exit"),
-                     (sync, "Download all"), (alt, "Clear done"),
+                     (sync, "Start queue"), (alt, "Clear done"),
                      (systems, "System"), (tabs, "Tab")]
         elif self.tab == 4:
             hints = [(primary, "Change"), (back, "Exit"), (tabs, "Tab")]
@@ -658,6 +942,8 @@ class App:
 
     def handle(self, action: str) -> None:
         self.last_action = action
+        # A press dismisses whatever toast was being held.
+        self.toast_until = None
         if action == gsinput.DOWN:
             self.move(1)
         elif action == gsinput.UP:
@@ -706,12 +992,13 @@ class App:
                 self.load_data()
                 self.draw_all()
             elif self.tab == 1:
-                # Y on the catalog means "I changed the library": rescan
-                # server-side and refetch everything, not just by fingerprint.
-                self.load_catalog(force=True)
+                if self.catalog:
+                    self.do_search()
+                else:
+                    self.load_catalog()
             elif self.tab == 3:
                 self.queue.clear_finished()
-                self.load_data()
+                self.load_data(rescan=False)
                 self.draw_all()
             else:
                 # Sync-all lost its own button to Delete, so it lives here
@@ -724,6 +1011,12 @@ class App:
                     self.do_sync()
                 else:
                     self.draw_all()
+        elif action == gsinput.SEARCH:
+            if self.tab == 1:
+                if self.search:
+                    self.set_search("")
+                elif self.catalog:
+                    self.do_search()
         elif action == gsinput.SETTINGS:
             self.set_tab(TABS.index("Settings") - self.tab)
         elif action in (gsinput.BACK, gsinput.QUIT):
@@ -736,16 +1029,20 @@ class App:
         straight back to the MiSTer menu, and relaunching means sitting
         through the scan again.
         """
-        if self.confirm("Exit GameSync?",
-                        ["Returns to the MiSTer menu."],
-                        danger=False, title="Exit"):
+        detail = ["Returns to the MiSTer menu."]
+        if self.worker.running:
+            detail.append("A download is in progress - it resumes "
+                          "next time GameSync starts.")
+        if self.confirm("Exit GameSync?", detail, danger=False,
+                        title="Exit"):
             self.running = False
             return
         self.draw_all()
 
     def run(self, timeout: float | None = None, start_tab: int = 0,
             show_conflict: bool = False, calibrate: bool = False,
-            demo_confirm: bool = False, demo_choose: bool = False) -> None:
+            demo_confirm: bool = False, demo_choose: bool = False,
+            demo_search: bool = False) -> None:
         self.tab = max(0, min(start_tab, len(TABS) - 1))
         # Paint first, then scan: hashing every save and asking the server
         # takes a moment, and a blank screen while it happens looks broken.
@@ -774,7 +1071,14 @@ class App:
                          "Sync the save only"],
                         detail=["PS1  1.2 GB  4 discs"], title="Install")
             self.draw_all()
+        if demo_search:
+            self.prompt_text("Search the catalog", "FINAL FAN")
+            self.draw_all()
         self.initial_load()
+        # Whatever was left queued last time carries on; a download cut off
+        # by closing the app resumes from its .part file.
+        if self.client is not None:
+            self.worker.start()
         if self.tab == 1 and not self.catalog and self.client is not None:
             self.load_catalog()
         if show_conflict:
@@ -798,11 +1102,15 @@ class App:
                     break
             if deadline is not None and time.time() > deadline:
                 break
+            if self.toast_until is not None and time.time() > self.toast_until:
+                self.draw_all()
+            self.service_downloads()
+            self.tick_marquee()
             if self.running and self.input.layout != self.shown_layout:
                 # Someone picked up a different pad: every hint on screen
                 # names buttons that pad does not have.
                 self.shown_layout = self.input.layout
-                self.load_data()
+                self.load_data(rescan=False)
                 self.draw_all()
             if no_input_deadline is not None:
                 if self.input.device_names():
@@ -810,16 +1118,144 @@ class App:
                     self.draw_all()
                 elif time.time() > no_input_deadline:
                     break
+        self.worker.stop()
+        self.save_ui_state()
+
+    def service_downloads(self) -> None:
+        """Reflect the background downloads on screen.
+
+        Called from the main loop between input polls, so everything here
+        has to be cheap or the pad goes unread: a stalled loop is what made
+        a held direction "latch". No games-folder rescan - the file just
+        written is known exactly, so it is added to the installed list by
+        hand - and no row rebuild for progress: the Downloads rows are
+        updated in place and repainted. Landed games are batched, so a run
+        of small ROMs finishing back to back costs one rebuild, not one
+        each.
+        """
+        now = time.time()
+        for item in self.worker.finished():
+            if item.status == gsdownloads.DONE:
+                self._note_installed(item)
+            self._landed.append(item)
+
+        if self._landed and (not self.worker.running
+                             or now - self._landed_painted >= 1.5):
+            landed, self._landed = self._landed, []
+            self._landed_painted = now
+            self.load_data(rescan=False)
+            self.draw_all()
+            failed = [item for item in landed
+                      if item.status == gsdownloads.FAILED]
+            if failed:
+                self.toast("%s failed: %s" % (failed[0].name, failed[0].error),
+                           theme.DANGER, hold=3.0)
+            else:
+                self.toast("Installed %s" % ", ".join(
+                    item.name for item in landed), hold=2.0)
+            self._progress_painted = now
+            return
+
+        if not self.worker.running or now - self._progress_painted < 0.5:
+            return
+        self._progress_painted = now
+        if self.tab == 3:
+            for row in self.all_rows.get(3, []):
+                item = row.ref
+                if item is not None:
+                    row.detail = _progress_text(item)
+                    row.status = item.status
+            self.draw_list()
+        self.draw_tabs()
+
+    def _note_installed(self, item) -> None:
+        """Add a download that just landed to the installed list.
+
+        What the scan would find, without the scan: a CD system's game is
+        its folder (the core names the save after it), anything else the
+        file's stem.
+        """
+        system_dir = self._system_dir_of(item)
+        folder = os.path.basename(system_dir)
+        where = "USB" if item.target.startswith("/media/usb") else "SD"
+        pack = bool(getattr(item, "bundle_kind", ""))
+        if gsinstall.is_cd_system(item.system) or pack:
+            path = item.directory
+            name = os.path.basename(item.directory.rstrip("/"))
+        else:
+            path = item.target
+            name = os.path.splitext(os.path.basename(item.target))[0]
+        if any(entry.path == path for entry in self.installed_entries):
+            return
+        self.installed_entries.append(
+            InstalledGame(item.system, name, path, where, folder, is_pack=pack))
+
+    def _system_dir_of(self, item) -> str:
+        """``games/<Core>`` for a queued item, above any per-game folder."""
+        root = gsinstall.games_root(
+            "usb" if item.target.startswith("/media/usb") else "sd").rstrip("/")
+        directory = item.directory.rstrip("/")
+        if directory.startswith(root + "/"):
+            return posixpath.join(root, directory[len(root) + 1:].split("/")[0])
+        return directory
+
+    def save_ui_state(self) -> None:
+        system, name = self._catalog_last
+        if not name:
+            return
+        self.ui_state["catalog_system"] = system
+        self.ui_state["catalog_row"] = name
+        gsconfig.save_ui_state(self.ui_state)
+
+    def restore_catalog_position(self) -> None:
+        """Put the catalogue cursor back where it was last run, once."""
+        if not self._catalog_restore_pending:
+            return
+        self._catalog_restore_pending = False
+        system = str(self.ui_state.get("catalog_system") or "")
+        name = str(self.ui_state.get("catalog_row") or "")
+        if not name:
+            return
+        if system in self.tab_systems.get(1, []):
+            self.system_filter_name = system
+            self._resync_system_filter()
+            self._rows_key = None
+        tab, self.tab = self.tab, 1
+        self._rows_key = None
+        try:
+            rows = self.rows()
+            index = next((i for i, row in enumerate(rows)
+                          if row.name == name), None)
+        finally:
+            self.tab = tab
+            self._rows_key = None
+        if index is None:
+            return
+        visible = self.metrics.visible_rows
+        position = (index, max(0, min(index - visible // 2,
+                                      len(rows) - visible)))
+        if self.tab == 1:
+            self.selected, self.scroll = position
+        else:
+            self.tab_positions[1] = position
 
     # ------------------------------------------------------------------ sync
 
-    def toast(self, message: str, colour=None) -> None:
+    def toast(self, message: str, colour=None, hold: float = 0.0) -> None:
         """A one-line status strip over the list, drawn immediately.
 
         The UI is single-threaded on purpose: a MiSTer has two cores and the
         work here is network-bound, so a worker thread would buy nothing but a
         race against the framebuffer.
+
+        ``hold`` keeps the strip up for that many seconds *without* blocking:
+        the main loop repaints once it expires, and the next press repaints
+        anyway. Use it instead of ``time.sleep`` after an action that is done
+        - sleeping there just makes the app feel slow.
         """
+        if hold > 0:
+            self.toast_until = time.time() + hold
+            self._toast_shown = (message, colour)
         metrics = self.metrics
         height = self.font_row.line_height + int(metrics.pad * 0.7)
         top = metrics.list_top
@@ -830,13 +1266,23 @@ class App:
                   message, theme.TEXT_STRONG, background,
                   max_width=metrics.width - metrics.pad * 2)
 
+    def notice(self, message: str, colour=None, hold: float = 2.5) -> None:
+        """Queue a message for the next full repaint, as a held toast.
+
+        For a warning raised in the middle of a sequence - a scan that failed
+        before the server is contacted - where the next progress toast would
+        paint over it at once. Sleeping there to make it readable froze the
+        screen; this shows it once the work is done instead. Several notices
+        share one strip.
+        """
+        self._notices.append((message, colour, hold))
+
     def require_client(self) -> bool:
         if self.client is not None:
             return True
-        self.toast("No server configured - edit %s" % self.config.path,
-                   theme.DANGER)
-        time.sleep(2.5)
         self.draw_all()
+        self.toast("No server configured - edit %s" % self.config.path,
+                   theme.DANGER, hold=2.5)
         return False
 
     def initial_load(self) -> None:
@@ -845,8 +1291,7 @@ class App:
         try:
             self.engine.scan(progress=lambda text: self.toast(text))
         except Exception as exc:
-            self.toast("Scan failed: %s" % exc, theme.DANGER)
-            time.sleep(2.5)
+            self.notice("Scan failed: %s" % exc, theme.DANGER)
 
         if self.client is not None:
             try:
@@ -856,8 +1301,7 @@ class App:
                 self.engine.fetch_plan(progress=lambda text: self.toast(text))
             except Exception as exc:
                 self.server_status = str(exc)[:60]
-                self.toast("Server unreachable: %s" % exc, theme.DANGER)
-                time.sleep(2.5)
+                self.notice("Server unreachable: %s" % exc, theme.DANGER)
         else:
             self.server_status = "no server configured"
 
@@ -879,8 +1323,7 @@ class App:
             if self.client is not None:
                 self.engine.fetch_plan(progress=lambda text: self.toast(text))
         except Exception as exc:
-            self.toast("Scan failed: %s" % exc, theme.DANGER)
-            time.sleep(2.5)
+            self.notice("Scan failed: %s" % exc, theme.DANGER)
         self.selected = 0
         self.scroll = 0
         self.load_data()
@@ -906,10 +1349,9 @@ class App:
             pending = sum(1 for e in self.engine.entries
                           if e.status == gssync.CONFLICT)
             if not uploads and not downloads:
-                self.toast("Everything is already up to date")
-                time.sleep(1.6)
                 self.load_data()
                 self.draw_all()
+                self.toast("Everything is already up to date", hold=1.6)
                 return
 
             detail = ["%d upload, %d download" % (uploads, downloads)]
@@ -926,10 +1368,9 @@ class App:
             changed, failed = self.engine.sync_all(
                 progress=lambda text: self.toast(text))
         except Exception as exc:
-            self.toast("Sync failed: %s" % exc, theme.DANGER)
-            time.sleep(3)
             self.load_data()
             self.draw_all()
+            self.toast("Sync failed: %s" % exc, theme.DANGER, hold=3.0)
             return
 
         conflicts = sum(1 for e in self.engine.entries
@@ -940,10 +1381,10 @@ class App:
         if conflicts:
             summary += ", %d conflict%s left" % (
                 conflicts, "" if conflicts == 1 else "s")
-        self.toast(summary, theme.DANGER if failed else theme.HEADER)
-        time.sleep(2.0)
         self.load_data()
         self.draw_all()
+        self.toast(summary, theme.DANGER if failed else theme.HEADER,
+                   hold=2.0)
 
     # --------------------------------------------------------------- catalog
 
@@ -951,7 +1392,8 @@ class App:
     #: to tens of thousands of rows and the device has 492 MB.
     CATALOG_FIELDS = ("rom_id", "system", "name", "filename", "size",
                       "disc_index", "disc_total", "primary_rom_id",
-                      "title_id")
+                      "title_id", "is_bundle", "bundle_kind",
+                      "ra_achievements")
 
     def load_catalog(self, quiet: bool = False, force: bool = False) -> None:
         """The server's ROM list for the systems a MiSTer can run.
@@ -979,13 +1421,11 @@ class App:
             try:
                 count = self.client.rescan_roms()
             except Exception as exc:
-                self.toast("Server rescan failed: %s" % exc, theme.WARN)
-                time.sleep(1.5)
+                self.notice("Server rescan failed: %s" % exc, theme.WARN)
             else:
                 if count is None:
-                    self.toast("Server did not allow a rescan - "
-                               "refetching the catalog anyway", theme.WARN)
-                    time.sleep(1.2)
+                    self.notice("Server did not allow a rescan - "
+                                "refetching the catalog anyway", theme.WARN)
             cache.clear()
             cache.save()
 
@@ -998,14 +1438,12 @@ class App:
         except Exception as exc:
             if len(cache):
                 # Offline: the last copy is better than an empty tab.
-                self.toast("Server unreachable - using the cached catalog",
-                           theme.WARN)
-                time.sleep(1.2)
+                self.notice("Server unreachable - using the cached catalog",
+                            theme.WARN)
                 self._install_catalog(cache.all_rows(), quiet=quiet)
                 return
-            self.toast("Catalog failed: %s" % exc, theme.DANGER)
-            time.sleep(2.5)
             self.draw_all()
+            self.toast("Catalog failed: %s" % exc, theme.DANGER, hold=2.5)
             return
 
         try:
@@ -1027,14 +1465,12 @@ class App:
                 cache.save()
                 roms = cache.all_rows()
                 if stale and not quiet:
-                    self.toast("Catalog: refreshed %d system%s, %d unchanged"
-                               % (len(stale), "" if len(stale) == 1 else "s",
-                                  len(fresh)))
-                    time.sleep(0.8)
+                    self.notice("Catalog: refreshed %d system%s, %d unchanged"
+                                % (len(stale), "" if len(stale) == 1 else "s",
+                                   len(fresh)))
         except Exception as exc:
-            self.toast("Catalog failed: %s" % exc, theme.DANGER)
-            time.sleep(2.5)
             self.draw_all()
+            self.toast("Catalog failed: %s" % exc, theme.DANGER, hold=2.5)
             return
 
         self._install_catalog(roms, quiet=quiet)
@@ -1050,6 +1486,7 @@ class App:
                              str(rom.get("name") or "").lower()),
         )
         self.catalog_groups = gsinstall.group_discs(self.catalog)
+        self.engine.forget_catalog()
         # Save -> game: a save is keyed by title id, and so is every ROM row.
         self.group_by_title = {}
         for group in self.catalog_groups:
@@ -1059,13 +1496,14 @@ class App:
                     self.group_by_title.setdefault(title_id, group)
         multi = sum(1 for g in self.catalog_groups if g.disc_count > 1)
         if not quiet:
-            self.toast("%d games available%s"
-                       % (len(self.catalog_groups),
-                          " (%d multi-disc)" % multi if multi else ""))
-            time.sleep(0.8)
+            self.notice("%d games available%s"
+                        % (len(self.catalog_groups),
+                           " (%d multi-disc)" % multi if multi else ""),
+                        hold=1.5)
             self.selected = 0
             self.scroll = 0
         self.load_data()
+        self.restore_catalog_position()
         self.draw_all()
 
     def game_for_save(self, entry):
@@ -1086,26 +1524,45 @@ class App:
         return None
 
     def game_installed(self, group) -> bool:
-        return (group.system, _normalize(group.name)) in self.installed_ids
+        kind = _group_pack_kind(group)
+        system = group.system
+        if kind:
+            # A pack lives in the core folder its kind wants (an MSU-MD
+            # title is a MegaCD install), so look there.
+            layout = gsinstall.msu_pack_layout(kind, system)
+            if layout is not None:
+                system = layout[0]
+        return (system, _normalize(group.name), bool(kind)) in self.installed_ids
 
-    def queue_group(self, group) -> bool:
-        """Queue every disc of a game. True when something was queued."""
+    def queue_group(self, group):
+        """Queue every disc of a game and start downloading.
+
+        Returns the queued items, or an empty list when refused. Repaints
+        with the Downloads tab updated and leaves the outcome as a held
+        toast; the transfer itself runs in the background, so this must
+        feel instant: no games-folder rescan, no sleep, no question.
+        """
         # Every disc, or the core gets half a game and the wrong memory card.
-        queued = [self.queue.enqueue(rom) for rom in group.rows]
+        queued = [item for item in self.queue.enqueue_all(group.rows)
+                  if item is not None]
         failed = [item for item in queued
-                  if item is not None and item.status == gsdownloads.FAILED]
-        if not any(queued):
-            self.toast("Could not queue %s" % group.name, theme.DANGER)
-            return False
+                  if item.status == gsdownloads.FAILED]
+        if queued and not failed:
+            self.worker.start()
+        self.load_data(rescan=False)
+        self.draw_all()
+        if not queued:
+            self.toast("Could not queue %s" % group.name, theme.DANGER,
+                       hold=2.0)
+            return []
         if failed:
-            self.toast(failed[0].error, theme.DANGER)
-            return False
-        first = next(item for item in queued if item is not None)
-        self.toast("Queued %s (%d disc%s) -> %s"
+            self.toast(failed[0].error, theme.DANGER, hold=2.0)
+            return []
+        self.toast("Installing %s (%d disc%s) -> %s"
                    % (group.name, group.disc_count,
                       "" if group.disc_count == 1 else "s",
-                      first.directory))
-        return True
+                      queued[0].directory), hold=1.4)
+        return queued
 
     def do_install_selected(self) -> None:
         """A on the Catalog tab: queue the highlighted ROM."""
@@ -1120,15 +1577,14 @@ class App:
         if group is None:
             return
         self.queue_group(group)
-        time.sleep(1.4)
-        self.load_data()
-        self.draw_all()
 
     def offer_install_for_save(self, entry) -> bool:
         """A save whose game is not on this MiSTer: install it from here.
 
         The other clients do this from their save list too. Returns True
-        when the sync of the save should still go ahead afterwards.
+        when the sync of the save should still go ahead afterwards, and
+        "now" when the user already chose "install and sync" - one decision
+        covers the download and the save, so nothing else asks.
         """
         if self.client is None:
             return True
@@ -1156,18 +1612,16 @@ class App:
             return False
         if choice == 2:
             return True
-        if not self.queue_group(group):
-            time.sleep(1.6)
-            self.draw_all()
+        items = self.queue_group(group)
+        if not items:
             return False
-        self.do_run_queue()
-        self.load_data()
-        self.draw_all()
         if choice == 1:
             return False
+        # The save needs the game on disk first, so this one waits for it.
+        self.wait_for_downloads(items)
         # Only if it actually landed: a failed download leaves nothing to
         # write the save into.
-        return self.game_installed(group)
+        return "now" if self.game_installed(group) else False
 
     def do_download_action(self) -> None:
         """A on Downloads: retry the selected failure, else run the queue."""
@@ -1177,57 +1631,59 @@ class App:
         if item is not None and item.status == gsdownloads.FAILED:
             if not self.queue.retry(item):
                 self.toast("Still no MiSTer folder for %s" % item.system,
-                           theme.DANGER)
-                time.sleep(2.0)
-                self.draw_all()
+                           theme.DANGER, hold=2.0)
                 return
-            self.load_data()
+            self.load_data(rescan=False)
             self.draw_all()
         self.do_run_queue()
 
     def do_run_queue(self) -> None:
-        """X on Catalog or Downloads: download everything queued."""
+        """X on Downloads: start (or resume) the queue in the background."""
         if not self.require_client():
             return
-        if not self.queue.pending():
-            self.toast("Nothing queued")
-            time.sleep(1.0)
-            self.draw_all()
+        if self.worker.running:
+            self.toast("Already downloading", hold=1.0)
             return
-
-        pending = self.queue.pending()
-        total = sum(getattr(item, "size", 0) or 0 for item in pending)
-        detail = ["%d file%s to %s"
-                  % (len(pending), "" if len(pending) == 1 else "s",
-                     gsinstall.games_root(self.config.rom_target))]
-        if total:
-            detail.append("About %s will be written." % _human_size(total))
-        # Not danger-styled: this only ever adds files. The confirmation is
-        # about the size of the transfer, not about losing anything.
-        if not self.confirm("Download the queue now?", detail, danger=False,
-                            title="Download"):
-            self.draw_all()
+        if not self.worker.start():
+            self.toast("Nothing queued", hold=1.0)
             return
+        self.draw_all()
+        self.toast("Downloading in the background", hold=1.2)
 
-        last = [0.0]
+    def wait_for_downloads(self, items) -> None:
+        """Block until every one of ``items`` has left the queue.
 
-        def report(item):
-            # Throttled: the framebuffer is far faster than the network, and
-            # repainting per 256 KB chunk would just waste cycles.
+        For the one flow that needs the file before it can go on - a save
+        being installed together with its game. Progress shows in the toast
+        strip; the worker does the transfer as usual.
+        """
+        if not self.worker.running:
+            self.worker.start()
+        last = 0.0
+        while any(item.status in (gsdownloads.QUEUED, gsdownloads.DOWNLOADING)
+                  for item in items):
+            if self.deadline is not None and time.time() > self.deadline:
+                break
+            if not self.worker.running:
+                break
+            # Presses are swallowed rather than acted on: the list under the
+            # toast is not what the user is looking at.
+            self.input.poll(0.1)
             now = time.time()
-            if now - last[0] < 0.25:
-                return
-            last[0] = now
-            self.toast("%s  %s" % (item.name, _progress_text(item)))
-
-        done, failed = self.queue.run_all(progress=report)
-        summary = "Installed %d" % done
-        if failed:
-            summary += ", %d failed" % failed
-        self.toast(summary, theme.DANGER if failed else theme.HEADER)
-        time.sleep(2.0)
+            current = self.worker.current
+            if current is not None and now - last >= 0.25:
+                last = now
+                self.toast("%s  %s" % (current.name, _progress_text(current)))
+        # The finished events are consumed here, not by the main loop, so
+        # the rescan happens before the caller looks for the game.
+        self.worker.finished()
         self.load_data()
         self.draw_all()
+        failed = [item for item in items
+                  if item.status == gsdownloads.FAILED]
+        if failed:
+            self.toast("%s failed: %s" % (failed[0].name, failed[0].error),
+                       theme.DANGER, hold=3.0)
 
     # -------------------------------------------------------------- settings
 
@@ -1244,6 +1700,13 @@ class App:
         if row.name == "Remap buttons":
             self.remap_buttons()
             return
+        if row.name == "Refresh catalog":
+            if not self.require_client():
+                return
+            # "I changed the library": rescan server-side and refetch
+            # everything, not just by fingerprint.
+            self.load_catalog(force=True)
+            return
 
         if row.name == "ROM target":
             order = list(gsconfig.ROM_TARGETS)
@@ -1253,24 +1716,24 @@ class App:
             try:
                 gsconfig.save_config(self.config)
             except OSError as exc:
-                self.toast("Could not save config: %s" % exc, theme.DANGER)
-                time.sleep(2.0)
                 self.draw_all()
+                self.toast("Could not save config: %s" % exc, theme.DANGER,
+                           hold=2.0)
                 return
             # The queue installs into whichever storage is configured, so it
             # has to learn about this immediately.
             self.queue.rom_target = self.config.rom_target
+            self.load_data(rescan=False)
+            self.draw_all()
             self.toast("ROM target is now %s (%s)"
                        % (self.config.rom_target.upper(),
-                          gsinstall.games_root(self.config.rom_target)))
-            time.sleep(1.2)
-            self.load_data()
-            self.draw_all()
+                          gsinstall.games_root(self.config.rom_target)),
+                       hold=1.2)
             return
 
-        self.toast("%s is edited in %s" % (row.name, self.config.path))
-        time.sleep(1.6)
         self.draw_all()
+        self.toast("%s is edited in %s" % (row.name, self.config.path),
+                   hold=1.6)
 
     # ----------------------------------------------------------- calibration
 
@@ -1335,8 +1798,8 @@ class App:
                     try:
                         gsconfig.save_config(self.config)
                     except OSError as exc:
-                        self.toast("Could not save: %s" % exc, theme.DANGER)
-                        time.sleep(2.0)
+                        self.notice("Could not save: %s" % exc, theme.DANGER,
+                                    hold=2.0)
                     self.load_data()
                     self.draw_all()
                     return
@@ -1434,10 +1897,11 @@ class App:
             self.input.set_buttons(mapping)
             try:
                 gsconfig.save_config(self.config)
-                self.toast("Saved %d bindings" % len(mapping), theme.OK)
+                self.notice("Saved %d bindings" % len(mapping), theme.OK,
+                            hold=1.6)
             except OSError as exc:
-                self.toast("Could not save: %s" % exc, theme.DANGER)
-            time.sleep(1.6)
+                self.notice("Could not save: %s" % exc, theme.DANGER,
+                            hold=1.6)
         self.load_data()
         self.draw_all()
 
@@ -1616,16 +2080,155 @@ class App:
         try:
             self.engine.sync_entry(entry, progress=lambda t: self.toast(t),
                                    allow_data_loss=allow_data_loss)
-            self.toast("%s resolved" % entry.display)
+            self.notice("%s resolved" % entry.display, hold=1.2)
         except Exception as exc:
             entry.status = gssync.ERROR
             entry.message = str(exc)
-            self.toast("Failed: %s" % exc, theme.DANGER)
-            time.sleep(2.5)
-        else:
-            time.sleep(1.2)
+            self.notice("Failed: %s" % exc, theme.DANGER)
         self.load_data()
         self.draw_all()
+
+    # --------------------------------------------------------------- search
+
+    def do_search(self) -> None:
+        """Filter the catalogue by name, typed on the pad or a keyboard."""
+        text = self.prompt_text("Search the catalog", self.search)
+        if text is None:
+            self.draw_all()
+            return
+        self.set_search(text)
+
+    def set_search(self, text: str) -> None:
+        self.search = " ".join(text.split())
+        self.selected = self.scroll = 0
+        self._rows_key = None
+        self.draw_all()
+        if self.search:
+            count = len(self.rows())
+            self.toast('%d match%s for "%s"'
+                       % (count, "" if count == 1 else "es", self.search),
+                       hold=1.2)
+
+    #: On-screen keyboard: three rows of characters and one of wide keys.
+    KEYBOARD = ["ABCDEFGHIJKLM", "NOPQRSTUVWXYZ", "0123456789-.'"]
+    KEYBOARD_WIDE = ["Space", "Delete", "Clear", "OK"]
+
+    def prompt_text(self, title: str, initial: str = ""):
+        """A modal text field with an on-screen keyboard. None on cancel.
+
+        A pad moves over the keys and confirms one at a time; a real keyboard
+        types straight in. The button that opened the prompt confirms it, so
+        a search is "press, type, press again".
+        """
+        metrics = self.metrics
+        pad = metrics.pad
+        accent = theme.ACCENT
+        text = initial
+        grid = [list(row) for row in self.KEYBOARD] + [self.KEYBOARD_WIDE]
+        row = col = 0
+        labels = self.input.label
+        prompt = "%s Delete   %s OK   %s Cancel" % (
+            labels(gsinput.SYNC), labels(gsinput.ALT), labels(gsinput.BACK))
+        if not metrics.compact:
+            # Obvious enough to drop at 240p, where "Cross Type" is what
+            # pushes "Circle Cancel" off the edge.
+            prompt = "%s Type   " % labels(gsinput.PRIMARY) + prompt
+
+        width = int(metrics.width * 0.84)
+        cell_h = self.font_row.line_height + 6
+        field_h = self.font_row.line_height + 8
+        height = pad // 2 + self.font_small.line_height + 6
+        height += field_h + 6 + cell_h * len(grid) + 8
+        height += self.font_small.line_height + pad // 2
+        left = max(0, (metrics.width - width) // 2)
+        top = max(0, (metrics.height - height) // 2)
+        inner = width - pad
+
+        def draw():
+            self.fb.fill_rect(left - 2, top - 2, width + 4, height + 4, accent)
+            self.fb.fill_rect(left, top, width, height, theme.HEADER)
+            y = top + pad // 2
+            self.text(self.font_small, left + pad, y, title.upper(), accent,
+                      theme.HEADER, max_width=width - pad * 2)
+            y += self.font_small.line_height + 6
+            # The field, with a cursor so an empty one still reads as one.
+            self.fb.fill_rect(left + pad // 2, y, inner, field_h,
+                              theme.BACKGROUND)
+            self.text(self.font_row, left + pad, y + 4, text + "_",
+                      theme.TEXT_STRONG, theme.BACKGROUND,
+                      max_width=inner - pad)
+            y += field_h + 6
+            for r, keys in enumerate(grid):
+                cell_w = inner // len(keys)
+                for c, key in enumerate(keys):
+                    x = left + pad // 2 + c * cell_w
+                    active = (r, c) == (row, col)
+                    background = theme.ROW_SELECTED if active else theme.ROW
+                    self.fb.fill_rect(x + 1, y + 1, cell_w - 2, cell_h - 2,
+                                      background)
+                    key_w = self.font_row.measure(key)
+                    self.text(self.font_row, x + max(2, (cell_w - key_w) // 2),
+                              y + 3, key,
+                              theme.TEXT_STRONG if active else theme.TEXT,
+                              background, max_width=cell_w - 4)
+                y += cell_h
+            y += 8
+            prompt_w = self.font_small.measure(prompt)
+            self.text(self.font_small, left + (width - prompt_w) // 2, y,
+                      prompt, accent, theme.HEADER, max_width=width - pad)
+
+        def press():
+            nonlocal text
+            key = grid[row][col]
+            if key == "OK":
+                return True
+            if key == "Space":
+                text += " "
+            elif key == "Delete":
+                text = text[:-1]
+            elif key == "Clear":
+                text = ""
+            else:
+                text += key
+            return False
+
+        self.input.text_keys = True
+        try:
+            draw()
+            while True:
+                if self.deadline is not None and time.time() > self.deadline:
+                    return None
+                for action in self.input.poll(0.05):
+                    if action.startswith(gsinput.CHAR_PREFIX):
+                        text += action[len(gsinput.CHAR_PREFIX):]
+                    elif action == gsinput.TEXT_DELETE or \
+                            action == gsinput.SYNC:
+                        text = text[:-1]
+                    elif action in (gsinput.TEXT_OK, gsinput.ALT,
+                                    gsinput.SETTINGS):
+                        return text
+                    elif action == gsinput.PRIMARY:
+                        if press():
+                            return text
+                    elif action in (gsinput.BACK, gsinput.QUIT):
+                        return None
+                    elif action == gsinput.LEFT:
+                        col = (col - 1) % len(grid[row])
+                    elif action == gsinput.RIGHT:
+                        col = (col + 1) % len(grid[row])
+                    elif action in (gsinput.UP, gsinput.DOWN):
+                        step = 1 if action == gsinput.DOWN else -1
+                        new_row = (row + step) % len(grid)
+                        # Keep the same horizontal position across rows of
+                        # different widths, so the wide keys sit under the
+                        # letters above them.
+                        col = col * len(grid[new_row]) // len(grid[row])
+                        row = new_row
+                    else:
+                        continue
+                    draw()
+        finally:
+            self.input.text_keys = False
 
     def confirm(self, question: str, detail=None, danger: bool = True,
                 title: str = "") -> bool:
@@ -1803,12 +2406,11 @@ class App:
                 for path in saves:
                     os.remove(path)
         except OSError as exc:
-            self.toast("Delete failed: %s" % exc, theme.DANGER)
-            time.sleep(2.5)
+            self.notice("Delete failed: %s" % exc, theme.DANGER)
         else:
-            self.toast("Deleted %s%s" % (item.name,
-                                         " and its save" if delete_saves else ""))
-            time.sleep(1.0)
+            self.notice("Deleted %s%s"
+                        % (item.name, " and its save" if delete_saves else ""),
+                        hold=1.0)
         self.selected = max(0, self.selected - 1)
         self.load_data()
         self.draw_all()
@@ -1822,17 +2424,16 @@ class App:
         destination_dir = gsinstall.system_games_dir(
             self.engine.provider, item.system, item.target)
         if not destination_dir:
-            self.toast("No MiSTer folder for %s" % item.system, theme.DANGER)
-            time.sleep(2.0)
             self.draw_all()
+            self.toast("No MiSTer folder for %s" % item.system, theme.DANGER,
+                       hold=2.0)
             return
         destination = os.path.join(destination_dir,
                                    os.path.basename(item.path))
         if os.path.exists(destination):
-            self.toast("Already present on %s" % item.target.upper(),
-                       theme.DANGER)
-            time.sleep(2.0)
             self.draw_all()
+            self.toast("Already present on %s" % item.target.upper(),
+                       theme.DANGER, hold=2.0)
             return
         detail = ["From %s to %s" % (item.where, item.target.upper()),
                   destination]
@@ -1856,11 +2457,9 @@ class App:
                 self._seed_bios(item, destination_dir)
             _move_path(item.path, destination)
         except OSError as exc:
-            self.toast("Move failed: %s" % exc, theme.DANGER)
-            time.sleep(2.5)
+            self.notice("Move failed: %s" % exc, theme.DANGER)
         else:
-            self.toast("Moved to %s" % destination)
-            time.sleep(1.4)
+            self.notice("Moved to %s" % destination, hold=1.4)
         self.load_data()
         self.draw_all()
 
@@ -1892,10 +2491,9 @@ class App:
             return
         entry = rows[self.selected].ref
         if entry is None or not entry.path or not os.path.exists(entry.path):
-            self.toast("Nothing on this MiSTer to delete for %s"
-                       % (entry.display if entry else "this row"))
-            time.sleep(1.5)
             self.draw_all()
+            self.toast("Nothing on this MiSTer to delete for %s"
+                       % (entry.display if entry else "this row"), hold=1.5)
             return
 
         detail = [entry.path, "This cannot be undone."]
@@ -1916,14 +2514,12 @@ class App:
         try:
             os.remove(entry.path)
         except OSError as exc:
-            self.toast("Delete failed: %s" % exc, theme.DANGER)
-            time.sleep(2.5)
             self.draw_all()
+            self.toast("Delete failed: %s" % exc, theme.DANGER, hold=2.5)
             return
         if entry in self.engine.entries:
             self.engine.entries.remove(entry)
-        self.toast("Deleted %s" % os.path.basename(entry.path))
-        time.sleep(1.0)
+        self.notice("Deleted %s" % os.path.basename(entry.path), hold=1.0)
         # The slot may now be server-only, or belong to a sibling card:
         # let the scan and the plan say so rather than guessing. Stay
         # where the cursor was - the next leftover is usually right there.
@@ -1944,16 +2540,16 @@ class App:
         entry = row.ref
         if entry is None or entry not in self.engine.entries:
             return
-        if not self.offer_install_for_save(entry):
+        approval = self.offer_install_for_save(entry)
+        if not approval:
             return
         if entry.status == gssync.CONFLICT:
             self.show_conflict(entry)
             return
         if entry.status not in (gssync.UPLOAD, gssync.DOWNLOAD,
                                 gssync.SERVER_ONLY):
-            self.toast("%s is already up to date" % entry.display)
-            time.sleep(1.2)
             self.draw_all()
+            self.toast("%s is already up to date" % entry.display, hold=1.2)
             return
 
         # Name which side loses its copy. "Sync" is ambiguous in exactly the
@@ -1988,7 +2584,10 @@ class App:
         if entry.message:
             # Where the two copies disagree, when the engine compared them.
             detail.append(entry.message[0].upper() + entry.message[1:])
-        if not self.confirm(question, detail, danger=danger, title="Sync"):
+        # "Install the game and sync the save" was the decision; only a
+        # destination that would lose something is worth a second question.
+        if (approval != "now" or danger) and not self.confirm(
+                question, detail, danger=danger, title="Sync"):
             self.draw_all()
             return
 
@@ -1998,10 +2597,9 @@ class App:
         except Exception as exc:
             entry.status = gssync.ERROR
             message = "%s failed: %s" % (entry.display, exc)
-        self.toast(message)
-        time.sleep(1.5)
         self.load_data()
         self.draw_all()
+        self.toast(message, hold=1.5)
 
     def draw_banner(self, message: str) -> None:
         metrics = self.metrics
@@ -2104,6 +2702,29 @@ def _first_letter(name: str) -> str:
     return ""
 
 
+def _search_rows(rows, search: str):
+    """Rows whose name has every word of ``search``, in any order.
+
+    A catalogue row's file names count too: a translation patch is listed
+    under the original title ("Famicom Tantei Club …") but the file - the
+    name you know it by - says "Famicom Detective Club".
+    """
+    words = search.lower().split()
+    if not words:
+        return rows
+    return [row for row in rows
+            if all(word in _search_text(row) for word in words)]
+
+
+def _search_text(row) -> str:
+    text = row.name.lower()
+    group = row.ref
+    if group is not None and hasattr(group, "rows"):
+        text += " " + " ".join(
+            str(rom.get("filename") or "").lower() for rom in group.rows)
+    return text
+
+
 def _listdir(path: str) -> list[str]:
     try:
         return os.listdir(path)
@@ -2112,6 +2733,23 @@ def _listdir(path: str) -> list[str]:
 
 
 _NORMALIZE_CACHE: dict = {}
+
+
+def _group_has_achievements(group) -> bool:
+    """True when any ROM in this catalogue group has a published RA set.
+
+    A multi-disc game is one group; RA registers the discs separately, so
+    the badge belongs to the group as soon as one of them earns something.
+    ``ra_achievements`` is -1 when the server had no API key and could not
+    read the count, which is not a promise of anything and does not badge.
+    """
+    for row in getattr(group, "rows", None) or ():
+        try:
+            if int(row.get("ra_achievements") or 0) > 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
 
 
 def _normalize(name: str) -> str:

@@ -392,3 +392,29 @@ def test_the_identity_serial_is_only_the_first_save():
     though it holds several games."""
     card = _ps1_card(["BASLUS-01324DRACULA", "BASLUS-00421SOMETHING"])
     assert ps1_card_serial(card) == "SLUS01324"
+
+
+def test_slug_system_takes_only_an_exact_catalogue_file_name():
+    """The server keyed a translation patch under the original title's slug.
+    A save named after that exact file goes to that slot; a regional
+    near-miss on a slug system is still refused."""
+    from shared.title_match import TitleMatcher
+
+    matcher = TitleMatcher()
+    patched = ("Famicom Detective Club Part II (Japan) (NP) "
+               "[T-En by Demiforce v1.00] [n].sfc")
+    matcher.add("SNES_famicom_tantei_club_part_ii_ushiro_ni_tatsu_shoujo_japan",
+                patched, "Famicom Tantei Club Part II (Japan) (NP)")
+    matcher.add("SNES_chrono_trigger_usa", "Chrono Trigger (USA).sfc")
+
+    assert matcher.lookup_exact(patched[:-4]) == \
+        "SNES_famicom_tantei_club_part_ii_ushiro_ni_tatsu_shoujo_japan"
+    # Loose matching bridges an unmarked name; exact does not.
+    assert matcher.lookup("Chrono Trigger") == "SNES_chrono_trigger_usa"
+    assert matcher.lookup_exact("Chrono Trigger") is None
+
+    identity = resolve_save_identity("SNES", b"\x00" * 16)
+    assert resolve_title_id(
+        "SNES", patched[:-4], identity, "SNES_famicom_detective_club_x",
+        catalog_lookup=lambda s, n: matcher.lookup_exact(n)) == \
+        "SNES_famicom_tantei_club_part_ii_ushiro_ni_tatsu_shoujo_japan"

@@ -81,6 +81,15 @@ def save_config(config: dict) -> None:
     CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
 
 
+def get_retroachievements_credentials() -> tuple[str, str]:
+    """``(username, web_api_key)`` for RA's web API; both empty when unset."""
+    ra_cfg = load_config().get("retroachievements", {}) or {}
+    return (
+        str(ra_cfg.get("username", "") or "").strip(),
+        str(ra_cfg.get("web_api_key", "") or "").strip(),
+    )
+
+
 def get_sd_card_location() -> str:
     """Current drive/root where the removable SD card is mounted right now.
 

@@ -28,7 +28,7 @@ def make_app(rows, installed):
             title_id = str(rom.get("title_id") or "").upper()
             if title_id:
                 app.group_by_title.setdefault(title_id, group)
-    app.installed_ids = {(system, _normalize(name))
+    app.installed_ids = {(system, _normalize(name), False)
                          for system, name in installed}
     return app
 

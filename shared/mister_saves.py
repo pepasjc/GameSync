@@ -47,7 +47,6 @@ from __future__ import annotations
 import re
 from typing import Callable, Optional
 
-from shared.sync_id import uses_serial_identity
 
 __all__ = [
     "MISTER_MD_SAVE_SIZE",
@@ -599,13 +598,17 @@ def resolve_title_id(
        first-save rule, which is the variant-disc case.
     2. A disc-serial file name, which identifies a CD card the core created but
        no game has written to yet.
-    3. A catalogue hit on the game name, **for serial-keyed systems only**.
-       Saturn backup RAM carries no disc id at all, and a translation patch
-       renames the file beyond recognition (``Castlevania - Symphony of the
-       Night`` for ``Akumajou Dracula X``), so the catalogue is the only bridge
-       to the server's key. Slug-keyed systems are deliberately excluded: for
-       them the name *is* the identity, and matching it loosely would file two
-       different games under one save slot.
+    3. A catalogue hit on the game name. Saturn backup RAM carries no disc id
+       at all, and a translation patch renames the file beyond recognition
+       (``Castlevania - Symphony of the Night`` for ``Akumajou Dracula X``),
+       so the catalogue is the only bridge to the server's key. How loosely
+       the lookup matches is the callback's business: serial-keyed systems
+       tolerate regional spelling differences, while for a slug-keyed system
+       the name *is* the identity and only an exact file-name hit may be
+       honoured - the server can still key that exact file under a title id
+       that is not its slug (``Famicom Detective Club … [T-En]`` filed under
+       ``SNES_famicom_tantei_club_…``), and a save named after the file
+       belongs in that slot.
     4. The slug derived from the file name.
     """
     filename_serial = ps1_serial_from_filename(stem) if system == "PS1" else None
@@ -625,7 +628,7 @@ def resolve_title_id(
     if filename_serial:
         return filename_serial
 
-    if catalog_lookup is not None and uses_serial_identity(system):
+    if catalog_lookup is not None:
         catalog_id = catalog_lookup(system, stem)
         if catalog_id:
             return catalog_id

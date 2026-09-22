@@ -152,8 +152,30 @@ class CatalogDelegate(QStyledItemDelegate):
             painter.setPen(QColor("#ffffff"))
             painter.drawText(size_rect, Qt.AlignmentFlag.AlignCenter, size_text)
 
+        # RetroAchievements: only a published set earns the badge, so a hash
+        # RA merely knows (0) or could not count (-1) shows nothing.
+        ra_w = 0
+        if int(rom.get("ra_achievements") or 0) > 0:
+            ra_text = "RA"
+            ra_w = fm_badge.horizontalAdvance(ra_text) + 16
+            ra_x = (size_x if size_w else card_rect.right() - self.H_PAD + 12) - 12 - ra_w
+            ra_rect = QRect(
+                ra_x,
+                card_rect.top() + (card_rect.height() - self.SYSTEM_BADGE_H) // 2,
+                ra_w,
+                self.SYSTEM_BADGE_H,
+            )
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(theme.RA_BADGE)))
+            painter.drawRoundedRect(ra_rect, theme.BADGE_RADIUS, theme.BADGE_RADIUS)
+            painter.setFont(self._badge_font)
+            painter.setPen(QColor(theme.RA_BADGE_TEXT))
+            painter.drawText(ra_rect, Qt.AlignmentFlag.AlignCenter, ra_text)
+            ra_w += 12
+
         text_x = badge_x + self.SYSTEM_BADGE_W + 12
         text_right = (size_x - 12) if size_w else (card_rect.right() - self.H_PAD)
+        text_right -= ra_w
         text_w = max(0, text_right - text_x)
         name_h = card_rect.height() // 2
 

@@ -744,6 +744,27 @@ fun SystemBadge(systemName: String) {
 @Composable
 fun SystemChip(systemName: String) = SystemBadge(systemName)
 
+/**
+ * RetroAchievements badge.  Gold, so it reads as a reward rather than as
+ * another sync status.
+ */
+@Composable
+fun RaBadge() {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFD8A72B))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = "RA",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF161206)
+        )
+    }
+}
+
 @Composable
 private fun SyncStatusIcon(syncStatus: SaveSyncStatus) {
     val (icon, tint) = when (syncStatus) {

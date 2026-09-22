@@ -13,9 +13,11 @@ plan the server returns.
 from __future__ import annotations
 
 import hashlib
+import posixpath
 import time
 
 from shared import mister_saves
+from shared.mister_install import safe_file_name
 from shared.mister_scan import (
     LocalProvider,
     build_save_path,
@@ -235,15 +237,17 @@ class SyncEngine:
             self.cache.put(found.path, found.size, found.mtime, save_hash,
                            serial=serial, blank=is_blank, serials=serials)
 
-        if needs_payload:
-            # Resolved every scan, not cached: it can depend on the ROM
-            # catalogue, which changes when the server's library does.
-            identity = mister_saves.SaveIdentity(b"", serial=serial,
-                                                 is_blank=is_blank,
-                                                 serials=serials)
-            title_id = mister_saves.resolve_title_id(
-                found.system, found.stem, identity, title_id,
-                catalog_lookup=self._catalog_lookup)
+        # Resolved every scan, not cached: it can depend on the ROM
+        # catalogue, which changes when the server's library does. Every
+        # system goes through it - a slug system's save named exactly like
+        # a catalogue file takes that file's server key, which for a
+        # translation patch is not the slug of the name.
+        identity = mister_saves.SaveIdentity(b"", serial=serial,
+                                             is_blank=is_blank,
+                                             serials=serials)
+        title_id = mister_saves.resolve_title_id(
+            found.system, found.stem, identity, title_id,
+            catalog_lookup=self._catalog_lookup)
         entry = SaveEntry(
             title_id=title_id,
             system=found.system,
@@ -278,12 +282,59 @@ class SyncEngine:
             return None
         # Only serial-keyed systems may be matched loosely. For a slug-keyed
         # system the name *is* the identity, so a near-miss match would file
-        # two different games into one save slot.
+        # two different games into one save slot - but a save named exactly
+        # like a catalogue file belongs under whatever the server keyed that
+        # file by, which for a translation patch is not the file's own slug.
         if not uses_serial_identity(system):
-            return None
+            return self._exact_titles_for(system).get(
+                str(stem or "").lower())
         return self._matcher_for(system).lookup(stem)
 
     _matcher_cache = None
+    _exact_cache = None
+    #: Set by the app: ``system -> catalogue rows`` it already holds (the
+    #: fingerprint cache), so an exact file-name lookup costs no fetch and no
+    #: slug pass. Falls back to the server when the app has nothing.
+    catalog_rows = None
+
+    def _exact_titles_for(self, system):
+        """``lowercased file stem -> title id`` for one system's catalogue.
+
+        Deliberately not a TitleMatcher: that runs the slug rules over every
+        name, which costs seconds on a MiSTer, and an exact match does not
+        need them. The stem is what the install would name the file, since
+        that is what the core names the save after.
+        """
+        if self._exact_cache is None:
+            self._exact_cache = {}
+        cached = self._exact_cache.get(system)
+        if cached is not None:
+            return cached
+        rows = None
+        if self.catalog_rows is not None:
+            try:
+                rows = self.catalog_rows(system)
+            except Exception:
+                rows = None
+        if not rows:
+            try:
+                rows = self._roms_for(system)
+            except Exception:
+                rows = []
+        index = {}
+        for rom in rows:
+            title_id = str(rom.get("title_id") or "")
+            filename = rom.get("filename") or ""
+            if not title_id or not filename:
+                continue
+            stem = posixpath.splitext(safe_file_name(filename))[0].lower()
+            index.setdefault(stem, title_id)
+        self._exact_cache[system] = index
+        return index
+
+    def forget_catalog(self):
+        """The catalogue changed: rebuild the exact-name indexes lazily."""
+        self._exact_cache = None
 
     def _matcher_for(self, system):
         """A name matcher built from the server's ROMs *and* its saves.
@@ -368,6 +419,7 @@ class SyncEngine:
         self.net.save()
         self._titles_cache = None
         self._matcher_cache = None
+        self._exact_cache = None
 
     # ------------------------------------------------------------------ plan
 

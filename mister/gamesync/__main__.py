@@ -85,6 +85,7 @@ def main(argv=None):
     calibrate = False
     demo_confirm = False
     demo_choose = False
+    demo_search = False
     for index, arg in enumerate(argv):
         if arg == "--timeout" and index + 1 < len(argv):
             timeout = float(argv[index + 1])
@@ -102,6 +103,8 @@ def main(argv=None):
             demo_confirm = True
         elif arg == "--demo-choose":
             demo_choose = True
+        elif arg == "--demo-search":
+            demo_search = True
         elif arg == "--calibrate":
             # Straight into screen adjustment. On a cabinet whose overscan is
             # bad enough to hide the Settings tab, this is the way in.
@@ -112,7 +115,8 @@ def main(argv=None):
             app = App()
             app.run(timeout=timeout, start_tab=start_tab,
                     show_conflict=show_conflict, calibrate=calibrate,
-                    demo_confirm=demo_confirm, demo_choose=demo_choose)
+                    demo_confirm=demo_confirm, demo_choose=demo_choose,
+                    demo_search=demo_search)
             app.close()
     except Exception:
         report = traceback.format_exc()

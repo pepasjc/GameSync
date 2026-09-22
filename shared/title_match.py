@@ -133,6 +133,20 @@ class TitleMatcher:
             elif entry not in bucket:
                 bucket.append(entry)
 
+    def lookup_exact(self, name: str) -> Optional[str]:
+        """The title id of an entry named *exactly* like ``name``, or None.
+
+        For slug-keyed systems, where the name is the identity and a regional
+        near-miss must never be bridged - but the server may still file a ROM
+        under a title id that is not the slug of its file name (a translation
+        patch resolved through a DAT alias), and a save named after that
+        exact file belongs in that slot.
+        """
+        slug = normalize_rom_name(name)
+        if not slug or slug == "unknown":
+            return None
+        return self._exact.get(slug)
+
     def lookup(self, name: str) -> Optional[str]:
         """The server title id for a local file name, or None."""
         slug = normalize_rom_name(name)

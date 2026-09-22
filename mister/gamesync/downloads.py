@@ -12,6 +12,17 @@ hardware:
 
 Progress is persisted as it goes, so a multi-gigabyte download survives the app
 being closed or the console being switched off.
+
+An MSU pack (``bundle_kind`` on the catalogue row) downloads as the zip the
+server holds and is unpacked into its own game folder once complete - the
+audio has to sit beside the ROM, and an MSU-MD title goes to the MegaCD core
+with its cart renamed. The zip lands next to the folder, so a crash
+mid-unpack leaves a resumable ``.part``, never a half folder with no origin.
+
+``DownloadWorker`` runs the queue on a background thread so the UI stays
+usable while games install. The thread touches nothing but the ``Download``
+items and the queue file - never the framebuffer - and the UI thread reads
+their state to paint progress.
 """
 
 from __future__ import annotations
@@ -19,16 +30,23 @@ from __future__ import annotations
 import json
 import os
 import posixpath
+import shutil
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 
+from shared import msu
 from shared.mister import MISTER_CONFIG_DIR
 from shared.mister_install import (
     bios_seed_sources,
     install_target,
+    msu_pack_layout,
+    msu_pack_target,
     safe_file_name,
+    safe_folder_name,
 )
 
 QUEUE_PATH = posixpath.join(MISTER_CONFIG_DIR, "downloads.json")
@@ -46,10 +64,12 @@ CANCELLED = "cancelled"
 
 class Download:
     __slots__ = ("rom_id", "name", "system", "filename", "size", "directory",
-                 "target", "status", "received", "error")
+                 "target", "status", "received", "error", "bundle_kind",
+                 "rom_rename")
 
     def __init__(self, rom_id, name, system, filename, size=0, directory="",
-                 target="", status=QUEUED, received=0, error=""):
+                 target="", status=QUEUED, received=0, error="",
+                 bundle_kind="", rom_rename=None):
         self.rom_id = rom_id
         self.name = name
         self.system = system
@@ -60,6 +80,11 @@ class Download:
         self.status = status
         self.received = received
         self.error = error
+        #: MSU pack kind when the download is one; the zip is unpacked into
+        #: ``directory`` on completion, with the cart renamed ``rom_rename``
+        #: when the core insists on a name (MegaCD: ``cart.rom``).
+        self.bundle_kind = bundle_kind or ""
+        self.rom_rename = rom_rename
 
     @property
     def progress(self) -> float:
@@ -76,12 +101,19 @@ class Download:
                       if key in data})
 
 
+class _Stopped(Exception):
+    """Raised inside a transfer when the worker was asked to stop."""
+
+
 class DownloadQueue:
     def __init__(self, client=None, provider=None, rom_target="sd"):
         self.client = client
         self.provider = provider
         self.rom_target = rom_target
         self.items = []
+        #: The worker persists progress while the UI thread may enqueue; the
+        #: two must not race for the .part file.
+        self._save_lock = threading.Lock()
         self.load()
 
     # ------------------------------------------------------------ persistence
@@ -115,23 +147,29 @@ class DownloadQueue:
             self.save()
 
     def save(self):
-        payload = {"downloads": [item.to_dict() for item in self.items]}
-        try:
-            os.makedirs(MISTER_CONFIG_DIR, exist_ok=True)
-        except OSError:
-            pass
-        temp = QUEUE_PATH + ".part"
-        try:
-            with open(temp, "w") as handle:
-                json.dump(payload, handle, indent=2)
-            os.replace(temp, QUEUE_PATH)
-        except OSError:
-            pass
+        with self._save_lock:
+            payload = {"downloads": [item.to_dict()
+                                     for item in list(self.items)]}
+            try:
+                os.makedirs(MISTER_CONFIG_DIR, exist_ok=True)
+            except OSError:
+                pass
+            temp = QUEUE_PATH + ".part"
+            try:
+                with open(temp, "w") as handle:
+                    json.dump(payload, handle, indent=2)
+                os.replace(temp, QUEUE_PATH)
+            except OSError:
+                pass
 
     # ------------------------------------------------------------------ queue
 
-    def enqueue(self, rom):
-        """Add one catalogue row. Returns the Download, or None if refused."""
+    def enqueue(self, rom, save=True):
+        """Add one catalogue row. Returns the Download, or None if refused.
+
+        ``save=False`` skips the write-back so a multi-disc game persists
+        once, from :meth:`enqueue_all`, rather than once per disc.
+        """
         rom_id = str(rom.get("rom_id") or rom.get("title_id") or "")
         if not rom_id:
             return None
@@ -143,14 +181,38 @@ class DownloadQueue:
         system = str(rom.get("system") or "").upper()
         filename = safe_file_name(rom.get("filename") or rom.get("name") or "")
         display = str(rom.get("name") or "")
-        directory, target_name = install_target(
-            self.provider, system, filename, display, self.rom_target)
+        bundle_kind = ""
+        rom_rename = None
+        if rom.get("is_bundle") and str(rom.get("bundle_kind") or ""):
+            # The pack decides which core's folder it lives in, and so which
+            # system the queue files it under (an MSU-MD pack is a MegaCD
+            # title - that is also what seeds the right BIOS on USB).
+            kind = str(rom.get("bundle_kind") or "").lower()
+            layout = msu_pack_layout(kind, system)
+            if layout is None:
+                item = Download(rom_id, display or filename, system, filename,
+                                int(rom.get("size") or 0), status=FAILED)
+                item.error = "MiSTer cannot play a %s pack" % kind
+                self.items.append(item)
+                if save:
+                    self.save()
+                return item
+            system, rom_rename = layout
+            bundle_kind = kind
+            directory, _rename = msu_pack_target(
+                self.provider, system, kind, display or filename, self.rom_target)
+            # The zip parks beside the game folder until it is unpacked.
+            target_name = safe_folder_name(display or filename) + ".zip"
+        else:
+            directory, target_name = install_target(
+                self.provider, system, filename, display, self.rom_target)
         if not directory:
             item = Download(rom_id, display or filename, system, filename,
                             int(rom.get("size") or 0), status=FAILED)
             item.error = "no MiSTer folder for %s" % (system or "?")
             self.items.append(item)
-            self.save()
+            if save:
+                self.save()
             return item
 
         item = Download(
@@ -160,11 +222,21 @@ class DownloadQueue:
             filename=target_name,
             size=int(rom.get("size") or 0),
             directory=directory,
-            target=posixpath.join(directory, target_name),
+            target=(posixpath.join(posixpath.dirname(directory), target_name)
+                    if bundle_kind else posixpath.join(directory, target_name)),
+            bundle_kind=bundle_kind,
+            rom_rename=rom_rename,
         )
         self.items.append(item)
-        self.save()
+        if save:
+            self.save()
         return item
+
+    def enqueue_all(self, roms):
+        """Queue several rows - every disc of one game - with one write."""
+        items = [self.enqueue(rom, save=False) for rom in roms]
+        self.save()
+        return items
 
     def pending(self):
         return [item for item in self.items if item.status == QUEUED]
@@ -190,7 +262,17 @@ class DownloadQueue:
         """
         if item.status != FAILED:
             return False
-        if not item.target:
+        if not item.target and item.bundle_kind:
+            directory, _rename = msu_pack_target(
+                self.provider, item.system, item.bundle_kind, item.name,
+                self.rom_target)
+            if not directory:
+                return False
+            item.directory = directory
+            item.filename = safe_folder_name(item.name) + ".zip"
+            item.target = posixpath.join(posixpath.dirname(directory),
+                                         item.filename)
+        elif not item.target:
             directory, target_name = install_target(
                 self.provider, item.system, item.filename, item.name,
                 self.rom_target)
@@ -206,15 +288,23 @@ class DownloadQueue:
 
     # --------------------------------------------------------------- transfer
 
-    def run_next(self, progress=None):
-        """Download the next queued item. Returns it, or None when idle."""
+    def run_next(self, progress=None, stop=None):
+        """Download the next queued item. Returns it, or None when idle.
+
+        ``stop`` is a ``threading.Event``; once set, the transfer breaks off
+        and the item goes back to QUEUED with its .part kept, so the next run
+        resumes it.
+        """
         pending = self.pending()
         if not pending:
             return None
         item = pending[0]
         try:
-            self._download(item, progress)
+            self._download(item, progress, stop)
             item.status = DONE
+            item.error = ""
+        except _Stopped:
+            item.status = QUEUED
             item.error = ""
         except Exception as exc:
             item.status = FAILED
@@ -234,11 +324,18 @@ class DownloadQueue:
                 failed += 1
         return done, failed
 
-    def _download(self, item, progress=None):
+    def _download(self, item, progress=None, stop=None):
         item.status = DOWNLOADING
         self.save()
 
         self._prepare_directory(item)
+
+        if item.bundle_kind and os.path.isfile(item.target):
+            # The zip landed last time and only the unpack failed (card
+            # full, say): don't fetch a gigabyte again to retry it.
+            item.received = item.size = os.path.getsize(item.target)
+            self._unpack(item)
+            return
 
         part = item.target + ".part"
         existing = 0
@@ -281,6 +378,10 @@ class DownloadQueue:
 
         with response, open(part, mode) as handle:
             while True:
+                if stop is not None and stop.is_set():
+                    handle.flush()
+                    self.save()
+                    raise _Stopped()
                 chunk = response.read(CHUNK)
                 if not chunk:
                     break
@@ -301,6 +402,45 @@ class DownloadQueue:
 
         os.replace(part, item.target)
         item.received = os.path.getsize(item.target)
+
+        if item.bundle_kind:
+            self._unpack(item)
+
+    def _unpack(self, item):
+        """Lay an MSU pack out in its game folder, then drop the zip.
+
+        Members go through :func:`shared.msu.plan_extraction`: the wrapping
+        folder most packs are zipped with is hoisted away, junk is dropped,
+        and the cart takes the name the core wants.  Written straight to the
+        card - there is no faster scratch space on a MiSTer.
+        """
+        try:
+            with zipfile.ZipFile(item.target) as zf:
+                members = [i.filename for i in zf.infolist() if not i.is_dir()]
+                root, _ = msu.strip_common_root(members)
+
+                def _read(name):
+                    return zf.read(root + "/" + name if root else name).decode(
+                        "utf-8", "replace")
+
+                layout = msu.plan_extraction(
+                    item.bundle_kind, members, item.rom_rename, _read)
+                if not layout:
+                    raise RuntimeError("archive holds no pack files")
+                os.makedirs(item.directory, exist_ok=True)
+                for member, rel in layout:
+                    destination = os.path.join(item.directory, *rel.split("/"))
+                    parent = os.path.dirname(destination)
+                    if parent:
+                        os.makedirs(parent, exist_ok=True)
+                    with zf.open(member) as src, open(destination, "wb") as dst:
+                        shutil.copyfileobj(src, dst, CHUNK)
+        except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
+            raise RuntimeError("unpack failed: %s" % exc)
+        try:
+            os.remove(item.target)
+        except OSError:
+            pass
 
     def _url(self, item):
         base = self.client.base_url if self.client is not None else ""
@@ -348,3 +488,71 @@ class DownloadQueue:
         remainder = directory[len(root) + 1:]
         first = remainder.split("/", 1)[0]
         return posixpath.join(root, first)
+
+
+class DownloadWorker:
+    """Runs a DownloadQueue on a background thread, one item at a time.
+
+    The thread only ever touches Download objects and the queue file. The UI
+    thread reads ``current`` to paint progress and drains ``finished()`` to
+    react to each completed download (a toast, a rescan of the games
+    folders). Items queued while it runs are picked up in turn; when the
+    queue empties the thread ends, and the next start() begins a new one.
+    """
+
+    def __init__(self, queue):
+        self.queue = queue
+        self._thread = None
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._finished = []
+        #: The item being transferred right now, or None.
+        self.current = None
+
+    @property
+    def running(self):
+        return self._thread is not None and self._thread.is_alive()
+
+    def start(self):
+        """Begin working through the queue. False when nothing to do."""
+        if self.running or not self.queue.pending():
+            return False
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, name="downloads",
+                                        daemon=True)
+        self._thread.start()
+        return True
+
+    def stop(self, timeout=3.0):
+        """Break off the current transfer; it resumes on the next start.
+
+        A read blocked on the socket can hold the thread for a moment, so
+        the join is bounded - the thread is a daemon and progress was
+        persisted as it went.
+        """
+        self._stop.set()
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout)
+
+    def finished(self):
+        """Items that completed (DONE or FAILED) since the last call."""
+        with self._lock:
+            items, self._finished = self._finished, []
+        return items
+
+    def _run(self):
+        try:
+            while not self._stop.is_set():
+                item = self.queue.run_next(progress=self._progress,
+                                           stop=self._stop)
+                if item is None:
+                    break
+                if item.status in (DONE, FAILED):
+                    with self._lock:
+                        self._finished.append(item)
+        finally:
+            self.current = None
+
+    def _progress(self, item):
+        self.current = item

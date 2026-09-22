@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.savesync.android.MainActivity
 import com.savesync.android.api.RomEntry
+import com.savesync.android.api.hasRa
 import com.savesync.android.api.preferredDownloadExtractFormat
 import com.savesync.android.api.msuPackKind
 import com.savesync.android.sync.MsuPack
@@ -586,11 +587,18 @@ private fun CatalogRomCard(
         ) {
             SystemBadge(rom.system)
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    rom.name.ifEmpty { rom.filename },
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        rom.name.ifEmpty { rom.filename },
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (rom.hasRa) RaBadge()
+                }
                 val subtitle = buildString {
                     append(rom.filename)
                     if (rom.size > 0) append("  ·  ${formatBytes(rom.size)}")

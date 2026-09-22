@@ -42,6 +42,11 @@ CONTROLS_H    = 48
 CARD_H        = 72
 CARD_RADIUS   = 8
 BADGE_RADIUS  = 4
+
+# RetroAchievements badge. Gold, so it reads as a reward rather than as
+# another sync status.
+RA_BADGE      = "#d8a72b"
+RA_BADGE_TEXT = "#161206"
 FONT_TITLE    = 15   # pt
 FONT_SUBTITLE = 11   # pt
 FONT_BADGE    = 10   # pt

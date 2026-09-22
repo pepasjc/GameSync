@@ -51,6 +51,20 @@ class ConfigDialog(QDialog):
         )
         layout.addRow("Cemu Folder:", self.cemu_edit)
 
+        self.ra_user_edit = QLineEdit()
+        self.ra_user_edit.setPlaceholderText("optional")
+        layout.addRow("RetroAchievements User:", self.ra_user_edit)
+
+        self.ra_key_edit = QLineEdit()
+        self.ra_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ra_key_edit.setPlaceholderText("Web API key from retroachievements.org/settings")
+        self.ra_key_edit.setToolTip(
+            "Optional. The RetroAchievements tab works without it, using RA's\n"
+            "public hash library. With a key it uses the web API instead, which\n"
+            "also reports how many achievements each matched game has."
+        )
+        layout.addRow("RetroAchievements Key:", self.ra_key_edit)
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
             | QDialogButtonBox.StandardButton.Cancel
@@ -66,6 +80,9 @@ class ConfigDialog(QDialog):
         self.api_key_edit.setText(config.get("api_key", "anything"))
         self.sd_card_edit.setText(config.get("sd_card_location", ""))
         self.cemu_edit.setText(config.get("cemu_dir", ""))
+        ra_cfg = config.get("retroachievements", {}) or {}
+        self.ra_user_edit.setText(ra_cfg.get("username", ""))
+        self.ra_key_edit.setText(ra_cfg.get("web_api_key", ""))
 
     def _save(self):
         try:
@@ -80,6 +97,10 @@ class ConfigDialog(QDialog):
         config["api_key"] = self.api_key_edit.text() or "anything"
         config["sd_card_location"] = self.sd_card_edit.text().strip()
         config["cemu_dir"] = self.cemu_edit.text().strip()
+        config["retroachievements"] = {
+            "username": self.ra_user_edit.text().strip(),
+            "web_api_key": self.ra_key_edit.text().strip(),
+        }
         save_config(config)
         # The meta.xml index is cached per run; a new Cemu folder has to
         # invalidate it or the Wii U names stay stale until restart.

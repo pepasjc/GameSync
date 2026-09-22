@@ -55,8 +55,20 @@ xres, yres = struct.unpack_from("2I", var, 0)
 bpp = struct.unpack_from("I", var, 24)[0]
 fix = bytearray(80); fcntl.ioctl(fd, 0x4602, fix, True)
 stride = struct.unpack_from("I", fix, 44)[0]
-print("%d %d %d %d" % (xres, yres, bpp, stride))
+smem_start = struct.unpack_from("I", fix, 16)[0]
+print("%d %d %d %d %d" % (xres, yres, bpp, stride, smem_start))
 os.close(fd)
+"""
+
+
+MEM_DUMP = r"""
+import mmap, os
+start, size, path = %d, %d, %r
+fd = os.open("/dev/mem", os.O_RDONLY | os.O_SYNC)
+view = mmap.mmap(fd, size, mmap.MAP_SHARED, mmap.PROT_READ, offset=start)
+with open(path, "wb") as out:
+    out.write(view[:size])
+view.close(); os.close(fd)
 """
 
 
@@ -80,9 +92,28 @@ def run(client, command, timeout=120):
 def geometry(client):
     out, err = run(client, "python3 - <<'PYEOF'\n%s\nPYEOF" % GEOMETRY)
     parts = out.split()
-    if len(parts) != 4:
+    if len(parts) != 5:
         raise SystemExit("could not read framebuffer geometry: %s%s" % (out, err))
     return tuple(int(p) for p in parts)
+
+
+def capture(client, stride, height, smem_start):
+    """Dump the framebuffer to REMOTE_RAW.
+
+    Kernel 6.18's fbdev refuses read() on /dev/fb0 (the MiSTer_fb driver has
+    no mmap/read hooks), so a short dump falls back to /dev/mem at the
+    physical address the driver reports - the same route the client itself
+    draws through.
+    """
+    size = stride * height
+    run(client, "dd if=/dev/fb0 bs=%d count=%d of=%s 2>/dev/null"
+        % (stride, height, REMOTE_RAW))
+    out, _ = run(client, "stat -c %%s %s 2>/dev/null" % REMOTE_RAW)
+    if out.strip().isdigit() and int(out.strip()) >= size:
+        return
+    # read() on /dev/mem faults outside System RAM; mmap does not.
+    run(client, "python3 - <<'PYEOF'\n%s\nPYEOF"
+        % (MEM_DUMP % (smem_start, size, REMOTE_RAW)))
 
 
 def to_png(raw, width, height, bpp, stride, path, correct_aspect=True):
@@ -137,6 +168,8 @@ def main(argv=None):
                         help="open the screen adjustment screen directly")
     parser.add_argument("--demo-confirm", action="store_true",
                         help="open a sample confirmation dialog")
+    parser.add_argument("--demo-search", action="store_true",
+                        help="open the catalog search keyboard")
     parser.add_argument("--demo-choose", action="store_true",
                         help="open the sample install picker")
     args = parser.parse_args(argv)
@@ -146,7 +179,7 @@ def main(argv=None):
 
     runner, shooter = connect(args), connect(args)
     try:
-        width, height, bpp, stride = geometry(shooter)
+        width, height, bpp, stride, smem_start = geometry(shooter)
         print("framebuffer %dx%d @ %d bpp, stride %d" % (width, height, bpp, stride))
 
         extra = ""
@@ -158,6 +191,8 @@ def main(argv=None):
             extra += " --demo-confirm"
         if args.demo_choose:
             extra += " --demo-choose"
+        if args.demo_search:
+            extra += " --demo-search"
         command = ("chvt 2 2>/dev/null; bash %s --timeout %g --tab %d%s "
                    "< /dev/tty2 > /dev/tty2 2>&1" %
                    (LAUNCHER, args.hold, args.tab, extra))
@@ -170,8 +205,7 @@ def main(argv=None):
         thread.start()
         time.sleep(args.delay)
 
-        run(shooter, "dd if=/dev/fb0 bs=%d count=%d of=%s 2>/dev/null"
-            % (stride, height, REMOTE_RAW))
+        capture(shooter, stride, height, smem_start)
         sftp = shooter.open_sftp()
         local_raw = args.raw or (args.out + ".raw")
         sftp.get(REMOTE_RAW, local_raw)

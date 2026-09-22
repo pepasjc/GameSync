@@ -28,6 +28,8 @@ set(SOURCES
     source/network.c
     source/sync.c
     source/bundle.c
+    source/roms.c
+    source/downloads.c
     source/sha256.c
     source/ui.c
     source/debugScreen.c
@@ -62,6 +64,7 @@ target_link_libraries(${PROJECT_NAME}
     SceKernelThreadMgr_stub
     SceKernelModulemgr_stub
     SceLibKernel_stub
+    SceProcessmgr_stub
     SceRtc_stub
     m
     c

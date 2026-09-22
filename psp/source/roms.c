@@ -285,8 +285,15 @@ const char *roms_preferred_extract_format(const RomEntry *rom) {
     {
         return "cso";
     }
-    /* PS1 catalog rows advertise "eboot" via the server's
-     * _extract_formats_for_entry — pass that straight through. */
+    /* PS1: the server's default hint is "cue" (what the PS3 client
+     * wants) with "eboot" only in the extract_formats list we don't
+     * parse.  POPS needs the EBOOT, so always ask for it — passing the
+     * hint through would save a CUE/BIN zip as EBOOT.PBP. */
+    if (strcasecmp(rom->system, "PS1") == 0 ||
+        strcasecmp(rom->system, "PSX") == 0)
+    {
+        return rom->is_bundle ? "" : "eboot";
+    }
     return rom->extract_format;
 }
 

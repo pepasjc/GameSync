@@ -8,6 +8,7 @@
 #include <stdarg.h>
 
 #include <psp2/io/fcntl.h>
+#include <psp2/io/stat.h>
 
 #include "sync.h"
 #include "saves.h"

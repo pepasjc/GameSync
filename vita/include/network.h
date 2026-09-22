@@ -55,4 +55,50 @@ void network_fetch_names(SyncState *state);
  * Existing local entries are preserved; only missing titles are added. */
 void network_merge_server_titles(SyncState *state);
 
+/* ----- ROM catalog + streaming downloads (mirror of the PSP client) -----
+ *
+ * These back the ROM Catalog / Downloads views.  Downloads stream
+ * straight to disk in 64 KB chunks with HTTP Range resume, so a
+ * multi-hundred-MB CSO or EBOOT never has to fit in RAM. */
+
+/* Paginated catalog fetch (``GET /api/v1/roms?system=&limit=&offset=``).
+ * Returns bytes received, or negative on error; ``status_out`` gets the
+ * HTTP status. */
+int network_fetch_rom_catalog(const SyncState *state,
+                              const char *system_code,
+                              int offset, int limit,
+                              char *out, uint32_t out_size,
+                              int *status_out);
+
+/* ``GET /api/v1/roms/scan`` so games added on the server show up
+ * without restarting the app.  Returns 0 on 200 OK; ``count_out``
+ * (optional) receives the server's catalog row count. */
+int network_trigger_rom_scan(const SyncState *state, int *count_out);
+
+/* Streaming progress callback — cumulative bytes on disk and the
+ * expected total (0 when unknown).  Return non-zero to pause. */
+typedef int (*NetProgress64Fn)(uint64_t downloaded, uint64_t total);
+void network_set_progress64_cb(NetProgress64Fn cb);
+
+/* Resumable streaming download of a ROM (or its ``?extract=<fmt>``
+ * conversion).  Bytes go to ``<target_path>.part``; on completion the
+ * .part is renamed into place.
+ *
+ * Returns:
+ *    0  complete
+ *    1  paused — progress callback returned non-zero; .part kept
+ *   -1  network/server error
+ *   -2  filesystem write error
+ *   -3  HTTP non-200/206 (404 / 416 / 503 conversion not configured) */
+int network_download_rom_resumable(const SyncState *state,
+                                   const char *rom_id,
+                                   const char *extract_fmt,
+                                   const char *target_path,
+                                   uint64_t start_offset,
+                                   uint64_t *total_out);
+
+/* HTTP status of the last network_download_rom_resumable call, so the
+ * UI can tell a 503 (server can't convert) from a 404. */
+int network_last_download_status(void);
+
 #endif

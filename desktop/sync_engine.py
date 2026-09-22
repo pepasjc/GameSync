@@ -3834,14 +3834,17 @@ def _mister_catalog_index(system: str):
 def _mister_catalog_title_id(system: str, save_stem: str) -> str | None:
     """Server title_id for a MiSTer save named after its game, else None.
 
-    Only serial-keyed systems (PS1, Saturn, …) may be resolved this way. For a
-    slug-keyed system the name *is* the identity, so matching it loosely would
-    file two different games under one save slot.
+    Only serial-keyed systems (PS1, Saturn, …) may be resolved loosely. For a
+    slug-keyed system the name *is* the identity, so a near miss would file
+    two different games under one save slot - only an exact file-name hit
+    counts there, for the ROM the server keyed under a title id that is not
+    the file's own slug (a translation patch resolved through a DAT alias).
+    Mirrors ``mister/gamesync/sync.py::_catalog_lookup``.
     """
     from shared.sync_id import uses_serial_identity
 
     if not uses_serial_identity(system):
-        return None
+        return _mister_catalog_index(system).lookup_exact(str(save_stem or ""))
     return _mister_catalog_index(system).lookup(str(save_stem or ""))
 
 

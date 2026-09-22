@@ -106,6 +106,103 @@ MISTER_SYSTEM_FOLDER_CANDIDATES: dict[str, list[str]] = {
 }
 
 
+# What a core will actually load out of its games folder.
+#
+# MiSTer ships every core's folder whether or not you own games for it, and
+# each one holds the core's BIOS, blank disk images and support files. Those
+# files use generic extensions - ``boot.rom``, ``sid_data.bin``, ``kanji.rom``
+# - so the global ROM extension set says "game" for all of them and the
+# Installed tab fills up with systems that hold nothing playable.
+#
+# A core only loads a handful of extensions, so the folder's own list is what
+# decides. Folders absent from this table fall back to the global set, which
+# is the old behaviour; an empty tuple means the folder never holds games
+# (utility cores).
+MISTER_FOLDER_ROM_EXTENSIONS: dict[str, tuple] = {
+    # --- CD-based cores: the disc image formats, wherever the core lands.
+    "3DO": (".chd", ".cue", ".iso", ".bin"),
+    "CD-i": (".chd", ".cue", ".iso", ".bin"),
+    "Dreamcast": (".gdi", ".cdi", ".chd", ".cue", ".iso"),
+    "MegaCD": (".chd", ".cue", ".iso", ".bin"),
+    "NeoGeo-CD": (".chd", ".cue", ".iso", ".bin"),
+    "PSX": (".chd", ".cue", ".iso", ".bin", ".exe"),
+    "Saturn": (".chd", ".cue", ".iso", ".bin"),
+    "TGFX16-CD": (".chd", ".cue", ".iso", ".bin"),
+    # --- Cartridge consoles.
+    "32X": (".32x", ".bin"),
+    "S32X": (".32x", ".bin"),
+    "ATARI5200": (".a52", ".car", ".bin"),
+    "ATARI7800": (".a78", ".bin"),
+    "Atari7800": (".a78", ".bin"),
+    "Atari2600": (".a26", ".bin"),
+    "AtariLynx": (".lnx",),
+    "Lynx": (".lnx",),
+    "Lynx48": (".lnx",),
+    "Astrocade": (".bin",),
+    "ChannelF": (".bin", ".rom"),
+    "Coleco": (".col", ".sg", ".bin", ".rom"),
+    "GAMEBOY": (".gb", ".gbc"),
+    "GAMEBOY2P": (".gb", ".gbc"),
+    "Gameboy": (".gb", ".gbc"),
+    "GBC": (".gbc", ".gb"),
+    "GBA": (".gba",),
+    "GBA2P": (".gba",),
+    "SGB": (".gb", ".gbc"),
+    "GameGear": (".gg", ".sms"),
+    "GameGear2P": (".gg", ".sms"),
+    "Gamate": (".bin",),
+    "Intellivision": (".int", ".bin", ".rom"),
+    "Jaguar": (".jag", ".j64", ".abs", ".cof", ".rom"),
+    "MegaDrive": (".md", ".gen", ".smd", ".bin"),
+    "Genesis": (".md", ".gen", ".smd", ".bin"),
+    "N64": (".z64", ".n64", ".v64", ".ndd"),
+    "NES": (".nes", ".fds", ".nsf"),
+    "NEOGEO": (".neo", ".zip"),
+    "NeoGeo": (".neo", ".zip"),
+    "NeoGeoPocket": (".ngp", ".ngc", ".npc"),
+    "NeoGeoPocket-Color": (".ngc", ".ngp", ".npc"),
+    "NGPC": (".ngc", ".ngp", ".npc"),
+    "Odyssey2": (".bin",),
+    "PokemonMini": (".min",),
+    "SMS": (".sms", ".sg", ".gg"),
+    "SNES": (".sfc", ".smc", ".bs"),
+    "TGFX16": (".pce", ".sgx", ".bin", ".zip"),
+    "PCEngine": (".pce", ".sgx", ".bin", ".zip"),
+    "TurboGrafx16": (".pce", ".sgx", ".bin", ".zip"),
+    "VECTREX": (".vec", ".bin"),
+    "WonderSwan": (".ws", ".wsc"),
+    "WonderSwanColor": (".wsc", ".ws"),
+    # --- Home computers: disk and tape images, never a bare .rom/.bin.
+    "AO486": (".vhd", ".img", ".ima", ".iso", ".vfd"),
+    "Amiga": (".adf", ".hdf", ".iso"),
+    "Amstrad": (".dsk", ".cdt"),
+    "Apple-II": (".dsk", ".do", ".po", ".nib", ".hdv", ".2mg"),
+    "ARCHIE": (".vhd", ".adf"),
+    "Archie": (".vhd", ".adf"),
+    "AtariST": (".st", ".msa", ".img", ".vhd"),
+    "ATARI800": (".atr", ".xex", ".car", ".cas", ".atx"),
+    "BBCMicro": (".ssd", ".dsd", ".vhd"),
+    "C16": (".d64", ".prg", ".tap"),
+    "C64": (".d64", ".d71", ".d81", ".g64", ".t64", ".prg", ".crt", ".tap",
+            ".nib"),
+    "C128": (".d64", ".d71", ".d81", ".g64", ".g71", ".prg", ".crt"),
+    "MACPLUS": (".dsk", ".vhd", ".img", ".hda"),
+    "MacLC": (".dsk", ".vhd", ".img", ".hda"),
+    "MSX1": (".rom", ".mx1", ".dsk"),
+    "PET2001": (".prg", ".tap"),
+    "QL": (".mdv", ".win"),
+    "Spectrum": (".tap", ".tzx", ".z80", ".trd", ".scl", ".dsk", ".sna"),
+    "TI-99_4A": (".rpk", ".dsk", ".bin"),
+    "TSConf": (".trd", ".scl", ".tap", ".spg"),
+    "VIC20": (".d64", ".prg", ".tap", ".crt"),
+    "X68000": (".d88", ".hdf", ".vhd", ".dim"),
+    "ZXNext": (".vhd",),
+    # --- Not game folders at all.
+    "MEMTEST": (),
+    "DVD-Player": (),
+}
+
+
 # Some cores keep their saves somewhere other than their own games folder.
 #
 # The TurboGrafx-16 core writes **both** HuCard and CD saves into
@@ -198,6 +295,7 @@ __all__ = [
     "MISTER_CONFIG_DIR",
     "MISTER_CONFIG_FILE",
     "MISTER_FOLDER_MAP",
+    "MISTER_FOLDER_ROM_EXTENSIONS",
     "MISTER_FOLDER_TO_SYSTEM",
     "MISTER_GAMES_ROOTS",
     "MISTER_LOG_FILE",

@@ -52,6 +52,18 @@ KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = 103, 108, 105, 106
 KEY_PAGEUP, KEY_PAGEDOWN, KEY_HOME, KEY_END = 104, 109, 102, 107
 KEY_KPENTER, KEY_BACKSPACE, KEY_Q = 96, 14, 16
 
+#: Keyboard keys that type a character while a text prompt is open. Linux
+#: keycodes are laid out by keyboard row, so each row is one contiguous run.
+TEXT_KEYS = {}
+for _row, _first in (("1234567890-", 2), ("QWERTYUIOP", 16),
+                     ("ASDFGHJKL", 30), ("ZXCVBNM", 44)):
+    for _offset, _char in enumerate(_row):
+        TEXT_KEYS[_first + _offset] = _char
+TEXT_KEYS[KEY_SPACE] = " "
+TEXT_KEYS[52] = "."          # KEY_DOT
+TEXT_KEYS[40] = "'"          # KEY_APOSTROPHE
+del _row, _first, _offset, _char
+
 NOISY_NAME_PARTS = ("motion sensor", "touchpad", "accelerometer", "gyro")
 VIRTUAL_NAME = "mister virtual input"
 
@@ -61,6 +73,9 @@ PRIMARY, BACK, SYNC, ALT = "primary", "back", "sync", "alt"
 PREV_SYSTEM, NEXT_SYSTEM = "prev_system", "next_system"
 PREV_TAB, NEXT_TAB = "prev_tab", "next_tab"
 SEARCH, SETTINGS, QUIT = "search", "settings", "quit"
+#: Emitted only while a text prompt is open (``InputReader.text_keys``):
+#: a typed character is ``CHAR_PREFIX + char``.
+TEXT_DELETE, TEXT_OK, CHAR_PREFIX = "text_delete", "text_ok", "char:"
 
 #: Every action that can be bound, in the order a remap wizard should ask for
 #: them. QUIT is deliberately absent: BACK already leaves, and a cabinet with
@@ -364,6 +379,10 @@ def generic_code_map(vendor: int, product: int, keys: set) -> dict | None:
 class InputReader:
     """Turns raw evdev traffic into a stream of high-level actions."""
 
+    #: While True a keyboard types characters (see TEXT_KEYS) instead of
+    #: driving the list. Set by the app around a text prompt.
+    text_keys = False
+
     def __init__(self, buttons: dict | None = None, arcade: bool = False):
         """``buttons`` is ``{action: code}`` from the config, and wins.
 
@@ -656,6 +675,19 @@ class InputReader:
         if self._capture is not None and device.is_pad:
             self._capture.append(code)
             return
+        if self.text_keys and not device.is_pad:
+            # A real keyboard types straight into the prompt; the pad's
+            # bindings still apply so the on-screen keys work beside it.
+            char = TEXT_KEYS.get(code)
+            if char is not None:
+                self._emit(CHAR_PREFIX + char)
+                return
+            if code == KEY_BACKSPACE:
+                self._emit(TEXT_DELETE)
+                return
+            if code in (KEY_ENTER, KEY_KPENTER):
+                self._emit(TEXT_OK)
+                return
         action = (self._buttons_for(device).get(code)
                   if device.is_pad else None)
         if action is None:

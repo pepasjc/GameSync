@@ -237,6 +237,41 @@ tools (`chdman`, `wit`, `dolphin-tool`, `maxcso`) invoked as subprocesses — th
 are **not** bundled. `share_token.py` issues HMAC-signed links so a ROM or save
 can be fetched without exposing the API key.
 
+**MSU packs** (SNES MSU-1, Mega Drive MSU-MD / MD+) are enhanced-audio hacks
+that must land on a device as a *folder* — the ROM plus the audio it streams
+from beside itself. `shared/msu.py` is the single source of truth (Kotlin
+port: `android/.../sync/MsuPack.kt`, keep in step). Detection is by
+**contents, not layout**: under `snes/` or `genesis/` (any depth) a per-game
+subfolder, or a `.zip` ≥16 MB / with `msu` in its name, becomes one bundle
+entry with `bundle_kind` = `msu1` (`.msu` + `.sfc`), `msu-md` (`.cue` with
+`BINARY` audio + `.md`) or `mdplus` (`.cue` with `WAVE` tracks + `.md`). The
+two Mega Drive kinds carry differently patched ROMs and are never
+interchangeable. A zipped pack is served **as the zip on disk** (`path` is a
+file, Range works, `/file/{rel}` reads members); the manifest lists members
+with the single wrapping folder stripped and every client hoists it on
+extract (`msu.plan_extraction`). Identity: a pack must share the save slot of
+the ROM it patched, but its name keeps the MSU author's `[Hack by …]` (which
+no plain ROM carries) while a translated baseline keeps *its* tags
+(`[T-En …] [FastROM …] [n]`) — so neither "keep brackets" nor "strip
+brackets" works. `msu.identity_candidates` yields name → name minus `[Hack
+by …]` → cart member → cart minus hack tags; `rom_scanner._resolve_msu_identities`
+runs after the whole scan and takes the first candidate that is a plain ROM
+in the catalog, else the first DAT hit, else the hack-stripped name. Display
+name keeps every tag; `rom_id` stays unique. `tools/msu_pick.py` picks one
+pack per game from several source sets using exactly this code against a
+baseline list (curated set last wins; hand-named `(US)`/`(BR)`/`(MSU-1)`
+copies are second-class and get tidied), `tools/msu_copy.sh` rsyncs the plan
+to the Pi. MiSTer layout lives in `shared/mister_install.msu_pack_layout`: MSU-1 →
+`games/SNES/<Game>/`, MD+ → `games/Genesis/<Game>/` (MegaDrive core, loads
+the `.md`), MSU-MD → `games/MegaCD/<Game>/` with the cart renamed `cart.rom`
+(MegaCD core; the MegaDrive core does not play BIN/CUE audio). Emulator
+clients (Android, Steam Deck, desktop EmuDeck/FXPak) extract into
+`<roms>/<system>/<Game>/` with no rename. Pack junk (`.srm`, `.asm`, `.txt`…)
+is dropped on the way out. The MiSTer client's L1/R1 system cycle gains a
+`SNES: MSU packs` stop after any system that has packs (`catalog_systems`
+in `mister/gamesync/app.py`), and pack rows carry an `MSU-1`/`MSU-MD`/`MD+`
+prefix in their detail column.
+
 ## Client notes and hard-won gotchas
 
 **3DS** — libctru `AM`/`FS`/`httpc`/`AC`. After writing save data you **must**
@@ -279,6 +314,16 @@ mounts `/dev/usb01` at `/vol/usb` — a *different* device from the WFS
 download as WUP folders under `<root>/install/<Name>/` and install through MCP
 (`install_target=mlc|usb`) — MCP wants an FSA path (`/vol/external01/...`), never
 a devoptab path, and its structs must be heap-allocated at 0x40 alignment.
+
+**PSP / Vita ROM catalog** — both clients install PSP and PS1 games into
+the PSP tree (`ms0:/` on PSP, `<pspemu_root>/` — default `ux0:pspemu` — on
+the Vita for Adrenaline): PSP CHDs as `ISO/<name>.cso`, PS1 discs as
+`PSP/GAME/<serial>/EBOOT.PBP`. The server's catalog `extract_format` hint for
+PS1 is `cue` (the PS3 client's choice) with `eboot` only in the
+`extract_formats` list the C clients don't parse — so the client must ask
+for `?extract=eboot` itself, never pass the hint through. PS1 folder
+bundles have no EBOOT route and are refused client-side. `vita/source/roms.c`
+and `downloads.c` are ports of the PSP files; keep them parallel.
 
 **PS3** — `PARAM.PFD` resigning and per-file save decryption via PolarSSL.
 Per-game `secure_file_id` keys come from `ps3/data/games.conf` (Apollo Save Tool

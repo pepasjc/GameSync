@@ -6,6 +6,7 @@
  *   api_key=your-secret-key
  *   scan_vita=1
  *   scan_psp_emu=1
+ *   pspemu_root=ux0:pspemu   (optional; where Adrenaline keeps ISO/ + PSP/GAME/)
  */
 
 #include <stdio.h>
@@ -50,6 +51,7 @@ bool config_load(SyncState *state, char *error_buf, size_t error_buf_len) {
     /* Defaults */
     state->scan_vita_saves    = true;
     state->scan_psp_emu_saves = true;
+    strncpy(state->pspemu_root, PSPEMU_ROOT_DEFAULT, sizeof(state->pspemu_root) - 1);
 
     char *line = strtok(buf, "\n");
     while (line) {
@@ -67,6 +69,13 @@ bool config_load(SyncState *state, char *error_buf, size_t error_buf_len) {
                 state->scan_vita_saves = atoi(val) != 0;
             else if (strcmp(key, "scan_psp_emu") == 0)
                 state->scan_psp_emu_saves = atoi(val) != 0;
+            else if (strcmp(key, "pspemu_root") == 0 && val[0]) {
+                strncpy(state->pspemu_root, val, sizeof(state->pspemu_root) - 1);
+                /* Tolerate a trailing slash so path joins stay single-slashed. */
+                size_t rl = strlen(state->pspemu_root);
+                while (rl > 0 && state->pspemu_root[rl - 1] == '/')
+                    state->pspemu_root[--rl] = '\0';
+            }
         }
         line = strtok(NULL, "\n");
     }

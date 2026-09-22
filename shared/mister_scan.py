@@ -15,9 +15,12 @@ from __future__ import annotations
 
 import os
 import posixpath
-from typing import Callable, List, Optional
+import re
+from typing import Callable, Iterable, List, Optional, Sequence, Tuple
 
 from shared.mister import (
+    MISTER_CD_SYSTEMS,
+    MISTER_FOLDER_ROM_EXTENSIONS,
     MISTER_FOLDER_TO_SYSTEM,
     MISTER_GAMES_ROOTS,
     MISTER_SHARED_SAVE_FOLDERS,
@@ -25,7 +28,7 @@ from shared.mister import (
     mister_system_save_folder_candidates,
 )
 from shared.rom_id import make_title_id, normalize_rom_name
-from shared.systems import SAVE_EXTENSIONS
+from shared.systems import CD_ALL_EXTENSIONS, ROM_EXTENSIONS, SAVE_EXTENSIONS
 
 MISTER_SAVES_DIR = "/media/fat/saves"
 
@@ -34,8 +37,16 @@ MISTER_SAVES_DIR = "/media/fat/saves"
 #: core will never see it.
 MISTER_SAVE_EXT = ".sav"
 
+_ALL_ROM_EXTENSIONS = tuple(sorted(ROM_EXTENSIONS))
+_CD_LIKE_EXTENSIONS = tuple(sorted(CD_ALL_EXTENSIONS | {".gdi", ".cdi"}))
+
 __all__ = [
     "LocalProvider",
+    "InstalledRom",
+    "filter_game_entries",
+    "is_game_entry",
+    "list_installed_games",
+    "rom_extensions_for_folder",
     "system_for_save",
     "MISTER_SAVES_DIR",
     "MiSTerSaveFile",
@@ -93,6 +104,232 @@ class MiSTerSaveFile:
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return "MiSTerSaveFile(%s, %s)" % (self.system, self.filename)
+
+
+# --------------------------------------------------------------- game filter
+#
+# A MiSTer games folder is not only games. Every CD core keeps its BIOS beside
+# them (``boot.rom``, ``cd_bios.rom``), several cores keep firmware or a
+# system disk there, and update scripts drop caches and support folders in.
+# ``.rom`` and ``.bin`` are legitimate ROM extensions for some cores, so the
+# extension cannot decide - the *name* has to. Without this the Installed tab
+# lists a dozen systems that hold nothing but a BIOS, which buries the systems
+# that really do have games.
+
+#: Exact filenames that are never a game.
+_NON_GAME_FILES = frozenset({
+    "000-lo.lo",           # NeoGeo BIOS sprite ROM
+    "sfix.sfix",           # NeoGeo BIOS fix layer
+    "neogeo.zip",          # NeoGeo BIOS set
+    "darksoft.zip",
+    "sbi.zip",             # PSX libcrypt patches
+    "alt_roms.zip",
+    "sdcard.zip",
+    "sid_data.bin",
+    "kanji.rom",
+    "disk.dat",            # X68000 / SharpMZ system disk
+    "sram.dat",
+    "cheats.zip",
+    "menu.rom",
+    "mister.ini",
+})
+
+#: Stems (extension dropped) that are never a game, as a regex. Covers the
+#: numbered variants a core uses for regional BIOS revisions.
+_NON_GAME_STEM_RE = re.compile(
+    r"(?i)^("
+    r"(?:[\w-]+[-_])?boot\d*"   # boot.rom, boot0.rom, mister-boot.nes, dc_boot
+    r"|(?:[\w-]+[-_])?flash\d*"  # dc_flash.bin
+    r"|cd_?bios\d*"       # cd_bios.rom (MegaCD, TGFX16-CD)
+    r"|syscard\d*"        # PC Engine CD system cards
+    r"|kick|kick\d.*|kickstart.*"  # Amiga Kickstart ("Kick Off 2" is a game)
+    r"|tos\d*"            # Atari ST TOS
+    r"|x68000.*"         # X68000 IPL/CGROM
+    r"|uni-?bios.*"        # NeoGeo UniBIOS
+    r"|neocd.*"          # NeoGeo CD BIOS
+    r"|top-sp1"
+    r"|firmware.*"
+    r"|empty.*|blank.*"     # blank disk/tape images shipped with a core
+    r")$"
+)
+
+#: A stem calling itself a BIOS, when the extension is one a BIOS uses. The
+#: extension matters: ``Bios Fighter.md`` is a Mega Drive game.
+_BIOS_NAME_RE = re.compile(r"(?i)(?:^|[ _.\-\[(])bios(?:$|[ _.\-\])])")
+_BIOS_EXTENSIONS = (".rom", ".bin", ".dat", ".img", ".lo", ".zip")
+
+#: Support folders cores and scripts keep next to the games.
+_NON_GAME_FOLDERS = frozenset({
+    "artwork", "cheats", "config", "docs", "filters", "gamma", "hbmame",
+    "mame", "mra", "music", "palette", "palettes", "presets", "samples",
+    "saves", "savestates", "screenshots", "scripts", "shadow_masks",
+    "system", "bios", "overlays", "drv", "old", "media", "shaders", "misc",
+    "mister",
+})
+
+#: Files that are one track of a multi-track disc image, not a disc.
+_TRACK_FILE_RE = re.compile(r"(?i)(?:^|[ _\-(\[])track\s*\d+")
+
+#: A sheet names the disc; the data/audio files it points at are not games.
+_SHEET_EXTENSIONS = (".cue", ".gdi", ".ccd", ".m3u", ".toc")
+
+#: Dropped when a sheet of the same stem sits beside them.
+_SHEET_COMPANION_EXTENSIONS = (".bin", ".img", ".iso", ".raw", ".sub",
+                               ".wav", ".ogg", ".mp3", ".flac")
+
+
+def is_game_entry(name: str, is_dir: bool = False) -> bool:
+    """Is this games-folder entry a game, rather than a BIOS or support file?
+
+    Extension filtering happens in the caller; this only rejects entries that
+    look like a ROM but are not one.
+    """
+    entry = str(name or "").strip()
+    if not entry or entry.startswith("."):
+        return False
+    if is_dir:
+        return entry.lower() not in _NON_GAME_FOLDERS
+    lowered = entry.lower()
+    if lowered in _NON_GAME_FILES:
+        return False
+    if _TRACK_FILE_RE.search(posixpath.splitext(entry)[0]):
+        return False
+    stem, extension = posixpath.splitext(lowered)
+    if extension in _BIOS_EXTENSIONS and _BIOS_NAME_RE.search(stem):
+        return False
+    return not _NON_GAME_STEM_RE.match(stem)
+
+
+def filter_game_entries(
+    entries: Iterable[Tuple[str, bool]],
+) -> List[Tuple[str, bool]]:
+    """Keep the real games out of one games folder's listing.
+
+    ``entries`` is ``(name, is_dir)`` pairs. On top of :func:`is_game_entry`,
+    a disc image referenced by a sheet beside it is dropped, so a game shipped
+    as ``Game.cue`` + ``Game.bin`` is one row and not two.
+    """
+    kept = [(name, is_dir) for name, is_dir in entries
+            if is_game_entry(name, is_dir)]
+    sheet_stems = {
+        posixpath.splitext(name)[0].lower()
+        for name, is_dir in kept
+        if not is_dir and name.lower().endswith(_SHEET_EXTENSIONS)
+    }
+    if not sheet_stems:
+        return kept
+    result = []
+    for name, is_dir in kept:
+        lowered = name.lower()
+        if (not is_dir
+                and lowered.endswith(_SHEET_COMPANION_EXTENSIONS)
+                and posixpath.splitext(lowered)[0] in sheet_stems):
+            continue
+        result.append((name, is_dir))
+    return result
+
+
+def rom_extensions_for_folder(folder: str) -> Tuple[str, ...]:
+    """Extensions the core owning ``folder`` will load, best known.
+
+    Falls back to the global ROM set for a folder we have no list for, so an
+    unknown or new core still shows its games.
+    """
+    known = MISTER_FOLDER_ROM_EXTENSIONS.get(folder)
+    if known is None:
+        return _ALL_ROM_EXTENSIONS
+    return tuple(known)
+
+
+class InstalledRom:
+    """One game found in a MiSTer games folder."""
+
+    __slots__ = ("name", "path", "is_dir", "is_pack")
+
+    def __init__(self, name: str, path: str, is_dir: bool, is_pack: bool = False):
+        self.name = name
+        self.path = path
+        self.is_dir = is_dir
+        #: An MSU pack: a cart with its streamed audio beside it (``.msu`` /
+        #: ``.cue`` in the folder, or a ``cart.rom`` MegaCD title).  Kept apart
+        #: from the plain ROM of the same game, which it is not a copy of.
+        self.is_pack = is_pack
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "InstalledRom(%r)" % self.name
+
+
+def list_installed_games(provider, folder_path: str, folder: str,
+                         system: Optional[str] = None) -> List[InstalledRom]:
+    """The games in one system's folder - BIOS and support files excluded.
+
+    Three rules do the work, and all three come from how MiSTer lays a card
+    out rather than from guesswork:
+
+    * **The core's own extensions decide.** MiSTer ships every core's folder
+      whether or not you own games for it, each holding a BIOS with a generic
+      extension (``boot.rom``, ``kanji.rom``). Matching the global ROM set made
+      every one of those folders look like a system with a game in it.
+    * **A subfolder is a game only for a CD core.** CD cores launch a folder of
+      discs; cartridge cores never do, so a subfolder there is the user's own
+      shelf (``NEOGEO/Fighting``) or the core's (``VECTREX/Overlays``). Those
+      are descended into instead, one level, so the games inside still show.
+    * **A CD game folder must actually hold a disc.** ``MegaCD/USA`` holds one
+      regional BIOS, not a game.
+    """
+    if system is None:
+        system = MISTER_FOLDER_TO_SYSTEM.get(folder, folder.upper())
+    extensions = rom_extensions_for_folder(folder)
+    is_cd = system in MISTER_CD_SYSTEMS or bool(
+        set(extensions) & set(_CD_LIKE_EXTENSIONS))
+
+    entries = [(name, provider.is_dir(posixpath.join(folder_path, name)))
+               for name in sorted(provider.listdir(folder_path))]
+
+    found: List[InstalledRom] = []
+    for name, is_dir in filter_game_entries(entries):
+        path = posixpath.join(folder_path, name)
+        if not is_dir:
+            if extensions and name.lower().endswith(extensions):
+                found.append(InstalledRom(posixpath.splitext(name)[0], path,
+                                          False))
+            continue
+        if is_cd:
+            if _holds_a_game(provider, path, extensions):
+                children = provider.listdir(path)
+                found.append(InstalledRom(
+                    name, path, True,
+                    is_pack=any(c.lower() == "cart.rom" for c in children)))
+            continue
+        # A shelf folder on a cartridge core: the games are one level down.
+        # A folder that also holds ``.msu`` or ``.cue`` sidecars is an MSU
+        # pack rather than a shelf, and its cart is flagged as such.
+        children = sorted(provider.listdir(path))
+        pack = any(c.lower().endswith((".msu", ".cue")) for c in children)
+        for child, child_is_dir in filter_game_entries(
+                [(entry, provider.is_dir(posixpath.join(path, entry)))
+                 for entry in children]):
+            if child_is_dir or not child.lower().endswith(extensions):
+                continue
+            found.append(InstalledRom(posixpath.splitext(child)[0],
+                                      posixpath.join(path, child), False,
+                                      is_pack=pack))
+    return found
+
+
+def _holds_a_game(provider, path: str, extensions: Sequence[str]) -> bool:
+    """Does this folder contain a disc image, at its top level or one below?"""
+    wanted = tuple(extensions) or _ALL_ROM_EXTENSIONS
+    for name, is_dir in filter_game_entries(
+            [(entry, provider.is_dir(posixpath.join(path, entry)))
+             for entry in provider.listdir(path)]):
+        if not is_dir:
+            if name.lower().endswith(wanted):
+                return True
+        elif any(child.lower().endswith(wanted)
+                 for child in provider.listdir(posixpath.join(path, name))):
+            return True
+    return False
 
 
 def scan_saves(provider, saves_root: str = MISTER_SAVES_DIR,

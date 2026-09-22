@@ -103,10 +103,23 @@ them seeing phantom conflicts.
 | Y | Rescan |
 | L1 / R1 | Previous / next system filter (only systems present in the tab) |
 | L2 / R2 | Previous / next tab |
+| SELECT | Clear the catalog search (or open it) |
 | START | Settings |
 
-On **Catalog**, A queues the highlighted ROM, X downloads everything queued and
-Y refreshes the list. On **Downloads**, A and X run the queue and Y clears
+On **Catalog**, A installs the highlighted ROM: it joins the queue and the
+download starts at once, in the background, one file at a time - keep
+browsing and queueing while it runs. The Downloads tab label shows the
+progress (`Downloads 43%`) or how many are waiting; a finished game gets a
+toast and shows up on Installed. Closing the app mid-download is safe: the
+`.part` file is kept and the transfer resumes the next time GameSync starts.
+Y opens a search: an on-screen keyboard driven by the pad (a USB keyboard types
+straight in), Y again or OK applies it. Every word has to appear in the name,
+in any order, and the search stacks with the system filter; the header shows
+the active search and SELECT clears it. The system and row you were on are
+remembered across runs, so the tab reopens where you left it. A forced refresh
+of the catalog - "I changed the server's library" - lives on the **Settings**
+tab. On **Downloads**, A retries a failed row (or starts a stopped queue),
+X starts the queue and Y clears
 finished rows. On **Installed**, A moves a game between the SD card and USB
 and X deletes it; both ask first, and a move seeds the BIOS when it creates a
 USB core folder. On **Settings**, A changes the highlighted setting - ROM
@@ -346,6 +359,13 @@ rest was fetching the catalogue and title lists needed to resolve names for
 serial-keyed systems, and then re-running the slug rules over every one of
 those names. So the built name matcher is cached too, in `server_cache.json`,
 with a 10-minute expiry.
+
+Slug-keyed systems (SNES, NES, GBA, …) do not pay that cost. Their save is
+still checked against the catalogue - a translation patch is filed on the
+server under the original title's slug, and a save named after the patched
+file has to land in that slot - but only an *exact* file-name hit counts, so
+the index is a plain dictionary built from the catalogue rows the client
+already holds (`catalog_cache.json`), with no slug pass and no fetch.
 
 | | |
 |---|---|
