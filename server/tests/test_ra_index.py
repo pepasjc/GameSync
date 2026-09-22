@@ -320,3 +320,82 @@ def test_ra_generation_advances_on_clear(db):
     before = ra_index.generation()
     ra_index.clear()
     assert ra_index.generation() > before
+
+
+# --- MSU packs ----------------------------------------------------------------
+#
+# A pack is audio plus one patched cartridge, served as a zip (or folder).
+# RA identifies the game by that cartridge alone, so the indexer hashes it -
+# and must never pick an audio file or a second ROM variant instead.
+
+
+class _Pack(_Entry):
+    def __init__(self, path, kind="msu1", system="SNES"):
+        super().__init__(path, system=system, is_bundle=True)
+        self.bundle_kind = kind
+
+
+def _zip(path, members):
+    import zipfile
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, data in members.items():
+            zf.writestr(name, data)
+    return path
+
+
+def test_msu_pack_is_indexed_by_its_cartridge(db, library, tmp_path):
+    pack = _zip(tmp_path / "Game (USA) (MSU1).zip", {
+        "Game (USA) (MSU1).sfc": ROM_BYTES,
+        "Game (USA) (MSU1).msu": b"",
+        "Game (USA) (MSU1)-1.pcm": b"\x00" * 4096,
+    })
+    result = ra_index.refresh([_Pack(pack)], tmp_path / "cache")
+    assert result["hashed"] == 1 and result["known"] == 1
+    assert ra_index.lookup([str(pack)])[str(pack)]["ra_achievements"] == 7
+
+
+def test_pack_zipped_with_its_folder_still_finds_the_cartridge(db, library, tmp_path):
+    pack = _zip(tmp_path / "Game.zip", {
+        "Game (USA) (MSU1)/Game (USA) (MSU1).sfc": ROM_BYTES,
+        "Game (USA) (MSU1)/Game (USA) (MSU1).msu": b"",
+    })
+    ra_index.refresh([_Pack(pack)], tmp_path / "cache")
+    assert ra_index.lookup([str(pack)])[str(pack)]["ra_game_id"] == 42
+
+
+def test_the_rom_matching_the_msu_sidecar_wins_over_a_variant(db, library, tmp_path):
+    """Packs sometimes ship a second ROM ([cheat], [FastROM]) - the one
+    named like the .msu is what the launcher opens, so that is hashed."""
+    pack = _zip(tmp_path / "Game.zip", {
+        "Game (USA) (MSU1).sfc": ROM_BYTES,
+        "Game (USA) (MSU1) [Invincibility].sfc": OTHER_BYTES,
+        "Game (USA) (MSU1).msu": b"",
+    })
+    ra_index.refresh([_Pack(pack)], tmp_path / "cache")
+    assert ra_index.lookup([str(pack)])[str(pack)]["ra_game_id"] == 42
+
+
+def test_pack_folder_is_indexed_too(db, library, tmp_path):
+    folder = tmp_path / "Game (USA) (MSU1)"
+    folder.mkdir()
+    (folder / "Game (USA) (MSU1).sfc").write_bytes(ROM_BYTES)
+    (folder / "Game (USA) (MSU1).msu").write_bytes(b"")
+    ra_index.refresh([_Pack(folder)], tmp_path / "cache")
+    assert ra_index.lookup([str(folder)])[str(folder)]["ra_game_id"] == 42
+
+
+def test_pack_with_no_cartridge_is_cached_as_unknown_not_crashed(db, library, tmp_path):
+    pack = _zip(tmp_path / "Audio only.zip", {"track-1.pcm": b"\x00" * 64})
+    result = ra_index.refresh([_Pack(pack)], tmp_path / "cache")
+    assert result["hashed"] == 0
+    assert ra_index.lookup([str(pack)]) == {}
+
+
+def test_an_ordinary_bundle_is_still_skipped(db, library, tmp_path):
+    """Only MSU packs wrap a single cart; a Wii U or PS3 folder does not."""
+    folder = tmp_path / "Some Bundle"
+    folder.mkdir()
+    (folder / "game.sfc").write_bytes(ROM_BYTES)
+    entry = _Entry(folder, is_bundle=True)
+    entry.bundle_kind = ""
+    assert ra_index.refresh([entry], tmp_path / "cache")["hashed"] == 0

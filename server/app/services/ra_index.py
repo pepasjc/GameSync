@@ -51,6 +51,7 @@ from shared.ra_hash import (
 )
 from shared.ra_disc import disc_hash_supported, hash_disc_file
 from shared.ra_titles import build_index
+from shared import msu
 
 logger = logging.getLogger(__name__)
 
@@ -207,14 +208,63 @@ def resolve_path(path: str, rom_dir: Optional[Path]) -> Path:
     return candidate
 
 
+_MSU_KINDS = {msu.MSU1, msu.MSU_MD, msu.MD_PLUS}
+#: A cart image is a few MB; anything bigger in a pack is audio.
+_PACK_ROM_MAX = 16 * 1024 * 1024
+
+
+def _is_msu_pack(entry) -> bool:
+    return (getattr(entry, "is_bundle", False)
+            and str(getattr(entry, "bundle_kind", "") or "").lower() in _MSU_KINDS)
+
+
+def _hash_pack(path: Path, entry):
+    """RA hash of the cartridge inside an MSU-1 / MSU-MD / MD+ pack.
+
+    The pack is audio plus one patched cart; RA identifies the game by that
+    cart alone, so it is found the same way a launcher finds it
+    (:func:`shared.msu.rom_member`) and hashed like any loose ROM.  Only
+    that member is read - the audio, often a gigabyte, is never touched.
+    """
+    import zipfile
+
+    from shared.ra_hash import RaHash, ra_hash_bytes
+
+    kind = str(entry.bundle_kind).lower()
+    try:
+        if path.is_dir():
+            names = [p.name for p in path.iterdir() if p.is_file()]
+            member = msu.rom_member(kind, names, lambda n: (path / n).read_text("latin-1"))
+            if not member:
+                return RaHash(None, "no cartridge in pack")
+            return ra_hash_file(path / member, entry.system)
+        with zipfile.ZipFile(path) as zf:
+            infos = {i.filename: i for i in zf.infolist() if not i.is_dir()}
+            root, flat = msu.strip_common_root(infos)
+            full_name = {n: (f"{root}/{n}" if root else n) for n in flat}
+            member = msu.rom_member(kind, flat,
+                                    lambda n: zf.read(full_name[n]).decode("latin-1"))
+            if not member:
+                return RaHash(None, "no cartridge in pack")
+            info = infos[full_name[member]]
+            if info.file_size > _PACK_ROM_MAX:
+                return RaHash(None, "cartridge member implausibly large")
+            return ra_hash_bytes(zf.read(info), entry.system, member)
+    except (OSError, zipfile.BadZipFile, KeyError) as exc:
+        return RaHash(None, str(exc))
+
+
 def _needs_hash(
     entry, cached: dict[str, tuple[int, float]], rom_dir: Optional[Path] = None
 ) -> Optional[tuple[int, float]]:
     """``(size, mtime)`` when this entry has to be hashed, else None."""
     path = getattr(entry, "path", "")
-    if not path or getattr(entry, "is_bundle", False):
-        # A bundle is a folder or a zip of many files; RA hashes a single
-        # ROM, so there is nothing well-defined to hash here.
+    if not path:
+        return None
+    if getattr(entry, "is_bundle", False) and not _is_msu_pack(entry):
+        # An ordinary bundle is a folder or a zip of many files; RA hashes a
+        # single ROM, so there is nothing well-defined to hash.  An MSU pack
+        # is the exception - it wraps exactly one cartridge.
         return None
     if not ra_hash_supported(getattr(entry, "system", "")):
         return None
@@ -403,7 +453,8 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
         if should_stop and should_stop():
             logger.info("[ra_index] stopping early at %d/%d", index, len(todo))
             break
-        result = ra_hash_file(resolve_path(entry.path, rom_dir), entry.system)
+        full = resolve_path(entry.path, rom_dir)
+        result = _hash_pack(full, entry) if _is_msu_pack(entry) else ra_hash_file(full, entry.system)
         if not result.ok:
             # Cache the failure too: an unreadable or malformed ROM should
             # not be retried on every single scan.
