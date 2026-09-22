@@ -102,6 +102,15 @@ def _get() -> sqlite3.Connection:
     return _conn
 
 
+def connection() -> sqlite3.Connection:
+    """The open roms.db connection, for services storing their own tables.
+
+    ``ra_index`` keeps its cache beside the catalog rather than in its own
+    file so the two can never disagree about which save_dir they belong to.
+    """
+    return _get()
+
+
 def upsert(entries: list[dict]) -> int:
     conn = _get()
     # Default the optional bundle fields so callers from older code paths

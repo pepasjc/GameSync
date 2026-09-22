@@ -254,7 +254,7 @@ def _save_dir_to_cache(temp_dir: Path, source_path: Path, fmt: str) -> Path:
 # never holds more than this much in RAM at a time, so 4GB ROMs over slow
 # WAN links cost ~1MB of process memory regardless of file size.
 _STREAM_CHUNK = 1 << 20
-from app.services import ctr_rom, rom_scanner
+from app.services import ctr_rom, ra_index, rom_scanner
 from shared import wiiu_meta
 
 router = APIRouter()
@@ -509,6 +509,9 @@ async def list_roms(
         if wiiu is not None:
             d['content_type'], d['base_title_id'], d['related_rom_ids'] = wiiu
         result.append(d)
+
+    # RetroAchievements badges, in one batched lookup for the whole page.
+    ra_index.annotate(page, result)
 
     return {
         "roms": result,

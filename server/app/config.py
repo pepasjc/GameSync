@@ -136,6 +136,14 @@ class Settings(BaseSettings):
     port: int = 8000
     max_history_versions: int = 10
     rom_scan_interval: int = 300
+
+    # RetroAchievements catalog badges.  The index is built in the
+    # background after a ROM scan and cached in roms.db, so leaving this on
+    # costs one read of each cartridge ROM, once.  Without an API key the
+    # public endpoints are used, which report no achievement counts.
+    ra_enabled: bool = True
+    ra_api_key: str = ""
+    ra_username: str = ""
     site_title: str = "GameSync"
     # Comma-separated list of nginx Basic Auth usernames that get admin access.
     # Everyone else can download but cannot trigger rescans or change settings.
