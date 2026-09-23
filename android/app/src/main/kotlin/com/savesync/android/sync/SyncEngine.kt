@@ -848,6 +848,8 @@ class SyncEngine(
                     HashUtils.sha256DirTreeFiles(entry.saveDir)
                 saturnSnapshot != null ->
                     HashUtils.sha256Bytes(saturnSnapshot.bytes)
+                entry.saveFile?.exists() == true && entry.systemName == "PS2" ->
+                    Ps2CardEcc.normalizedHash(entry.saveFile) ?: HashUtils.sha256File(entry.saveFile)
                 entry.saveFile?.exists() == true -> HashUtils.sha256File(entry.saveFile)
                 entry.saveDir?.exists() == true  -> HashUtils.sha256Dir(entry.saveDir)
                 else -> return  // nothing to record

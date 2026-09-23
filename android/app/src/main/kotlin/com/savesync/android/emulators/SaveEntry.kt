@@ -1,6 +1,7 @@
 package com.savesync.android.emulators
 
 import com.savesync.android.sync.HashUtils
+import com.savesync.android.sync.Ps2CardEcc
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.zip.ZipEntry
@@ -56,6 +57,9 @@ data class SaveEntry(
                 HashUtils.sha256Files(files)
             }
             isMultiFile && saveDir != null -> HashUtils.sha256Dir(saveDir)
+            // PS2 cards hash with recomputed ECC, as the server does — see Ps2CardEcc.
+            saveFile != null && systemName == "PS2" ->
+                Ps2CardEcc.normalizedHash(saveFile) ?: HashUtils.sha256File(saveFile)
             saveFile != null -> HashUtils.sha256File(saveFile)
             else -> ""
         }
