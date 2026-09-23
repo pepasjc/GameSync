@@ -2972,3 +2972,43 @@ class TestChdMediaSniff:
         assert roms._extract_formats_for_entry(entry("Unlisted CD Hack.chd")) == (
             "cue", ["cue"],
         )
+
+
+class TestPcfxCatalog:
+    """NEC PC-FX discs are plain CD-ROM CHDs under ``<rom_dir>/pcfx/``.
+
+    They index as ``PCFX`` (slug-keyed, like every non-serial CD system),
+    stay one catalog row per disc, and advertise the same chdman CUE/BIN
+    extract as PC Engine CD — the raw CHD is what emulators and clients
+    take by default.
+    """
+
+    def test_pcfx_chds_index_as_pcfx_with_cue_extract(self, tmp_path, monkeypatch):
+        from app.routes import roms
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        folder = rom_dir / "pcfx"
+        folder.mkdir(parents=True)
+        for name in (
+            "Aa Megami-sama (Japan) (Disc 1).chd",
+            "Aa Megami-sama (Japan) (Disc 2).chd",
+            "Zenki FX - Vajura Fight (Japan).chd",
+        ):
+            (folder / name).write_bytes(b"x" * 64)
+
+        monkeypatch.setattr(settings, "rom_dir", rom_dir)
+        catalog = rom_scanner.RomCatalog()
+        assert catalog.scan(rom_dir, use_crc32=False) == 3
+
+        entries = catalog.list_by_system("PCFX")
+        assert len(entries) == 3
+        for entry in entries:
+            assert entry.title_id.startswith("PCFX_")
+            assert roms._extract_formats_for_entry(entry) == ("cue", ["cue"])
+
+        discs = [e for e in entries if "Megami" in e.filename]
+        # Both discs of one game share the save slot, but stay separate rows.
+        assert len({e.title_id for e in discs}) == 1
+        assert len({e.rom_id for e in discs}) == 2

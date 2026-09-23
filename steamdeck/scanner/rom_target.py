@@ -63,6 +63,7 @@ SYSTEM_ROM_DIRS: dict[str, list[str]] = {
     # NEC / SNK / misc
     "PCE":    ["pcengine", "tg16", "PCE", "PC Engine", "TurboGrafx", "PCEngine"],
     "PCECD":  ["pcenginecd", "tgcd", "PCECD", "PC Engine CD"],
+    "PCFX":   ["pcfx", "PCFX", "PC-FX", "NEC PC-FX"],
     "NEOGEO": ["neogeo", "NeoGeo", "NEOGEO"],
     "NEOCD":  ["neogeocd", "NEOCD", "Neo Geo CD", "NeoGeoCD"],
     "NGP":    ["ngp", "NGP", "Neo Geo Pocket", "NeoGeoPocket"],

@@ -75,6 +75,19 @@ def test_unknown_system_is_refused_rather_than_dumped_in_the_root():
     assert install_target(provider, "DREAMCAST", "game.gdi") == ("", "")
 
 
+def test_pcfx_has_no_mister_core_so_it_is_hidden_and_refused():
+    # There is no PC-FX core for MiSTer. The on-device client only offers
+    # systems in MISTER_SYSTEM_FOLDER_CANDIDATES, so PC-FX must stay out of
+    # it, and an install is refused even if someone made a games/PCFX folder.
+    from shared.mister import MISTER_SYSTEM_FOLDER_CANDIDATES
+
+    assert "PCFX" not in MISTER_SYSTEM_FOLDER_CANDIDATES
+    provider = FakeProvider({"/media/fat/games": ["PCFX"],
+                             "/media/fat/games/PCFX": []})
+    assert system_games_dir(provider, "PCFX") == ""
+    assert install_target(provider, "PCFX", "Zenki FX (Japan).chd") == ("", "")
+
+
 def test_cartridge_rom_installs_straight_into_the_system_folder():
     provider = FakeProvider({"/media/fat/games": ["SNES"],
                              "/media/fat/games/SNES": []})

@@ -1198,7 +1198,7 @@ class RetroArchEmulator(
      * Maps core_name string → system prefix.
      * Checks substrings so it works across all core variants.
      */
-    private fun resolveSystemFromCoreName(coreName: String): String? {
+    internal fun resolveSystemFromCoreName(coreName: String): String? {
         val lower = coreName.lowercase()
         return when {
             "game boy advance" in lower                          -> "GBA"
@@ -1222,6 +1222,9 @@ class RetroArchEmulator(
                     || "picodrive" in lower
                     || "genesis plus" in lower                   -> null  // defer to folder
             "dreamcast" in lower                                -> "DC"
+            // Before the PC Engine branch, though neither name contains the
+            // other: "NEC - PC-FX (Beetle PC-FX)" is its own system.
+            "pc-fx" in lower || "pcfx" in lower                 -> "PCFX"
             // Beetle PCE / PCE Fast run both HuCard and CD-ROM² content, so this
             // is only a floor — resolveSystem() upgrades it to PCECD when the ROM
             // folder says so.

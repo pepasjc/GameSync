@@ -105,6 +105,7 @@ CORE_SYSTEM_MAP = {
     "sega cd": "SEGACD",
     "pc engine": "PCE",
     "beetle pce": "PCE",
+    "pc-fx": "PCFX",
     "atari - 2600": "A2600",
     "stella": "A2600",
     "atari - 7800": "A7800",
@@ -197,6 +198,9 @@ ROM_FOLDER_MAP = {
     "pcecd": ("PCECD", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
     "tg16": ("TG16", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
     "tgcd": ("TGCD", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
+    # Beetle PC-FX exposes backup RAM + external backup RAM as one 64 KB
+    # SAVE_RAM block, so RetroArch writes a plain .srm.
+    "pcfx": ("PCFX", ["Beetle PC-FX"], [".srm"]),
     "atari2600": ("A2600", ["Stella", "Stella 2014"], [".srm"]),
     "atari7800": ("A7800", ["ProSystem"], [".srm"]),
     "lynx": ("LYNX", ["Beetle Lynx", "Handy"], [".srm"]),

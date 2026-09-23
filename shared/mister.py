@@ -103,6 +103,11 @@ MISTER_SYSTEM_FOLDER_CANDIDATES: dict[str, list[str]] = {
     "WSWAN": ["WonderSwan"],
     "WSWANC": ["WonderSwanColor"],
     "3DO": ["3DO"],
+    # Deliberately absent: PCFX. There is no MiSTer PC-FX core (checked
+    # 2026-09 on a fully updated device), and this table is what the
+    # on-device client treats as "runnable", so leaving it out hides PC-FX
+    # from the catalog and refuses installs instead of stranding CHDs in a
+    # folder no core reads.
 }
 
 

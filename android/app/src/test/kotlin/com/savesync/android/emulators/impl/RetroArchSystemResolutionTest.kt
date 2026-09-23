@@ -52,6 +52,20 @@ class RetroArchSystemResolutionTest {
     }
 
     @Test
+    fun `pc-fx folders and core resolve to PCFX, not PCE`() {
+        listOf("pcfx", "PCFX", "PC-FX", "NEC - PC-FX").forEach { folder ->
+            assertEquals(
+                "folder '$folder' should resolve to PCFX",
+                "PCFX",
+                emulator.resolveSystemFromFolderName(folder)
+            )
+        }
+        assertEquals("PCFX", emulator.resolveSystemFromCoreName("NEC - PC-FX (Beetle PC-FX)"))
+        assertEquals("PCFX", SystemAliases.normalizeSystemCode("pcfx"))
+        assertEquals(true, "PCFX" in RetroArchEmulator.CD_SYSTEMS)
+    }
+
+    @Test
     fun `PCECD is a CD system for the per-content-folder toggle`() {
         assertEquals(true, "PCECD" in RetroArchEmulator.CD_SYSTEMS)
     }

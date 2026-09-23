@@ -106,7 +106,7 @@ _CODE_PREFIX_TO_SYSTEM = {
 _RETROARCH_SRM_SYSTEMS = {
     "GBA", "GB", "GBC", "NES", "SNES", "N64",
     "MD", "SEGACD", "SMS", "GG", "32X",
-    "DC", "PCE", "LYNX", "NGPC", "WSWAN", "NEOGEO",
+    "DC", "PCE", "PCFX", "LYNX", "NGPC", "WSWAN", "NEOGEO",
 }
 
 # Strip disc / dump-serial tags from display names before using them as a

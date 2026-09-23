@@ -12,6 +12,7 @@ from rom_installer import (
     default_rom_format,
     derive_download_filename,
     group_multidisc_roms,
+    mister_remote_rom_dir,
     opl_disc_id,
     opl_ps2_media,
     profile_systems,
@@ -115,6 +116,29 @@ def test_emudeck_profile_uses_system_subfolder(tmp_path):
     }
 
     assert resolve_profile_rom_folder(profile, "GBA") == tmp_path / "gba"
+
+
+def test_emudeck_pcfx_installs_into_pcfx_folder(tmp_path):
+    profile = {
+        "device_type": "EmuDeck",
+        "path": str(tmp_path),
+        "systems": [{"system": "PCFX", "enabled": True}],
+    }
+
+    assert resolve_profile_rom_folder(profile, "PCFX") == tmp_path / "pcfx"
+
+
+def test_retroarch_beetle_pcfx_core_folder_maps_to_pcfx():
+    from sync_engine import RETROARCH_CORE_MAP, RETROARCH_SYSTEM_CORES
+
+    assert RETROARCH_CORE_MAP["Beetle PC-FX"] == "PCFX"
+    assert RETROARCH_SYSTEM_CORES["PCFX"] == ["Beetle PC-FX"]
+
+
+def test_mister_network_install_refuses_pcfx_without_a_core():
+    profile = _mister_profile(target="sd")
+    with pytest.raises(ValueError):
+        mister_remote_rom_dir(profile, "PCFX")
 
 
 def _mister_profile(path: str = "", target: str = "") -> dict:
