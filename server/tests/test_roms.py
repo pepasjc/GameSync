@@ -1,3 +1,4 @@
+import io
 import json
 import sys
 import zipfile
@@ -100,6 +101,52 @@ def rom_client_ps1_eboot(rom_dir, client, auth_headers):
     settings.rom_scan_interval = original_interval
     settings.rom_ps1_eboot_command = original_cmd
     settings.rom_ps1_eboot_cwd = original_cwd
+    rom_scanner._catalog = None
+
+
+@pytest.fixture()
+def rom_client_ps1_vcd(rom_dir, client, auth_headers):
+    """Fixture that wires up a stub VCD converter for PS1 → POPStarter
+    conversion.  The stub prefixes ``VCD:`` to the input bytes so tests
+    can assert content end-to-end without a real popstation install."""
+    from app.services import rom_db, rom_scanner
+
+    original_rom_dir = settings.rom_dir
+    original_interval = settings.rom_scan_interval
+    original_cmd = settings.rom_ps1_vcd_command
+    original_cwd = settings.rom_ps1_vcd_cwd
+
+    settings.rom_dir = rom_dir
+    settings.rom_scan_interval = 0
+    settings.rom_ps1_vcd_cwd = ""
+    settings.rom_ps1_vcd_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'VCD:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
+
+    rom_db.init_db(settings.save_dir)
+    _load_server_game_name_data()
+
+    (rom_dir / "psx").mkdir()
+    iso = rom_dir / "psx" / "Crash Bandicoot (USA).iso"
+    iso.write_bytes(b"DISC")
+
+    rom_scanner.init(rom_dir)
+
+    yield client
+
+    settings.rom_dir = original_rom_dir
+    settings.rom_scan_interval = original_interval
+    settings.rom_ps1_vcd_command = original_cmd
+    settings.rom_ps1_vcd_cwd = original_cwd
     rom_scanner._catalog = None
 
 
@@ -213,6 +260,79 @@ def rom_client_cci_zip(rom_dir, client, auth_headers):
     rom_scanner._catalog = None
 
 
+@pytest.fixture()
+def rom_client_3ds_raw(rom_dir, client, auth_headers):
+    """Raw (unzipped) .3ds carts with real NCSD headers: one properly flagged
+    decrypted dump, one decrypted-but-still-flagged-encrypted dump, and one
+    encrypted dump."""
+    from app.services import rom_db, rom_scanner
+
+    from .test_ctr_rom import _build_cart, _build_cart_from, cfa, cxi
+
+    original_rom_dir = settings.rom_dir
+    original_interval = settings.rom_scan_interval
+    original_cia_cmd = settings.rom_3ds_cia_command
+    original_decrypted_cci_cmd = settings.rom_3ds_decrypted_cci_command
+
+    settings.rom_dir = rom_dir
+    settings.rom_scan_interval = 0
+    settings.rom_3ds_cia_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'CIA:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
+    settings.rom_3ds_decrypted_cci_command = json.dumps(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; import sys; "
+                "Path(sys.argv[2]).write_bytes(b'DCCI:' + Path(sys.argv[1]).read_bytes())"
+            ),
+            "{input}",
+            "{output}",
+        ]
+    )
+
+    rom_db.init_db(settings.save_dir)
+    _load_server_game_name_data()
+
+    (rom_dir / "n3ds").mkdir()
+    carts = {
+        "Flagged": _build_cart(decrypted=True, no_crypto_flag=True),
+        "Stale": _build_cart(decrypted=True, no_crypto_flag=False),
+        "Encrypted": _build_cart(decrypted=False, no_crypto_flag=False),
+        # How real decrypted dumps look: plaintext game partition, encrypted
+        # manual + update partitions.
+        "Retail": _build_cart_from([cxi(0, plaintext=True), cfa(1), cfa(7)]),
+    }
+    for name, data in carts.items():
+        (rom_dir / "n3ds" / f"{name} (USA).3ds").write_bytes(data)
+
+    rom_scanner.init(rom_dir)
+
+    yield client, carts
+
+    settings.rom_dir = original_rom_dir
+    settings.rom_scan_interval = original_interval
+    settings.rom_3ds_cia_command = original_cia_cmd
+    settings.rom_3ds_decrypted_cci_command = original_decrypted_cci_cmd
+    rom_scanner._catalog = None
+
+
+def _rom_id_for(client, auth_headers, name_prefix: str) -> str:
+    roms = client.get("/api/v1/roms?system=3DS", headers=auth_headers).json()["roms"]
+    match = next(r for r in roms if r["name"].startswith(name_prefix))
+    return match["rom_id"]
+
+
 class TestRomCatalog:
     def test_dat_normalizer_uses_aliases_for_translated_titles(self, tmp_path):
         from app.services.dat_normalizer import DatNormalizer
@@ -273,6 +393,22 @@ class TestRomCatalog:
         assert body["total"] == 1
         assert body["roms"][0]["system"] == "GBA"
 
+    def test_filter_by_system_accepts_aliases(self, rom_client, auth_headers):
+        """A catalog indexed before an alias was normalised must still match.
+
+        Sega CD ROMs indexed as ``SCD`` have to answer a request for the
+        canonical ``SEGACD`` (and vice versa), otherwise the ROM installer
+        shows an empty list until the server is rescanned.
+        """
+        from app.routes.roms import _system_match_set
+
+        assert _system_match_set("SEGACD") == {"SEGACD", "SCD"}
+        assert _system_match_set("SCD") == {"SEGACD", "SCD"}
+        assert _system_match_set("segacd") == {"SEGACD", "SCD"}
+        # A system with no aliases matches only itself.
+        assert _system_match_set("GBA") == {"GBA"}
+        assert _system_match_set("") == set()
+
     def test_search_roms(self, rom_client, auth_headers):
         resp = rom_client.get("/api/v1/roms?search=mario", headers=auth_headers)
         assert resp.status_code == 200
@@ -287,6 +423,33 @@ class TestRomCatalog:
         assert "GBA" in body["systems"]
         assert "SNES" in body["systems"]
         assert body["stats"]["GBA"] == 1
+
+    def test_fingerprints_change_only_with_the_catalogue(self, rom_client,
+                                                         auth_headers):
+        from app.services import rom_scanner
+
+        resp = rom_client.get("/api/v1/roms/fingerprints", headers=auth_headers)
+        assert resp.status_code == 200
+        systems = resp.json()["systems"]
+        assert systems["GBA"]["count"] == 1
+        assert len(systems["GBA"]["fingerprint"]) == 40
+        before = dict(systems)
+
+        # Stable across requests, and memoised (same object back).
+        catalog = rom_scanner.get()
+        assert catalog.fingerprints() is catalog.fingerprints()
+        again = rom_client.get("/api/v1/roms/fingerprints",
+                               headers=auth_headers).json()["systems"]
+        assert again == before
+
+        # Removing a row moves that system's fingerprint and no other.
+        gba = catalog.list_by_system("GBA")[0]
+        catalog._entries.pop(gba.rom_id)
+        catalog._rebuild_index()
+        after = rom_client.get("/api/v1/roms/fingerprints",
+                               headers=auth_headers).json()["systems"]
+        assert "GBA" not in after
+        assert after["SNES"] == before["SNES"]
 
     def test_no_rom_dir(self, client, auth_headers):
         resp = client.get("/api/v1/roms", headers=auth_headers)
@@ -837,6 +1000,458 @@ class TestRomCatalog:
 
         assert loose[0].filename == "Crash Bandicoot (USA).chd"
 
+    def test_wiiu_wup_folder_is_a_bundle(self, tmp_path):
+        """A WUP installable set collapses into one entry keyed by the title
+        id embedded in the folder name, keeping every ``.app``/``.h3``/ticket
+        file so the console client can install it.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        wup = rom_dir / "wiiu" / "SUPER MARIO 3D WORLD [0005000010145C00]"
+        wup.mkdir(parents=True)
+        (wup / "00000000.app").write_bytes(b"a" * 4096)
+        (wup / "00000000.h3").write_bytes(b"h" * 64)
+        (wup / "title.tmd").write_bytes(b"t" * 128)
+        (wup / "title.tik").write_bytes(b"k" * 32)
+        (wup / "title.cert").write_bytes(b"c" * 16)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        entries = catalog.list_by_system("WIIU")
+        assert len(entries) == 1
+        e = entries[0]
+        assert e.is_bundle is True
+        assert e.title_id == "0005000010145C00"
+        assert e.size == 4096 + 64 + 128 + 32 + 16
+        assert sorted(f["name"] for f in e.bundle_files) == [
+            "00000000.app",
+            "00000000.h3",
+            "title.cert",
+            "title.tik",
+            "title.tmd",
+        ]
+
+    def test_wiiu_loadiine_folder_is_a_bundle(self, tmp_path):
+        """A decrypted ``code``/``content``/``meta`` layout is a bundle too,
+        even without a ``title.tmd``.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        game = rom_dir / "wiiu" / "Splatoon"
+        for sub in ("code", "content", "meta"):
+            (game / sub).mkdir(parents=True)
+        (game / "code" / "Splatoon.rpx").write_bytes(b"r" * 512)
+        (game / "content" / "data.bin").write_bytes(b"d" * 256)
+        (game / "meta" / "meta.xml").write_bytes(b"<menu/>")
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        entries = catalog.list_by_system("WIIU")
+        assert len(entries) == 1
+        e = entries[0]
+        assert e.is_bundle is True
+        assert e.name == "Splatoon"
+        # No embedded title id → falls back to the slug namespace.
+        assert e.title_id == "WIIU_splatoon"
+        assert sorted(f["name"] for f in e.bundle_files) == [
+            "code/Splatoon.rpx",
+            "content/data.bin",
+            "meta/meta.xml",
+        ]
+
+    def test_wiiu_single_file_images_and_archives(self, tmp_path):
+        """``.wua``/``.wud``/``.wux`` and zipped dumps stay single entries,
+        and a zip that lives *inside* a WUP folder is owned by the bundle.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        wiiu = rom_dir / "wiiu"
+        wiiu.mkdir(parents=True)
+
+        (wiiu / "Bayonetta 2 [0005000010157F00].wua").write_bytes(b"w" * 1024)
+        (wiiu / "Xenoblade Chronicles X.wux").write_bytes(b"x" * 2048)
+        (wiiu / "Pikmin 3 [0005000010144F00].zip").write_bytes(b"z" * 512)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        entries = {e.filename: e for e in catalog.list_by_system("WIIU")}
+        assert len(entries) == 3
+        assert all(not e.is_bundle for e in entries.values())
+
+        wua = entries["Bayonetta 2 [0005000010157F00].wua"]
+        assert wua.title_id == "0005000010157F00"
+
+        zipped = entries["Pikmin 3 [0005000010144F00].zip"]
+        assert zipped.title_id == "0005000010144F00"
+
+        # No title id in the name → DAT slug namespace, name keeps the stem.
+        wux = entries["Xenoblade Chronicles X.wux"]
+        assert wux.title_id.startswith("WIIU_")
+        assert wux.name == "Xenoblade Chronicles X"
+
+    def test_wiiu_update_and_dlc_are_named_and_grouped(
+        self, tmp_path, client, auth_headers
+    ):
+        """Updates and DLC are absent from every Wii U DAT, but share their
+        base game's low word — so they get named from it, labelled, and linked
+        back so a client can queue the whole set.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original = settings.rom_dir
+        try:
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+
+            for folder in (
+                "SUPER MARIO 3D WORLD [0005000010145C00]",
+                "SUPER MARIO 3D WORLD [0005000E10145C00]",
+                "SUPER MARIO 3D WORLD [0005000C10145C00]",
+                "BAYONETTA 2 [0005000010172600]",
+            ):
+                d = rom_dir / "wiiu" / folder
+                d.mkdir(parents=True)
+                (d / "title.tmd").write_bytes(b"TMD")
+                (d / "00000000.app").write_bytes(b"APP")
+
+            rom_scanner.init(rom_dir)
+
+            resp = client.get("/api/v1/roms?system=WIIU", headers=auth_headers)
+            assert resp.status_code == 200
+            rows = {r["rom_id"]: r for r in resp.json()["roms"]}
+
+            game = rows["0005000010145C00"]
+            update = rows["0005000E10145C00"]
+            dlc = rows["0005000C10145C00"]
+
+            assert game["content_type"] == "game"
+            assert update["content_type"] == "update"
+            assert dlc["content_type"] == "dlc"
+
+            # All three resolve to the same base id...
+            for row in (game, update, dlc):
+                assert row["base_title_id"] == "0005000010145C00"
+
+            # ...and the update/DLC borrow the base game's DAT name.
+            assert update["name"].endswith("(Update)")
+            assert dlc["name"].endswith("(DLC)")
+            assert update["name"].startswith(game["name"])
+            assert dlc["name"].startswith(game["name"])
+
+            # related_rom_ids is in install order: game -> update -> DLC.
+            # MCP rejects a DLC whose base game isn't installed yet, so the
+            # ordering is load-bearing.
+            assert game["related_rom_ids"] == [
+                "0005000E10145C00",
+                "0005000C10145C00",
+            ]
+            assert dlc["related_rom_ids"] == [
+                "0005000010145C00",
+                "0005000E10145C00",
+            ]
+
+            # A game with no extras still reports its type, with no siblings.
+            solo = rows["0005000010172600"]
+            assert solo["content_type"] == "game"
+            assert solo["related_rom_ids"] == []
+        finally:
+            settings.rom_dir = original
+            rom_scanner._catalog = None
+
+    def test_wiiu_sorted_folders_scan_like_a_flat_library(self, tmp_path):
+        """``wiiu/updates/<Game>/`` must scan the same as ``wiiu/<Game>/``.
+
+        Organiser folders are a natural way to keep a NAS tidy, and without
+        an explicit descent the scanner would collapse all of ``updates/``
+        into one giant bundle (a ``title.tmd`` exists *somewhere* beneath it).
+        """
+        from app.services import rom_db, rom_scanner
+
+        def build(root, layout):
+            for rel in layout:
+                d = root / "wiiu" / rel
+                d.mkdir(parents=True)
+                (d / "title.tmd").write_bytes(b"TMD")
+                (d / "00000000.app").write_bytes(b"A" * 100)
+
+        flat = tmp_path / "flat"
+        build(flat, [
+            "SUPER MARIO 3D WORLD [0005000010145C00]",
+            "SUPER MARIO 3D WORLD [0005000E10145C00]",
+            "SUPER MARIO 3D WORLD [0005000C10145C00]",
+        ])
+        sorted_ = tmp_path / "sorted"
+        build(sorted_, [
+            "games/SUPER MARIO 3D WORLD [0005000010145C00]",
+            "updates/SUPER MARIO 3D WORLD [0005000E10145C00]",
+            "dlc/SUPER MARIO 3D WORLD [0005000C10145C00]",
+        ])
+
+        def scan(root):
+            rom_db.init_db(root)
+            catalog = rom_scanner.RomCatalog()
+            catalog.scan(root)
+            return sorted(
+                (e.title_id, e.name, e.size, e.is_bundle)
+                for e in catalog.list_by_system("WIIU")
+            )
+
+        flat_rows = scan(flat)
+        assert len(flat_rows) == 3
+        assert scan(sorted_) == flat_rows
+
+    def test_wiiu_content_type_helpers(self):
+        """Title-id classification and base-id derivation."""
+        from shared import wiiu_meta
+
+        assert wiiu_meta.content_type("0005000010145C00") == "game"
+        assert wiiu_meta.content_type("0005000E10145C00") == "update"
+        assert wiiu_meta.content_type("0005000C10145C00") == "dlc"
+        assert wiiu_meta.content_type("00050002ABCDEF00") == "demo"
+        assert wiiu_meta.content_type("DEADBEEFCAFEBABE") == ""
+
+        assert (
+            wiiu_meta.base_title_id("0005000E10145C00") == "0005000010145C00"
+        )
+        # A base id maps to itself, so callers need no special case.
+        assert (
+            wiiu_meta.base_title_id("0005000010145C00") == "0005000010145C00"
+        )
+
+        assert wiiu_meta.decorate_name("Mario", "0005000E10145C00") == "Mario (Update)"
+        assert wiiu_meta.decorate_name("Mario", "0005000010145C00") == "Mario"
+
+    def test_wiiu_title_id_split_helper(self):
+        """The id parser tolerates brackets, parens, archive suffixes and
+        rejects 16-hex runs outside the Wii U ``0005`` space.
+        """
+        from app.services.rom_scanner import _wiiu_split_title_id
+
+        assert _wiiu_split_title_id("Game [0005000010145C00].zip") == (
+            "0005000010145C00",
+            "Game",
+        )
+        assert _wiiu_split_title_id("Game (0005000E10145C00).wud.zip") == (
+            "0005000E10145C00",
+            "Game",
+        )
+        assert _wiiu_split_title_id("0005000010145C00") == (
+            "0005000010145C00",
+            "",
+        )
+        # A CRC-ish 16-hex run that isn't a Wii U title id is left alone.
+        assert _wiiu_split_title_id("Game [DEADBEEFCAFEBABE].wud") == (
+            "",
+            "Game [DEADBEEFCAFEBABE]",
+        )
+
+    def test_wiiu_wup_advertises_nothing_without_a_decrypter(
+        self, tmp_path, client, auth_headers
+    ):
+        """With no decrypter configured a WUP bundle advertises no formats at
+        all, so clients download the raw set.
+
+        That raw set is what BOTH targets want — real hardware installs it via
+        MCP, and Cemu decrypts it itself from the bundled ticket.  Advertising
+        ``loadiine`` here would make every emulator client request a
+        guaranteed 503 instead of a working download.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original = settings.rom_dir
+        original_cmd = settings.rom_wiiu_loadiine_command
+        original_wua = settings.rom_wiiu_wua_command
+        try:
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+            settings.rom_wiiu_loadiine_command = ""
+            settings.rom_wiiu_wua_command = ""
+
+            wup = rom_dir / "wiiu" / "Bayonetta 2 [0005000010172600]"
+            wup.mkdir(parents=True)
+            (wup / "00000000.app").write_bytes(b"ENCRYPTED")
+            (wup / "title.tmd").write_bytes(b"TMD")
+            (wup / "title.tik").write_bytes(b"TIK")
+
+            rom_scanner.init(rom_dir)
+
+            resp = client.get("/api/v1/roms?system=WIIU", headers=auth_headers)
+            assert resp.status_code == 200
+            rom = resp.json()["roms"][0]
+            assert "extract_formats" not in rom
+            assert "extract_format" not in rom
+
+            # ...and once a decrypter is configured, it shows up.
+            settings.rom_wiiu_loadiine_command = "cdecrypt {input} {output_dir}"
+            resp = client.get("/api/v1/roms?system=WIIU", headers=auth_headers)
+            assert resp.json()["roms"][0]["extract_formats"] == ["loadiine"]
+            settings.rom_wiiu_loadiine_command = ""
+
+            # No ?extract → raw WUP ZIP, converter never consulted.
+            raw = client.get(
+                f"/api/v1/roms/{rom['rom_id']}", headers=auth_headers
+            )
+            assert raw.status_code == 200
+            with zipfile.ZipFile(io.BytesIO(raw.content)) as zf:
+                assert sorted(zf.namelist()) == [
+                    "00000000.app",
+                    "title.tik",
+                    "title.tmd",
+                ]
+                assert zf.read("00000000.app") == b"ENCRYPTED"
+        finally:
+            settings.rom_dir = original
+            settings.rom_wiiu_loadiine_command = original_cmd
+            settings.rom_wiiu_wua_command = original_wua
+            rom_scanner._catalog = None
+
+    def test_wiiu_loadiine_extract_runs_the_decrypter(
+        self, tmp_path, client, auth_headers
+    ):
+        """``?extract=loadiine`` runs the configured command and zips the
+        code/content/meta tree it produced.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original_dir = settings.rom_dir
+        original_cmd = settings.rom_wiiu_loadiine_command
+        original_cwd = settings.rom_wiiu_cwd
+        try:
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+            settings.rom_wiiu_cwd = ""
+            # Stub CDecrypt: reads the .app from {input}, writes a decrypted
+            # tree under {output_dir}.
+            settings.rom_wiiu_loadiine_command = json.dumps(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "src, out = Path(sys.argv[1]), Path(sys.argv[2]); "
+                        "(out / 'code').mkdir(parents=True); "
+                        "(out / 'content').mkdir(); (out / 'meta').mkdir(); "
+                        "(out / 'code' / 'app.rpx').write_bytes("
+                        "b'DEC:' + (src / '00000000.app').read_bytes()); "
+                        "(out / 'meta' / 'meta.xml').write_bytes(b'<menu/>')"
+                    ),
+                    "{input}",
+                    "{output_dir}",
+                ]
+            )
+
+            wup = rom_dir / "wiiu" / "Bayonetta 2 [0005000010172600]"
+            wup.mkdir(parents=True)
+            (wup / "00000000.app").write_bytes(b"ENCRYPTED")
+            (wup / "title.tmd").write_bytes(b"TMD")
+
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("WIIU")[0].rom_id
+
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}?extract=loadiine", headers=auth_headers
+            )
+            assert resp.status_code == 200
+            with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+                assert zf.read("code/app.rpx") == b"DEC:ENCRYPTED"
+                assert zf.read("meta/meta.xml") == b"<menu/>"
+        finally:
+            settings.rom_dir = original_dir
+            settings.rom_wiiu_loadiine_command = original_cmd
+            settings.rom_wiiu_cwd = original_cwd
+            rom_scanner._catalog = None
+
+    def test_wiiu_already_decrypted_needs_no_converter(
+        self, tmp_path, client, auth_headers
+    ):
+        """A loadiine bundle answers ``?extract=loadiine`` with a plain ZIP
+        even when no decrypt command is configured — there is nothing to
+        decrypt.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original_dir = settings.rom_dir
+        original_cmd = settings.rom_wiiu_loadiine_command
+        try:
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+            settings.rom_wiiu_loadiine_command = ""
+
+            game = rom_dir / "wiiu" / "Splatoon"
+            for sub in ("code", "content", "meta"):
+                (game / sub).mkdir(parents=True)
+            (game / "code" / "app.rpx").write_bytes(b"RPX")
+            (game / "content" / "data.bin").write_bytes(b"DATA")
+            (game / "meta" / "meta.xml").write_bytes(b"<menu/>")
+
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("WIIU")[0].rom_id
+
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}?extract=loadiine", headers=auth_headers
+            )
+            assert resp.status_code == 200
+            with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+                assert zf.read("code/app.rpx") == b"RPX"
+        finally:
+            settings.rom_dir = original_dir
+            settings.rom_wiiu_loadiine_command = original_cmd
+            rom_scanner._catalog = None
+
+    def test_wiiu_extract_without_command_returns_503(
+        self, tmp_path, client, auth_headers
+    ):
+        """An encrypted WUP with no configured decrypter returns 503 and
+        names the env var, rather than silently serving unusable bytes.
+        """
+        from app.services import rom_db, rom_scanner
+        from app.config import settings
+
+        original_dir = settings.rom_dir
+        original_cmd = settings.rom_wiiu_loadiine_command
+        try:
+            rom_db.init_db(settings.save_dir)
+            rom_dir = tmp_path / "roms"
+            settings.rom_dir = rom_dir
+            settings.rom_wiiu_loadiine_command = ""
+
+            wup = rom_dir / "wiiu" / "Bayonetta 2 [0005000010172600]"
+            wup.mkdir(parents=True)
+            (wup / "00000000.app").write_bytes(b"ENCRYPTED")
+            (wup / "title.tmd").write_bytes(b"TMD")
+
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("WIIU")[0].rom_id
+
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}?extract=loadiine", headers=auth_headers
+            )
+            assert resp.status_code == 503
+            assert "SYNC_ROM_WIIU_LOADIINE_COMMAND" in resp.text
+        finally:
+            settings.rom_dir = original_dir
+            settings.rom_wiiu_loadiine_command = original_cmd
+            rom_scanner._catalog = None
+
     def test_ps1_eboot_extract_route(self, rom_client_ps1_eboot, auth_headers):
         """``GET /api/v1/roms/<id>?extract=eboot`` runs the configured
         popstation command and streams an EBOOT.PBP back.  Used by the
@@ -860,6 +1475,58 @@ class TestRomCatalog:
         assert r2.status_code == 200
         assert r2.headers["content-type"] == "application/octet-stream"
         assert r2.content == b"PBP:DISC"
+
+    def test_ps1_vcd_extract_route(self, rom_client_ps1_vcd, auth_headers):
+        """``GET /api/v1/roms/<id>?extract=vcd`` runs the configured VCD
+        converter and streams a POPStarter .VCD back.  OPL on PS2 reads
+        these from the USB POPS/ folder to play PS1 games via POPS.
+        """
+        resp = rom_client_ps1_vcd.get(
+            "/api/v1/roms?system=PS1", headers=auth_headers
+        )
+        assert resp.status_code == 200
+        roms = resp.json()["roms"]
+        assert len(roms) == 1
+        rom_id = roms[0]["rom_id"]
+
+        # The catalog row should advertise vcd in its extract_formats.
+        assert "vcd" in roms[0].get("extract_formats", [])
+
+        r2 = rom_client_ps1_vcd.get(
+            f"/api/v1/roms/{rom_id}?extract=vcd", headers=auth_headers
+        )
+        assert r2.status_code == 200
+        assert r2.headers["content-type"] == "application/octet-stream"
+        assert r2.content == b"VCD:DISC"
+
+    def test_ps1_vcd_unconfigured_returns_503(
+        self, rom_dir, client, auth_headers
+    ):
+        """Without a VCD command template the route must surface a 503
+        with a hint pointing at SYNC_ROM_PS1_VCD_COMMAND."""
+        from app.services import rom_db, rom_scanner
+
+        original = settings.rom_dir
+        original_cmd = settings.rom_ps1_vcd_command
+        try:
+            rom_db.init_db(settings.save_dir)
+            _load_server_game_name_data()
+            settings.rom_dir = rom_dir
+            settings.rom_ps1_vcd_command = ""
+            (rom_dir / "psx").mkdir()
+            (rom_dir / "psx" / "Foo.iso").write_bytes(b"x")
+            rom_scanner.init(rom_dir)
+
+            rom_id = rom_scanner.get().list_by_system("PS1")[0].rom_id
+            resp = client.get(
+                f"/api/v1/roms/{rom_id}?extract=vcd", headers=auth_headers
+            )
+            assert resp.status_code == 503
+            assert "SYNC_ROM_PS1_VCD_COMMAND" in resp.text
+        finally:
+            settings.rom_dir = original
+            settings.rom_ps1_vcd_command = original_cmd
+            rom_scanner._catalog = None
 
     def test_ps1_cue_bundle_advertises_and_downloads_psio(
         self, tmp_path, client, auth_headers
@@ -912,6 +1579,194 @@ class TestRomCatalog:
         finally:
             settings.rom_dir = original
             rom_scanner._catalog = None
+
+    def test_ps1_disc_groups_require_disc_tag(self):
+        """Same-serial single-disc revisions must not be reported as a
+        multi-disc set; only explicit (Disc N) files group together."""
+        from app.routes.roms import _ps1_compute_disc_groups
+
+        class _E:
+            def __init__(self, rom_id, title_id, filename):
+                self.rom_id = rom_id
+                self.title_id = title_id
+                self.filename = filename
+                self.system = "PS1"
+
+        entries = [
+            _E("SCUS94228", "SCUS94228", "Alundra (USA).chd"),
+            _E(
+                "SCUS94228__r1",
+                "SCUS94228",
+                "Alundra (USA) (Rev 1) [Un-Worked Design by Supper v1].chd",
+            ),
+            _E("SCUS94163", "SCUS94163", "Final Fantasy VII (USA) (Disc 1).chd"),
+            _E("SCUS94163__d2", "SCUS94163", "Final Fantasy VII (USA) (Disc 2).chd"),
+        ]
+
+        meta = _ps1_compute_disc_groups(entries)
+
+        # Single-disc revisions: each reports (1, 1, self) — not combined.
+        assert meta["SCUS94228"] == (1, 1, "SCUS94228")
+        assert meta["SCUS94228__r1"] == (1, 1, "SCUS94228__r1")
+        # Real two-disc set: total 2, shared primary.
+        assert meta["SCUS94163"] == (1, 2, "SCUS94163")
+        assert meta["SCUS94163__d2"] == (2, 2, "SCUS94163")
+
+    def test_ps1_psio_multidisc_flat_layout(
+        self, tmp_path, client, auth_headers, monkeypatch
+    ):
+        """Multi-disc PSIO output is flat in one game folder: each disc's
+        BIN/CU2 share a clean stem (translation tags stripped) plus a
+        MULTIDISC.LST — no per-disc subfolders."""
+        from app.routes import roms as roms_mod
+        from app.config import settings
+        import io
+        import zipfile as zf_mod
+
+        original = settings.rom_dir
+        try:
+            roms = tmp_path / "roms"
+            psx = roms / "psx"
+            psx.mkdir(parents=True)
+            settings.rom_dir = roms
+
+            for n in (1, 2):
+                stem = f"Some Game (USA) (Disc {n}) [T-En by X]"
+                (psx / f"{stem}.bin").write_bytes(b"\0" * 2352 * 300)
+                (psx / f"{stem}.cue").write_text(
+                    f'FILE "{stem}.bin" BINARY\n'
+                    "  TRACK 01 MODE2/2352\n"
+                    "    INDEX 01 00:02:00\n",
+                    encoding="utf-8",
+                )
+
+            class _Entry:
+                def __init__(self, rom_id, n):
+                    stem = f"Some Game (USA) (Disc {n}) [T-En by X]"
+                    self.rom_id = rom_id
+                    self.title_id = "SLUS00001"
+                    self.system = "PS1"
+                    self.name = stem
+                    self.filename = f"{stem}.cue"
+                    self.path = f"psx/{stem}.cue"
+                    self.is_bundle = False
+
+            entries = [_Entry("SLUS00001", 1), _Entry("SLUS00001__d2", 2)]
+
+            class _Catalog:
+                def get(self, rid):
+                    return next((e for e in entries if e.rom_id == rid), None)
+
+                def list_all(self):
+                    return entries
+
+            monkeypatch.setattr(roms_mod.rom_scanner, "get", lambda: _Catalog())
+
+            resp = client.get(
+                "/api/v1/roms/SLUS00001?extract=psio", headers=auth_headers
+            )
+            assert resp.status_code == 200, resp.content
+            assert resp.headers["content-type"] == "application/zip"
+            with zf_mod.ZipFile(io.BytesIO(resp.content)) as zf:
+                assert sorted(zf.namelist()) == [
+                    "MULTIDISC.LST",
+                    "Some Game (USA) (Disc 1).bin",
+                    "Some Game (USA) (Disc 1).cu2",
+                    "Some Game (USA) (Disc 2).bin",
+                    "Some Game (USA) (Disc 2).cu2",
+                ]
+                assert zf.read("MULTIDISC.LST") == (
+                    b"Some Game (USA) (Disc 1).bin\r\n"
+                    b"Some Game (USA) (Disc 2).bin\r\n"
+                )
+        finally:
+            settings.rom_dir = original
+
+    def test_ps1_psio_base_name_is_ascii_and_short(self):
+        """PSIO can't render non-ASCII and caps filenames at 60 chars; the
+        base-name helper must drop accents and translation tags up front."""
+        from app.routes.roms import _ps1_psio_base_name
+
+        assert _ps1_psio_base_name("Pokémon (USA) [T-En by X]") == "Pokemon (USA)"
+        # CJK bytes have no ASCII fallback -> dropped, leaving the region tag.
+        assert _ps1_psio_base_name("テトリス (Japan)") == "(Japan)"
+        assert _ps1_psio_base_name("Game (Disc 1) (USA)") == "Game (USA)"
+
+    def test_ps1_psio_caps_member_names_at_60_chars(
+        self, tmp_path, client, auth_headers, monkeypatch
+    ):
+        """Single + multi-disc PSIO output must keep every BIN/CU2 member
+        name (with extension) within PSIO's 60-char filename limit."""
+        from app.routes import roms as roms_mod
+        from app.config import settings
+        import io
+        import zipfile as zf_mod
+
+        original = settings.rom_dir
+        try:
+            roms = tmp_path / "roms"
+            psx = roms / "psx"
+            psx.mkdir(parents=True)
+            settings.rom_dir = roms
+
+            long_name = (
+                "A Very Long PlayStation Game Title That Goes Well Beyond The "
+                "Sixty Character PSIO Filename Limit For Sure"
+            )
+
+            def _write_disc(stem):
+                (psx / f"{stem}.bin").write_bytes(b"\0" * 2352 * 300)
+                (psx / f"{stem}.cue").write_text(
+                    f'FILE "{stem}.bin" BINARY\n'
+                    "  TRACK 01 MODE2/2352\n"
+                    "    INDEX 01 00:02:00\n",
+                    encoding="utf-8",
+                )
+
+            # Two discs so the multi-disc suffix path is exercised too.
+            _write_disc(f"{long_name} (Disc 1)")
+            _write_disc(f"{long_name} (Disc 2)")
+
+            class _Entry:
+                def __init__(self, rom_id, n):
+                    stem = f"{long_name} (Disc {n})"
+                    self.rom_id = rom_id
+                    self.title_id = "SLUS99999"
+                    self.system = "PS1"
+                    self.name = stem
+                    self.filename = f"{stem}.cue"
+                    self.path = f"psx/{stem}.cue"
+                    self.is_bundle = False
+
+            entries = [_Entry("SLUS99999", 1), _Entry("SLUS99999__d2", 2)]
+
+            class _Catalog:
+                def get(self, rid):
+                    return next((e for e in entries if e.rom_id == rid), None)
+
+                def list_all(self):
+                    return entries
+
+            monkeypatch.setattr(roms_mod.rom_scanner, "get", lambda: _Catalog())
+
+            resp = client.get(
+                "/api/v1/roms/SLUS99999?extract=psio", headers=auth_headers
+            )
+            assert resp.status_code == 200, resp.content
+            with zf_mod.ZipFile(io.BytesIO(resp.content)) as zf:
+                names = zf.namelist()
+                assert "MULTIDISC.LST" in names
+                for member in names:
+                    assert len(member) <= 60, f"{member!r} exceeds 60 chars"
+                # BIN/CU2 within a disc must still share a stem.
+                bins = sorted(n for n in names if n.endswith(".bin"))
+                for bin_name in bins:
+                    assert bin_name.replace(".bin", ".cu2") in names
+                # MULTIDISC.LST must reference the (truncated) bin names.
+                lst = zf.read("MULTIDISC.LST").decode("utf-8").splitlines()
+                assert sorted(line.strip() for line in lst) == sorted(bins)
+        finally:
+            settings.rom_dir = original
 
     def test_cue_to_cu2_writer_handles_track_offsets(self, tmp_path):
         from app.routes.roms import _cue_to_cu2_text
@@ -1107,6 +1962,84 @@ class TestRomDownload:
         assert resp.headers["content-disposition"].endswith(
             'filename="Pilotwings Resort (USA).cci"'
         )
+
+    def test_decrypted_cci_of_already_decrypted_rom_skips_the_converter(
+        self, rom_client_3ds_raw, auth_headers
+    ):
+        """A .3ds whose NCCH headers already say NoCrypto IS a decrypted .cci —
+        serve it verbatim instead of running ninfs over it."""
+        client, carts = rom_client_3ds_raw
+        rom_id = _rom_id_for(client, auth_headers, "Flagged")
+
+        resp = client.get(f"/api/v1/roms/{rom_id}?extract=decrypted_cci", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.content == carts["Flagged"]          # no 'DCCI:' prefix
+        assert resp.headers["content-disposition"].endswith('filename="Flagged (USA).cci"')
+
+    def test_decrypted_cci_patches_stale_crypto_flags(self, rom_client_3ds_raw, auth_headers):
+        """Plaintext data + 'still encrypted' flags: copy through, fixing the
+        flags, rather than letting ninfs decrypt plaintext into garbage."""
+        from app.services import ctr_rom
+
+        client, carts = rom_client_3ds_raw
+        rom_id = _rom_id_for(client, auth_headers, "Stale")
+
+        resp = client.get(f"/api/v1/roms/{rom_id}?extract=decrypted_cci", headers=auth_headers)
+        assert resp.status_code == 200
+        assert not resp.content.startswith(b"DCCI:")
+        assert len(resp.content) == len(carts["Stale"])
+
+        flags_at = 0x4000 + ctr_rom.NCCH_FLAGS_OFFSET
+        assert resp.content[flags_at + 7] & ctr_rom.FLAG_NO_CRYPTO
+        assert resp.content[flags_at + 3] == 0x00
+
+    def test_cia_conversion_gets_flag_corrected_input(self, rom_client_3ds_raw, auth_headers):
+        """3dsconv trusts the crypto flags, so it must never see a plaintext
+        ROM that claims to be encrypted."""
+        from app.services import ctr_rom
+
+        client, carts = rom_client_3ds_raw
+        rom_id = _rom_id_for(client, auth_headers, "Stale")
+
+        resp = client.get(f"/api/v1/roms/{rom_id}?extract=cia", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.content.startswith(b"CIA:")
+
+        seen_by_converter = resp.content[len(b"CIA:"):]
+        flags_at = 0x4000 + ctr_rom.NCCH_FLAGS_OFFSET
+        assert seen_by_converter[flags_at + 7] & ctr_rom.FLAG_NO_CRYPTO
+        assert seen_by_converter != carts["Stale"]
+
+    def test_retail_dump_with_encrypted_update_partition_converts(
+        self, rom_client_3ds_raw, auth_headers
+    ):
+        """Regression: an encrypted manual/update partition must not make the
+        whole cart look encrypted — that sent real decrypted dumps into ninfs
+        and 3dsconv, which then decrypted plaintext into garbage."""
+        from app.services import ctr_rom
+
+        client, carts = rom_client_3ds_raw
+        rom_id = _rom_id_for(client, auth_headers, "Retail")
+
+        resp = client.get(f"/api/v1/roms/{rom_id}?extract=decrypted_cci", headers=auth_headers)
+        assert resp.status_code == 200
+        assert not resp.content.startswith(b"DCCI:")           # converter skipped
+
+        flags_at = 0x4000 + ctr_rom.NCCH_FLAGS_OFFSET
+        assert resp.content[flags_at + 7] & ctr_rom.FLAG_NO_CRYPTO
+
+        cia = client.get(f"/api/v1/roms/{rom_id}?extract=cia", headers=auth_headers)
+        assert cia.status_code == 200
+        seen_by_converter = cia.content[len(b"CIA:"):]
+        assert seen_by_converter[flags_at + 7] & ctr_rom.FLAG_NO_CRYPTO
+
+    def test_cia_conversion_of_encrypted_rom_is_untouched(self, rom_client_3ds_raw, auth_headers):
+        client, carts = rom_client_3ds_raw
+        rom_id = _rom_id_for(client, auth_headers, "Encrypted")
+
+        resp = client.get(f"/api/v1/roms/{rom_id}?extract=cia", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.content == b"CIA:" + carts["Encrypted"]
 
     def test_download_xbox_iso_as_cci_zip(self, tmp_path, client, auth_headers):
         """ISO source + ?extract=cci runs the configured converter, then
@@ -1410,6 +2343,32 @@ class TestRomDbCache:
             "PS1_final_fantasy_vii_usa_disc_2",
         ]
 
+    def test_scan_indexes_sega_cd_under_the_canonical_code(self, rom_dir, tmp_path):
+        """Every Sega CD folder spelling must index as SEGACD, not the SCD alias.
+
+        Saves are keyed ``SEGACD_<slug>``; indexing ROMs as ``SCD_<slug>``
+        split the same game across two keys and made the catalog look empty
+        to a client asking for the canonical code.
+        """
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path / "saves")
+
+        for folder, name in (
+            ("segacd", "Sonic CD (USA).chd"),
+            ("megacd", "Snatcher (USA).chd"),
+            ("scd", "Popful Mail (USA).chd"),
+        ):
+            (rom_dir / folder).mkdir()
+            (rom_dir / folder / name).write_bytes(b"\x00" * 64)
+
+        catalog = rom_scanner.RomCatalog()
+        assert catalog.scan(rom_dir, use_crc32=False) == 3
+
+        rows = rom_db.list_all()
+        assert {row["system"] for row in rows} == {"SEGACD"}
+        assert all(row["title_id"].startswith("SEGACD_") for row in rows)
+
     def test_scan_maps_3do_and_virtualboy_to_native_systems(self, rom_dir, tmp_path):
         from app.services import rom_db, rom_scanner
 
@@ -1483,3 +2442,573 @@ class TestSyncRomAvailable:
         assert resp.status_code == 200
         body = resp.json()
         assert title_id in body["rom_available"]
+
+
+# ── Wii split-WBFS conversion ───────────────────────────────────────────────
+
+
+@pytest.fixture()
+def rom_client_wii(rom_dir, client, auth_headers, tmp_path):
+    """Catalog with a single Wii ISO plus a writable conversion cache."""
+    from app.services import rom_db, rom_scanner
+
+    original_rom_dir = settings.rom_dir
+    original_interval = settings.rom_scan_interval
+    original_tmp = settings.tmp_dir
+
+    settings.rom_dir = rom_dir
+    settings.rom_scan_interval = 0
+    settings.tmp_dir = tmp_path / "conv_tmp"
+
+    rom_db.init_db(settings.save_dir)
+
+    (rom_dir / "wii").mkdir()
+    (rom_dir / "wii" / "Mario Kart Wii (USA).iso").write_bytes(b"WIIDISC" * 64)
+
+    rom_scanner.init(rom_dir)
+
+    yield client
+
+    settings.rom_dir = original_rom_dir
+    settings.rom_scan_interval = original_interval
+    settings.tmp_dir = original_tmp
+    rom_scanner._catalog = None
+
+
+def _wii_rom_id(client, auth_headers):
+    r = client.get("/api/v1/roms?system=WII", headers=auth_headers)
+    assert r.status_code == 200
+    roms = r.json()["roms"]
+    assert roms, "expected the Wii ISO in the catalog"
+    return roms[0]["rom_id"]
+
+
+def _install_fake_wit(monkeypatch, part_bytes):
+    """Stand in for the wit binary.
+
+    ``wit id6`` prints an ID6; ``wit copy --wbfs --split`` writes the split
+    parts next to the requested output path.  Everything else in the pipeline
+    (cache dir, manifest, Range serving) is the real code.
+    """
+    from app.routes import roms as roms_mod
+    import subprocess as _sp
+
+    monkeypatch.setattr(roms_mod, "_wit_binary", lambda: "wit")
+
+    real_run = _sp.run
+
+    def fake_run(cmd, *args, **kwargs):
+        if cmd and cmd[0] == "wit":
+            if cmd[1] == "id6":
+                return _sp.CompletedProcess(cmd, 0, stdout="RMCE01\n", stderr="")
+            if cmd[1] == "copy":
+                out = Path(cmd[-1])
+                out.write_bytes(part_bytes[0])
+                out.with_suffix(".wbf1").write_bytes(part_bytes[1])
+                return _sp.CompletedProcess(cmd, 0, stdout="", stderr="")
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(roms_mod.subprocess, "run", fake_run)
+
+
+class TestWbfsExtract:
+    def test_manifest_503_without_wit(self, rom_client_wii, auth_headers, monkeypatch):
+        from app.routes import roms as roms_mod
+
+        monkeypatch.setattr(roms_mod, "_wit_binary", lambda: None)
+        rom_id = _wii_rom_id(rom_client_wii, auth_headers)
+
+        r = rom_client_wii.get(
+            f"/api/v1/roms/{quote(rom_id, safe='')}/wbfs-manifest",
+            headers=auth_headers,
+        )
+        assert r.status_code == 503
+        assert "wit" in r.json()["detail"].lower()
+
+    def test_manifest_lists_split_parts(self, rom_client_wii, auth_headers, monkeypatch):
+        _install_fake_wit(monkeypatch, (b"A" * 100, b"B" * 50))
+        rom_id = _wii_rom_id(rom_client_wii, auth_headers)
+
+        r = rom_client_wii.get(
+            f"/api/v1/roms/{quote(rom_id, safe='')}/wbfs-manifest",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["game_id"] == "RMCE01"
+        names = {f["name"]: f["size"] for f in body["files"]}
+        assert names == {"RMCE01.wbfs": 100, "RMCE01.wbf1": 50}
+
+    def test_part_download(self, rom_client_wii, auth_headers, monkeypatch):
+        _install_fake_wit(monkeypatch, (b"A" * 100, b"B" * 50))
+        rom_id = _wii_rom_id(rom_client_wii, auth_headers)
+        base = f"/api/v1/roms/{quote(rom_id, safe='')}/wbfs"
+
+        r = rom_client_wii.get(f"{base}/RMCE01.wbfs", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.content == b"A" * 100
+
+        r = rom_client_wii.get(f"{base}/RMCE01.wbf1", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.content == b"B" * 50
+
+    def test_part_supports_range_resume(self, rom_client_wii, auth_headers, monkeypatch):
+        _install_fake_wit(monkeypatch, (b"0123456789" * 10, b"B" * 50))
+        rom_id = _wii_rom_id(rom_client_wii, auth_headers)
+
+        r = rom_client_wii.get(
+            f"/api/v1/roms/{quote(rom_id, safe='')}/wbfs/RMCE01.wbfs",
+            headers={**auth_headers, "Range": "bytes=90-"},
+        )
+        assert r.status_code == 206
+        assert r.content == b"0123456789"
+        assert r.headers["content-range"] == "bytes 90-99/100"
+
+    def test_bad_part_name_rejected(self, rom_client_wii, auth_headers, monkeypatch):
+        _install_fake_wit(monkeypatch, (b"A" * 10, b"B" * 10))
+        rom_id = _wii_rom_id(rom_client_wii, auth_headers)
+
+        r = rom_client_wii.get(
+            f"/api/v1/roms/{quote(rom_id, safe='')}/wbfs/..%2Fsecret.txt",
+            headers=auth_headers,
+        )
+        assert r.status_code in (400, 404)
+
+
+# ── MSU packs ────────────────────────────────────────────────────────────────
+
+_MSU_MD_CUE = b'FILE "Game (MSU-MD).bin" BINARY\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n'
+_MD_PLUS_CUE = b'FILE "Game - Track 02.wav" WAVE\n  TRACK 02 AUDIO\n    INDEX 01 00:00:00\n'
+
+
+def _write_msu1_zip(path: Path, root: str | None, stem: str = "Game (USA) (MSU1)") -> None:
+    """A pack zipped the way the SNES sets come: one wrapping folder."""
+    prefix = f"{root}/" if root else ""
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as zf:
+        if root:
+            zf.writestr(f"{root}/", b"")
+        zf.writestr(f"{prefix}{stem}.sfc", b"R" * 300)
+        zf.writestr(f"{prefix}{stem}.msu", b"")
+        zf.writestr(f"{prefix}{stem}-1.pcm", b"P" * 1000)
+        zf.writestr(f"{prefix}{stem}-2.pcm", b"Q" * 500)
+        zf.writestr(f"{prefix}{stem}.srm", b"S" * 64)  # junk: author's save
+
+
+class TestMsuPacks:
+    def test_loose_folder_packs_become_kinded_bundles(self, tmp_path):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+
+        snes = rom_dir / "snes" / "ActRaiser (USA) (MSU1)"
+        snes.mkdir(parents=True)
+        (snes / "ActRaiser (USA) (MSU1).sfc").write_bytes(b"R" * 100)
+        (snes / "ActRaiser (USA) (MSU1).msu").write_bytes(b"")
+        (snes / "ActRaiser (USA) (MSU1)-1.pcm").write_bytes(b"P" * 200)
+        (snes / "ActRaiser (USA) (MSU1).srm").write_bytes(b"S" * 8)
+        # Plain ROM of the same game sits beside it.
+        (rom_dir / "snes" / "ActRaiser (USA).sfc").write_bytes(b"R" * 100)
+
+        md = rom_dir / "genesis" / "Game (USA) (MSU-MD)"
+        md.mkdir(parents=True)
+        (md / "Game (MSU-MD).md").write_bytes(b"M" * 100)
+        (md / "Game (MSU-MD).cue").write_bytes(_MSU_MD_CUE)
+        (md / "Game (MSU-MD).bin").write_bytes(b"A" * 400)
+
+        plus = rom_dir / "genesis" / "Other (USA) (MD+)"
+        plus.mkdir(parents=True)
+        (plus / "Game.md").write_bytes(b"M" * 100)
+        (plus / "Game.cue").write_bytes(_MD_PLUS_CUE)
+        (plus / "Game - Track 02.wav").write_bytes(b"W" * 400)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        snes_entries = catalog.list_by_system("SNES")
+        assert len(snes_entries) == 2, [e.filename for e in snes_entries]
+        pack = next(e for e in snes_entries if e.is_bundle)
+        plain = next(e for e in snes_entries if not e.is_bundle)
+        assert pack.bundle_kind == "msu1"
+        assert pack.name == "ActRaiser (USA) (MSU1)"
+        assert pack.path == "snes/ActRaiser (USA) (MSU1)"
+        names = sorted(f["name"] for f in pack.bundle_files)
+        assert names == [
+            "ActRaiser (USA) (MSU1)-1.pcm",
+            "ActRaiser (USA) (MSU1).msu",
+            "ActRaiser (USA) (MSU1).sfc",
+        ]
+        assert pack.size == 300
+        # The tag folds away so pack and plain ROM share a save slot...
+        assert pack.title_id == plain.title_id
+        # ...while the catalog still keys them apart.
+        assert pack.rom_id != plain.rom_id
+        assert pack.to_dict()["bundle_kind"] == "msu1"
+        assert "bundle_kind" not in plain.to_dict()
+
+        md_entries = {e.name: e for e in catalog.list_by_system("MD")}
+        assert set(md_entries) == {"Game (USA) (MSU-MD)", "Other (USA) (MD+)"}
+        assert md_entries["Game (USA) (MSU-MD)"].bundle_kind == "msu-md"
+        assert md_entries["Other (USA) (MD+)"].bundle_kind == "mdplus"
+
+        # Round-trips through SQLite.
+        reloaded = rom_scanner.RomCatalog()
+        reloaded.load_from_db()
+        assert reloaded.get(pack.rom_id).bundle_kind == "msu1"
+
+    def test_pack_named_without_region_keys_off_its_cart(self, tmp_path):
+        """``genesis/Sonic The Hedgehog 2/`` holds ``Sonic The Hedgehog 2
+        (World) (MSU-MD).md``: the folder misses the DAT, the cart hits it,
+        so the pack still shares the plain ROM's save slot."""
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        pack = rom_dir / "genesis" / "Sonic The Hedgehog 2"
+        pack.mkdir(parents=True)
+        (pack / "Sonic The Hedgehog 2 (World) (MSU-MD).md").write_bytes(b"M")
+        (pack / "Sonic The Hedgehog 2 (World) (MSU-MD).cue").write_bytes(
+            b'FILE "Sonic The Hedgehog 2 (World) (MSU-MD).bin" BINARY\n  TRACK 01 AUDIO\n'
+        )
+        (pack / "Sonic The Hedgehog 2 (World) (MSU-MD).bin").write_bytes(b"A")
+        (rom_dir / "genesis" / "Sonic The Hedgehog 2 (World).md").write_bytes(b"M")
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+        entries = catalog.list_by_system("MD")
+        assert len(entries) == 2
+        assert len({e.title_id for e in entries}) == 1
+        assert next(e for e in entries if e.is_bundle).name == "Sonic The Hedgehog 2"
+
+    def test_pack_hack_tag_folds_onto_the_plain_rom(self, tmp_path):
+        """``[Hack by …]`` names the MSU author; the pack shares the save of
+        the ROM it patched.  A translated baseline keeps its own tags, and
+        the pack must land on *that* id, not the untranslated one."""
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        snes = rom_dir / "snes"
+        snes.mkdir(parents=True)
+        (snes / "ActRaiser (USA).sfc").write_bytes(b"R")
+        (snes / "Area 88 (USA) [T-En by Blizzz v1.03] [FastROM hack by Vitor Vilela v1.0] [n].sfc").write_bytes(b"R")
+        (snes / "Area 88 (Japan).sfc").write_bytes(b"R")
+
+        def pack(name: str, stem: str) -> None:
+            with zipfile.ZipFile(snes / f"{name}.zip", "w") as zf:
+                zf.writestr(f"{stem}.sfc", b"R")
+                zf.writestr(f"{stem}.msu", b"")
+                zf.writestr(f"{stem}-1.pcm", b"P")
+
+        pack("ActRaiser (USA) (MSU1) [Hack by DarkShock v1.0]", "ActRaiser (USA) (MSU1)")
+        pack("Area 88 (USA) (MSU1) [T-En by Blizzz v1.03] [Hack by Kurrono & Conn v2] "
+             "[FastROM hack by Vitor Vilela v1.0] [n]", "Area 88 (USA) (MSU1) [T-En by Blizzz v1.03]")
+        # No plain ROM at all: the stripped name is the fallback key.
+        pack("Aerobiz (USA) (MSU1) [Hack by PepilloPev v1.0]", "Aerobiz (USA) (MSU1)")
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+        by_name = {e.name: e for e in catalog.list_by_system("SNES")}
+
+        assert (by_name["ActRaiser (USA) (MSU1) [Hack by DarkShock v1.0]"].title_id
+                == by_name["ActRaiser (USA)"].title_id)
+        area_pack = next(e for e in by_name.values() if e.is_bundle and "Area 88" in e.name)
+        assert area_pack.title_id == by_name[
+            "Area 88 (USA) [T-En by Blizzz v1.03] [FastROM hack by Vitor Vilela v1.0] [n]"
+        ].title_id
+        assert area_pack.title_id != by_name["Area 88 (Japan)"].title_id
+        assert by_name["Aerobiz (USA) (MSU1) [Hack by PepilloPev v1.0]"].title_id == "SNES_aerobiz_usa"
+
+    def test_zipped_pack_is_a_file_bundle_with_root_stripped(self, tmp_path):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        (rom_dir / "snes" / "msu1").mkdir(parents=True)
+        _write_msu1_zip(rom_dir / "snes" / "msu1" / "Game (USA) (MSU1).zip",
+                        root="Game (USA) (MSU1)")
+        # Ordinary zipped ROM: small, no hint in the name — never opened.
+        with zipfile.ZipFile(rom_dir / "snes" / "Plain (USA).zip", "w") as zf:
+            zf.writestr("Plain (USA).sfc", b"R" * 100)
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+
+        entries = {e.filename: e for e in catalog.list_by_system("SNES")}
+        assert set(entries) == {"Game (USA) (MSU1).zip", "Plain (USA).zip"}
+        pack = entries["Game (USA) (MSU1).zip"]
+        assert pack.is_bundle and pack.bundle_kind == "msu1"
+        assert pack.path == "snes/msu1/Game (USA) (MSU1).zip"
+        assert sorted(f["name"] for f in pack.bundle_files) == [
+            "Game (USA) (MSU1)-1.pcm",
+            "Game (USA) (MSU1)-2.pcm",
+            "Game (USA) (MSU1).msu",
+            "Game (USA) (MSU1).sfc",
+        ]
+        assert pack.size == 300 + 1000 + 500
+        assert not entries["Plain (USA).zip"].is_bundle
+
+    def test_zipped_pack_downloads_as_is_and_streams_members(
+        self, tmp_path, client, auth_headers
+    ):
+        from app.services import rom_db, rom_scanner
+
+        original = settings.rom_dir
+        try:
+            rom_db.init_db(tmp_path)
+            rom_dir = tmp_path / "roms"
+            (rom_dir / "snes").mkdir(parents=True)
+            zip_path = rom_dir / "snes" / "Game (USA) (MSU1).zip"
+            _write_msu1_zip(zip_path, root="Game (USA) (MSU1)")
+            settings.rom_dir = rom_dir
+            rom_scanner.init(rom_dir)
+            rom_id = rom_scanner.get().list_by_system("SNES")[0].rom_id
+            key = quote(rom_id, safe="")
+
+            listed = client.get("/api/v1/roms", headers=auth_headers).json()["roms"]
+            assert listed[0]["bundle_kind"] == "msu1"
+            assert listed[0]["is_bundle"] is True
+
+            # Whole pack: the very bytes on disk, resumable.
+            r = client.get(f"/api/v1/roms/{key}", headers=auth_headers)
+            assert r.status_code == 200
+            assert r.content == zip_path.read_bytes()
+            r = client.get(f"/api/v1/roms/{key}",
+                           headers={**auth_headers, "Range": "bytes=10-19"})
+            assert r.status_code == 206
+            assert r.content == zip_path.read_bytes()[10:20]
+
+            manifest = client.get(f"/api/v1/roms/{key}/manifest",
+                                  headers=auth_headers).json()
+            assert manifest["is_bundle"] is True
+            assert {f["name"] for f in manifest["files"]} == {
+                "Game (USA) (MSU1)-1.pcm", "Game (USA) (MSU1)-2.pcm",
+                "Game (USA) (MSU1).msu", "Game (USA) (MSU1).sfc",
+            }
+
+            # One member, addressed without the wrapping folder.
+            member = quote("Game (USA) (MSU1)-2.pcm", safe="")
+            r = client.get(f"/api/v1/roms/{key}/file/{member}", headers=auth_headers)
+            assert r.status_code == 200
+            assert r.content == b"Q" * 500
+            r = client.get(f"/api/v1/roms/{key}/file/missing.pcm", headers=auth_headers)
+            assert r.status_code == 404
+            r = client.get(f"/api/v1/roms/{key}/file/..%2Fescape", headers=auth_headers)
+            assert r.status_code in (400, 404)
+
+            # cleanup_missing must not think a file-backed bundle is gone.
+            assert rom_scanner.cleanup_missing() == 0
+            zip_path.unlink()
+            assert rom_scanner.cleanup_missing() == 1
+        finally:
+            settings.rom_dir = original
+            rom_scanner._catalog = None
+
+    def test_rootless_zip_and_bad_zip(self, tmp_path):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        (rom_dir / "genesis").mkdir(parents=True)
+        with zipfile.ZipFile(rom_dir / "genesis" / "Game (MSU-MD).zip", "w") as zf:
+            zf.writestr("Game (MSU-MD).md", b"M" * 10)
+            zf.writestr("Game (MSU-MD).cue", _MSU_MD_CUE)
+            zf.writestr("Game (MSU-MD).bin", b"A" * 10)
+        # Name says MSU, contents are garbage: falls back to a plain zip row.
+        (rom_dir / "genesis" / "Broken (MSU-MD).zip").write_bytes(b"not a zip")
+
+        catalog = rom_scanner.RomCatalog()
+        catalog.scan(rom_dir, use_crc32=False)
+        entries = {e.filename: e for e in catalog.list_by_system("MD")}
+        assert entries["Game (MSU-MD).zip"].bundle_kind == "msu-md"
+        assert not entries["Broken (MSU-MD).zip"].is_bundle
+
+
+# ── PS2 disc media resolution ───────────────────────────────────────────────
+#
+# A PS2 CHD is either a DVD rip (extracts to one ISO) or a CD rip (extracts to
+# a CUE/BIN zip), and the WebUI has to pick the right button before any
+# conversion runs.  The libretro PS2 DAT answers for every listed title; the
+# CHD header answers for everything else.
+
+_PS2_DAT = """clrmamepro (
+\tname "Sony - PlayStation 2"
+)
+
+game (
+\tname "Zero (Japan)"
+\tregion "Japan"
+\tserial "SLPS-25074"
+\trom ( name "Zero (Japan).iso" size 2828369920 crc 26A9A7AB serial "SLPS-25074" )
+)
+game (
+\tname "Ridge Racer V (USA)"
+\tregion "USA"
+\tserial "SLUS-20002"
+\trom ( name "Ridge Racer V (USA).cue" size 1000 crc AABBCCDD serial "SLUS-20002" )
+\trom ( name "Ridge Racer V (USA).bin" size 600000000 crc 11223344 serial "SLUS-20002" )
+)
+"""
+
+
+def _write_ps2_dat(tmp_path):
+    dats = tmp_path / "dats"
+    dats.mkdir()
+    (dats / "Sony - PlayStation 2.dat").write_text(_PS2_DAT, encoding="utf-8")
+    return dats
+
+
+class TestPs2DiscFormatLookup:
+    def test_dat_declares_media_per_title(self, tmp_path):
+        from app.services.dat_normalizer import DatNormalizer
+
+        n = DatNormalizer(_write_ps2_dat(tmp_path))
+        assert n.lookup_disc_format("PS2", "Zero (Japan).chd") == "iso"
+        assert n.lookup_disc_format("PS2", "Ridge Racer V (USA).chd") == "cue"
+
+    def test_renamed_rip_resolves_by_serial_or_crc(self, tmp_path):
+        from app.services.dat_normalizer import DatNormalizer
+
+        n = DatNormalizer(_write_ps2_dat(tmp_path))
+        # Filename tells us nothing — the catalog's serial does.
+        assert n.lookup_disc_format("PS2", "my dump.chd") is None
+        assert (
+            n.lookup_disc_format("PS2", "my dump.chd", serial="SLPS25074") == "iso"
+        )
+        assert (
+            n.lookup_disc_format("PS2", "my dump.chd", serial="SLUS-20002") == "cue"
+        )
+        assert n.lookup_disc_format("PS2", "x.chd", crc32="26a9a7ab") == "iso"
+
+    def test_unknown_title_stays_none(self, tmp_path):
+        from app.services.dat_normalizer import DatNormalizer
+
+        n = DatNormalizer(_write_ps2_dat(tmp_path))
+        assert n.lookup_disc_format("PS2", "Some Hack (v1.2).chd") is None
+
+
+def _fake_chd(path, unit_bytes, meta_tags=()):
+    """Minimal v5 CHD: header + a linked metadata chain."""
+    import struct
+
+    body = bytearray(124)
+    body[0:8] = b"MComprHD"
+    struct.pack_into(">I", body, 8, 124)     # header length
+    struct.pack_into(">I", body, 12, 5)      # version
+    struct.pack_into(">I", body, 56, 4096)   # hunkbytes
+    struct.pack_into(">I", body, 60, unit_bytes)
+
+    offsets = []
+    for tag in meta_tags:
+        offsets.append(len(body))
+        entry = bytearray(24)
+        entry[0:4] = tag
+        struct.pack_into(">I", entry, 4, (1 << 24) | 8)  # flags | length
+        body += entry
+    for i, off in enumerate(offsets):
+        nxt = offsets[i + 1] if i + 1 < len(offsets) else 0
+        struct.pack_into(">Q", body, off + 8, nxt)
+    if offsets:
+        struct.pack_into(">Q", body, 48, offsets[0])
+
+    path.write_bytes(bytes(body))
+    return path
+
+
+class TestChdMediaSniff:
+    def test_cd_and_dvd_chds(self, tmp_path):
+        from app.routes.roms import _read_chd_media_kind
+
+        # chdman createcd → CD track metadata present.
+        cd = _fake_chd(tmp_path / "cd.chd", 2448, (b"GDDD", b"CHT2"))
+        assert _read_chd_media_kind(cd) == "cd"
+        # Pre-CHT2 dumps used CHTR / CHCD.
+        old = _fake_chd(tmp_path / "old.chd", 2448, (b"CHCD",))
+        assert _read_chd_media_kind(old) == "cd"
+        # chdman createdvd → no track metadata, 2048-byte units.
+        dvd = _fake_chd(tmp_path / "dvd.chd", 2048, (b"GDDD",))
+        assert _read_chd_media_kind(dvd) == "dvd"
+        # Frame size is the tiebreak when metadata is missing entirely.
+        assert _read_chd_media_kind(_fake_chd(tmp_path / "bare.chd", 2448)) == "cd"
+        assert _read_chd_media_kind(_fake_chd(tmp_path / "raw.chd", 2048)) == "dvd"
+
+    def test_non_chd_and_missing_file(self, tmp_path):
+        from app.routes.roms import _chd_media_kind, _read_chd_media_kind
+
+        junk = tmp_path / "junk.chd"
+        junk.write_bytes(b"not a chd at all" * 8)
+        assert _read_chd_media_kind(junk) is None
+        assert _chd_media_kind(tmp_path / "missing.chd") is None
+
+    def test_extract_formats_fall_back_to_the_chd(self, tmp_path, monkeypatch):
+        from app.routes import roms
+        from app.services.rom_scanner import RomEntry
+
+        rom_dir = tmp_path / "roms"
+        (rom_dir / "ps2").mkdir(parents=True)
+        _fake_chd(rom_dir / "ps2" / "Unlisted Hack.chd", 2048, (b"GDDD",))
+        _fake_chd(rom_dir / "ps2" / "Unlisted CD Hack.chd", 2448, (b"CHT2",))
+
+        monkeypatch.setattr(settings, "rom_dir", rom_dir)
+        monkeypatch.setattr(roms, "_dat_normalizer_get", lambda: None)
+        roms._chd_media_cache.clear()
+
+        def entry(filename):
+            return RomEntry(
+                rom_id=filename,
+                title_id="SLUS99999",
+                system="PS2",
+                name=filename,
+                filename=filename,
+                path=f"ps2/{filename}",
+                size=124,
+                crc32="",
+                source="scan",
+            )
+
+        assert roms._extract_formats_for_entry(entry("Unlisted Hack.chd")) == (
+            "iso", ["iso"],
+        )
+        assert roms._extract_formats_for_entry(entry("Unlisted CD Hack.chd")) == (
+            "cue", ["cue"],
+        )
+
+
+class TestPcfxCatalog:
+    """NEC PC-FX discs are plain CD-ROM CHDs under ``<rom_dir>/pcfx/``.
+
+    They index as ``PCFX`` (slug-keyed, like every non-serial CD system),
+    stay one catalog row per disc, and advertise the same chdman CUE/BIN
+    extract as PC Engine CD — the raw CHD is what emulators and clients
+    take by default.
+    """
+
+    def test_pcfx_chds_index_as_pcfx_with_cue_extract(self, tmp_path, monkeypatch):
+        from app.routes import roms
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        folder = rom_dir / "pcfx"
+        folder.mkdir(parents=True)
+        for name in (
+            "Aa Megami-sama (Japan) (Disc 1).chd",
+            "Aa Megami-sama (Japan) (Disc 2).chd",
+            "Zenki FX - Vajura Fight (Japan).chd",
+        ):
+            (folder / name).write_bytes(b"x" * 64)
+
+        monkeypatch.setattr(settings, "rom_dir", rom_dir)
+        catalog = rom_scanner.RomCatalog()
+        assert catalog.scan(rom_dir, use_crc32=False) == 3
+
+        entries = catalog.list_by_system("PCFX")
+        assert len(entries) == 3
+        for entry in entries:
+            assert entry.title_id.startswith("PCFX_")
+            assert roms._extract_formats_for_entry(entry) == ("cue", ["cue"])
+
+        discs = [e for e in entries if "Megami" in e.filename]
+        # Both discs of one game share the save slot, but stay separate rows.
+        assert len({e.title_id for e in discs}) == 1
+        assert len({e.rom_id for e in discs}) == 2

@@ -49,7 +49,7 @@ from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
-from scanner import scan_all, rpcs3, dolphin, citra, server_only
+from scanner import scan_all, rpcs3, dolphin, citra, cemu, server_only
 from scanner.rom_match import (
     DISC_SLUG_SYSTEMS as _DISC_SLUG_SYSTEMS,
     RomIndex as _RomIndex,
@@ -64,7 +64,13 @@ from scanner.installed_roms import (
 )
 from scanner.rom_target import resolve_rom_target_dir
 from sync_client import SyncClient, _find_server_save
-from config import load_config, save_config, DOWNLOADS_DB_PATH
+from config import (
+    CEMU_SAVE_DIR_KEY,
+    load_config,
+    save_config,
+    save_dir_override as _save_dir_override,
+    DOWNLOADS_DB_PATH,
+)
 from download_manager import DownloadManager
 from . import theme
 from .catalog_view import CatalogView
@@ -76,6 +82,13 @@ from .detail_dialog import DetailDialog
 from .confirm_dialog import ConfirmDialog, ResultDialog
 from .downloads_view import DownloadsView
 from .detail_dialog import _NATIVE_COMPRESSED_FORMAT_SYSTEMS as _NATIVE_EXTRACT_SKIP
+
+# What the confirm prompt calls a bundle, by the server's ``bundle_kind``.
+_BUNDLE_KIND_LABELS = {
+    "msu1": "MSU-1 pack",
+    "msu-md": "MSU-MD pack",
+    "mdplus": "MD+ pack",
+}
 
 try:
     import pygame
@@ -98,11 +111,13 @@ class ScanWorker(QObject):
         emulation_path: str,
         rom_scan_dir: str = "",
         saturn_sync_format: str = "mednafen",
+        save_dir_overrides: Optional[dict] = None,
     ):
         super().__init__()
         self._path = emulation_path
         self._rom_scan_dir = rom_scan_dir
         self._saturn_sync_format = saturn_sync_format
+        self._save_dir_overrides = dict(save_dir_overrides or {})
 
     def run(self):
         results = scan_all(
@@ -110,6 +125,7 @@ class ScanWorker(QObject):
             rom_scan_dir=self._rom_scan_dir,
             progress_cb=self.progress.emit,
             saturn_sync_format=self._saturn_sync_format,
+            save_dir_overrides=self._save_dir_overrides,
         )
         self.finished.emit(results)
 
@@ -161,11 +177,18 @@ class ServerWorker(QObject):
 
     finished = pyqtSignal(list)  # updated list[GameEntry]
 
-    def __init__(self, entries: list[GameEntry], client: SyncClient, emulation_path: str):
+    def __init__(
+        self,
+        entries: list[GameEntry],
+        client: SyncClient,
+        emulation_path: str,
+        save_dir_overrides: Optional[dict] = None,
+    ):
         super().__init__()
         self._entries = entries
         self._client = client
         self._emulation_path = Path(emulation_path)
+        self._save_dir_overrides = dict(save_dir_overrides or {})
 
     def _enrich_title_ids(self):
         """
@@ -179,7 +202,7 @@ class ServerWorker(QObject):
         the card's display_name as a stand-in filename when there is no
         rom_filename available.
         """
-        skip_systems = {"GC", "PS3", "PSP", "WII", "NSW", "?"}
+        skip_systems = {"GC", "PS3", "PSP", "WII", "WIIU", "NSW", "?"}
         disc_systems = _DISC_SLUG_SYSTEMS
         needs_lookup: list[tuple[GameEntry, str]] = []
         rom_entries: list[dict[str, str]] = []
@@ -246,7 +269,10 @@ class ServerWorker(QObject):
                 or bool(_PRODUCT_CODE_RE.match(name))
                 or bool(_HEX16_RE.match(name))
                 or bool(_HEX8_RE.match(name))
-                or entry.title_id.startswith("GC_")  # GCI descriptions < server DB
+                # GCI descriptions < server DB.  Case-insensitive: saves
+                # scanned before the GC_<CODE> canonicalisation may still be
+                # cached under the old lowercase form.
+                or entry.title_id.upper().startswith("GC_")
             )
             if not needs_name:
                 continue
@@ -254,7 +280,11 @@ class ServerWorker(QObject):
             # Use title_id as the lookup code (server resolves by code).
             # For PS3 saves with slot suffixes (e.g. BLJS10001GAME), trim to
             # the 9-char base code so the server DB can resolve the name.
-            code = entry.title_id
+            #
+            # Wii U is the exception: its title id's low word is not the
+            # product code, so the DAT can only be keyed by the code the
+            # scanner pulled out of meta.xml (WIIU_ARDE).
+            code = entry.game_code or entry.title_id
             if (
                 entry.system == "PS3"
                 and len(code) > 9
@@ -295,6 +325,29 @@ class ServerWorker(QObject):
                 if resolved_type and entry.system == "?":
                     mapped = _PLATFORM_TO_SYSTEM.get(resolved_type, resolved_type)
                     entry.system = mapped
+
+    def _push_wiiu_name_hints(
+        self, entries: list[GameEntry], server_saves: dict[str, dict]
+    ) -> None:
+        """Send locally-resolved Wii U names/codes for server rows still raw."""
+        codes: dict[str, str] = {}
+        names: dict[str, str] = {}
+        for entry in entries:
+            if entry.system.upper() != "WIIU":
+                continue
+            info = _find_server_save(server_saves, entry.title_id)
+            if info is None:
+                continue
+            server_name = info.get("game_name") or info.get("name") or ""
+            if server_name and server_name != entry.title_id:
+                continue  # server already has a real name
+            if entry.game_code:
+                codes[entry.title_id] = entry.game_code
+            if entry.display_name and entry.display_name != entry.title_id:
+                names[entry.title_id] = entry.display_name
+
+        if codes or names:
+            self._client.push_name_hints(codes=codes, names=names)
 
     def run(self):
         # ── Pre-fetch the server's ROM catalog so we can (a) re-key local
@@ -342,6 +395,24 @@ class ServerWorker(QObject):
         updated.extend(
             citra.build_server_only_entries(server_saves, seen_ids, self._emulation_path)
         )
+        seen_ids = {entry.title_id for entry in updated}
+        updated.extend(
+            cemu.build_server_only_entries(
+                server_saves,
+                seen_ids,
+                self._emulation_path,
+                save_dir_override=_save_dir_override(
+                    self._save_dir_overrides, CEMU_SAVE_DIR_KEY
+                ),
+            )
+        )
+
+        # Wii U saves reach the server named after their own title id: no DAT
+        # can resolve a 16-hex Wii U id, so the console client has nothing to
+        # send.  This machine may have the game's meta.xml — hand the server
+        # what we read so every other client (the desktop app above all) stops
+        # showing raw hex.
+        self._push_wiiu_name_hints(updated, server_saves)
         # Generic placeholders for every other system — lets the user see
         # (and Download-ROM for) server saves on systems without a dedicated
         # scanner-level builder (PS1, PS2, PSP, GBA, SNES, NES, ...).
@@ -760,6 +831,7 @@ class MainWindow(QMainWindow):
             self._config["emulation_path"],
             self._config.get("rom_scan_dir", ""),
             saturn_sync_format=self._config.get("saturn_sync_format", "mednafen"),
+            save_dir_overrides=self._config.get("save_dir_overrides") or {},
         )
         self._scan_worker.moveToThread(self._scan_thread)
         self._scan_thread.started.connect(self._scan_worker.run)
@@ -783,6 +855,7 @@ class MainWindow(QMainWindow):
             list(entries),
             self._client,
             self._config["emulation_path"],
+            save_dir_overrides=self._config.get("save_dir_overrides") or {},
         )
         self._server_worker.moveToThread(self._server_thread)
         self._server_thread.started.connect(self._server_worker.run)
@@ -1096,10 +1169,12 @@ class MainWindow(QMainWindow):
         else:
             target_path = target_dir / target_filename
 
+        bundle_kind = str(rom.get("bundle_kind") or "") if is_bundle else ""
         if is_bundle:
             file_count = len(rom.get("files") or [])
+            what = _BUNDLE_KIND_LABELS.get(bundle_kind, "bundle")
             msg = (
-                f"Download PS3 bundle '{display}'?\n"
+                f"Download {what} '{display}'?\n"
                 f"System: {system or 'unknown'}\n"
                 f"Files: {file_count}{size_txt}\n"
                 f"Destination: {target_path}"
@@ -1136,6 +1211,7 @@ class MainWindow(QMainWindow):
             extract_format=None if is_bundle else extract_format,
             expected_size=size,
             is_bundle=is_bundle,
+            bundle_kind=bundle_kind,
         )
         # Surface a quick acknowledgement and jump to the Downloads
         # tab so the user can see the new row immediately.

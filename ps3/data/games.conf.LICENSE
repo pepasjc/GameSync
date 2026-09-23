@@ -1,0 +1,26 @@
+games.conf — per-game save-decryption key database
+==================================================
+
+This file is redistributed verbatim from the Apollo Save Tool (PS3) project.
+It is NOT authored by GameSync.
+
+    Apollo Save Tool (PS3) — Copyright (C) 2020-2025 Damian Parrino
+
+    This program is free software: you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by the
+    Free Software Foundation, either version 3 of the License, or (at your
+    option) any later version.
+
+Upstream: https://github.com/bucanero/apollo-ps3
+
+The header of games.conf itself credits SHAkA and the other contributors who
+dumped keys for individual games.
+
+GameSync is also licensed GPL-3.0-or-later, so this file is redistributed under
+the same terms. The full GPL v3 text is in the LICENSE file at the root of the
+GameSync source distribution:
+
+    https://github.com/pepasjc/GameSync
+
+Complete corresponding source for GameSync, including this data file, is
+available at that address.

@@ -59,6 +59,8 @@ import com.savesync.android.BuildConfig
 import com.savesync.android.api.ApiClient
 import com.savesync.android.emulators.EmudeckPaths
 import com.savesync.android.sync.SaturnSyncFormat
+import com.savesync.android.sync.SegaCdSyncFormat
+import com.savesync.android.emulators.Ps2EmulatorChoice
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.components.FolderPickerDialog
 import kotlinx.coroutines.launch
@@ -85,6 +87,8 @@ fun SettingsScreen(
     var romScanDir by remember { mutableStateOf("") }
     var emudeckDir by remember { mutableStateOf("") }
     var saturnSyncFormat by remember { mutableStateOf(SaturnSyncFormat.MEDNAFEN) }
+    var segaCdSyncFormat by remember { mutableStateOf(SegaCdSyncFormat.GENESIS_PLUS_GX) }
+    var ps2Emulator by remember { mutableStateOf(Ps2EmulatorChoice.AETHERSX2) }
     var showFolderPicker by remember { mutableStateOf(false) }
     var showEmudeckFolderPicker by remember { mutableStateOf(false) }
     var settingsLoaded by remember { mutableStateOf(false) }
@@ -104,6 +108,8 @@ fun SettingsScreen(
             romScanDir = settings.romScanDir
             emudeckDir = settings.emudeckDir
             saturnSyncFormat = settings.saturnSyncFormat
+            segaCdSyncFormat = settings.segaCdSyncFormat
+            ps2Emulator = settings.ps2Emulator
             settingsLoaded = true
             // Auto-detect system folders once settings are loaded
             if (settings.romScanDir.isNotBlank() || settings.emudeckDir.isNotBlank()) {
@@ -214,7 +220,9 @@ fun SettingsScreen(
                             emudeckDir = emudeckDir,
                             saturnSyncFormat = saturnSyncFormat,
                             beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
-                            cdGamesPerContentFolder = settings.cdGamesPerContentFolder
+                            cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
+                            segaCdSyncFormat = segaCdSyncFormat,
+                            ps2Emulator = ps2Emulator
                         )
                         savedConfirmation = true
                     },
@@ -393,6 +401,83 @@ fun SettingsScreen(
                             onClick = {
                                 saturnSyncFormat = format
                                 saturnFormatExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            var segaCdFormatExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = segaCdFormatExpanded,
+                onExpandedChange = { segaCdFormatExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = segaCdSyncFormat.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Sega CD Save Format") },
+                    supportingText = {
+                        Text(
+                            "Genesis Plus GX writes <game>.brm; PicoDrive writes <game>.srm. " +
+                            "Pick the core you play with. Genesis Plus GX only flushes Sega CD " +
+                            "backup RAM on Close Content — killing RetroArch from the task " +
+                            "switcher loses the save before GameSync can see it."
+                        )
+                    },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(segaCdFormatExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = segaCdFormatExpanded,
+                    onDismissRequest = { segaCdFormatExpanded = false }
+                ) {
+                    SegaCdSyncFormat.values().forEach { format ->
+                        DropdownMenuItem(
+                            text = { Text(format.label) },
+                            onClick = {
+                                segaCdSyncFormat = format
+                                segaCdFormatExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            var ps2EmulatorExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = ps2EmulatorExpanded,
+                onExpandedChange = { ps2EmulatorExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = ps2Emulator.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("PS2 Emulator") },
+                    supportingText = {
+                        Text("Which emulator's memcards folder PS2 saves are read from and downloaded to.")
+                    },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(ps2EmulatorExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = ps2EmulatorExpanded,
+                    onDismissRequest = { ps2EmulatorExpanded = false }
+                ) {
+                    Ps2EmulatorChoice.values().forEach { choice ->
+                        DropdownMenuItem(
+                            text = { Text(choice.label) },
+                            onClick = {
+                                ps2Emulator = choice
+                                ps2EmulatorExpanded = false
                             }
                         )
                     }
@@ -619,7 +704,8 @@ fun SettingsScreen(
             // Add a custom system folder not yet auto-detected
             val knownAddSystems = listOf(
                 "SAT", "DC", "PS1", "PS2", "PSP", "GBA", "GBC", "GB", "SNES", "NES",
-                "N64", "NDS", "3DS", "GC", "WII", "MD", "SMS", "GG", "SEGACD", "PCE", "NEOCD",
+                "N64", "NDS", "3DS", "GC", "WII", "MD", "SMS", "GG", "SEGACD",
+                "PCE", "PCECD", "NEOCD",
                 "NGP", "WSWAN", "WSWANC", "A2600", "A7800", "LYNX", "MAME", "ARCADE"
             ).filter { it !in allSystems }
 
@@ -736,7 +822,9 @@ fun SettingsScreen(
                     emudeckDir = emudeckDir,
                     saturnSyncFormat = saturnSyncFormat,
                     beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
-                    cdGamesPerContentFolder = settings.cdGamesPerContentFolder
+                    cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
+                    segaCdSyncFormat = segaCdSyncFormat,
+                    ps2Emulator = ps2Emulator
                 )
             }
         )
@@ -758,7 +846,9 @@ fun SettingsScreen(
                     emudeckDir = path,
                     saturnSyncFormat = saturnSyncFormat,
                     beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
-                    cdGamesPerContentFolder = settings.cdGamesPerContentFolder
+                    cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
+                    segaCdSyncFormat = segaCdSyncFormat,
+                    ps2Emulator = ps2Emulator
                 )
             }
         )

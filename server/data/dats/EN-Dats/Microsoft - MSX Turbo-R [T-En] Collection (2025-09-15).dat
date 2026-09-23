@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Microsoft - MSX Turbo-R [T-En] Collection</name>
+		<description>Microsoft - MSX Turbo-R [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>2025-09-15</version>
+		<date>2025-09-15 (yy/mm/dd)</date>
+		<author>John Doe</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>-insert comment-</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_MSX Turbo-R [T-En] Docs">
+		<description>_MSX Turbo-R [T-En] Docs</description>
+		<rom name="Illusion City (Japan) [T-En by MSX Translations v1.0.0] [Brain Fucker recipe].pdf" size="191528" crc="c960dbc3" md5="81d36d8f102479b6b661b76ba64b20c5" sha1="13740e72f9bd90ca85a82691c0c06d72f7d19b12"/>
+		<rom name="Illusion City (Japan) [T-En by MSX Translations v1.0.0] [Carnivore 2 ROM utility flash config file]\IC.RCP" size="30" crc="a08ac93f" md5="db2d7afb415aa1190cfcd0b0ca56bd5a" sha1="0873dbba0aefe110b1bf3987e25bd9dfb0afefb0"/>
+		<rom name="Illusion City (Japan) [T-En by MSX Translations v1.0.0] [Databook].pdf" size="70637936" crc="9a50f5c2" md5="c26ba339240545db4884210475985772" sha1="6a8e3dfbe2934ef21c5553a8510b36b8eea8f930"/>
+		<rom name="Illusion City (Japan) [T-En by MSX Translations v1.0.0] [IC Poster MS2GOTO40].png" size="3198328" crc="d07bd6e9" md5="7b4f5564744072e59daca88b598bf86c" sha1="e61481fc54ba42a1dfb69148e8559bd6d1b37b8c"/>
+		<rom name="Illusion City (Japan) [T-En by MSX Translations v1.0.0] [Manual].pdf" size="1792615" crc="553bb713" md5="af896974c4e4066bacffd5361a9f91a5" sha1="e3a9deef8f97d41313b8074176cddf7ac905b657"/>
+		<rom name="Illusion City (Japan) [T-En by MSX Translations v1.0.0].txt" size="68206" crc="f4df2bef" md5="1660595e0bca710f8e4ff2328447e2a9" sha1="9fbc9701c736b39abfd3ed99ac2d520f88058a60"/>
+		<rom name="Moonlight Saga (Japan) [T-En by Manuel Pazos &amp; Takamichi v20201111].txt" size="2679" crc="445d196c" md5="a5eab393d1bc6ad6dc027ba009f337d9" sha1="2e1c10c437ed37741cb4944aa76ef76578da3b2b"/>
+		<rom name="PaRaDream - Parallel Dream (Japan) [T-En by 232 &amp; BiFi].txt" size="2197" crc="2a04e0f5" md5="567f6d6eac6f745bd599494b6ee29f86" sha1="cac9245903604c1e18fc68e6bdd1401eb4fe7914"/>
+		<rom name="Super Shang Hai - Dragon's Eye (Japan) [T-En by Ronin Translations].txt" size="2366" crc="75cd138e" md5="a7d15ca1952152cbee410896c5fb8db1" sha1="cabf4d451f1d45bea66baadf3aba03dae2bede4a"/>
+	</machine>
+	<machine name="Illusion City (Japan) [T-En by A&amp;L Software v0.5] [i] (Floppy)">
+		<description>Illusion City (Japan) [T-En by A&amp;L Software v0.5] [i] (Floppy)</description>
+		<rom name="Illusion City (Japan) (Disk 1) [T-En by A&amp;L Software v0.5].dsk" size="737280" crc="da248548" md5="4db4e26c3fb2038c90f7843074d58ade" sha1="46feaa39a80b35bca3243871a6770ddcc783b1ad"/>
+		<rom name="Illusion City (Japan) (Disk 2) [T-En by A&amp;L Software v0.5].dsk" size="737280" crc="185c2efa" md5="19abf74fba15d87df4ac01d4d099bee3" sha1="c1570d81c6f273634d78eb78576ac5b5510ea06a"/>
+		<rom name="Illusion City (Japan) (Disk 3) [T-En by A&amp;L Software v0.5].dsk" size="737280" crc="17dcb43d" md5="f4a8a729fd1e2e04282989fd5e7a54ec" sha1="95c54a2170078637e0cdd1f4b3bb96fa0b1d405b"/>
+		<rom name="Illusion City (Japan) (Disk 4) [T-En by A&amp;L Software v0.5].dsk" size="737280" crc="43622713" md5="3e235871513a32983c43146900ff4e4e" sha1="57b1e93481d712752fac58150f048e2342f5b8a9"/>
+		<rom name="Illusion City (Japan) (Disk 5) [T-En by A&amp;L Software v0.5].dsk" size="737280" crc="d1101ef1" md5="e9376ffc278f2794bb73773b8eab1d5f" sha1="18bf37134e523029d27ffe948ee35ce5cdaecbd2"/>
+		<rom name="Illusion City (Japan) (Disk 6) [T-En by A&amp;L Software v0.5].dsk" size="737280" crc="b0962c9f" md5="08cab65d20df304ae989e50b2d2b32da" sha1="e96f7e05591b131d0746f818da02b11b70e02200"/>
+	</machine>
+	<machine name="Illusion City (Japan) [T-En by MSX Translations v1.0.0] (Cartridge)">
+		<description>Illusion City (Japan) [T-En by MSX Translations v1.0.0] (Cartridge)</description>
+		<rom name="Illusion City (Japan) [T-En by MSX Translations v1.0.0].rom" size="4194304" crc="ca05c9c8" md5="476f4e659b89ff2c9391cdcf188c549c" sha1="f2acc5210ae120054cac40ab35c2047d6414cbdc"/>
+	</machine>
+	<machine name="Illusion City (Japan) [T-En by MSX Translations v1.0.0] (Floppy)">
+		<description>Illusion City (Japan) [T-En by MSX Translations v1.0.0] (Floppy)</description>
+		<rom name="Illusion City (Japan) (Disk 1) [T-En by MSX Translations v1.0.0].dsk" size="737280" crc="a3f7050f" md5="88ae393e68dd282cd08082acbbf93383" sha1="8c2d597d71d407386011680237e623942b6e6cbb"/>
+		<rom name="Illusion City (Japan) (Disk 2) [T-En by MSX Translations v1.0.0].dsk" size="737280" crc="f7c50970" md5="7fbadb956f919c67a680e7694bc33f2d" sha1="d74bc035e83a3072b80765c453ec194118fa50ab"/>
+		<rom name="Illusion City (Japan) (Disk 3) [T-En by MSX Translations v1.0.0].dsk" size="737280" crc="0218fe08" md5="35d41a5353864a3053faf42a1b2a508a" sha1="014b1c136a9267f5ccdeb7b6aa2aaf580313da66"/>
+		<rom name="Illusion City (Japan) (Disk 4) [T-En by MSX Translations v1.0.0].dsk" size="737280" crc="8f712168" md5="50cc721117b9935c66eaad88f2679737" sha1="68916bee07df14ca61d31b05c7ef074f6217459f"/>
+		<rom name="Illusion City (Japan) (Disk 5) [T-En by MSX Translations v1.0.0].dsk" size="737280" crc="7c8fb5c2" md5="a63d437595435ebf2503eaf8b8b085fb" sha1="a152f1590ec20b70ba60f5542c643d7efbb1a7fc"/>
+		<rom name="Illusion City (Japan) (Disk 6) [T-En by MSX Translations v1.0.0].dsk" size="737280" crc="0e53d122" md5="c7ba46cabddc2805bd322dfdef9a6d56" sha1="a49d5f4df4e6e052b5bf76b962acafe992856fec"/>
+		<rom name="Illusion City (Japan) (Disk 7) [T-En by MSX Translations v1.0.0].dsk" size="737280" crc="1cd91341" md5="b643cb8add8e30909cb5467b338ec5bd" sha1="f9753084afc75bdf27207d28dd8026bd7aa746ea"/>
+		<rom name="Illusion City (Japan) (Disk 8) [T-En by MSX Translations v1.0.0].dsk" size="737280" crc="5dc8dc99" md5="addd4321964b8d864b53f660b9e213cf" sha1="46e7c786d6a298945e77da87ca9ca9c3b9ba8da8"/>
+	</machine>
+	<machine name="Moonlight Saga (Japan) [T-En by Manuel Pazos &amp; Takamichi v20201111] (Floppy)">
+		<description>Moonlight Saga (Japan) [T-En by Manuel Pazos &amp; Takamichi v20201111] (Floppy)</description>
+		<rom name="Moonlight Saga (Japan) (Disk 1) [T-En by Manuel Pazos &amp; Takamichi v20201111].dsk" size="737280" crc="2d53f415" md5="bbfba32b2dff143f74796d0bc82439eb" sha1="b14f41103fb3cf28ca455ad2dbd9b709c530d6f8"/>
+		<rom name="Moonlight Saga (Japan) (Disk 2) [T-En by Manuel Pazos &amp; Takamichi v20201111].dsk" size="737280" crc="3b42975f" md5="5afac0e8a22d3b60f574c452a70b4b94" sha1="9714b06a170b301c1b665912b0544e1ae4e4c230"/>
+		<rom name="Moonlight Saga (Japan) (System Disk) [T-En by Manuel Pazos &amp; Takamichi v20201111].dsk" size="737280" crc="a4016294" md5="9797a15509d29280ab23b104351dff82" sha1="7c6cbef302a95234546b0df1991e9c3fb0b40a53"/>
+	</machine>
+	<machine name="PaRaDream - Parallel Dream (Japan) [T-En by 232 &amp; BiFi] (Floppy)">
+		<description>PaRaDream - Parallel Dream (Japan) [T-En by 232 &amp; BiFi] (Floppy)</description>
+		<rom name="PaRaDream - Parallel Dream (Japan) [T-En by 232 &amp; BiFi].dsk" size="737280" crc="12f6600a" md5="5e0f89a4400281846f4b39974b0cb5fa" sha1="7312d35d1ac654ee8fe98ff4f24a3424df2d4ec7"/>
+	</machine>
+	<machine name="Super Shang Hai - Dragon's Eye (Japan) [T-En by Ronin Translations] (Floppy)">
+		<description>Super Shang Hai - Dragon's Eye (Japan) [T-En by Ronin Translations] (Floppy)</description>
+		<rom name="Super Shang Hai - Dragon's Eye (Japan) [T-En by Ronin Translations].dsk" size="737280" crc="77df5bbc" md5="b3be4a33785b91fc5582a88b796adff9" sha1="0ace0e1e7e72f11d7b87eaf3f2311d1776de80e3"/>
+	</machine>
+</datafile>

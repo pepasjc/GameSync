@@ -49,7 +49,11 @@ object SystemAliases {
         // NEC / SNK spelling variants
         "TG16"       to "PCE",
         "TURBOGRAFX" to "PCE",
+        "PCENGINE"   to "PCE",
         "TGCD"       to "PCECD",
+        "PCENGINECD" to "PCECD",
+        "TURBOGRAFXCD" to "PCECD",
+        "PCENGINECDROM" to "PCECD",
         "SUPERGRAFX" to "PCSG",
         "PCENGINESUPERGRAFX" to "PCSG",
         "NECPCFX"    to "PCFX",

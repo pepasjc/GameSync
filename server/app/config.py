@@ -74,11 +74,76 @@ class Settings(BaseSettings):
     # output_dir, which works for self-contained converters but breaks
     # pop-fe.
     rom_ps1_eboot_cwd: str = ""
+    # Optional command template for converting a PS1 disc image into a
+    # POPStarter .VCD so OPL (Open PS2 Loader) on a PS2 can play PS1 games
+    # via the built-in POPS emulator.  POPStarter expects one .VCD per
+    # disc (no multi-disc merge), so the template is invoked once per disc
+    # with the single-disc placeholder set:
+    #   {input}      — path to this disc's image (.chd / .cue / .bin / .iso)
+    #   {output}     — path the converter should write the .VCD to
+    #   {output_dir} — fresh per-request scratch dir (must contain the .VCD
+    #                  somewhere underneath when the command finishes)
+    #   {stem}       — disc filename without extension
+    #   {title}      — human-readable game name (catalog ``name``)
+    #   {gamecode}   — PS1 product code (e.g. "SCUS94503", 9 chars no dash)
+    # Example using krHACKen's popstation-based VCD tool:
+    #   ["popstation","-p","-c","{output_dir}","{input}"]
+    # Stay empty until the operator configures the toolchain — until then
+    # the server returns 503 with a hint pointing at SYNC_ROM_PS1_VCD_COMMAND.
+    rom_ps1_vcd_command: str = ""
+    rom_ps1_vcd_cwd: str = ""
+    # OPTIONAL command templates for decrypting a Wii U WUP/NUS title.
+    #
+    # You probably do not need these.  A WUP dump's ``.app`` contents are
+    # encrypted, but the bundled ``title.tik`` carries the title key, so both
+    # a real console and Cemu 2.x decrypt it themselves — the raw download
+    # already works on both.  These exist only for people who want a
+    # decrypted ``code``/``content``/``meta`` tree or a ``.wua`` on disk.
+    #
+    # Leaving them empty is a supported configuration: the catalog then
+    # advertises no Wii U extract formats and clients take the raw bundle.
+    # Placeholders:
+    #   {input}      — the WUP bundle *directory* (not a file)
+    #   {output_dir} — fresh per-request scratch dir; the converter must
+    #                  write its result somewhere underneath
+    #   {output}     — suggested output path (``.wua`` command only)
+    #   {stem}       — bundle folder name
+    #   {title}      — game name (catalog ``name``)
+    #   {title_id}   — 16-hex Wii U title id (catalog ``title_id``)
+    # ``rom_wiiu_loadiine_command`` must leave ``code``/``content``/``meta``
+    # under {output_dir}; the server zips that tree.  ``rom_wiiu_wua_command``
+    # must produce exactly one ``.wua``.
+    #
+    # CDecrypt is the intended decrypter.  Check your build's own usage line
+    # for argument order; the common shape is input-dir then output-dir:
+    #   ["cdecrypt","{input}","{output_dir}"]
+    # Older forks read the Wii U common key from a ``keys.txt`` in the working
+    # directory — point ``rom_wiiu_cwd`` at the folder holding it.  GameSync
+    # does not ship that key and cannot redistribute it.
+    #
+    # ``rom_wiiu_wua_command`` has no widely-available CLI tool behind it:
+    # Cemu converts to .wua from its GUI, not a documented headless flag.
+    # Leave it empty unless you have your own packer — no shipped client
+    # requests 'wua'.
+    rom_wiiu_loadiine_command: str = ""
+    rom_wiiu_wua_command: str = ""
+    # Working directory for the Wii U commands.  CDecrypt resolves its key
+    # file relative to cwd, so this usually points at the folder holding
+    # ``keys.txt``.  When unset we fall back to the per-request scratch dir.
+    rom_wiiu_cwd: str = ""
     api_key: str = "anything"
     host: str = "0.0.0.0"
     port: int = 8000
     max_history_versions: int = 10
     rom_scan_interval: int = 300
+
+    # RetroAchievements catalog badges.  The index is built in the
+    # background after a ROM scan and cached in roms.db, so leaving this on
+    # costs one read of each cartridge ROM, once.  Without an API key the
+    # public endpoints are used, which report no achievement counts.
+    ra_enabled: bool = True
+    ra_api_key: str = ""
+    ra_username: str = ""
     site_title: str = "GameSync"
     # Comma-separated list of nginx Basic Auth usernames that get admin access.
     # Everyone else can download but cannot trigger rescans or change settings.

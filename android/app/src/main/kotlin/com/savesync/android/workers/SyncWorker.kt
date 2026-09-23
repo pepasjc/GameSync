@@ -45,6 +45,8 @@ class SyncWorker(
                 romDirOverrides = settings.romDirOverrides,
                 saveDirOverrides = settings.saveDirOverrides,
                 saturnSyncFormat = settings.saturnSyncFormat,
+                segaCdSyncFormat = settings.segaCdSyncFormat,
+                ps2Emulator = settings.ps2Emulator,
                 beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
                 cdGamesPerContentFolder = settings.cdGamesPerContentFolder
             )

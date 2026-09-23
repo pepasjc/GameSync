@@ -1,0 +1,1350 @@
+41430001,Dave Mirra Freestyle BMX 2
+41430002,All-Star Baseball 2003 featuring Derek Jeter
+41430003,Legends of Wrestling
+41430004,Turok: Evolution
+41430005,Vexx
+41430006,Burnout
+41430007,Aggressive Inline
+4143000A,ATV: Quad Power Racing 2
+4143000B,Speed Kings
+4143000C,Freestyle Street Soccer
+4143000D,AFL Live 2003
+4143000E,BMX XXX
+4143000F,Legends of Wrestling II
+41430010,SX Superstar
+41430013,NBA Jam
+41430014,XGRA: Extreme G Racing Association
+41430016,Alias
+41430017,Dakar 2: The World's Ultimate Rally
+41430018,All-Star Baseball 2004 featuring Derek Jeter
+41430019,Burnout 2: Point of Impact
+4143001A,Gladiator: Sword of Vengeance
+4143001B,AFL Live 2004
+4143001C,All-Star Baseball 2005 featuring Derek Jeter
+4143001D,Showdown: Legends of Wrestling
+4143001F,WCR: World Championship Rugby
+41430023,AFL Live Premiership Edition
+4143007A,Alias
+4143007E,The Red Star
+41440002,Pump It Up: Exceed
+41480002,Playboy: The Mansion
+41500001,Tenerezza
+41510001,Petit Copter
+41510002,Flight Academy
+41510003,Sentou Yousei Yukikaze: Yousei no Mau Sora
+41530001,Break Nine: World Billiards Tournament
+41540001,Touge R
+41540002,Shin Megami Tensei: Nine
+41540003,Pro Fishing Challenge
+41540004,Galleon
+41560001,Tony Hawk's Pro Skater 2x
+41560002,Kelly Slater's Pro Surfer
+41560003,Street Hoops
+41560004,Tony Hawk's Pro Skater 3
+41560005,Blade II
+41560006,Spider-Man
+41560007,X-Men: Next Dimension
+41560008,X2: Wolverine's Revenge
+41560009,Rally Fusion: Race of Champions
+4156000A,Wreckless: The Yakuza Missions
+4156000B,Mat Hoffman's Pro BMX 2
+4156000C,Wreckless: The Yakuza Missions
+4156000D,Wakeboarding Unleashed featuring Shaun Murray
+4156000E,True Crime: Streets of LA
+4156000F,Star Wars: Obi-Wan
+41560010,Return to Castle Wolfenstein: Tides of War
+41560014,Minority Report: Everybody Runs
+41560015,Star Wars: Jedi Knight II: Jedi Outcast
+41560017,Tony Hawk's Pro Skater 4
+41560018,Pitfall: The Lost Expedition
+41560019,Cabela's Dangerous Hunts
+4156001A,Fantastic 4
+4156001B,Soldier of Fortune II: Double Helix
+4156001E,X-Men Legends
+4156001F,Lemony Snicket's A Series of Unfortunate Events
+41560020,Doom 3
+41560022,MTX Mototrax
+41560026,Tenchu: Return from Darkness
+41560027,Disney's Extreme Skate Adventure
+4156002A,Call of Duty: Finest Hour
+4156002B,Spider-Man 2
+4156002D,Tony Hawk's Underground
+41560030,Cabela's Deer Hunt: 2004 Season
+41560035,Ultimate Spider-Man
+41560036,Tenchu: Return from Darkness
+41560037,Shrek 2
+41560038,DreamWorks Shark Tale
+4156003A,Rapala Pro Fishing
+4156003B,DreamWorks Madagascar
+4156003C,Tony Hawk's Underground 2
+4156003D,American Chopper
+4156003E,Cabela's Big Game Hunter 2005 Adventures
+4156003F,Cabela's Deer Hunt: 2005 Season
+41560040,Bicycle Casino Includes: Texas Hold'em
+41560041,Monster Garage
+41560042,Greg Hastings' Tournament Paintball
+41560045,True Crime: New York City
+41560046,X-Men: The Official Game
+41560047,X-Men Legends II: Rise of Apocalypse
+41560048,DreamWorks Shrek: SuperSlam
+41560049,Tony Hawk's American Wasteland
+4156004B,Gun
+4156004D,Cabela's Outdoor Adventures
+4156004E,Doom 3: Resurrection of Evil
+4156004F,American Chopper 2: Full Throttle
+41560050,SeaWorld Adventure Parks: Shamu's Deep Sea Adventures
+41560051,Call of Duty 2: Big Red One
+41560052,Cabela's Dangerous Hunts 2
+41560054,World Series of Poker
+41560055,Ty the Tasmanian Tiger: Night of the Quinkan
+41560057,Greg Hastings' Tournament Paintball Max'd
+41560058,DreamWorks Over the Hedge
+4156005B,The Hustle: Detroit Streets
+4156005C,Marvel: Ultimate Alliance
+4156005D,Call of Duty 3
+4156005E,Tony Hawk's Project 8
+41570001,Guilty Gear Isuka
+41590002,Stubbs the Zombie in Rebel Without a Pulse
+41590004,Dreamfall: The Longest Journey
+42410001,Digimon Rumble Arena 2
+42410002,Digimon World 4
+42420002,Dance:UK
+424D0001,Chase: Hollywood Stunt Driver
+424D0002,Reign of Fire
+424D0003,Wallace & Gromit in Project Zoo
+424D0006,Carmen Sandiego: The Secret of the Stolen Drums
+42520001,Galaxy Angel
+42530001,The Elder Scrolls III: Morrowind
+42530004,Pirates of the Caribbean
+42530005,The Elder Scrolls III: Morrowind: Game of the Year Edition
+42530006,IHRA Drag Racing 2004
+42530007,Call of Cthulhu: Dark Corners of the Earth
+42530009,AMF Bowling 2004
+4253000A,Malice
+4253000B,Power Drome
+4253000C,IHRA Professional Drag Racing 2005
+4253000F,High Rollers Casino
+42530011,IHRA Drag Racing: Sportsman Edition
+42530012,Breeders' Cup: World Thoroughbred Championships
+42530014,AMF Xtreme Bowling
+42550001,Double-S.T.E.A.L
+42550002,Double-S.T.E.A.L
+42550004,Double-S.T.E.A.L: The Second Clash
+42560001,Tron 2.0: Killer App
+42560002,Disney's Chicken Little
+42560003,The Chronicles of Narnia: The Lion; the Witch and the Wardrobe
+42560004,Tim Burton's The Nightmare Before Christmas: Oogie's Revenge
+42570001,Robot Wars: Extreme Destruction
+43430001,Genma Onimusha
+43430002,Steel Battalion
+43430003,Dino Crisis 3
+43430004,UFC: Ultimate Fighting Championship 2: Tapout
+43430005,Group S Challenge
+43430006,Genma Onimusha
+43430007,Marvel vs. Capcom 2: New Age of Heroes
+43430008,Capcom vs. SNK 2 EO
+43430009,Tekki Taisen: Steel Battalion: Line of Contact
+4343000A,Spider-Man
+4343000B,Pro Cast: Sports Fishing Game
+4343000C,Robin Hood: Defender of the Crown
+4343000D,Tekki Taisen: Steel Battalion: Line of Contact
+4343000E,Auto Modellista
+4343000F,Street Fighter Anniversary Collection
+43430010,Capcom Fighting Evolution
+43430011,Mega Man Anniversary Collection
+43430013,Final Fight: Streetwise
+43430014,Without Warning
+43430015,Beat Down: Fists of Vengeance
+43430016,Darkwatch
+43430018,Capcom Classics Collection Vol. 1
+43430019,Capcom Classics Collection Vol. 2
+434B0001,Dai Senryaku VII: Modern Military Tactics
+434D0001,Colin McRae Rally 3
+434D0002,Pro Race Driver
+434D0003,Mike Tyson Heavyweight Boxing
+434D0004,LMA Manager 2003
+434D0006,IndyCar Series
+434D0008,Prisoner of War
+434D000C,Club Football: AC Milan
+434D000D,World Championship Snooker 2003
+434D000E,DTM Race Driver Live
+434D000F,LMA Manager 2004
+434D0010,Colin McRae Rally 04
+434D0011,TOCA Race Driver 2
+434D0012,Club Football: Ajax Amsterdam
+434D0013,Club Football: Arsenal
+434D0014,Club Football: Aston Villa
+434D0015,Club Football: FC Barcelona
+434D0016,Club Football: FC Bayern München
+434D0017,Club Football: Borussia Dortmund
+434D0018,Club Football: Celtic FC
+434D0019,Club Football: Chelsea FC
+434D001B,Club Football: FC Internazionale
+434D001C,Club Football: Juventus
+434D001D,Club Football: Leeds United
+434D001E,Club Football: Liverpool FC
+434D001F,Club Football: Liverpool FC
+434D0020,Club Football: Manchester United
+434D0021,Club Football: Rangers FC
+434D0022,Club Football: Real Madrid
+434D0023,Club Football: Hamburger SV
+434D0024,IndyCar Series 2005
+434D0028,England International Football: 2004 Edition
+434D0029,MTV Music Generator 3: This Is the Remix
+434D002A,World Championship Snooker 2004
+434D002B,Colin McRae Rally 2005
+434D002F,Club Football 2005: Manchester United
+434D0030,Club Football 2005: Liverpool FC
+434D0031,Club Football 2005: Arsenal
+434D0032,Club Football 2005: Chelsea FC
+434D0033,Club Football 2005: Aston Villa
+434D0035,Club Football 2005: Celtic FC
+434D0036,Club Football 2005: Rangers FC
+434D0037,Club Football 2005: Real Madrid
+434D0038,Club Football 2005: FC Barcelona
+434D0039,Club Football 2005: Ajax Amsterdam
+434D003A,Club Football 2005: AC Milan
+434D003B,Club Football 2005: FC Internazionale
+434D003C,Club Football 2005: Juventus
+434D003D,Club Football 2005: Hamburger SV
+434D003E,Club Football 2005: FC Bayern München
+434D003F,Club Football 2005: Borussia Dortmund
+434D0040,Club Football 2005: Newcastle United
+434D0041,Club Football 2005: Birmingham City
+434D0042,Club Football 2005: Tottenham Hotspur
+434D0043,Club Football 2005: Paris Saint-Germain
+434D0044,Club Football 2005: Olympique de Marseille
+434D0045,Club Football 2005: Liverpool FC
+434D0046,LMA Manager 2005
+434D0047,Second Sight
+434D0049,Manchester United Manager 2005
+434D004A,BDFL Manager 2005
+434D004B,Roger Lemerre: La Sélection des Champions 2005
+434D004C,Football Manager Campionato 2005
+434D004D,Mánager de Liga 2005
+434D004E,Brian Lara International Cricket 2005
+434D0050,DTM Race Driver 3
+434D0052,Worms 4: Mayhem
+434D0054,LMA Manager 2006
+434D0057,Ricky Ponting International Cricket 2005
+434D005A,Operation Flashpoint: Elite
+434D005B,Sensible Soccer 2006
+43540001,Star Wars: Obi-Wan
+43560001,Kabuki Warriors
+43560002,UFC: Ultimate Fighting Championship: Tapout
+43560005,Mojo!
+43560006,Intellivision Lives!
+43560007,Future Tactics: The Uprising
+43560008,Strike Force Bowling
+43560009,Trigger Man
+4356000A,Pinball Hall of Fame: The Gottlieb Collection
+4356000D,World Championship Poker
+4356000E,MX World Tour featuring Jamie Little
+43560010,World Championship Poker 2 featuring Howard Lederer
+43560011,The Bible Game
+44430002,Arx Fatalis
+44430003,Painkiller: Hell Wars
+44430004,Cold War
+44430006,Cold War
+44580001,Miami Vice
+45410001,Madden NFL 2002
+45410002,NASCAR Thunder 2002
+45410003,NBA Live 2002
+45410004,SSX Tricky
+45410005,NHL 2002
+45410007,F1 2001
+45410009,Triple Play 2002
+4541000A,Knockout Kings 2002
+4541000B,2002 FIFA World Cup
+4541000D,007: Agent Under Fire
+4541000E,Harry Potter and the Chamber of Secrets
+45410010,The Lord of the Rings: The Two Towers
+45410011,Cel Damage
+45410012,Buffy the Vampire Slayer
+45410013,The Simpsons: Road Rage
+45410014,F1 2002
+45410015,Pirates: The Legend of Black Kat
+45410017,FIFA Soccer 2003
+45410019,Madden NFL 2003
+4541001A,Medal of Honor: Frontline
+4541001B,NASCAR Thunder 2003
+4541001C,NBA Live 2003
+4541001D,NCAA Football 2003
+4541001E,NHL 2003
+45410021,Tiger Woods PGA Tour 2003
+45410022,Star Wars: Obi-Wan
+45410026,007: Nightfire
+45410027,NBA Street Vol. 2
+45410028,Need for Speed: Hot Pursuit 2
+45410029,Ty the Tasmanian Tiger
+4541002A,Freedom Fighters
+4541002C,Dead to Rights
+4541002D,MVP Baseball 2003
+4541002E,Freedom Fighters
+4541002F,The Sims
+45410030,NHL 2004
+45410031,NASCAR Thunder 2004
+45410032,F1 Career Challenge
+45410035,NCAA Football 2004
+45410036,Madden NFL 2004
+45410037,Harry Potter and the Sorcerer's Stone
+45410038,NBA Live 2004
+45410039,Bionicle
+4541003A,Tiger Woods PGA Tour 2004
+4541003B,FIFA Soccer 2004
+4541003C,SSX 3
+4541003D,Harry Potter: Quidditch World Cup
+4541003E,The Lord of the Rings: The Return of the King
+4541003F,Medal of Honor: Rising Sun
+45410041,Total Club Manager 2004
+45410042,007: Everything or Nothing
+45410043,The Sims: Bustin' Out
+45410044,NCAA March Madness 2004
+45410045,MVP Baseball 2004
+45410047,Need for Speed: Underground
+45410048,NFL Street
+45410049,Def Jam: Fight for NY
+4541004A,UEFA Euro 2004: Portugal
+4541004B,Fight Night 2004
+4541004C,Harry Potter and the Prisoner of Azkaban
+4541004D,Madden NFL 2005
+4541004E,FIFA Soccer 2005
+4541004F,NHL 2005
+45410050,NBA Live 2005
+45410051,NCAA Football 2005
+45410052,NCAA March Madness 2005
+45410053,NASCAR 2005: Chase for the Cup
+45410054,Tiger Woods PGA Tour 2005
+45410055,Fight Night Round 2
+45410056,MVP Baseball 2005
+45410057,NFL Street 2
+45410058,NBA Street V3
+4541005A,Need for Speed: Underground 2
+4541005B,Burnout 3: Takedown
+4541005C,Catwoman
+4541005D,GoldenEye: Rogue Agent
+4541005E,Medal of Honor: European Assault
+4541005F,The Lord of the Rings: The Third Age
+45410060,The Urbz: Sims in the City
+45410061,Rugby 2005
+45410062,Battlefield 2: Modern Combat
+45410063,Ty the Tasmanian Tiger 2: Bush Rescue
+45410065,Total Club Manager 2005
+45410066,TimeSplitters: Future Perfect
+45410067,Def Jam: Fight for NY
+4541006A,FIFA Football 2005
+4541006D,Oddworld: Stranger's Wrath
+4541006F,Need for Speed: Underground 2
+45410070,UEFA Champions League 2004-2005
+45410071,Need for Speed: Underground 2
+45410072,FIFA Street
+45410074,Cricket 2005
+45410075,Madden NFL 06
+45410076,Burnout Revenge
+45410077,Harry Potter and the Goblet of Fire
+45410078,FIFA Soccer 06
+45410079,007: From Russia with Love
+4541007A,NBA Live 06
+4541007B,Need for Speed: Most Wanted
+4541007C,NHL 06
+4541007D,The Godfather: The Game
+4541007E,Tiger Woods PGA Tour 06
+4541007F,Battlefield 2: Modern Combat
+45410080,NCAA Football 06
+45410081,Burnout Revenge
+45410082,SSX on Tour
+45410083,Black
+45410085,FIFA Street 2
+45410086,Fight Night Round 3
+45410087,Rugby 06
+45410088,Need for Speed: Most Wanted
+45410089,Marvel Nemesis: Rise of the Imperfects
+4541008B,NASCAR 06: Total Team Control
+4541008D,MVP 06 NCAA Baseball
+4541008E,NFL Head Coach
+4541008F,FIFA 06
+45410090,NCAA March Madness 06
+45410091,Half-Life 2
+45410093,NASCAR 06: Total Team Control
+45410094,Arena Football
+45410095,Marvel Nemesis: Rise of the Imperfects
+4541009C,FIFA World Cup Germany 2006
+4541009E,Need for Speed: Carbon
+4541009F,Madden NFL 07
+454100A0,Superman Returns
+454100A1,NBA Live 07
+454100A2,NCAA Football 07
+454100A3,NASCAR 07
+454100A4,Tiger Woods PGA Tour 07
+454100A5,NHL 07
+454100A6,FIFA Soccer 07
+454100A8,Madden NFL 07
+454100AB,NCAA Football 08
+454100AC,Madden NFL 08
+4541023B,Madden NFL 09
+45410389,Batman Begins
+4541038A,Marvel Nemesis: Rise of the Imperfects
+4541038B,The Sims 2
+45430001,Circus Maximus: Chariot Wars
+45430002,Grooverider: Slot Car Thunder
+45430004,Heroes of the Pacific
+45460001,Shinchou Mahjong
+454C0001,American McGee Presents Scrapland
+454D0001,Antz Extreme Racing
+454D0002,Big Mutha Truckers
+454D0003,Total Immersion Racing
+454D0004,Ghost Master: The Gravenville Chronicles
+454D0005,Starsky & Hutch
+454D0007,Ford Racing 2
+454D0008,Bad Boys II
+454D0009,FlatOut
+454D000A,Mashed: Drive to Survive
+454D000D,Ford Racing 3
+454D0016,Bad Boys: Miami Takedown
+454D0017,Big Mutha Truckers 2
+454D001B,Mashed: Fully Loaded
+454D001C,Taito Legends
+454D001D,Ultimate Pro Pinball
+454D001E,Jacked
+454D001F,Ford Street Racing
+454D0020,FlatOut 2
+454D0022,Taito Legends 2
+45530001,Mad Dash Racing
+45530002,Championship Manager: Season 01/02
+45530004,Thief: Deadly Shadows
+45530005,Deus Ex: Invisible War
+45530006,Blood Omen 2: The Legacy of Kain Series
+45530008,Commandos 2: Men of Courage
+45530009,Hitman 2: Silent Assassin
+4553000A,TimeSplitters 2
+4553000C,Championship Manager: Season 02/03
+4553000D,Backyard Wrestling: Don't Try This at Home
+4553000E,The Italian Job
+4553000F,Legacy of Kain: Defiance
+45530011,Whiplash
+45530012,Hitman: Contracts
+45530013,ShellShock: Nam '67
+45530014,Crash 'n' Burn
+45530016,Backyard Wrestling 2: There Goes the Neighborhood
+45530018,25 to Life
+45530019,Project: Snowblind
+4553001A,Championship Manager 5
+4553001D,LEGO Star Wars: The Video Game
+46490002,Futurama
+464C0002,Crusty Demons
+46530001,Murakumo
+46530002,Otogi: Myth of Demons
+46530003,Thousand Land
+46530004,Otogi 2: Immortal Warriors
+46530005,Tenchu 3: Kaiki no Shou
+46530006,Metal Wolf Chaos
+47450001,Zan Kabuki
+47450002,Phantom Crash
+47450003,Phantom Crash
+47560001,Pariah
+47560003,Combat: Task Force 121
+47560004,Land of the Dead: Road to Fiddler's Green
+47560007,Pariah
+47560009,World War II Combat: Road to Berlin
+4756000A,WarPath
+4756000B,World War II Combat: Iwo Jima
+48450001,Rugby League
+48450004,Frankie Dettori Racing
+48450005,Rugby League 2
+48500001,Stolen
+48500002,Counter Terrorist Special Forces: Fire for Effect
+48500005,Rugby Challenge 2006
+48550001,Bloody Roar: Extreme
+48570001,Drihoo
+49410001,Real World Golf
+49460001,Ex-Chaser
+49470001,Test Drive Off-Road: Wide Open
+49470004,TransWorld Snowboarding
+49470005,TransWorld Surf
+49470006,Loons: The Fight for Fame
+49470007,Test Drive
+49470009,NASCAR Heat 2002
+4947000B,Furious Karting
+4947000D,Taz: Wanted
+4947000E,Magic: The Gathering: Battlegrounds
+4947000F,Monopoly Party
+49470010,Battle Engine Aquila
+49470011,Slam Tennis
+49470012,Zapper
+49470013,Dungeons & Dragons: Heroes
+49470015,Apex
+49470016,Superman: The Man of Steel
+49470017,Gunvalkyrie
+49470018,JSRF: Jet Set Radio Future
+4947001B,Splashdown
+4947001C,Micro Machines
+4947001F,Mission: Impossible: Operation Surma
+49470022,Enter the Matrix
+49470023,Crazy Taxi 3
+49470024,Unreal Championship
+49470025,Shadow Ops: Red Mercury
+49470026,The Terminator: Dawn of Fate
+49470027,Dead Man's Hand
+49470028,Nickelodeon Party Blast
+49470029,Sega Soccer Slam
+4947002B,Panzer Dragoon Orta
+4947002C,Sega GT 2002
+4947002E,RollerCoaster Tycoon
+49470034,V-Rally 3
+49470038,Driv3r
+49470039,Godzilla: Destroy All Monsters Melee
+4947003B,Terminator 3: Rise of the Machines
+4947003C,Unreal II: The Awakening
+4947003D,Trivial Pursuit: Unhinged
+4947003E,Terminator 3: The Redemption
+49470040,Dead Man's Hand
+49470041,Shadow Ops: Red Mercury
+49470072,Magic: The Gathering: Battlegrounds
+49470073,Godzilla: Save the Earth
+49470074,Forgotten Realms: Demon Stone
+49470075,Test Drive: Eve of Destruction
+49470079,Atari Anthology
+4947007A,Dragon Ball Z: Sagas
+4947007B,Indigo Prophecy
+4947007C,The Matrix: Path of Neo
+4947007D,Marc Ecko's Getting Up: Contents Under Pressure
+4947007F,Driver: Parallel Lines
+494C0001,Metal Dungeon
+494C0002,Braveknight: Leverant Eiyuuden
+494C0006,Aoi Namida
+494D0001,Official Xbox Magazine Game Disc 02
+494D0002,Official Xbox Magazine Game Disc 03
+494D0003,Official Xbox Magazine Game Disc 04
+494D0004,Official Xbox Magazine Game Disc 05
+494D0005,Official Xbox Magazine Game Disc 06
+494D0006,Official Xbox Magazine Game Disc 07
+494D0007,Official Xbox Magazine Game Disc 08
+494D0008,Official Xbox Magazine Game Disc 09
+494D0009,Official Xbox Magazine Game Disc 10
+494D000A,Official Xbox Magazine Game Disc 11
+494D000B,Official Xbox Magazine Game Disc 12
+494D000C,Official Xbox Magazine Game Disc 13
+494D000D,Official Xbox Magazine Game Disc 14
+494D000E,Official Xbox Magazine Game Disc 15
+494D000F,Official Xbox Magazine Game Disc 16
+494D0010,Official Xbox Magazine Game Disc 17
+494D0011,Official Xbox Magazine Game Disc 18
+494D0012,Official Xbox Magazine Game Disc 19
+494D0013,Official Xbox Magazine Game Disc 20
+494D0014,Official Xbox Magazine Game Disc 21
+494D0015,Official Xbox Magazine Game Disc 22
+494D0016,Official Xbox Magazine Game Disc 23
+494D0017,Official Xbox Magazine Game Disc 24
+494D0018,Official Xbox Magazine Game Disc 25
+494D0019,Official Xbox Magazine Game Disc 26
+494D001A,Official Xbox Magazine Best of Xbox Game Demos Vol. 1
+494D001B,Official Xbox Magazine Game Disc 27
+494D001C,Official Xbox Magazine Game Disc 28
+494D001D,Official Xbox Magazine Game Disc 29
+494D001E,Official Xbox Magazine Game Disc 30
+494D001F,Official Xbox Magazine Game Disc 31
+494D0020,Official Xbox Magazine Game Disc 32
+494D0021,Official Xbox Magazine Game Disc 33
+494D0022,Official Xbox Magazine Game Disc 34
+494D0023,Official Xbox Magazine Game Disc 35
+494D0024,Official Xbox Magazine Game Disc 36
+494D0025,Official Xbox Magazine Game Disc 37
+494D0026,Official Xbox Magazine Game Disc 38
+494D0027,Official Xbox Magazine Game Disc 39
+494D0028,Official Xbox Magazine Game Disc 40
+494D0029,Official Xbox Magazine Game Disc 41
+494D002A,Official Xbox Magazine Game Disc 42
+494D002B,Official Xbox Magazine Game Disc 43
+494D002C,Official Xbox Magazine Game Disc 44
+494D002D,Official Xbox Magazine Game Disc 45
+494D002E,Official Xbox Magazine Game Disc 46
+494D002F,Official Xbox Magazine Game Disc 47
+494D0030,Official Xbox Magazine Game Disc 48
+494D0031,Official Xbox Magazine Game Disc 49
+494D0032,Official Xbox Magazine Game Disc 50
+494D0043,Official Xbox Magazine Game Disc 40
+494D0044,Official Xbox Magazine Game Disc 41
+494D0045,Official Xbox Magazine Game Disc 42
+494D0046,Official Xbox Magazine Game Disc 43
+494D0047,Official Xbox Magazine Game Disc 44
+494D004A,Official Xbox Magazine Game Disc 45
+494D004B,Official Xbox Magazine Game Disc 46
+494D004C,Official Xbox Magazine Game Disc 47
+494D004D,Official Xbox Magazine Game Disc 48
+494D004E,Official Xbox Magazine Game Disc 49
+494D0050,Official Xbox Magazine Game Disc 50
+494D0051,Official Xbox Magazine Game Disc 51
+494D0052,Official Xbox Magazine Game Disc 52
+494D00CB,Xbox 360: The Official Xbox Magazine Issue 03: December 2005
+494D00CC,Official Xbox Magazine Game Disc 53
+494D00CD,Official Xbox Magazine Game Disc 51
+494D00CE,Le Magazine Officiel Xbox: Hors-série Numéro 10
+494D00CF,Xbox 360: Das Offizielle Xbox-Magazin: Demo Disk 03/2006
+494D00D0,Official Xbox Magazine Game Disc 54
+494D00D1,Official Xbox Magazine Game Disc 55
+494D00D2,Official Xbox Magazine Game Disc 52
+494D00D3,Xbox 360: The Official Xbox Magazine Issue 07: May 2006
+494D00D4,Official Xbox Magazine Game Disc 53
+494D00D5,Official Xbox Magazine Game Disc 56
+494D00D6,Official Xbox Magazine Game Disc 54
+494D00D7,Official Xbox Magazine Game Disc 57
+494D00D8,Official Xbox Magazine Game Disc 58
+494D00D9,Official Xbox Magazine Game Disc 55
+494D00DA,Official Xbox Magazine Game Disc 59
+494D00DC,Official Xbox Magazine Game Disc 61
+494D00DD,Official Xbox Magazine Game Disc 62
+494D00DE,Official Xbox Magazine Game Disc 63
+494D00DF,Official Xbox Magazine Game Disc 64
+494D00E0,Xbox 360: The Official Xbox Magazine Issue 08: June 2006
+494D00E1,Official Xbox Magazine Game Disc 56
+494D00E2,Xbox 360: The Official Xbox Magazine Issue 10: August 2006
+494D00E3,Official Xbox Magazine Game Disc 57
+494D00E4,Xbox 360: Das Offizielle Xbox-Magazin: Demo Disk 10/2006
+494D00E5,Official Xbox Magazine Game Disc 60
+494F0003,Animaniacs: The Great Edgar Hunt
+494F0005,Metal Slug 3
+49500006,RLH: Run Like Hell
+49500008,Fallout: Brotherhood of Steel
+4950000A,Baldur's Gate: Dark Alliance II
+49580001,The Bard's Tale
+4A410001,Pulse Racer
+4A410002,Night Caster II: Equinox
+4A410004,Super Bubble Pop
+4A410005,Goblin Commander: Unleash the Horde
+4A410006,Room Zoom: Race for Impact
+4A410007,World Championship Pool 2004
+4A570002,Neighbours from Hell
+4A570003,Kao the Kangaroo: Round 2
+4A570004,Yetisports Arctic Adventures
+4A570005,Ski Racing 2005
+4A570009,Panzer Elite Action: Fields of Glory
+4A57000A,Ski Racing 2006
+4B410001,Jikkyou World Soccer 2002
+4B410002,The Baseball 2002: Battle Ball Park Sengen
+4B420001,Batman: Dark Tomorrow
+4B420002,Egg Mania: Eggstreme Madness
+4B420003,Rogue Ops
+4B420004,Rogue Ops
+4B420005,Chicago Enforcer
+4B420006,Yager
+4B420007,Top Gear: RPM Tuning
+4B440002,WWE Raw
+4B490001,Shikigami no Shiro Evolution
+4B490002,Shikigami no Shiro II
+4B4B0001,Triangle Again
+4B4B0002,Triangle Again 2
+4B4B0003,Exaskeleton
+4B4E0001,Whiteout
+4B4E0002,AirForce Delta Storm
+4B4E0003,ESPN NFL PrimeTime 2002
+4B4E0004,Silent Hill 2: Restless Dreams
+4B4E0005,ESPN MLS ExtraTime 2002
+4B4E0006,ESPN NBA 2Night 2002
+4B4E0007,Metal Gear Solid 2: Substance
+4B4E0008,International Superstar Soccer 2
+4B4E0009,Winter X Games Snowboarding 2002
+4B4E000A,Hyper Sports 2002 Winter
+4B4E000B,ESPN International Winter Sports 2002
+4B4E000E,Shadow of Memories
+4B4E000F,Le Tour de France
+4B4E0010,WTA Tour Tennis
+4B4E0011,Crash Bandicoot 4: Sakuretsu! Majin Power
+4B4E0012,NBA Starting Five
+4B4E0013,Frogger Beyond
+4B4E0019,Dance Dance Revolution Ultramix
+4B4E001A,Silent Scope Complete
+4B4E001B,Teenage Mutant Ninja Turtles
+4B4E001C,Crime Life: Gang Wars
+4B4E001D,Dancing Stage Unleashed
+4B4E001E,Yu-Gi-Oh! The Dawn of Destiny
+4B4E001F,Silent Hill 4: The Room
+4B4E0020,TMNT: Mutant Melee
+4B4E0021,Dance Dance Revolution Ultramix 2
+4B4E0022,Pro Evolution Soccer 4
+4B4E0023,Teenage Mutant Ninja Turtles 2: Battle Nexus
+4B4E0024,King Arthur
+4B4E0025,Karaoke Revolution
+4B4E0027,World Soccer Winning Eleven 8: International
+4B4E0029,Dance Dance Revolution Ultramix 3
+4B4E002A,Teenage Mutant Ninja Turtles 3: Mutant Nightmare
+4B4E002C,Frogger: Ancient Shadow
+4B4E002D,Castlevania: Curse of Darkness
+4B4E002E,Karaoke Revolution Party
+4B4E002F,World Soccer Winning Eleven 9
+4B4E0030,Pro Evolution Soccer 5
+4B4E0034,Wallace & Gromit: The Curse of the Were-Rabbit
+4B4E0037,Dance Dance Revolution Ultramix 4
+4B4E0038,Xiaolin Showdown
+4B4F0001,Nobunaga no Yabou: Ranseiki
+4B4F0002,Crimson Sea
+4B4F0003,Dynasty Warriors 3
+4B4F0004,Dynasty Warriors 4
+4B4F0005,Sengoku Musou
+4B4F0006,Samurai Warriors
+4B4F0007,Dynasty Warriors 5
+4B4F0008,WinBack 2: Project Poseidon
+4B540001,Silent Hill 2: Saigo no Uta
+4B550001,Innocent Tears
+4C410001,Star Wars: Obi-Wan
+4C410002,Star Wars: Starfighter Special Edition
+4C410003,Star Wars: Knights of the Old Republic
+4C410004,Star Wars: The Clone Wars
+4C410005,Star Wars: Jedi Starfighter
+4C410006,Secret Weapons over Normandy
+4C410007,Indiana Jones and the Emperor's Tomb
+4C410008,Gladius
+4C410009,Star Wars: Jedi Knight II: Jedi Outcast
+4C41000B,Star Wars: Jedi Knight: Jedi Academy
+4C41000D,Armed and Dangerous
+4C41000F,Wrath Unleashed
+4C410010,LucasArts Xbox Experience Volume 01
+4C410011,Star Wars: Battlefront
+4C410013,Star Wars: Republic Commando
+4C410014,Star Wars: Knights of the Old Republic II: The Sith Lords
+4C410015,Mercenaries
+4C410017,Star Wars: Episode III: Revenge of the Sith
+4C410019,Star Wars: Republic Commando
+4C41001A,Star Wars: Battlefront II
+4C41001F,LEGO Star Wars II: The Original Trilogy
+4C410022,Thrillville
+4C530002,SCAR: Squadra Corse Alfa Romeo
+4D440003,Dennou Taisen: DroneZ
+4D440004,Stake: Fortune Fighters
+4D450001,C.A.T: Cyber Attack Team
+4D490003,Tennis Masters Series 2003
+4D490004,Knight's Apprentice: Memorick's Adventures
+4D490006,Syberia
+4D490008,Syberia II
+4D490009,Obscure
+4D49000B,Still Life
+4D49000C,RPM Tuning
+4D49000D,Sniper Elite
+4D4A0001,BloodRayne
+4D4A0002,Totaled!
+4D4A0003,Gunmetal
+4D4A0008,Blowout
+4D4A0009,Advent Rising
+4D4A000B,Drake of the 99 Dragons
+4D4A000C,Ultra Bust-A-Move
+4D4A000D,BloodRayne 2
+4D4A000F,Jaws Unleashed
+4D4A0011,Raze's Hell
+4D4A0012,Psychonauts
+4D4A0013,Teen Titans
+4D4A0014,Aeon Flux
+4D4A0017,Worms 4: Mayhem
+4D4D0001,Stacked with Daniel Negreanu
+4D500001,Myst III: Exile
+4D500002,Shikigami no Shiro
+4D530001,Oddworld: Munch's Oddysee
+4D530002,Fuzion Frenzy
+4D530003,Project Gotham Racing
+4D530004,Halo: Combat Evolved
+4D530005,Amped: Freestyle Snowboarding
+4D530006,NFL Fever 2002
+4D530007,Azurik: Rise of Perathia
+4D530008,Night Caster: Defeat the Darkness
+4D530009,Tao Feng: Fist of the Lotus
+4D53000A,Sudeki
+4D53000B,NBA Inside Drive 2004
+4D53000C,Kakuto Chojin
+4D53000D,Fable
+4D53000F,RalliSport Challenge
+4D530010,Blood Wake
+4D530011,NBA Inside Drive 2002
+4D530013,Blinx: The Time Sweeper
+4D530014,Tao Feng: Fist of the Lotus
+4D530015,Quantum Redshift
+4D530017,MechAssault
+4D53001E,Brute Force
+4D530021,Crimson Skies: High Road to Revenge
+4D530023,Sneakers
+4D530027,Whacked!
+4D530028,NFL Fever 2003
+4D53002A,Midtown Madness 3
+4D53002D,Dead or Alive 3
+4D53002E,Maximum Chase
+4D53002F,Tenku: Freestyle Snowboarding
+4D530030,Jockey's Road
+4D530031,Kung Fu Chaos
+4D530032,Shenmue II
+4D530033,RalliSport Challenge
+4D530034,Inside Pitch 2003
+4D530035,Top Spin
+4D530036,Counter-Strike
+4D530037,NFL Fever 2003
+4D530039,RalliSport Challenge 2
+4D53003C,N.U.D.E.@: Natural Ultimate Digital Experiment
+4D53003D,Sega GT 2002 / JSRF: Jet Set Radio Future
+4D530041,Amped 2
+4D530043,Phantasy Star Online: Episode I & II
+4D530044,Zunou Taisen Live
+4D530045,NBA Inside Drive 2003
+4D530046,Phantom Dust
+4D530048,The Wild Rings
+4D53004A,Phantasy Star Online Episode I & II
+4D53004B,Project Gotham Racing 2
+4D53004D,NFL Fever 2004
+4D53004E,NHL Rivals 2004
+4D530051,Conker: Live & Reloaded
+4D530053,Grabbed by the Ghoulies
+4D530057,Halo: Combat Evolved
+4D530058,Halo: Jeonjaengui Seomak
+4D530059,Project Zero
+4D53005A,Xbox Music Mixer
+4D53005D,Links 2004
+4D53005F,Voodoo Vince
+4D530064,Halo 2
+4D530065,Blinx 2: Masters of Time & Space
+4D530066,Magatama
+4D530069,Dinosaur Hunting: Ushinawareta Daichi
+4D53006B,MechAssault 2: Lone Wolf
+4D53006D,Jade Empire: Hisui no Teikoku
+4D53006E,Forza Motorsport
+4D530073,Halo 2
+4D530078,Project Gotham Racing 2
+4D530079,Project Gotham Racing 2
+4D53007B,Crimson Skies: High Road to Revenge
+4D53007C,Xbox Video Chat
+4D53007D,Phantom Dust
+4D530080,Fable (Limited Edition Bonus DVD)
+4D530082,Halo 2
+4D530083,MechAssault 2: Lone Wolf (Bonus Disc)
+4D530084,Volvo: Drive for Life
+4D530085,Jade Empire (Bonus Disc)
+4D5300C8,Xbox Live Arcade
+4D5300CA,MechAssault 2: Lone Wolf
+4D5300CD,Halo 2 Multiplayer Map Pack
+4D5300D1,Fable: The Lost Chapters
+4D5300D2,Big Bumpin'
+4D5300D3,Sneak King
+4D5300D4,PocketBike Racer
+4D570001,NFL Blitz 2002
+4D570002,Arctic Thunder
+4D570003,NHL Hitz 2002
+4D570004,SpyHunter
+4D570005,Area 51
+4D570006,Defender
+4D570007,Freaky Flyers
+4D570008,MLB SlugFest 2003
+4D570009,MLB SlugFest 2004
+4D57000A,NFL Blitz 2003
+4D57000B,NHL Hitz 2003
+4D57000C,Mortal Kombat: Deadly Alliance
+4D57000D,Gravity Games Bike: Street. Vert. Dirt.
+4D57000E,Gauntlet: Dark Legacy
+4D57000F,RedCard 20-03
+4D570010,NBA Ballers
+4D570011,Dr. Muto
+4D570012,FireBlade
+4D570014,NFL Blitz Pro
+4D570015,The Suffering
+4D570016,Psi-Ops: The Mindgate Conspiracy
+4D570017,Freestyle Metal X
+4D570018,RoadKill
+4D570019,Mortal Kombat: Deception
+4D57001A,NHL Hitz Pro
+4D57001B,SpyHunter 2
+4D57001C,Midway Arcade Treasures
+4D57001D,MLB SlugFest: Loaded
+4D570020,Midway Arcade Treasures 2
+4D570021,Unreal Championship 2: The Liandri Conflict
+4D570022,Gauntlet: Seven Sorrows
+4D570023,Mortal Kombat: Deception
+4D570024,Narc
+4D570025,L.A. Rush
+4D570026,Blitz: The League
+4D570028,Unreal Championship 2: The Liandri Conflict
+4D570029,Mortal Kombat: Shaolin Monks
+4D57002C,The Suffering: Ties That Bind
+4D57002D,Midway Arcade Treasures 3
+4D57002E,NBA Ballers: Phenom
+4D570032,Ed; Edd n Eddy: The Mis-Edventures
+4D570033,Gauntlet: Seven Sorrows
+4D570034,Mortal Kombat: Armageddon
+4D570036,NBA Ballers: Phenom: The $100K Tournament
+4D570037,SpyHunter: Nowhere to Run
+4D570038,MLB SlugFest 2006
+4D580001,Dreamfall: The Longest Journey
+4E4B0001,Tom and Jerry in War of the Whiskers
+4E4C0002,Delta Force: Black Hawk Down
+4E4D0001,Smashing Drive
+4E4D0003,Soulcalibur II
+4E4D0005,Dead to Rights
+4E4D0006,Pac-Man World 2
+4E4D0007,Namco Museum
+4E4D0008,R:Racing Evolution
+4E4D0009,Breakdown
+4E4D000B,Kill Switch
+4E4D000C,Spawn: Armageddon
+4E4D000F,I-Ninja
+4E4D0012,Breakdown
+4E4D0013,SRS: Street Racing Syndicate
+4E4D0015,Dead to Rights II
+4E4D0016,Namco Museum 50th Anniversary
+4E4D0017,Pac-Man World 3
+4E4D0019,Curious George
+4F580001,Conspiracy: Weapons of Mass Destruction
+4F580002,Pilot Down: Behind Enemy Lines
+4F580004,ProStroke Golf: World Tour 2007
+50430001,Xyanide
+504C0001,Phantom Crash
+504C0004,Kingdom Under Fire: The Crusaders
+504C0005,Kingdom Under Fire: The Crusaders
+504C0006,Kingdom Under Fire: Heroes
+52410001,Lamborghini
+52410003,David Beckham Soccer
+52410006,Crash
+52410007,Rocky
+52410008,Gunmetal
+52440001,Yourself!Fitness
+53410002,Guilty Gear X2 #Reload: The Midnight Carnival
+53410003,Iron Phoenix
+53410006,Guilty Gear X2 #Reload: The Midnight Carnival
+53430001,Conflict: Desert Storm
+53430003,The Great Escape
+53430005,Richard Burns Rally
+53430006,Conflict: Desert Storm II: Back to Baghdad
+53430007,Rolling
+5343000A,Conflict: Vietnam
+5343000B,Galleon
+5343000C,Conflict: Global Terror
+5343000E,Rogue Trooper
+5343000F,Constantine
+53430010,Total Overdose
+534300F7,Urban Chaos: Riot Response
+534300F9,Commandos: Strike Force
+534300FA,Hitman: Blood Money
+534300FB,Just Cause
+534300FD,Lara Croft Tomb Raider: Legend
+534300FF,Reservoir Dogs
+53430100,Championship Manager 2006
+53450002,NBA 2K2
+53450003,Sega GT 2002
+53450004,Crazy Taxi 3: High Roller
+53450006,NFL 2K2
+53450007,Panzer Dragoon Orta
+53450008,The House of the Dead III
+5345000A,JSRF: Jet Set Radio Future
+5345000B,Gunvalkyrie
+5345000E,World Series Baseball
+5345000F,ToeJam & Earl III: Mission to Earth
+53450010,NCAA College Football 2K3
+53450011,NFL 2K3
+53450013,NBA 2K3
+53450014,Sega Soccer Slam
+53450016,JSRF: Jet Set Radio Future
+53450017,NHL 2K3
+53450018,NCAA College Basketball 2K3
+53450019,Crazy Taxi 3: High Roller
+5345001A,World Series Baseball 2K3
+5345001C,Panzer Dragoon Orta
+5345001D,Rent a Hero No. 1
+5345001E,NBA 2K3
+5345001F,NFL 2K3
+53450020,NHL 2K3
+53450021,Sega GT Online
+53450022,ESPN NFL Football
+53450023,ESPN NBA Basketball
+53450024,ESPN College Hoops
+53450025,Headhunter: Redemption
+53450026,ESPN NHL Hockey
+53450027,Puyo Pop Fever
+53450028,ESPN Major League Baseball
+53450029,Spikeout: Battle Street
+5345002A,Worms 3D
+5345002B,Sonic Heroes
+5345002C,ESPN NFL Football
+5345002D,ESPN NHL Hockey
+5345002E,ESPN NBA Basketball
+5345002F,Sonic Heroes
+53450030,ESPN NFL 2K5
+53450031,ESPN NBA 2K5
+53450032,ESPN NHL 2K5
+53450033,ESPN College Hoops 2K5
+53450035,Worms Forts: Under Siege
+53450036,OutRun 2
+53450037,Major League Baseball 2K5
+53450038,Super Monkey Ball Deluxe
+53450039,OutRun 2
+5345003C,Sonic Mega Collection Plus
+53450080,ESPN NBA 2K5
+53450081,World Snooker Championship 2005
+53450084,Spartan: Total Warrior
+53450086,Shadow the Hedgehog
+53450087,Sonic Riders
+53450088,OutRun 2006: Coast 2 Coast
+5345008A,Spartan: Total Warrior
+5345008B,Spartan: Total Warrior
+534E0001,SNK vs. Capcom: SVC Chaos
+534E0002,Metal Slug 3
+534E0003,The King of Fighters 2003
+534E0004,Samurai Shodown V
+534E0005,Metal Slug 4
+534E0006,The King of Fighters 2002
+534E0007,KOF: Maximum Impact: Maniax
+534E0008,Metal Slug 5
+534E000A,The King of Fighters: Neowave
+53500001,Combat Elite: WWII Paratroopers
+53530003,Outlaw Volleyball
+53530005,Outlaw Golf: Holiday Golf
+53530006,Outlaw Golf: 9 More Holes of X-Mas
+53530007,Outlaw Volleyball
+53540001,Zillernet
+53550001,Bistro Cupid
+53550002,Nakajima Tetsuya no Othello Seminar
+53550003,Umezawa Yukari no Igo Seminar
+53550004,Yonenaga Kunio no Shougi Seminar
+53550005,Takahashi Junko no Mahjong Seminar
+53550006,Tetris Worlds
+53550007,Angelic Concert
+53550008,Bistro Cupid 2
+53550009,Psyvariar 2: Extend Edition
+53570001,Enclave
+54410001,Kikou Heidan J-Phoenix +
+54430001,Dead or Alive 3
+54430003,Ninja Gaiden
+54430004,Fatal Frame
+54430005,Ninja Gaiden Video / Dead or Alive X-Treme Beach Volleyball Video / DOA 3 Bonus Materials
+54430006,Dead or Alive 1 Ultimate
+54430007,Dead or Alive Xtreme Beach Volleyball
+54430009,Gungriffon: Allied Strike
+5443000A,Fatal Frame II: Crimson Butterfly: Director's Cut
+5443000C,Gungriffon: Allied Strike
+5443000D,Ninja Gaiden Black
+5443000E,Tecmo Classic Arcade
+54440006,High Heat Major League Baseball 2004
+544B0001,Magi Death Fight!
+544B0004,Plus Plumb 2
+544D0001,Shrek
+544D0002,Robotech: Battlecry
+544D0003,Aquaman: Battle for Atlantis
+544D0004,Shrek Super Party
+544D0005,World Racing
+544D0006,Outlaw Golf
+544D0007,Knights of the Temple: Infernal Crusade
+544D0008,Conan
+544D0009,SeaBlade
+544D000A,UFC: Ultimate Fighting Championship: Tapout 2
+544D000B,Corvette
+544D000D,Disney's The Haunted Mansion
+544D000F,Dinotopia: The Sunstone Odyssey
+544D0010,Star Trek: Shattered Universe
+544D0011,Gene Troopers
+544D0012,World Racing 2
+544D0013,Knights of the Temple II
+54510001,New Legends
+54510002,WWF Raw
+54510003,MX 2002 featuring Ricky Carmichael
+54510004,Dark Summit
+54510005,Red Faction II
+54510006,Yager
+54510007,Toxic Grind
+54510008,MotoGP
+54510009,FILA World Tour Tennis
+5451000A,Tetris Worlds
+5451000B,Evil Dead: A Fistful of Boomstick
+5451000C,Circus Maximus: Chariot Wars
+5451000D,WWE Raw 2
+5451000E,Scooby-Doo! Mystery Mayhem
+5451000F,Alter Echo
+54510010,MX SuperFly
+54510013,Metal Dungeon
+54510016,MotoGP 2
+54510018,The Punisher
+54510019,MotoGP 2
+5451001A,Nickelodeon SpongeBob SquarePants: Battle for Bikini Bottom
+5451001C,Tetris Worlds
+5451001D,Broken Sword: The Sleeping Dragon
+5451001E,Disney/Pixar Finding Nemo
+5451001F,Scooby-Doo! Night of 100 Frights
+54510020,The Fairly OddParents: Breakin' da Rules
+54510021,MX Unleashed
+54510022,Full Spectrum Warrior
+54510023,Sphinx and the Cursed Mummy
+54510024,WWE WrestleMania 21
+54510025,Evil Dead: Regeneration
+54510026,Destroy All Humans!
+54510027,Nickelodeon The SpongeBob SquarePants Movie
+54510028,Disney/Pixar The Incredibles
+54510088,MotoGP: Ultimate Racing Technology 3
+54510089,Hot Wheels: Stunt Track Challenge
+5451008B,Nickelodeon Tak 2: The Staff of Dreams
+545100ED,MX vs. ATV Unleashed
+545100EF,Juiced
+545100F2,Disney/Pixar Cars
+545100F3,Juiced
+545100F4,Nickelodeon Tak: The Great Juju Challenge
+545100F5,AFL Live Premiership Edition
+545100F6,Disney/Pixar The Incredibles: Rise of the Underminer
+545100F7,Scooby-Doo! Unmasked
+545100F8,Full Spectrum Warrior: Ten Hammers
+545100F9,WWE WrestleMania 21
+545100FA,Nickelodeon SpongeBob SquarePants: Lights; Camera; Pants!
+54510101,AFL Premiership
+54510102,Full Spectrum Warrior: Ten Hammers
+54510105,Nickelodeon Avatar: The Last Airbender
+54510106,Destroy All Humans! 2
+54510109,Disney/Pixar Ratatouille
+54530002,Barbarian
+54530005,RoboCop
+54540001,4x4 Evo 2
+54540003,Max Payne
+54540004,Serious Sam
+54540005,Conflict: Desert Storm
+54540006,State of Emergency
+54540008,Midnight Club II
+54540009,Mafia
+5454000A,Vietcong: Purple Haze
+5454000B,MTV Celebrity Deathmatch
+5454000C,Max Payne 2: The Fall of Max Payne
+5454000D,Serious Sam II
+5454000E,Grand Theft Auto III
+5454000F,Grand Theft Auto: Vice City
+54540010,Carve
+54540011,Pure Pinball
+54540012,Close Combat: First to Fight: United States Marines
+54540014,Army Men: Sarge's War
+54540015,Motocross Mania 3
+54540016,Virtual Pool: Tournament Edition
+54540017,Outlaw Golf 2
+54540018,Wings of War
+54540019,Manhunt
+5454001A,Red Dead Revolver
+5454001B,Robotech: Invasion
+54540073,Grand Theft Auto: Vice City
+54540076,Outlaw Tennis
+54540077,Ford Mustang: The Legend Lives
+54540079,Midnight Club 3: DUB Edition
+5454007A,Scaler
+5454007B,The Guy Game
+5454007C,Spy vs. Spy
+5454007D,Classified: The Sentinel Crisis
+5454007E,Gotcha!
+5454007F,Robotech: Invasion
+54540081,Charlie and the Chocolate Factory
+54540082,Grand Theft Auto: San Andreas
+54540083,Shattered Union
+54540084,Spy vs. Spy
+54540086,Grand Theft Auto: San Andreas
+54540087,World Poker Tour
+54540088,Army Men: Major Malfunction
+54540089,Ford vs. Chevy
+5454008A,Codename: Kids Next Door: Operation: V.I.D.E.O.G.A.M.E.
+5454008C,Zathura
+5454008D,NHL 2K6
+5454008F,Sid Meier's Pirates!
+54540090,NBA 2K6
+54540091,College Hoops 2K6
+54540092,Major League Baseball 2K6
+54540093,Splat Magazine Renegade Paintball
+54540095,Grand Theft Auto: San Andreas
+54540096,Major League Baseball 2K5: World Series Edition
+5454009B,The Warriors
+5454009C,Hummer Badlands
+545400A1,NBA 2K6
+545400A2,NHL 2K6
+545400A3,Grand Theft Auto: San Andreas
+545400A4,Grand Theft Auto: San Andreas
+545400A5,Grand Theft Auto: San Andreas
+545400A7,Zathura
+545400A9,Torino 2006
+545400AB,The Da Vinci Code
+545400AD,NHL 2K7
+545400AE,NBA 2K7
+545400AF,College Hoops 2K7
+545400B0,Family Guy: Video Game!
+545400B1,Major League Baseball 2K7
+55530001,Batman: Vengeance
+55530002,Rayman 3: Hoodlum Havoc
+55530003,Rayman Arena
+55530004,Deathrow
+55530005,Tom Clancy's Ghost Recon 2
+55530006,Tom Clancy's Ghost Recon
+55530007,Tom Clancy's Ghost Recon: Island Thunder
+55530008,Far Cry Instincts
+55530009,XIII
+5553000A,Tom Clancy's Ghost Recon
+5553000B,Largo Winch: Empire Under Threat
+5553000C,Tom Clancy's Splinter Cell
+5553000D,UFC: Ultimate Fighting Championship: Tapout
+5553000F,Star Wars: Obi-Wan
+55530011,Myst III: Exile
+55530012,Dragon's Lair 3D: Return to the Lair
+55530013,Tom Clancy's Rainbow Six 3
+55530014,Rocky
+55530015,The Elder Scrolls III: Morrowind
+55530016,Murakumo: Renegade Mech Pursuit
+55530018,Beyond Good & Evil
+55530019,Tom Clancy's Splinter Cell: Pandora Tomorrow
+5553001C,Batman: Rise of Sin Tzu
+5553001D,Prince of Persia: The Sands of Time
+5553001F,Tom Clancy's Rainbow Six 3
+55530020,Crouching Tiger; Hidden Dragon
+55530034,Rocky Legends
+55530036,187: Ride or Die
+55530037,Tom Clancy's Rainbow Six 3: Black Arrow
+55530038,Tom Clancy's Splinter Cell: Chaos Theory
+55530039,Chessmaster
+5553003A,The Dukes of Hazzard: Return of the General Lee
+5553003B,Prince of Persia: Kenshi no Kokoro
+5553003C,Brothers in Arms: Road to Hill 30
+5553003D,XIII: Daitouryou o Koroshita Otoko
+5553003F,CSI: Crime Scene Investigation
+55530040,Tork: Prehistoric Punk
+55530043,America's Army: Rise of a Soldier
+55530048,Tom Clancy's Rainbow Six: Lockdown
+55530049,Monster 4x4: World Circuit
+5553004A,Myst IV: Revelation
+5553004B,Cold Fear
+5553004C,Peter Jackson's King Kong: The Official Game of the Movie
+5553004D,Tom Clancy's Ghost Recon 2: Summit Strike
+55530054,Tom Clancy's Ghost Recon: Advanced Warfighter
+55530056,AND 1 Streetball
+55530057,Blazing Angels: Squadrons of WWII
+55530058,Prince of Persia: The Two Thrones
+5553005A,Brothers in Arms: Earned in Blood
+5553005B,Brothers in Arms: Road to Hill 30
+5553005C,Darkwatch
+5553005E,Tom Clancy's Splinter Cell: Double Agent
+5553005F,Tom Clancy's Rainbow Six: Critical Hour
+55530060,Far Cry Instincts: Evolution
+55530061,Open Season
+56430001,Muzzle Flash
+564E0004,Hunter: The Reckoning
+564E0006,Baldur's Gate: Dark Alliance
+56550003,Crash Bandicoot: The Wrath of Cortex
+56550004,The Lord of the Rings: The Fellowship of the Ring
+56550005,Buffy the Vampire Slayer: Chaos Bleeds
+56550007,Hunter: The Reckoning
+56550008,Futurama
+56550009,Antz Extreme Racing
+5655000A,Metal Arms: Glitch in the System
+5655000D,The Thing
+5655000E,Enclave
+5655000F,Battlestar Galactica
+56550010,Outlaw Golf
+56550011,Hulk
+56550013,Total Immersion Racing
+56550014,James Cameron's Dark Angel
+56550015,The Simpsons: Hit & Run
+56550016,Bruce Lee: Quest of the Dragon
+56550017,SeaBlade
+56550018,Mace Griffin: Bounty Hunter
+56550019,Men of Valor
+5655001A,Baldur's Gate: Dark Alliance
+5655001B,Outlaw Golf: 9 Holes of X-Mas
+5655001F,Crash Nitro Kart
+56550021,Jurassic Park: Operation Genesis
+56550022,Aliens Versus Predator: Extinction
+56550023,The Hobbit: The Prelude to the Lord of the Rings
+56550026,The Chronicles of Riddick: Escape from Butcher Bay
+56550027,Red Ninja: End of Honor
+56550028,The Cat in the Hat
+56550029,Van Helsing
+5655002A,Barbie Horse Adventures: Wild Horse Rescue
+5655002D,Hunter: The Reckoning: Redeemer
+5655002E,Metal Arms: Glitch in the System
+5655002F,Fight Club
+56550030,Predator: Concrete Jungle
+56550031,Leisure Suit Larry: Magna Cum Laude
+56550034,Spyro: A Hero's Tail
+56550036,Crash Twinsanity
+56550037,Robots
+56550039,The Incredible Hulk: Ultimate Destruction
+5655003B,The Chronicles of Riddick: Escape from Butcher Bay
+5655003F,Scarface: The World Is Yours
+56550040,Men of Valor
+56550041,Crash Tag Team Racing
+56550042,50 Cent: Bulletproof
+56550043,Eragon
+56550048,Bass Pro Shops: Trophy Hunter 2007
+56550049,Bass Pro Shops: Trophy Bass 2007
+5655004A,The Legend of Spyro: A New Beginning
+5655004B,Ice Age 2: The Meltdown
+56560001,Crash Bandicoot: The Wrath of Cortex
+56560002,Bruce Lee: Quest of the Dragon
+56560003,The Thing
+56560005,The Lord of the Rings: The Fellowship of the Ring
+56560008,Hulk
+5656000A,Jurassic Park: Operation Genesis
+5656000D,Judge Dredd: Dredd vs. Death
+56560010,James Cameron's Dark Angel
+56560011,Mace Griffin: Bounty Hunter
+56560021,BloodRayne
+56560025,SWAT: Global Strike Team
+56560029,Die Hard: Vendetta
+57450001,Ultimate Beach Soccer
+57450005,Curse: The Eye of Isis
+57520001,Justice League Heroes
+58420001,Test Equipment Boot Loader Utility
+5842000B,Xbox Hardware Refresh Disc
+58440007,Xbox-ism: TGS2002 Playable Disc
+5844000A,Xbox-ism: Winter 2002
+58490001,Metal Dungeon
+58490004,Black Stone: Magic & Steel
+58490005,Motor Trend Presents Lotus Challenge
+58490007,Judge Dredd: Dredd vs. Death
+584B0001,Xbox Demo Disk Version 1.0
+584B0002,Xbox Demo Disk Version 1.1
+584B0003,Xbox Demo Disc Version 1.2
+584B0004,Xbox Demo Disc Version 1.3
+584B0005,Xbox Demo Disk Version 1.4
+584B0006,Xbox Demo Disk Version 2.0
+584B0007,Xbox Demo Disc
+584B0008,Xbox Demo Disk Version 8
+584B0009,Xbox Exhibition
+584B000A,Xbox the Best of Demo Disk Version 10.0
+584B000B,Xbox Demo Disc Version 2.2
+584B000C,Xbox Exhibition Volume 2
+584B000D,Xbox Demo Disk Version 13
+584B000E,Xbox Demo Disk Version 14
+584B000F,Xbox Demo Disc Version 2.3
+584B0010,Xbox Demo Disc Version 2.4
+584B0011,Xbox-ism: Spring 2003
+584B0012,Xbox Exhibition Volume 3
+584B0014,Xbox Demo Disc Version 2.5
+584B0016,Xbox Demo Disc Version 3.0
+584B0018,Xbox Demo Disc Version 3.1
+584B0019,Xbox Demo Disc Version 3.2
+584B001A,Xbox Demo Disc Version 3.3
+584B001B,Xbox Demo Disc Version 3.4
+584B001C,Xbox Demo Disc Version 3.5
+584B001E,Xbox-ism: Tokyo Game Show 2003 (Disc 1) (Eizou-shuu + Taikenban)
+584B001F,Xbox Exhibition Volume 4
+584B0020,Xbox-ism: Winter 2003
+584B0021,Xbox-ism: New Year 2004
+584B0023,Xbox-ism: Spring 2004
+584B0024,Xbox Exhibition Volume 5
+584B0025,Xbox Demo Disc Version 3.6
+584B0026,Xbox-ism: Summer 2004
+584B0027,Xbox Demo Disc Version 4.0
+584B0029,Xbox Demo Disc Version 4.1
+584B002A,Xbox-ism: Tokyo Game Show 2004 (Disc 1) (Taikenban)
+584B002B,Xbox Exhibition Volume 6
+584B002C,Xbox Demo Disc Version 4.2
+584B002D,Xbox Exhibition Volume 7
+584B002F,Xbox Demo Disc Version 4.3
+584B0031,Microsoft Game Studios New Year 2005
+584B0032,Xbox Demo Disc Version 4.4
+584B0033,Xbox Demo Disc Version 4.5
+584B0035,Xbox Demo Disc Version 4.6
+584C0004,Xbox Live Beta Starter Kit Disc v. 1.0
+584C0006,Xbox Live Beta Starter Kit Disc
+584C0007,Xbox Live Starter Kit Disc
+584C0008,Re-Volt
+584C000B,Xbox Live Starter Kit Disc / Zunou Taisen Live
+584C000D,Star Wars: The Clone Wars / Tetris Worlds
+584C000F,NCAA Football 2005 / Top Spin
+584C0010,Xbox Live Starter Kit Disc
+584C0013,MechAssault 2: Lone Wolf / OutRun 2
+584C0014,Forza Motorsport / Xbox Live Arcade
+584D0002,Malice
+584D0003,Championship Bowling
+58500001,Gui Yi
+58500004,Hello Kitty: Roller Rescue
+58580007,Microsoft Windows Media Center Extender for Xbox
+59420001,Murakumo
+59420002,Otogi
+5A440001,Pool Shark 2
+5A440004,Alien Hominid

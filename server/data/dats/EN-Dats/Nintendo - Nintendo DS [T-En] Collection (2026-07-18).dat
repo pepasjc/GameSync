@@ -1,0 +1,568 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Nintendo - Nintendo DS [T-En] Collection</name>
+		<description>Nintendo - Nintendo DS [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>2026-07-18</version>
+		<date>2026-07-18 (yy/mm/dd)</date>
+		<author>John Doe</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>-insert comment-</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="7th Dragon (Japan) [T-En by Geoff Embree v1.01]">
+		<description>7th Dragon (Japan) [T-En by Geoff Embree v1.01]</description>
+		<rom name="7th Dragon (Japan) [T-En by Geoff Embree v1.01].nds" size="134217728" crc="93762f88" md5="07273b7fe2d5cd916bee09ccf1660213" sha1="9679ecff7f72aa4243619ebdd538242a6e4869e8"/>
+	</machine>
+	<machine name="_Nintendo DS [T-En] Docs">
+		<description>_Nintendo DS [T-En] Docs</description>
+		<rom name="7th Dragon (Japan) [T-En by Geoff Embree v1.01].txt" size="13709" crc="bc868e50" md5="12dc28a5c29f0b9c2d67c7a260acda3d" sha1="7e47d728d507d8770edae00f0a834c003b848005"/>
+		<rom name="Ace Attorney Investigations - Miles Edgeworth - Prosecutor's Path (Japan) [T-En by Auryn v20022015] [n].txt" size="10664" crc="c6c6d1a7" md5="c4b6b949269d429b92ee39008261519d" sha1="e3be7f3af259a8ffe38f0ff681676dffd9d40081"/>
+		<rom name="Blood of Bahamut (Japan) [T-En by Aaron Tokunaga-Chmielowiec v1.07] [Strategy Guide].pdf" size="2112210" crc="224c5498" md5="c7e3712bdfb44610935c324855955757" sha1="72bc195d98edb9e55cc93e3edbd8b52583a65e60"/>
+		<rom name="Blood of Bahamut (Japan) [T-En by Aaron Tokunaga-Chmielowiec v1.07].txt" size="7443" crc="340ae7fa" md5="92d9ecf82182a21451c64b99690b799a" sha1="7b34f5411b4a7877c8786fc0a2ef242849baa6a8"/>
+		<rom name="Cid to Chocobo no Fushigi na Dungeon - Toki Wasure no Meikyuu DS+ (Japan) [T-En by GrayFox2510 v4] [i].txt" size="2297" crc="bcac3680" md5="3b7b3bfc7a793827c01a32b5ec706111" sha1="89eb85386c496e0b6ebcb6c0528e90878a7905ab"/>
+		<rom name="Code Geass - Hangyaku no Lelouch (Japan) [T-En by regeass v20260628] [machine translation].md" size="1325" crc="dbdd08de" md5="ea5ca029b577e84cb15d1121275253b2" sha1="61ae82ab311a11ae31b3f664975d79dd5db4a87a"/>
+		<rom name="Custom Beat Battle - Draglade 2 (Japan) [T-En by Kenta61 v1.0].md" size="1095" crc="4d74c336" md5="575821cb837ec8300d622aa59bac557b" sha1="0f339cd9687407da73fd128576a66c7c1b5c4c33"/>
+		<rom name="D.Gray-Man - The Apostles of God (Japan) [T-En by Phantom &amp; Supper v1.0] [n].txt" size="1166" crc="fc43c2e4" md5="02c7cc2aca7bb0418db3461b58edcee3" sha1="eb720f898688e9615a390851821cedd79f032f67"/>
+		<rom name="Death Note - Kira Game (Japan) [T-En by Anime Game Translations Team v1.3] [DeSmuME_cheats].dct" size="702" crc="56451d65" md5="19bf1fddc0149ce37aabece5fcbfa926" sha1="56f6ef656044eb9b9666b4242e2bad1a15509d0a"/>
+		<rom name="Death Note - Kira Game (Japan) [T-En by Anime Game Translations Team v1.3] [MelonDS_cheats].mch" size="680" crc="efcd3168" md5="41176eda86945d5fb8ad221ebc1db68b" sha1="ffce56885cd546a943dfbba805aa42ad43337d74"/>
+		<rom name="Death Note - Kira Game (Japan) [T-En by Anime Game Translations Team v1.3].txt" size="2946" crc="4f1968d5" md5="69b073d63445224cb642758508af5d46" sha1="5ceb18e518e5aa2247a3efdc90e77f72d3d44b06"/>
+		<rom name="Detective Conan &amp; Kindaichi Case Files - Chance Encounter of 2 Great Detectives (Japan) [T-En by DCTP v1.0] [n].pdf" size="799822" crc="a7104003" md5="1ab9463b6e45cb98c27eb5f3e8ca5ce6" sha1="9487f83a095a5c36b29ab2c28e22adb1337d2b3d"/>
+		<rom name="Digimon Story - Lost Evolution (Japan) [T-En by Operation Decoded v1.1].txt" size="420" crc="6b3eec18" md5="19a0a7396ea934e05e49f7fc8e12988c" sha1="3fad0c75107be428a059abd574679a6ad9245c24"/>
+		<rom name="Dragon Quest IV - Michibikareshi Mono-tachi (Japan) [T-En by Concreted v1.1.0].md" size="13958" crc="af25f40d" md5="1c0ed97a5ef20084f0c21c8a6040e0df" sha1="91edc56f47c0a739ad78e10af9438800c7535630"/>
+		<rom name="Dragon Quest Monsters - Joker 2 - Professional (Japan) [T-En by Ceris White &amp; Ilario &amp; Reflex &amp; Gerb v1.0.0].md" size="7366" crc="f07ceb2e" md5="d1dba485ad9d36f2cbb99c30cc77b201" sha1="f66dcf7a39de85ba483455bbe9276c6ebdc415f0"/>
+		<rom name="FabStyle (Japan) [T-En by Rocket Robz &amp; Sidier v2.0] [i].txt" size="3041" crc="efe40641" md5="d11dd666b7b931415a15f6e6f9f36c7d" sha1="ab5d88e9b7bd52765fe77346ee4413264c1dc05a"/>
+		<rom name="Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [Add by Darrman v2.0] [n].txt" size="5258" crc="ce5cacf1" md5="5f033b0e67b2ef6e5a61b8133aad8c1c" sha1="2886d2d4b0611631cec6a46616fc0a93c196056a"/>
+		<rom name="Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [n] [Bonus Content].rar" size="5570" crc="bc8137e7" md5="cf9a506cdbf76b0a93a15afadbb005c5" sha1="62957a5260a289f68610d2ec0741e2c4e0b878c4"/>
+		<rom name="Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [n].mht" size="126263" crc="930ebd44" md5="62a2cf43295007f69e51b4e850746aaf" sha1="216e0c74e80f18b45de2800e747a558f69ba1b2b"/>
+		<rom name="Girlish Love Revolution - Love Revo DS (Korea) [T-En by Jjjewel v1.1] [n].txt" size="3051" crc="92c0af2e" md5="3c1b73e24bc1199012fa81edd5343b36" sha1="49c608eaa1afc706a7c016e882be45e806378c0f"/>
+		<rom name="I Will Protect You (Japan) [T-En by Illidan &amp; Phantom v1.2] [n].dct" size="2124" crc="38431151" md5="0e3aa857f3cd54d50efebba45fde61f7" sha1="bfac2fa48596604081907b9d2863c68b8a1cdd3d"/>
+		<rom name="I Will Protect You (Japan) [T-En by Illidan &amp; Phantom v1.2] [n].txt" size="4682" crc="7b924c9e" md5="533efbecff1b37e1987f73f09c127416" sha1="0d7c4450a255f42480e530491878ceb0e66bc14e"/>
+		<rom name="Inazuma Eleven 3 - Sekai e no Chousen!! - The Ogre (Japan) [T-En by Nomura-RH] [i].txt" size="172" crc="91417dd5" md5="27c340fe7ee72666c5cfa5d37deb9982" sha1="e195e779c41b63a003ec68b74c67c42356308d46"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\EnemyData.dat" size="159716" crc="3b364b1c" md5="6bd596176ec6386f687924d50177b9f2" sha1="4a8b48406f9010cde45074d840c8199ae044e432"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\ItemData.dat" size="2342" crc="1904e79d" md5="fa0de04e4beed3d744d3505726216991" sha1="50866a6accd7cd88fadf84dde4495cfe3b4a9620"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\ItemInfo.dat" size="15340" crc="9416ebd4" md5="72192ea5f51aee66f0ca01b9b7957796" sha1="0b0b77bc520530cd8f080f7e0256de228f0fd246"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\randomizer.py" size="1201674" crc="fc17b2d8" md5="a427e5a2d58b62bf7f29077857d11bb1" sha1="0209d5c0c5f3a5dccde3bd104800389aa79a3ac4"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Simple Randomizer Maker.exe" size="8328094" crc="bb5ec902" md5="152c319a57952dfa2652899c2cc7ad4c" sha1="888786aa98da00d5331517e59a4725575a1161bf"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\app.config" size="130" crc="0f8464a2" md5="8f35fc25b2d4fe99195e9e89677d1e07" sha1="c12f2aeb7bd3976faf2a0867ab95ee047eb42a97"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Be.Windows.Forms.HexBox.dll" size="69632" crc="dd72ab1e" md5="9a56b7f5122c0e0e0fab3e622db037d4" sha1="7fd6c353287312c6b9efaab772e7871f77410c50"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\changelog.txt" size="10462" crc="d369a343" md5="a06680acfe13795f4c372371c6305f8f" sha1="92628926ccc2aa3a9827dc9fcba6345430861744"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\DSDecmp.dll" size="34816" crc="e4bb07e2" md5="8c7465cac1654c1997bf5dc42ec6de94" sha1="d70250a6508de9506ee0bbf32f8beeaa81f62d16"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Ekona.dll" size="166912" crc="d78a78c5" md5="e23cb76a3ad1a552a87fc855c0133ff6" sha1="4beb7e8619a212c8ca92e2e304c9400b4b0f8f03"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\langs\en-us.png" size="599" crc="2988a7a6" md5="0894999b108830afc0733ee7b6e08310" sha1="a98ec259c5e198fffb3116e4cf950e2d8b695880"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\langs\en-us.xml" size="16526" crc="148fc095" md5="dc59bf1708d97883d6f79f1fac7b666d" sha1="296358c93b53bdcb9027e2f1fd3e6d919b7ae6b3"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\langs\es-es.png" size="469" crc="e1e305e6" md5="d6693ce2a6346b2da89ceda335554e0a" sha1="a88880bf0da5063d8082b66b066c4456e4d2e0d9"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\langs\es-es.xml" size="17972" crc="d61251c8" md5="a80227783743487aaf83591d0de2df83" sha1="a96f06e1845ac9fe93f9de4f8811d0fbb9b21b03"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\langs\fr-fr.png" size="545" crc="a6f764a3" md5="c1cf1874c3305e5663547a48f6ad2d8c" sha1="0f67f12d76a0543772a3259a3b38935381349e01"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\langs\fr-fr.xml" size="22291" crc="d026911e" md5="5742c85f883596892b0d61672292b0a4" sha1="97302991328d8506aa4d1ac81a5ec3fdefddc334"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\langs\it-it.png" size="420" crc="d25474ba" md5="784f7eb333f0591558bcce9616a3c105" sha1="c786c15b1b86629c1bbb6ac12be5fba39181dec0"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\langs\it-it.xml" size="17654" crc="2ce0c1f0" md5="6c4386a97868b3713a0589c30f129d83" sha1="fb7e73b71cf5ae7dfcc69dfcd131e7d6cf663439"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Licence.txt" size="33094" crc="eb11474d" md5="0c855cb353e15025f3c7121044c28c06" sha1="7a78c514f799af0ebd28f42f9cd713ec68c1a9fe"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\OpenTK.dll" size="2719744" crc="74d8385c" md5="30fea11bc2449b38958547152d9b104c" sha1="a1e6f88a19e80cf52c56f396def77f9b33f76e50"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\OpenTK.GLControl.dll" size="24576" crc="3e7fce38" md5="ae4db35cd83c9def27490851bf25aabe" sha1="ea4cae280646e5e23b71bfcb2a3d223ca8cef5ba"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\1stPlayable.dll" size="5632" crc="f6cb4530" md5="dfad511097e760fa205cc27ec629ed13" sha1="39f7991bdbbe605498a7645692e55e19984875e4"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\3DModels.dll" size="475648" crc="48d21359" md5="eb583506b3f693079d190c2f8e2ae1da" sha1="b54b80f9287de46d6368457a6c3bd83b35a9cd71"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\3DModelsLang.xml" size="13695" crc="6ba560c8" md5="48c5a2b75e0389346e1dbcb08e212f75" sha1="5c6d79913a7fdfe7ee9dd7ac42ba5099bc64ea81"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\999HRPERDOOR.dll" size="9216" crc="c0f27338" md5="d27317874e7ffba0db28aa150bf673df" sha1="4e02c1dcdcb1bc29ecd262592522a9164d80dd78"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\AI IGO DS.dll" size="22528" crc="79f459e3" md5="41ffca30fb2849f9d406dd5c8285aab0" sha1="04b1195ebb7716a34eba797fbaee1198e2ee0fe0"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\AI IGO DSLang.xml" size="1277" crc="c4c9ff95" md5="1dc73958a7f3e852d8bf2662f2288304" sha1="a0324afd6a2d76a5c42c75a5df748271d4ea63e7"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\BLOODBAHAMUT.dll" size="7680" crc="bd89e399" md5="93d1ac02cee476de3275188ad167177b" sha1="15dd39a5401508971368f6383c46de40e60194f2"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Common.dll" size="19456" crc="395a7c30" md5="af146bffad14ea6b8bdefe31102be264" sha1="ea663343b52de4f511db32bf0bb9841b93c006ee"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\CommonLang.xml" size="582" crc="0d455044" md5="96f8dbadb83f38b080fdd3777f8d3816" sha1="fcc620fcf3f75550d6695225d09dfd475229c848"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\DBK ULTIMATE.dll" size="7168" crc="b6d3b49d" md5="1987bd09e86b3f9cb7fa629c2606a7fc" sha1="655ad61425159d7a868454c3afff2dd4471e134f"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\DEATHNOTEDS.dll" size="5632" crc="12fd287e" md5="195f8f52b0881e4493416b6b3b03b66f" sha1="9f9a08dd6be4738bcaeaba2bbc6f26fa945fd500"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\EDGEWORTH.dll" size="11776" crc="a8eac9ac" md5="b5e1f11f81c436e18feae913ec60f029" sha1="1acdcda997ab8c2c5616829541eec6494df143b0"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\EDGEWORTHLang.xml" size="453" crc="60defbc8" md5="d85b0d7498458be80c46bf8c9c2418aa" sha1="d17fc471219d628cf487591aff410b4332218f62"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Ekona.dll" size="172032" crc="4d79c1bc" md5="7130d73080058631a7e375f3e3226b26" sha1="a73d41d47637d38e15f0d4b2faca07df15a05dfb"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\FontLang.xml" size="7228" crc="35b172c7" md5="568aee07af79b51755723e67bf424abe" sha1="a8abdbfada9e88d6c8c4e0d06de0e760e3ac4703"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Fonts.dll" size="56832" crc="237a4245" md5="bef31b3b2da1fd93223e5610f42fc8d5" sha1="0e10421a9aef796fff55abc5caf870e8ea1e1635"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\GYAKUKEN.dll" size="6656" crc="2317f866" md5="d778cd1bb225047513e9a9849c00d362" sha1="232f29c520dc1367c73e00393fa51aa2ed3787ab"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\HETALIA.dll" size="8704" crc="4505a440" md5="48dc96e121097e444f50cfd0c10e2edb" sha1="addc8cfa5643d3dafe4d37024a8cea82b38e608c"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Images.dll" size="50688" crc="70d74704" md5="05f7dadee662f88b7fed9f5537019794" sha1="6a0dc79e4f327d14157bf2a6a485c3fcba64cbdd"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Images.xml" size="1807" crc="7d954a5e" md5="7f710ab12174857dbbd1395d531a8f1a" sha1="f6b40e7ec0926158b70ef4aa7726bf3e7b9f4e4e"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\ImagesLang.xml" size="4385" crc="74f8d85e" md5="02af9f9fce8127fbd7e4aeb8883d087d" sha1="65271481dc0b6e0a833549d10f4ead2cc479ccd7"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\INAZUMA11.dll" size="34304" crc="e3788ae2" md5="c43b1da1b211ccff28b2c51d4791cbff" sha1="ad797b3b3852d2e9e4c7ed220ed85676ac4b7104"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\KIRBY DRO.dll" size="8704" crc="d0bf6521" md5="5ee4b854c2d4100741e909ac997c272f" sha1="c5ad1b288a61c4d04d73d29dd718f8dc1d4aeb44"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\KIRBY DROLang.xml" size="356" crc="d57e4cce" md5="ad3c33f426016117700693893286e609" sha1="60d25cd8c32f8deec5dd5ad57dffe29fb86711f9"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\LASTWINDOW.dll" size="5632" crc="24a688ba" md5="ce6a666ebece4cfb68ce57af367b1018" sha1="b0c5ddc05072a4860deaee6ee504082612d34e96"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\LAYTON.dll" size="74240" crc="ae382bf0" md5="65ad1789f833c97616bd905b60a73303" sha1="d080be88be2254507c1a9bb333f366d22f26b293"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\LaytonLang.xml" size="2910" crc="690d6483" md5="0038ad0998a8e9677d5c80e7020ad604" sha1="809fa01840f2b341baf5a0eec8d8485dfcab5d19"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\MAPLESTORYDS.dll" size="7168" crc="5fb7f74a" md5="f06b00724036b839425ba0245fee922a" sha1="a8b60a61036d5c270e858c252d360a5522931c13"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\NINOKUNI.dll" size="86016" crc="0c8aac6c" md5="0bae7b89bee6a2506512be97c33d58f2" sha1="179fecfd1a60bf2f2c1d883678f0411b5ee75602"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Ninokuni.xml" size="1654" crc="13d4f466" md5="9447e7db0fe3918d4d429ffede94a8b0" sha1="393234feb12b91ce3de81f026f1cce2d83c67ab2"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Ninokuni\font10.xml" size="229087" crc="e67ee724" md5="2ba0b77c5a1040860bbee470aae26827" sha1="a038ff71411836fe39eb10e9c2934c77e040b766"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Ninokuni\font12.xml" size="226358" crc="ca0f3c4d" md5="99ecc9d8824c292b9ccd8b9672f172ba" sha1="25d283367d30041a60acdf01265d30e840893839"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Ninokuni\ImportFiles.xml" size="5524" crc="f31227ff" md5="22dd2a9fc481feadf4e6424d691f3265" sha1="a689846b8aceea6b62118c5df10f00547ca7ab4a"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Pack.dll" size="32768" crc="c72a19b7" md5="44ad2f8c5c20c7262fc6e10409cb6fba" sha1="1c76e13fbce965ed5ce10d724a61405324c452af"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\PSL.dll" size="21504" crc="e8111a46" md5="75a09c30c22f2a6e02885874aa6a1d31" sha1="4987c37e25e621f114a9de367d66c2fef9b614cc"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\SDAT.dll" size="144384" crc="884e0a29" md5="70f57a2616a0614401118f4945d4124d" sha1="07d698752e6e300d4cf5b4b8b35cdd0c731bf634"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\SDATLang.xml" size="6661" crc="5578cd56" md5="7c84edc058520e5a10f94ba05aa6c629" sha1="7eec45b7b62220d6290ffe3d4da6b9eefdbd972a"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\SF FEATHER.dll" size="14336" crc="4fe212e8" md5="8b3b03a35110bbe9cd4a54a0441b550a" sha1="4eb5edf6eb83ca5679981ab68732f7d41ef2574b"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\SONICRUSHADV.dll" size="8192" crc="6a3d52d9" md5="bd6979db2f10e04da8c2e61915219abc" sha1="dc7a1528b72187d0f94082498211019aef6b5801"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\SoundLang.xml" size="2391" crc="c4cd28f4" md5="677171a9549e5aaa88eabb3b74d106d4" sha1="41892cf6add255128149664317e1b4c708e67870"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Sounds.dll" size="39936" crc="c5e0b12c" md5="a00fe2e00e9c12781e2e1e6429451711" sha1="3055867d30c563f7c1492c3115a9d42803ccc009"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\TC UTK.dll" size="16384" crc="792b73ed" md5="0b25f1eaa0d7be27e3c4a837f8dee317" sha1="5a2075fdf7d643b25db0e01285d12ebd76e6b696"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\TC UTK.tbl" size="270" crc="40f68f5a" md5="93a3ed57cd11dd7cad5122367cb3cedf" sha1="34bfe8a5f72d68f80bb9f0eca75ffb07b6e7dfa4"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Teniprimgaku.dll" size="18432" crc="c5a24682" md5="9760cde6b7d2b4053a3c3c83de99f191" sha1="d6d9f214e336503ac1c7a5efd714b7db17a3e9fa"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\TETRIS DS.dll" size="10240" crc="957a6dc7" md5="d9e37cb93bad6df8f645206f00d416c5" sha1="afd7968b77f99294349db3d43e06cd7272f615cb"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\TETRISDSLang.xml" size="7892" crc="1f2d292e" md5="36e5513a794408f51ee681e81d47b76a" sha1="6b0d6df156aa295441371bc1978de6d06d0301f9"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\TIMEACE.dll" size="9216" crc="311e3ced" md5="aa51e616203a242fc50c2308ffd2ffac" sha1="cc684d164806cdefc9a973beb9a4463756aeadd3"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\TOKIMEKIGS3S.dll" size="7680" crc="11998474" md5="6b9ee4743cbf15db93450a99c4dd0891" sha1="66dda37b8067f0fecf1ae0a8a24458d60b66cabd"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\Tokimemo1.dll" size="6144" crc="ff42ee91" md5="b2e7f21e39681e56e2942165372e910f" sha1="753fecd0a7b76123637b6d4d26179dedbeb9d2fb"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\TXT.dll" size="23552" crc="39dd075f" md5="c9fa3918f5bb7c43e9440a966a776311" sha1="3c1d399e20b1ca8fc91cab152a255b1290a1509d"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\TXTLang.xml" size="1918" crc="47d36a7b" md5="de3cdd6c14a5484f8bd91380c2eff2a6" sha1="4cecc6014b660e82e6e287ab8025af421ac08a9c"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Plugins\WITCHTALE.dll" size="6144" crc="5093a538" md5="b130df74c26b01a2812058bca868d4ce" sha1="476cc55317e873523ff9ac167af4271bfc0af520"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Temp0\xsy4zpo1.crtRubiFont.NFTR" size="2286" crc="19c0e67d" md5="92cc95ea97db58303a380fba2f2d583a" sha1="42c044157d11a5dfc0220f8c238c6abe64a1866c"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Tinke.exe" size="1176576" crc="08d2c563" md5="8aa5c47be926b2a939601cbee72b8954" sha1="20db84e41e8ed2fa93f031c53fa0099c220701e0"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i] [Randomizer]\Tinke-0.9.2-dev\Tinke\Tinke.xml" size="287" crc="5c7cfdbe" md5="21fb7229c5178748da2c6d083b5f4654" sha1="8f6ca54391988ff44b617c976a4c68d23488d5a0"/>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i].txt" size="3227" crc="230b792e" md5="56d2442be3698af8130562c946c099b3" sha1="42d94d83dafedcebdce7d0139b0106ce41a993b4"/>
+		<rom name="Ketsui Death Label - Kizuna Jigoku-tachi (Japan) [T-En by Z3tzilla v0.2] [i].txt" size="911" crc="fbde554b" md5="ed49c2e8a4d17ba294939bb10fe1f704" sha1="4f20f1374e4b4ad6bc4e34560627e28e1d42416f"/>
+		<rom name="Kuroshitsuji - Phantom &amp; Ghost (Japan) [T-En by Phantom &amp; Ghost Team v1.1].txt" size="2826" crc="dbbee348" md5="b4acd6c128c4cd83738dfd6c83250041" sha1="176a55aa514d863fe3cf6f624aaef5699fcb5d6e"/>
+		<rom name="KuruKuru Princess - Tokimeki Figure - Mezase! Vancouver (Japan) [T-En by plasturion v0.40b] [i].txt" size="535" crc="f1e2d457" md5="0ff1006e06b5501452fae7ebd61349e7" sha1="e8d70f7214c7ba2978058836e742aa4a301b86bc"/>
+		<rom name="L - The Prologue to Death Note - Spiraling Trap (Japan) [T-En by Anime Game Translations Team v1.0] [n] [DeSmuME cheats].dct" size="1498" crc="0a1c5a11" md5="1ca59600ab1e35e00d0bb3ae4a35d4c3" sha1="00ce7b4c3503364db440fe8575ae8d2cf5455236"/>
+		<rom name="L - The Prologue to Death Note - Spiraling Trap (Japan) [T-En by Anime Game Translations Team v1.0] [n] [MelonDS cheats].mch" size="1602" crc="8e464a50" md5="a232e462fccc843579b6a25d90b7fae0" sha1="78a07e6cfcb296e5389bcc7a50b8b1d754d091a2"/>
+		<rom name="L - The Prologue to Death Note - Spiraling Trap (Japan) [T-En by Anime Game Translations Team v1.0] [n].txt" size="9838" crc="7a5f0a33" md5="12e38e76fc4db108192c6c145db76214" sha1="01337ca1bfcff47140f66562a85f93597bbf384d"/>
+		<rom name="Lode Runner (Japan)  [T-En by twiztidsinz v1.1] [Add by plasturion v1.3].txt" size="1733" crc="e3c0b4fb" md5="35ab0bd8271b5e21ac102b34101b4520" sha1="ec05b982745b7114af9ee7bddba94fa9e3e78430"/>
+		<rom name="Love Plus (Japan) [T-En by Jjjewel v1.0n].txt" size="1878" crc="eaf60500" md5="d239b93d6f2b31d879d7bb10b9849738" sha1="0ca071a24eede2a0a1c977293bcae9242865a5f1"/>
+		<rom name="Luminous Arc 3 - Eyes (Japan) [T-En by Asakura &amp; Buster Gundo &amp; CheshireCat &amp; Jaumander &amp; Plasturion v1.0].txt" size="2017" crc="3b3b6ba9" md5="921c3c75bf3b8e6e156de32d31278cc8" sha1="ef3c8049e3ed239285a75254a6fa7b853648cfcc"/>
+		<rom name="MapleStory DS (Japan) [T-En by edo1989 v0.6.3] [i] [Change log].txt" size="4054" crc="26d06c84" md5="83a3b897f0b3d6cc3b0df5fac0b00a7c" sha1="6a1ddecdc2759de92283f8bce1fdf60c0a171e31"/>
+		<rom name="MapleStory DS (Japan) [T-En by edo1989 v0.6.3] [i].txt" size="2052" crc="10d8f15e" md5="3c8f951b6df5a635304f6936e7a77a84" sha1="c7c5c282593e11155a2475969feee4693e8b1afd"/>
+		<rom name="MegaMan Battle Network - Operate Star Force (Japan) [T-En by Greiga Master v1.0] [Add by Cirosan v1.0] [n].txt" size="1897" crc="a42e0563" md5="d479c37aa37e19f4e5cb09982b020f03" sha1="e913bf91166874ce3be6808d8a0a306c9c1db8dc"/>
+		<rom name="MegaMan Battle Network - Operate Star Force (Japan) [T-En by Greiga Master v1.0] [n].txt" size="2422" crc="ca343ee4" md5="4e2975e59678b6187b27de26a2c8395b" sha1="f4e8a95f2c1469e6a3b225209cc5f3928d46b9e0"/>
+		<rom name="Metal Max 2 - Reloaded (Japan) [T-En by Metal Dreamers v1.0].txt" size="5423" crc="e57fba9e" md5="b12ffae609a6cb44947e670358a36977" sha1="9b675186dfe07a9fe47f6b7c826cdcc4cd508fb9"/>
+		<rom name="Metal Max 3 (Japan) [T-En by Metal Dreamers v1.0].txt" size="4674" crc="f0f595f3" md5="53888000b1737a976883236a406b13f0" sha1="9c78b89e9895d11c64b9ca1e52b4b28b8241b7f7"/>
+		<rom name="Mugen no Frontier Exceed - Super Robot Taisen OG Saga (Japan) [T-En by Artema Translations v1.0].txt" size="2186" crc="d03d7d47" md5="55e03e282f4fbfc89393c74950e935d7" sha1="0970047f75a491c7e807306938e33864f9c5bd8c"/>
+		<rom name="Mushishi - Ame Furu Sato (Japan) [T-En by Anime Game Translations Team v1.0].txt" size="2608" crc="efe56f89" md5="32189571e2f5d4128c19538ce85fcf1d" sha1="883f550a98019d0a416a9c0cdb04a4edd3c00561"/>
+		<rom name="Nameless Game, The (Japan) [T-En by Nagato &amp; Ryusui &amp; Summvs v1.2] [n].txt" size="3427" crc="ee1a12b8" md5="379845befa01adf5b12a89b2a92d5343" sha1="05961d5824f304156a56b0c5c1500c69809d988b"/>
+		<rom name="Nameless Game, The - Eye (Japan) [T-En by Nagato v1.13] [n].txt" size="3431" crc="2c83adcf" md5="4511df9666489d5be767eb04f4633056" sha1="3e4ee2bb90f759619b78fd8d144a5ce6cedb13b9"/>
+		<rom name="Ni No Kuni - The Jet Black Mage (Japan) [T-En by Anjiera v1.0] [n] [Magic Master].pdf" size="119139423" crc="5231cde5" md5="eb1e62aea9bff1f19937eef634466384" sha1="f2a4b5a6c352abf8c295b1432b61ceb3b2483622"/>
+		<rom name="Ni No Kuni - The Jet Black Mage (Japan) [T-En by Anjiera v1.0] [n].txt" size="2569" crc="98f3579d" md5="5e5259e330b32582b6eda56833e27320" sha1="e74c5e0dfecb157d6e37510a61093bbeee0a0d05"/>
+		<rom name="Nora to Toki no Koubou - Kiri no Mori no Majo (Japan) [T-En by Nora Project v0.3d-1].txt" size="8012" crc="b5b159c8" md5="0933176aed3cd132fd8034ee92e5612d" sha1="c61eb874db358fe3922edc07b414324f51124212"/>
+		<rom name="Petit Eva - Evangelion@Game (Japan) [T-En by ScenikEight v1.0].txt" size="1919" crc="f2a020b2" md5="56b32cfd36191a5d1d84bf14fe15c7ea" sha1="a45ed86fdac3d79dcbcc1b3b72a23cec5f3abd3c"/>
+		<rom name="Princess on Ice (Japan) [T-En by plasturion v0.93].txt" size="630" crc="55f8184d" md5="b969c08d5311e4d4611f532c49cf0643" sha1="57f08a34976417a8b392db36e5a953f74f66d795"/>
+		<rom name="Puyo Puyo 7 (Japan) [T-En by Puyo Nexus v1.0].txt" size="1503" crc="9c20b1fd" md5="ec82f4b636c84367fad8184b72e5a020" sha1="c88a49dee0acd77362f8527479fb971de669b4b5"/>
+		<rom name="Puyo Puyo! - 15th Anniversary (Japan) (Rev 1) [T-En by Puyo Nexus v1.2] [n].txt" size="2585" crc="4e8ce7fc" md5="3a1f0772174d6cae1c8d81f8cb9a09d4" sha1="c0bbd3ea38fefb82bcb73e067a43ba59f54c57c5"/>
+		<rom name="Puyo Puyo!! - 20th Anniversary (Japan) [T-En by Precise Museum v1.2] [Add by Runis Dauphin v0.5] [n].txt" size="4136" crc="4b1abf9b" md5="ec6f7010267cf97c2abe7f92eeec919a" sha1="a3c184cf3a39376a543fc8875ae2c13055ce3cb9"/>
+		<rom name="Puyo Puyo!! - 20th Anniversary (Japan) [T-En by Precise Museum v2.1] [n].txt" size="634" crc="5e1aacdf" md5="ed8d7b111cc34dff9ae214cdb1c3ea2f" sha1="b4f083e4bf986bf6ea91827bb82c4c1794135ad8"/>
+		<rom name="Puzzle Series Vol. 12 - Akari (Japan) [T-En T-Tudor v1.0] [n].txt" size="630" crc="e5e88ac2" md5="fc11039a5162c046e1494a218484a3e6" sha1="0ed92915ceb76bfb80337cf0fcc125730c60d6fd"/>
+		<rom name="Puzzle Series Vol. 5 - Slither Link (Japan) [T-En by T-Tudor v0.7].txt" size="424" crc="b6fe5ca1" md5="0a37b7e2b0f3d152e2b83a5546904acd" sha1="223028f3ddeded8e8ca1c42c519964b42c130ac5"/>
+		<rom name="Retro Game Challenge 2 (Japan) [T-En by Aaron Tokunaga-Chmielowiec v1.51] [n].txt" size="13018" crc="9b4556da" md5="7ad50092e026efd74fb95023a85c70e6" sha1="a3b2b893d65b15de1393fde1593a689d280dcc31"/>
+		<rom name="Ripened Tingle's Balloon Trip of Love (Japan) [T-En by Team Tingle v1.1] [n].txt" size="2740" crc="a1c108c0" md5="e8fc4298456bcadc449792f34e18c3a6" sha1="7bd0dca5a7f0b77eaa486101de6e9471cad50de3"/>
+		<rom name="Rosario + Vampire - Tanabata's Miss Yokai Academy (Japan) [T-En by Jjewel v20150515] [n].txt" size="1891" crc="352deda2" md5="86536d2b7d16619211a12dac4e544d5b" sha1="feec468989accc50a07c8d3bf8972c112a02a25f"/>
+		<rom name="SaGa 2 - Legend of the Relics - Goddess of Destiny (Japan) [T-En by Crimson Nocturnal v2.12] [n].mht" size="595978" crc="9e794fe6" md5="fa1c8d400c626ddaa3c7afccb3847c9d" sha1="5dd692f58db51bf61d415228f750e4b4c62e758e"/>
+		<rom name="SaGa 3 - Champions of Time and Space - Shadow or Light (Japan) [T-En by Cain &amp; Easton West v2.0.830 Beta] [n].txt" size="4058" crc="6694409f" md5="6df17675369aaeaf1535ffbd4bd7dad1" sha1="341927f4a00eae18c5b669473625c23c62a42059"/>
+		<rom name="Sailor Moon - The Shining Moon (Italy) [T-En by Jonko &amp; Tokko Tomcat &amp; Lizmelo &amp; Sailor Moon Italy v1.0] [n].txt" size="449" crc="7b5eeb16" md5="d2fcb8066a9d21f9cb3cd8c06844f476" sha1="e4605a7806f5d6896111894abf27c3b18cadc9c2"/>
+		<rom name="Shinseiki Evangelion - Ayanami Ikusei Keikaku DS with Asuka Hokan Keikaku (Japan) [T-En by Pearse Hillock v0.90] [i].txt" size="3902" crc="d538f99a" md5="2385daf94e044f7378c61ca4e51b8ba0" sha1="4e71b894dd93a7300eec33a80aa02a816b268d31"/>
+		<rom name="Soma Bringer (Japan) [T-En by DarthNemesis v2009.02.02].txt" size="635" crc="741fefc7" md5="442efbc3bb4f49e8d7fd2fecf8cca3b8" sha1="07bc3ad4d05f5590e8a06addd0c440114916b58c"/>
+		<rom name="Soul Eater - Medusa's Plot (Japan) [T-En by Anime Game Translations Team v1.2] [n].txt" size="2333" crc="61303d04" md5="9a88171c3e9fd8277c78c3b27a9c3a59" sha1="098d22ab5d34116a2e548b37e4f2ed0aba5ad6cd"/>
+		<rom name="Spice &amp; Wolf - My Year with Holo (Japan) [T-En by Anime Game Translations Team v1.3] [n].txt" size="2019" crc="d825e629" md5="435ba2ee2da31bb47e8556d57f029492" sha1="b9eab9892b5bf1301465c6f1e9fd650b7a084859"/>
+		<rom name="Spice &amp; Wolf - The Wind that spans the Sea (Japan) [T-En by Anime Game Translations Team v1.0] [n].dct" size="854" crc="50804523" md5="96c162a0c48249169d7cb1213f3b329a" sha1="b3e9ed68471b08477d79c74038a3742b41f916fe"/>
+		<rom name="Spice &amp; Wolf - The Wind that spans the Sea (Japan) [T-En by Anime Game Translations Team v1.0] [n].txt" size="5984" crc="1fac3e72" md5="2e31a686e4a1c89b8fb1f804ef3e8a5d" sha1="59612ddb41188f8515a2aabf32ce8e085769f078"/>
+		<rom name="Summon Night X - Tears Crown (Japan) [T-En by Englishsubs4all v0.951] [i].txt" size="994" crc="85ee0b0f" md5="cd022a8f8d7b1d62b0407fedc7172566" sha1="ab0fecc25f140a9dbafb11bf2cff2c03c3017893"/>
+		<rom name="Super Control Mecha MG (Japan) [T-En by Supper v1.1] [n].txt" size="22719" crc="9f533a56" md5="799e597d74ca89d9df3629faceabf58c" sha1="6fd8a6a31f2aaacf883c5fb126686b15793c014f"/>
+		<rom name="Super Robot Wars W (Japan) [T-En by Brunom1 &amp; Fei &amp; Kingcom v1.1] [n].txt" size="3666" crc="31fa0c8b" md5="33670462834cba0d250f038161cfcb02" sha1="506ffe9222ef6bb0c0f5168bf8ed9f0ab091b0c4"/>
+		<rom name="Tales of Innocence (Japan) [T-En by Absolute Zero v1.0].txt" size="10485" crc="1e1a5e37" md5="762c9cbc50ea0018a0574e69bd243c95" sha1="9d491b409fe52ba3eb2cbba6e354b72fa02fafd9"/>
+		<rom name="Tales of the Tempest (Japan) [T-En by Absolute Zero v1.0].txt" size="11001" crc="95ec2237" md5="2cc74c66d3a5c16234a2b252240cdb9c" sha1="b7c76d84aafa537296d6abe7f517cc59a4de9823"/>
+		<rom name="Tengen Toppa Gurren Lagann (Japan) [T-En by Anime Game Translations Team v1.0] [Cheats].dct" size="1930" crc="10cc9c44" md5="e30eb95da6067357ef2536c77aa8fdf1" sha1="899dd88e47bb70a8709b28a85a7e6efb0c8d9d50"/>
+		<rom name="Tengen Toppa Gurren Lagann (Japan) [T-En by Anime Game Translations Team v1.0].txt" size="3033" crc="ba0dfc01" md5="5f9f757210ef5f53758d686ab3b712f0" sha1="95e9cadcd99288594e5a9e3b50d6db0034318611"/>
+		<rom name="Tokimeki Memorial Girl's Side - 1st Love Plus (Japan) [T-En by TMGS1 Translation Team v1.0].txt" size="1903" crc="d3632f0f" md5="113c746fc165ef2e7d2e0f6e405f5e0b" sha1="de33870f512217260c6b0e2b41cbcc6458d9a31f"/>
+		<rom name="Tokimeki Memorial Girl's Side - 2nd Season (Japan) [T-En by Gokusaishiki v6].txt" size="509" crc="595b198c" md5="0fd22a08318dde06282dd44a05f5dbb2" sha1="199bc48fe0ee840b55429b8a19d7253ac8276552"/>
+		<rom name="Tokimeki Memorial Girl's Side - 3rd Story (Japan) [T-En by Jjjewel v2.00].txt" size="1409" crc="3cd40308" md5="e75b618f8fdb54a2f928bc87bab2c383" sha1="cde700a46cb36edcc91a117605bedf0b41e2babd"/>
+		<rom name="Tomodachi Collection (Japan) (Rev 1) [T-En by Jjjewel v0.80] [i].txt" size="740" crc="f874850c" md5="6a726d12fea6666e9bfe7237c7672f47" sha1="86e928738f3bfe04ded6a7de38c2adab63a2c80a"/>
+		<rom name="Vampire Knight DS (Japan) [T-En by Anime Game Translations Team v1.0].txt" size="5734" crc="6037f233" md5="54a0cffb8b35cd4e6b9aaab67413d08f" sha1="46de1d7fa28370727f6ecadc93ae27b166ac9e44"/>
+		<rom name="Wizardry - Inochi no Kusabi (Japan) [T-En by Faramir v30102015] [i].txt" size="906" crc="bef0a3ff" md5="9ec9e3eec20fa9ca6baf777c5d234a3d" sha1="cc95bac7c4dd16e4c1407af8af279ae6cdea0489"/>
+		<rom name="Xenosaga I &amp; II (Japan) [T-En by Vector Translations beta] [i].pdf" size="264877" crc="be829341" md5="d3ccad733fa732136fb0a4fff1a0aa2c" sha1="4254d5b4c462d18634942845cd8fa7e499396a4e"/>
+		<rom name="Zombie Daisuki (Japan) [T-En by T-Tudor v0.6] [i].txt" size="837" crc="b3dc79c9" md5="c2acfe9487bb065adaa24822374645cf" sha1="d9a20f866a4d24618bf3c15c0d00c9d471626409"/>
+	</machine>
+	<machine name="Ace Attorney Investigations - Miles Edgeworth - Prosecutor's Path (Japan) [T-En by Auryn v20022015] [n]">
+		<description>Ace Attorney Investigations - Miles Edgeworth - Prosecutor's Path (Japan) [T-En by Auryn v20022015] [n]</description>
+		<rom name="Ace Attorney Investigations - Miles Edgeworth - Prosecutor's Path (Japan) [T-En by Auryn v20022015] [n].nds" size="45165392" crc="a1b255cf" md5="3cf7bcf088149601d5a38742dd3da9ac" sha1="2456f96e7d5f47f05479bc743fd235765a8e8668"/>
+	</machine>
+	<machine name="ASH - Archaic Sealed Heat (Japan) [T-En by Psycoblaster v1.0b]">
+		<description>ASH - Archaic Sealed Heat (Japan) [T-En by Psycoblaster v1.0b]</description>
+		<rom name="ASH - Archaic Sealed Heat (Japan) [T-En by Psycoblaster v1.0b].nds" size="257877045" crc="33239395" md5="6167f32a1fe1e3b1beaa62e8756cde29" sha1="3df938352013b74439822d4a6df503e71b43bd85"/>
+	</machine>
+	<machine name="Blood of Bahamut (Japan) [T-En by Aaron Tokunaga-Chmielowiec v1.07]">
+		<description>Blood of Bahamut (Japan) [T-En by Aaron Tokunaga-Chmielowiec v1.07]</description>
+		<rom name="Blood of Bahamut (Japan) [T-En by Aaron Tokunaga-Chmielowiec v1.07].nds" size="67108864" crc="6df95de4" md5="f951a883d307ea7e0a12aff54971a7a9" sha1="7d77c4f200d2942c78386896ab4855c543a19783"/>
+	</machine>
+	<machine name="Chibi-Robo! - Clean Sweep! (Japan) [T-En by Cjuub v1.1] [n]">
+		<description>Chibi-Robo! - Clean Sweep! (Japan) [T-En by Cjuub v1.1] [n]</description>
+		<rom name="Chibi-Robo! - Clean Sweep! (Japan) [T-En by Cjuub v1.1] [n].nds" size="51015168" crc="45ea9daf" md5="cb436d55cda782dd3f3232a44809c066" sha1="99c2c4ef45ba4120ec4b385379d49bf2e991dff1"/>
+	</machine>
+	<machine name="Code Geass - Hangyaku no Lelouch (Japan) [T-En by regeass v20260628] [machine translation]">
+		<description>Code Geass - Hangyaku no Lelouch (Japan) [T-En by regeass v20260628] [machine translation]</description>
+		<rom name="Code Geass - Hangyaku no Lelouch (Japan) [T-En by regeass v20260628] [machine translation].nds" size="65240200" crc="84dc6349" md5="2dd528e5458b2c13f0a6d941a9f81176" sha1="b4a0666b6f6228f9a0014fd330a1c89b1d69ca55"/>
+	</machine>
+	<machine name="Culdcept DS (Japan) [T-En by Theli v1.0]">
+		<description>Culdcept DS (Japan) [T-En by Theli v1.0]</description>
+		<rom name="Culdcept DS (Japan) [T-En by Theli v1.0].nds" size="66865724" crc="2b23c97f" md5="b25f48238c7378c5d7d24358be223c91" sha1="2a948595b44e535a2eb12c5750e43c528708cd3c"/>
+	</machine>
+	<machine name="Custom Beat Battle - Draglade 2 (Japan) [T-En by Kenta61 v1.0]">
+		<description>Custom Beat Battle - Draglade 2 (Japan) [T-En by Kenta61 v1.0]</description>
+		<rom name="Custom Beat Battle - Draglade 2 (Japan) [T-En by Kenta61 v1.0].nds" size="67108864" crc="b094bdcf" md5="d6b42b8ee47020542bb4f2bb1bd87dbb" sha1="036dea33f8ccdc68df922de607271adfcf2de171"/>
+	</machine>
+	<machine name="D.Gray-Man - The Apostles of God (Japan) [T-En by Phantom &amp; Supper v1.0] [n]">
+		<description>D.Gray-Man - The Apostles of God (Japan) [T-En by Phantom &amp; Supper v1.0] [n]</description>
+		<rom name="D.Gray-Man - The Apostles of God (Japan) [T-En by Phantom &amp; Supper v1.0] [n].nds" size="60933320" crc="36ea7f69" md5="b0d3031bda35c0d3af5def38b3315f7e" sha1="835b720e5afa742a00467cab6fa4b7e84f24ebc0"/>
+	</machine>
+	<machine name="Death Note - Kira Game (Japan) [T-En by Anime Game Translations Team v1.3]">
+		<description>Death Note - Kira Game (Japan) [T-En by Anime Game Translations Team v1.3]</description>
+		<rom name="Death Note - Kira Game (Japan) [T-En by Anime Game Translations Team v1.3].nds" size="54437704" crc="6d77d840" md5="a9e5dabb08fe58fde6b5cb8de299f239" sha1="99397cf887c6e640895ada4549c8eadd400693fb"/>
+	</machine>
+	<machine name="Detective Conan &amp; Kindaichi Case Files - Chance Encounter of 2 Great Detectives (Japan) [T-En by DCTP v1.0] [n]">
+		<description>Detective Conan &amp; Kindaichi Case Files - Chance Encounter of 2 Great Detectives (Japan) [T-En by DCTP v1.0] [n]</description>
+		<rom name="Detective Conan &amp; Kindaichi Case Files - Chance Encounter of 2 Great Detectives (Japan) [T-En by DCTP v1.0] [n].nds" size="45787656" crc="7a6b0c48" md5="087e72d78a8ce4be7ab10075b6cf5490" sha1="8958aaddc3c7334cee9f5263a6e6e2a728bd1ebf"/>
+	</machine>
+	<machine name="Digimon Story - Lost Evolution (Japan) [T-En by Operation Decoded v1.1]">
+		<description>Digimon Story - Lost Evolution (Japan) [T-En by Operation Decoded v1.1]</description>
+		<rom name="Digimon Story - Lost Evolution (Japan) [T-En by Operation Decoded v1.1].nds" size="60598900" crc="d705f957" md5="b5d4e8772815326bd6ebefeda283151c" sha1="085f670ee12c7c20c06ba7930958f96d4b590690"/>
+	</machine>
+	<machine name="Digimon Story - Lost Evolution (Japan) [T-En by Operation Decoded v1.1] [AP fix]">
+		<description>Digimon Story - Lost Evolution (Japan) [T-En by Operation Decoded v1.1] [AP fix]</description>
+		<rom name="Digimon Story - Lost Evolution (Japan) [T-En by Operation Decoded v1.1] [AP fix].nds" size="60598900" crc="8182a9ed" md5="9c3a0795d4b7037eabb5fa522ef43e89" sha1="83b4104e654ed2423c0a609802ec6b2843874fd3"/>
+	</machine>
+	<machine name="Dragon Ball Kai - Ultimate Butou Den (Japan) [T-En by kosheh &amp; deathkill781 v20260509] [i]">
+		<description>Dragon Ball Kai - Ultimate Butou Den (Japan) [T-En by kosheh &amp; deathkill781 v20260509] [i]</description>
+		<rom name="Dragon Ball Kai - Ultimate Butou Den (Japan) [T-En by kosheh &amp; deathkill781 v20260509] [i].nds" size="67108864" crc="889bf20f" md5="ed448742df8f6ce9cfc27d444a07beba" sha1="a5a3e15bd9167272d6688106fdaac5172c847213"/>
+	</machine>
+	<machine name="Dragon Ball Kai - Ultimate Butou Den (Japan) [T-En by Xenishan94 v20260714] [AI assisted]">
+		<description>Dragon Ball Kai - Ultimate Butou Den (Japan) [T-En by Xenishan94 v20260714] [AI assisted]</description>
+		<rom name="Dragon Ball Kai - Ultimate Butou Den (Japan) [T-En by Xenishan94 v20260714] [AI assisted].nds" size="66902088" crc="aea5ec4a" md5="3762ee89027aaf85628217344425674c" sha1="a12f934056c9465d77b0a7a7be584edd686f98e2"/>
+	</machine>
+	<machine name="Dragon Quest IV - Michibikareshi Mono-tachi (Japan) [T-En by Concreted v1.1.0]">
+		<description>Dragon Quest IV - Michibikareshi Mono-tachi (Japan) [T-En by Concreted v1.1.0]</description>
+		<rom name="Dragon Quest IV - Michibikareshi Mono-tachi (Japan) [T-En by Concreted v1.1.0].nds" size="134217728" crc="abe53e90" md5="756afbeb88fdc36804cf53327fe302e5" sha1="7baf38ab1d9dd550af59a052a335ea12bd814b62"/>
+	</machine>
+	<machine name="Dragon Quest Monsters - Joker 2 - Professional (Japan) [T-En by Ceris White &amp; Ilario &amp; Reflex &amp; Gerb v1.0.0]">
+		<description>Dragon Quest Monsters - Joker 2 - Professional (Japan) [T-En by Ceris White &amp; Ilario &amp; Reflex &amp; Gerb v1.0.0]</description>
+		<rom name="Dragon Quest Monsters - Joker 2 - Professional (Japan) [T-En by Ceris White &amp; Ilario &amp; Reflex &amp; Gerb v1.0.0].nds" size="175955516" crc="88579689" md5="b1da3998509b643ecf7237e7082fda51" sha1="f9d61caa0e082403f65fe82d0d273e32de9b595b"/>
+	</machine>
+	<machine name="Dungeon of Windaria (Japan) [T-En by Rastsan v0.1]">
+		<description>Dungeon of Windaria (Japan) [T-En by Rastsan v0.1]</description>
+		<rom name="Dungeon of Windaria (Japan) [T-En by Rastsan v0.1].nds" size="16777216" crc="37bd3ef7" md5="97d02edaba71bba5d4e7b8fac382b2e6" sha1="3f5cafd198b908b4c3e6e2f34ea5f9ad03823eca"/>
+	</machine>
+	<machine name="Dungeon of Windaria (Japan) [T-En by Rastsan v0.1] [Add by plasturion v0.7]">
+		<description>Dungeon of Windaria (Japan) [T-En by Rastsan v0.1] [Add by plasturion v0.7]</description>
+		<rom name="Dungeon of Windaria (Japan) [T-En by Rastsan v0.1] [Add by plasturion v0.7].nds" size="16777216" crc="bc3542ee" md5="2d9d2abd739c64db8276bec2a7b9ca03" sha1="944eef6e07dec7d29dfde8381cb1b87abba81f39"/>
+	</machine>
+	<machine name="FabStyle (Japan) [T-En by Rocket Robz &amp; Sidier v2.0] [i]">
+		<description>FabStyle (Japan) [T-En by Rocket Robz &amp; Sidier v2.0] [i]</description>
+		<rom name="FabStyle (Japan) [T-En by Rocket Robz &amp; Sidier v2.0] [i].nds" size="248404132" crc="dc19dc0e" md5="ea5da973e170602d8147dde19e35c31e" sha1="da27bc03f1fd91b1c601779795c49163646c0651"/>
+	</machine>
+	<machine name="Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [Add by Darrman v2.0] [n]">
+		<description>Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [Add by Darrman v2.0] [n]</description>
+		<rom name="Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [Add by Darrman v2.0] [n].nds" size="86452488" crc="6105e4f3" md5="e5369c177f7bd419bb81d0ffe61aea86" sha1="42eac50957eda71de1f04347da8e5da490f0838b"/>
+	</machine>
+	<machine name="Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [Add by Joesteve1914 Beta 2] [n]">
+		<description>Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [Add by Joesteve1914 Beta 2] [n]</description>
+		<rom name="Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [Add by Joesteve1914 Beta 2] [n].nds" size="86456940" crc="eea09777" md5="908fa376eb04ba3c412c73a08d479e68" sha1="b5b6a519d01a669475c46f2a4fa0c65b5f404fa0"/>
+	</machine>
+	<machine name="Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [n]">
+		<description>Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [n]</description>
+		<rom name="Fire Emblem - Heroes of Light and Shadow (Japan) (Rev 1) (NDSi Enhanced) [T-En by The Heroes of Shadow v3.01] [n].nds" size="134217728" crc="889be26f" md5="f3765a64b0c70d14ad10067c83505443" sha1="7f62fc579ab46133846126c114234ee8b4bd3b68"/>
+	</machine>
+	<machine name="Fushigi no Dungeon - Fuurai no Shiren DS 2 - Sabaku no Majou (Japan) [T-En by SharkSnack v0.1.7] [i]">
+		<description>Fushigi no Dungeon - Fuurai no Shiren DS 2 - Sabaku no Majou (Japan) [T-En by SharkSnack v0.1.7] [i]</description>
+		<rom name="Fushigi no Dungeon - Fuurai no Shiren DS 2 - Sabaku no Majou (Japan) [T-En by SharkSnack v0.1.7] [i].nds" size="30689368" crc="c7cf4976" md5="d1f1a5d26fa9e198d7273256b1b49908" sha1="7ee677a9641d2ab55f2fafa871e4143995e6d366"/>
+	</machine>
+	<machine name="Girlish Love Revolution - Love Revo DS (Korea) [T-En by Jjjewel v1.1] [n]">
+		<description>Girlish Love Revolution - Love Revo DS (Korea) [T-En by Jjjewel v1.1] [n]</description>
+		<rom name="Girlish Love Revolution - Love Revo DS (Korea) [T-En by Jjjewel v1.1] [n].nds" size="62846332" crc="73cae7b5" md5="8068b6b08a94aeb3b7701ccb239e5240" sha1="03a52b5021a44c721a0d4b8615871fd9eec353cc"/>
+	</machine>
+	<machine name="I Will Protect You (Japan) [T-En by Illidan &amp; Phantom v1.2] [n]">
+		<description>I Will Protect You (Japan) [T-En by Illidan &amp; Phantom v1.2] [n]</description>
+		<rom name="I Will Protect You (Japan) [T-En by Illidan &amp; Phantom v1.2] [n].nds" size="66141884" crc="e48c440c" md5="3c138715ed10b6fbc47d94334e0ddc8b" sha1="ce69c30132bf2092f28ca292b3c016fc014e8b11"/>
+	</machine>
+	<machine name="Inazuma Eleven 3 - Sekai e no Chousen!! - The Ogre (Japan) [T-En by Nomura-RH] [i]">
+		<description>Inazuma Eleven 3 - Sekai e no Chousen!! - The Ogre (Japan) [T-En by Nomura-RH] [i]</description>
+		<rom name="Inazuma Eleven 3 - Sekai e no Chousen!! - The Ogre (Japan) [T-En by Nomura-RH] [i].nds" size="470084568" crc="87586027" md5="e39d05d5bcd5769bad64194eb9a5f567" sha1="8d0dc2484d74b3ca10d1c6e72dfa5308407a58ec"/>
+	</machine>
+	<machine name="Jet Impulse (Japan) [T-En by Megalith v1.3]">
+		<description>Jet Impulse (Japan) [T-En by Megalith v1.3]</description>
+		<rom name="Jet Impulse (Japan) [T-En by Megalith v1.3].nds" size="122067632" crc="1c4193a8" md5="858a70dab2fe3c3bba11ac2167fd24d3" sha1="2f43a452ed9bcf6da9b2afc6cb9d25ab68043802"/>
+	</machine>
+	<machine name="Jump Ultimate Stars (Japan) [T-En by JUS Translation v030508]">
+		<description>Jump Ultimate Stars (Japan) [T-En by JUS Translation v030508]</description>
+		<rom name="Jump Ultimate Stars (Japan) [T-En by JUS Translation v030508].nds" size="65942936" crc="4ce9fb94" md5="703ea2867e1d5a56311f84951cf5e331" sha1="05b9ecd657843e56f48644032827641bf22d931a"/>
+	</machine>
+	<machine name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i]">
+		<description>Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i]</description>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Dawnbomb v0.5.5] [i].nds" size="84918756" crc="faa0a5e6" md5="d3765d93df1964ecc8e053678849f48a" sha1="c99b9fd941f00bb19c4161806434a3acbba7b291"/>
+	</machine>
+	<machine name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Nyuku &amp; loneZ v0.1.3] [i]">
+		<description>Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Nyuku &amp; loneZ v0.1.3] [i]</description>
+		<rom name="Keroro RPG - Kishi to Musha to Densetsu no Kaizoku (Japan) [T-En by Nyuku &amp; loneZ v0.1.3] [i].nds" size="134217728" crc="0a328725" md5="9c09ca2aba33c2bf004e68d96915117d" sha1="e7727f42bf83c3bc766b9bf0e4164573ee39c20a"/>
+	</machine>
+	<machine name="Ketsui Death Label - Kizuna Jigoku-tachi (Japan) [T-En by Z3tzilla v0.2] [i]">
+		<description>Ketsui Death Label - Kizuna Jigoku-tachi (Japan) [T-En by Z3tzilla v0.2] [i]</description>
+		<rom name="Ketsui Death Label - Kizuna Jigoku-tachi (Japan) [T-En by Z3tzilla v0.2] [i].nds" size="117590104" crc="8a6c6671" md5="7f0bca545c8aa66d8bb882e586df7336" sha1="529539844f7849ee87d95e777e32f4fdfde3e3b2"/>
+	</machine>
+	<machine name="Kuroshitsuji - Phantom &amp; Ghost (Japan) [T-En by Phantom &amp; Ghost Team v1.1]">
+		<description>Kuroshitsuji - Phantom &amp; Ghost (Japan) [T-En by Phantom &amp; Ghost Team v1.1]</description>
+		<rom name="Kuroshitsuji - Phantom &amp; Ghost (Japan) [T-En by Phantom &amp; Ghost Team v1.1].nds" size="61102152" crc="93175d1a" md5="9f11aedf1a43cdee055822da51a68346" sha1="39a419f1710545de155a1331eb0420efb41546db"/>
+	</machine>
+	<machine name="KuruKuru Princess - Tokimeki Figure - Mezase! Vancouver (Japan) [T-En by plasturion v0.40b] [i]">
+		<description>KuruKuru Princess - Tokimeki Figure - Mezase! Vancouver (Japan) [T-En by plasturion v0.40b] [i]</description>
+		<rom name="KuruKuru Princess - Tokimeki Figure - Mezase! Vancouver (Japan) [T-En by plasturion v0.40b] [i].nds" size="67108864" crc="efb1be69" md5="8413c3774c2a05633c54781dd69ec286" sha1="84e8423585c616ce85ec97c9a5d45d8a872f033d"/>
+	</machine>
+	<machine name="Kurutore eCDP (Japan) (Not for Resale) [T-En by KabanFriends v1.1.2] [i]">
+		<description>Kurutore eCDP (Japan) (Not for Resale) [T-En by KabanFriends v1.1.2] [i]</description>
+		<rom name="Kurutore eCDP (Japan) (Not for Resale) [T-En by KabanFriends v1.1.2] [i] (enter 482500 as password twice).dsv" size="524410" crc="f634ed03" md5="b1fea20b75c301f026015735a4890a3b" sha1="88cde8fa1cb0f99e788b2e2764ff55074ab63d62"/>
+		<rom name="Kurutore eCDP (Japan) (Not for Resale) [T-En by KabanFriends v1.1.2] [i] (enter 482500 as password twice).sav" size="524288" crc="a6ad0fa1" md5="4f9d6821f656d9f1b31bcca3ab7c6151" sha1="52eb13e817ea76cbaa9761984e4b62b2723e7146"/>
+		<rom name="Kurutore eCDP (Japan) (Not for Resale) [T-En by KabanFriends v1.1.2] [i].nds" size="135132091" crc="68fdd133" md5="4b12d3db96082bcf4f3aedabe7f8d51d" sha1="2d401312af585b2a9c19f6530350a1a190008234"/>
+	</machine>
+	<machine name="L - The Prologue to Death Note - Spiraling Trap (Japan) [T-En by Anime Game Translations Team v1.0] [n]">
+		<description>L - The Prologue to Death Note - Spiraling Trap (Japan) [T-En by Anime Game Translations Team v1.0] [n]</description>
+		<rom name="L - The Prologue to Death Note - Spiraling Trap (Japan) [T-En by Anime Game Translations Team v1.0] [n].nds" size="66573928" crc="18323e6b" md5="c973380a51fc7382c76ae0a0cbe4ec8f" sha1="161fa953abe44e742dd374dcf4fc7ad2bbb8164b"/>
+	</machine>
+	<machine name="Lina no Atelier - Strahl no Renkinjutsushi (Japan) [T-En by Gaiko v1.0] [i] [Gemini AI slop machine translation]">
+		<description>Lina no Atelier - Strahl no Renkinjutsushi (Japan) [T-En by Gaiko v1.0] [i] [Gemini AI slop machine translation]</description>
+		<rom name="Lina no Atelier - Strahl no Renkinjutsushi (Japan) [T-En by Gaiko v1.0] [i] [Gemini AI slop machine translation].nds" size="134217728" crc="14859c78" md5="bcde7c3f9ece06d2faa8c54a18108f40" sha1="cbbf9703b7e1489c0126cdaac1df1c7fa9d5acbb"/>
+	</machine>
+	<machine name="Lode Runner (Japan)  [T-En by twiztidsinz v1.1] [Add by plasturion v1.3]">
+		<description>Lode Runner (Japan)  [T-En by twiztidsinz v1.1] [Add by plasturion v1.3]</description>
+		<rom name="Lode Runner (Japan)  [T-En by twiztidsinz v1.1] [Add by plasturion v1.3].nds" size="8388608" crc="6375be55" md5="542f77ed9d35338305e8027c84be48bc" sha1="39dbeabbef6ab425be1a8be6c83e9a4285d13793"/>
+	</machine>
+	<machine name="Love Plus (Japan) [T-En by Jjjewel v1.0n]">
+		<description>Love Plus (Japan) [T-En by Jjjewel v1.0n]</description>
+		<rom name="Love Plus (Japan) [T-En by Jjjewel v1.0n].nds" size="268435456" crc="e45b1476" md5="09fb373577b4d4ce799f827fc288be34" sha1="59d04e4f2896faa5bb47d5776a76a75b022faedc"/>
+	</machine>
+	<machine name="Luminous Arc 3 - Eyes (Japan) [T-En by Asakura &amp; Buster Gundo &amp; CheshireCat &amp; Jaumander &amp; Plasturion v1.0]">
+		<description>Luminous Arc 3 - Eyes (Japan) [T-En by Asakura &amp; Buster Gundo &amp; CheshireCat &amp; Jaumander &amp; Plasturion v1.0]</description>
+		<rom name="Luminous Arc 3 - Eyes (Japan) [T-En by Asakura &amp; Buster Gundo &amp; CheshireCat &amp; Jaumander &amp; Plasturion v1.0].nds" size="105454592" crc="caec12b5" md5="edda3352fcd2e012d33bd2af57ae45ca" sha1="d0e73d1171507fb14d569b15b001a1e9ae77e6d7"/>
+	</machine>
+	<machine name="Lupin III - The Historic Battle of Brains (Japan) [T-En by Wesker90 &amp; Kagite v0.9] [i] [n]">
+		<description>Lupin III - The Historic Battle of Brains (Japan) [T-En by Wesker90 &amp; Kagite v0.9] [i] [n]</description>
+		<rom name="Lupin III - The Historic Battle of Brains (Japan) [T-En by Wesker90 &amp; Kagite v0.9] [i] [n].nds" size="134217728" crc="95c5ba4a" md5="7ab5fd2489b50af9ef1417b14e313823" sha1="b1be4c49551b1b5a996e04d06509274dcff588ca"/>
+	</machine>
+	<machine name="MapleStory DS (Japan) [T-En by edo1989 v0.6.3] [i]">
+		<description>MapleStory DS (Japan) [T-En by edo1989 v0.6.3] [i]</description>
+		<rom name="MapleStory DS (Japan) [T-En by edo1989 v0.6.3] [i].nds" size="116217260" crc="d8221ad5" md5="662cda38d51413e886ebb6a48e5e3546" sha1="a99693bf4438403b2a887ba7b58d74266f029489"/>
+	</machine>
+	<machine name="MapleStory DS (Japan) [T-En by houst v2025-11-18]">
+		<description>MapleStory DS (Japan) [T-En by houst v2025-11-18]</description>
+		<rom name="MapleStory DS (Japan) [T-En by houst v2025-11-18].nds" size="134217728" crc="dbede260" md5="94eeab7da304533223e20bb283f4b154" sha1="53cb171fda95af2d391c85a075c92033ca1ab394"/>
+	</machine>
+	<machine name="MegaMan Battle Network - Operate Star Force (Japan) [T-En by Greiga Master v1.0] [Add by Cirosan v1.0] [n]">
+		<description>MegaMan Battle Network - Operate Star Force (Japan) [T-En by Greiga Master v1.0] [Add by Cirosan v1.0] [n]</description>
+		<rom name="MegaMan Battle Network - Operate Star Force (Japan) [T-En by Greiga Master v1.0] [Add by Cirosan v1.0] [n].nds" size="13839956" crc="30d67ffd" md5="72c9b89dd0795ce393c3d7fc282e4b01" sha1="06ea0f3f758ada88814a537d17e2687a9f71cf84"/>
+	</machine>
+	<machine name="MegaMan Battle Network - Operate Star Force (Japan) [T-En by Greiga Master v1.0] [n]">
+		<description>MegaMan Battle Network - Operate Star Force (Japan) [T-En by Greiga Master v1.0] [n]</description>
+		<rom name="MegaMan Battle Network - Operate Star Force (Japan) [T-En by Greiga Master v1.0] [n].nds" size="13839956" crc="d4ae1184" md5="b9b65938a290e9fc65e7e91b7e950db5" sha1="77aaf4efb13a5e46a3e3588ba4e76e782af0bb39"/>
+	</machine>
+	<machine name="Metal Max 2 - Reloaded (Japan) [T-En by Metal Dreamers v1.0]">
+		<description>Metal Max 2 - Reloaded (Japan) [T-En by Metal Dreamers v1.0]</description>
+		<rom name="Metal Max 2 - Reloaded (Japan) [T-En by Metal Dreamers v1.0].nds" size="69011968" crc="5d1a9686" md5="bc652b8f1cca1423b67407c9bdc68765" sha1="bcae6cd9cb7eddcfd962fd93ae7ddbc8e60d1c7a"/>
+	</machine>
+	<machine name="Metal Max 3 (Japan) [T-En by Metal Dreamers v1.0]">
+		<description>Metal Max 3 (Japan) [T-En by Metal Dreamers v1.0]</description>
+		<rom name="Metal Max 3 (Japan) [T-En by Metal Dreamers v1.0].nds" size="67108864" crc="f6793e12" md5="52d1d4821fade7440711758ae369982d" sha1="e1b3eff313b24c9975146500689d46af93b822bb"/>
+	</machine>
+	<machine name="Motto! Stitch! DS - Rhythm de Rakugaki Daisakusen (Japan) [T-En by PrayashLand v0.5.1] [i]">
+		<description>Motto! Stitch! DS - Rhythm de Rakugaki Daisakusen (Japan) [T-En by PrayashLand v0.5.1] [i]</description>
+		<rom name="Motto! Stitch! DS - Rhythm de Rakugaki Daisakusen (Japan) [T-En by PrayashLand v0.5.1] [i].nds" size="67108864" crc="8351783a" md5="bbaa0e96bb7dda7ac298ac2210d6dac1" sha1="2d33e015b141436010846cf89e694c0da72fc6af"/>
+	</machine>
+	<machine name="Mugen no Frontier Exceed - Super Robot Taisen OG Saga (Japan) [T-En by Artema Translations v1.0]">
+		<description>Mugen no Frontier Exceed - Super Robot Taisen OG Saga (Japan) [T-En by Artema Translations v1.0]</description>
+		<rom name="Mugen no Frontier Exceed - Super Robot Taisen OG Saga (Japan) [T-En by Artema Translations v1.0].nds" size="268435456" crc="853f995e" md5="a06d04933b4d6a6c368f92c01c07c65b" sha1="bd3b644b9bfab3d4abd139f25f27bc0eddfbd84b"/>
+	</machine>
+	<machine name="Mushishi - Ame Furu Sato (Japan) [T-En by Anime Game Translations Team v1.0]">
+		<description>Mushishi - Ame Furu Sato (Japan) [T-En by Anime Game Translations Team v1.0]</description>
+		<rom name="Mushishi - Ame Furu Sato (Japan) [T-En by Anime Game Translations Team v1.0].nds" size="67108864" crc="3945fe0f" md5="0eb8732ce333f088008340bfd239feee" sha1="6cd589fe7709d4bf0fab38e40f76119185b40a33"/>
+	</machine>
+	<machine name="Nameless Game, The (Japan) [T-En by Nagato &amp; Ryusui &amp; Summvs v1.2] [n]">
+		<description>Nameless Game, The (Japan) [T-En by Nagato &amp; Ryusui &amp; Summvs v1.2] [n]</description>
+		<rom name="Nameless Game, The (Japan) [T-En by Nagato &amp; Ryusui &amp; Summvs v1.2] [n].nds" size="68743360" crc="90a04d40" md5="b8fcd6501c37c755b7c366c3ff19965e" sha1="7392e2d25354f77bbd6c3b0a16f3b40eb061b1a1"/>
+	</machine>
+	<machine name="Nameless Game, The - Eye (Japan) [T-En by Nagato v1.13] [n]">
+		<description>Nameless Game, The - Eye (Japan) [T-En by Nagato v1.13] [n]</description>
+		<rom name="Nameless Game, The - Eye (Japan) [T-En by Nagato v1.13] [n].nds" size="63459956" crc="8321a8ca" md5="2c8fd83c44860b27fdc8b4c991962e37" sha1="2eb2eba44d54fb0e0091e57311bf49231dabf817"/>
+	</machine>
+	<machine name="Naruto - Path of the Avenger (Japan) [T-En by Anime Game Translations Team v1.0] [english voices] [n]">
+		<description>Naruto - Path of the Avenger (Japan) [T-En by Anime Game Translations Team v1.0] [english voices] [n]</description>
+		<rom name="Naruto - Path of the Avenger (Japan) [T-En by Anime Game Translations Team v1.0] [english voices] [n].nds" size="31152648" crc="a039e2ad" md5="7236307442ce5299766be974fc71d81e" sha1="e80b3bf8606ac92fc1df0957366d93ac2ac88c86"/>
+	</machine>
+	<machine name="Naruto - Path of the Avenger (Japan) [T-En by Anime Game Translations Team v1.0] [japanese voices] [n]">
+		<description>Naruto - Path of the Avenger (Japan) [T-En by Anime Game Translations Team v1.0] [japanese voices] [n]</description>
+		<rom name="Naruto - Path of the Avenger (Japan) [T-En by Anime Game Translations Team v1.0] [japanese voices] [n].nds" size="30779400" crc="9a3e63cc" md5="44883715c78aba9536ac42e479eec91b" sha1="a7b803b728751a37c608909ef3c973ab7498d412"/>
+	</machine>
+	<machine name="Ni No Kuni - The Jet Black Mage (Japan) [T-En by Anjiera v1.0] [n]">
+		<description>Ni No Kuni - The Jet Black Mage (Japan) [T-En by Anjiera v1.0] [n]</description>
+		<rom name="Ni No Kuni - The Jet Black Mage (Japan) [T-En by Anjiera v1.0] [n].nds" size="536870912" crc="1ae820ef" md5="a7ffd64c91373ac23710ace9b4e131db" sha1="1d3a1366427f31480aa939521c1c8bac5bbb9f86"/>
+	</machine>
+	<machine name="Nora to Toki no Koubou - Kiri no Mori no Majo (Japan) [T-En by Nora Project v0.3d-2]">
+		<description>Nora to Toki no Koubou - Kiri no Mori no Majo (Japan) [T-En by Nora Project v0.3d-2]</description>
+		<rom name="Nora to Toki no Koubou - Kiri no Mori no Majo (Japan) [T-En by Nora Project v0.3d-2].nds" size="250017084" crc="0f47ce0d" md5="4e0c9ce34f3c4b810e5afba8ed481965" sha1="ad024d31dab12756f44b4c9030b19185af1b5e57"/>
+	</machine>
+	<machine name="Petit Eva - Evangelion@Game (Japan) [T-En by ScenikEight v1.0]">
+		<description>Petit Eva - Evangelion@Game (Japan) [T-En by ScenikEight v1.0]</description>
+		<rom name="Petit Eva - Evangelion@Game (Japan) [T-En by ScenikEight v1.0].nds" size="33554432" crc="c1d160b2" md5="af86834b3044ceb33a46ff75350741bf" sha1="74ec33fb84712bac3979e81e6fb76a34dd145b6f"/>
+	</machine>
+	<machine name="Prince of Tennis, The - Princes of Doubles - Girls, Be Gracious! (Japan) [T-En by AmuletCross v3] [n]">
+		<description>Prince of Tennis, The - Princes of Doubles - Girls, Be Gracious! (Japan) [T-En by AmuletCross v3] [n]</description>
+		<rom name="Prince of Tennis, The - Princes of Doubles - Girls, Be Gracious! (Japan) [T-En by AmuletCross v3] [n].nds" size="130652604" crc="1634d4ef" md5="c19501396f5322668920217a16454200" sha1="174fce29c357660de8485bd5a1fe7432102d2870"/>
+	</machine>
+	<machine name="Princess on Ice (Japan) [T-En by plasturion v0.93]">
+		<description>Princess on Ice (Japan) [T-En by plasturion v0.93]</description>
+		<rom name="Princess on Ice (Japan) [T-En by plasturion v0.93].nds" size="67108864" crc="8ac80e25" md5="0098a079aaf553c7ce5a7259a159f0f7" sha1="03dba9a7b096a28a2a1c7b20c90787531b2f3af8"/>
+	</machine>
+	<machine name="Puyo Puyo 7 (Japan) [T-En by Puyo Nexus v1.0]">
+		<description>Puyo Puyo 7 (Japan) [T-En by Puyo Nexus v1.0]</description>
+		<rom name="Puyo Puyo 7 (Japan) [T-En by Puyo Nexus v1.0].nds" size="53480032" crc="9124c276" md5="1527f2e0df4550aa60276b02662e8d68" sha1="2d27c6b1c5876c1c96f42fb94c46e6fdfe8c7631"/>
+	</machine>
+	<machine name="Puyo Puyo! - 15th Anniversary (Japan) (Rev 1) [T-En by Puyo Nexus v1.2] [n]">
+		<description>Puyo Puyo! - 15th Anniversary (Japan) (Rev 1) [T-En by Puyo Nexus v1.2] [n]</description>
+		<rom name="Puyo Puyo! - 15th Anniversary (Japan) (Rev 1) [T-En by Puyo Nexus v1.2] [n].nds" size="30067188" crc="16b1d8d4" md5="d823186ce2ce2d23c1b1b45613826cd4" sha1="ede0be55d730b12361353c75ada540d0eb3bd7b2"/>
+	</machine>
+	<machine name="Puyo Puyo!! - 20th Anniversary (Japan) [T-En by Precise Museum v1.2] [Add by Runis Dauphin v0.5] [n]">
+		<description>Puyo Puyo!! - 20th Anniversary (Japan) [T-En by Precise Museum v1.2] [Add by Runis Dauphin v0.5] [n]</description>
+		<rom name="Puyo Puyo!! - 20th Anniversary (Japan) [T-En by Precise Museum v1.2] [Add by Runis Dauphin v0.5] [n].nds" size="52049844" crc="7f9dcfc6" md5="1698909cd157eb35fb8a7ec16996ae30" sha1="54bfb82b2c7e207c355aea30c87c919c5f12d712"/>
+	</machine>
+	<machine name="Puyo Puyo!! - 20th Anniversary (Japan) [T-En by Precise Museum v2.1] [n]">
+		<description>Puyo Puyo!! - 20th Anniversary (Japan) [T-En by Precise Museum v2.1] [n]</description>
+		<rom name="Puyo Puyo!! - 20th Anniversary (Japan) [T-En by Precise Museum v2.1] [n].nds" size="67108864" crc="63620bcb" md5="42c6919f8a0a08f7c579ec1f7893beb8" sha1="2ca9964dfe498c53fe1646b83c4c9a24bbf6be5b"/>
+	</machine>
+	<machine name="Puzzle Series Vol. 12 - Akari (Japan) [T-En T-Tudor v1.0] [n]">
+		<description>Puzzle Series Vol. 12 - Akari (Japan) [T-En T-Tudor v1.0] [n]</description>
+		<rom name="Puzzle Series Vol. 12 - Akari (Japan) [T-En T-Tudor v1.0] [n].nds" size="8388608" crc="83f85087" md5="b3a53106f5b9677fd4d588f8add75d50" sha1="d9ac5687c54403e01bb6c7d72c4bcd0fa1bc8d99"/>
+	</machine>
+	<machine name="Puzzle Series Vol. 5 - Slither Link (Japan) [T-En by T-Tudor v0.7]">
+		<description>Puzzle Series Vol. 5 - Slither Link (Japan) [T-En by T-Tudor v0.7]</description>
+		<rom name="Puzzle Series Vol. 5 - Slither Link (Japan) [T-En by T-Tudor v0.7].nds" size="8388608" crc="8bf4a2ea" md5="276959d3b16b0029ff62f6da2986e97e" sha1="c2f27dc432b5f2d9935b8c7d2bb71a354052beed"/>
+	</machine>
+	<machine name="Retro Game Challenge 2 (Japan) [T-En by Aaron Tokunaga-Chmielowiec v1.51] [n]">
+		<description>Retro Game Challenge 2 (Japan) [T-En by Aaron Tokunaga-Chmielowiec v1.51] [n]</description>
+		<rom name="Retro Game Challenge 2 (Japan) [T-En by Aaron Tokunaga-Chmielowiec v1.51] [n].nds" size="67108864" crc="9eeb0bee" md5="3503893fdf4f08e39626eb2bb88be6de" sha1="84beaaef47bbc1d515efbd75c991d78e84a72ec3"/>
+	</machine>
+	<machine name="Ripened Tingle's Balloon Trip of Love (Japan) [T-En by Team Tingle v1.1] [n]">
+		<description>Ripened Tingle's Balloon Trip of Love (Japan) [T-En by Team Tingle v1.1] [n]</description>
+		<rom name="Ripened Tingle's Balloon Trip of Love (Japan) [T-En by Team Tingle v1.1] [n].nds" size="76248200" crc="ce27be97" md5="9eeba755e421dc27b208c5f0b67b39fe" sha1="8d7cbf9bb3006a215e6f8aba7615bee5f413227e"/>
+	</machine>
+	<machine name="Rosario + Vampire - Tanabata's Miss Yokai Academy (Japan) [T-En by Jjewel v20150515] [n]">
+		<description>Rosario + Vampire - Tanabata's Miss Yokai Academy (Japan) [T-En by Jjewel v20150515] [n]</description>
+		<rom name="Rosario + Vampire - Tanabata's Miss Yokai Academy (Japan) [T-En by Jjewel v20150515] [n].nds" size="39800508" crc="d5e597a9" md5="01edf99ad76cc3cc1b91bc127f1ad41b" sha1="9c13099d49bd4a26793edbe83f391c514a434f93"/>
+	</machine>
+	<machine name="SaGa 2 - Legend of the Relics - Goddess of Destiny (Japan) [T-En by Crimson Nocturnal v2.12] [n]">
+		<description>SaGa 2 - Legend of the Relics - Goddess of Destiny (Japan) [T-En by Crimson Nocturnal v2.12] [n]</description>
+		<rom name="SaGa 2 - Legend of the Relics - Goddess of Destiny (Japan) [T-En by Crimson Nocturnal v2.12] [n].nds" size="125207004" crc="984ef5fb" md5="59a96ab6cd9f571175e820fc28139797" sha1="41bf7f7d912e686d9219117f21184e58a1569040"/>
+	</machine>
+	<machine name="SaGa 3 - Champions of Time and Space - Shadow or Light (Japan) [T-En by Cain &amp; Easton West v2.0.830 Beta] [n]">
+		<description>SaGa 3 - Champions of Time and Space - Shadow or Light (Japan) [T-En by Cain &amp; Easton West v2.0.830 Beta] [n]</description>
+		<rom name="SaGa 3 - Champions of Time and Space - Shadow or Light (Japan) [T-En by Cain &amp; Easton West v2.0.830 Beta] [n].nds" size="123213056" crc="2af5af5a" md5="9c7a8a8865f74b1790c8f0aea3198f1c" sha1="781a73bb0d75c0ded12edadcf9fca858c6e0c400"/>
+	</machine>
+	<machine name="Sailor Moon - The Shining Moon (Italy) [T-En by Jonko &amp; Tokko Tomcat &amp; Lizmelo &amp; Sailor Moon Italy v1.0] [n]">
+		<description>Sailor Moon - The Shining Moon (Italy) [T-En by Jonko &amp; Tokko Tomcat &amp; Lizmelo &amp; Sailor Moon Italy v1.0] [n]</description>
+		<rom name="Sailor Moon - The Shining Moon (Italy) [T-En by Jonko &amp; Tokko Tomcat &amp; Lizmelo &amp; Sailor Moon Italy v1.0] [n].nds" size="16777216" crc="d575ac94" md5="b732e0da9cd005a50a19bca4bcd97284" sha1="8cb351b13ce0b768deb5714f211d80fcc1dfe3e9"/>
+	</machine>
+	<machine name="Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [no voice subs] [n]">
+		<description>Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [no voice subs] [n]</description>
+		<rom name="Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [no voice subs] [n].nds" size="119549952" crc="09b5c822" md5="aa7abf116713cbd7cf3b143882517334" sha1="e5d2a2177c5a470ad2cd71b8364d2075887885a9"/>
+	</machine>
+	<machine name="Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [subs] [no voice subs] [n]">
+		<description>Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [subs] [no voice subs] [n]</description>
+		<rom name="Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [subs] [no voice subs] [n].nds" size="130035712" crc="d32f6b80" md5="85b71c7f642a3a933e55292c94ace4ae" sha1="8d1ef1345e683fc6882dc2fdf2513803b1421316"/>
+	</machine>
+	<machine name="Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [subs] [voice subs] [n]">
+		<description>Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [subs] [voice subs] [n]</description>
+		<rom name="Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [subs] [voice subs] [n].nds" size="130035712" crc="31ec8e0f" md5="0b18ae43d6ac3dfe55d817b93075ade4" sha1="85f5d0109238aa9016388a049c557f821fb01b7c"/>
+	</machine>
+	<machine name="Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [voice subs] [n]">
+		<description>Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [voice subs] [n]</description>
+		<rom name="Series of Haruhi Suzumiya, The (Japan) [T-En by Haroohie Translation Club v1.0] [voice subs] [n].nds" size="119549952" crc="c72da357" md5="b27cab821ad1844e675f64847dd9c1ee" sha1="90077aca709f0997effacfebf10fb37c1f4d1a86"/>
+	</machine>
+	<machine name="Shinseiki Evangelion - Ayanami Ikusei Keikaku DS with Asuka Hokan Keikaku (Japan) [T-En by Pearse Hillock v0.90] [i]">
+		<description>Shinseiki Evangelion - Ayanami Ikusei Keikaku DS with Asuka Hokan Keikaku (Japan) [T-En by Pearse Hillock v0.90] [i]</description>
+		<rom name="Shinseiki Evangelion - Ayanami Ikusei Keikaku DS with Asuka Hokan Keikaku (Japan) [T-En by Pearse Hillock v0.90] [i].nds" size="268435456" crc="4e296c3f" md5="1b357d9a4247de2fb8882b99289a71cd" sha1="9eb3c659f1d74966e31810c531fd4ac57849a47d"/>
+	</machine>
+	<machine name="Soma Bringer (Japan) [T-En by DarthNemesis v2009.02.02]">
+		<description>Soma Bringer (Japan) [T-En by DarthNemesis v2009.02.02]</description>
+		<rom name="Soma Bringer (Japan) [T-En by DarthNemesis v2009.02.02].nds" size="128235920" crc="f63cc5c4" md5="a15b7568eeb20e3f5ff7bafd15de9cf5" sha1="879ea6a67f635d7188240dc583afed55a2c5e6d1"/>
+	</machine>
+	<machine name="Soul Eater - Medusa's Plot (Japan) [T-En by Anime Game Translations Team v1.2] [n]">
+		<description>Soul Eater - Medusa's Plot (Japan) [T-En by Anime Game Translations Team v1.2] [n]</description>
+		<rom name="Soul Eater - Medusa's Plot (Japan) [T-En by Anime Game Translations Team v1.2] [n].nds" size="63619108" crc="52a69b26" md5="5cea2dc21069d3be6ff98119e0b31f21" sha1="7ce53e6238319fa11ed1540e25ba016920393bd4"/>
+	</machine>
+	<machine name="Spice &amp; Wolf - My Year with Holo (Japan) [T-En by Anime Game Translations Team v1.3] [n]">
+		<description>Spice &amp; Wolf - My Year with Holo (Japan) [T-En by Anime Game Translations Team v1.3] [n]</description>
+		<rom name="Spice &amp; Wolf - My Year with Holo (Japan) [T-En by Anime Game Translations Team v1.3] [n].nds" size="107340308" crc="d1b8baf5" md5="66a59fd65ba1407aee9a08e25b7c8fba" sha1="6c1f2bbc615c395e1208b708c2543aace9c427e8"/>
+	</machine>
+	<machine name="Spice &amp; Wolf - The Wind that spans the Sea (Japan) [T-En by Anime Game Translations Team v1.0] [n]">
+		<description>Spice &amp; Wolf - The Wind that spans the Sea (Japan) [T-En by Anime Game Translations Team v1.0] [n]</description>
+		<rom name="Spice &amp; Wolf - The Wind that spans the Sea (Japan) [T-En by Anime Game Translations Team v1.0] [n].nds" size="253119820" crc="8f322093" md5="f914f218b396730fc5d159943ab7268c" sha1="b3105f9d4b4e14ebe69ec763192860f4c583e9d1"/>
+	</machine>
+	<machine name="Summon Night X - Tears Crown (Japan) [T-En by Englishsubs4all v0.951] [i]">
+		<description>Summon Night X - Tears Crown (Japan) [T-En by Englishsubs4all v0.951] [i]</description>
+		<rom name="Summon Night X - Tears Crown (Japan) [T-En by Englishsubs4all v0.951] [i].nds" size="268435456" crc="d9cdef28" md5="e16252b5adab2e3f0c14e3438b50c9ac" sha1="3bae18d36191d74e49d5ceb85230f542ef8a4023"/>
+	</machine>
+	<machine name="Super Control Mecha MG (Japan) [T-En by Supper v1.1] [n]">
+		<description>Super Control Mecha MG (Japan) [T-En by Supper v1.1] [n]</description>
+		<rom name="Super Control Mecha MG (Japan) [T-En by Supper v1.1] [n].nds" size="57592656" crc="8b74cbcd" md5="6749f8b77a41384c8fe2cd940684c6f5" sha1="23d9fcb29c911b8fbf8e88b0792e4bb68516b8c4"/>
+	</machine>
+	<machine name="Super Robot Wars W (Japan) [T-En by Brunom1 &amp; Fei &amp; Kingcom v1.1] [n]">
+		<description>Super Robot Wars W (Japan) [T-En by Brunom1 &amp; Fei &amp; Kingcom v1.1] [n]</description>
+		<rom name="Super Robot Wars W (Japan) [T-En by Brunom1 &amp; Fei &amp; Kingcom v1.1] [n].nds" size="67108864" crc="7e13d74d" md5="298dd11ec9538c90c2baa2680374ce1d" sha1="2a31c4118d6ebe908239a01136aaec3d23c7d65d"/>
+	</machine>
+	<machine name="Tales of Innocence (Japan) [T-En by Absolute Zero v1.0]">
+		<description>Tales of Innocence (Japan) [T-En by Absolute Zero v1.0]</description>
+		<rom name="Tales of Innocence (Japan) [T-En by Absolute Zero v1.0].nds" size="134217728" crc="186d0370" md5="0cde783d226ad82ddb8bffd98af4f0a3" sha1="750ebfc067e0d3147361c0e752fb2951212ed52b"/>
+	</machine>
+	<machine name="Tales of the Tempest (Japan) [T-En by Absolute Zero v1.0]">
+		<description>Tales of the Tempest (Japan) [T-En by Absolute Zero v1.0]</description>
+		<rom name="Tales of the Tempest (Japan) [T-En by Absolute Zero v1.0].nds" size="134217728" crc="61cba2a0" md5="13566ca632c3f369eb18dbcf2b46c668" sha1="344020485943c50f7c40d8e7f442aecc8454ec71"/>
+	</machine>
+	<machine name="Tengen Toppa Gurren Lagann (Japan) [T-En by Anime Game Translations Team v1.0]">
+		<description>Tengen Toppa Gurren Lagann (Japan) [T-En by Anime Game Translations Team v1.0]</description>
+		<rom name="Tengen Toppa Gurren Lagann (Japan) [T-En by Anime Game Translations Team v1.0].nds" size="130463440" crc="01c44fcb" md5="5f3736c98fa27adff874db54727ab335" sha1="860ebb35f4faa5dcbe2c42cb700605ba4c6ea0bf"/>
+	</machine>
+	<machine name="Tennis no Ouji-sama - Motto Gakuensai no Ouji-sama - More Sweet Edition (Japan) [T-En by jjjewel Otome Game Translations &amp; AmuletCross v1.1]">
+		<description>Tennis no Ouji-sama - Motto Gakuensai no Ouji-sama - More Sweet Edition (Japan) [T-En by jjjewel Otome Game Translations &amp; AmuletCross v1.1]</description>
+		<rom name="Tennis no Ouji-sama - Motto Gakuensai no Ouji-sama - More Sweet Edition (Japan) [T-En by jjjewel Otome Game Translations &amp; AmuletCross v1.1].nds" size="268435456" crc="30927545" md5="bc8b93e66d627bbc7741dabd236e4fbb" sha1="94a5d2c472555f6cc483b8afc0963007742a65f0"/>
+	</machine>
+	<machine name="Tokimeki Memorial Girl's Side - 1st Love Plus (Japan) [T-En by TMGS1 Translation Team v1.0]">
+		<description>Tokimeki Memorial Girl's Side - 1st Love Plus (Japan) [T-En by TMGS1 Translation Team v1.0]</description>
+		<rom name="Tokimeki Memorial Girl's Side - 1st Love Plus (Japan) [T-En by TMGS1 Translation Team v1.0].nds" size="207547876" crc="102156ec" md5="9b9165b33c26162ac637e0223f66fc6d" sha1="e49886460195a0c476993c8b91b60c484fda7a89"/>
+	</machine>
+	<machine name="Tokimeki Memorial Girl's Side - 2nd Season (Japan) [T-En by Gokusaishiki v6]">
+		<description>Tokimeki Memorial Girl's Side - 2nd Season (Japan) [T-En by Gokusaishiki v6]</description>
+		<rom name="Tokimeki Memorial Girl's Side - 2nd Season (Japan) [T-En by Gokusaishiki v6].nds" size="257902496" crc="006fdda8" md5="3e313350a2b386a8881e919bdefd9704" sha1="e0e8afaca944737f92ec76122d71ee122eaae5c9"/>
+	</machine>
+	<machine name="Tokimeki Memorial Girl's Side - 3rd Story (Japan) [T-En by Jjjewel v2.00]">
+		<description>Tokimeki Memorial Girl's Side - 3rd Story (Japan) [T-En by Jjjewel v2.00]</description>
+		<rom name="Tokimeki Memorial Girl's Side - 3rd Story (Japan) [T-En by Jjjewel v2.00].nds" size="514760272" crc="409193cd" md5="3fa58566394e78544820dfae8e36fdbb" sha1="a87d2b42ed82b070e1085dc4f366efda13bacb0a"/>
+	</machine>
+	<machine name="Tomodachi Collection (Japan) (Rev 1) [T-En by Jjjewel v0.80] [i]">
+		<description>Tomodachi Collection (Japan) (Rev 1) [T-En by Jjjewel v0.80] [i]</description>
+		<rom name="Tomodachi Collection (Japan) (Rev 1) [T-En by Jjjewel v0.80] [i].nds" size="67108864" crc="d229701a" md5="be722324474ec320bebc97c6268fc278" sha1="29b80f0da6ebe53c1a9ce4b91a0049c9234d1e2e"/>
+	</machine>
+	<machine name="Vampire Knight DS (Japan) [T-En by Anime Game Translations Team v1.0]">
+		<description>Vampire Knight DS (Japan) [T-En by Anime Game Translations Team v1.0]</description>
+		<rom name="Vampire Knight DS (Japan) [T-En by Anime Game Translations Team v1.0].nds" size="208509664" crc="e9e5ef26" md5="89d9983bd3bfb9e0eadec32040ad7f51" sha1="7e33954a94fc711dfa9fe67b13d7951006a9cf49"/>
+	</machine>
+	<machine name="Wizardry - Inochi no Kusabi (Japan) [T-En by Faramir v30102015] [i]">
+		<description>Wizardry - Inochi no Kusabi (Japan) [T-En by Faramir v30102015] [i]</description>
+		<rom name="Wizardry - Inochi no Kusabi (Japan) [T-En by Faramir v30102015] [i].nds" size="42093056" crc="c49b450a" md5="2d522d6d4e628eaa9a2e82c23b783c30" sha1="bcbb48871624214e701504233f71967c4967cf1f"/>
+	</machine>
+	<machine name="Xenosaga I &amp; II (Japan) [T-En by Vector Translations beta] [i]">
+		<description>Xenosaga I &amp; II (Japan) [T-En by Vector Translations beta] [i]</description>
+		<rom name="Xenosaga I &amp; II (Japan) [T-En by Vector Translations beta] [i].nds" size="67108864" crc="be1181fa" md5="2311a961d822d008282a7fab60d4a250" sha1="e951579f17483d7be478ac221cfd6427d68868c5"/>
+	</machine>
+	<machine name="Zoids Saga DS - Legend of Arcadia (Japan) [T-En by Snowboundmage v1.3] [i]">
+		<description>Zoids Saga DS - Legend of Arcadia (Japan) [T-En by Snowboundmage v1.3] [i]</description>
+		<rom name="Zoids Saga DS - Legend of Arcadia (Japan) [T-En by Snowboundmage v1.3] [i].nds" size="15703192" crc="9ec03a7a" md5="8440e38c40257fb3cb548dbc1bb048ae" sha1="e8b2b28a6f394cf231688dcb14a68d1eb71e8cb5"/>
+	</machine>
+	<machine name="Zoids Saga DS - Legend of Arcadia (Japan) [T-En by Traceytrace v1.0.3] [i]">
+		<description>Zoids Saga DS - Legend of Arcadia (Japan) [T-En by Traceytrace v1.0.3] [i]</description>
+		<rom name="Zoids Saga DS - Legend of Arcadia (Japan) [T-En by Traceytrace v1.0.3] [i].nds" size="16777216" crc="a9a315d5" md5="90b7f664cd590ac3e2a578946d5919de" sha1="db703cfc4c06e984223ce05a12a441f6f2827779"/>
+	</machine>
+	<machine name="Zombie Daisuki (Japan) [T-En by T-Tudor v0.6] [i]">
+		<description>Zombie Daisuki (Japan) [T-En by T-Tudor v0.6] [i]</description>
+		<rom name="Zombie Daisuki (Japan) [T-En by T-Tudor v0.6] [i].nds" size="33554432" crc="8554b419" md5="997f0f8fd2a6b1ecae37421e25b95a1b" sha1="525ac3436d4473c87727525d50e5bb8ee2eb6b55"/>
+	</machine>
+</datafile>

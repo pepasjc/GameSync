@@ -20,9 +20,12 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 from config import (
+    CEMU_SAVE_DIR_KEY,
     SATURN_SYNC_FORMATS,
     normalize_rom_dir_overrides,
+    normalize_save_dir_overrides,
     normalize_saturn_sync_format,
+    save_dir_override,
 )
 from saturn_format import SATURN_DOWNLOAD_FORMATS
 from scanner.rom_target import SYSTEM_ROM_DIRS, prepare_rom_folders
@@ -214,6 +217,38 @@ class SettingsDialog(QDialog, GamepadModalMixin):
         saturn_hint.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
         layout.addWidget(saturn_hint)
 
+        # Cemu is the one emulator EmuDeck routinely installs *outside* the
+        # Emulation folder (Proton prefix, flatpak data dir, a second install
+        # on an SD card), so auto-detection can miss it with nothing the user
+        # can do about it.  Everything else is found from the layout.
+        self._save_dir_overrides: dict[str, str] = dict(
+            normalize_save_dir_overrides(config.get("save_dir_overrides"))
+        )
+
+        cemu_row = QHBoxLayout()
+        self._cemu_path = QLineEdit(
+            save_dir_override(self._save_dir_overrides, CEMU_SAVE_DIR_KEY)
+        )
+        self._cemu_path.setObjectName("searchBox")
+        self._cemu_path.setPlaceholderText("(optional) auto-detected")
+        cemu_browse_btn = QPushButton("Browse…")
+        cemu_browse_btn.setFixedWidth(90)
+        cemu_browse_btn.clicked.connect(self._browse_cemu_path)
+        cemu_row.addWidget(QLabel("Cemu folder"))
+        cemu_row.addWidget(self._cemu_path)
+        cemu_row.addWidget(cemu_browse_btn)
+        layout.addLayout(cemu_row)
+
+        cemu_hint = QLabel(
+            "Wii U saves live in Cemu's mlc01.  Point this at mlc01 or the "
+            "Cemu folder holding it — an installed Cemu whose settings.xml "
+            "moves the MLC elsewhere is followed too.  Leave empty to "
+            "auto-detect."
+        )
+        cemu_hint.setWordWrap(True)
+        cemu_hint.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        layout.addWidget(cemu_hint)
+
         layout.addWidget(_separator())
         layout.addStretch()
 
@@ -257,6 +292,17 @@ class SettingsDialog(QDialog, GamepadModalMixin):
         )
         if path:
             self._rom_path.setText(path)
+
+    def _browse_cemu_path(self):
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Cemu Folder (mlc01 or its parent)",
+            self._cemu_path.text()
+            or self._emu_path.text()
+            or str(Path.home()),
+        )
+        if path:
+            self._cemu_path.setText(path)
 
     def _current_roms_base(self) -> Path | None:
         """Resolve the current ROMs root from the live field values.
@@ -465,6 +511,16 @@ class SettingsDialog(QDialog, GamepadModalMixin):
 
     def get_config(self) -> dict:
         saturn_format = self._saturn_format.currentData()
+
+        # Edit in place so a key this dialog doesn't expose (a future
+        # emulator, or one added by hand) survives a Save.
+        save_dirs = dict(self._save_dir_overrides)
+        for key in [k for k in save_dirs if k.strip().lower() == "cemu"]:
+            save_dirs.pop(key)
+        cemu_dir = self._cemu_path.text().strip()
+        if cemu_dir:
+            save_dirs[CEMU_SAVE_DIR_KEY] = cemu_dir
+
         return {
             "host": self._host["edit"].text().strip(),
             "port": self._port_spin.value(),
@@ -472,6 +528,7 @@ class SettingsDialog(QDialog, GamepadModalMixin):
             "emulation_path": self._emu_path.text().strip(),
             "rom_scan_dir": self._rom_path.text().strip(),
             "rom_dir_overrides": normalize_rom_dir_overrides(self._overrides),
+            "save_dir_overrides": normalize_save_dir_overrides(save_dirs),
             "saturn_sync_format": normalize_saturn_sync_format(saturn_format),
         }
 

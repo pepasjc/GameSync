@@ -54,6 +54,8 @@ _DAT_SYSTEM_MAP: list[tuple[str, str]] = [
     # Nintendo home
     ("gamecube", "GC"),
     ("nintendo - gamecube", "GC"),
+    ("nintendo - wii u", "WIIU"),  # must come before the plain Wii entry
+    ("wii u", "WIIU"),
     ("nintendo - wii", "WII"),
     # Sony
     ("playstation2", "PS2"),
@@ -493,15 +495,19 @@ class DatNormalizer:
         system: str,
         filename: str,
         crc32: Optional[str] = None,
+        serial: Optional[str] = None,
     ) -> Optional[str]:
         """Return the DAT-declared disc media for a ROM, e.g. "iso" or "bin".
 
         Used by the WebUI to decide whether a CHD on disk should expose
         an ISO extract button (DVD source) or a CUE/BIN button (CD source).
         Resolution mirrors :meth:`lookup_serial`: CRC32 first, then slug,
-        then arcade-style romfile-stem.  Returns None when the system
-        wasn't loaded with disc-format data (e.g. cart-only DATs) or no
-        canonical name maps to the supplied filename.
+        then arcade-style romfile-stem, then the disc serial.  The serial
+        pass is what rescues a renamed file — the catalog already resolved
+        ``SLPS-25074`` off the disc, and the DAT lists the media for that
+        serial whatever the file on disk is called.  Returns None when the
+        system wasn't loaded with disc-format data (e.g. cart-only DATs) or
+        nothing maps to this ROM.
         """
         sys_key = system.upper()
         formats = self._disc_format_index.get(sys_key)
@@ -523,6 +529,13 @@ class DatNormalizer:
         canonical = self._romfile_index.get(sys_key, {}).get(stem.lower())
         if canonical and canonical in formats:
             return formats[canonical]
+
+        if serial:
+            canonical = self._serial_to_name.get(sys_key, {}).get(
+                _normalize_serial(serial)
+            )
+            if canonical and canonical in formats:
+                return formats[canonical]
 
         return None
 

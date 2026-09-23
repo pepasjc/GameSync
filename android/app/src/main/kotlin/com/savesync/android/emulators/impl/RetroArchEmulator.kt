@@ -3,6 +3,7 @@ package com.savesync.android.emulators.impl
 import com.savesync.android.emulators.EmulatorBase
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.sync.SaturnSyncFormat
+import com.savesync.android.sync.SegaCdSyncFormat
 import org.json.JSONObject
 import java.io.File
 
@@ -16,6 +17,13 @@ class RetroArchEmulator(
     private val romScanDir: String = "",
     private val romDirOverrides: Map<String, String> = emptyMap(),
     private val saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+    /**
+     * Which Sega CD core's backup-RAM filename to sync: Genesis Plus GX writes
+     * ``<rom>.brm``, PicoDrive writes ``<rom>.srm``.  Only affects SEGACD
+     * entries; a save already on disk in the other core's extension is still
+     * discovered, it just isn't tracked under this setting.
+     */
+    private val segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
     /**
      * When true, predicted Saturn-Mednafen save downloads land under
      * saves/Beetle Saturn/<rom>.bkr (matching RetroArch's "Sort Saves into
@@ -107,11 +115,14 @@ class RetroArchEmulator(
             saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
             beetleSaturnPerCoreFolder: Boolean = true,
             cdGamesPerContentFolder: Boolean = false,
+            segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
         ): File? {
             val savesDir = findSavesDir(externalStorage, allowNonExistent = true) ?: return null
             val stem = sanitizeLabel(label)
             val sys = system.uppercase()
-            val base = if (sys == "SAT") {
+            val base = if (sys == "SEGACD") {
+                File(savesDir, "$stem.${segaCdSyncFormat.extension}")
+            } else if (sys == "SAT") {
                 when (saturnSyncFormat) {
                     SaturnSyncFormat.MEDNAFEN -> {
                         if (beetleSaturnPerCoreFolder) {
@@ -136,7 +147,7 @@ class RetroArchEmulator(
          * single-file save layout.
          */
         internal val CD_SYSTEMS: Set<String> = setOf(
-            "PS1", "PS2", "SAT", "SEGACD", "DC", "PCE", "PCFX", "NEOCD"
+            "PS1", "PS2", "SAT", "SEGACD", "DC", "PCE", "PCECD", "PCFX", "NEOCD"
         )
 
         /**
@@ -200,13 +211,23 @@ class RetroArchEmulator(
         }
     }
 
-    private val saveExtensions = setOf("srm", "sav", "savestate", "state", "saveram", "bkr")
+    // "brm" is Genesis Plus GX's Sega CD backup RAM.
+    private val saveExtensions = setOf("srm", "sav", "savestate", "state", "saveram", "bkr", "brm")
 
     // PS1 disc image extensions that readPs1Serial() can handle
     private val ps1RomExtensions = setOf("iso", "bin", "cue", "img", "mdf")
 
     // Saturn disc image extensions recognised for ROM path mapping and product-code lookup
     private val satRomExtensions = setOf("iso", "bin", "cue", "img", "chd")
+
+    // Dreamcast disc images.  GDI first: it is the sheet that names the tracks,
+    // and it is what the IP.BIN reader wants.
+    private val dcRomExtensions = setOf("gdi", "cdi", "chd", "iso", "bin", "img", "cue")
+
+    // ROM sub-folder names a user's collection might use for Dreamcast.
+    private val dcRomDirNames = listOf(
+        "Dreamcast", "dreamcast", "Sega Dreamcast", "Sega - Dreamcast", "DC", "dc"
+    )
 
     internal fun defaultSaveExtension(system: String): String {
         return when (system.uppercase()) {
@@ -215,8 +236,33 @@ class RetroArchEmulator(
                 SaturnSyncFormat.YABAUSE -> "srm"
                 SaturnSyncFormat.YABASANSHIRO -> "bin"
             }
+            "SEGACD" -> segaCdSyncFormat.extension
             else -> "srm"
         }
+    }
+
+    /**
+     * Predicted Sega CD save file, preferring whichever core's file is already
+     * on disk so a user who switches the setting (or the core) keeps syncing
+     * the save they actually have.  Checks the flat layout and the
+     * per-content-folder layout for both extensions before falling back to the
+     * configured format.
+     */
+    internal fun expectedRetroArchSegaCdSaveFile(savesDir: File, romName: String): File {
+        // Configured format first, then the other core's — an existing file
+        // always wins over a prediction.
+        val ordered = listOf(
+            segaCdSyncFormat,
+            *SegaCdSyncFormat.values().filter { it != segaCdSyncFormat }.toTypedArray()
+        )
+        for (format in ordered) {
+            val flat = File(savesDir, "$romName.${format.extension}")
+            val perContent = applyPerContentFolder(flat, romName, "SEGACD", true)
+            if (perContent.exists()) return perContent
+            if (flat.exists()) return flat
+        }
+        val default = File(savesDir, "$romName.${segaCdSyncFormat.extension}")
+        return applyPerContentFolder(default, romName, "SEGACD", cdGamesPerContentFolder)
     }
 
     internal fun expectedRetroArchSaturnSaveFile(savesDir: File, romName: String): File {
@@ -262,6 +308,11 @@ class RetroArchEmulator(
     internal fun shouldTrackRetroArchSaveFile(file: File, system: String): Boolean {
         val ext = file.extension.lowercase()
         if (ext !in saveExtensions) return false
+        if (system == "SEGACD") return ext == segaCdSyncFormat.extension
+        // .brm is Genesis Plus GX's Sega CD backup RAM and nothing else — if
+        // the system didn't resolve to SEGACD we can't place it, so skip it
+        // rather than filing it under the wrong system.
+        if (ext == "brm") return false
         if (system != "SAT") return true
 
         return when (saturnSyncFormat) {
@@ -306,6 +357,12 @@ class RetroArchEmulator(
         "supergrafx"                to "PCSG",   // must be before "pc engine" (playlist is "NEC - PC Engine SuperGrafx")
         "pc-fx"                     to "PCFX",
         "pcfx"                      to "PCFX",
+        // CD variants must precede the plain "pc engine"/"turbografx" keys —
+        // the playlist is "NEC - PC Engine CD - TurboGrafx-CD".
+        "pc engine cd"              to "PCECD",
+        "pc engine-cd"              to "PCECD",
+        "turbografx-cd"             to "PCECD",
+        "turbografx cd"             to "PCECD",
         "pc engine"                 to "PCE",
         "turbografx"                to "PCE",
         "neo geo pocket"            to "NGP",
@@ -331,7 +388,11 @@ class RetroArchEmulator(
         "GB" to "GB", "GBC" to "GBC", "N64" to "N64",
         "PS1" to "PS1", "PSX" to "PS1", "PSP" to "PSP",
         "GEN" to "MD", "GENESIS" to "MD", "MEGADRIVE" to "MD", "MD" to "MD",
+        "SEGACD" to "SEGACD", "SEGA CD" to "SEGACD", "SCD" to "SEGACD",
+        "MEGACD" to "SEGACD", "MEGA CD" to "SEGACD", "MEGA-CD" to "SEGACD",
         "SMS" to "SMS", "GG" to "GG", "PCE" to "PCE",
+        "PCECD" to "PCECD", "PCENGINECD" to "PCECD",
+        "TGCD" to "PCECD", "TG-CD" to "PCECD", "TURBOGRAFXCD" to "PCECD",
         "SG1000" to "SG1000", "SG-1000" to "SG1000",
         "PCSG" to "PCSG", "SUPERGRAFX" to "PCSG", "PCFX" to "PCFX",
         "SATURN" to "SAT", "SAT" to "SAT", "BEETLE SATURN" to "SAT",
@@ -516,6 +577,10 @@ class RetroArchEmulator(
             }
         }
 
+        // Same idea for Dreamcast, which is keyed by the disc serial in IP.BIN.
+        val dcRomPathMap: Map<String, File> =
+            buildDreamcastRomPathMap(bases)
+
         // Prefer the save dir declared in retroarch.cfg; fall back to the standard path.
         val savesDir: File = resolveSavesDir(bases) ?: return emptyList()
 
@@ -529,12 +594,17 @@ class RetroArchEmulator(
             if (!file.isFile) return null
             val romName = file.nameWithoutExtension
             val lc = romName.lowercase()
-            val system = forcedSystem ?: (
+            val resolved = forcedSystem ?: (
                 romSystemMap[lc]
                     ?: romSystemMap[romName]
                     ?: romScanSystemMap[lc]
                     ?: systemPrefix
             )
+            // Only Genesis Plus GX's Sega CD backup RAM uses .brm, so the
+            // extension itself identifies the system when the playlist/folder
+            // heuristics couldn't (or mapped it to plain Mega Drive).
+            val system =
+                if (file.extension.equals("brm", ignoreCase = true)) "SEGACD" else resolved
             if (!shouldTrackRetroArchSaveFile(file, system)) return null
             if (isSharedYabaSanshiroBackup(file, system)) return null
             val titleId = when (system) {
@@ -542,6 +612,9 @@ class RetroArchEmulator(
                 "PS1" -> ps1RomPathMap[lc]?.let { readPs1Serial(it) } ?: toPs1TitleId(romName)
                 "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) }
                     ?: lookupSaturnSerial(romName)
+                    ?: toTitleId(romName, system)
+                "DC"  -> dcRomPathMap[lc]?.let { readDreamcastProductCode(it) }
+                    ?: lookupDreamcastSerial(romName)
                     ?: toTitleId(romName, system)
                 else  -> toTitleId(romName, system)
             }
@@ -604,8 +677,7 @@ class RetroArchEmulator(
                         val path = item.optString("path").takeIf { it.isNotBlank() } ?: continue
                         val coreName = item.optString("core_name").orEmpty()
                         val romFile = File(path)
-                        val system = resolveSystemFromCoreName(coreName)
-                            ?: resolveSystemFromFolderName(romFile.parentFile?.name.orEmpty())
+                        val system = resolveSystem(coreName, romFile.parentFile?.name.orEmpty())
                             ?: continue
                         if (system == "NDS" && romFile.exists()) {
                             map.putIfAbsent(romFile.nameWithoutExtension.lowercase(), romFile)
@@ -634,8 +706,7 @@ class RetroArchEmulator(
                         val path = item.optString("path").takeIf { it.isNotBlank() } ?: continue
                         val coreName = item.optString("core_name").orEmpty()
                         val romFile = File(path)
-                        val system = resolveSystemFromCoreName(coreName)
-                            ?: resolveSystemFromFolderName(romFile.parentFile?.name.orEmpty())
+                        val system = resolveSystem(coreName, romFile.parentFile?.name.orEmpty())
                             ?: continue
                         if (system == "PS1" && romFile.extension.lowercase() in ps1RomExtensions && romFile.exists()) {
                             map.putIfAbsent(romFile.nameWithoutExtension.lowercase(), romFile)
@@ -651,7 +722,18 @@ class RetroArchEmulator(
      * a map of lowercase-rom-name → ROM File path. Used for product-code title ID lookup.
      * CUE/BIN/ISO/CHD are all included for path mapping.
      */
-    private fun buildSaturnRomPathMapFromPlaylists(playlistsDir: File): Map<String, File> {
+    private fun buildSaturnRomPathMapFromPlaylists(playlistsDir: File): Map<String, File> =
+        buildDiscRomPathMapFromPlaylists(playlistsDir, "SAT", satRomExtensions)
+
+    /**
+     * Same, for any serial-keyed disc system: reads the RetroArch playlists and returns
+     * lowercase-rom-name → ROM File for entries whose resolved system is [system].
+     */
+    private fun buildDiscRomPathMapFromPlaylists(
+        playlistsDir: File,
+        system: String,
+        romExtensions: Set<String>,
+    ): Map<String, File> {
         if (!playlistsDir.exists()) return emptyMap()
         val map = mutableMapOf<String, File>()
         playlistsDir.listFiles()
@@ -665,15 +747,61 @@ class RetroArchEmulator(
                         val path = item.optString("path").takeIf { it.isNotBlank() } ?: continue
                         val coreName = item.optString("core_name").orEmpty()
                         val romFile = File(path)
-                        val system = resolveSystemFromCoreName(coreName)
-                            ?: resolveSystemFromFolderName(romFile.parentFile?.name.orEmpty())
+                        val resolved = resolveSystem(coreName, romFile.parentFile?.name.orEmpty())
                             ?: continue
-                        if (system == "SAT" && romFile.extension.lowercase() in satRomExtensions && romFile.exists()) {
+                        if (resolved == system &&
+                            romFile.extension.lowercase() in romExtensions &&
+                            romFile.exists()
+                        ) {
                             map.putIfAbsent(romFile.nameWithoutExtension.lowercase(), romFile)
                         }
                     }
                 } catch (_: Exception) {}
             }
+        return map
+    }
+
+    /**
+     * lowercase-rom-name → Dreamcast disc image, from the RetroArch playlists plus the user's
+     * ROM directory.  Feeds [readDreamcastProductCode] so a save is keyed by the disc's serial
+     * — the same id MemCard PRO DC and openMenu file their saves under.
+     *
+     * Per-game sub-folders are keyed both by the disc filename (which is what RetroArch names
+     * the save after) and by the folder name.
+     */
+    private fun buildDreamcastRomPathMap(bases: List<File>): Map<String, File> {
+        val map = mutableMapOf<String, File>()
+        bases.forEach { base ->
+            map.putAll(buildDiscRomPathMapFromPlaylists(File(base, "playlists"), "DC", dcRomExtensions))
+        }
+
+        val dirs = mutableListOf<File>()
+        if (romScanDir.isNotBlank()) {
+            val scanRoot = File(romScanDir)
+            dcRomDirNames.forEach { sub ->
+                val dir = File(scanRoot, sub)
+                if (dir.exists() && dir.isDirectory) dirs.add(dir)
+            }
+        }
+        romDirOverrides["DC"]?.let { File(it) }?.takeIf { it.isDirectory }?.let { dirs.add(it) }
+
+        dirs.forEach { dir ->
+            dir.listFiles()?.forEach { f ->
+                when {
+                    f.isFile && f.extension.lowercase() in dcRomExtensions ->
+                        map.putIfAbsent(f.nameWithoutExtension.lowercase(), f)
+                    f.isDirectory -> {
+                        val discs = f.listFiles()?.filter { it.isFile } ?: emptyList()
+                        val disc = discs.firstOrNull { it.extension.lowercase() == "gdi" }
+                            ?: discs.firstOrNull { it.extension.lowercase() in dcRomExtensions }
+                        if (disc != null) {
+                            map.putIfAbsent(disc.nameWithoutExtension.lowercase(), disc)
+                            map.putIfAbsent(f.name.lowercase(), disc)
+                        }
+                    }
+                }
+            }
+        }
         return map
     }
 
@@ -790,8 +918,7 @@ class RetroArchEmulator(
                         val originalName = romFile.nameWithoutExtension
                         val parentDir = romFile.parentFile
 
-                        val system = resolveSystemFromCoreName(coreName)
-                            ?: resolveSystemFromFolderName(parentDir?.name.orEmpty())
+                        val system = resolveSystem(coreName, parentDir?.name.orEmpty())
                             ?: continue
 
                         romInfo.putIfAbsent(originalName.lowercase(), Pair(system, originalName))
@@ -963,11 +1090,18 @@ class RetroArchEmulator(
             map
         }
 
+        val dcRomPathForEntries: Map<String, File> =
+            buildDreamcastRomPathMap(bases)
+
         return romInfo.values.mapNotNull { (system, romName) ->
             val titleId = when (system) {
                 "SAT" -> satRomPathForEntries[romName.lowercase()]
                     ?.let { readSaturnProductCode(it) }
                     ?: lookupSaturnSerial(romName)
+                    ?: toTitleId(romName, system)
+                "DC" -> dcRomPathForEntries[romName.lowercase()]
+                    ?.let { readDreamcastProductCode(it) }
+                    ?: lookupDreamcastSerial(romName)
                     ?: toTitleId(romName, system)
                 else -> toTitleId(romName, system)
             }
@@ -977,6 +1111,8 @@ class RetroArchEmulator(
             // subfolder for CD-based systems when the toggle is on.
             val saveFile = if (system == "SAT") {
                 expectedRetroArchSaturnSaveFile(savesDir, romName)
+            } else if (system == "SEGACD") {
+                expectedRetroArchSegaCdSaveFile(savesDir, romName)
             } else {
                 val flat = File(savesDir, "$romName.${defaultSaveExtension(system)}")
                 val perContent = applyPerContentFolder(flat, romName, system, true)
@@ -1030,8 +1166,7 @@ class RetroArchEmulator(
             // Strip zip/compressed wrapper extension too (RetroArch saves use inner-name)
             val baseName = romFile.nameWithoutExtension.lowercase()
 
-            val system = resolveSystemFromCoreName(coreName)
-                ?: resolveSystemFromFolderName(romFile.parentFile?.name.orEmpty())
+            val system = resolveSystem(coreName, romFile.parentFile?.name.orEmpty())
                 ?: continue
 
             // Don't overwrite a better (non-fallback) match already in the map
@@ -1042,10 +1177,28 @@ class RetroArchEmulator(
     }
 
     /**
+     * Resolves a playlist entry's system from its core name, falling back to the
+     * ROM's parent folder.
+     *
+     * The core name normally wins — it is the most specific signal — but a few
+     * cores span more than one system code.  Beetle PCE / PCE Fast run HuCard
+     * (``PCE``) and CD-ROM² (``PCECD``) alike, and only the folder
+     * (``roms/pcenginecd/`` vs ``roms/pcengine/``) tells them apart.  Without
+     * this upgrade a PCECD save is keyed ``PCE_<slug>`` and never matches the
+     * server's ``PCECD_<slug>``.
+     */
+    private fun resolveSystem(coreName: String, folderName: String): String? {
+        val fromCore = resolveSystemFromCoreName(coreName)
+        val fromFolder = resolveSystemFromFolderName(folderName)
+        if (fromCore == "PCE" && fromFolder == "PCECD") return "PCECD"
+        return fromCore ?: fromFolder
+    }
+
+    /**
      * Maps core_name string → system prefix.
      * Checks substrings so it works across all core variants.
      */
-    private fun resolveSystemFromCoreName(coreName: String): String? {
+    internal fun resolveSystemFromCoreName(coreName: String): String? {
         val lower = coreName.lowercase()
         return when {
             "game boy advance" in lower                          -> "GBA"
@@ -1069,6 +1222,12 @@ class RetroArchEmulator(
                     || "picodrive" in lower
                     || "genesis plus" in lower                   -> null  // defer to folder
             "dreamcast" in lower                                -> "DC"
+            // Before the PC Engine branch, though neither name contains the
+            // other: "NEC - PC-FX (Beetle PC-FX)" is its own system.
+            "pc-fx" in lower || "pcfx" in lower                 -> "PCFX"
+            // Beetle PCE / PCE Fast run both HuCard and CD-ROM² content, so this
+            // is only a floor — resolveSystem() upgrades it to PCECD when the ROM
+            // folder says so.
             "pc engine" in lower || "turbografx" in lower       -> "PCE"
             "arcade" in lower || "fbneo" in lower
                     || "fbalpha" in lower || "mame" in lower     -> "ARCADE"
@@ -1143,8 +1302,20 @@ class RetroArchEmulator(
                     || "MAME" in upper                           -> "ARCADE"
 
             // ── NEC ─────────────────────────────────────────────────────
+            // Order matters: every folder below contains the substring the
+            // next one tests for.  SuperGrafx first ("pcenginesupergrafx"
+            // contains "PCENGINE"), then the CD variants ("pcenginecd" also
+            // contains "PCENGINE", and "tg-cd" compacts to "TGCD"), then
+            // plain HuCard last.
+            "SUPERGRAFX" in upper || upper == "SGX"
+                    || "PCSG" in upper                           -> "PCSG"
+            "PCECD" in upper || "PCENGINECD" in upper
+                    || "TURBOGRAFXCD" in upper || upper == "TGCD"
+                    || "PCENGINECDROM" in upper                  -> "PCECD"
+            "PCFX" in upper                                     -> "PCFX"
             "PCE" in upper || "PCENGINE" in upper
-                    || "TURBOGRAFX" in upper                     -> "PCE"
+                    || "TURBOGRAFX" in upper
+                    || upper == "TG16"                           -> "PCE"
 
             // ── Bandai / Atari / other ───────────────────────────────────
             "WONDERSWANCOLOR" in upper || "WSWANC" in upper

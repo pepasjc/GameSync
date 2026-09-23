@@ -354,6 +354,8 @@ class ServerSavesTab(QWidget):
             default_name, file_filter = _raw_download_defaults(
                 title_id, console_type, saturn_format, game_name
             )
+
+        if console_type != "PS3":
             dest = QFileDialog.getSaveFileName(
                 self,
                 "Save File As",

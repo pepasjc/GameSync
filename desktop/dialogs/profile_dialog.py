@@ -40,11 +40,27 @@ SINGLE_SYSTEM_DEVICES = {
     "SAROO",
     "MemCard Pro",
     "MemCard Pro FTP",
+    "MemCard Pro DC",
     "PSIO",
     "CD Folder",
+    "OPL",
+    "GDEMU",
+    "openMenu",
 }
 MEMCARD_PRO_SYSTEMS = ["PS1", "PS2", "GC", "DC"]
 MEMCARD_PRO_FTP_SYSTEMS = ["PS1", "PS2", "GC"]
+# Dreamcast-only profiles: the two ODE menus (GDEMU / openMenu) and the
+# Dreamcast card manager.  All three are keyed by the disc's Game ID.
+DREAMCAST_DEVICES = {"GDEMU", "openMenu", "MemCard Pro DC"}
+
+# MiSTer ROM install destination.  "local" is the classic mounted-card mode
+# (Game Folder path on this PC); "sd"/"usb" install over the network via the
+# MiSTer tab's SSH connection into the MiSTer's own filesystem.
+MISTER_TARGET_OPTIONS: list[tuple[str, str]] = [
+    ("local", "Local folder (mounted SD card)"),
+    ("sd", "MiSTer over network — SD card (/media/fat/games)"),
+    ("usb", "MiSTer over network — USB drive (/media/usb0/games)"),
+]
 
 # Relevant systems per multi-system device type (ordered by popularity)
 DEVICE_SYSTEMS: dict[str, list[str]] = {
@@ -60,13 +76,21 @@ DEVICE_SYSTEMS: dict[str, list[str]] = {
         "SMS",
         "PCE",
         "PCSG",
+        "PCECD",
         "A2600",
         "A7800",
         "LYNX",
         "NEOGEO",
+        "NEOCD",
+        "NGP",
+        "NGPC",
+        "WSWAN",
+        "WSWANC",
         "32X",
         "SEGACD",
+        "SAT",
         "PS1",
+        "3DO",
     ],
     "RetroArch": [system for system in SYSTEM_CHOICES if system != "PS3"],
     "Analogue Pocket": [
@@ -109,6 +133,9 @@ DEVICE_SYSTEMS: dict[str, list[str]] = {
         "SAT",
     ],
     "EmuDeck": list(SYSTEM_CHOICES),
+    # Super SD System 3 (TerraOnion PC Engine ODE): HuCard/ holds cartridge
+    # dumps, Cd/<Game>/ holds CUE/BIN discs, bup/ holds every save.
+    "Super SD System 3": ["PCECD", "PCE", "PCSG"],
 }
 
 # Default save extension per multi-system device type
@@ -118,6 +145,7 @@ DEVICE_DEFAULT_EXT: dict[str, str] = {
     "Analogue Pocket": ".sav",
     "Pocket (openFPGA)": ".sav",
     "EmuDeck": ".srm",
+    "Super SD System 3": ".bup",
 }
 
 SAVE_EXT_OPTIONS = SAVE_EXT_CHOICES   # UI save-extension dropdown list
@@ -343,6 +371,22 @@ class ProfileDialog(QDialog):
         self.device_combo.currentTextChanged.connect(self._on_device_changed)
         form.addRow("Device Type:", self.device_combo)
 
+        self.mister_target_combo = QComboBox()
+        for value, label in MISTER_TARGET_OPTIONS:
+            self.mister_target_combo.addItem(label, value)
+        self.mister_target_combo.setToolTip(
+            "Where ROMs from the server catalog are installed.\n"
+            "Local folder: writes into the Game Folder path below (card in a reader).\n"
+            "Network targets: uploads over SSH using the connection saved in the\n"
+            "MiSTer tab; per-system folders (PSX, Saturn, MegaCD, ...) are created\n"
+            "automatically under the chosen games root."
+        )
+        self.mister_target_combo.currentIndexChanged.connect(
+            lambda _idx: self._on_mister_target_changed()
+        )
+        self._mister_target_label = QLabel("Install To:")
+        form.addRow(self._mister_target_label, self.mister_target_combo)
+
         self.ftp_host_edit = QLineEdit()
         self.ftp_host_edit.setPlaceholderText("MemCard PRO IP address or hostname")
         self._ftp_host_label = QLabel("FTP Host:")
@@ -364,6 +408,34 @@ class ProfileDialog(QDialog):
         self.ftp_password_edit.setPlaceholderText("Required — set in MemCard PRO WebUI")
         self._ftp_password_label = QLabel("FTP Password:")
         form.addRow(self._ftp_password_label, self.ftp_password_edit)
+
+        # ── MiSTer SSH connection (per-profile) ────────────────────────
+        self.ssh_host_edit = QLineEdit()
+        self.ssh_host_edit.setPlaceholderText("MiSTer IP or hostname (e.g. 192.168.1.41)")
+        self._ssh_host_label = QLabel("SSH Host:")
+        form.addRow(self._ssh_host_label, self.ssh_host_edit)
+
+        self.ssh_port_spin = QSpinBox()
+        self.ssh_port_spin.setRange(1, 65535)
+        self.ssh_port_spin.setValue(22)
+        self._ssh_port_label = QLabel("SSH Port:")
+        form.addRow(self._ssh_port_label, self.ssh_port_spin)
+
+        self.ssh_username_edit = QLineEdit()
+        self.ssh_username_edit.setPlaceholderText("root (MiSTer default)")
+        self._ssh_username_label = QLabel("SSH User:")
+        form.addRow(self._ssh_username_label, self.ssh_username_edit)
+
+        self.ssh_password_edit = QLineEdit()
+        self.ssh_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ssh_password_edit.setPlaceholderText("1 (MiSTer default)")
+        self._ssh_password_label = QLabel("SSH Password:")
+        form.addRow(self._ssh_password_label, self.ssh_password_edit)
+
+        self.ssh_key_edit = QLineEdit()
+        self.ssh_key_edit.setPlaceholderText("Optional — path to a private key file")
+        self._ssh_key_label = QLabel("SSH Key:")
+        form.addRow(self._ssh_key_label, self.ssh_key_edit)
 
         game_row = QWidget()
         game_layout = QHBoxLayout(game_row)
@@ -578,6 +650,29 @@ class ProfileDialog(QDialog):
         is_memcard_ftp = device_type == "MemCard Pro FTP"
         is_psio = device_type == "PSIO"
         is_saroo = device_type == "SAROO"
+        is_opl = device_type == "OPL"
+        is_supersd3 = device_type == "Super SD System 3"
+        is_mister = device_type == "MiSTer"
+        is_gdemu = device_type == "GDEMU"
+        is_openmenu = device_type == "openMenu"
+        is_memcard_dc = device_type == "MemCard Pro DC"
+        self._mister_target_label.setVisible(is_mister)
+        self.mister_target_combo.setVisible(is_mister)
+        for widget in (
+            self._ssh_host_label,
+            self.ssh_host_edit,
+            self._ssh_port_label,
+            self.ssh_port_spin,
+            self._ssh_username_label,
+            self.ssh_username_edit,
+            self._ssh_password_label,
+            self.ssh_password_edit,
+            self._ssh_key_label,
+            self.ssh_key_edit,
+        ):
+            widget.setVisible(is_mister)
+        if is_mister and not self.ssh_host_edit.text().strip():
+            self._prefill_mister_ssh_defaults()
         self._set_single_system_choices(device_type)
         for widget in (
             self._ftp_host_label,
@@ -602,9 +697,20 @@ class ProfileDialog(QDialog):
             folder_label = "Remote Root:"
         elif is_memcard:
             folder_label = "Root Folder:"
-        elif is_psio:
+        elif is_psio or is_supersd3:
             folder_label = "SD Card Root:"
+        elif is_opl:
+            folder_label = "USB Root:"
+        elif is_gdemu or is_openmenu:
+            folder_label = "GDEMU SD Root:"
+        elif is_memcard_dc:
+            folder_label = "Root Folder:"
         self._game_folder_label.setText(folder_label)
+        self.multi_save_folder_edit.setPlaceholderText(
+            "Leave empty — saves always live in <root>/bup"
+            if is_supersd3
+            else "Leave empty — saves co-located with game folder"
+        )
         self._single_save_row_label.setVisible(not is_memcard_ftp)
         self._single_save_row_widget.setVisible(not is_memcard_ftp)
         if is_memcard_ftp:
@@ -630,6 +736,40 @@ class ProfileDialog(QDialog):
             self.single_save_folder_edit.setPlaceholderText(
                 "Mednafen save folder (optional — for emulator sync)"
             )
+        elif is_supersd3:
+            self.game_folder_edit.setPlaceholderText(
+                "Super SD System 3 SD card root (contains HuCard/, Cd/, bup/)…"
+            )
+        elif is_opl:
+            self.game_folder_edit.setPlaceholderText(
+                "OPL USB root (DVD/, CD/ and POPS/ created here)…"
+            )
+            self.single_save_folder_edit.setPlaceholderText(
+                "Leave empty — OPL VMCs managed separately"
+            )
+        elif is_gdemu:
+            self.game_folder_edit.setPlaceholderText(
+                "GDEMU SD card root (01/ holds the menu, games go in 02/, 03/, …)"
+            )
+            self.single_save_folder_edit.setPlaceholderText(
+                "Leave empty — GDEMU stores no saves; sync them with an "
+                "openMenu or MemCard PRO DC profile"
+            )
+        elif is_openmenu:
+            self.game_folder_edit.setPlaceholderText(
+                "GDEMU SD card root (01/ holds the openMenu disc)…"
+            )
+            self.single_save_folder_edit.setPlaceholderText(
+                "Serial SD adapter root (holds OPENMENU/SAVES/) — required to "
+                "sync Serial VMUs"
+            )
+        elif is_memcard_dc:
+            self.game_folder_edit.setPlaceholderText(
+                "MemCard PRO DC microSD root (holds Dreamcast/)…"
+            )
+            self.single_save_folder_edit.setPlaceholderText(
+                "Leave empty — not used for MemCard PRO DC"
+            )
         else:
             self.game_folder_edit.setPlaceholderText("Root game / ROM folder...")
             self.single_save_folder_edit.setPlaceholderText(
@@ -645,9 +785,30 @@ class ProfileDialog(QDialog):
                 if idx >= 0:
                     self.rom_format_combo.setCurrentIndex(idx)
 
+        # OPL defaults to PS2; Auto resolves to ISO (PS2) / VCD (PS1).
+        if is_opl and not self._loading:
+            self._apply_single_system_defaults("PS2")
+            idx = self.rom_format_combo.findText(
+                ROM_FORMAT_LABELS.get("auto", "Auto")
+            )
+            if idx >= 0:
+                self.rom_format_combo.setCurrentIndex(idx)
+
         # SAROO is always SAT; lock system and hide save-ext picker
         if is_saroo and not self._loading:
             self._apply_single_system_defaults("SAT")
+
+        # GDEMU / openMenu / MemCard PRO DC are Dreamcast-only.  Auto resolves
+        # to GDI for the ODEs (GDEMU cannot read CHD).
+        if device_type in DREAMCAST_DEVICES and not self._loading:
+            self._apply_single_system_defaults("DC")
+            idx = self.rom_format_combo.findText(
+                ROM_FORMAT_LABELS.get("auto", "Auto")
+            )
+            if idx >= 0:
+                self.rom_format_combo.setCurrentIndex(idx)
+
+        self._on_mister_target_changed()
 
         if is_single:
             self.setMinimumSize(480, 0)
@@ -675,6 +836,10 @@ class ProfileDialog(QDialog):
             choices = MEMCARD_PRO_SYSTEMS
         elif device_type == "PSIO":
             choices = ["PS1"]
+        elif device_type == "OPL":
+            choices = ["PS2", "PS1"]
+        elif device_type in DREAMCAST_DEVICES:
+            choices = ["DC"]
         else:
             choices = SYSTEM_CHOICES
         self.system_combo.blockSignals(True)
@@ -695,7 +860,8 @@ class ProfileDialog(QDialog):
             "PS1": ".mcd",
             "PS2": ".mc2",
             "GC": ".raw",
-            "DC": ".bin",
+            # MemCard PRO DC and openMenu both store bare 128 KB VMU images.
+            "DC": ".vmu",
             "SAT": ".bkr",
         }.get(system)
         if default_ext:
@@ -704,6 +870,39 @@ class ProfileDialog(QDialog):
                 self.save_ext_combo.setCurrentIndex(ext_idx)
             else:
                 self.save_ext_combo.setCurrentText(default_ext)
+
+    def _prefill_mister_ssh_defaults(self) -> None:
+        """Seed empty SSH fields from the legacy global ``mister_ssh`` config
+        (the retired MiSTer SSH tab stored the connection there)."""
+        from config import load_config
+
+        cfg = load_config().get("mister_ssh") or {}
+        if cfg.get("host"):
+            self.ssh_host_edit.setText(str(cfg.get("host", "")))
+            self.ssh_port_spin.setValue(int(cfg.get("port", 22) or 22))
+            self.ssh_username_edit.setText(str(cfg.get("username", "root") or "root"))
+            self.ssh_password_edit.setText(str(cfg.get("password", "") or ""))
+            self.ssh_key_edit.setText(str(cfg.get("key_path", "") or ""))
+
+    def _mister_target(self) -> str:
+        return str(self.mister_target_combo.currentData() or "local")
+
+    def _mister_network_install(self) -> bool:
+        return (
+            self.device_combo.currentText() == "MiSTer"
+            and self._mister_target() in {"sd", "usb"}
+        )
+
+    def _on_mister_target_changed(self):
+        if self.device_combo.currentText() != "MiSTer":
+            return
+        if self._mister_network_install():
+            self.game_folder_edit.setPlaceholderText(
+                "Optional — ROM installs go over the network; set this only if\n"
+                "you also sync saves/ROMs from a locally mounted card"
+            )
+        else:
+            self.game_folder_edit.setPlaceholderText("Root game / ROM folder...")
 
     def _on_system_selection_changed(self):
         has_selection = bool(self.systems_table.selectedItems())
@@ -922,6 +1121,21 @@ class ProfileDialog(QDialog):
 
             self.game_folder_edit.setText(profile.get("path", ""))
             self.sd_card_check.setChecked(bool(profile.get("is_sd_card", False)))
+            target_idx = self.mister_target_combo.findData(
+                str(profile.get("mister_target", "local") or "local")
+            )
+            if target_idx >= 0:
+                self.mister_target_combo.setCurrentIndex(target_idx)
+            if profile.get("ssh_host"):
+                self.ssh_host_edit.setText(str(profile.get("ssh_host", "")))
+                self.ssh_port_spin.setValue(int(profile.get("ssh_port", 22) or 22))
+                self.ssh_username_edit.setText(
+                    str(profile.get("ssh_username", "root") or "root")
+                )
+                self.ssh_password_edit.setText(str(profile.get("ssh_password", "")))
+                self.ssh_key_edit.setText(str(profile.get("ssh_key_path", "")))
+            elif profile.get("device_type") == "MiSTer":
+                self._prefill_mister_ssh_defaults()
             self.ftp_host_edit.setText(profile.get("ftp_host", ""))
             self.ftp_port_spin.setValue(int(profile.get("ftp_port", 21) or 21))
             self.ftp_username_edit.setText(profile.get("ftp_username", ""))
@@ -985,12 +1199,26 @@ class ProfileDialog(QDialog):
                 self.game_folder_edit.setText("/")
             self.accept()
             return
+        if device_type == "MiSTer" and self._mister_network_install():
+            if not self.ssh_host_edit.text().strip():
+                QMessageBox.warning(
+                    self,
+                    "Validation",
+                    "SSH host is required for a network install target.",
+                )
+                return
         if not self.game_folder_edit.text().strip():
-            message = (
-                "Root folder path is required."
-                if device_type == "MemCard Pro"
-                else "Game folder path is required."
-            )
+            # MiSTer with SSH configured needs no local path — saves sync and
+            # ROM installs both go over the network.
+            if device_type == "MiSTer" and self.ssh_host_edit.text().strip():
+                self.accept()
+                return
+            if device_type in {"MemCard Pro", "MemCard Pro DC"}:
+                message = "Root folder path is required."
+            elif device_type in {"GDEMU", "openMenu"}:
+                message = "GDEMU SD card root is required."
+            else:
+                message = "Game folder path is required."
             QMessageBox.warning(self, "Validation", message)
             return
         self.accept()
@@ -1013,6 +1241,13 @@ class ProfileDialog(QDialog):
         }
         if device_type != "MemCard Pro FTP" and self.sd_card_check.isChecked():
             base["is_sd_card"] = True
+        if device_type == "MiSTer":
+            base["mister_target"] = self._mister_target()
+            base["ssh_host"] = self.ssh_host_edit.text().strip()
+            base["ssh_port"] = self.ssh_port_spin.value()
+            base["ssh_username"] = self.ssh_username_edit.text().strip() or "root"
+            base["ssh_password"] = self.ssh_password_edit.text()
+            base["ssh_key_path"] = self.ssh_key_edit.text().strip()
         if device_type == "MemCard Pro FTP":
             base.update(
                 {

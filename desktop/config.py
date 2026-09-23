@@ -19,11 +19,16 @@ DEVICE_TYPES = [
     "Everdrive",
     "MEGA EverDrive",
     "SAROO",
+    "Super SD System 3",
     "EmuDeck",
     "MemCard Pro",
     "MemCard Pro FTP",
+    "MemCard Pro DC",
     "PSIO",
     "CD Folder",
+    "OPL",
+    "GDEMU",
+    "openMenu",
 ]
 
 STATUS_COLORS = {
@@ -74,6 +79,15 @@ def load_config() -> dict:
 
 def save_config(config: dict) -> None:
     CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+
+def get_retroachievements_credentials() -> tuple[str, str]:
+    """``(username, web_api_key)`` for RA's web API; both empty when unset."""
+    ra_cfg = load_config().get("retroachievements", {}) or {}
+    return (
+        str(ra_cfg.get("username", "") or "").strip(),
+        str(ra_cfg.get("web_api_key", "") or "").strip(),
+    )
 
 
 def get_sd_card_location() -> str:
@@ -164,7 +178,10 @@ def get_base_url() -> str:
 
 _HEX_TITLE_RE = re.compile(r"^[0-9A-Fa-f]{16}$")
 _PS_PREFIX_RE = re.compile(r"^[A-Z]{4}\d{5}")
-_EMULATOR_RE = re.compile(r"^([A-Z0-9]{2,8})_[a-z0-9]")
+# Slug ids are lowercase (``GBA_zelda``), but serial/gamecode ids are not
+# (``DC_T1249M``, ``GC_GALE01``, ``SAT_T-4507G``) — both are emulator-format
+# title ids and both must resolve to their system here.
+_EMULATOR_RE = re.compile(r"^([A-Z0-9]{2,8})_[A-Za-z0-9]")
 
 _PS3_PREFIXES = {
     "BCAS",
@@ -217,6 +234,9 @@ def detect_console_type(title_id: str) -> str:
         return m.group(1)
     uid = title_id.upper()
     if _HEX_TITLE_RE.match(uid):
+        # Wii U titles are 00050000xxxxxxxx; 3DS is 00040..., DSiWare 00048...
+        if uid.startswith("00050"):
+            return "WIIU"
         return "3DS"
     if _PS_PREFIX_RE.match(uid):
         base = uid[:9]
@@ -254,6 +274,145 @@ def format_display_game_name(name: str, console_type: str = "") -> str:
 
 
 # ---------------------------------------------------------------------------
+# Wii U game names
+#
+# A Wii U save is keyed by a 16-hex title id whose low word is not the product
+# code, so no DAT — server-side or here — can name it.  The name lives in the
+# title's meta.xml, which on a PC means the local Cemu install: either its
+# mlc01 (installed titles) or the loose game dumps it launches.
+# ---------------------------------------------------------------------------
+
+
+def get_cemu_dirs() -> list[Path]:
+    """Cemu install / game folders to search for meta.xml, config first."""
+    config = load_config()
+    dirs: list[Path] = []
+
+    configured = str(config.get("cemu_dir", "") or "").strip()
+    if configured:
+        dirs.append(Path(configured))
+
+    home = Path.home()
+    dirs.extend(
+        [
+            home / "Documents" / "Cemu",
+            home / "Cemu",
+            home / "AppData" / "Roaming" / "Cemu",
+            home / ".local" / "share" / "Cemu",
+            home / ".var" / "app" / "info.cemu.Cemu" / "data" / "Cemu",
+        ]
+    )
+
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for d in dirs:
+        if d in seen:
+            continue
+        seen.add(d)
+        if d.is_dir():
+            result.append(d)
+    return result
+
+
+_wiiu_name_index: dict[str, tuple[str | None, str | None]] | None = None
+
+
+def wiiu_name_index(refresh: bool = False) -> dict[str, tuple[str | None, str | None]]:
+    """``title_id -> (name, game_code)`` read from this PC's Cemu install.
+
+    Cached: the walk touches every game folder, and the answer only changes
+    when the user installs a game.  Pass ``refresh=True`` after changing the
+    Cemu folder setting.
+    """
+    global _wiiu_name_index
+    if _wiiu_name_index is not None and not refresh:
+        return _wiiu_name_index
+
+    try:
+        from shared.wiiu_meta import (
+            build_meta_index,
+            game_paths_from_settings,
+            mlc_path_from_settings,
+        )
+    except Exception:
+        _wiiu_name_index = {}
+        return _wiiu_name_index
+
+    index: dict[str, tuple[str | None, str | None]] = {}
+    for cemu_dir in get_cemu_dirs():
+        settings_xml = cemu_dir / "settings.xml"
+        mlc = mlc_path_from_settings(settings_xml)
+        if mlc is None:
+            candidate = cemu_dir / "mlc01"
+            mlc = candidate if (candidate / "usr").is_dir() else None
+
+        game_roots = game_paths_from_settings(settings_xml)
+        game_roots.extend([cemu_dir / "games", cemu_dir])
+
+        for title_id, entry in build_meta_index(mlc, game_roots).items():
+            prev_name, prev_code = index.get(title_id, (None, None))
+            index[title_id] = (entry[0] or prev_name, entry[1] or prev_code)
+
+    _wiiu_name_index = index
+    return index
+
+
+def push_name_hints(codes: dict[str, str], names: dict[str, str]) -> bool:
+    """Persist locally-resolved names for server saves stored under a raw id.
+
+    The server applies a hint only when the stored name is still the title id,
+    so this can never clobber a real name.  Best-effort: a failure just means
+    the list keeps showing hex until the next refresh.
+    """
+    if not codes and not names:
+        return False
+    try:
+        resp = requests.post(
+            f"{get_base_url()}/api/v1/titles/update_names",
+            json={"codes": codes, "names": names},
+            headers=get_api_headers(),
+            timeout=15,
+        )
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+def resolve_wiiu_names(saves: list[dict]) -> list[dict]:
+    """Name Wii U saves the server could not, and teach the server what we found.
+
+    Mutates nothing: returns the same list with ``game_name`` filled in where a
+    local meta.xml had an answer.
+    """
+    unnamed = [
+        s
+        for s in saves
+        if (s.get("console_type") or detect_console_type(s.get("title_id", ""))) == "WIIU"
+        and (not s.get("game_name") or s.get("game_name") == s.get("title_id"))
+    ]
+    if not unnamed:
+        return saves
+
+    index = wiiu_name_index()
+    if not index:
+        return saves
+
+    codes: dict[str, str] = {}
+    names: dict[str, str] = {}
+    for save in unnamed:
+        title_id = save.get("title_id", "")
+        name, code = index.get(title_id.upper(), (None, None))
+        if name:
+            save["game_name"] = name
+            names[title_id] = name
+        if code:
+            codes[title_id] = code
+
+    push_name_hints(codes, names)
+    return saves
+
+
+# ---------------------------------------------------------------------------
 # API helpers
 # ---------------------------------------------------------------------------
 
@@ -263,7 +422,7 @@ def fetch_all_saves() -> list[dict]:
         f"{get_base_url()}/api/v1/titles", headers=get_api_headers(), timeout=30
     )
     resp.raise_for_status()
-    return resp.json().get("titles", [])
+    return resolve_wiiu_names(resp.json().get("titles", []))
 
 
 def fetch_history(title_id: str, console_id: str = "") -> list[dict]:

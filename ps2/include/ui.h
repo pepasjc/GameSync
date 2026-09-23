@@ -22,6 +22,7 @@
 
 #include "downloads.h"
 #include "roms.h"
+#include "saves.h"
 
 /* Phase 1: bring up libdebug.  Cheap; safe to call before SIF reset. */
 void ui_boot_init(void);
@@ -43,6 +44,11 @@ void ui_error(const char *fmt, ...);
 void ui_draw_header(const SyncState *state, AppView view);
 void ui_draw_roms(const RomCatalog *catalog, int selected, int scroll);
 void ui_draw_local(const LocalRomList *list, int selected, int scroll);
+void ui_draw_saves(const SaveVmcList *list, int selected, int scroll);
+void ui_draw_mcard(const McGameList *list, int selected, int scroll);
+void ui_draw_server(const ServerSaveList *list, int selected, int scroll);
+void ui_set_server_source(const char *src);
+void ui_set_mmce(int port, int mode);
 void ui_draw_downloads(const DownloadList *list, int selected, int scroll,
                        uint64_t active_done, uint64_t active_total,
                        uint64_t active_bps);

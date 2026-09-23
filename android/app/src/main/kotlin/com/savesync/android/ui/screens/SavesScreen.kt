@@ -744,6 +744,27 @@ fun SystemBadge(systemName: String) {
 @Composable
 fun SystemChip(systemName: String) = SystemBadge(systemName)
 
+/**
+ * RetroAchievements badge.  Gold, so it reads as a reward rather than as
+ * another sync status.
+ */
+@Composable
+fun RaBadge(titleOnly: Boolean = false) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (titleOnly) Color(0xFF8A712E) else Color(0xFFD8A72B))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = if (titleOnly) "RA?" else "RA",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF161206)
+        )
+    }
+}
+
 @Composable
 private fun SyncStatusIcon(syncStatus: SaveSyncStatus) {
     val (icon, tint) = when (syncStatus) {
@@ -796,6 +817,7 @@ fun systemChipColor(systemName: String): Color {
         "N64"             -> Color(0xFF558B2F)
         "GC"              -> Color(0xFF7B1FA2)
         "WII"             -> Color(0xFF00838F)
+        "WIIU"            -> Color(0xFF006064)
         "PS1", "PSX"      -> Color(0xFF1A237E)
         "PS2"             -> Color(0xFF0D47A1)
         "PSP", "PPSSPP"   -> Color(0xFF01579B)
@@ -810,6 +832,7 @@ fun systemChipColor(systemName: String): Color {
         "MAME"            -> Color(0xFFC62828)
         "NEOCD", "NGP"    -> Color(0xFFAD1457)
         "PCE", "TG16"     -> Color(0xFF00695C)
+        "PCECD", "TGCD"   -> Color(0xFF00838F)
         "PCSG"            -> Color(0xFF689F38)
         "PCFX"            -> Color(0xFF827717)
         "WSWAN", "WSWANC" -> Color(0xFF2E7D32)

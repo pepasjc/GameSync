@@ -1,3 +1,8 @@
+# DuckStation patch tool artifacts (pulled APKs, keystore, decoded smali, apktool jar)
+tools/ds_patch_work/
+tools/apktool.jar
+tmp_ds_patch/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -85,6 +90,7 @@ desktop/ps3saves
 desktop/__pycache__/
 desktop/**/__pycache__/
 desktop/*.log
+desktop/.ra_cache/
 
 # others
 *.json
@@ -171,3 +177,6 @@ server/third_party/mcr2vmp/mcr2vmp.exe
 .env
 .env.backup
 server/restic-backup.log
+ps2/_mmce_src/
+ps2/source/irx_mods.c
+ps2/include/irx_mods.h

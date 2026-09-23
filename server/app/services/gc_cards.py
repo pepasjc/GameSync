@@ -116,6 +116,40 @@ def gc_extract_gci(card_bytes: bytes, game_code: str) -> bytes | None:
     return None
 
 
+def parse_card_entries(card_bytes: bytes) -> list[tuple[str, bytes]]:
+    """Walk a full GC card image and return every save as ``(game_code, gci)``.
+
+    Each GCI is ``64-byte directory entry + raw data blocks``.  Free / unused
+    directory slots (0xFF- or 0x00-filled game code, or zero block count) are
+    skipped.  Used by the VMC-import endpoint to split a whole card per game.
+    """
+    out: list[tuple[str, bytes]] = []
+    if len(card_bytes) < _GC_DIR1_OFFSET + _GC_MAX_ENTRIES * _GC_DENTRY_SIZE:
+        return out
+
+    for i in range(_GC_MAX_ENTRIES):
+        off = _GC_DIR1_OFFSET + i * _GC_DENTRY_SIZE
+        entry = card_bytes[off : off + _GC_DENTRY_SIZE]
+        if len(entry) < _GC_DENTRY_SIZE:
+            continue
+        code = entry[_GAMECODE_OFF : _GAMECODE_OFF + 4]
+        if code in (b"\xff\xff\xff\xff", b"\x00\x00\x00\x00"):
+            continue
+        first_block = struct.unpack_from(">H", entry, _FIRST_BLOCK_OFF)[0]
+        block_count = struct.unpack_from(">H", entry, _BLOCK_COUNT_OFF)[0]
+        if block_count == 0 or block_count > _GC_USABLE_BLOCKS:
+            continue
+        data_start = first_block * _GC_BLOCK_SIZE
+        data_end = data_start + block_count * _GC_BLOCK_SIZE
+        if data_start < _GC_DATA_OFFSET or data_end > len(card_bytes):
+            continue
+        code_str = code.decode("ascii", "ignore").rstrip("\x00").strip()
+        if not code_str:
+            continue
+        out.append((code_str, bytes(entry) + card_bytes[data_start:data_end]))
+    return out
+
+
 def gc_insert_gci(card_bytes: bytes, gci_bytes: bytes) -> bytes | None:
     """Insert GCI bytes back into a full GC card image.
 

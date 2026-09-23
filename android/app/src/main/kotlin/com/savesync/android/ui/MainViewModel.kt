@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import com.savesync.android.SaveSyncApp
 import com.savesync.android.api.ApiClient
 import com.savesync.android.api.GameNameRequest
+import com.savesync.android.api.NameHintRequest
 import com.savesync.android.api.NormalizeRequest
 import com.savesync.android.api.NormalizeRomEntry
 import com.savesync.android.api.RomEntry
@@ -24,8 +25,10 @@ import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SaveSyncApi
 import com.savesync.android.emulators.EmulatorRegistry
 import com.savesync.android.emulators.EmudeckPaths
+import com.savesync.android.emulators.Ps1CardSerial
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.emulators.impl.AzaharEmulator
+import com.savesync.android.emulators.impl.CemuEmulator
 import com.savesync.android.emulators.impl.DolphinEmulator
 import com.savesync.android.emulators.impl.MelonDsEmulator
 import com.savesync.android.emulators.impl.PpssppEmulator
@@ -39,6 +42,7 @@ import com.savesync.android.sync.DownloadManager
 import com.savesync.android.sync.HashUtils
 import com.savesync.android.sync.SaturnArchiveStateStore
 import com.savesync.android.sync.SaturnSyncFormat
+import com.savesync.android.sync.SegaCdSyncFormat
 import com.savesync.android.sync.SaturnSaveFormatConverter
 import com.savesync.android.sync.SyncEngine
 import com.savesync.android.sync.SyncResult
@@ -60,6 +64,7 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
 import java.util.concurrent.TimeUnit
 import com.savesync.android.emulators.impl.AetherSX2Emulator
+import com.savesync.android.emulators.Ps2EmulatorChoice
 
 sealed class SyncState {
     object Idle : SyncState()
@@ -467,9 +472,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     romDirOverrides = romDirOverrides,
                     saveDirOverrides = saveDirOverrides,
                     saturnSyncFormat = currentSettings.saturnSyncFormat,
+                    segaCdSyncFormat = currentSettings.segaCdSyncFormat,
+                    ps2Emulator = currentSettings.ps2Emulator,
                     beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
                     cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
                 )
+                    .filterNot { entry -> isEmptyPs1Card(entry) }
+                    .map { entry -> overridePs1TitleFromCard(entry) }
 
                 // Discover all ROMs the emulators know about (with expected save paths)
                 val allRomEntries = EmulatorRegistry.discoverAllRomEntries(
@@ -478,6 +487,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     romDirOverrides = romDirOverrides,
                     saveDirOverrides = saveDirOverrides,
                     saturnSyncFormat = currentSettings.saturnSyncFormat,
+                    segaCdSyncFormat = currentSettings.segaCdSyncFormat,
+                    ps2Emulator = currentSettings.ps2Emulator,
                     beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
                     cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
                 )
@@ -532,7 +543,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         (entry.systemName == "3DS" && hex16TitleIdRegex.matches(entry.titleId)) ||
                         ((entry.systemName == "PS1" || entry.systemName == "PS2") && !entry.titleId.contains('_')) ||
                         (entry.systemName == "SAT" && entry.titleId.startsWith("SAT_")) ||
-                        (entry.systemName == "GC" && entry.titleId.startsWith("GC_"))
+                        (entry.systemName == "GC" && entry.titleId.startsWith("GC_", ignoreCase = true))
                     }
                     val gameNameTriple =
                         if (productCodeEntries.isNotEmpty()) {
@@ -642,6 +653,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
 
                     val localTitleIds = localSaves.map { it.titleId }.toSet()
+
+                    // No DAT can name a Wii U save: its 16-hex title id's low
+                    // word is not the product code, so one uploaded by the Wii
+                    // U console reaches the server named after its own id and
+                    // every client shows raw hex.  This device read the game's
+                    // meta.xml — hand that to the server so the desktop app
+                    // and every other client get a real name too.
+                    pushWiiuNameHints(api, localSaves, titlesResponse.titles)
 
                     serverOnlySaves = try {
                         // Server titles not present locally (after alias remapping above)
@@ -773,6 +792,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     titleInfo,
                                     currentSettings.saveDirOverrides,
                                     currentSettings.emudeckDir,
+                                    currentSettings.ps2Emulator,
                                     canonicalNames
                                 )
                             }
@@ -815,7 +835,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 )
                             }
 
-                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly)
+                        val wiiuServerOnly = stillUnanchoredTitles
+                            .mapNotNull { titleInfo ->
+                                buildWiiuServerOnlyEntry(
+                                    titleInfo,
+                                    currentSettings.saveDirOverrides,
+                                    currentSettings.emudeckDir,
+                                    canonicalNames
+                                )
+                            }
+
+                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly + wiiuServerOnly)
                             .mapTo(mutableSetOf()) { it.titleId }
 
                         // If a save has no local ROM/save anchor yet, still surface it when the
@@ -831,7 +861,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 )
                             }
 
-                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly + romCatalogServerOnly
+                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly + wiiuServerOnly + romCatalogServerOnly
                     } catch (e: Exception) {
                         emptyList()
                     }
@@ -900,6 +930,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (idx <= 0) return 0
         val prefix = titleId.substring(0, idx)
         return if (prefix == normalizeSystemCode(prefix)) 0 else 1
+    }
+
+    /**
+     * Re-keys a PS1 local save by the product code embedded inside its memory-card
+     * file, which is what the server keys by ([Ps1CardSerial]).  This overrides the
+     * disc-serial / filename title ID that emulators (DuckStation, RetroArch, …)
+     * derive, so variant discs (e.g. a "Gentei Box" that boots SLPS-00545 but writes
+     * BISLPS-00555 to the card) land in the same server slot as every other edition.
+     *
+     * Only applies when the card actually parses to a serial; unplayed / non-card
+     * saves keep their original ID.  Runs before name enrichment so the display name
+     * is looked up from the corrected serial too.
+     */
+    private fun overridePs1TitleFromCard(entry: SaveEntry): SaveEntry {
+        if (entry.systemName != "PS1") return entry
+        val card = entry.saveFile ?: return entry
+        if (!card.isFile) return entry
+        val inCardSerial = Ps1CardSerial.readSaveSerial(card) ?: return entry
+        if (inCardSerial.equals(entry.titleId, ignoreCase = true)) return entry
+        return entry.copy(titleId = inCardSerial)
+    }
+
+    /**
+     * A PS1 memory card with no save blocks (a freshly formatted / phantom
+     * per-game card, e.g. one DuckStation auto-created for a variant disc) has
+     * nothing to sync. Surfacing it produces a bogus row keyed by the card's
+     * filename serial — the source of the duplicate "Gentei Box" entry beside
+     * the real save. Drop those before they reach the list. Non-card / non-PS1
+     * saves are kept untouched.
+     */
+    private fun isEmptyPs1Card(entry: SaveEntry): Boolean {
+        if (entry.systemName != "PS1") return false
+        val card = entry.saveFile ?: return false
+        if (!card.isFile) return false
+        return Ps1CardSerial.isEmptyCard(card)
     }
 
     /**
@@ -1070,6 +1135,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         titleInfo: com.savesync.android.api.TitleInfo,
         saveDirOverrides: Map<String, String>,
         emudeckDir: String,
+        ps2Emulator: Ps2EmulatorChoice,
         canonicalNames: Map<String, String> = emptyMap()
     ): SaveEntry? {
         val system = normalizeSystemCode(
@@ -1085,16 +1151,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // configured in Emulator Configuration would be silently ignored
         // for server-only PS2 entries (the Emudeck-based companion call
         // that follows would resolve a different path first).
-        val override = saveDirOverrides[AetherSX2Emulator.EMULATOR_KEY]
+        val override = saveDirOverrides[ps2Emulator.emulatorKey]
             ?.takeIf { it.isNotBlank() }
         val memcardsDir = if (override != null) {
             File(override)
         } else {
-            val ps2Base = EmudeckPaths.netherSx2Root(emudeckDir)
-                ?: Environment.getExternalStorageDirectory()
+            val ps2Root = EmudeckPaths.ps2Root(emudeckDir, ps2Emulator)
+            val ps2Base = ps2Root ?: Environment.getExternalStorageDirectory()
             AetherSX2Emulator.findMemcardsDir(
                 ps2Base,
-                allowNonExistent = emudeckDir.isNotBlank()
+                allowNonExistent = ps2Root != null,
+                variant = ps2Emulator
             ) ?: return null
         }
 
@@ -1229,6 +1296,127 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ?: titleInfo.game_name?.takeIf { it != displayName }
                 ?: titleInfo.name?.takeIf { it != displayName }
         )
+    }
+
+    /**
+     * Push locally-resolved Wii U names/codes for server rows still stored
+     * under their raw title id.  Best-effort: a failure just means the other
+     * clients keep showing hex until the next scan.
+     */
+    private suspend fun pushWiiuNameHints(
+        api: SaveSyncApi,
+        localSaves: List<SaveEntry>,
+        serverTitles: List<com.savesync.android.api.TitleInfo>
+    ) {
+        val unnamedServerIds = serverTitles
+            .filter { info ->
+                val name = info.game_name ?: info.name
+                name.isNullOrBlank() || name == info.title_id
+            }
+            .mapTo(mutableSetOf()) { it.title_id }
+        if (unnamedServerIds.isEmpty()) return
+
+        val codes = mutableMapOf<String, String>()
+        val names = mutableMapOf<String, String>()
+        for (entry in localSaves) {
+            if (entry.systemName != "WIIU") continue
+            if (entry.titleId !in unnamedServerIds) continue
+            entry.gameCode?.let { codes[entry.titleId] = it }
+            if (entry.displayName != entry.titleId) names[entry.titleId] = entry.displayName
+        }
+        if (codes.isEmpty() && names.isEmpty()) return
+
+        try {
+            api.updateGameNames(NameHintRequest(codes = codes, names = names))
+        } catch (_: Exception) {
+            // Cosmetic only — names resolve on the next successful scan.
+        }
+    }
+
+    /**
+     * Wii U saves live at ``<mlc01>/usr/save/00050000/<tidlo>/user/`` and the
+     * server's title_id gives us the whole path, so a server-only row is
+     * directly downloadable — no ROM required, same as the 3DS builder.
+     */
+    private fun buildWiiuServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo,
+        saveDirOverrides: Map<String, String>,
+        emudeckDir: String,
+        canonicalNames: Map<String, String> = emptyMap()
+    ): SaveEntry? {
+        val system = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: ""
+        )
+        if (system != "WIIU") return null
+        if (!hex16TitleIdRegex.matches(titleInfo.title_id)) return null
+
+        val saveDir = CemuEmulator.defaultSaveDir(
+            storageBaseDir = EmudeckPaths.cemuRoot(emudeckDir),
+            saveDirOverride = saveDirOverrides[CemuEmulator.EMULATOR_KEY]
+                ?.takeIf { it.isNotBlank() },
+            externalRoot = Environment.getExternalStorageDirectory(),
+            titleId = titleInfo.title_id
+        ) ?: return null
+
+        // A save uploaded by the Wii U console arrives named after its own
+        // title id, so prefer any real server name but fall back to this
+        // device's meta.xml before showing raw hex.
+        val serverName = (titleInfo.game_name ?: titleInfo.name)
+            ?.takeIf { it.isNotBlank() && it != titleInfo.title_id }
+        val localMeta = wiiuMetaIndex(saveDirOverrides, emudeckDir)[titleInfo.title_id.uppercase()]
+        val canonical = canonicalNames[titleInfo.title_id]
+        val displayName = canonical
+            ?: serverName
+            ?: localMeta?.name
+            ?: titleInfo.title_id
+
+        return SaveEntry(
+            titleId = titleInfo.title_id,
+            displayName = displayName,
+            systemName = "WIIU",
+            saveFile = null,
+            saveDir = saveDir,
+            isMultiFile = true,
+            isServerOnly = true,
+            gameCode = localMeta?.gameCode,
+            canonicalName = canonical?.takeIf { it != displayName }
+                ?: serverName?.takeIf { it != displayName }
+        )
+    }
+
+    /**
+     * meta.xml index for Wii U titles installed or dumped on this device,
+     * cached for the lifetime of the ViewModel — a scan can ask for it once
+     * per server-only row and the directory walk is not free.
+     */
+    private var wiiuMetaCache: Map<String, CemuEmulator.TitleMeta>? = null
+
+    private fun wiiuMetaIndex(
+        saveDirOverrides: Map<String, String>,
+        emudeckDir: String
+    ): Map<String, CemuEmulator.TitleMeta> {
+        wiiuMetaCache?.let { return it }
+        val index = try {
+            val override = saveDirOverrides[CemuEmulator.EMULATOR_KEY]?.takeIf { it.isNotBlank() }
+            val external = Environment.getExternalStorageDirectory()
+            val storageBase = EmudeckPaths.cemuRoot(emudeckDir)
+            CemuEmulator.buildMetaIndex(
+                mlcRoot = CemuEmulator.resolveMlcRoot(storageBase, override, external),
+                gameDirs = CemuEmulator.gameDirCandidates(
+                    storageBaseDir = storageBase,
+                    romScanDir = "",
+                    emudeckDir = emudeckDir,
+                    externalRoot = external
+                )
+            )
+        } catch (_: Exception) {
+            emptyMap()
+        }
+        wiiuMetaCache = index
+        return index
     }
 
     private fun buildRomCatalogServerOnlyEntry(
@@ -1368,6 +1556,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     saturnSyncFormat = saturnFormat,
                     beetleSaturnPerCoreFolder = perCore,
                     cdGamesPerContentFolder = perContent,
+                    segaCdSyncFormat = settings.value.segaCdSyncFormat,
                 )
                 Triple(file, null, false)
             }
@@ -1844,6 +2033,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         romDirOverrides = romDirOverrides,
                         saveDirOverrides = saveDirOverrides,
                         saturnSyncFormat = currentSettings.saturnSyncFormat,
+                        segaCdSyncFormat = currentSettings.segaCdSyncFormat,
+                        ps2Emulator = currentSettings.ps2Emulator,
                         beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
                         cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
                     ).also { found ->
@@ -1899,7 +2090,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         emudeckDir: String = "",
         saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
         beetleSaturnPerCoreFolder: Boolean = true,
-        cdGamesPerContentFolder: Boolean = false
+        cdGamesPerContentFolder: Boolean = false,
+        segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
+        ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2
     ) {
         viewModelScope.launch {
             settingsStore.updateSettings(
@@ -1911,7 +2104,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 emudeckDir = emudeckDir,
                 saturnSyncFormat = saturnSyncFormat,
                 beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
-                cdGamesPerContentFolder = cdGamesPerContentFolder
+                cdGamesPerContentFolder = cdGamesPerContentFolder,
+                segaCdSyncFormat = segaCdSyncFormat,
+                ps2Emulator = ps2Emulator
             )
             ApiClient.invalidate()
             scheduleOrCancelAutoSync(autoSync, intervalMinutes)
@@ -1992,7 +2187,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         api.getPs1CardMeta(titleId, slot = 0)
                     systemName == "PS2" && !titleId.contains('_') ->
                         api.getPs2CardMeta(titleId, format = "ps2")
-                    systemName == "GC" && titleId.startsWith("GC_") ->
+                    systemName == "GC" && titleId.startsWith("GC_", ignoreCase = true) ->
                         api.getGcCardMeta(titleId)
                     else -> api.getSaveMeta(titleId)
                 }
@@ -2056,6 +2251,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 romDirOverrides = currentSettings.romDirOverrides,
                 saveDirOverrides = currentSettings.saveDirOverrides,
                 saturnSyncFormat = currentSettings.saturnSyncFormat,
+                segaCdSyncFormat = currentSettings.segaCdSyncFormat,
+                ps2Emulator = currentSettings.ps2Emulator,
                 beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
                 cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
             )
@@ -2439,6 +2636,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 // Refresh server meta after a sync
                 fetchServerMeta(entry.titleId, entry.systemName)
+                // A download materialises a server-only row into a local save;
+                // rescan so the list stops treating it as "nothing local" — the
+                // stale flag is what made a later smart sync overwrite newer play.
+                if (result.uploaded > 0 || result.downloaded > 0) scanSaves()
                 _saveDetailState.value = SaveDetailState.Success(msg.trim())
             } catch (e: Exception) {
                 _saveDetailState.value = SaveDetailState.Error(e.message ?: "Sync failed")
@@ -2584,6 +2785,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         system: String,
         filename: String? = null,
         extractFormat: String? = null,
+        bundleKind: String? = null,
     ) {
         // Run on viewModelScope only long enough to read settings; the
         // actual enqueue hops onto appScope inside enqueueAsync so it
@@ -2622,6 +2824,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // DownloadEntity's path fields, so flipping the toggle
                     // mid-download doesn't move an in-flight transfer.
                     cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder,
+                    bundleKind = bundleKind,
                 )
                 _romDownloadState.value = RomDownloadState.Downloading(displayName)
             } catch (e: Exception) {

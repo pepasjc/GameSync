@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
-from config import load_config, save_config
+from config import load_config, save_config, wiiu_name_index
 
 
 class ConfigDialog(QDialog):
@@ -41,6 +41,30 @@ class ConfigDialog(QDialog):
         )
         layout.addRow("Current SD Card Drive:", self.sd_card_edit)
 
+        self.cemu_edit = QLineEdit()
+        self.cemu_edit.setPlaceholderText("e.g. D:\\Cemu — folder containing mlc01")
+        self.cemu_edit.setToolTip(
+            "Your Cemu installation folder.\n"
+            "A Wii U save's title ID says nothing about the game, so its name\n"
+            "can only be read from the title's meta.xml — inside Cemu's mlc01\n"
+            "or its game folders. Without this, Wii U saves list as raw hex."
+        )
+        layout.addRow("Cemu Folder:", self.cemu_edit)
+
+        self.ra_user_edit = QLineEdit()
+        self.ra_user_edit.setPlaceholderText("optional")
+        layout.addRow("RetroAchievements User:", self.ra_user_edit)
+
+        self.ra_key_edit = QLineEdit()
+        self.ra_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ra_key_edit.setPlaceholderText("Web API key from retroachievements.org/settings")
+        self.ra_key_edit.setToolTip(
+            "Optional. The RetroAchievements tab works without it, using RA's\n"
+            "public hash library. With a key it uses the web API instead, which\n"
+            "also reports how many achievements each matched game has."
+        )
+        layout.addRow("RetroAchievements Key:", self.ra_key_edit)
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
             | QDialogButtonBox.StandardButton.Cancel
@@ -55,6 +79,10 @@ class ConfigDialog(QDialog):
         self.port_edit.setText(str(config.get("port", "8000")))
         self.api_key_edit.setText(config.get("api_key", "anything"))
         self.sd_card_edit.setText(config.get("sd_card_location", ""))
+        self.cemu_edit.setText(config.get("cemu_dir", ""))
+        ra_cfg = config.get("retroachievements", {}) or {}
+        self.ra_user_edit.setText(ra_cfg.get("username", ""))
+        self.ra_key_edit.setText(ra_cfg.get("web_api_key", ""))
 
     def _save(self):
         try:
@@ -68,5 +96,13 @@ class ConfigDialog(QDialog):
         config["port"] = port
         config["api_key"] = self.api_key_edit.text() or "anything"
         config["sd_card_location"] = self.sd_card_edit.text().strip()
+        config["cemu_dir"] = self.cemu_edit.text().strip()
+        config["retroachievements"] = {
+            "username": self.ra_user_edit.text().strip(),
+            "web_api_key": self.ra_key_edit.text().strip(),
+        }
         save_config(config)
+        # The meta.xml index is cached per run; a new Cemu folder has to
+        # invalidate it or the Wii U names stay stale until restart.
+        wiiu_name_index(refresh=True)
         self.accept()

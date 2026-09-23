@@ -469,6 +469,13 @@ QLabel#detailLabel {{
         # file the emulator can open.
         if is_bundle and extract_format == "iso" and (entry.system or "").upper() in ("XBOX", "X360", "XBOX360"):
             is_bundle = False
+        # Wii U is the one system that needs BOTH: the response is a ZIP (so
+        # the bundle path extracts it into a per-game folder) *and* it must be
+        # requested with ?extract=loadiine, because the raw bundle is the
+        # encrypted WUP set Cemu can't open.
+        keep_extract_on_bundle = (
+            is_bundle and (entry.system or "").upper() == "WIIU"
+        )
         if is_bundle:
             bundle_dir_name = (rom.get("name") or
                                Path(target_filename).stem) or rom_id
@@ -478,17 +485,47 @@ QLabel#detailLabel {{
 
         if is_bundle:
             file_count = len(rom.get("files") or [])
-            msg = (
-                f"Download PS3 bundle '{entry.display_name}'?\n"
-                f"Files: {file_count}{size_txt}\n"
-                f"Destination: {target_path}"
-            )
+            if keep_extract_on_bundle:
+                # Only claim decryption when we actually asked for it — with
+                # no decrypter configured the raw WUP set is what ships, and
+                # Cemu decrypts it itself from the bundled ticket.
+                how = (
+                    "The server decrypts the WUP dump first"
+                    if extract_format
+                    else "Cemu decrypts it from the bundled ticket"
+                )
+                msg = (
+                    f"Install '{entry.display_name}' for Cemu?\n"
+                    f"{how}{size_txt}\n"
+                    f"Destination: {target_path}"
+                )
+            else:
+                msg = (
+                    f"Download PS3 bundle '{entry.display_name}'?\n"
+                    f"Files: {file_count}{size_txt}\n"
+                    f"Destination: {target_path}"
+                )
         else:
             msg = (
                 f"Download ROM for '{entry.display_name}'?\n"
                 f"File: {target_filename}{size_txt}\n"
                 f"Destination: {target_dir}"
             )
+        # A Wii U game's update / DLC are separate titles that are useless
+        # apart, so they ride along with the base game in install order.
+        extras = self._client.related_roms(rom, entry.system)
+        if extras:
+            extra_txt = "\n".join(
+                f"  + {e.get('content_type') or 'extra'}: "
+                f"{_fmt_size(int(e.get('size') or 0))}"
+                for e in extras
+            )
+            total = size + sum(int(e.get("size") or 0) for e in extras)
+            msg += (
+                f"\n\nIncludes {len(extras)} more title(s):\n{extra_txt}\n"
+                f"  Total: {_fmt_size(total)}"
+            )
+
         if target_path.exists():
             msg += "\n\nA file with this name already exists and will be overwritten."
 
@@ -514,15 +551,33 @@ QLabel#detailLabel {{
                 system=entry.system or "?",
                 display_name=entry.display_name,
                 target_path=target_path,
-                extract_format=None if is_bundle else extract_format,
+                extract_format=(
+                    extract_format
+                    if (keep_extract_on_bundle or not is_bundle)
+                    else None
+                ),
                 expected_size=size,
                 is_bundle=is_bundle,
+                bundle_kind=str(rom.get("bundle_kind") or "") if is_bundle else "",
             )
-            ResultDialog(
-                True,
-                f"'{entry.display_name}' added to the Downloads tab.",
-                parent=self,
-            ).exec()
+            # Queue the update / DLC behind the base game.  ``extras`` is
+            # already in install order, and the queue is FIFO, so the base
+            # game lands first — which is what MCP and Cemu both require.
+            for extra in extras:
+                self._enqueue_related_rom(entry, extra, target_dir)
+            if extras:
+                ResultDialog(
+                    True,
+                    f"'{entry.display_name}' and {len(extras)} related "
+                    f"title(s) added to the Downloads tab.",
+                    parent=self,
+                ).exec()
+            else:
+                ResultDialog(
+                    True,
+                    f"'{entry.display_name}' added to the Downloads tab.",
+                    parent=self,
+                ).exec()
             self.accept()
             return
 
@@ -558,6 +613,39 @@ QLabel#detailLabel {{
         if ok:
             self.rom_downloaded = True
             self.accept()
+
+    def _enqueue_related_rom(self, entry, rom: dict, target_dir: Path) -> None:
+        """Queue one update / DLC alongside its base game.
+
+        Resolves its own filename and extract format rather than inheriting
+        the base game's — a Wii U update is its own WUP bundle, and on a
+        server with a decrypter configured it needs its own ``?extract=``.
+        """
+        rom_id = str(rom.get("rom_id") or "")
+        if not rom_id or self._download_manager is None:
+            return
+
+        target_filename, extract_format = self._client.plan_rom_download(
+            rom, entry.system
+        )
+        is_bundle = bool(rom.get("is_bundle"))
+        if is_bundle:
+            name = rom.get("name") or Path(target_filename).stem or rom_id
+            target_path = target_dir / name
+        else:
+            target_path = target_dir / target_filename
+
+        label = rom.get("content_type") or "extra"
+        self._download_manager.enqueue(
+            rom_id=rom_id,
+            system=entry.system or "?",
+            display_name=f"{rom.get('name') or entry.display_name} [{label}]",
+            target_path=target_path,
+            extract_format=extract_format,
+            expected_size=int(rom.get("size") or 0),
+            is_bundle=is_bundle,
+            bundle_kind=str(rom.get("bundle_kind") or "") if is_bundle else "",
+        )
 
     def _rom_roots_base(self) -> Path:
         """

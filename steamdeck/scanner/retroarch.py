@@ -24,6 +24,14 @@ except ImportError:  # pragma: no cover — keeps the scanner usable if the
     # repo is imported without the shared package on sys.path.
     _resolve_sat = None
 
+try:
+    # Same idea for Dreamcast: it is a serial-keyed system, and the serial is
+    # what MemCard PRO DC / openMenu name their save folders after, so a
+    # Flycast save here has to land on the same DC_<serial> key a card does.
+    from shared.rom_id.dreamcast import resolve_dreamcast_title_id as _resolve_dc
+except ImportError:  # pragma: no cover
+    _resolve_dc = None
+
 
 def _saturn_title_id(rom_path: Optional[Path], rom_stem: str) -> str:
     """Return a SAT_<product-code> title ID when we can resolve one, else the
@@ -33,6 +41,29 @@ def _saturn_title_id(rom_path: Optional[Path], rom_stem: str) -> str:
         if serial_id:
             return serial_id
     return make_title_id("SAT", rom_stem)
+
+
+def _dreamcast_title_id(rom_path: Optional[Path], rom_stem: str) -> str:
+    """Return a DC_<serial> title ID when we can resolve one, else the
+    filename-slug fallback so unidentified discs still get a stable key.
+
+    The serial comes from the disc's IP.BIN where the image can be read inline
+    (GDI/CDI/ISO), otherwise from the bundled Dreamcast DAT — CHDs are
+    compressed, and they are the common case on a Steam Deck."""
+    if _resolve_dc is not None:
+        serial_id = _resolve_dc(rom_path=rom_path, rom_name=rom_stem)
+        if serial_id:
+            return serial_id
+    return make_title_id("DC", rom_stem)
+
+
+def _title_id_for(system: str, rom_path: Optional[Path], rom_stem: str) -> str:
+    """Title ID for one ROM, honouring the serial-keyed systems."""
+    if system == "SAT":
+        return _saturn_title_id(rom_path, rom_stem)
+    if system == "DC":
+        return _dreamcast_title_id(rom_path, rom_stem)
+    return make_title_id(system, rom_stem)
 
 # RetroArch Flatpak paths
 FLATPAK_RA_DATA = Path.home() / ".var/app/org.libretro.RetroArch/config/retroarch"
@@ -74,6 +105,7 @@ CORE_SYSTEM_MAP = {
     "sega cd": "SEGACD",
     "pc engine": "PCE",
     "beetle pce": "PCE",
+    "pc-fx": "PCFX",
     "atari - 2600": "A2600",
     "stella": "A2600",
     "atari - 7800": "A7800",
@@ -166,6 +198,9 @@ ROM_FOLDER_MAP = {
     "pcecd": ("PCECD", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
     "tg16": ("TG16", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
     "tgcd": ("TGCD", ["Beetle PCE", "Beetle PCE Fast"], [".srm"]),
+    # Beetle PC-FX exposes backup RAM + external backup RAM as one 64 KB
+    # SAVE_RAM block, so RetroArch writes a plain .srm.
+    "pcfx": ("PCFX", ["Beetle PC-FX"], [".srm"]),
     "atari2600": ("A2600", ["Stella", "Stella 2014"], [".srm"]),
     "atari7800": ("A7800", ["ProSystem"], [".srm"]),
     "lynx": ("LYNX", ["Beetle Lynx", "Handy"], [".srm"]),
@@ -500,10 +535,7 @@ def scan(
         if not rom_path.exists():
             continue
         rom_stem = rom_path.stem
-        if system == "SAT":
-            title_id = _saturn_title_id(rom_path, rom_stem)
-        else:
-            title_id = make_title_id(system, rom_stem)
+        title_id = _title_id_for(system, rom_path, rom_stem)
         if title_id in seen_title_ids:
             continue
         seen_title_ids.add(title_id)
@@ -546,10 +578,7 @@ def scan(
             if rom_file.suffix.lower() not in ROM_EXTENSIONS:
                 continue
             rom_stem = rom_file.stem
-            if system == "SAT":
-                title_id = _saturn_title_id(rom_file, rom_stem)
-            else:
-                title_id = make_title_id(system, rom_stem)
+            title_id = _title_id_for(system, rom_file, rom_stem)
             if title_id in seen_title_ids:
                 continue
             seen_title_ids.add(title_id)

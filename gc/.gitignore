@@ -1,0 +1,9 @@
+# Build artifacts
+build/
+*.elf
+*.dol
+*.map
+*.o
+
+# Test artifacts
+dolphin_test.png

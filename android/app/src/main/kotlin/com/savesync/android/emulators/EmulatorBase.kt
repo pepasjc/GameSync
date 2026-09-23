@@ -202,6 +202,29 @@ abstract class EmulatorBase {
     }
 
     /**
+     * Looks up the Dreamcast disc serial for [romName] in the bundled Redump libretro DAT and
+     * returns a canonical `"DC_<serial>"` title ID (e.g. `"DC_T1249M"`), or null when the DAT
+     * has no entry.
+     *
+     * Dreamcast is a serial-keyed system: MemCard PRO DC and openMenu's Serial VMU file every
+     * save under the disc's serial, so an emulator save only shares a server slot with a card
+     * save when both sides produce the same id.  Used as the fallback after
+     * [readDreamcastProductCode] returns null — most notably for CHDs, which are compressed.
+     */
+    protected fun lookupDreamcastSerial(romName: String): String? =
+        DreamcastSerial.titleId(DreamcastSerialDatabase.lookupSerial(romName))
+
+    /**
+     * Reads the Dreamcast product number out of a disc image's IP.BIN header and returns a
+     * canonical `"DC_<serial>"` title ID, or null when the image can't be identified
+     * (compressed CHD, unreadable file, not a Dreamcast disc).
+     *
+     * See [DreamcastDisc] for the layouts handled.
+     */
+    protected fun readDreamcastProductCode(romFile: File): String? =
+        DreamcastSerial.titleId(DreamcastDisc.readProductCode(romFile))
+
+    /**
      * Reads the PS1 disc serial from an ISO/BIN/CUE disc image by parsing the ISO 9660
      * Primary Volume Descriptor and locating SYSTEM.CNF on the disc.
      *
@@ -224,6 +247,28 @@ abstract class EmulatorBase {
             null
         } catch (_: Exception) { null }
     }
+
+    /**
+     * Reads the canonical PS1 save serial from a raw memory-card image
+     * (``.mcd`` / ``.mcr``), matching the server's ``ps1mc.serial_from_filename``.
+     *
+     * The server keys every PS1 save by the product code embedded in the
+     * save block's directory frame (e.g. ``BASLPS-00555...`` → ``SLPS00555``),
+     * which the game writes identically across regional/limited editions. The
+     * disc serial parsed by [readPs1Serial] can differ for variant releases
+     * (e.g. a "Gentei Box" disc that boots ``SLPS-00545`` but still writes
+     * ``BASLPS-00555`` to the card), so preferring the in-card code keeps the
+     * local title ID aligned with the server slot.
+     *
+     * PS1 cards are 128 KB = 16 blocks * 8 KB. Block 0 frame 1..15 each hold a
+     * directory entry; a frame whose first byte is 0x51 (ST_FIRST) starts a
+     * save, with the product-code filename at offset 0x0A (up to 20 bytes).
+     *
+     * Returns a bare product code (e.g. "SLPS00555"), or null if the file is
+     * not a recognisable PS1 card or has no save with a parseable serial.
+     */
+    protected fun readPs1SaveCardSerial(cardFile: File): String? =
+        Ps1CardSerial.readSaveSerial(cardFile)
 
     /**
      * Reads the PS2 disc serial from an ISO/BIN/CUE image.

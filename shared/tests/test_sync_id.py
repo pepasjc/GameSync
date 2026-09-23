@@ -322,3 +322,89 @@ class TestCanonicalizeSlugTitleId:
             )
             == "NDS_mario_kart_ds_usa"
         )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Dreamcast — serial strategy with a DC_ prefix
+# ──────────────────────────────────────────────────────────────────────
+def test_dreamcast_uses_the_disc_serial():
+    from shared.sync_id import ResolveInput, resolve
+
+    result = resolve(ResolveInput(system="DC", serial="T-1249M"))
+    assert result.sync_id == "DC_T1249M"
+    assert result.strategy == "serial"
+    assert result.fallback is False
+
+
+def test_dreamcast_folds_segas_two_spellings_onto_one_id():
+    from shared.sync_id import ResolveInput, resolve
+
+    # The disc says MK-51000; the Redump DAT says 51000.  Same game, same slot.
+    from_disc = resolve(ResolveInput(system="DC", serial="MK-51000")).sync_id
+    from_dat = resolve(ResolveInput(system="DC", serial="51000")).sync_id
+    assert from_disc == from_dat == "DC_51000"
+
+
+def test_dreamcast_keeps_regions_apart():
+    from shared.sync_id import ResolveInput, resolve
+
+    # MK-51064-50 is the PAL disc, MK-51064 the NTSC one.
+    pal = resolve(ResolveInput(system="DC", serial="MK-51064-50")).sync_id
+    ntsc = resolve(ResolveInput(system="DC", serial="MK-51064")).sync_id
+    assert pal == "DC_5106450"
+    assert ntsc == "DC_51064"
+    assert pal != ntsc
+
+
+def test_dreamcast_resolves_a_serial_from_a_filename():
+    from shared.sync_id import ResolveInput, resolve
+
+    def lookup(system, filename):
+        assert system == "DC"
+        return "T-8106N"
+
+    result = resolve(
+        ResolveInput(system="DC", rom_filename="Shadow Man (USA).gdi"),
+        serial_lookup=lookup,
+    )
+    assert result.sync_id == "DC_T8106N"
+    assert result.strategy == "serial"
+
+
+def test_dreamcast_falls_back_to_a_slug_without_a_serial():
+    from shared.sync_id import ResolveInput, resolve
+
+    result = resolve(ResolveInput(system="DC", rom_filename="Some Homebrew.cdi"))
+    assert result.sync_id == "DC_some_homebrew"
+    assert result.fallback is True
+
+
+def test_dreamcast_slug_ids_upgrade_to_serial_ids():
+    from shared.sync_id import canonicalize_slug_title_id
+
+    def lookup(system, filename):
+        return "MK-51000" if system == "DC" else None
+
+    assert (
+        canonicalize_slug_title_id("DC_sonic_adventure_usa", serial_lookup=lookup)
+        == "DC_51000"
+    )
+
+
+def test_dreamcast_serial_helpers_round_trip():
+    from shared.rom_id.dreamcast import (
+        canonical_dc_serial,
+        dc_device_folder_ids,
+        make_dc_title_id,
+        parse_dc_title_id,
+    )
+
+    assert canonical_dc_serial("mk-51000") == "51000"
+    assert make_dc_title_id("T-1249M") == "DC_T1249M"
+    assert parse_dc_title_id("DC_T1249M") == "T1249M"
+    # A name-slug id is not a serial id.
+    assert parse_dc_title_id("DC_sonic_adventure_usa") is None
+    assert parse_dc_title_id("GBA_zelda") is None
+    # Devices name folders after IP.BIN, which keeps Sega's MK prefix.
+    assert dc_device_folder_ids("51000") == ["MK51000", "51000"]
+    assert dc_device_folder_ids("T-1249M") == ["T1249M"]

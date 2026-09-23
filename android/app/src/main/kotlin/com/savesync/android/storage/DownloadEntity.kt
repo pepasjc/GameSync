@@ -34,6 +34,12 @@ data class DownloadEntity(
     val extractFormat: String?,
     val createdAt: Long,
     val updatedAt: Long,
+    /**
+     * MSU pack kind (`msu1` / `msu-md` / `mdplus`) when the download is one.
+     * The finished zip is unpacked into `<finalFilePath minus .zip>/` with
+     * the pack's wrapping folder hoisted away — see [com.savesync.android.sync.MsuPack].
+     */
+    val bundleKind: String? = null,
 ) {
     /** Stable string constants stored in [status]. */
     object Status {

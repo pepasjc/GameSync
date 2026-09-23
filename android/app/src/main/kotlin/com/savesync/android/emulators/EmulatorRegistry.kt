@@ -2,6 +2,7 @@ package com.savesync.android.emulators
 
 import com.savesync.android.emulators.impl.AetherSX2Emulator
 import com.savesync.android.emulators.impl.AzaharEmulator
+import com.savesync.android.emulators.impl.CemuEmulator
 import com.savesync.android.emulators.impl.DolphinEmulator
 import com.savesync.android.emulators.impl.DraSticEmulator
 import com.savesync.android.emulators.impl.DuckStationEmulator
@@ -10,6 +11,7 @@ import com.savesync.android.emulators.impl.MgbaEmulator
 import com.savesync.android.emulators.impl.PpssppEmulator
 import com.savesync.android.emulators.impl.RetroArchEmulator
 import com.savesync.android.sync.SaturnSyncFormat
+import com.savesync.android.sync.SegaCdSyncFormat
 import java.io.File
 
 /**
@@ -53,6 +55,12 @@ object EmulatorCatalog {
             defaultPathHint = "Android/data/xyz.aethersx2.android/files/memcards/"
         ),
         EmulatorDescriptor(
+            key = AetherSX2Emulator.ARMSX2_EMULATOR_KEY,
+            displayName = "ARMSX2",
+            systemHint = "PS2",
+            defaultPathHint = "Android/data/come.nanodata.armsx2/files/memcards/"
+        ),
+        EmulatorDescriptor(
             key = DolphinEmulator.EMULATOR_KEY,
             displayName = "Dolphin",
             systemHint = "GameCube",
@@ -63,6 +71,12 @@ object EmulatorCatalog {
             displayName = "Azahar",
             systemHint = "Nintendo 3DS",
             defaultPathHint = "sdmc/Nintendo 3DS/.../title/"
+        ),
+        EmulatorDescriptor(
+            key = CemuEmulator.EMULATOR_KEY,
+            displayName = "Cemu",
+            systemHint = "Nintendo Wii U",
+            defaultPathHint = "<cemu>/mlc01/ (usr/save/00050000/…)"
         ),
         EmulatorDescriptor(
             key = MelonDsEmulator.EMULATOR_KEY,
@@ -100,6 +114,8 @@ object EmulatorRegistry {
         romDirOverrides: Map<String, String> = emptyMap(),
         saveDirOverrides: Map<String, String> = emptyMap(),
         saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+        segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
+        ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2,
         beetleSaturnPerCoreFolder: Boolean = true,
         cdGamesPerContentFolder: Boolean = false
     ): List<EmulatorBase> {
@@ -116,6 +132,7 @@ object EmulatorRegistry {
                 romScanDir = romScanDir,
                 romDirOverrides = romDirOverrides,
                 saturnSyncFormat = saturnSyncFormat,
+            segaCdSyncFormat = segaCdSyncFormat,
                 beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
                 cdGamesPerContentFolder = cdGamesPerContentFolder,
                 saveDirOverride = ovr(RetroArchEmulator.EMULATOR_KEY)
@@ -146,9 +163,16 @@ object EmulatorRegistry {
                 dolphinRootDir = EmudeckPaths.dolphinRoot(emudeckDir)
             ),
             AetherSX2Emulator(
+                variant = ps2Emulator,
                 romScanDir = romScanDir,
-                storageBaseDir = EmudeckPaths.netherSx2Root(emudeckDir),
-                saveDirOverride = ovr(AetherSX2Emulator.EMULATOR_KEY)
+                storageBaseDir = EmudeckPaths.ps2Root(emudeckDir, ps2Emulator),
+                saveDirOverride = ovr(ps2Emulator.emulatorKey)
+            ),
+            CemuEmulator(
+                storageBaseDir = EmudeckPaths.cemuRoot(emudeckDir),
+                saveDirOverride = ovr(CemuEmulator.EMULATOR_KEY),
+                romScanDir = romDirOverrides["WIIU"]?.takeIf { it.isNotBlank() } ?: romScanDir,
+                emudeckDir = emudeckDir
             )
         )
     }
@@ -166,6 +190,8 @@ object EmulatorRegistry {
         romDirOverrides: Map<String, String> = emptyMap(),
         saveDirOverrides: Map<String, String> = emptyMap(),
         saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+        segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
+        ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2,
         beetleSaturnPerCoreFolder: Boolean = true,
         cdGamesPerContentFolder: Boolean = false
     ): List<SaveEntry> {
@@ -175,6 +201,8 @@ object EmulatorRegistry {
             romDirOverrides = romDirOverrides,
             saveDirOverrides = saveDirOverrides,
             saturnSyncFormat = saturnSyncFormat,
+            segaCdSyncFormat = segaCdSyncFormat,
+            ps2Emulator = ps2Emulator,
             beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
             cdGamesPerContentFolder = cdGamesPerContentFolder
         ).flatMap { emulator ->
@@ -201,6 +229,8 @@ object EmulatorRegistry {
         romDirOverrides: Map<String, String> = emptyMap(),
         saveDirOverrides: Map<String, String> = emptyMap(),
         saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
+        segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
+        ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2,
         beetleSaturnPerCoreFolder: Boolean = true,
         cdGamesPerContentFolder: Boolean = false
     ): Map<String, SaveEntry> {
@@ -211,6 +241,8 @@ object EmulatorRegistry {
             romDirOverrides = romDirOverrides,
             saveDirOverrides = saveDirOverrides,
             saturnSyncFormat = saturnSyncFormat,
+            segaCdSyncFormat = segaCdSyncFormat,
+            ps2Emulator = ps2Emulator,
             beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
             cdGamesPerContentFolder = cdGamesPerContentFolder
         ).forEach { emulator ->

@@ -548,3 +548,59 @@ class TestSyncEndpoint:
             headers=auth_headers,
         )
         assert r.status_code == 422
+
+
+class TestWiiUPlatform:
+    """A Wii U title id (00050000xxxxxxxx) is its own platform.
+
+    Before the WIIU branch in detect_platform it read as "3DS", which put
+    every Wii U save into a 3DS client's ``server_only`` bucket — the 3DS
+    would then try to download saves it cannot use.
+    """
+
+    def test_wiiu_title_id_detected(self):
+        from app.services import game_names
+
+        assert game_names.detect_platform("0005000010143500") == "WIIU"
+        assert game_names.detect_platform("0004000000055D00") == "3DS"
+
+    def test_wiiu_save_excluded_from_3ds_server_only(self, client, auth_headers):
+        wiiu_bundle = _make_bundle_bytes(
+            title_id=0x0005000010143500,
+            timestamp=1700000000,
+            files=[("user/common/data.bin", b"wiiu save")],
+        )
+        _upload(client, auth_headers, "0005000010143500", wiiu_bundle)
+
+        threeds_bundle = _make_bundle_bytes(
+            title_id=0x0004000000055D00,
+            timestamp=1700000000,
+            files=[("main", b"3ds save")],
+        )
+        _upload(client, auth_headers, "0004000000055D00", threeds_bundle)
+
+        r = client.post(
+            "/api/v1/sync",
+            json={"titles": [], "platforms": ["3DS"]},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        plan = r.json()
+        assert "0004000000055D00" in plan["server_only"]
+        assert "0005000010143500" not in plan["server_only"]
+
+    def test_wiiu_client_sees_its_own_saves(self, client, auth_headers):
+        wiiu_bundle = _make_bundle_bytes(
+            title_id=0x0005000010143500,
+            timestamp=1700000000,
+            files=[("user/common/data.bin", b"wiiu save")],
+        )
+        _upload(client, auth_headers, "0005000010143500", wiiu_bundle)
+
+        r = client.post(
+            "/api/v1/sync",
+            json={"titles": [], "platforms": ["WII", "WIIU"]},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert "0005000010143500" in r.json()["server_only"]

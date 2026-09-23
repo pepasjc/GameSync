@@ -14,6 +14,7 @@ from app.services.gc_cards import (
     gc_card_from_gci,
     gc_extract_gci,
     is_gc_card_image,
+    parse_card_entries,
 )
 
 
@@ -26,6 +27,22 @@ def _make_gci(game_code: str, block_count: int, fill: int = 0xAB) -> bytes:
     struct.pack_into(">H", dentry, 56, block_count)   # block_count
     data = bytes([fill]) * (block_count * _GC_BLOCK_SIZE)
     return bytes(dentry) + data
+
+
+def test_parse_card_entries_roundtrip():
+    gci = _make_gci("GM8E", 2)
+    card = gc_card_from_gci(gci)
+    entries = parse_card_entries(card)
+    assert len(entries) == 1
+    code, out_gci = entries[0]
+    assert code == "GM8E"
+    # Data blocks are preserved (the card relocates the save to block 5, but the
+    # extracted GCI's payload must match the source byte for byte).
+    assert out_gci[64:] == gci[64:]
+
+
+def test_parse_card_entries_empty_card():
+    assert parse_card_entries(b"\xff" * _GC_CARD_SIZE) == []
 
 
 def test_checksum_matches_real_header():

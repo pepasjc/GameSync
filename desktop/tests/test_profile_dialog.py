@@ -63,3 +63,15 @@ def test_retroarch_storage_values_store_core_and_hide_extension_choice():
 
 def test_retroarch_profile_does_not_offer_ps3_system():
     assert "PS3" not in DEVICE_SYSTEMS["RetroArch"]
+
+
+def test_dreamcast_profiles_are_registered_as_single_system_devices():
+    from config import DEVICE_TYPES
+    from dialogs.profile_dialog import DREAMCAST_DEVICES, SINGLE_SYSTEM_DEVICES
+
+    assert DREAMCAST_DEVICES == {"GDEMU", "openMenu", "MemCard Pro DC"}
+    for device in DREAMCAST_DEVICES:
+        assert device in DEVICE_TYPES
+        # They show the single-system section: system is pinned to DC and the
+        # save extension is the VMU image both card devices write.
+        assert device in SINGLE_SYSTEM_DEVICES

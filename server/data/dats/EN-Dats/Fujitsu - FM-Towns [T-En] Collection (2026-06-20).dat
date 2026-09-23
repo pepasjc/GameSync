@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Fujitsu - FM-Towns [T-En] Collection</name>
+		<description>Fujitsu - FM-Towns [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>2026-06-20</version>
+		<date>2026-06-20 (yy/mm/dd)</date>
+		<author>John Doe</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>chdman createcd -c cdzs,cdfl -hs 9792</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Fujitsu FM-Towns [T-En] Docs">
+		<description>_Fujitsu FM-Towns [T-En] Docs</description>
+		<rom name="Ningyou Tsukai (Japan) [T-En by Derek Pascarella v0.91] [i].txt" size="203" crc="7be4ee8e" md5="2ed92d9d7f17ced991d64f903e9a4f13" sha1="1b666b5de258c713365b05b6f4eb203a460bcc87"/>
+		<rom name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel RC1] [i] [Walkthrough].txt" size="22227" crc="53fbecc6" md5="d8d6e1d77399055e65c75c9273dd7860" sha1="92d95be34bd3a0c603a47dc168fc6b4fc3a92aab"/>
+		<rom name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel RC1] [i].txt" size="2921" crc="2905f1fc" md5="ba42a307efc53f8e63584fd1b16fdf69" sha1="4002d72f7a6755f6300136c998febc986902a2d3"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Alltynex (Japan) [T-En by Derek Pascarella v1.2]" sha1="bcf1fb90eb0e4d9a36275f80fc1218b16bf9c719"/>
+		<disk name="Emit Vol. 1 - Toki no Maigo (Japan) [T-En by Derek Pascarella v0.9]" sha1="b593e034deb6500578fd97d7403c17c17870fd5d"/>
+		<disk name="Emit Vol. 2 - Inochigake no Tabi (Japan) [T-En by Derek Pascarella v0.9]" sha1="feefc655aafc1f9361ea0c52d5f489f1691dd5fe"/>
+		<disk name="Emit Vol. 3 - Watashi ni Sayonara o (Japan) [T-En by Derek Pascarella v0.9]" sha1="ae4d2bd62e6ba13b50280fd521b9968e852dfa46"/>
+		<disk name="Gambler - Queen's Cup (Japan) [T-En by Derek Pascarella v1.0]" sha1="09b96f46be7b84737737bfc1fa3e596ec1d9d055"/>
+		<disk name="Lemmings 2 - The Tribes (Japan) [T-En by Leokulcar v1.0]" sha1="5022f59c53f13dddbc2b5fb48062df674ea0514d"/>
+		<disk name="Mad Paradox (Japan) [T-En by Demoniac v20081023]" sha1="96f9d556224cd38ac92745ab02c4fbdf6c4cf812"/>
+		<disk name="Ningyou Tsukai (Japan) [T-En by Derek Pascarella v0.91] [i]" sha1="cf55e64d3cb843087944972c481c185940a18dd0"/>
+		<disk name="Ningyou Tsukai (Japan) [T-En by Derek Pascarella v0.91] [Marty version] [i]" sha1="e0de19f44a9e08c40bc6da0b863ae69d74d615ef"/>
+		<disk name="Tamashii no Mon - Dante Shinkyoku yori (Japan) [T-En by BabaJeanmel RC1] [i]" sha1="2d30db53910a6c00ce5b92290b54b8698ae316c7"/>
+		<disk name="Vain Dream II (Japan) [T-En by TrickyBitTranslations v0.5] [i]" sha1="cb64d1d5688673ed63fba6778772affae2217c80"/>
+		<disk name="Yuuwaku (Japan) [T-En by Derek Pascarella v0.91] [i] [req User Disk boot]" sha1="dc31e01fc57936ce993805edc728244824b84329"/>
+	</machine>
+	<machine name="Emit Vol. 1 - Toki no Maigo (Japan) (User Disk) [T-En by Derek Pascarella v0.9]">
+		<description>Emit Vol. 1 - Toki no Maigo (Japan) (User Disk) [T-En by Derek Pascarella v0.9]</description>
+		<rom name="Emit Vol. 1 - Toki no Maigo (Japan) (User Disk) [T-En by Derek Pascarella v0.9].d88" size="1281968" crc="0394148d" md5="48ff902537ed0ce0ea9bf252950d010a" sha1="105eba067c83c1a7a337e4e43b5979db6bfbd335"/>
+	</machine>
+	<machine name="Emit Vol. 2 - Inochigake no Tabi (Japan) (User Disk) [T-En by Derek Pascarella v0.9]">
+		<description>Emit Vol. 2 - Inochigake no Tabi (Japan) (User Disk) [T-En by Derek Pascarella v0.9]</description>
+		<rom name="Emit Vol. 2 - Inochigake no Tabi (Japan) (User Disk) [T-En by Derek Pascarella v0.9].d88" size="1281968" crc="6fedfad0" md5="799fc10261c2379528bad1ec6e145ce4" sha1="62fc972d6169439d577b77383bbd1190ee805cb8"/>
+	</machine>
+	<machine name="Emit Vol. 3 - Watashi ni Sayonara o (Japan) (User Disk) [T-En by Derek Pascarella v0.9]">
+		<description>Emit Vol. 3 - Watashi ni Sayonara o (Japan) (User Disk) [T-En by Derek Pascarella v0.9]</description>
+		<rom name="Emit Vol. 3 - Watashi ni Sayonara o (Japan) (User Disk) [T-En by Derek Pascarella v0.9].d88" size="1281968" crc="7f9752d2" md5="10d9bccfa23fe1332ebc3fbc4a8e776a" sha1="febf22da0e59872bfbf3d79642bf408567c860a4"/>
+	</machine>
+	<machine name="Lemmings 2 - The Tribes (Japan) (User Disk)">
+		<description>Lemmings 2 - The Tribes (Japan) (User Disk)</description>
+		<rom name="Lemmings 2 - The Tribes (Japan) (User Disk).bin" size="1261568" crc="9a158db9" md5="8b459a7a4aa35e9c83feacc08bb2d21c" sha1="490fee404826835726c20bec967214045a76fd46"/>
+	</machine>
+	<machine name="Mad Paradox (Japan) (User Disk)">
+		<description>Mad Paradox (Japan) (User Disk)</description>
+		<rom name="Mad Paradox (Japan) (User Disk).bin" size="1261568" crc="2cadee79" md5="cb2eec2a9c5562462ac1c18ac046bf61" sha1="10d84653ecc3dfd87b494a92fb37886294063bae"/>
+	</machine>
+	<machine name="Tamashii no Mon - Dante Shinkyoku yori (Japan) (Boot Disk) [T-En by BabaJeanmel RC1] [i]">
+		<description>Tamashii no Mon - Dante Shinkyoku yori (Japan) (Boot Disk) [T-En by BabaJeanmel RC1] [i]</description>
+		<rom name="Tamashii no Mon - Dante Shinkyoku yori (Japan) (Boot Disk) [T-En by BabaJeanmel RC1] [i].bin" size="1261568" crc="f589957d" md5="8b34b38a41f0226cb84fa9fc209eb9f8" sha1="7c29e16aadbd7a902adfd9aaee319c1f0873e180"/>
+	</machine>
+	<machine name="Vain Dream II (Japan) (System Disk) [T-En by TrickyBitTranslations v0.5] [i]">
+		<description>Vain Dream II (Japan) (System Disk) [T-En by TrickyBitTranslations v0.5] [i]</description>
+		<rom name="Vain Dream II (Japan) (System Disk) [T-En by TrickyBitTranslations v0.5] [i].d88" size="1281968" crc="7a3b273d" md5="26c383598c09bd71499e6bf11e3bf48f" sha1="a95ad3b5d95525d913b0eaeacc1879d18c69d1a9"/>
+	</machine>
+	<machine name="Yuuwaku (Japan) (User Disk)">
+		<description>Yuuwaku (Japan) (User Disk)</description>
+		<rom name="Yuuwaku (Japan) (User Disk).d88" size="1281968" crc="dd7da615" md5="d035b747d46b380d1896d5ccec0c57fe" sha1="911517672dd3e94034a4f5fb0f0bd0e97bd22a13"/>
+	</machine>
+</datafile>

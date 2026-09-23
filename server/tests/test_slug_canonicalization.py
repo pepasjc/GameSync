@@ -39,6 +39,12 @@ def _load_dats():
     if not _DATS_DIR.exists():
         pytest.skip(f"DAT dir missing: {_DATS_DIR}")
     dat_normalizer.init(_DATS_DIR)
+    # game_names keeps its own DAT-derived indexes (used by the ROM scanner and
+    # by lookup_disc_serial); the lifespan hook loads them at startup.
+    from app.services import game_names
+
+    game_names.load_libretro_dat_to_dicts(_DATS_DIR / "Sega - Dreamcast.dat")
+    game_names.build_dreamcast_slug_index()
     yield
     # Leave the singleton in place for other tests that might benefit — it's
     # idempotent and harmless.
@@ -248,3 +254,77 @@ class TestNonSlugUploadsUnchanged:
         r = client.get("/api/v1/titles", headers=auth_headers)
         titles = {t["title_id"] for t in r.json()["titles"]}
         assert slug in titles
+
+
+# ---------------------------------------------------------------------------
+# Dreamcast — keyed by disc serial, like PS1/PS2/Saturn
+# ---------------------------------------------------------------------------
+#
+# The devices file saves by serial (MemCard PRO DC writes
+# ``Dreamcast/T3601N/T3601N-1.vmu``), so a slug-form upload from an emulator
+# profile has to land on the same key or the card and the emulator never see
+# each other's saves.
+
+
+class TestDreamcastSerialCanonicalization:
+    SONIC_SLUG = "DC_sonic_adventure_usa"
+
+    def test_dat_lookup_returns_a_serial_title_id(self):
+        from app.services import game_names
+
+        assert game_names.lookup_disc_serial("DC", "Dead or Alive 2 (USA)") == (
+            "DC_T3601N"
+        )
+        # Sega's own USA discs are recorded bare in the DAT and with an "MK"
+        # prefix on the disc; both fold onto one id.
+        assert game_names.lookup_disc_serial("DC", "Sonic Adventure (USA)") == (
+            "DC_51000"
+        )
+
+    def test_slug_upload_is_stored_under_the_serial(self, client, auth_headers):
+        body = b"dreamcast vmu payload"
+        resp = client.post(
+            f"/api/v1/saves/{self.SONIC_SLUG}/raw",
+            content=body,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert resp.status_code == 200, resp.text
+
+        r = client.get("/api/v1/titles", headers=auth_headers)
+        titles = {t["title_id"] for t in r.json()["titles"]}
+        assert titles == {"DC_51000"}
+
+    def test_card_and_emulator_uploads_share_one_slot(self, client, auth_headers):
+        """A MemCard PRO DC upload (serial id) and an emulator upload (slug id)
+        must be the same save on the server."""
+        first = b"written by the card"
+        client.post(
+            "/api/v1/saves/DC_T3601N/raw",
+            content=first,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        second = b"written by the emulator"
+        client.post(
+            "/api/v1/saves/DC_dead_or_alive_2_usa/raw",
+            content=second,
+            params={"force": "true"},
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/titles", headers=auth_headers)
+        titles = {t["title_id"] for t in r.json()["titles"]}
+        assert titles == {"DC_T3601N"}
+
+        down = client.get("/api/v1/saves/DC_T3601N/raw", headers=auth_headers)
+        assert down.content == second
+
+    def test_a_disc_the_dat_does_not_know_keeps_its_slug(self, client, auth_headers):
+        slug = "DC_some_unreleased_homebrew"
+        resp = client.post(
+            f"/api/v1/saves/{slug}/raw",
+            content=b"homebrew save",
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert resp.status_code == 200, resp.text
+        r = client.get("/api/v1/titles", headers=auth_headers)
+        assert slug in {t["title_id"] for t in r.json()["titles"]}

@@ -113,6 +113,17 @@ interface SaveSyncApi {
         @Query("source") source: String = "psp_emu",
         @Query("force") force: Boolean = true,
         @Query("console_id") consoleId: String,
+        /**
+         * Optional product code for systems whose title id can't be resolved
+         * to a name by the server's DAT (Wii U: "WIIU_ARDE").  Blank = let the
+         * server resolve from the title id alone.
+         */
+        @Query("game_code") gameCode: String = "",
+        /**
+         * Display name the client read locally, used only when neither the
+         * title id nor [gameCode] resolves to a name server-side.
+         */
+        @Query("game_name") gameName: String = "",
         @Body body: RequestBody
     ): UploadResponse
 
@@ -143,6 +154,11 @@ interface SaveSyncApi {
     suspend fun lookupGameNames(
         @Body request: GameNameRequest
     ): GameNameResponse
+
+    @POST("api/v1/titles/update_names")
+    suspend fun updateGameNames(
+        @Body request: NameHintRequest
+    ): retrofit2.Response<okhttp3.ResponseBody>
 
     @POST("api/v1/titles/saturn-archives")
     suspend fun lookupSaturnArchives(

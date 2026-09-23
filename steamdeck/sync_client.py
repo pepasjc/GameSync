@@ -553,8 +553,51 @@ class SyncClient:
             stem = Path(filename).stem
             return f"{stem}.iso", "iso"
 
+        if system_up == "WIIU":
+            # Wii U catalog rows are WUP folders.  The .app contents are
+            # encrypted, but the bundled ticket carries the title key so Cemu
+            # decrypts them itself — the raw bundle ZIP is directly usable.
+            # Only ask for a decrypted tree when this server advertised one;
+            # requesting an unconfigured format would earn a 503 instead of a
+            # working download.
+            advertised = [
+                str(v).strip().lower()
+                for v in (rom.get("extract_formats") or [])
+                if str(v).strip()
+            ]
+            if "loadiine" in advertised:
+                return f"{Path(filename).stem}.zip", "loadiine"
+            # Single-file .wua/.wud/.wux libraries need no conversion.
+            return filename, None
+
         extract = str(rom.get("extract_format") or "").strip().lower() or None
         return filename, extract
+
+    def related_roms(self, rom: dict, system: str) -> list[dict]:
+        """The updates / DLC belonging to ``rom``, in install order.
+
+        A Wii U game's update (``0005000E…``) and DLC (``0005000C…``) are
+        separate titles that are useless on their own, and MCP rejects a DLC
+        whose base game isn't installed — so the server hands back
+        ``related_rom_ids`` already ordered game → update → DLC and we queue
+        the whole set together.
+
+        Returns ``[]`` for systems with no grouping, so callers can append
+        unconditionally.
+        """
+        related = [str(r) for r in (rom.get("related_rom_ids") or []) if r]
+        if not related:
+            return []
+
+        this_id = str(rom.get("rom_id") or "")
+        by_id = {
+            str(r.get("rom_id")): r
+            for r in self.list_roms(system)
+            if r.get("rom_id")
+        }
+        return [
+            by_id[rid] for rid in related if rid in by_id and rid != this_id
+        ]
 
     def find_roms_for_title(self, title_id: str, system: str) -> list[dict]:
         """
@@ -725,6 +768,36 @@ class SyncClient:
             print(f"[LookupNames] batch lookup failed: {exc}")
         return {"names": {}, "types": {}, "retail_serials": {}}
 
+    def push_name_hints(
+        self,
+        codes: dict[str, str] | None = None,
+        names: dict[str, str] | None = None,
+    ) -> bool:
+        """Fill in server-side game names for titles stored under a raw id.
+
+        The server can name most saves from its own DATs, but a Wii U save is
+        keyed by a 16-hex title id whose low word is not the product code, so
+        one uploaded by the console shows as raw hex to every client — the
+        desktop app in particular has no local Cemu install to read a name
+        from.  Whichever client *does* have the title's meta.xml pushes what
+        it found; the server only applies it to titles still named after their
+        own id.
+        """
+        payload = {"codes": codes or {}, "names": names or {}}
+        if not payload["codes"] and not payload["names"]:
+            return False
+        try:
+            r = requests.post(
+                f"{self.base_url}/titles/update_names",
+                json=payload,
+                headers={**self.headers, "Content-Type": "application/json"},
+                timeout=self._timeout,
+            )
+            return r.status_code == 200
+        except Exception as exc:
+            print(f"[NameHints] push failed: {exc}")
+        return False
+
     def lookup_canonical_names(self, title_ids: list[str]) -> dict[str, str]:
         """Resolve emulator-style title_ids to canonical No-Intro / DAT names.
 
@@ -826,8 +899,19 @@ class SyncClient:
                     params = {"source": "ps3_emu"}
                 elif system == "3DS":
                     params = {"source": "3ds_emu"}
+                elif system == "WIIU":
+                    params = {"source": "wiiu_emu"}
                 else:
                     params = {}
+                # The server names a Wii U save from its 4-char product code
+                # (meta.xml), not its title id — pass it along so the stored
+                # metadata gets a real game name instead of raw hex.  The
+                # meta.xml display name rides along as a fallback for titles
+                # the Wii U DAT doesn't cover (eShop oddities, homebrew).
+                if entry.game_code:
+                    params["game_code"] = entry.game_code
+                if system == "WIIU" and entry.display_name != entry.title_id:
+                    params["game_name"] = entry.display_name
                 if force:
                     params["force"] = "true"
                 r = requests.post(

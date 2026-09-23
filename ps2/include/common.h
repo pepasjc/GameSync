@@ -48,8 +48,12 @@ typedef enum {
     APP_VIEW_ROMS      = 0,   /* server catalog (HTTP) */
     APP_VIEW_LOCAL     = 1,   /* installed ISOs or HDL partitions */
     APP_VIEW_DOWNLOADS = 2,   /* download queue */
-    APP_VIEW_CONFIG    = 3,
-    APP_VIEW_COUNT     = 4,
+    APP_VIEW_SAVES     = 3,   /* VMC / MemCard Pro card-image sync */
+    APP_VIEW_MCARD     = 4,   /* physical memory card slot 1 (mc0:) */
+    APP_VIEW_MCARD2    = 5,   /* physical memory card slot 2 (mc1:) */
+    APP_VIEW_SERVER    = 6,   /* all PS1/PS2 saves on the server */
+    APP_VIEW_CONFIG    = 7,
+    APP_VIEW_COUNT     = 8,
 } AppView;
 
 typedef enum {
@@ -84,6 +88,10 @@ typedef struct {
 
     StoragePreference storage_pref; /* auto, usb, or hdd */
     StorageBackend    storage_backend;
+
+    /* GameID device per memory-card slot: 0=off,1=auto,2=gen1,3=gen2.
+     * Persisted so the gen1/MCP2 choice survives relaunch. */
+    int               mmce_mode[2];
 
     /* Detected install target. usb_ready is kept as the legacy "storage
      * ready" flag; usb_root is "mass:", "mass1:", etc. or "hdd0:hdl". */

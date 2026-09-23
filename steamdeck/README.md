@@ -44,6 +44,7 @@ To launch from Gaming Mode, add `launch.sh` as a non-Steam game in Steam:
 | PPSSPP | PSP |
 | melonDS | NDS |
 | RPCS3 | PS3 |
+| Cemu | Wii U (`mlc01/usr/save/00050000/`) |
 
 ## Configuration
 
@@ -53,6 +54,15 @@ On first launch, open **Settings** (gear icon or Start button) and enter your se
 Server URL:  http://192.168.1.100:8000
 API Key:     your-secret-key
 ```
+
+### Cemu folder
+
+Cemu is usually installed outside the EmuDeck `Emulation` folder — a Proton
+prefix, the flatpak data dir, or a second install on an SD card — so it is the
+one emulator auto-detection can miss.  Settings → **Saves** → *Cemu folder*
+pins it: point at `mlc01` or the folder holding it, and a `settings.xml` there
+that relocates the MLC is followed too.  Leave it empty to auto-detect
+(`<mlc_path>` from any settings.xml found, then the usual locations).
 
 ## Controls (Gaming Mode)
 

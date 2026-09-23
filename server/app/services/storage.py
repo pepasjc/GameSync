@@ -207,7 +207,11 @@ def get_metadata_for_sync(title_id: str, console_id: str = "") -> SaveMetadata |
 
 
 def store_save(
-    bundle: SaveBundle, source: str = "3ds", console_id: str = "", game_code: str = ""
+    bundle: SaveBundle,
+    source: str = "3ds",
+    console_id: str = "",
+    game_code: str = "",
+    game_name_hint: str = "",
 ) -> SaveMetadata:
     """Store a save bundle to disk, archiving any existing save to history."""
     title_id = bundle.effective_title_id
@@ -259,6 +263,13 @@ def store_save(
         typed = game_names.lookup_names_typed([game_code])
         if game_code in typed:
             game_name, platform = typed[game_code]
+
+    # Client-supplied name, used only when nothing local resolved it.  Wii U
+    # saves are keyed by a 16-hex title id whose low word is not the product
+    # code, so no DAT can name them — the client reads the title's meta.xml
+    # and passes the name it found.
+    if game_name == title_id and game_name_hint.strip():
+        game_name = game_name_hint.strip()
 
     # For emulator saves with no name found, derive readable name from slug
     if game_name == title_id:

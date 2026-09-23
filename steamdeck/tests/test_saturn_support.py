@@ -17,7 +17,7 @@ from saturn_format import (  # noqa: E402
     list_saturn_archive_names,
     normalize_saturn_save,
 )
-from saroo_format import _NativeSave, _build_native_saturn  # noqa: E402
+from shared.saturn_format import _NativeSave, _build_native_saturn  # noqa: E402
 
 
 def test_retroarch_scan_detects_saturn_yabause_root_save(tmp_path):

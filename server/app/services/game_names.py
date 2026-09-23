@@ -5,7 +5,10 @@ from pathlib import Path
 
 from app.services.rom_id import (
     SYSTEM_CODES,
+    canonical_dc_serial,
+    make_dc_title_id,
     normalize_rom_name,
+    parse_dc_title_id,
     parse_title_id as _parse_emulator_id,
 )
 
@@ -22,10 +25,19 @@ _psp_names: dict[str, str] = {}  # keyed by full product code e.g. "ULUS10272"
 _psx_names: dict[str, str] = {}  # keyed by full product code e.g. "SCUS94163"
 _ps2_names: dict[str, str] = {}  # keyed by full product code e.g. "SCUS97203"
 _sat_names: dict[str, str] = {}  # keyed by Saturn serial e.g. "T-12705H"
+# Keyed by canonical Dreamcast serial e.g. "T1249M", "51000" — see
+# shared.rom_id.dreamcast for why Sega's "MK" prefix is dropped.
+_dc_names: dict[str, str] = {}
 _vita_names: dict[str, str] = {}  # keyed by full product code e.g. "PCSE00082"
 _wii_names: dict[
     str, str
 ] = {}  # 4-char GC/Wii game code -> name e.g. "GALE" -> "Super Smash Bros. Melee"
+_wiiu_names: dict[str, str] = {}  # 4-char Wii U product code -> name e.g. "AMKE"
+# 16-hex Wii U title id -> name, from the ``title_id`` lines in the Wii U DAT.
+# A Wii U title id's low word is NOT its product code, so this direct index is
+# the only way to name a Wii U *save* (which is keyed by title id) — see
+# tools/enrich_wiiu_dat_titleids.py for where those lines come from.
+_wiiu_title_ids: dict[str, str] = {}
 _ps3_names: dict[str, str] = {}  # keyed by 9-char product code e.g. "BLJM61131"
 _xbox_names: dict[str, str] = {}  # keyed by 8-char hex Xbox Title ID e.g. "4D530004"
 
@@ -37,12 +49,15 @@ _psp_priority: dict[str, tuple[int, int]] = {}
 _psx_priority: dict[str, tuple[int, int]] = {}
 _ps2_priority: dict[str, tuple[int, int]] = {}
 _sat_priority: dict[str, tuple[int, int]] = {}
+_dc_priority: dict[str, tuple[int, int]] = {}
 _vita_priority: dict[str, tuple[int, int]] = {}
 _3ds_priority: dict[str, tuple[int, int]] = {}
 _3ds_title_priority: dict[str, tuple[int, int]] = {}
 _3ds_title_id_priority: dict[str, tuple[int, int]] = {}
 _ds_priority: dict[str, tuple[int, int]] = {}
 _wii_priority: dict[str, tuple[int, int]] = {}
+_wiiu_priority: dict[str, tuple[int, int]] = {}
+_wiiu_title_id_priority: dict[str, tuple[int, int]] = {}
 _ps3_priority: dict[str, tuple[int, int]] = {}
 _xbox_priority: dict[str, tuple[int, int]] = {}
 
@@ -53,6 +68,8 @@ _psx_serials_by_slug: dict[str, list[str]] = {}
 _sat_by_slug: dict[str, str] = {}
 _sat_serials_by_slug: dict[str, list[str]] = {}
 _sat_safe_to_serial: dict[str, str] = {}
+_dc_by_slug: dict[str, str] = {}
+_dc_serials_by_slug: dict[str, list[str]] = {}
 
 # PSN PSone Classic code → original retail disc serial
 # e.g. "NPUJ00662" (Parasite Eve Japan PSN) → "SLPM86034" (Parasite Eve Japan retail)
@@ -101,6 +118,41 @@ def _psx_name_slug(name: str) -> str:
 def _psx_region_hint(name: str) -> str | None:
     match = _REGION_RE.search(name)
     return match.group(1).upper() if match else None
+
+
+# Region/language words that appear in disc-name tags and should NOT be treated
+# as a distinguishing edition (e.g. "(Japan)", "(USA, Europe)", "(En,Fr,De)").
+_REGION_TAG_WORDS = {
+    "usa", "europe", "japan", "world", "asia", "korea", "china", "australia",
+    "france", "germany", "italy", "spain", "netherlands", "sweden", "brazil",
+    "en", "fr", "de", "es", "it", "ja", "nl", "pt", "sv", "da", "no", "fi", "ko", "zh",
+}
+_DISC_TAG_RE = re.compile(r"\b(disc|cd|disk)\b", re.IGNORECASE)
+_TAG_GROUP_RE = re.compile(r"[\(\[]([^\)\]]*)[\)\]]")
+
+
+def _psx_meaningful_tags(name: str) -> tuple[str, ...]:
+    """Return the edition-distinguishing tags in a name, excluding region and
+    disc markers.
+
+    ``"Soul Edge (Japan)"``               → ``()``
+    ``"Soul Edge (Japan) (Gentei Box)"``  → ``("gentei box",)``
+    ``"FF VII (USA) (Disc 1)"``           → ``()``
+
+    Two names with the same slug but different meaningful tags are different
+    releases (base game vs limited edition), so a lookup for the plain name must
+    not resolve to a variant's serial just because it sorts lower.
+    """
+    out: list[str] = []
+    for raw in _TAG_GROUP_RE.findall(name):
+        tag = raw.strip().lower()
+        if not tag or _DISC_TAG_RE.search(tag):
+            continue
+        parts = [p.strip() for p in tag.split(",")]
+        if parts and all(p in _REGION_TAG_WORDS for p in parts):
+            continue
+        out.append(tag)
+    return tuple(sorted(out))
 
 
 def _slug_roman_variants(slug: str) -> list[str]:
@@ -200,6 +252,9 @@ _3DS_HIGH_PREFIXES = {
     "00047",
 }
 _NDS_HIGH_PREFIXES = {"00048"}
+# Wii U titles are 00050000xxxxxxxx.  3DS is 00040..., DSiWare 00048..., so
+# there is no collision with the 16-hex families above.
+_WIIU_HIGH_PREFIX = "00050"
 
 
 def _detect_playstation_platform_heuristic(title_id: str) -> str | None:
@@ -290,10 +345,12 @@ def detect_platform(title_id: str) -> str:
 
     tid = title_id.upper().strip()
 
-    # 16-char hex = 3DS or NDS
+    # 16-char hex = 3DS, NDS or Wii U
     if len(tid) == 16 and all(c in "0123456789ABCDEF" for c in tid):
         if tid[:5] in _NDS_HIGH_PREFIXES:
             return "NDS"
+        if tid[:5] == _WIIU_HIGH_PREFIX:
+            return "WIIU"
         return "3DS"
 
     # 8-char hex = original Xbox Title ID (e.g. "4D530004" Halo: Combat Evolved)
@@ -355,6 +412,8 @@ def load_database(db_path: Path | None = None) -> int:
         _psx_serials_by_slug, \
         _sat_by_slug, \
         _sat_serials_by_slug, \
+        _dc_by_slug, \
+        _dc_serials_by_slug, \
         _wii_names
 
     if db_path is None:
@@ -420,6 +479,7 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
       - Nintendo - Nintendo DSi*.dat      → serial is already 4-char → _ds_names
       - Nintendo - GameCube*.dat          → extract 4-char code from DL-DOL-XXXX-RGN → _wii_names
       - Nintendo - Wii*.dat               → extract 4-char code from RVL-XXXX-RGN → _wii_names
+      - Nintendo - Wii U*.dat             → bare 4/6-char product code → _wiiu_names
 
     psn=True marks this DAT as a lower-priority PSN source so that retail entries
     (loaded with psn=False) are never overwritten by their PSN equivalents.
@@ -437,6 +497,8 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
         _3ds_serial_to_title_id, \
         _ds_names, \
         _wii_names, \
+        _wiiu_names, \
+        _wiiu_title_ids, \
         _ps3_names
     global \
         _psx_priority, \
@@ -449,6 +511,8 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
         _3ds_title_id_priority, \
         _ds_priority, \
         _wii_priority, \
+        _wiiu_priority, \
+        _wiiu_title_id_priority, \
         _ps3_priority
 
     if not dat_path.exists():
@@ -481,6 +545,10 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
         target = _sat_names
         priority = _sat_priority
         mode = "keep_serial"
+    elif "dreamcast" in fname:
+        target = _dc_names
+        priority = _dc_priority
+        mode = "dc_serial"  # canonical form folds Sega's "MK-51000" and "51000"
     elif "nintendo 3ds" in fname:
         target = _3ds_names
         priority = _3ds_priority
@@ -493,6 +561,15 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
         target = _wii_names
         priority = _wii_priority
         mode = "gc_code"  # extract 4-char code from DL-DOL-XXXX-RGN (index 2)
+    elif "wii u" in fname:
+        # Wii U serials in the gametdb DAT are bare product codes (AMKE,
+        # ADRP4Q) with no RVL- prefix, and they are a DIFFERENT namespace from
+        # the Wii/GameCube codes — so they get their own dict.  This branch
+        # MUST precede the "nintendo - wii" test below, which would otherwise
+        # swallow "Nintendo - Wii U.dat" and parse it as RVL-XXXX-RGN.
+        target = _wiiu_names
+        priority = _wiiu_priority
+        mode = "wiiu_code"
     elif "nintendo - wii" in fname:
         target = _wii_names
         priority = _wii_priority
@@ -534,6 +611,9 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
     current_name: str | None = None
     current_serial: str | None = None
     current_title_id: str | None = None
+    # Wii U blocks can carry several title ids for one product code (regional
+    # revisions, demos), so unlike the 3DS/Xbox modes we keep them all.
+    current_title_ids: list[str] = []
 
     _NAME_RE = re.compile(r'^\s*name\s+"(.+?)"')
     _SERIAL_RE = re.compile(r'^\s*serial\s+"(.+?)"')
@@ -573,21 +653,53 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
             if len(parts) >= 3 and len(parts[2]) == 4 and parts[2].isalnum():
                 return parts[2]
             return None
+        if mode == "dc_serial":
+            return canonical_dc_serial(serial) or None
         if mode == "wii_code":
             # RVL-SP3E-USA or RVL-SP3E-USA-B0 → SP3E (segment index 1, 4 chars)
             parts = serial.upper().split("-")
             if len(parts) >= 2 and len(parts[1]) == 4 and parts[1].isalnum():
                 return parts[1]
             return None
+        if mode == "wiiu_code":
+            # Already a bare product code: 4 chars (SNKE) or 6 (ADRP4Q).
+            # Key on the leading 4 so both spellings of a title collapse.
+            code = serial.upper()
+            if len(code) in (4, 6) and code.isalnum():
+                return code[:4]
+            return None
         return None
+
+    # Most DATs keep the whole rom entry on one line:
+    #     rom ( name "Foo (USA).iso" size ... )
+    # The gametdb Wii U DAT spreads it over several instead:
+    #     rom (
+    #         name "Foo (USA).wux"
+    #         serial "ADRP4Q"
+    #     )
+    # Its inner ``name`` would otherwise overwrite the game's own name (and
+    # reset the serial), yielding entries called "Foo (USA).wux".  Track the
+    # nested block and ignore everything inside it.
+    in_rom_block = False
 
     with open(dat_path, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
+            stripped = line.strip()
+
+            if in_rom_block:
+                if stripped == ")":
+                    in_rom_block = False
+                continue
+            if stripped.startswith("rom (") and not stripped.endswith(")"):
+                in_rom_block = True
+                continue
+
             m = _NAME_RE.match(line)
             if m:
                 current_name = m.group(1)
                 current_serial = None
                 current_title_id = None
+                current_title_ids = []
                 continue
 
             m = _SERIAL_RE.match(line)
@@ -596,15 +708,23 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
                 continue
 
             m = _TITLE_ID_RE.match(line)
-            if m and current_title_id is None:
-                current_title_id = m.group(1).upper()
+            if m:
+                tid = m.group(1).upper()
+                if current_title_id is None:
+                    current_title_id = tid
+                if tid not in current_title_ids:
+                    current_title_ids.append(tid)
                 continue
 
             # End of block — ")" alone on a line at top level
             has_3ds_title_only = mode == "3ds_code" and bool(current_title_id)
             has_xbox_title_only = mode == "xbox_titleid" and bool(current_title_id)
+            has_wiiu_title_only = mode == "wiiu_code" and bool(current_title_ids)
             if line.strip() == ")" and current_name and (
-                current_serial or has_3ds_title_only or has_xbox_title_only
+                current_serial
+                or has_3ds_title_only
+                or has_xbox_title_only
+                or has_wiiu_title_only
             ):
                 rank = (_source_tier, _region_rank(current_name))
                 entry_added = False
@@ -629,6 +749,22 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
                         _xbox_names[current_title_id] = current_name
                         _xbox_priority[current_title_id] = rank
                         entry_added = True
+
+                if mode == "wiiu_code" and current_title_ids:
+                    # Direct title-id index: a Wii U save is keyed by its
+                    # title id, and no amount of product-code lookup can get
+                    # there from the id alone.
+                    for tid in current_title_ids:
+                        if len(tid) != 16:
+                            continue
+                        existing_rank = _wiiu_title_id_priority.get(
+                            tid,
+                            (len(_REGION_PRIORITY) + 1, len(_REGION_PRIORITY) + 1),
+                        )
+                        if rank < existing_rank or tid not in _wiiu_title_ids:
+                            _wiiu_title_ids[tid] = current_name
+                            _wiiu_title_id_priority[tid] = rank
+                            entry_added = True
 
                 if mode == "3ds_code" and current_title_id:
                     serial_key = current_serial.upper().strip() if current_serial else ""
@@ -671,6 +807,7 @@ def load_libretro_dat_to_dicts(dat_path: Path, psn: bool = False) -> int:
                 current_name = None
                 current_serial = None
                 current_title_id = None
+                current_title_ids = []
 
     return added
 
@@ -759,6 +896,10 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             if sat_serial and sat_serial in _sat_names:
                 result[code] = (_sat_names[sat_serial], "SAT")
                 continue
+        dc_serial = parse_dc_title_id(code_upper)
+        if dc_serial and dc_serial in _dc_names:
+            result[code] = (_dc_names[dc_serial], "DC")
+            continue
         if platform == "PSP":
             name = _psp_names.get(base)
             if name:
@@ -776,6 +917,14 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
         is_3ds_format = code_upper.startswith(("CTR-", "KTR-"))
 
         if len(code_upper) == 16 and all(c in "0123456789ABCDEF" for c in code_upper):
+            # 0. Wii U (00050000xxxxxxxx).  Its low word is not the product
+            #    code, so only the DAT's title_id index can name it.
+            if code_upper[:5] == _WIIU_HIGH_PREFIX:
+                name = _wiiu_title_ids.get(code_upper)
+                if name:
+                    result[code] = (name, "WIIU")
+                continue
+
             # 1. Direct TitleID lookup populated from 3DS DAT title_id lines.
             name = _3ds_title_ids.get(code_upper)
             if name:
@@ -802,11 +951,31 @@ def lookup_names_typed(product_codes: list[str]) -> dict[str, tuple[str, str]]:
             continue
 
         # GC/Wii emulator format: GC_xxxx (e.g. GC_gbze → game code GBZE)
-        if code_upper.startswith("GC_") and len(code_upper) >= 6:
+        if code_upper.startswith("GC_") and len(code_upper) >= 7:
             game_code = code_upper[3:7]
             name = _wii_names.get(game_code)
             if name:
                 result[code] = (name, "GC")
+            continue
+
+        # vWii saves from the Wii U client: WII_xxxx, where xxxx is the ASCII
+        # game code decoded from the NAND title id (WII_RMCE = Mario Kart Wii).
+        # The Wii DAT already keys _wii_names by exactly that code.
+        if code_upper.startswith("WII_") and len(code_upper) >= 7:
+            game_code = code_upper[4:8]
+            name = _wii_names.get(game_code)
+            if name:
+                result[code] = (name, "WII")
+            continue
+
+        # Wii U ROM ids: WIIU_xxxx.  Wii U *saves* are 16-hex title ids whose
+        # low word is not the product code, so they are resolved from the
+        # console's own meta.xml instead — this branch is for catalog entries.
+        if code_upper.startswith("WIIU_") and len(code_upper) >= 8:
+            game_code = code_upper[5:9]
+            name = _wiiu_names.get(game_code)
+            if name:
+                result[code] = (name, "WIIU")
             continue
 
         if len(code_upper) >= 10 and "-" in code_upper:
@@ -924,6 +1093,68 @@ def build_saturn_slug_index() -> int:
     return len(_sat_by_slug)
 
 
+def build_dreamcast_slug_index() -> int:
+    """Name-slug → Dreamcast serial index, for naming a ROM we only know by file.
+
+    Mirrors :func:`build_saturn_slug_index`.  Several serials can share a slug
+    (regional releases of one game), so all are kept and
+    :func:`lookup_dc_serial` picks by the region tag in the filename.
+    """
+    global _dc_by_slug, _dc_serials_by_slug
+
+    slug_serials: dict[str, list[str]] = {}
+    for code, name in _dc_names.items():
+        slug = _psx_name_slug(name)
+        if not slug:
+            continue
+        slug_serials.setdefault(slug, []).append(code)
+
+    new_index: dict[str, str] = {}
+    for slug, codes in slug_serials.items():
+        sorted_codes = sorted(codes)
+        new_index[slug] = sorted_codes[0]
+        slug_serials[slug] = sorted_codes
+
+    _dc_by_slug.clear()
+    _dc_by_slug.update(new_index)
+    _dc_serials_by_slug.clear()
+    _dc_serials_by_slug.update(slug_serials)
+    return len(_dc_by_slug)
+
+
+def _dc_serial_region_rank(code: str, region_hint: str | None) -> tuple[int, str]:
+    """Sort key for choosing between a game's regional serials.
+
+    Dreamcast product codes carry their region: Sega PAL discs end in ``-50``
+    (canonicalised to a trailing ``50``), third-party Japanese codes end in
+    ``M``/``J`` and US ones in ``N``.  With no hint, prefer USA, then Europe,
+    then Japan — the same order the rest of the DAT handling uses.
+    """
+    if region_hint == "USA" and code.endswith("N"):
+        return (0, code)
+    if region_hint == "EUROPE" and code.endswith("50"):
+        return (0, code)
+    if region_hint == "JAPAN" and code.endswith(("M", "J")):
+        return (0, code)
+    if code.endswith("50"):
+        return (2, code)
+    if code.endswith(("M", "J")):
+        return (3, code)
+    return (1, code)
+
+
+def lookup_dc_serial(name: str) -> str | None:
+    """Canonical Dreamcast serial for a ROM name, or ``None``."""
+    slug = _psx_name_slug(name)
+    if not slug:
+        return None
+    candidates = _dc_serials_by_slug.get(slug)
+    if not candidates:
+        return _dc_by_slug.get(slug)
+    region_hint = _psx_region_hint(name)
+    return min(candidates, key=lambda code: _dc_serial_region_rank(code, region_hint))
+
+
 def lookup_psx_serial(name: str) -> str | None:
     """Return the PS1 product code for a game name or ROM filename, or None.
 
@@ -947,8 +1178,18 @@ def lookup_psx_serial(name: str) -> str | None:
 
     if not candidates:
         return None
+    # Multiple releases can share a slug (base game, limited editions, revisions).
+    # Prefer the candidate whose edition tags match the query's, so a plain
+    # "Soul Edge (Japan)" resolves to the base disc (SLPS00555) instead of the
+    # alphabetically-lower "Gentei Box" serial (SLPS00545).
+    query_tags = _psx_meaningful_tags(name)
+    tag_matched = [
+        code for code in candidates
+        if _psx_meaningful_tags(_psx_names.get(code, "")) == query_tags
+    ]
+    pool = tag_matched or candidates
     region_hint = _psx_region_hint(name)
-    return min(candidates, key=lambda code: _psx_serial_region_rank(code, region_hint))
+    return min(pool, key=lambda code: _psx_serial_region_rank(code, region_hint))
 
 
 def lookup_saturn_serial(name: str) -> str | None:
@@ -990,6 +1231,9 @@ def lookup_disc_serial(system: str, name: str) -> str | None:
     if sys_upper == "SAT":
         serial = lookup_saturn_serial(name)
         return make_saturn_title_id(serial) if serial else None
+    if sys_upper == "DC":
+        serial = lookup_dc_serial(name)
+        return make_dc_title_id(serial) if serial else None
     return None
 
 

@@ -43,8 +43,16 @@ class DolphinEmulator(
         /** Key used in [com.savesync.android.storage.Settings.saveDirOverrides]. */
         const val EMULATOR_KEY = "Dolphin"
 
-        /** Title-id format produced by [discoverSaves]: ``GC_<lowercase 4-char code>``. */
-        private val gcTitleIdRegex = Regex("""^GC_([A-Za-z0-9]{4})$""")
+        /**
+         * Title-id format produced by [discoverSaves]: ``GC_<uppercase 4-char code>``.
+         *
+         * The gamecode is case-insensitive (stamped uppercase on the disc, e.g.
+         * DL-DOL-GRSE-USA), so every client must agree on one casing or the
+         * server stores the same game twice.  The server canonicalises to
+         * uppercase; this regex stays case-insensitive so title-ids cached by
+         * older builds still match.
+         */
+        private val gcTitleIdRegex = Regex("""^GC_([A-Za-z0-9]{4})$""", RegexOption.IGNORE_CASE)
 
         /**
          * Pick a sensible default region folder from the GameCube product
@@ -199,7 +207,7 @@ class DolphinEmulator(
                     val extras = sorted.drop(1)
 
                     val displayName = gciDescription(primary.nameWithoutExtension)
-                    val titleId = "GC_${code.lowercase()}"
+                    val titleId = "GC_${code.uppercase()}"
 
                     result.add(
                         SaveEntry(

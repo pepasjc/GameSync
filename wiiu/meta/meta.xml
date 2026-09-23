@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<app version="1">
+  <name>Save Sync</name>
+  <coder>Save Sync</coder>
+  <version>0.5.4</version>
+  <release_date>20260805</release_date>
+  <short_description>Sync GC / vWii / Wii U saves</short_description>
+  <long_description>Syncs GameCube (Nintendont virtual memory cards), vWii NAND and Wii U MLC saves with a Save Sync server, and installs GameCube / Wii games to the SD card.</long_description>
+  <category>tool</category>
+</app>

@@ -11,7 +11,11 @@ class NameLookupRequest(BaseModel):
 
 
 class NameHintRequest(BaseModel):
-    codes: dict[str, str]  # title_id -> game_code (e.g. "0004000000161E00" -> "CTR-P-A22J")
+    codes: dict[str, str] = {}  # title_id -> game_code ("0004000000161E00" -> "CTR-P-A22J")
+    # title_id -> display name, for titles no DAT can resolve.  Wii U saves are
+    # keyed by a 16-hex title id whose low word is not the product code, so the
+    # only name source is the title's own meta.xml, which the client reads.
+    names: dict[str, str] = {}
 
 
 class SaturnArchiveLookupRequest(BaseModel):
@@ -100,7 +104,13 @@ async def update_game_names(request: NameHintRequest):
     Accepts a map of title_id -> game_code. For each entry where the stored
     name equals the title_id (i.e. was never resolved), looks up the game_code
     in the local DB and writes the result back to metadata.json.
+
+    ``names`` carries client-resolved display names for titles the local DB
+    cannot name at all, and is applied only after the code lookup fails — the
+    DAT name stays authoritative when there is one.
     """
+    resolved: set[str] = set()
+
     for title_id, game_code in request.codes.items():
         if not game_code:
             continue
@@ -111,6 +121,18 @@ async def update_game_names(request: NameHintRequest):
         if game_code in typed:
             name, platform = typed[game_code]
             storage.update_metadata_name(title_id, name, platform)
+            resolved.add(title_id)
+
+    for title_id, name in request.names.items():
+        if title_id in resolved or not name.strip():
+            continue
+        meta = storage.get_metadata(title_id)
+        if meta is None or meta.name != title_id:
+            continue
+        storage.update_metadata_name(
+            title_id, name.strip(), meta.platform or game_names.detect_platform(title_id)
+        )
+
     return {"status": "ok"}
 
 

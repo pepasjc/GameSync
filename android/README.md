@@ -50,6 +50,7 @@ On Android 11+, the app requires **All Files Access** (`MANAGE_EXTERNAL_STORAGE`
 | melonDS | NDS |
 | DraStic | NDS |
 | mGBA | GBA |
+| Cemu | Wii U (`mlc01/usr/save/00050000/`) |
 
 ## Configuration
 

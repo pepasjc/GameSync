@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Sharp - X1 [T-En] Collection</name>
+		<description>Sharp - X1 [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>2026-07-04</version>
+		<date>2026-07-04 (yy/mm/dd)</date>
+		<author>John Doe</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>-insert comment-</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Sharp - X1 [T-En] Docs">
+		<description>_Sharp - X1 [T-En] Docs</description>
+		<rom name="Ys - Ancient Ys Vanished Omen (Japan) [T-En by GhaleonX v20260704].rtf" size="2436" crc="8eeb1d7e" md5="e22374376490c48ce0293a8ff6137f53" sha1="230cc528838deaf0ae6f711b997512c890b044f7"/>
+	</machine>
+	<machine name="Brain Breaker (Japan) [T-En by Leina v1.0]">
+		<description>Brain Breaker (Japan) [T-En by Leina v1.0]</description>
+		<rom name="Brain Breaker (Japan) [T-En by Leina v1.0].2d" size="327680" crc="6a050c62" md5="45a5672c7ec807a2e25bea387b5ee2ab" sha1="aff663929b22c4bc95e3fb5ca5b0e9d10069d8f9"/>
+	</machine>
+	<machine name="Ys - Ancient Ys Vanished Omen (Japan) [T-En by GhaleonX v20260704]">
+		<description>Ys - Ancient Ys Vanished Omen (Japan) [T-En by GhaleonX v20260704]</description>
+		<rom name="Ys - Ancient Ys Vanished Omen (Japan) (Disk A) [T-En by GhaleonX v20260704].d88" size="415840" crc="a350c0b0" md5="c5bef1ff01cf16a7c34128fdb4ff65f1" sha1="36dfea3573511ab8612fec1fce0c43c6b64063d6"/>
+		<rom name="Ys - Ancient Ys Vanished Omen (Japan) (Disk B) [T-En by GhaleonX v20260704].d88" size="415840" crc="fbe1a804" md5="0929b6fc62d36cb29054a57d812a765d" sha1="128851a7d9a1c6eb7d9bf767033077553c2ba50d"/>
+		<rom name="Ys - Ancient Ys Vanished Omen (Japan) (User Disk) [MAX EXP + Gold + Final Equip].d88" size="348848" crc="1258888b" md5="378c5800089273ab13ca6e4a5a65d823" sha1="7f50471083a36c02eb758eb7e97e2f0debf9b98c"/>
+		<rom name="Ys - Ancient Ys Vanished Omen (Japan) (User Disk) [MAX EXP].d88" size="348848" crc="adaf356a" md5="fd7efad7fc2f182b2f8d7a9e8659531d" sha1="adfc726b51d8fb5ef190b3370d2fc5742b746fb5"/>
+		<rom name="Ys - Ancient Ys Vanished Omen (Japan) (User Disk) [MAX Gold &amp; EXP].d88" size="348848" crc="5fa0cfdc" md5="e02d49b870546dc6f9c194a24358b134" sha1="c5d228f225393d9f3b3bf9e6e6ad64bbe41621cc"/>
+		<rom name="Ys - Ancient Ys Vanished Omen (Japan) (User Disk) [MAX Gold].d88" size="348848" crc="5629d792" md5="209bcfe35859f69c28fc90a2e3688e79" sha1="d6d484f1d8990ad0d88a1f5296264f986724b098"/>
+		<rom name="Ys - Ancient Ys Vanished Omen (Japan) (User Disk).d88" size="348848" crc="7e7d3ddc" md5="9d5b165e48a01ee897794fca19b4583f" sha1="843301fc4016b1138bc5c4f66002321e277589e2"/>
+	</machine>
+</datafile>

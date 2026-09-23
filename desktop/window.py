@@ -8,7 +8,7 @@ from tabs.sync_tab import SyncTab
 from tabs.normalizer_tab import RomNormalizerTab
 from tabs.rom_collection_tab import RomCollectionTab
 from tabs.rom_installer_tab import RomInstallerTab
-from tabs.mister_tab import MiSTerTab
+from tabs.retroachievements_tab import RetroAchievementsTab
 
 
 class SaveManagerWindow(QMainWindow):
@@ -29,15 +29,15 @@ class SaveManagerWindow(QMainWindow):
         self.normalizer_tab = RomNormalizerTab()
         self.collection_tab = RomCollectionTab()
         self.rom_installer_tab = RomInstallerTab(self.profiles_tab)
-        self.mister_tab = MiSTerTab()
+        self.retroachievements_tab = RetroAchievementsTab()
 
         self.tabs.addTab(self.server_tab, "Server Saves")
         self.tabs.addTab(self.profiles_tab, "Sync Profiles")
         self.tabs.addTab(self.sync_tab, "Sync")
-        self.tabs.addTab(self.mister_tab, "MiSTer SSH")
         self.tabs.addTab(self.rom_installer_tab, "ROM Installer")
         self.tabs.addTab(self.normalizer_tab, "ROM Normalizer")
         self.tabs.addTab(self.collection_tab, "ROM Collection")
+        self.tabs.addTab(self.retroachievements_tab, "RetroAchievements")
 
         # Refresh sync profile list whenever the Sync tab is shown
         self.tabs.currentChanged.connect(self._on_tab_changed)
@@ -72,6 +72,7 @@ class SaveManagerWindow(QMainWindow):
         self.sync_tab.load_ui_state(ui.get("sync", {}))
         self.normalizer_tab.load_ui_state(ui.get("rom_normalizer", {}))
         self.collection_tab.load_ui_state(ui.get("rom_collection", {}))
+        self.retroachievements_tab.load_ui_state(ui.get("retroachievements", {}))
 
     def _save_state(self):
         cfg = load_config()
@@ -86,6 +87,7 @@ class SaveManagerWindow(QMainWindow):
             "sync": self.sync_tab.save_ui_state(),
             "rom_normalizer": self.normalizer_tab.save_ui_state(),
             "rom_collection": self.collection_tab.save_ui_state(),
+            "retroachievements": self.retroachievements_tab.save_ui_state(),
         }
         save_config(cfg)
 

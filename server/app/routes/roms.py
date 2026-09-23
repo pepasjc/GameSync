@@ -24,7 +24,8 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
 GET  /api/v1/roms/{rom_id}/manifest
                               — Bundle file list (returns single-element list for non-bundle)
 GET  /api/v1/roms/{rom_id}/file/{rel_path}
-                              — Stream a single file out of a bundle (Range support).
+                              — Stream a single file out of a bundle (Range support;
+                                members of a zipped MSU pack stream without Range).
                                 Used by the PS3 client to route .pkg → /dev_hdd0/packages
                                 and .rap → /dev_hdd0/exdata.
 POST /api/v1/roms/scan         — Trigger rescan of ROM directory
@@ -38,8 +39,10 @@ import os
 import re
 import shlex
 import shutil
+import struct
 import subprocess
 import tempfile
+import unicodedata
 import zipfile
 from pathlib import Path
 from typing import Optional
@@ -206,12 +209,53 @@ def _save_to_cache_by_key(temp_output: Path, label: str, key: str, output_ext: s
         return temp_output
 
 
+# ── Directory-shaped conversion cache ───────────────────────────────────────
+#
+# Most conversions produce one file, but the Wii WBFS split produces a set of
+# them (Foo.wbfs + Foo.wbf1 + ...) plus a manifest.  Those live together in a
+# cache *directory* keyed exactly like the single-file variants.
+
+def _cached_output_dir(source_path: Path, fmt: str) -> Path | None:
+    cache = _conversion_cache_dir()
+    if cache is None:
+        return None
+    key = _conversion_cache_key(source_path, fmt)
+    return cache / f"{source_path.stem}_{key}_{fmt}"
+
+
+def _lookup_cached_dir(source_path: Path, fmt: str) -> Path | None:
+    """Return a completed cache directory, or ``None``.
+
+    A directory only counts as a hit once its manifest.json exists — that is
+    written last, so a half-finished conversion (crash, power cut) is never
+    mistaken for a usable result.
+    """
+    candidate = _cached_output_dir(source_path, fmt)
+    if candidate is None:
+        return None
+    return candidate if (candidate / "manifest.json").is_file() else None
+
+
+def _save_dir_to_cache(temp_dir: Path, source_path: Path, fmt: str) -> Path:
+    cached = _cached_output_dir(source_path, fmt)
+    if cached is None:
+        return temp_dir
+    try:
+        if cached.exists():
+            shutil.rmtree(cached, ignore_errors=True)
+        shutil.move(str(temp_dir), str(cached))
+        return cached
+    except OSError:
+        return temp_dir
+
+
 # Chunk size for streamed Range responses. 1 MiB is a good balance between
 # syscall overhead and keeping memory bounded — a single in-flight request
 # never holds more than this much in RAM at a time, so 4GB ROMs over slow
 # WAN links cost ~1MB of process memory regardless of file size.
 _STREAM_CHUNK = 1 << 20
-from app.services import rom_scanner
+from app.services import ctr_rom, ra_index, rom_scanner
+from shared import wiiu_meta
 
 router = APIRouter()
 
@@ -221,7 +265,9 @@ router = APIRouter()
 _CUE_SYSTEMS = frozenset({
     'PSX', 'PS1',
     'SAT',
-    'SCD', 'MEGACD',
+    # Sega CD: ``SEGACD`` is canonical (shared.systems); ``SCD``/``MEGACD``
+    # are aliases that older catalog entries and external clients still use.
+    'SEGACD', 'SCD', 'MEGACD',
     'PCECD', 'PCENGINECD', 'TG16CD',
     '3DO',
     'PCFX',
@@ -315,6 +361,34 @@ _XBOX_EXTRACT_SPECS = {
 }
 _XBOX_EXTRACT_FORMATS = list(_XBOX_EXTRACT_SPECS.keys())
 
+# Wii U.  Unlike the 3DS and Xbox specs above, these are genuinely optional:
+# a WUP/NUS dump ships its own ticket, so real hardware AND Cemu 2.x both
+# decrypt it themselves and the raw bundle download works untouched.  These
+# formats exist only for users who want a decrypted code/content/meta tree or
+# a .wua on disk, and are advertised to clients ONLY when the matching command
+# is configured (see ``_wiiu_available_formats``) — otherwise a client would
+# request a format this server cannot produce and get a 503 instead of a
+# perfectly good download.
+_WIIU_SYSTEMS = frozenset({'WIIU'})
+_WIIU_LOADIINE_DIRS = ('code', 'content', 'meta')
+_WIIU_EXTRACT_SPECS = {
+    'loadiine': {
+        'setting': 'rom_wiiu_loadiine_command',
+        'env': 'SYNC_ROM_WIIU_LOADIINE_COMMAND',
+        'label': 'decrypted folder ZIP',
+        'output_ext': '.zip',
+        'mime': 'application/zip',
+    },
+    'wua': {
+        'setting': 'rom_wiiu_wua_command',
+        'env': 'SYNC_ROM_WIIU_WUA_COMMAND',
+        'label': 'Cemu .wua archive',
+        'output_ext': '.wua',
+        'mime': 'application/octet-stream',
+    },
+}
+_WIIU_EXTRACT_FORMATS = list(_WIIU_EXTRACT_SPECS.keys())
+
 # PS1 → PSP EBOOT.PBP conversion (popstation-style).  Used by the PSP
 # client's ROM Catalog so PS1 games convert into a PBP installable
 # under ms0:/PSP/GAME/<id>/.  Spec mirrors the 3DS/Xbox layout so the
@@ -331,12 +405,47 @@ _PS1_EBOOT_SPEC = {
     'mime': 'application/octet-stream',
 }
 
+# PS1 → POPStarter .VCD conversion (for OPL / Open PS2 Loader on PS2).
+# Mirrors the EBOOT spec so it shares the templated-command + cache code
+# path.  Output is a single raw .VCD served straight to the client, which
+# renames it to the OPL disc-serial convention (``SLUS_012.34.VCD``) and
+# drops it into the POPS folder.  Unlike EBOOT there is no multi-disc
+# merge — POPStarter keeps one .VCD per disc.
+_PS1_VCD_SPEC = {
+    'setting': 'rom_ps1_vcd_command',
+    'env': 'SYNC_ROM_PS1_VCD_COMMAND',
+    'label': 'POPStarter VCD',
+    'output_ext': '.vcd',
+    'mime': 'application/octet-stream',
+}
+
 # All systems that support any CHD extraction
 _CD_SYSTEMS   = _CUE_SYSTEMS | _GDI_SYSTEMS
 _ALL_EXTRACT  = _CD_SYSTEMS | _PSP_SYSTEMS
 
 
 # ── List endpoint ────────────────────────────────────────────────────────────
+
+def _system_match_set(system: str) -> set[str]:
+    """Every spelling of a system code a catalog entry might carry.
+
+    Clients send the canonical code from ``shared.systems`` (``SEGACD``),
+    but entries indexed before an alias was normalised can still hold the
+    alias (``SCD``).  Matching the whole alias group keeps a client working
+    against a catalog that has not been rescanned yet.
+    """
+    from shared.systems import SYSTEM_ALIASES
+
+    requested = (system or "").strip().upper()
+    if not requested:
+        return set()
+    canonical = SYSTEM_ALIASES.get(requested, requested)
+    group = {requested, canonical}
+    group.update(
+        alias for alias, target in SYSTEM_ALIASES.items() if target == canonical
+    )
+    return group
+
 
 @router.get("/roms")
 async def list_roms(
@@ -353,8 +462,7 @@ async def list_roms(
     entries = catalog.list_all()
 
     if system:
-        sys_upper = system.upper()
-        entries = [e for e in entries if e.system == sys_upper]
+        entries = [e for e in entries if e.system in _system_match_set(system)]
 
     if search:
         term = search.lower()
@@ -377,6 +485,7 @@ async def list_roms(
     # (disc_index, disc_total, primary_rom_id).  Single-disc games get
     # the trivial (1, 1, rom_id) tuple.
     ps1_disc_meta = _ps1_compute_disc_groups(entries)
+    wiiu_group_meta = _wiiu_compute_content_groups(entries)
 
     if limit is not None:
         page = entries[offset : offset + limit]
@@ -396,7 +505,13 @@ async def list_roms(
         meta = ps1_disc_meta.get(e.rom_id)
         if meta is not None:
             d['disc_index'], d['disc_total'], d['primary_rom_id'] = meta
+        wiiu = wiiu_group_meta.get(e.rom_id)
+        if wiiu is not None:
+            d['content_type'], d['base_title_id'], d['related_rom_ids'] = wiiu
         result.append(d)
+
+    # RetroAchievements badges, in one batched lookup for the whole page.
+    ra_index.annotate(page, result)
 
     return {
         "roms": result,
@@ -405,6 +520,50 @@ async def list_roms(
         "limit": limit,
         "has_more": has_more,
     }
+
+
+def _wiiu_compute_content_groups(entries) -> dict[str, tuple[str, str, list[str]]]:
+    """Link Wii U base games to their updates and DLC.
+
+    A Wii U title id encodes the content kind in its high word and shares the
+    low word across every piece of a game, so ``0005000E10145C00`` is the
+    update for ``0005000010145C00`` with no database needed.
+
+    Returns a map keyed on ``rom_id`` giving
+    ``(content_type, base_title_id, related_rom_ids)``.  ``related_rom_ids``
+    is the *other* pieces of the same game, ordered game → update → DLC →
+    demo, which is both the install order hardware needs and the order a
+    client should queue downloads in.  Entries with no siblings still get a
+    row (with an empty list) so a client can read ``content_type`` without an
+    extra lookup.
+    """
+    # Install/queue order.  A DLC installed before its base game is rejected
+    # by MCP, so this ordering is load-bearing, not cosmetic.
+    order = {'game': 0, 'update': 1, 'dlc': 2, 'demo': 3}
+
+    wiiu = [
+        e for e in entries
+        if (e.system or '').upper() in _WIIU_SYSTEMS
+        and wiiu_meta.content_type(e.title_id or '')
+    ]
+    if not wiiu:
+        return {}
+
+    by_base: dict[str, list] = {}
+    for e in wiiu:
+        by_base.setdefault(wiiu_meta.base_title_id(e.title_id), []).append(e)
+
+    result: dict[str, tuple[str, str, list[str]]] = {}
+    for base_id, group in by_base.items():
+        group.sort(key=lambda e: (
+            order.get(wiiu_meta.content_type(e.title_id), 9), e.rom_id
+        ))
+        for e in group:
+            related = [o.rom_id for o in group if o.rom_id != e.rom_id]
+            result[e.rom_id] = (
+                wiiu_meta.content_type(e.title_id), base_id, related,
+            )
+    return result
 
 
 def _ps1_compute_disc_groups(entries) -> dict[str, tuple[int, int, str]]:
@@ -417,22 +576,32 @@ def _ps1_compute_disc_groups(entries) -> dict[str, tuple[int, int, str]]:
     the PSP client can use the field's presence as a "this is a PS1
     game" flag without an extra system check.
     """
-    groups: dict[str, list] = {}
-    for e in entries:
-        if (e.system or '').upper() not in _PS1_EBOOT_SYSTEMS:
-            continue
-        if not e.title_id:
-            continue
-        groups.setdefault(e.title_id, []).append(e)
+    ps1 = [
+        e for e in entries
+        if (e.system or '').upper() in _PS1_EBOOT_SYSTEMS and e.title_id
+    ]
 
-    meta: dict[str, tuple[int, int, str]] = {}
-    for group in groups.values():
+    # Only files carrying an explicit (Disc N) tag can form a multi-disc set,
+    # and the set must span at least two distinct disc numbers.  This keeps
+    # same-serial single-disc revisions (Alundra + Alundra (Rev 1)) separate.
+    tagged: dict[str, list] = {}
+    for e in ps1:
+        if _ps1_has_disc_tag(e.filename):
+            tagged.setdefault(e.title_id, []).append(e)
+
+    multi: dict[str, tuple[int, int, str]] = {}
+    for group in tagged.values():
+        if len(group) < 2 or len({_ps1_disc_number(e.filename) for e in group}) < 2:
+            continue
         group.sort(key=lambda e: (_ps1_disc_number(e.filename), e.filename))
         total = len(group)
         primary_rom_id = group[0].rom_id
         for idx, e in enumerate(group, 1):
-            meta[e.rom_id] = (idx, total, primary_rom_id)
-    return meta
+            multi[e.rom_id] = (idx, total, primary_rom_id)
+
+    # Single-disc PS1 games still report (1, 1, rom_id) so clients can use
+    # the field's presence as a "this is a PS1 game" flag.
+    return {e.rom_id: multi.get(e.rom_id, (1, 1, e.rom_id)) for e in ps1}
 
 
 # ── Misc endpoints ───────────────────────────────────────────────────────────
@@ -443,6 +612,22 @@ async def list_systems():
     if not catalog:
         return {"systems": [], "stats": {}}
     return {"systems": catalog.systems(), "stats": catalog.stats()}
+
+
+@router.get("/roms/fingerprints")
+async def list_fingerprints():
+    """Per-system catalogue fingerprints, for clients that cache the list.
+
+    A client keeps the catalogue on disk with each system's fingerprint and,
+    on the next start, asks only for the systems whose fingerprint moved. The
+    whole response is a few hundred bytes against a multi-megabyte catalogue,
+    which is what makes opening the client instant on a device that would
+    otherwise re-download 20,000 rows every time.
+    """
+    catalog = rom_scanner.get()
+    if not catalog:
+        return {"systems": {}}
+    return {"systems": catalog.fingerprints()}
 
 
 @router.get("/roms/share-link")
@@ -528,6 +713,75 @@ def _bundle_dir_for(entry, rom_dir: Path) -> Path | None:
     if not bundle_dir.is_dir():
         return None
     return bundle_dir
+
+
+def _bundle_zip_for(entry, rom_dir: Path) -> Path | None:
+    """The archive behind a *file*-backed bundle — a zipped MSU pack.
+
+    Same containment guard as :func:`_bundle_dir_for`; returns None for
+    directory bundles and for anything that is not a plain file.
+    """
+    if not getattr(entry, 'is_bundle', False):
+        return None
+    zip_path = (rom_dir / entry.path).resolve()
+    try:
+        zip_path.relative_to(rom_dir.resolve())
+    except ValueError:
+        return None
+    if not zip_path.is_file():
+        return None
+    return zip_path
+
+
+def _serve_zip_member(zip_path: Path, rel_path: str) -> Response:
+    """Stream one member out of a zipped pack.
+
+    Members are addressed the way the manifest lists them — without the
+    single wrapping folder the pack may have been zipped with — so both
+    spellings are tried.  Deflated members stream through the decompressor;
+    no Range, since a compressed offset can't be seeked to.
+    """
+    try:
+        zf = zipfile.ZipFile(zip_path)
+    except (OSError, zipfile.BadZipFile):
+        return Response(status_code=404, content="Bundle archive unreadable")
+    from shared import msu
+    root, _names = msu.strip_common_root(
+        i.filename for i in zf.infolist() if not i.is_dir()
+    )
+    candidates = [rel_path] + ([f"{root}/{rel_path}"] if root else [])
+    info = None
+    for name in candidates:
+        try:
+            info = zf.getinfo(name)
+            break
+        except KeyError:
+            continue
+    if info is None or info.is_dir():
+        zf.close()
+        return Response(status_code=404,
+                        content=f"Bundle file not found: {rel_path}")
+
+    def _iter():
+        try:
+            with zf.open(info) as fh:
+                while True:
+                    buf = fh.read(_STREAM_CHUNK)
+                    if not buf:
+                        break
+                    yield buf
+        finally:
+            zf.close()
+
+    return StreamingResponse(
+        _iter(),
+        media_type=_content_type(info.filename),
+        headers={
+            'Content-Length': str(info.file_size),
+            'Content-Disposition':
+                f'attachment; filename="{Path(info.filename).name}"',
+        },
+    )
 
 
 def _bundle_manifest_files(entry) -> list[dict]:
@@ -786,6 +1040,11 @@ async def download_bundle_file(
 
     bundle_dir = _bundle_dir_for(entry, rom_dir)
     if bundle_dir is None:
+        zip_path = _bundle_zip_for(entry, rom_dir)
+        if zip_path is not None:
+            if rel_path.startswith("/") or ".." in Path(rel_path).parts:
+                return Response(status_code=400, content="Bad bundle file path")
+            return _serve_zip_member(zip_path, rel_path)
         return Response(status_code=404,
                         content="Bundle directory missing on disk")
 
@@ -808,6 +1067,100 @@ async def download_bundle_file(
     if range_header:
         return _serve_range(requested, file_size, content_type, range_header)
     return _serve_full(requested, file_size, content_type)
+
+
+# ── Wii split-WBFS endpoints ─────────────────────────────────────────────────
+#
+# MUST stay above the /roms/{rom_key:path} catch-all below, otherwise the
+# catch-all swallows "<id>/wbfs-manifest" as a rom key.
+
+def _resolve_rom_source(rom_key: str) -> tuple[object | None, Path | None, Response | None]:
+    """Look up a catalog entry + its on-disk file, or an error Response."""
+    catalog = rom_scanner.get()
+    if not catalog:
+        return None, None, Response(status_code=404, content="No ROM catalog available")
+
+    entry = catalog.get(rom_key)
+    if not entry:
+        for e in catalog.list_all():
+            if e.title_id == rom_key:
+                entry = e
+                break
+    if not entry:
+        return None, None, Response(status_code=404, content=f"ROM not found: {rom_key}")
+    if getattr(entry, 'is_bundle', False):
+        return entry, None, Response(status_code=400,
+                                     content="Bundle entries have no WBFS conversion")
+
+    rom_dir = settings.rom_dir
+    if not rom_dir:
+        return entry, None, Response(status_code=404, content="ROM directory not configured")
+
+    file_path = rom_dir / entry.path
+    if not file_path.is_file():
+        return entry, None, Response(status_code=404, content="ROM file not found on disk")
+    return entry, file_path, None
+
+
+async def _wbfs_cache_for(rom_key: str) -> tuple[Path | None, Response | None]:
+    entry, file_path, err = _resolve_rom_source(rom_key)
+    if err is not None:
+        return None, err
+
+    def _run() -> tuple[Path | None, str | None]:
+        return _build_wbfs_dir(file_path, entry.name)
+
+    try:
+        cache_dir, error = await asyncio.get_event_loop().run_in_executor(None, _run)
+    except subprocess.TimeoutExpired:
+        return None, Response(status_code=504,
+                              content="WBFS conversion timed out (>30 min)")
+    if error:
+        # Missing converter is an environment problem, not a bad request.
+        status = 503 if 'not found' in error else 500
+        return None, Response(status_code=status, content=error)
+    return cache_dir, None
+
+
+@router.get("/roms/{rom_key}/wbfs-manifest")
+async def rom_wbfs_manifest(rom_key: str):
+    """Convert a Wii ROM to split WBFS and return the part list.
+
+    The first call for a given ROM runs RVZ → ISO → split WBFS, which takes
+    minutes on a dual-layer disc; clients should use a long timeout.  Later
+    calls are served from the conversion cache.
+    """
+    cache_dir, err = await _wbfs_cache_for(rom_key)
+    if err is not None:
+        return JSONResponse(status_code=err.status_code,
+                            content={"detail": bytes(err.body).decode(errors="replace")})
+
+    manifest = json.loads((cache_dir / "manifest.json").read_text(encoding="utf-8"))
+    return manifest
+
+
+@router.api_route("/roms/{rom_key}/wbfs/{filename}", methods=["GET", "HEAD"])
+async def download_wbfs_part(
+    rom_key: str,
+    filename: str,
+    range_header: Optional[str] = Header(None, alias="Range"),
+):
+    """Stream one split WBFS part, with Range support so a part resumes."""
+    if not _WBFS_PART_RE.match(filename):
+        return Response(status_code=400, content="Bad WBFS part name")
+
+    cache_dir, err = await _wbfs_cache_for(rom_key)
+    if err is not None:
+        return err
+
+    part = cache_dir / filename
+    if not part.is_file():
+        return Response(status_code=404, content=f"WBFS part not found: {filename}")
+
+    file_size = part.stat().st_size
+    if range_header:
+        return _serve_range(part, file_size, 'application/octet-stream', range_header)
+    return _serve_full(part, file_size, 'application/octet-stream')
 
 
 # ── Download endpoint ────────────────────────────────────────────────────────
@@ -863,6 +1216,16 @@ async def download_rom(
     if getattr(entry, 'is_bundle', False):
         bundle_dir = _bundle_dir_for(entry, rom_dir)
         if bundle_dir is None:
+            # A zipped MSU pack is already the archive a client wants:
+            # stream it as-is, Range included, rather than re-zipping
+            # hundreds of MB of PCM through a tempfile.
+            zip_path = _bundle_zip_for(entry, rom_dir)
+            if zip_path is not None:
+                file_size = zip_path.stat().st_size
+                if range_header:
+                    return _serve_range(zip_path, file_size,
+                                        'application/zip', range_header)
+                return _serve_full(zip_path, file_size, 'application/zip')
             return Response(status_code=404,
                             content="Bundle directory not found on disk")
         if extract:
@@ -893,6 +1256,11 @@ async def download_rom(
                 )
             if sys_up in _PS1_EBOOT_SYSTEMS and fmt == 'psio':
                 return await _extract_ps1_psio(sys_up, entry)
+            if sys_up in _WIIU_SYSTEMS and fmt in _WIIU_EXTRACT_SPECS:
+                # Emulator clients ask for a decrypted shape; the default
+                # (no ?extract) stays the raw WUP ZIP that real hardware
+                # installs.
+                return await _extract_wiiu(entry, bundle_dir, fmt)
         return await _serve_bundle_zip(entry, bundle_dir)
 
     file_path = rom_dir / entry.path
@@ -915,6 +1283,11 @@ async def download_rom(
             # so the handler can look up sibling discs (multi-disc
             # games) by shared ``title_id``.
             return await _extract_ps1_eboot(file_path, sys_up, entry)
+        elif fmt == 'vcd' and sys_up in _PS1_EBOOT_SYSTEMS:
+            # PS1 → POPStarter .VCD for OPL on PS2.  Single-disc only
+            # (one VCD per disc); checked before the generic CUE/BIN
+            # branch for the same reason as EBOOT.
+            return await _extract_ps1_vcd(file_path, sys_up, entry)
         elif fmt == 'psio' and sys_up in _PS1_EBOOT_SYSTEMS:
             return await _extract_ps1_psio(sys_up, entry)
         elif fmt == 'rvz' or (fmt == 'iso' and file_path.suffix.lower() == '.rvz'):
@@ -1036,6 +1409,148 @@ async def _extract_rvz(rvz_path: Path, stem: str) -> Response:
     return _stream_file_response(cached_path, 'application/x-iso9660-image', cleanup_dir=tmpdir)
 
 
+# ── Wii RVZ/ISO → split WBFS (FAT32-friendly USB-loader layout) ─────────────
+#
+# Wii discs are up to 8.5 GB, so a single file cannot live on FAT32.  USB
+# Loader GX / WiiFlow read wit's split WBFS layout instead:
+#
+#   <wbfs>/<Name> [ID6]/<ID6>.wbfs      first 4 GiB-32 KiB chunk
+#   <wbfs>/<Name> [ID6]/<ID6>.wbf1      next chunk, and so on
+#
+# The parts are cached as a directory and served individually with Range
+# support, so an interrupted 8 GB transfer resumes at the byte — which a
+# streaming ZIP could never do.
+
+_WBFS_PART_RE = re.compile(r'^[A-Z0-9]{6}\.wbf[s0-9]$')
+_WBFS_CONVERT_TIMEOUT = 1800   # RVZ→ISO→split for a dual-layer Wii disc
+
+
+def _wit_binary() -> str | None:
+    return shutil.which('wit') or shutil.which('wit.exe')
+
+
+def _ensure_iso_for_wbfs(source_path: Path) -> tuple[Path | None, str | None, str | None]:
+    """Return (iso_path, tmpdir_to_cleanup, error).
+
+    An .iso source is used in place.  An .rvz source is decompressed with
+    DolphinTool, reusing (and populating) the same 'rvz'→'.iso' cache entry
+    the plain ``?extract=rvz`` download uses, so asking for WBFS after an ISO
+    download — or the other way round — costs one conversion, not two.
+    """
+    suffix = source_path.suffix.lower()
+    if suffix == '.iso':
+        return source_path, None, None
+    if suffix != '.rvz':
+        return None, None, f"Cannot build WBFS from {suffix or 'this file'}; need .rvz or .iso"
+
+    cached = _lookup_cached_output(source_path, 'rvz', '.iso')
+    if cached is not None:
+        return cached, None, None
+
+    dolphin_tool = (
+        shutil.which('DolphinTool')
+        or shutil.which('dolphin-tool')
+        or (Path('/usr/games/dolphin-tool').is_file() and '/usr/games/dolphin-tool')
+    )
+    if not dolphin_tool:
+        return None, None, (
+            "DolphinTool not found. Install Dolphin emulator and ensure DolphinTool "
+            "is on PATH (Linux: dolphin-tool, Windows: DolphinTool.exe)."
+        )
+
+    tmpdir = tempfile.mkdtemp(prefix='wbfs_iso_', dir=_conversion_tmp_dir())
+    iso_path = Path(tmpdir) / (source_path.stem + '.iso')
+    r = subprocess.run(
+        [dolphin_tool, 'convert', '-f', 'iso', '-i', str(source_path), '-o', str(iso_path)],
+        capture_output=True, text=True, timeout=_WBFS_CONVERT_TIMEOUT,
+    )
+    if r.returncode != 0 or not iso_path.is_file():
+        _cleanup_dir(tmpdir)
+        return None, None, (r.stderr.strip() or r.stdout.strip() or 'DolphinTool failed')
+
+    # Park it in the shared rvz→iso cache; on success the returned path is
+    # the cached one and the tmpdir is no longer needed.
+    cached_path = _save_to_cache(iso_path, source_path, 'rvz', '.iso')
+    if cached_path != iso_path:
+        _cleanup_dir(tmpdir)
+        return cached_path, None, None
+    return iso_path, tmpdir, None
+
+
+def _wit_id6(wit: str, iso_path: Path) -> str | None:
+    try:
+        r = subprocess.run([wit, 'id6', str(iso_path)],
+                           capture_output=True, text=True, timeout=120)
+    except subprocess.SubprocessError:
+        return None
+    if r.returncode != 0:
+        return None
+    for line in r.stdout.splitlines():
+        candidate = line.strip().upper()
+        if len(candidate) == 6 and candidate.isalnum():
+            return candidate
+    return None
+
+
+def _build_wbfs_dir(source_path: Path, display_name: str) -> tuple[Path | None, str | None]:
+    """Convert ``source_path`` into a cached directory of split WBFS parts.
+
+    Returns (cache_dir, error).  Blocking — call from an executor.
+    """
+    existing = _lookup_cached_dir(source_path, 'wbfs')
+    if existing is not None:
+        return existing, None
+
+    wit = _wit_binary()
+    if not wit:
+        return None, (
+            "wit (Wiimms ISO Tools) not found. Install it and ensure 'wit' is on "
+            "PATH (Debian/Ubuntu: the wit package or wiimms-iso-tools release)."
+        )
+
+    iso_path, iso_tmpdir, err = _ensure_iso_for_wbfs(source_path)
+    if err:
+        return None, err
+
+    tmpdir = tempfile.mkdtemp(prefix='wbfs_split_', dir=_conversion_tmp_dir())
+    try:
+        game_id = _wit_id6(wit, iso_path) or 'RXXX01'
+        out_path = Path(tmpdir) / f"{game_id}.wbfs"
+        r = subprocess.run(
+            [wit, 'copy', '--wbfs', '--split', '--split-size=4g-32k',
+             str(iso_path), str(out_path)],
+            capture_output=True, text=True, timeout=_WBFS_CONVERT_TIMEOUT,
+        )
+        if r.returncode != 0:
+            return None, (r.stderr.strip() or r.stdout.strip() or 'wit copy failed')
+
+        parts = sorted(p for p in Path(tmpdir).iterdir()
+                       if _WBFS_PART_RE.match(p.name))
+        if not parts:
+            return None, "wit produced no .wbfs output"
+
+        manifest = {
+            "game_id": game_id,
+            "name": display_name,
+            "files": [{"name": p.name, "size": p.stat().st_size} for p in parts],
+        }
+        (Path(tmpdir) / "manifest.json").write_text(
+            json.dumps(manifest), encoding="utf-8")
+
+        cached = _save_dir_to_cache(Path(tmpdir), source_path, 'wbfs')
+        if cached != Path(tmpdir):
+            tmpdir = None   # ownership moved into the cache
+        return cached, None
+    finally:
+        if tmpdir:
+            # Only reached when caching is disabled or the move failed; in
+            # both cases the caller keeps using the temp directory, so leave
+            # it in place and let the OS temp sweep handle it.
+            pass
+        if iso_tmpdir:
+            _cleanup_dir(iso_tmpdir)
+
+
 # ── Nintendo 3DS cart image → CIA / CCI variants ────────────────────────────
 
 async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
@@ -1067,8 +1582,27 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
             cached, 'application/x-3ds-rom', download_name=download_name
         )
 
+    # Already-decrypted source + decrypted-CCI request = nothing to convert.
+    # A raw .3ds whose NCCH headers already say NoCrypto IS a decrypted .cci,
+    # so stream it straight through under the .cci name instead of paying for
+    # a ninfs mount and a multi-GB copy.  (ZIP sources still need extracting,
+    # so they take the ``_run`` path below.)
+    source_info = None
+    if source_path.suffix.lower() in _3DS_CART_EXTENSIONS:
+        source_info = ctr_rom.probe(source_path)
+        if fmt == 'decrypted_cci' and source_info.decrypted and source_info.flags_marked:
+            return _stream_file_response(
+                source_path, 'application/x-3ds-rom', download_name=download_name
+            )
+
+    # A decrypted source only needs a flag fix-up for CCI output, which is a
+    # plain copy — don't demand a configured converter for it.
+    converter_optional = (
+        fmt == 'decrypted_cci' and source_info is not None and source_info.decrypted
+    )
+
     command_template = getattr(settings, spec['setting'])
-    if not command_template:
+    if not command_template and not converter_optional:
         return Response(
             status_code=503,
             content=(
@@ -1094,9 +1628,28 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
         output_name = f"{stem}{spec['output_ext']}"
         output_path = tmp / output_name
 
+        # Every 3DS tool decides whether to decrypt from the NCCH crypto flags.
+        # Dumps that were decrypted without patching those flags make ninfs and
+        # 3dsconv "decrypt" plaintext into garbage — pyctr raises BadOffsetError,
+        # 3dsconv silently emits no CIA.  Detect that up front.
+        info = source_info if input_path == source_path else ctr_rom.probe(input_path)
+        converter_input = input_path
+
+        if info.decrypted:
+            if fmt == 'decrypted_cci':
+                # Nothing to decrypt: copy through, correcting the flags so
+                # emulators don't try to decrypt plaintext either.
+                ctr_rom.write_decrypted_copy(input_path, output_path, info)
+                return output_path
+            if info.needs_flag_patch:
+                # Hand the converter a flag-corrected copy so it skips its
+                # (destructive) decryption pass.
+                converter_input = tmp / f"{stem}.dec{input_path.suffix or '.3ds'}"
+                ctr_rom.write_decrypted_copy(input_path, converter_input, info)
+
         cmd = _expand_command_template(
             command_template,
-            input=str(input_path),
+            input=str(converter_input),
             output=str(output_path),
             output_dir=str(tmp),
             stem=stem,
@@ -1108,12 +1661,17 @@ async def _extract_3ds(source_path: Path, system: str, fmt: str) -> Response:
             timeout=1800,
         )
         if result.returncode != 0:
-            raise RuntimeError(result.stderr.strip() or result.stdout.strip() or '3DS conversion failed')
+            raise RuntimeError(
+                (result.stderr.strip() or result.stdout.strip() or '3DS conversion failed')
+                + f" [source: {info.describe()}]"
+            )
 
         final_path = output_path if output_path.is_file() else _find_single_output(tmp, spec['output_ext'])
         if final_path is None or not final_path.is_file():
             raise RuntimeError(
-                f"converter completed but did not produce a {spec['output_ext']} file"
+                f"converter completed but did not produce a {spec['output_ext']} file; "
+                f"source: {info.describe()}"
+                f"{_format_converter_log(result)}"
             )
         return final_path
 
@@ -1379,6 +1937,16 @@ def _ps1_disc_number(filename: str) -> int:
     return int(m.group(1)) if m else 1
 
 
+def _ps1_has_disc_tag(filename: str) -> bool:
+    """True only when the filename carries an explicit ``(Disc N)`` tag.
+
+    Same-serial single-disc revisions (e.g. ``Alundra (USA)`` and
+    ``Alundra (USA) (Rev 1)``) must NOT be treated as a multi-disc set —
+    only files that actually name a disc number do.
+    """
+    return bool(_PS1_DISC_NUM_RE.search(filename or ''))
+
+
 def _ps1_normalize_gamecode(value: str | None) -> str:
     """Strip non-alphanumerics and uppercase.  pop-fe + popstation expect
     the canonical PS1 product code form (``SCUS94503``, 9 chars, no dash);
@@ -1407,6 +1975,10 @@ def _ps1_disc_siblings(entry) -> list:
     title_id = entry.title_id
     if not title_id:
         return [entry]
+    # A multi-disc set requires this entry to carry an explicit (Disc N) tag;
+    # otherwise same-serial single-disc revisions would be wrongly merged.
+    if not _ps1_has_disc_tag(entry.filename):
+        return [entry]
     catalog = rom_scanner.get()
     if catalog is None:
         return [entry]
@@ -1414,8 +1986,9 @@ def _ps1_disc_siblings(entry) -> list:
         e for e in catalog.list_all()
         if (e.system or '').upper() in _PS1_EBOOT_SYSTEMS
         and e.title_id == title_id
+        and _ps1_has_disc_tag(e.filename)
     ]
-    if len(siblings) <= 1:
+    if len(siblings) <= 1 or len({_ps1_disc_number(e.filename) for e in siblings}) < 2:
         return [entry]
     siblings.sort(key=lambda e: (_ps1_disc_number(e.filename), e.filename))
     return siblings
@@ -1571,6 +2144,343 @@ async def _extract_ps1_eboot(source_path: Path, system: str, entry) -> Response:
 
     cached_path = _save_to_cache_by_key(final_path, 'ps1_eboot', cache_key, spec['output_ext'])
     return _stream_file_response(cached_path, spec['mime'], cleanup_dir=tmpdir)
+
+
+async def _extract_ps1_vcd(source_path: Path, system: str, entry) -> Response:
+    """Convert a single PS1 disc image to a POPStarter .VCD for OPL on PS2.
+
+    OPL's POPStarter launcher plays PS1 games on PS2 hardware via the
+    internal POPS emulator, reading one ``.VCD`` per disc from the USB
+    ``POPS`` folder.  Unlike PSP EBOOTs there is no multi-disc merge —
+    each disc produces its own VCD, so this handler converts just the
+    requested ``source_path`` (the desktop client renames it to the OPL
+    ``SLUS_012.34.VCD`` convention and routes it to ``POPS/``).
+
+    Output is the raw .VCD — no zip wrapper — so the client can stream it
+    straight to the target path.  Until the operator wires up
+    ``SYNC_ROM_PS1_VCD_COMMAND`` the route returns 503 with a setup hint.
+    """
+    if system not in _PS1_EBOOT_SYSTEMS:
+        return Response(
+            status_code=400,
+            content=(
+                "VCD extraction is only supported for PS1 ROMs "
+                f"(got {system})"
+            ),
+        )
+
+    spec = _PS1_VCD_SPEC
+    rom_dir = settings.rom_dir
+    if rom_dir is None:
+        return Response(status_code=503, content="ROM directory not configured")
+    if not source_path.is_file():
+        return Response(status_code=404, content="Disc file not found on disk")
+
+    # Single-disc cache key (one VCD per disc).
+    cache_key = _conversion_cache_key_multi([source_path], 'vcd')
+    cached = _lookup_cached_by_key('ps1_vcd', cache_key, spec['output_ext'])
+    if cached is not None:
+        return _stream_file_response(cached, spec['mime'])
+
+    command_template = getattr(settings, spec['setting'])
+    if not command_template:
+        return Response(
+            status_code=503,
+            content=(
+                f"PS1 → {spec['label']} conversion is not configured on the server.\n"
+                f"\n"
+                f"OPL (Open PS2 Loader) plays PS1 games via POPStarter, which reads\n"
+                f"one .VCD per disc from the USB POPS folder.  Set {spec['env']} to a\n"
+                f"command template that reads {{input}} and writes a .VCD under\n"
+                f"{{output_dir}}.\n"
+                f"\n"
+                f"Available placeholders:\n"
+                f"  {{input}}      — this disc's image path (.chd / .cue / .bin / .iso)\n"
+                f"  {{output}}     — suggested output path (the converter may ignore it)\n"
+                f"  {{output_dir}} — fresh scratch dir; converter must put the .VCD under it\n"
+                f"  {{stem}}       — disc filename without extension\n"
+                f"  {{title}}      — game name (catalog ``name``, falls back to filename)\n"
+                f"  {{gamecode}}   — PS1 product code (catalog ``title_id``, e.g. SCUS94503)\n"
+                f"\n"
+                f"Example (krHACKen popstation-based VCD tool):\n"
+                f"  SYNC_ROM_PS1_VCD_COMMAND="
+                f"[\"popstation\",\"-p\",\"-c\",\"{{output_dir}}\",\"{{input}}\"]\n"
+            ),
+        )
+
+    cwd = settings.rom_ps1_vcd_cwd or None
+    tmpdir = tempfile.mkdtemp(prefix='ps1_vcd_', dir=_conversion_tmp_dir())
+
+    title = entry.name or _ps1_clean_title(source_path.name)
+    gamecode = (
+        _ps1_normalize_gamecode(entry.title_id)
+        or _ps1_normalize_gamecode(_extract_ps1_serial_from_filename(source_path.name))
+        or 'SLUS00000'
+    )
+
+    def _run() -> Path:
+        tmp = Path(tmpdir)
+        stage = tmp / 'stage'
+        stage.mkdir()
+
+        cmd = _expand_command_template(
+            command_template,
+            input=str(source_path),
+            output=str(stage / 'game.vcd'),
+            output_dir=str(stage),
+            stem=source_path.stem,
+            title=title,
+            gamecode=gamecode,
+            inputs=[str(source_path)],
+        )
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=3600,
+            cwd=cwd or str(tmp),
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                result.stderr.strip()
+                or result.stdout.strip()
+                or 'PS1 → VCD conversion failed'
+            )
+
+        candidates = _find_outputs(stage, {spec['output_ext']})
+        if not candidates:
+            raise RuntimeError(
+                "converter completed but did not produce a "
+                f"{spec['output_ext']} file"
+                + (('\n' + result.stdout[-2000:]) if result.stdout else '')
+            )
+        # Prefer a single output; otherwise take the largest match.
+        candidates.sort(key=lambda p: p.stat().st_size, reverse=True)
+        return candidates[0]
+
+    try:
+        final_path = await asyncio.get_event_loop().run_in_executor(None, _run)
+    except RuntimeError as exc:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=500, content=f"Conversion failed: {exc}")
+    except subprocess.TimeoutExpired:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=504, content="Conversion timed out (>1 hour)")
+
+    cached_path = _save_to_cache_by_key(final_path, 'ps1_vcd', cache_key, spec['output_ext'])
+    return _stream_file_response(cached_path, spec['mime'], cleanup_dir=tmpdir)
+
+
+# ── Wii U WUP → decrypted loadiine folder / Cemu .wua ───────────────────────
+
+
+def _wiiu_bundle_kind(entry) -> str:
+    """Classify a Wii U bundle from its file list: ``wup``/``loadiine``/``""``.
+
+    ``wup`` is an encrypted NUS dump (``title.tmd`` present) — installable on
+    real hardware, unusable by Cemu until decrypted.  ``loadiine`` is an
+    already-decrypted ``code``/``content``/``meta`` tree, which Cemu reads
+    directly.
+    """
+    names = [
+        str(f.get('name', '')).lower()
+        for f in (getattr(entry, 'bundle_files', None) or [])
+        if isinstance(f, dict)
+    ]
+    if any(name.rsplit('/', 1)[-1] == 'title.tmd' for name in names):
+        return 'wup'
+    tops = {name.split('/', 1)[0] for name in names if '/' in name}
+    if all(d in tops for d in _WIIU_LOADIINE_DIRS):
+        return 'loadiine'
+    return ''
+
+
+def _wiiu_available_formats(entry) -> list[str]:
+    """Wii U extract formats this server can actually deliver right now.
+
+    A WUP bundle only converts when the operator configured a decrypter, so
+    an unconfigured server advertises nothing and clients fall back to the
+    raw bundle — which is already what hardware and Cemu both accept.  An
+    already-decrypted bundle can always answer ``loadiine`` because that path
+    is a plain ZIP of the folder, no external tool involved.
+    """
+    kind = _wiiu_bundle_kind(entry)
+    if not kind:
+        return []
+
+    formats: list[str] = []
+    for fmt, spec in _WIIU_EXTRACT_SPECS.items():
+        if fmt == 'loadiine' and kind == 'loadiine':
+            formats.append(fmt)
+            continue
+        if getattr(settings, spec['setting'], ''):
+            formats.append(fmt)
+    return formats
+
+
+def _wiiu_cache_key(bundle_dir: Path, fmt: str) -> str:
+    """Cache key over every file in the WUP/loadiine folder.
+
+    Bundles are directories, so the single-file ``_conversion_cache_key``
+    (which stats one path) can't be used — replacing one ``.app`` inside the
+    folder must invalidate the decrypted output.
+    """
+    parts: list[str] = []
+    for p in sorted(bundle_dir.rglob('*')):
+        if not p.is_file():
+            continue
+        st = p.stat()
+        parts.append(f"{p.relative_to(bundle_dir).as_posix()}|{st.st_mtime_ns}|{st.st_size}")
+    payload = f"{bundle_dir.absolute()}\n" + '\n'.join(parts) + f"|{fmt}"
+    return hashlib.sha256(payload.encode('utf-8')).hexdigest()[:16]
+
+
+async def _extract_wiiu(entry, bundle_dir: Path, fmt: str) -> Response:
+    """Decrypt a Wii U WUP bundle into a Cemu-usable shape.
+
+    ``loadiine`` yields a ZIP of the decrypted ``code``/``content``/``meta``
+    tree; ``wua`` yields a single Cemu archive.  A bundle that is *already*
+    decrypted short-circuits the ``loadiine`` request to a plain bundle ZIP —
+    no converter needed, and no reason to require one to be configured.
+    """
+    spec = _WIIU_EXTRACT_SPECS[fmt]
+    kind = _wiiu_bundle_kind(entry)
+
+    if fmt == 'loadiine' and kind == 'loadiine':
+        return await _serve_bundle_zip(entry, bundle_dir)
+
+    download_name = f"{_safe_archive_stem(entry.name)}{spec['output_ext']}"
+
+    cache_key = _wiiu_cache_key(bundle_dir, fmt)
+    cached = _lookup_cached_by_key('wiiu', cache_key, spec['output_ext'])
+    if cached is not None:
+        return _stream_file_response(
+            cached, spec['mime'], download_name=download_name
+        )
+
+    command_template = getattr(settings, spec['setting'])
+    if not command_template:
+        return Response(
+            status_code=503,
+            content=(
+                f"Wii U → {spec['label']} conversion is not configured on the server.\n"
+                f"\n"
+                f"You probably do not need this.  A WUP/NUS dump ships its own\n"
+                f"ticket, so real hardware and Cemu 2.x both decrypt it themselves\n"
+                f"— downloading this ROM with no ?extract= gives a working title.\n"
+                f"\n"
+                f"Set {spec['env']} only if you specifically want a decrypted tree\n"
+                f"on disk.  It must read {{input}} and write under {{output_dir}}.\n"
+                f"\n"
+                f"Available placeholders:\n"
+                f"  {{input}}      — the WUP bundle DIRECTORY (not a file)\n"
+                f"  {{output_dir}} — fresh scratch dir; put the result under it\n"
+                f"  {{output}}     — suggested output path (.wua only)\n"
+                f"  {{stem}}       — bundle folder name\n"
+                f"  {{title}}      — game name\n"
+                f"  {{title_id}}   — 16-hex Wii U title id\n"
+                f"\n"
+                f"CDecrypt is the intended tool (check your build's usage line\n"
+                f"for argument order):\n"
+                f"  SYNC_ROM_WIIU_LOADIINE_COMMAND="
+                f"[\"cdecrypt\",\"{{input}}\",\"{{output_dir}}\"]\n"
+                f"\n"
+                f"Forks that read the Wii U common key from a keys.txt need\n"
+                f"SYNC_ROM_WIIU_CWD pointed at the folder holding it.  GameSync\n"
+                f"does not ship that key and cannot redistribute it.\n"
+            ),
+        )
+
+    cwd = settings.rom_wiiu_cwd or None
+    tmpdir = tempfile.mkdtemp(prefix='wiiu_', dir=_conversion_tmp_dir())
+
+    def _run() -> Path:
+        tmp = Path(tmpdir)
+        stage = tmp / 'stage'
+        stage.mkdir()
+
+        cmd = _expand_command_template(
+            command_template,
+            input=str(bundle_dir),
+            output=str(stage / f"{bundle_dir.name}{spec['output_ext']}"),
+            output_dir=str(stage),
+            stem=bundle_dir.name,
+            title=entry.name or bundle_dir.name,
+            title_id=entry.title_id or '',
+        )
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=7200,
+            cwd=cwd or str(tmp),
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                result.stderr.strip()
+                or result.stdout.strip()
+                or 'Wii U decryption failed'
+            )
+
+        if fmt == 'wua':
+            candidates = _find_outputs(stage, {'.wua'})
+            if not candidates:
+                raise RuntimeError(
+                    "converter completed but did not produce a .wua file"
+                    + (('\n' + result.stdout[-2000:]) if result.stdout else '')
+                )
+            candidates.sort(key=lambda p: p.stat().st_size, reverse=True)
+            return candidates[0]
+
+        # loadiine — the converter drops code/content/meta somewhere under
+        # the scratch dir.  Zip from whichever directory actually holds
+        # them, so a tool that nests its output one level deep still works.
+        root = _wiiu_find_loadiine_root(stage)
+        if root is None:
+            raise RuntimeError(
+                "converter completed but produced no code/content/meta tree"
+                + (('\n' + result.stdout[-2000:]) if result.stdout else '')
+            )
+        zip_path = tmp / f'{bundle_dir.name}.zip'
+        # Decrypted Wii U content is mostly already-compressed asset
+        # archives, so ZIP_STORED keeps CPU off the (often Pi-class) server.
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
+            for p in sorted(root.rglob('*')):
+                if p.is_file():
+                    zf.write(p, arcname=p.relative_to(root).as_posix())
+        return zip_path
+
+    try:
+        final_path = await asyncio.get_event_loop().run_in_executor(None, _run)
+    except RuntimeError as exc:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=500, content=f"Conversion failed: {exc}")
+    except subprocess.TimeoutExpired:
+        _cleanup_dir(tmpdir)
+        return Response(status_code=504, content="Conversion timed out (>2 hours)")
+
+    cached_path = _save_to_cache_by_key(
+        final_path, 'wiiu', cache_key, spec['output_ext']
+    )
+    return _stream_file_response(
+        cached_path, spec['mime'],
+        cleanup_dir=tmpdir, download_name=download_name,
+    )
+
+
+def _wiiu_find_loadiine_root(stage: Path) -> Path | None:
+    """Find the directory holding ``code``/``content``/``meta`` under ``stage``.
+
+    CDecrypt writes them straight into the output dir, but wrappers often add
+    a per-title subfolder — search a couple of levels rather than insisting on
+    one layout.
+    """
+    candidates = [stage] + [p for p in stage.rglob('*') if p.is_dir()]
+    for candidate in candidates:
+        children = {c.name.lower() for c in candidate.iterdir() if c.is_dir()}
+        if all(d in children for d in _WIIU_LOADIINE_DIRS):
+            return candidate
+    return None
 
 
 # ── PS1 CHD / CUE → PSIO BIN/CU2 ZIP ────────────────────────────────────────
@@ -1775,11 +2685,40 @@ def _psio_find_cue(source_dir: Path) -> Path:
     return cues[0]
 
 
-def _psio_archive_prefix(entry, index: int, total: int) -> str:
-    if total <= 1:
-        return ''
-    name = _safe_archive_stem(getattr(entry, 'name', '') or getattr(entry, 'filename', '') or f"Disc {index}")
-    return f"Disc {index:02d} - {name}"
+_PS1_BRACKET_TAG_RE = re.compile(r'\s*\[[^\]]*\]')
+
+# PSIO's menu refuses filenames longer than this and cannot render non-ASCII
+# bytes, so every BIN/CU2 member name we emit must stay ASCII and <= 60 chars.
+PSIO_MAX_FILENAME = 60
+
+
+def _psio_ascii_only(value: str) -> str:
+    """Best-effort ASCII: decompose accents, drop combining marks, drop the rest.
+
+    PSIO cannot display non-ASCII bytes; NFKD decomposition salvages accented
+    Latin names (e.g. ``Pokémon`` -> ``Pokemon``) while the remaining CJK /
+    symbol bytes are dropped.
+    """
+    decomposed = unicodedata.normalize('NFKD', str(value or ''))
+    stripped = ''.join(c for c in decomposed if not unicodedata.combining(c))
+    return stripped.encode('ascii', 'ignore').decode('ascii')
+
+
+def _ps1_psio_base_name(name: str) -> str:
+    """PSIO BIN/CU2 base name for one game.
+
+    Drops the ``(Disc N)`` tag and any ``[..]`` tags (translation / dump
+    flags) but keeps region parens like ``(USA)`` — matching the on-disk
+    PSIO convention (e.g. ``Fear Effect (USA) (Disc 1).bin``).  Non-ASCII
+    characters are stripped (PSIO can't render them); the per-disc suffix is
+    re-appended by the caller, which also enforces the 60-char limit.
+    """
+    stem = Path(name).stem
+    cleaned = _PS1_DISC_NUM_RE.sub('', stem)
+    cleaned = _PS1_BRACKET_TAG_RE.sub('', cleaned)
+    cleaned = _psio_ascii_only(cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip(' ._')
+    return cleaned or 'game'
 
 
 async def _extract_ps1_psio(system: str, entry) -> Response:
@@ -1814,9 +2753,13 @@ async def _extract_ps1_psio(system: str, entry) -> Response:
     tmp = Path(tmpdir)
     zip_path = tmp / f"{_safe_archive_stem(entry.name or entry.filename or 'psio')}.zip"
 
+    multi = len(source_pairs) > 1
+    base_name = _ps1_psio_base_name(entry.name or entry.filename or 'psio')
+
     def _run() -> Path:
         extract_root = tmp / 'extract'
         extract_root.mkdir()
+        bin_names: list[str] = []
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
             for index, (sibling, source) in enumerate(source_pairs, start=1):
                 if source.is_dir():
@@ -1844,11 +2787,25 @@ async def _extract_ps1_psio(system: str, entry) -> Response:
                     )
 
                 cu2_text, referenced_files = _cue_to_cu2_text(cue_path)
-                prefix = _psio_archive_prefix(sibling, index, len(source_pairs))
-                arc_prefix = f"{prefix}/" if prefix else ''
-                zf.writestr(f"{arc_prefix}{cue_path.stem}.cu2", cu2_text)
+                # PSIO wants every disc flat in one game folder with matching
+                # BIN/CU2 stems plus a MULTIDISC.LST — no per-disc subfolders.
+                if multi:
+                    disc_no = _ps1_disc_number(sibling.filename)
+                    disc_suffix = f' (Disc {disc_no})'
+                else:
+                    disc_suffix = ''
+                # PSIO rejects filenames > 60 chars; leave room for the disc
+                # suffix and the .bin/.cu2 extension (4 chars).
+                limit = max(1, PSIO_MAX_FILENAME - len(disc_suffix) - 4)
+                trimmed = base_name if len(base_name) <= limit else base_name[:limit].rstrip(' ._')
+                out_base = f"{trimmed}{disc_suffix}"
+                zf.writestr(f"{out_base}.cu2", cu2_text)
+                # _parse_cue_for_psio enforces a single monolithic BIN.
                 for ref in referenced_files:
-                    zf.write(ref, f"{arc_prefix}{ref.name}")
+                    zf.write(ref, f"{out_base}.bin")
+                bin_names.append(f"{out_base}.bin")
+            if multi:
+                zf.writestr('MULTIDISC.LST', '\r\n'.join(bin_names) + '\r\n')
         return zip_path
 
     try:
@@ -2184,6 +3141,17 @@ def _extract_formats_for_entry(entry) -> tuple[str | None, list[str]]:
 
     if sys_up in _XBOX_SYSTEMS and getattr(entry, 'is_bundle', False):
         return 'xbox', list(_XBOX_EXTRACT_FORMATS)
+    if sys_up in _WIIU_SYSTEMS and getattr(entry, 'is_bundle', False):
+        # No preferred format on purpose.  The raw bundle ZIP is the WUP set,
+        # which is what BOTH real hardware and Cemu want: hardware installs it
+        # through MCP, and Cemu 2.x decrypts it itself from the bundled
+        # ticket.  Neither needs a server-side decrypter.
+        #
+        # Decrypted output is therefore strictly optional, and advertising a
+        # format the operator hasn't configured would make clients request a
+        # guaranteed 503 instead of downloading the perfectly usable original.
+        # So only offer what this server can actually produce.
+        return None, _wiiu_available_formats(entry)
     if sys_up in _PS1_EBOOT_SYSTEMS and getattr(entry, 'is_bundle', False):
         names = [
             str(f.get('name', ''))
@@ -2199,14 +3167,24 @@ def _extract_formats_for_entry(entry) -> tuple[str | None, list[str]]:
         if sys_up in _PS2_SYSTEMS:
             # PS2 is split media: DVD CHDs extract to a single ISO,
             # CD CHDs extract to a CUE/BIN zip.  Ask the DAT what the
-            # original disc was.  When the DAT can't answer (game not
-            # in any loaded DAT, or DAT only listed cart entries) we
-            # fall back to no extract option — the user still gets the
-            # raw CHD download.
+            # original disc was — the libretro PS2 DAT names the media in
+            # every entry's rom line (``…(Japan).iso`` vs ``…(USA).bin``),
+            # which covers ~11k titles by CRC, name slug or serial.
             normalizer = _dat_normalizer_get()
             disc_ext = (
-                normalizer.lookup_disc_format('PS2', filename) if normalizer else None
+                normalizer.lookup_disc_format(
+                    'PS2',
+                    filename,
+                    crc32=getattr(entry, 'crc32', None) or None,
+                    serial=getattr(entry, 'title_id', None) or None,
+                )
+                if normalizer else None
             )
+            if disc_ext is None:
+                # Renamed rip, hack, or a disc the DAT has never seen.
+                # The CHD itself still knows: chdman createcd writes CD
+                # track metadata, createdvd doesn't.
+                disc_ext = _chd_disc_ext(entry)
             if disc_ext == 'iso':
                 return 'iso', ['iso']
             if disc_ext in ('bin', 'cue'):
@@ -2217,15 +3195,16 @@ def _extract_formats_for_entry(entry) -> tuple[str | None, list[str]]:
         if sys_up in _PS1_EBOOT_SYSTEMS:
             # PS1 CHD: PS3 client wants CUE/BIN, PSP client wants
             # EBOOT.PBP, and PSIO wants BIN/CU2. Advertise all so each client picks its
-            # native format from extract_formats[].
-            return 'cue', ['cue', 'eboot', 'psio']
+            # native format from extract_formats[].  OPL (PS2) wants a
+            # POPStarter VCD, so 'vcd' rides along here too.
+            return 'cue', ['cue', 'eboot', 'psio', 'vcd']
         if sys_up in _CUE_SYSTEMS:
             return 'cue', ['cue']
     elif sys_up in _PS1_EBOOT_SYSTEMS and suffix in {'.cue', '.bin', '.iso', '.img'}:
         # PS1 native disc images (no CHD) — no extract needed for the
         # PS3 client (raw CUE/BIN is fine), but the PSP client needs
-        # an EBOOT, so advertise that as the only option.
-        formats = ['eboot']
+        # an EBOOT and OPL/POPStarter needs a VCD, so advertise both.
+        formats = ['eboot', 'vcd']
         if suffix == '.cue':
             formats.append('psio')
         return None, formats
@@ -2237,6 +3216,84 @@ def _extract_formats_for_entry(entry) -> tuple[str | None, list[str]]:
         return 'xbox', list(_XBOX_EXTRACT_FORMATS)
 
     return None, []
+
+
+# ── CHD media sniffing ──────────────────────────────────────────────────────
+#
+# Last-resort answer to "is this PS2 CHD a CD or a DVD" when no DAT entry
+# matches.  A v5 CHD built by ``chdman createcd`` carries per-track metadata;
+# ``createdvd`` output carries none and uses 2048-byte units, while CD CHDs
+# use 2448-byte frames.  Reading the header is a couple of seeks, and the
+# result is cached per (path, size, mtime) so a catalog listing doesn't
+# re-open the same multi-GB file on every request.
+_CHD_MAGIC = b'MComprHD'
+# CDROM_TRACK_METADATA / _2, CDROM_OLD, GD-ROM track metadata (MAME chd.h).
+_CHD_CD_METADATA_TAGS = frozenset({b'CHTR', b'CHT2', b'CHCD', b'CHGT', b'CHGD'})
+_CD_FRAME_UNIT_BYTES = 2448
+_chd_media_cache: dict[tuple[str, int, int], Optional[str]] = {}
+
+
+def _chd_disc_ext(entry) -> Optional[str]:
+    """'iso' (DVD) / 'cue' (CD) for a CHD catalog entry, else None."""
+    rom_dir = settings.rom_dir
+    rel = getattr(entry, 'path', None)
+    if not rom_dir or not rel:
+        return None
+    path = Path(rom_dir) / rel
+    kind = _chd_media_kind(path)
+    if kind == 'dvd':
+        return 'iso'
+    if kind == 'cd':
+        return 'cue'
+    return None
+
+
+def _chd_media_kind(path: Path) -> Optional[str]:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    key = (str(path), st.st_size, int(st.st_mtime))
+    if key in _chd_media_cache:
+        return _chd_media_cache[key]
+    kind = _read_chd_media_kind(path)
+    _chd_media_cache[key] = kind
+    return kind
+
+
+def _read_chd_media_kind(path: Path) -> Optional[str]:
+    """Parse a v5 CHD header + metadata chain. Returns 'cd', 'dvd' or None."""
+    try:
+        with open(path, 'rb') as fh:
+            head = fh.read(64)
+            if len(head) < 64 or head[:8] != _CHD_MAGIC:
+                return None
+            version = struct.unpack('>I', head[12:16])[0]
+            if version != 5:
+                # v4 and older have a different header layout; the DAT is
+                # the only answer for those.
+                return None
+            meta_offset = struct.unpack('>Q', head[48:56])[0]
+            unit_bytes = struct.unpack('>I', head[60:64])[0]
+
+            # Metadata entry header: tag[4], flags+length[4], next[8].
+            # Bounded walk — a corrupt chain must not spin forever.
+            seen = 0
+            while meta_offset and seen < 256:
+                fh.seek(meta_offset)
+                header = fh.read(16)
+                if len(header) < 16:
+                    break
+                if header[:4] in _CHD_CD_METADATA_TAGS:
+                    return 'cd'
+                meta_offset = struct.unpack('>Q', header[8:16])[0]
+                seen += 1
+
+            return 'cd' if unit_bytes == _CD_FRAME_UNIT_BYTES else 'dvd'
+    except OSError:
+        return None
+    except struct.error:
+        return None
 
 
 def _dat_normalizer_get():

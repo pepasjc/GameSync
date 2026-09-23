@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Nintendo - GameCube [T-En] Collection</name>
+		<description>Nintendo - GameCube [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>2026-06-24</version>
+		<date>2026-06-24 (yy/mm/dd)</date>
+		<author>John Doe</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>NKit2 RVZ ZSTD-19-128K</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Nintendo GameCube [T-En] Docs">
+		<description>_Nintendo GameCube [T-En] Docs</description>
+		<rom name="Animal Forest e+ (Japan) [T-En by Animal Forest e+ English Translation Project v23] [i] [n].txt" size="4817" crc="bf4993e5" md5="8485cbf34eede15efdafc308a44ec9c9" sha1="0e9edd23ae4a744978c1d1ed69ba70b9695c7103"/>
+		<rom name="Bloody Roar - Extreme &amp; Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2].txt" size="3219" crc="ec442f7c" md5="74688ff63276c9296826e3e1e1a4d605" sha1="9ef9ce1ad4a103cd2ca18b80c1239f709cb351d3"/>
+		<rom name="Dragon Drive - D-Masters Shot (Japan) [T-En by LFA Translations].txt" size="953" crc="341e1abc" md5="e6950d58096f6e7711c87afe1d6add1b" sha1="2363493a72842964fa9240681e0f578414129137"/>
+		<rom name="Fire Emblem - Souen no Kiseki (Japan) [T-En by Shadowofchaos v0.1].txt" size="2611" crc="b99feda5" md5="3f6fb102fdab12ac9afe3d1b2cbaada5" sha1="8721729972191f37949fda22e4444e18046379db"/>
+		<rom name="Lupin III - Lost Treasure Under the Sea (Japan) [T-En by DOL-Translations v1.0.1] [n] [Gecko code text formatting fix].txt" size="443" crc="2088255a" md5="8d0d0c4c0f0e324db9af40d78f6f9619" sha1="356fef83c115904966b54214b53fd5e06663fbbc"/>
+		<rom name="Radirgy Generic (Japan) [T-En by SigmaStingray v1.0].txt" size="1446" crc="38fc3b58" md5="4267ff0b93f5fbe95506e0e633fdfeae" sha1="511f6fa9a620892aae636676da9ae9aadbc06c4b"/>
+		<rom name="Sonic Gems Collection (Japan) [T-En by Masaru v1.0] [i].txt" size="987" crc="9bf4f027" md5="8e13eb52eb47abc525129f6b9a60738f" sha1="659e4397b36d8e2ca939f073de21f2e42b2ad67d"/>
+		<rom name="Super Robot Wars GC (Japan) [T-En by Super Robot Wars GC Team v1.0.2] [n].txt" size="5897" crc="1a24c221" md5="8d84114587c39179bc67bbd8da83c477" sha1="289129fd1965b07c1e3a79d2c0cb7ae86ddf2a6c"/>
+		<rom name="World Soccer Winning Eleven 6 - Final Evolution (Japan) [T-En by ADONF v0.3] [i].txt" size="1979" crc="d7125238" md5="29b3050943a68b7568af974865d8cc6d" sha1="77a5d21ea435fbd454aff8b278853cd8bbcc77bd"/>
+		<rom name="Zatch Bell! Go! Go! Mamodo Fight!! (Japan) [T-En by SuperrSonic &amp; XZatchBellGamerX v1.0] [n] [Manual].cbz" size="22083844" crc="91c6b6fb" md5="cdfedfa1e5c4d1cd055e94d959957de2" sha1="f6591af07474d3be690185ae8e92cd09b7e49dd8"/>
+		<rom name="Zatch Bell! Go! Go! Mamodo Fight!! (Japan) [T-En by SuperrSonic &amp; XZatchBellGamerX v1.0] [n].txt" size="5961" crc="14287fdd" md5="225a34c49b3c16eeee29feca780118c5" sha1="692013d027ed703b0b508cb09c6cae6cb4d757f9"/>
+		<rom name="Zoids Vs. III (Japan) [T-En by Traceytrace v1.00].txt" size="1759" crc="4004e3b1" md5="ec82b0ee7323141c403d95d26780425e" sha1="71d868d502cdcd32bb47fa00c9a112a2273236d4"/>
+	</machine>
+	<machine name="Animal Forest e+ (Japan) [T-En by Animal Forest e+ English Translation Project v23] [i] [n]">
+		<description>Animal Forest e+ (Japan) [T-En by Animal Forest e+ English Translation Project v23] [i] [n]</description>
+		<rom name="Animal Forest e+ (Japan) [T-En by Animal Forest e+ English Translation Project v23] [i] [n].rvz" size="17506524" crc="621b1d01" md5="9aecde60eacf5c3a9018b2efa227bbe1" sha1="4c0330b8a734e4e5423136f5700d28116947e0cd"/>
+	</machine>
+	<machine name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Basic Re-Dub Xbox Cutscenes]">
+		<description>Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Basic Re-Dub Xbox Cutscenes]</description>
+		<rom name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Basic Re-Dub Xbox Cutscenes].rvz" size="678641036" crc="0811f619" md5="b8e30a7c60d749d95d58f54ce589ad6e" sha1="9fa610752b5c5ed6878455ce03d689c0624d494b"/>
+	</machine>
+	<machine name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Basic Re-Dub]">
+		<description>Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Basic Re-Dub]</description>
+		<rom name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Basic Re-Dub].rvz" size="613018512" crc="3d7ce53a" md5="98bd98b43c87f4dac6f2a602f3887082" sha1="c8cb1785be48e0475d0617bb9ada29a0fe7fce44"/>
+	</machine>
+	<machine name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Full Re-Dub Xbox Cutscenes]">
+		<description>Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Full Re-Dub Xbox Cutscenes]</description>
+		<rom name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Full Re-Dub Xbox Cutscenes].rvz" size="678254108" crc="4595d47c" md5="2d3d2aed7f906b7af4dc1b4171ca8411" sha1="c804de3e8589c559efcd101c261b19fe3aa72954"/>
+	</machine>
+	<machine name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Full Re-Dub]">
+		<description>Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Full Re-Dub]</description>
+		<rom name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text Full Re-Dub].rvz" size="612744500" crc="d96a64e9" md5="6b4b9f5f151e5a71ca80f2205b5d9e52" sha1="e2c0edd51a563050d98ee9dd046ad4f08c34d758"/>
+	</machine>
+	<machine name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text No Re-Dub Xbox Cutscenes]">
+		<description>Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text No Re-Dub Xbox Cutscenes]</description>
+		<rom name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text No Re-Dub Xbox Cutscenes].rvz" size="679131764" crc="69eba105" md5="314d2ddd021f40fa655b5f3525315087" sha1="4e862bb151b407f95ac5ee969194d8675937fc75"/>
+	</machine>
+	<machine name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text No Re-Dub]">
+		<description>Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text No Re-Dub]</description>
+		<rom name="Bloody Roar - Extreme (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [English Text No Re-Dub].rvz" size="613473848" crc="f67c080e" md5="59e079f1d94a82206e1904e4536b3a5e" sha1="e301401dff6db03851012a691e8ecc27d774ad67"/>
+	</machine>
+	<machine name="Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Full Primal Xbox Cutscenes] [n]">
+		<description>Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Full Primal Xbox Cutscenes] [n]</description>
+		<rom name="Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Full Primal Xbox Cutscenes] [n].rvz" size="677669972" crc="43da1b23" md5="a6e2254084c1ef010e828294dd1817c5" sha1="c5fcb727da33dd08557646355c2cc297e3bc7c88"/>
+	</machine>
+	<machine name="Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Full Primal] [n]">
+		<description>Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Full Primal] [n]</description>
+		<rom name="Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Full Primal] [n].rvz" size="612745864" crc="5563cfda" md5="79fd9fddc5eb8c4ec359f99bd9944b96" sha1="43c98cb2e0daca452929397e7debf8cb888fbb4e"/>
+	</machine>
+	<machine name="Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Partial Primal Xbox Cutscenes] [n]">
+		<description>Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Partial Primal Xbox Cutscenes] [n]</description>
+		<rom name="Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Partial Primal Xbox Cutscenes] [n].rvz" size="678069392" crc="60e527d5" md5="c51509df4d11b60c60e877394cd224e3" sha1="dfe7d1a93ed34951353e6b9012df36384d56431b"/>
+	</machine>
+	<machine name="Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Partial Primal] [n]">
+		<description>Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Partial Primal] [n]</description>
+		<rom name="Bloody Roar - Primal Fury (Japan) [T-En by BloodRaynare &amp; Sigma &amp; TheFirstHunt v1.2] [Partial Primal] [n].rvz" size="613013116" crc="02a4cbb8" md5="d1632e248294b61c28e3c0dc08c6191c" sha1="9b883b23dbe733a20320d00a6210d0cbc5a42262"/>
+	</machine>
+	<machine name="Donkey Konga 3 - Tabehoudai! Haru Mogitate 50-kyoku (Japan) [T-En by DOL-Translations v0.1.2] [i]">
+		<description>Donkey Konga 3 - Tabehoudai! Haru Mogitate 50-kyoku (Japan) [T-En by DOL-Translations v0.1.2] [i]</description>
+		<rom name="Donkey Konga 3 - Tabehoudai! Haru Mogitate 50-kyoku (Japan) [T-En by DOL-Translations v0.1.2] [i].rvz" size="226961156" crc="85fc1fc5" md5="77bb9302617fd1a172f5347d476dd36f" sha1="b7970bed91ae1c0b0a5a5342fc2f23e1d268dec3"/>
+	</machine>
+	<machine name="Dr. Mario (Japan) [T-En by TriVoxel v1.0] [Nintendo Puzzle Collection]">
+		<description>Dr. Mario (Japan) [T-En by TriVoxel v1.0] [Nintendo Puzzle Collection]</description>
+		<rom name="Dr. Mario (Japan) [T-En by TriVoxel v1.0] [Nintendo Puzzle Collection].rvz" size="4460752" crc="26f48ab0" md5="a243542e89d427cdb77fdb19e41ef3db" sha1="356f3b35bb7c2a5ef2c1a6170c53810f45197f40"/>
+	</machine>
+	<machine name="Dragon Drive - D-Masters Shot (Japan) [T-En by LFA Translations]">
+		<description>Dragon Drive - D-Masters Shot (Japan) [T-En by LFA Translations]</description>
+		<rom name="Dragon Drive - D-Masters Shot (Japan) [T-En by LFA Translations].rvz" size="822388304" crc="a8f1cf31" md5="2d6af63456d14309fc2a2571a34843e1" sha1="62c89c839c82637d04315806e29a49ef09b92b5f"/>
+	</machine>
+	<machine name="Fire Emblem - Souen no Kiseki (Japan) [T-En by Shadowofchaos v0.1]">
+		<description>Fire Emblem - Souen no Kiseki (Japan) [T-En by Shadowofchaos v0.1]</description>
+		<rom name="Fire Emblem - Souen no Kiseki (Japan) [T-En by Shadowofchaos v0.1].rvz" size="1104235460" crc="4307112c" md5="5180744f7c15af579a6b66a78a5b41d4" sha1="c8d220e5e8a47e8659de262cb76d3be7c6e9045f"/>
+	</machine>
+	<machine name="Future GPX Cyber Formula - Road to the Evolution (Japan) [T-En by NewGBAXL v20240815]">
+		<description>Future GPX Cyber Formula - Road to the Evolution (Japan) [T-En by NewGBAXL v20240815]</description>
+		<rom name="Future GPX Cyber Formula - Road to the Evolution (Japan) [T-En by NewGBAXL v20240815].rvz" size="1076736848" crc="57cbb48f" md5="fdc48203fd026e82dde1bb9e1efba30c" sha1="37966819d899c6e134cc8ecbb0c3dc45f189c813"/>
+	</machine>
+	<machine name="Homeland (Japan) (Rev 1) [T-En by DOL-Translations v20250515] [i]">
+		<description>Homeland (Japan) (Rev 1) [T-En by DOL-Translations v20250515] [i]</description>
+		<rom name="Homeland (Japan) (Rev 1) [T-En by DOL-Translations v20250515] [i].rvz" size="518526396" crc="80df29ed" md5="df6f2b3c6e0101fb103bd072e1f3b3ba" sha1="987722a7b83cc59dda875ee8f81bbbfbaf40f64c"/>
+	</machine>
+	<machine name="Kururin Squash! (Japan) [T-En by NewGBAXL v2.0.1]">
+		<description>Kururin Squash! (Japan) [T-En by NewGBAXL v2.0.1]</description>
+		<rom name="Kururin Squash! (Japan) [T-En by NewGBAXL v2.0.1].rvz" size="101972472" crc="1568431c" md5="068503963a67ba228b7084ffc1fa78c2" sha1="a103eae3b439ae465728e8e461d6b1bb5c6e5d24"/>
+	</machine>
+	<machine name="Legend of Zelda, The - Four Swords Adventures (Japan) [T-En by Venomalia v20230205] [n] [Tetra's Trackers incomplete]">
+		<description>Legend of Zelda, The - Four Swords Adventures (Japan) [T-En by Venomalia v20230205] [n] [Tetra's Trackers incomplete]</description>
+		<rom name="Legend of Zelda, The - Four Swords Adventures (Japan) [T-En by Venomalia v20230205] [n] [Tetra's Trackers incomplete].rvz" size="453141860" crc="0f134226" md5="63a8f16c8dee1c551190c2c64088719b" sha1="0780edcdd2a4bb29912d2a8e6984283894f00b8c"/>
+	</machine>
+	<machine name="Lupin III - Lost Treasure Under the Sea (Japan) [T-En by DOL-Translations v1.0.1] [n]">
+		<description>Lupin III - Lost Treasure Under the Sea (Japan) [T-En by DOL-Translations v1.0.1] [n]</description>
+		<rom name="Lupin III - Lost Treasure Under the Sea (Japan) (Disc 1) [T-En by DOL-Translations v1.0.1] [n].rvz" size="762020496" crc="dd93dbb7" md5="c74de6f055068f35d0ed9a2ea2b9f2f3" sha1="5492ab2b4693ba6fc665ad286176788f3c7db35a"/>
+		<rom name="Lupin III - Lost Treasure Under the Sea (Japan) (Disc 2) [T-En by DOL-Translations v1.0.1] [n].rvz" size="747121172" crc="dbb8a156" md5="04f66c216baca40be8e781f36c1e0e57" sha1="8e6c8a764bd0247205ad503c8a0a44e73d8eeb7c"/>
+	</machine>
+	<machine name="Metal Gear Solid - The Twin Snakes - Special Disc (Japan) [T-En by AfroJackX v1.0.0]">
+		<description>Metal Gear Solid - The Twin Snakes - Special Disc (Japan) [T-En by AfroJackX v1.0.0]</description>
+		<rom name="Metal Gear Solid - The Twin Snakes - Special Disc (Japan) [T-En by AfroJackX v1.0.0].rvz" size="835419120" crc="47d64288" md5="85a39734385f3a29cc2d6c361d8cda8d" sha1="438c4b0e0f994ae8bbf67e3f266c27c681a65dd1"/>
+	</machine>
+	<machine name="Mr. Driller - Drill Land (Japan) [T-En by Aldi_09 v0.9.0] [i]">
+		<description>Mr. Driller - Drill Land (Japan) [T-En by Aldi_09 v0.9.0] [i]</description>
+		<rom name="Mr. Driller - Drill Land (Japan) [T-En by Aldi_09 v0.9.0] [i].rvz" size="748351708" crc="df68849f" md5="8d2f845e21365da49ae4ad2a2652c7b7" sha1="f22ea8ab0826c3245cd867b0c9412c79a478424e"/>
+	</machine>
+	<machine name="Naruto - Clash of Ninja 4 (Japan) [T-En by NicholasMoser v2.1.0] [n]">
+		<description>Naruto - Clash of Ninja 4 (Japan) [T-En by NicholasMoser v2.1.0] [n]</description>
+		<rom name="Naruto - Clash of Ninja 4 (Japan) [T-En by NicholasMoser v2.1.0] [n].rvz" size="1024261364" crc="11074bb1" md5="56d7ea7405f9156a904551e9226a6f1d" sha1="6bf1cacb6dcaa917f443a49ad263c3cfc5469593"/>
+	</machine>
+	<machine name="Nintendo Puzzle Collection (Japan) [T-En by DOL-Translations v20250714] [i]">
+		<description>Nintendo Puzzle Collection (Japan) [T-En by DOL-Translations v20250714] [i]</description>
+		<rom name="Nintendo Puzzle Collection (Japan) [T-En by DOL-Translations v20250714] [i].rvz" size="93323984" crc="0f7c4b07" md5="26848b85b6328103f45106b4d62ded27" sha1="ec48f1902a3aafa2d58c075b0248fb0cba05c2ce"/>
+	</machine>
+	<machine name="Nintendo Puzzle Collection (Japan) [T-En by Kafke] [Panel de Pon] [i]">
+		<description>Nintendo Puzzle Collection (Japan) [T-En by Kafke] [Panel de Pon] [i]</description>
+		<rom name="Nintendo Puzzle Collection (Japan) [T-En by Kafke] [Panel de Pon] [i].rvz" size="90553528" crc="93a42f21" md5="e4be5070c49bd351419540a10674c85a" sha1="6bb49d257df626f8cd0bf5f9db5b50cf68ebd36c"/>
+	</machine>
+	<machine name="Nintendo Puzzle Collection (Japan) [T-En by TriVoxel v1.0] [Dr. Mario]">
+		<description>Nintendo Puzzle Collection (Japan) [T-En by TriVoxel v1.0] [Dr. Mario]</description>
+		<rom name="Nintendo Puzzle Collection (Japan) [T-En by TriVoxel v1.0] [Dr. Mario].rvz" size="87476904" crc="14cb0cf8" md5="e9473b57a48861f33339ec2852d19dbe" sha1="4cbfbe76cc0cfb52bc0e38ef6817bf8ffcab6126"/>
+	</machine>
+	<machine name="Radirgy Generic (Japan) [T-En by SigmaStingray v1.0]">
+		<description>Radirgy Generic (Japan) [T-En by SigmaStingray v1.0]</description>
+		<rom name="Radirgy Generic (Japan) [T-En by SigmaStingray v1.0].rvz" size="515610760" crc="22fc3ba5" md5="75273e343830478a4509a91849185a3f" sha1="61baf07bba04fa3c356628fae3cd28d6c5a39d1f"/>
+	</machine>
+	<machine name="Sonic Gems Collection (Japan) [T-En by Masaru v1.0] [i]">
+		<description>Sonic Gems Collection (Japan) [T-En by Masaru v1.0] [i]</description>
+		<rom name="Sonic Gems Collection (Japan) [T-En by Masaru v1.0] [i].rvz" size="1170165192" crc="f5009f9a" md5="248cd81dd62d254b149dd607806ad778" sha1="cd7ac662e15f61184bd6fa9331723ee7e7d69da6"/>
+	</machine>
+	<machine name="Super Robot Wars GC (Japan) [T-En by Super Robot Wars GC Team v1.0.2] [n]">
+		<description>Super Robot Wars GC (Japan) [T-En by Super Robot Wars GC Team v1.0.2] [n]</description>
+		<rom name="Super Robot Wars GC (Japan) [T-En by Super Robot Wars GC Team v1.0.2] [n].rvz" size="912766876" crc="f537e6f2" md5="1d567944b1046502dd80699b28c59e64" sha1="e99c61198fdc3a277006dd75b7b64b7b4d869a2f"/>
+	</machine>
+	<machine name="Taxi 3 - The Game (France) [T-En by NewGBAXL v20230801] [n]">
+		<description>Taxi 3 - The Game (France) [T-En by NewGBAXL v20230801] [n]</description>
+		<rom name="Taxi 3 - The Game (France) [T-En by NewGBAXL v20230801] [n].rvz" size="429142336" crc="90c700cc" md5="1701caf65a4ab4cfddd62fce72971093" sha1="572c280aa7c6f1e89a67e8a3c05a53d160627b5e"/>
+	</machine>
+	<machine name="World Soccer Winning Eleven 6 - Final Evolution (Japan) [T-En by ADONF v0.3] [i]">
+		<description>World Soccer Winning Eleven 6 - Final Evolution (Japan) [T-En by ADONF v0.3] [i]</description>
+		<rom name="World Soccer Winning Eleven 6 - Final Evolution (Japan) [T-En by ADONF v0.3] [i].rvz" size="460242380" crc="d0b3dffd" md5="dbb79481c0bd5013b931a43398e0b09c" sha1="7e5cd3ced5ebe458d124b579f054a2e72e4c44f1"/>
+	</machine>
+	<machine name="Yu-Gi-Oh! - The Falsebound Kingdom (USA) [T-En by DrakeyC v2.0] [Retranslated]">
+		<description>Yu-Gi-Oh! - The Falsebound Kingdom (USA) [T-En by DrakeyC v2.0] [Retranslated]</description>
+		<rom name="Yu-Gi-Oh! - The Falsebound Kingdom (USA) [T-En by DrakeyC v2.0] [Retranslated].rvz" size="440240428" crc="01faa9eb" md5="c5c8111e0eb134a3c951511014f076b1" sha1="80ce5769c006c60098b6a8e2448d68f28894abba"/>
+	</machine>
+	<machine name="Zatch Bell! Go! Go! Mamodo Fight!! (Japan) [T-En by SuperrSonic &amp; XZatchBellGamerX v1.0] [n]">
+		<description>Zatch Bell! Go! Go! Mamodo Fight!! (Japan) [T-En by SuperrSonic &amp; XZatchBellGamerX v1.0] [n]</description>
+		<rom name="Zatch Bell! Go! Go! Mamodo Fight!! (Japan) [T-En by SuperrSonic &amp; XZatchBellGamerX v1.0] [n].rvz" size="426334904" crc="0db75d4c" md5="3848c0affa2ff18c658fb678f3284b94" sha1="0f19589f3af247af133fab0735b0bda8fbb7adaf"/>
+	</machine>
+	<machine name="Zoids Vs. III (Japan) [T-En by Traceytrace v1.00]">
+		<description>Zoids Vs. III (Japan) [T-En by Traceytrace v1.00]</description>
+		<rom name="GZVJDA\tex1_128x128_035b17a515665229_1.png" size="22420" crc="97d6b84d" md5="f3466f6e5562dfef97c529715f7906b9" sha1="e1b0a36560bbf9864ee77f280f560b4e1d2c504c"/>
+		<rom name="GZVJDA\tex1_128x128_035b17a515665229_1.xcf" size="77583" crc="da86e7df" md5="8b6e97409bbc8127f732ebad8fb20942" sha1="bb807aa6ec068caa1249344ffa788bf9a0be9874"/>
+		<rom name="GZVJDA\tex1_128x64_57e18ef528ed0166_0.png" size="12269" crc="6adfd14d" md5="0271a76c0a443ec5f6b8364b4eaed3e4" sha1="c05fc3599aef5062fe05e703102b0036403d808a"/>
+		<rom name="GZVJDA\tex1_256x128_b67e0491e4487760_0.png" size="14295" crc="e9eb2da6" md5="eb02d44d287736b798b980d668711ae3" sha1="7c4249b36836be7140d0f78affb47172c6ed0fc6"/>
+		<rom name="GZVJDA\tex1_256x128_b67e0491e4487760_0.xcf" size="26976" crc="8708122e" md5="c42f4d8208f8bd13977e7561527ea432" sha1="f994c8dd4790482666095577b8198d703c8acc72"/>
+		<rom name="GZVJDA\tex1_256x256_8689e45025202177_2.png" size="52514" crc="abd80217" md5="41e79e2ee626c21e8b5ee27d297d0c4d" sha1="0454ff6ae6403dc03776bf0d5356056c3c3574da"/>
+		<rom name="GZVJDA\tex1_256x256_8689e45025202177_2.xcf" size="167291" crc="982e8180" md5="6500ea1a7a20667ff898e0219f1aa50e" sha1="2ee39aa40023cd34fe4fd72543df8f2c1f2a5dc1"/>
+		<rom name="GZVJDA\tex1_512x256_1939a9fdf13dc03e_14.png" size="50954" crc="982d5587" md5="7443d44e785d083c9cf2aa166e2a67f6" sha1="1f2b2fd3e41a7471deb62883ec9df242b4f28943"/>
+		<rom name="GZVJDA\tex1_512x256_1939a9fdf13dc03e_14.xcf" size="96647" crc="446021a5" md5="30a71b92de77da2b8a917cafebb622e0" sha1="8318727456eb34b1b24828118905dfe7daf23cce"/>
+		<rom name="GZVJDA\tex1_512x256_7229d5af607d7506_14.png" size="69668" crc="3cba1e08" md5="90980ae63b7350b69853eca1e43eb034" sha1="c4ff5bcc5314306372246edf54054d9014eb8c55"/>
+		<rom name="GZVJDA\tex1_512x256_7229d5af607d7506_14.xcf" size="123447" crc="bf6ad2fe" md5="71ba8ca7b284e8268fbd4cdf97f7a7e8" sha1="6b3988f0b474fea45bab11740b2fe095eba666c5"/>
+		<rom name="GZVJDA\tex1_512x256_9924fe8090690966_14.png" size="70086" crc="ab7f6e07" md5="862dcdec72a01ecd71ad2ef69245a2e5" sha1="ba6e1e3964bb13f73949ca11b87c9501667712dd"/>
+		<rom name="GZVJDA\tex1_512x256_9924fe8090690966_14.xcf" size="121852" crc="53f76858" md5="878e5863d0947df4360bce7f94291624" sha1="777a845a83c66c2668ea967cab2b7713212de646"/>
+		<rom name="GZVJDA\tex1_512x256_a8de954c1b368b90_14.png" size="73048" crc="fd6f5904" md5="efb6c4073a86e940b79aaef499863bbc" sha1="139a87624ef29a6ab6302d540463ffde130c49b5"/>
+		<rom name="GZVJDA\tex1_512x256_a8de954c1b368b90_14.xcf" size="113324" crc="fa29fe3f" md5="da0b21e325c498f9165890aa08af5ccd" sha1="c94c04ab60749aaf25c9a46725bc19ee32a41d76"/>
+		<rom name="GZVJDA\tex1_512x256_cb5ad55f74b12bae_14.png" size="63575" crc="f0ec40ef" md5="08392e1d7838a0cd5168a9ca50635847" sha1="f95338bb96168cdf502c35d6ecc717aa058dc1f3"/>
+		<rom name="GZVJDA\tex1_512x256_cb5ad55f74b12bae_14.xcf" size="105881" crc="70b5a2de" md5="6165da6042520de2d6f029dc54eb82e5" sha1="1a01f1f7365bf73a1d0938d76ed660774345a126"/>
+		<rom name="GZVJDA\tex1_512x512_099f8c42fdfbd967_0.png" size="70807" crc="2ba4e77c" md5="39acfd12c69702da8d97526d9316238e" sha1="a830a2bf43683b38714d48f5fd4fc264d59e5109"/>
+		<rom name="GZVJDA\tex1_512x512_099f8c42fdfbd967_0.xcf" size="265653" crc="75254167" md5="e9b661b8acc85e248c3d6e2b7e6d78d5" sha1="1df085c74b6f1e4ec8cf023d8ca9f15f0a0026ed"/>
+		<rom name="GZVJDA\tex1_64x64_32d88dfb889538fa_0.png" size="10575" crc="11090ebd" md5="35fc98d8c1214bbe98ee158966ad730c" sha1="aeb0acde872b436ff9aef96c11bdf4de78f04987"/>
+		<rom name="GZVJDA\tex1_64x64_32d88dfb889538fa_0.xcf" size="19897" crc="44241fdb" md5="92d160e6c05bd648818eb2dc094ecd83" sha1="df5c53c54f27f0dc049b43300ed7becaef6a1f3b"/>
+		<rom name="GZVJDA\tex1_64x64_372100c7ed5ee646_0.png" size="7092" crc="bc58642e" md5="3ae1afe715caa7feeeb68c1c762591b1" sha1="3d27eae50770516907415523db529bb14ce038b3"/>
+		<rom name="GZVJDA\tex1_64x64_372100c7ed5ee646_0.xcf" size="10386" crc="e3f6b8c2" md5="c544f33b6dfde3ff1b3188cf86b1c2cf" sha1="ad061fa135be414efbbd3c9c667c62cadfadd35b"/>
+		<rom name="GZVJDA\tex1_64x64_cca2045c69c6f2b9_2.png" size="6491" crc="2ac5fb7d" md5="0bb86ecea09432cb4ec1ea02ee206a67" sha1="557d6a6131e284c73cb15b9ec725ca1e6177700c"/>
+		<rom name="GZVJDA\tex1_64x64_cca2045c69c6f2b9_2.xcf" size="10106" crc="d43c5a90" md5="0a73990409fba98944e3c644cc2f1234" sha1="1eec37a4849a5a041a30fcf1749dc7e5fc0aee1a"/>
+		<rom name="Zoids Vs. III (Japan) [T-En by Traceytrace v1.00].rvz" size="306396036" crc="fcf6326f" md5="ffc3cf8a3c4d7d4faf8fdd70290bb960" sha1="e77e4a88a0c2e12d3d5951c417d394c920ad5b3d"/>
+	</machine>
+</datafile>

@@ -24,10 +24,17 @@ from rom_installer import (
     ROM_FORMAT_OPTIONS,
     available_systems_for_profiles,
     build_install_plan,
+    build_install_plans,
     fetch_rom_catalog,
+    group_multidisc_roms,
     install_rom,
     profile_rom_format,
+    repair_installed_files,
+    resolve_profile_rom_folder,
 )
+
+# Device types that support the "Sanitize / Repair Installed Files" action.
+REPAIRABLE_DEVICE_TYPES = {"PSIO", "OPL", "GDEMU", "OPENMENU"}
 
 
 def _fmt_size(num_bytes: int) -> str:
@@ -83,6 +90,22 @@ class InstallWorker(QThread):
         self.finished.emit(ok, fail, all_paths)
 
 
+class SanitizeWorker(QThread):
+    finished = pyqtSignal(list)   # list of (old_path, new_path) renames
+    error = pyqtSignal(str)
+
+    def __init__(self, profile: dict, system: str, parent=None):
+        super().__init__(parent)
+        self.profile = profile
+        self.system = system
+
+    def run(self):
+        try:
+            self.finished.emit(repair_installed_files(self.profile, self.system))
+        except Exception as exc:
+            self.error.emit(str(exc) or exc.__class__.__name__)
+
+
 class RomInstallerTab(QWidget):
     def __init__(self, profiles_tab):
         super().__init__()
@@ -91,6 +114,7 @@ class RomInstallerTab(QWidget):
         self._roms: list[dict] = []
         self._fetch_worker: CatalogFetchWorker | None = None
         self._install_worker: InstallWorker | None = None
+        self._sanitize_worker: SanitizeWorker | None = None
         self._init_ui()
         self.refresh_profiles()
 
@@ -129,6 +153,15 @@ class RomInstallerTab(QWidget):
         self.install_btn = QPushButton("Install Selected")
         self.install_btn.clicked.connect(self.install_selected)
         search_row.addWidget(self.install_btn)
+        self.sanitize_btn = QPushButton("Sanitize Installed Files")
+        self.sanitize_btn.setToolTip(
+            "PSIO: rename installed files/folders that break PSIO's limits\n"
+            "(filenames > 60 chars or non-ASCII), keeping .bin/.cu2 aligned.\n"
+            "OPL: backfill POPStarter APPS/ app folders (launcher + title.cfg)\n"
+            "for installed VCDs so PS1 games show on OPL's Apps page."
+        )
+        self.sanitize_btn.clicked.connect(self.sanitize_installed)
+        search_row.addWidget(self.sanitize_btn)
         layout.addLayout(search_row)
 
         self.status_label = QLabel("")
@@ -201,6 +234,9 @@ class RomInstallerTab(QWidget):
                 self.system_combo.setCurrentIndex(idx)
         self.system_combo.blockSignals(False)
         self._on_system_changed()
+        # The repair action is device-specific (PSIO filename limits, OPL
+        # POPStarter backfill), so gate the button to supported devices.
+        self.sanitize_btn.setEnabled(self._repair_supported(profile))
 
     def _on_system_changed(self):
         profile = self._current_profile()
@@ -240,8 +276,9 @@ class RomInstallerTab(QWidget):
         profile = self._current_profile()
         system = self.system_combo.currentText()
         override = str(self.format_combo.currentData() or "auto")
+        display_roms = group_multidisc_roms(profile or {}, roms, system, override)
         self.table.setRowCount(0)
-        for rom in roms:
+        for rom in display_roms:
             row = self.table.rowCount()
             self.table.insertRow(row)
             try:
@@ -251,10 +288,20 @@ class RomInstallerTab(QWidget):
                 plan = None
                 fmt = ""
 
+            members = rom.get("disc_members") or []
+            name = rom.get("name") or rom.get("filename", "")
+            filename = rom.get("filename", "")
+            if len(members) > 1:
+                name = f"{name} ({len(members)} discs)"
+                filename = (
+                    f"{len(members)} discs in one folder"
+                    if rom.get("install_members")
+                    else f"{len(members)} discs combined"
+                )
             values = [
                 rom.get("system", ""),
-                rom.get("name") or rom.get("filename", ""),
-                rom.get("filename", ""),
+                name,
+                filename,
                 _fmt_size(int(rom.get("size") or 0)),
                 fmt,
                 rom.get("rom_id") or rom.get("title_id", ""),
@@ -290,7 +337,9 @@ class RomInstallerTab(QWidget):
             if not isinstance(rom, dict):
                 continue
             try:
-                plans.append(build_install_plan(profile, rom, system, override))
+                # One row can expand to several plans (multi-disc groups that
+                # install disc-by-disc into a shared game folder).
+                plans.extend(build_install_plans(profile, rom, system, override))
             except Exception as exc:
                 errors.append(f"{rom.get('name') or rom.get('filename', '?')}: {exc}")
         if not plans:
@@ -305,7 +354,10 @@ class RomInstallerTab(QWidget):
         else:
             preview = "\n".join(f"  • {p.display_name} ({p.format_label})" for p in plans[:15])
             more = f"\n  … and {len(plans) - 15} more" if len(plans) > 15 else ""
-            prompt = f"Install {len(plans)} ROMs (one at a time)?\n\n{preview}{more}"
+            # All discs of one game land in the same folder — show it.
+            parents = {str(p.target_path.parent) for p in plans}
+            dest = f"\n\nInto:\n{parents.pop()}" if len(parents) == 1 else ""
+            prompt = f"Install {len(plans)} ROMs (one at a time)?\n\n{preview}{more}{dest}"
         reply = QMessageBox.question(
             self,
             "Install ROM",
@@ -370,3 +422,132 @@ class RomInstallerTab(QWidget):
                 "ROM Installer",
                 f"Installed {ok} ROM(s):\n" + "\n".join(paths[:20]),
             )
+
+    def _repair_supported(self, profile: dict | None) -> bool:
+        if not profile:
+            return False
+        return (
+            str(profile.get("device_type", "")).strip().upper()
+            in REPAIRABLE_DEVICE_TYPES
+        )
+
+    def sanitize_installed(self):
+        profile = self._current_profile()
+        system = self.system_combo.currentText()
+        if not profile or not system:
+            QMessageBox.warning(self, "ROM Installer", "Choose a profile and system first.")
+            return
+        device_type = str(profile.get("device_type", "")).strip().upper()
+        if device_type not in REPAIRABLE_DEVICE_TYPES:
+            QMessageBox.information(
+                self,
+                "ROM Installer",
+                "Repair is available for PSIO (filename limits), OPL\n"
+                "(POPStarter APPS/ app-folder backfill) and GDEMU / openMenu\n"
+                "(folder layout + menu game list) profiles.",
+            )
+            return
+        try:
+            root = resolve_profile_rom_folder(profile, system)
+        except Exception:
+            root = None
+        if not root or not Path(root).is_dir():
+            QMessageBox.warning(
+                self, "ROM Installer", "Profile ROM folder not found:\n" + str(root or "")
+            )
+            return
+
+        if device_type == "OPL":
+            prompt = (
+                "Scan this profile's POPS/ folder and, for every installed PS1\n"
+                ".VCD, create its APPS/ app folder (renamed POPSTARTER.ELF +\n"
+                "title.cfg) so the game appears on OPL's Apps page?\n\n"
+                "Requires POPSTARTER.ELF in POPS/.  Safe to run repeatedly.\n\n"
+                f"Folder:\n{root}"
+            )
+        elif device_type in {"GDEMU", "OPENMENU"}:
+            prompt = (
+                "Bring every game folder on this card up to the standard GDEMU\n"
+                "layout (disc.gdi + trackNN.* filenames, name.txt and the other\n"
+                "metadata caches), renumber the game folders so 02, 03, ... run\n"
+                "in alphabetical order, then rebuild the menu's game list?\n\n"
+                "Folder 01 keeps its place — only game folders are renumbered.\n"
+                "The list is also patched into the menu image in folder 01 — that\n"
+                "is the copy the console reads, and without it a newly installed\n"
+                "game never appears in the menu.  The original bytes are backed\n"
+                "up first, and folder 01 is otherwise left alone.\n\n"
+                f"Folder:\n{root}"
+            )
+        else:
+            prompt = (
+                "Scan this profile's ROM folder and rename any files or folders\n"
+                "that break PSIO's limits (filenames > 60 chars or non-ASCII)?\n\n"
+                "Each game's .bin/.cu2 pair is kept on a matching stem and\n"
+                "MULTIDISC.LST is rewritten to match.\n\n"
+                f"Folder:\n{root}"
+            )
+        reply = QMessageBox.question(
+            self,
+            "Sanitize Installed Files",
+            prompt,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.sanitize_btn.setEnabled(False)
+        self.status_label.setText("Sanitizing installed files...")
+        self._sanitize_worker = SanitizeWorker(profile, system, self)
+        self._sanitize_worker.finished.connect(self._on_sanitize_finished)
+        self._sanitize_worker.error.connect(self._on_sanitize_error)
+        self._sanitize_worker.start()
+
+    def _on_sanitize_finished(self, renames: list):
+        profile = self._current_profile()
+        self.sanitize_btn.setEnabled(self._repair_supported(profile))
+        is_opl = (
+            str((profile or {}).get("device_type", "")).strip().upper() == "OPL"
+        )
+        count = len(renames)
+        if count:
+            if is_opl:
+                self.status_label.setText(f"Repaired {count} item(s).")
+                preview = "\n".join(
+                    f"{Path(vcd).name} -> {Path(elf).name}" for vcd, elf in renames[:25]
+                )
+                more = f"\n... and {count - 25} more" if count > 25 else ""
+                QMessageBox.information(
+                    self,
+                    "ROM Installer",
+                    f"Updated {count} item(s) (added APPS/ app folders, "
+                    f"removed stale ones):\n\n{preview}{more}",
+                )
+            else:
+                self.status_label.setText(f"Sanitized {count} item(s).")
+                preview = "\n".join(
+                    f"{Path(old).name} -> {Path(new).name}" for old, new in renames[:25]
+                )
+                more = f"\n... and {count - 25} more" if count > 25 else ""
+                QMessageBox.information(
+                    self,
+                    "ROM Installer",
+                    f"Renamed {count} item(s):\n\n{preview}{more}",
+                )
+        else:
+            if is_opl:
+                self.status_label.setText("All PS1 games already registered.")
+                QMessageBox.information(
+                    self,
+                    "ROM Installer",
+                    "Every VCD already has its POPStarter APPS/ app folder.",
+                )
+            else:
+                self.status_label.setText("No problematic files found.")
+                QMessageBox.information(
+                    self, "ROM Installer", "No files needed renaming. Everything is PSIO-safe."
+                )
+
+    def _on_sanitize_error(self, message: str):
+        self.sanitize_btn.setEnabled(self._repair_supported(self._current_profile()))
+        self.status_label.setText("Sanitize failed.")
+        QMessageBox.critical(self, "ROM Installer", message)

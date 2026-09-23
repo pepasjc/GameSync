@@ -49,6 +49,17 @@ class SaveSyncApp : Application() {
             SettingsStore(this@SaveSyncApp).restoreFromBackupIfNeeded()
         }
 
+        // One-time fold of lowercase GC_ sync-state rows onto the canonical
+        // uppercase id.  Cheap no-op once done; runs before any sync because
+        // the user has to reach the Saves tab first.
+        appScope.launch {
+            try {
+                database.syncStateDao().canonicalizeGamecodeTitleIds()
+            } catch (_: Exception) {
+                // Worst case the user sees one spurious GC conflict.
+            }
+        }
+
         // Re-attach to any download that was running when the process died.
         // We reach into SettingsStore for the current API config because a
         // resumed download needs the same Retrofit client the user

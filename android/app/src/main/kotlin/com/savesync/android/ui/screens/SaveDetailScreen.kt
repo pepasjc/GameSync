@@ -72,6 +72,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.savesync.android.api.msuPackKind
 import com.savesync.android.api.preferredDownloadExtractFormat
 import com.savesync.android.api.preferredDownloadFilename
 import com.savesync.android.emulators.SaveEntry
@@ -102,7 +103,11 @@ fun SaveDetailScreen(
     val saturnArchivePickerState by viewModel.saturnArchivePicker.collectAsState()
     val saturnArchiveSelectionVersion by viewModel.saturnArchiveSelectionVersion.collectAsState()
 
-    val entry = saves.find { it.titleId == titleId }
+    // The scanned list can lag behind disk (a download since the last scan, or
+    // the emulator writing the predicted card while we sat in the background).
+    // Re-check so a save that really exists gets a hash, an enabled upload, and
+    // a three-way sync instead of an unconditional download.
+    val entry = saves.find { it.titleId == titleId }?.reconcileWithDisk()
     val syncState = syncStateEntities.find { it.titleId == titleId }
 
     // Auto-fetch server metadata when screen opens
@@ -387,6 +392,7 @@ fun SaveDetailScreen(
                                     system = rom.system,
                                     filename = rom.preferredDownloadFilename(extract),
                                     extractFormat = extract,
+                                    bundleKind = rom.msuPackKind,
                                 )
                             }
                         }
@@ -411,6 +417,7 @@ fun SaveDetailScreen(
                                     system = rom.system,
                                     filename = rom.preferredDownloadFilename(extract),
                                     extractFormat = extract,
+                                    bundleKind = rom.msuPackKind,
                                 )
                             }
                         ))
@@ -635,7 +642,7 @@ private val knownSystems = listOf(
     "GBA", "SNES", "NES", "GB", "GBC", "N64",
     "PS1", "PS2", "PSP", "SAT", "DC",
     "MD", "SEGACD", "GC", "WII",
-    "PCE", "NGP", "WSWAN", "WSWANC", "ARCADE", "NEOCD",
+    "PCE", "PCECD", "NGP", "WSWAN", "WSWANC", "ARCADE", "NEOCD",
     "NDS", "A2600", "LYNX", "MAME"
 )
 

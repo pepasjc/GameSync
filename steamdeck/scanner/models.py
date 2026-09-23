@@ -70,6 +70,11 @@ class GameEntry:
     extra_files: list[Path] = field(
         default_factory=list
     )  # Additional save files (GC multi-gci)
+    # Optional product code the server can resolve a game name from when its
+    # own title-id lookup can't (Wii U: "WIIU_ARDE" from meta.xml, because a
+    # Wii U title id's low word is not the product code).  Sent as the upload's
+    # ``game_code`` query parameter.
+    game_code: Optional[str] = None
     # Sync state
     status: SyncStatus = SyncStatus.UNKNOWN
     server_hash: Optional[str] = None

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Panasonic - 3DO Interactive Multiplayer [T-En] Collection</name>
+		<description>Panasonic - 3DO Interactive Multiplayer [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>2025-12-26</version>
+		<date>2025-12-26 (yy/mm/dd)</date>
+		<author>John Doe</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>chdman createcd -hs 9792</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Panasonic - 3DO Interactive Multiplayer [T-En] Docs">
+		<description>_Panasonic - 3DO Interactive Multiplayer [T-En] Docs</description>
+		<rom name="Belzerion (Japan) [T-En by SnowyAria &amp; NicheTopic v1.0].txt" size="5853" crc="4e38a7ad" md5="f260c3f580ce4c978b7f61a009cfd6fd" sha1="990f69b47458ace68fc71210a60babb4eca0826a"/>
+		<rom name="Doctor Hauzer (Japan) [T-En by ArcaneAria v1.2.1] [Custom Music Edition].txt" size="2749" crc="87d0f9a7" md5="bfc6344bc571d710d202f170d2a02f20" sha1="9425f4891c7daa0b960cfb70e3b90bf8d1b959a0"/>
+		<rom name="Doctor Hauzer (Japan) [T-En by ArcaneAria v1.2.1].txt" size="2275" crc="43e28858" md5="ced787420dffaeb7aee760504f0ce0ec" sha1="3d43fccdfa711f4e4e747330bbd4a90d88315abc"/>
+		<rom name="Oyaji Hunter Mahjong (Japan) [T-En by Blametherobots &amp; SnowyAria &amp; Yuvi v1.1] [Staff Room].pdf" size="1209842" crc="5d9904fc" md5="62accf41e80494f8794339b924f2c7ef" sha1="4af52cb8be6600bb2a26e59b2dc69a3bb30171f1"/>
+		<rom name="Oyaji Hunter Mahjong (Japan) [T-En by Blametherobots &amp; SnowyAria &amp; Yuvi v1.1].txt" size="4706" crc="d1658703" md5="12fd9f1e9ec4c9aee12bf02edf33218b" sha1="1b310791ac9f7ae312d493235d6252aca2650bfc"/>
+	</machine>
+	<machine name="Discs">
+		<description>Discs</description>
+		<disk name="Battle Blues (Korea) [T-En by Jeremy De Cola-David v1.0.1]" sha1="e6eaeacabf31186b0ecc8b83b3d3237a614a5134"/>
+		<disk name="Belzerion (Japan) [T-En by SnowyAria &amp; NicheTopic v1.0]" sha1="9de01c11ac58e9d210f3109a2ca7a6c718c69bd7"/>
+		<disk name="Doctor Hauzer (Japan) [T-En by ArcaneAria v1.2.1] [Custom Music Edition]" sha1="167b64a6f087d266b719a0afebf17f912fc1cad0"/>
+		<disk name="Doctor Hauzer (Japan) [T-En by ArcaneAria v1.2.1]" sha1="6a09cabd5ba17af4dab2b7e02d94748949709f0d"/>
+		<disk name="Oyaji Hunter Mahjong (Japan) [T-En by Blametherobots &amp; SnowyAria &amp; Yuvi v1.1]" sha1="ad92409e9bb6f13e01cc8544cfd1d12460bac755"/>
+	</machine>
+</datafile>

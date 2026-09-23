@@ -57,6 +57,7 @@ SYSTEM_CHOICES: list[str] = sorted(
         "VB",
         "VITA",
         "WII",
+        "WIIU",
         "WSWAN",
         "WSWANC",
         "XBOX",
@@ -130,6 +131,7 @@ ALL_CONSOLE_TYPES: list[str] = ["All"] + sorted(
         "VB",
         "VITA",
         "WII",
+        "WIIU",
         "WSWAN",
         "WSWANC",
         "XBOX",
@@ -184,6 +186,7 @@ SYSTEM_CODES: frozenset[str] = frozenset(SYSTEM_CHOICES) | frozenset(
         "3DS",
         "VITA",
         "WII",
+        "WIIU",      # Nintendo Wii U
         "NSW",       # Nintendo Switch
         "NEOCD",     # Neo Geo CD
         "PS3",       # already in SYSTEM_CHOICES; listed here for clarity
@@ -365,6 +368,10 @@ ROM_EXTENSIONS: frozenset[str] = frozenset(
         ".gcm",    # GameCube disc image
         ".gci",    # GameCube save container (used as ROM in some loaders)
         ".rvz",    # Dolphin compressed disc image (GameCube / Wii)
+        # Wii U
+        ".wud",    # Wii U disc image (raw)
+        ".wux",    # Wii U disc image (compressed)
+        ".wua",    # Wii U archive (Cemu 2.0+)
         # Sega 8-bit
         ".sms",    # Master System
         ".gg",     # Game Gear
@@ -484,6 +491,7 @@ SAVE_EXTENSIONS: frozenset[str] = frozenset(
         ".fs",     # Freeze state (some emulators)
         ".rtc",    # Real-time clock data
         ".raw",    # Raw save (some emulators)
+        ".bup",    # PC Engine backup RAM (Super SD System 3)
     }
 )
 
@@ -500,6 +508,8 @@ SAVE_EXT_CHOICES: list[str] = [
     ".mc2",    # PS2
     ".ps2",    # PS2 alternate
     ".dsv",    # NDS DeSmuME
+    ".bup",    # PC Engine BRAM (Super SD System 3)
+    ".vmu",    # Dreamcast VMU image (MemCard PRO DC, openMenu Serial VMU)
     ".frz",
     ".fs",
     ".raw",
@@ -563,6 +573,7 @@ SYSTEM_DAT_KEYWORDS: dict[str, list[str]] = {
     "ATARIST": ["Atari - ST", "Atari ST"],
     "3DO":    ["The 3DO Company - 3DO", "3DO"],
     "WII":    ["Nintendo - Wii", "Wii"],
+    "WIIU":   ["Nintendo - Wii U", "Wii U"],
     "BS":     ["Nintendo - Satellaview", "Satellaview", "BS-X"],
     "POKEMINI": ["Nintendo - Pokemon Mini", "Pokemon Mini", "Pokemon-Mini"],
     "NAOMI":  ["Sega - Naomi", "Naomi"],
@@ -625,12 +636,12 @@ FOLDER_TO_SYSTEM: dict[str, str] = {
     "sg-1000":         "SG1000",
     "sg1000":          "SG1000",
     "sc-3000":         "SG1000",
-    "megacd":          "SCD",
-    "megacdjp":        "SCD",
+    "megacd":          "SEGACD",
+    "megacdjp":        "SEGACD",
     "sega32x":         "32X",
     "sega32xjp":       "32X",
     "sega32xna":       "32X",
-    "segacd":          "SCD",
+    "segacd":          "SEGACD",
     "model2":          "ARCADE",
     "model3":          "ARCADE",
     "naomi":           "ARCADE",
@@ -682,6 +693,9 @@ FOLDER_TO_SYSTEM: dict[str, str] = {
     "tg-cd":           "PCECD",
     "virtualboy":      "VB",
     "wii":             "WII",
+    "wiiu":            "WIIU",
+    "wii-u":           "WIIU",
+    "nintendowiiu":    "WIIU",
     "wonderswan":      "WSWAN",
     "wonderswancolor": "WSWANC",
     "xbox":            "XBOX",
@@ -733,6 +747,7 @@ SYSTEM_COLOR: dict[str, str] = {
     "3DS":    "#b71c1c",
     "GC":     "#4a148c",
     "WII":    "#880e4f",
+    "WIIU":   "#006064",
     "NSW":    "#e53935",
     "VITA":   "#283593",
     "3DO":    "#5d4037",
@@ -818,6 +833,12 @@ SYNC_ID_RULES: dict[str, dict[str, str]] = {
     "VITA": {"strategy": "serial"},
     # Sega Saturn — "T-NNNNNG" product codes match Saroo and emulators
     "SAT":  {"strategy": "serial"},
+    # Sega Dreamcast — the IP.BIN product number ("T-1249M", "MK-51000").  It is
+    # what MemCard PRO DC and openMenu's Serial VMU name their per-game folders
+    # after, so keying by it puts a card save and an emulator save in one slot.
+    # Prefixed like Saturn's because a bare code such as "51000" says nothing
+    # about which console it belongs to.
+    "DC":   {"strategy": "serial", "prefix": "DC_"},
     # Everything else: slug.  Listed explicitly so the rule set is a complete
     # declaration rather than relying on a default, and so a reader can
     # confirm "yes, SNES really does use slug".
@@ -834,7 +855,6 @@ SYNC_ID_RULES: dict[str, dict[str, str]] = {
     "CPS1":     {"strategy": "slug"},
     "CPS2":     {"strategy": "slug"},
     "CPS3":     {"strategy": "slug"},
-    "DC":       {"strategy": "slug"},
     "FBA":      {"strategy": "slug"},
     "FBNEO":    {"strategy": "slug"},
     "FDS":      {"strategy": "slug"},

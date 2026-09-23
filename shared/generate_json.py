@@ -44,6 +44,9 @@ def main() -> None:
         "sync_id_rules": systems.SYNC_ID_RULES,
         "mister_folder_to_system": mister.MISTER_FOLDER_TO_SYSTEM,
         "mister_system_to_folder": mister.MISTER_SYSTEM_TO_FOLDER,
+        "mister_system_folder_candidates": mister.MISTER_SYSTEM_FOLDER_CANDIDATES,
+        "mister_games_roots": mister.MISTER_GAMES_ROOTS,
+        "mister_cd_systems": sorted(mister.MISTER_CD_SYSTEMS),
     }
     payload = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     for output in OUTPUTS:

@@ -34,6 +34,9 @@ object InstalledRomsScanner {
         "N64"    to listOf("n64", "N64", "Nintendo 64", "Nintendo64"),
         "GC"     to listOf("gc", "GC", "GameCube", "Nintendo GameCube"),
         "WII"    to listOf("wii", "Wii"),
+        // Cemu loads a decrypted game as a folder, so a Wii U "ROM" here is a
+        // directory (code/content/meta), not a file.
+        "WIIU"   to listOf("wiiu", "WIIU", "Wii U", "WiiU"),
         "NDS"    to listOf("nds", "NDS", "DS", "Nintendo DS"),
         "3DS"    to listOf("3ds", "n3ds", "Nintendo 3DS"),
         "VB"     to listOf("virtualboy", "VB", "Virtual Boy"),

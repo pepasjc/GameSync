@@ -1,0 +1,275 @@
+GameSync MiSTer Phase 0 spike
+run at 2026-08-12 01:06:46
+TERM was 'linux', using 'linux'
+
+======================================================================
+1. ENVIRONMENT
+======================================================================
+python           : 3.9.6 (default, Dec 24 2022, 16:13:27)  [GCC 10.2.1 20201103]
+argv             : ['/media/fat/Scripts/GameSync_Spike.sh']
+cwd              : /media/fat/Scripts
+TERM             : 'linux'
+stdin            : isatty=True ttyname=/dev/tty2
+stdout           : isatty=True ttyname=/dev/tty2
+stderr           : isatty=True ttyname=/dev/tty2
+terminal size    : 240x67
+active VT        : tty2
+euid             : 0
+
+======================================================================
+2. CURSES (non-interactive checks)
+======================================================================
+curses imported  : ok (version b'2.2')
+curses.panel     : yes
+setupterm        : ok
+  tigetnum(lines ): 67
+  tigetnum(cols  ): 240
+  tigetnum(colors): 8
+
+======================================================================
+3. INPUT DEVICES
+======================================================================
+
+/dev/input/event0  'TinyUSB pico_ir_keyboard'
+    gamepad(BTN_SOUTH) : False
+    keyboard-ish keys  : True
+    EV_KEY codes       : 163  (buttons: none)
+    EV_ABS axes        : none
+    exclusive grab     : grab+ungrab OK (device was not exclusively held)
+    watching           : yes
+
+/dev/input/event1  'TinyUSB pico_ir_keyboard'
+    gamepad(BTN_SOUTH) : False
+    keyboard-ish keys  : False
+    EV_KEY codes       : 5  (buttons: none)
+    EV_ABS axes        : none
+    exclusive grab     : grab+ungrab OK (device was not exclusively held)
+    watching           : yes
+
+/dev/input/event2  'MiSTer virtual input'
+    gamepad(BTN_SOUTH) : False
+    keyboard-ish keys  : True
+    EV_KEY codes       : 255  (buttons: none)
+    EV_ABS axes        : none
+    exclusive grab     : grab+ungrab OK (device was not exclusively held)
+    watching           : yes
+
+/dev/input/event3  'DualSense Wireless Controller'
+    gamepad(BTN_SOUTH) : True
+    keyboard-ish keys  : False
+    EV_KEY codes       : 14  (buttons: BTN_SOUTH/A, BTN_EAST/B, BTN_NORTH/Y, BTN_WEST/X, BTN_Z, BTN_TL/L1, BTN_TR/R1, BTN_TL2/L2, BTN_TR2/R2, BTN_SELECT, BTN_START, BTN_MODE, BTN_THUMBL, BTN_THUMBR)
+    EV_ABS axes        : ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RY, ABS_RZ, ABS_HAT0X, ABS_HAT0Y
+    exclusive grab     : grab+ungrab OK (device was not exclusively held)
+    watching           : yes
+
+/dev/input/event4  'DualSense Wireless Controller Motion Sensors'
+    gamepad(BTN_SOUTH) : False
+    keyboard-ish keys  : False
+    EV_KEY codes       : 0  (buttons: none)
+    EV_ABS axes        : ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RY, ABS_RZ
+    exclusive grab     : grab+ungrab OK (device was not exclusively held)
+    watching           : no - noisy sensor node
+
+/dev/input/event5  'DualSense Wireless Controller Touchpad'
+    gamepad(BTN_SOUTH) : False
+    keyboard-ish keys  : False
+    EV_KEY codes       : 4  (buttons: none)
+    EV_ABS axes        : ABS_X, ABS_Y, 47, 53, 54, 57
+    exclusive grab     : grab+ungrab OK (device was not exclusively held)
+    watching           : no - noisy sensor node
+
+/dev/input/js0  'DualSense Wireless Controller'  (joydev - unaffected by an evdev grab)
+    watching           : yes
+
+/dev/input/js1  'DualSense Wireless Controller Motion Sensors'  (joydev - unaffected by an evdev grab)
+    watching           : no - noisy sensor node
+
+NOTE: node numbers move when a controller reconnects. This run
+      differs from earlier runs on the same box - the client must
+      always enumerate by name, never by a fixed index.
+watching 5 nodes: /dev/input/event0, /dev/input/event1, /dev/input/event2, /dev/input/event3, /dev/input/js0
+
+======================================================================
+4. PASSIVE READ TEST (3s, no input expected)
+======================================================================
+readable without error: yes
+  idle traffic /dev/input/event3      179 events
+  idle traffic /dev/input/js0         193 events (joydev init burst on open is expected)
+
+======================================================================
+5. CURSES RUNTIME
+======================================================================
+COLS x LINES     : 240 x 67
+has_colors       : True
+use_default_colors: ok
+COLORS / PAIRS   : 8 / 64
+can_change_color : True
+
+======================================================================
+6. CAPTURE - curses getch()
+======================================================================
+getch() DID receive input:
+  A / Cross                    -> (nothing)
+  B / Circle                   -> 10(^J), 27(^[), 27(^[)
+  X / Square                   -> 32( )
+  Y / Triangle                 -> 9(^I), 9(^I), 9(^I)
+  L1                           -> 339(KEY_PPAGE)
+  R1                           -> 339(KEY_PPAGE)
+  L2                           -> (nothing)
+  R2                           -> (nothing)
+  SELECT / Create              -> (nothing)
+  START / Options              -> (nothing)
+  D-PAD UP                     -> 259(KEY_UP)
+  D-PAD DOWN                   -> 258(KEY_DOWN)
+  D-PAD LEFT                   -> 260(KEY_LEFT)
+  D-PAD RIGHT                  -> 261(KEY_RIGHT)
+  LEFT STICK: up, then down    -> 259(KEY_UP), 258(KEY_DOWN), 261(KEY_RIGHT)
+
+======================================================================
+7. CAPTURE - raw input per prompt
+======================================================================
+
+A / Cross:
+    ABS ABS_RX                 range 128..129  (x194, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x194, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+
+B / Circle:
+    ABS ABS_RX                 range 128..129  (x205, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x205, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    JS button 1                range 0..1  (x4, e.g. 0, 1)  /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_EAST/B             range 0..1  (x4, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+    KEY code 1 (0x1)           range 0..1  (x4, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+    ABS ABS_X                  range 129..130  (x2, e.g. 129, 130) /dev/input/event3 DualSense Wireless Controller
+    JS axis 0                  range 516..774  (x2, e.g. 516, 774) /dev/input/js0 DualSense Wireless Controller
+    JS button 0                range 0..1  (x2, e.g. 0, 1)  /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_SOUTH/A            range 0..1  (x2, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+    KEY code 28 (0x1c)         range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+
+X / Square:
+    ABS ABS_RX                 range 128..129  (x130, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x130, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    JS button 3                range 0..1  (x2, e.g. 0, 1)  /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_WEST/X             range 0..1  (x2, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+    KEY code 57 (0x39)         range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+
+Y / Triangle:
+    ABS ABS_RX                 range 128..129  (x138, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x138, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    KEY code 15 (0xf)          range 0..2  (x4, e.g. 0, 1, 2) /dev/input/event2 MiSTer virtual input
+    JS button 2                range 0..1  (x2, e.g. 0, 1)  /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_NORTH/Y            range 0..1  (x2, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+
+L1:
+    ABS ABS_RX                 range 128..129  (x140, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x140, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    JS button 5                range 0..1  (x2, e.g. 0, 1)  /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_TL/L1              range 0..1  (x2, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+    KEY code 104 (0x68)        range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+
+R1:
+    ABS ABS_RX                 range 128..129  (x110, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x110, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    ABS ABS_Z                  range 0..255  (x57, e.g. 28, 45, 60, 74, 103, 114) /dev/input/event3 DualSense Wireless Controller
+    JS axis 2                  range -32767..32767  (x57, e.g. -25544, -21158, -17288, -13675, -6193, -3355) /dev/input/js0 DualSense Wireless Controller
+    JS button 7                range 0..1  (x2, e.g. 0, 1)  /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_TL2/L2             range 0..1  (x2, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+    JS button 5                = 1  (x1)                    /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_TL/L1              = 1  (x1)                    /dev/input/event3 DualSense Wireless Controller
+    KEY code 104 (0x68)        = 1  (x1)                    /dev/input/event2 MiSTer virtual input
+
+L2:
+    ABS ABS_Z                  range 0..255  (x31, e.g. 39, 68, 93, 116, 252, 255) /dev/input/event3 DualSense Wireless Controller
+    JS axis 2                  range -32767..32767  (x31, e.g. -22706, -15223, -8773, -2839, 32251, 32767) /dev/input/js0 DualSense Wireless Controller
+    ABS ABS_RX                 range 128..129  (x26, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x26, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    JS button 7                range 0..1  (x3, e.g. 0, 1)  /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_TL2/L2             range 0..1  (x3, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+    ABS ABS_X                  range 129..130  (x2, e.g. 129, 130) /dev/input/event3 DualSense Wireless Controller
+    JS axis 0                  range 516..774  (x2, e.g. 516, 774) /dev/input/js0 DualSense Wireless Controller
+    JS button 5                = 0  (x1)                    /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_TL/L1              = 0  (x1)                    /dev/input/event3 DualSense Wireless Controller
+    KEY code 104 (0x68)        = 0  (x1)                    /dev/input/event2 MiSTer virtual input
+
+R2:
+    ABS ABS_Z                  range 0..255  (x71, e.g. 209, 216, 221, 228, 249, 252) /dev/input/event3 DualSense Wireless Controller
+    JS axis 2                  range -32767..32767  (x70, e.g. 21157, 22963, 24253, 26059, 31477, 32251) /dev/input/js0 DualSense Wireless Controller
+    ABS ABS_RX                 range 128..129  (x30, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x30, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    ABS ABS_RZ                 range 12..255  (x20, e.g. 12, 23, 49, 70, 79, 87) /dev/input/event3 DualSense Wireless Controller
+    JS axis 5                  range -29672..32767  (x20, e.g. -29672, -26834, -20126, -14707, -12385, -10321) /dev/input/js0 DualSense Wireless Controller
+    JS button 7                range 0..1  (x3, e.g. 0, 1)  /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_TL2/L2             range 0..1  (x3, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+    JS button 8                = 1  (x1)                    /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_TR2/R2             = 1  (x1)                    /dev/input/event3 DualSense Wireless Controller
+
+SELECT / Create:
+    ABS ABS_RX                 range 128..129  (x578, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x578, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    ABS ABS_RZ                 range 0..254  (x45, e.g. 230, 238, 242, 244, 251, 254) /dev/input/event3 DualSense Wireless Controller
+    JS axis 5                  range -32767..31993  (x44, e.g. 25543, 26575, 28639, 29671, 30187, 31993) /dev/input/js0 DualSense Wireless Controller
+    JS button 9                range 0..1  (x13, e.g. 0, 1) /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_SELECT             range 0..1  (x13, e.g. 0, 1) /dev/input/event3 DualSense Wireless Controller
+    JS button 8                = 0  (x1)                    /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_TR2/R2             = 0  (x1)                    /dev/input/event3 DualSense Wireless Controller
+
+START / Options:
+    ABS ABS_RX                 range 128..129  (x74, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x74, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    ABS ABS_X                  range 129..130  (x2, e.g. 129, 130) /dev/input/event3 DualSense Wireless Controller
+    JS axis 0                  range 516..774  (x2, e.g. 516, 774) /dev/input/js0 DualSense Wireless Controller
+    JS button 10               = 1  (x1)                    /dev/input/js0 DualSense Wireless Controller
+    JS button 9                = 0  (x1)                    /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_SELECT             = 0  (x1)                    /dev/input/event3 DualSense Wireless Controller
+    KEY BTN_START              = 1  (x1)                    /dev/input/event3 DualSense Wireless Controller
+
+D-PAD UP:
+    ABS ABS_RX                 range 128..129  (x14, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x14, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    ABS ABS_HAT0Y              range -1..0  (x2, e.g. -1, 0) /dev/input/event3 DualSense Wireless Controller
+    JS axis 7                  range -32767..0  (x2, e.g. -32767, 0) /dev/input/js0 DualSense Wireless Controller
+    KEY code 103 (0x67)        range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+    JS button 10               = 0  (x1)                    /dev/input/js0 DualSense Wireless Controller
+    KEY BTN_START              = 0  (x1)                    /dev/input/event3 DualSense Wireless Controller
+
+D-PAD DOWN:
+    ABS ABS_HAT0Y              range 0..1  (x2, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+    ABS ABS_RX                 range 128..129  (x2, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x2, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    JS axis 7                  range 0..32767  (x2, e.g. 0, 32767) /dev/input/js0 DualSense Wireless Controller
+    KEY code 108 (0x6c)        range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+
+D-PAD LEFT:
+    ABS ABS_HAT0X              range -1..0  (x2, e.g. -1, 0) /dev/input/event3 DualSense Wireless Controller
+    ABS ABS_RX                 range 128..129  (x2, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x2, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    JS axis 6                  range -32767..0  (x2, e.g. -32767, 0) /dev/input/js0 DualSense Wireless Controller
+    KEY code 105 (0x69)        range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+
+D-PAD RIGHT:
+    ABS ABS_HAT0X              range 0..1  (x2, e.g. 0, 1)  /dev/input/event3 DualSense Wireless Controller
+    ABS ABS_RX                 range 128..129  (x2, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x2, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    JS axis 6                  range 0..32767  (x2, e.g. 0, 32767) /dev/input/js0 DualSense Wireless Controller
+    KEY code 106 (0x6a)        range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+
+LEFT STICK: up, then down:
+    ABS ABS_Y                  range 0..255  (x281, e.g. 120, 121, 122, 123, 124, 125) /dev/input/event3 DualSense Wireless Controller
+    JS axis 1                  range -32767..32767  (x279, e.g. -1807, -1549, -1291, -1033, -775, -517) /dev/input/js0 DualSense Wireless Controller
+    ABS ABS_X                  range 123..207  (x146, e.g. 125, 126, 127, 128, 129, 130) /dev/input/event3 DualSense Wireless Controller
+    JS axis 0                  range -1033..20641  (x146, e.g. -517, -259, 0, 258, 516, 774) /dev/input/js0 DualSense Wireless Controller
+    ABS ABS_RX                 range 128..129  (x8, e.g. 128, 129) /dev/input/event3 DualSense Wireless Controller
+    JS axis 3                  range 258..516  (x8, e.g. 258, 516) /dev/input/js0 DualSense Wireless Controller
+    KEY code 103 (0x67)        range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+    KEY code 106 (0x6a)        range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+    KEY code 108 (0x6c)        range 0..1  (x2, e.g. 0, 1)  /dev/input/event2 MiSTer virtual input
+
+======================================================================
+8. VERDICT
+======================================================================
+stdin/getch navigation viable : YES
+raw-node navigation viable    : YES
+
+nodes that actually delivered input:
+  /dev/input/event3 DualSense Wireless Controller          2358 events
+  /dev/input/js0 DualSense Wireless Controller             2354 events
+  /dev/input/event2 MiSTer virtual input                   30 events

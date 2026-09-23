@@ -92,6 +92,49 @@ The `decrypted-cci` wrapper requires FUSE: `sudo apt install fuse3 libfuse-dev`.
 If FUSE isn't available, only the CIA button in the web UI will work; the
 CCI button will return a 503 with actionable instructions.
 
+### Already-decrypted `.3ds` dumps
+
+Every 3DS tool decides whether to decrypt from the NCCH crypto flags at
+`NCCH+0x188`. Many "decrypted" dumps hold plaintext data but were never
+re-flagged, so `ninfs` / `3dsconv` decrypt plaintext into garbage — which
+surfaces as `pyctr.type.exefs.BadOffsetError: offset is not a multiple of
+0x200` or as `Expected exactly one CIA output, found 0`.
+
+The server probes the NCSD/NCCH headers before converting
+(`app/services/ctr_rom.py`) and:
+
+* **`?extract=decrypted_cci` on an already-decrypted ROM** — no converter runs
+  at all. A correctly flagged ROM is streamed straight through under the
+  `.cci` name; a stale-flagged one is copied with its crypto flags corrected.
+  This works even when no CCI converter (or FUSE) is configured.
+* **`?extract=cia` on a stale-flagged ROM** — the converter is handed a
+  flag-corrected copy so `3dsconv` skips its decryption pass.
+
+Per partition, in order: an explicit `NoCrypto` flag, a plaintext ExeFS header
+(32 reserved zero bytes plus 0x200-aligned, ASCII-named entries), the
+ExHeader's ASCII application title, or the RomFS `IVFC` magic. A partition
+with none of those regions present is *unknown*, not encrypted.
+
+**The verdict comes from partition 0 alone.** Real decrypted dumps commonly
+decrypt only the executable CXI and leave the manual / DLP / update partitions
+(p1, p2, p6, p7) encrypted — and partition 0 is the only one emulators boot or
+3dsconv puts in a CIA. Those extra partitions travel through byte-identical and
+keep their original flags; claiming `NoCrypto` on genuinely encrypted data
+would make an emulator read ciphertext as content.
+
+The probe doubles as a CLI for diagnosing a ROM in place:
+
+```bash
+cd server && uv run python -m app.services.ctr_rom "/roms/n3ds/Game (USA).3ds"
+```
+
+```text
+Game (USA).3ds: decrypted, flags still say encrypted (2 partition(s): ...)
+  p0 @0x4000 flags=0000000001030000 exheader=0x400 exefs=0xc000 romfs=0x11b000 -> plaintext ExeFS header
+  p7 @0x1b6f1a00 flags=0000000001050000 exheader=0x0 exefs=0x0 romfs=0x1b6f1c00 -> encrypted
+  verdict: decrypted=True flags_marked=False needs_flag_patch=True
+```
+
 ---
 
 ## Running as a Service (Raspberry Pi / Linux)
@@ -496,3 +539,29 @@ uv run pytest tests/ -v
 uv run pytest tests/test_bundle.py -v
 uv run pytest tests/test_api.py::TestUploadEndpoint::test_upload_success -v
 ```
+
+## Auditing the save store
+
+`tools/audit_saves.py` is a read-only check of the saves directory against
+`metadata.db`. It never writes, moves or deletes anything.
+
+```bash
+cd server
+uv run python tools/audit_saves.py                 # uses SYNC_SAVE_DIR
+uv run python tools/audit_saves.py --json audit.json
+uv run python tools/audit_saves.py --check hash,orphan
+```
+
+Run it **through the server's virtualenv**. The server hashes and sizes a save
+three different ways depending on the title - the generic rule, the PS1
+PSP-visible subset, and the PS3 filtered set - and the script borrows those
+implementations rather than reimplementing them. Without them it skips the
+hash, size and count checks and says so, instead of reporting healthy saves as
+corrupt.
+
+It reports: rows with no files on disk, save directories the database does not
+know about, empty saves, size/count/hash disagreements, unrecognised
+identifiers, one game stored under two identifiers (a serial beside a name
+slug), serial-keyed systems filed under a slug, leftover `.part` files, and
+malformed or excessive history snapshots. Exit status is non-zero when any
+error-level finding is present.

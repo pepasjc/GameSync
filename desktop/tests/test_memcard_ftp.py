@@ -189,7 +189,7 @@ def test_scan_memcard_pro_ftp_gc_hashes_extracted_gci(monkeypatch):
     saves = se.scan_profile(ftp_profile("GC"), enable_auto_normalize=False)
 
     assert len(saves) == 1
-    assert saves[0].title_id == "GC_gbze"
+    assert saves[0].title_id == "GC_GBZE"
     assert saves[0].hash == hashlib.sha256(bytes(entry) + b"A" * 0x2000).hexdigest()
 
 

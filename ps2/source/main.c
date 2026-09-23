@@ -25,12 +25,14 @@
 #include "http.h"
 #include "network.h"
 #include "roms.h"
+#include "saves.h"
 #include "ui.h"
 #include "irx_mods.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <time.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -135,6 +137,9 @@ static void boot_iop_modules(void) {
     ret = SifLoadModule("rom0:PADMAN",  0, NULL);
     scr_printf("  rom0:PADMAN  -> %d\n", ret);
 
+    /* mmceman: MMCE protocol for MemCard Pro 2 / SD2PSX GameID switching.
+     * Needs iomanX + fileXio (loaded above) and SIO2MAN (rom0, above). */
+    load_irx(mmceman_irx, mmceman_irx_size, "mmceman", 0, NULL);
 }
 
 static void boot_device_modules(const SyncState *state) {
@@ -294,6 +299,23 @@ static void pad_init(void) {
     padSetMainMode(0, 0, PAD_MMODE_DUALSHOCK, PAD_MMODE_LOCK);
 }
 
+/* Re-open the controller port to recover padman/SIO2 state after an MMCE/gen1
+ * GameID transaction.  mmceman briefly takes over the SIO2 unit; on a slow
+ * gen1 that can leave padman's controller port in a bad state, hanging the
+ * next poll (apparent freeze).  Closing + reopening the port resyncs it. */
+static void pad_reinit(void) {
+    padPortClose(0, 0);
+    padPortOpen(0, 0, g_pad_buf);
+    padSetMainMode(0, 0, PAD_MMODE_DUALSHOCK, PAD_MMODE_LOCK);
+    /* Wait for the port to come back to a stable/ready state. */
+    for (int i = 0; i < 200; i++) {
+        int st = padGetState(0, 0);
+        if (st == PAD_STATE_STABLE || st == PAD_STATE_FINDCTP1) break;
+        if (st == PAD_STATE_DISCONN) break;
+        DelayThread(2000);
+    }
+}
+
 static unsigned int g_prev_btns = 0;
 
 static unsigned int pad_read_pressed(void) {
@@ -313,6 +335,29 @@ static unsigned int pad_read_pressed(void) {
     return pressed;
 }
 
+/* Modal yes/no prompt for read/write/sync operations.  Blocks until the
+ * user presses CROSS (confirm) or CIRCLE (cancel). */
+static bool confirm(const char *fmt, ...) {
+    char msg[200];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+
+    char body[320];
+    snprintf(body, sizeof(body), "%s\n\nCROSS = Confirm    CIRCLE = Cancel", msg);
+    ui_clear();
+    ui_draw_message("Confirm", body);
+    ui_flush();
+
+    for (;;) {
+        unsigned int p = pad_read_pressed();
+        if (p & PAD_CROSS)  return true;
+        if (p & PAD_CIRCLE) return false;
+        DelayThread(16000);
+    }
+}
+
 /* ---- App state ---- */
 
 /* Forward declaration: fetch_catalog / scan_local / run_active_download
@@ -325,10 +370,22 @@ static SyncState     g_state;
 static RomCatalog    g_catalog;
 static LocalRomList  g_local;
 static DownloadList  g_downloads;
+static SaveVmcList   g_saves;
+static McGameList    g_mcard;       /* slot 1 (port 0) */
+static McGameList    g_mcard2;      /* slot 2 (port 1) */
 static AppView       g_view = APP_VIEW_ROMS;
 static int           g_rom_selected   = 0, g_rom_scroll   = 0;
 static int           g_local_selected = 0, g_local_scroll = 0;
 static int           g_dl_selected    = 0, g_dl_scroll    = 0;
+static int           g_saves_selected = 0, g_saves_scroll = 0;
+static int           g_mcard_selected  = 0, g_mcard_scroll  = 0;
+static int           g_mcard2_selected = 0, g_mcard2_scroll = 0;
+static ServerSaveList g_server;
+static int           g_server_selected = 0, g_server_scroll = 0;
+static int           g_server_source = 0;   /* 0=VMC, 1=Slot1, 2=Slot2 */
+/* GameID device per slot lives in g_state.mmce_mode[] (persisted to config).
+ * 0=off, 1=auto, 2=gen1, 3=gen2. */
+static const char   *g_mmce_mode_names[4] = {"off", "auto", "gen1", "gen2"};
 static bool          g_hdd_format_confirm = false;
 
 static char          g_scratch[256 * 1024];      /* JSON page buffer */
@@ -617,6 +674,331 @@ static void scan_local(void) {
     redraw();
 }
 
+static void fill_vmc_names(SaveVmcList *list);   /* forward decl */
+
+static void scan_saves(void) {
+    if (!g_state.usb_ready) {
+        snprintf(g_saves.last_error, sizeof(g_saves.last_error),
+                 "Storage not ready");
+        g_saves.count = 0;
+        return;
+    }
+    ui_status("Scanning card images...");
+    redraw();
+    saves_scan_local(&g_saves);
+    fill_vmc_names(&g_saves);
+    if (g_saves.count > 0) {
+        ui_status("Saves: %d card image(s)", g_saves.count);
+    }
+    redraw();
+}
+
+static void upload_selected_save(void) {
+    if (!require_storage_ready()) return;
+    if (g_saves.count == 0 || g_saves_selected >= g_saves.count) return;
+
+    const SaveVmc *v = &g_saves.items[g_saves_selected];
+    if (!confirm("Upload card image\n%s\nto server (split per game)?", v->filename))
+        return;
+    ui_status("Uploading %s...", v->filename);
+    redraw();
+
+    char msg[128];
+    int rc = saves_upload_vmc(&g_state, v, msg, sizeof(msg));
+    if (rc < 0) ui_error("%s", msg);
+    else        ui_status("%s", msg);
+    redraw();
+}
+
+static void pull_all_saves(void) {
+    if (!require_storage_ready()) return;
+    if (!confirm("Download ALL server PS1/PS2 saves\ninto VMC/ ?\nExisting VMC files overwritten."))
+        return;
+    ui_status("Pulling PS2 saves from server...");
+    redraw();
+
+    char msg[128];
+    int rc = saves_pull_all(&g_state, g_scratch, sizeof(g_scratch),
+                            msg, sizeof(msg));
+    if (rc < 0) ui_error("%s", msg);
+    else        ui_status("%s", msg);
+    scan_saves();
+}
+
+/* Fill each card game's display name from the fetched server save list. */
+static void fill_mc_names(McGameList *list) {
+    for (int i = 0; i < list->count; i++) {
+        list->items[i].name[0] = '\0';
+        for (int j = 0; j < g_server.count; j++) {
+            if (strcmp(g_server.items[j].serial, list->items[i].serial) == 0) {
+                strncpy(list->items[i].name, g_server.items[j].name,
+                        sizeof(list->items[i].name) - 1);
+                break;
+            }
+        }
+    }
+}
+
+/* Fill each VMC file's display name from the fetched server save list. */
+static void fill_vmc_names(SaveVmcList *list) {
+    for (int i = 0; i < list->count; i++) {
+        list->items[i].name[0] = '\0';
+        if (list->items[i].serial[0] == '\0') continue;
+        for (int j = 0; j < g_server.count; j++) {
+            if (strcmp(g_server.items[j].serial, list->items[i].serial) == 0) {
+                strncpy(list->items[i].name, g_server.items[j].name,
+                        sizeof(list->items[i].name) - 1);
+                break;
+            }
+        }
+    }
+}
+
+static void scan_mcard_list(int port, McGameList *list) {
+    ui_status("Scanning memory card slot %d...", port + 1);
+    redraw();
+    saves_scan_mcard(port, list);
+    fill_mc_names(list);
+    if (list->count > 0) {
+        ui_status("Slot %d: %d game save(s)", port + 1, list->count);
+    }
+    redraw();
+}
+
+/* Upload one card game, dispatching by card type (PS1 single save vs PS2 dir). */
+static int upload_one_game(McGameList *list, const McGame *g,
+                           char *msg, size_t msg_size) {
+    return list->is_ps1
+        ? saves_upload_ps1_save(&g_state, list->port, g, msg, msg_size)
+        : saves_upload_mc_game(&g_state, list->port, g, msg, msg_size);
+}
+
+static void upload_mc_game_at(McGameList *list, int sel) {
+    if (!network_is_ready(&g_state)) { ui_error("Network not ready"); return; }
+    if (list->count == 0 || sel >= list->count) return;
+
+    const McGame *g = &list->items[sel];
+    if (!confirm("Upload %s\nfrom Slot%d to server?",
+                 g->serial[0] ? g->serial : g->dir, list->port + 1))
+        return;
+    ui_status("Uploading %s...", g->serial[0] ? g->serial : g->dir);
+    redraw();
+
+    char msg[128];
+    int rc = upload_one_game(list, g, msg, sizeof(msg));
+    if (rc < 0) ui_error("%s", msg);
+    else        ui_status("%s", msg);
+    redraw();
+}
+
+static void restore_mc_game_at(McGameList *list, int sel) {
+    if (!network_is_ready(&g_state)) { ui_error("Network not ready"); return; }
+    if (list->count == 0 || sel >= list->count) return;
+
+    const McGame *g = &list->items[sel];
+    if (g->serial[0] == '\0') { ui_error("No serial for %s", g->dir); return; }
+    int port = list->port;
+    if (!confirm("Restore %s to Slot%d?\nWrites only this game's save\n(overwrites it if present).",
+                 g->serial, port + 1))
+        return;
+    ui_status("Restoring %s...", g->serial);
+    redraw();
+
+    char msg[128];
+    int rc = list->is_ps1
+        ? saves_restore_ps1_save(&g_state, port, g->serial, msg, sizeof(msg))
+        : saves_restore_mc_game(&g_state, port, g->serial, msg, sizeof(msg));
+    /* Rescan silently, then show the restore result LAST. */
+    saves_scan_mcard(port, list);
+    fill_mc_names(list);
+    if (rc < 0) ui_error("%s", msg);
+    else        ui_status("%s", msg);
+    redraw();
+}
+
+static void mark_server_local(void) {
+    for (int i = 0; i < g_server.count; i++) {
+        ServerSave *s = &g_server.items[i];
+        s->local = false;
+        for (int j = 0; j < g_mcard.count && !s->local; j++)
+            if (strcmp(g_mcard.items[j].serial, s->serial) == 0) s->local = true;
+        for (int j = 0; j < g_mcard2.count && !s->local; j++)
+            if (strcmp(g_mcard2.items[j].serial, s->serial) == 0) s->local = true;
+    }
+}
+
+static void fetch_server_saves(void) {
+    if (!network_is_ready(&g_state)) { ui_error("Network not ready"); return; }
+    ui_status("Fetching server saves...");
+    redraw();
+    saves_fetch_server(&g_state, g_scratch, sizeof(g_scratch), &g_server);
+    mark_server_local();
+    fill_mc_names(&g_mcard);
+    fill_mc_names(&g_mcard2);
+    fill_vmc_names(&g_saves);
+    if (g_server.count > 0) ui_status("Server: %d save(s)", g_server.count);
+    else if (g_server.last_error[0]) ui_error("%s", g_server.last_error);
+    redraw();
+}
+
+/* ---- Server view sync source (VMC / Slot1 / Slot2) ---- */
+
+static const char *source_name(void) {
+    return g_server_source == 1 ? "Slot1" : g_server_source == 2 ? "Slot2" : "VMC";
+}
+
+/* Memory-card port for the current source, or -1 for VMC. */
+static int source_port(void) {
+    return g_server_source == 1 ? 0 : g_server_source == 2 ? 1 : -1;
+}
+
+static McGameList *source_list(void) {
+    return g_server_source == 2 ? &g_mcard2 : &g_mcard;
+}
+
+/* X: download the selected server save into the current source. */
+static void server_download_to_source(void) {
+    if (g_server.count == 0 || g_server_selected >= g_server.count) return;
+    const ServerSave *s = &g_server.items[g_server_selected];
+    int port = source_port();
+
+    if (port < 0) {                 /* VMC */
+        if (!confirm("Download %s\nfrom server into VMC/ ?", s->serial)) return;
+        ui_status("Downloading %s...", s->serial);
+        redraw();
+        char msg[128];
+        int rc = saves_download_server_to_vmc(&g_state, s, msg, sizeof(msg));
+        if (rc < 0) ui_error("%s", msg); else ui_status("%s", msg);
+        redraw();
+        return;
+    }
+
+    if (!confirm("Restore %s to %s?\nWrites only this game's save\n(overwrites it if present).",
+                 s->serial, source_name()))
+        return;
+    ui_status("Restoring %s to %s...", s->serial, source_name());
+    redraw();
+    char msg[128];
+    int rc = s->is_ps1
+        ? saves_restore_ps1_save(&g_state, port, s->serial, msg, sizeof(msg))
+        : saves_restore_mc_game(&g_state, port, s->serial, msg, sizeof(msg));
+    /* Rescan first (it sets its own status), then show the restore result LAST
+     * so it isn't clobbered by the scan line. */
+    saves_scan_mcard(port, source_list());
+    fill_mc_names(source_list());
+    mark_server_local();
+    if (rc < 0) ui_error("%s", msg); else ui_status("%s", msg);
+    redraw();
+}
+
+/* TRIANGLE: upload the selected game's copy from the current source to server. */
+static void server_upload_from_source(void) {
+    if (!network_is_ready(&g_state)) { ui_error("Network not ready"); return; }
+    if (g_server.count == 0 || g_server_selected >= g_server.count) return;
+    const char *serial = g_server.items[g_server_selected].serial;
+    int port = source_port();
+
+    if (port < 0) {                 /* VMC: per-game upload not possible from a file */
+        ui_error("VMC source: upload whole card from the VMC screen");
+        return;
+    }
+
+    if (!confirm("Upload %s from %s\nto server?", serial, source_name())) return;
+    ui_status("Reading %s on %s...", serial, source_name());
+    redraw();
+
+    McGameList *list = source_list();
+    saves_scan_mcard(port, list);
+    int idx = -1;
+    for (int i = 0; i < list->count; i++)
+        if (strcmp(list->items[i].serial, serial) == 0) { idx = i; break; }
+    if (idx < 0) {
+        ui_error("%s not on %s (R1 switches channel)", serial, source_name());
+        return;
+    }
+    char msg[128];
+    int rc = upload_one_game(list, &list->items[idx], msg, sizeof(msg));
+    if (rc < 0) ui_error("%s", msg); else ui_status("%s", msg);
+    mark_server_local();
+    redraw();
+}
+
+/* L1: sync every save of the current source with the server. */
+static void server_sync_all(void) {
+    if (!network_is_ready(&g_state)) { ui_error("Network not ready"); return; }
+    int port = source_port();
+
+    if (port < 0) {                 /* VMC: pull all server saves into VMC/ */
+        pull_all_saves();
+        return;
+    }
+
+    if (!confirm("Upload ALL saves on %s\nto the server?", source_name())) return;
+    ui_status("Scanning %s...", source_name());
+    redraw();
+
+    McGameList *list = source_list();
+    saves_scan_mcard(port, list);
+
+    int ok = 0, fail = 0;
+    char msg[128];
+    for (int i = 0; i < list->count; i++) {
+        if (list->items[i].serial[0] == '\0') continue;
+        ui_status("Uploading %s (%d/%d)...",
+                  list->items[i].serial, i + 1, list->count);
+        redraw();
+        if (upload_one_game(list, &list->items[i], msg, sizeof(msg)) == 0)
+            ok++;
+        else
+            fail++;
+    }
+
+    /* Refresh server list so the L (local) flags and names update. */
+    saves_fetch_server(&g_state, g_scratch, sizeof(g_scratch), &g_server);
+    mark_server_local();
+    fill_mc_names(&g_mcard);
+    fill_mc_names(&g_mcard2);
+    ui_status("%s sync: %d uploaded, %d failed", source_name(), ok, fail);
+    redraw();
+}
+
+static void cycle_server_source(void) {
+    g_server_source = (g_server_source + 1) % 3;
+    ui_set_server_source(source_name());
+    ui_status("Sync source: %s", source_name());
+    redraw();
+}
+
+static void cycle_mmce_mode(int port) {
+    port = port == 1 ? 1 : 0;
+    g_state.mmce_mode[port] = (g_state.mmce_mode[port] + 1) % 4;
+    ui_set_mmce(port, g_state.mmce_mode[port]);
+    config_save(&g_state);   /* persist the per-slot choice */
+    ui_status("Slot%d GameID: %s (saved)", port + 1,
+              g_mmce_mode_names[g_state.mmce_mode[port]]);
+    redraw();
+}
+
+static void mcp_switch_gameid(const char *serial, int port) {
+    port = port == 1 ? 1 : 0;
+    if (g_state.mmce_mode[port] == 0) {
+        ui_error("Slot%d GameID off - SELECT to set device", port + 1);
+        redraw();
+        return;
+    }
+    if (!serial || !serial[0]) { ui_error("No serial to switch to"); return; }
+    int mode = g_state.mmce_mode[port];
+    char msg[128];
+    int rc = saves_mcp_set_gameid(serial, port, mode, msg, sizeof(msg));
+    if (rc < 0) { ui_error("[mode=%s] %s", g_mmce_mode_names[mode], msg); redraw(); return; }
+
+    /* Do NOT auto-rescan here: right after a channel switch the MemCard Pro is
+     * still mounting the new VMC, and probing it mid-mount intermittently hangs
+     * libmc (gen1 freeze).  Tell the user to rescan ([]) once it has switched. */
+    ui_status("[%s] %s - press [] to rescan", g_mmce_mode_names[mode], msg);
+    redraw();
+}
+
 static void run_active_download(DownloadEntry *e) {
     if (!e || !require_storage_ready()) return;
 
@@ -701,9 +1083,10 @@ static void run_active_download(DownloadEntry *e) {
 
 /* ---- Main loop ---- */
 
-static void cycle_view(void) {
+static void cycle_view(int delta) {
     g_hdd_format_confirm = false;
-    g_view = (AppView)(((int)g_view + 1) % APP_VIEW_COUNT);
+    int n = (int)APP_VIEW_COUNT;
+    g_view = (AppView)((((int)g_view + delta) % n + n) % n);
 }
 
 static void cycle_storage_pref(int delta) {
@@ -734,6 +1117,18 @@ static void redraw(void) {
         case APP_VIEW_DOWNLOADS:
             ui_draw_downloads(&g_downloads, g_dl_selected, g_dl_scroll,
                               g_active_done, g_active_total, g_active_bps);
+            break;
+        case APP_VIEW_SAVES:
+            ui_draw_saves(&g_saves, g_saves_selected, g_saves_scroll);
+            break;
+        case APP_VIEW_MCARD:
+            ui_draw_mcard(&g_mcard, g_mcard_selected, g_mcard_scroll);
+            break;
+        case APP_VIEW_MCARD2:
+            ui_draw_mcard(&g_mcard2, g_mcard2_selected, g_mcard2_scroll);
+            break;
+        case APP_VIEW_SERVER:
+            ui_draw_server(&g_server, g_server_selected, g_server_scroll);
             break;
         case APP_VIEW_CONFIG:
             ui_draw_config(&g_state);
@@ -769,6 +1164,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     config_load_console_id(&g_state);
+    ui_set_mmce(0, g_state.mmce_mode[0]);   /* reflect persisted GameID modes */
+    ui_set_mmce(1, g_state.mmce_mode[1]);
     scr_printf("BOOT: console_id=%s server=%s\n",
                g_state.console_id, g_state.server_url);
 
@@ -795,9 +1192,13 @@ int main(int argc, char *argv[]) {
      * instead of "Press X to fetch catalog" / an empty Local view. */
     if (g_state.usb_ready) {
         scan_local();
+        scan_saves();
     }
+    scan_mcard_list(0, &g_mcard);
+    scan_mcard_list(1, &g_mcard2);
     if (network_is_ready(&g_state)) {
         fetch_catalog();
+        fetch_server_saves();
     }
 
     redraw();
@@ -819,8 +1220,10 @@ int main(int argc, char *argv[]) {
 
         if (pressed & PAD_CIRCLE) break;
 
-        if (pressed & PAD_START) {
-            cycle_view();
+        if (pressed & PAD_R2) {
+            cycle_view(+1);
+        } else if (pressed & PAD_L2) {
+            cycle_view(-1);
         } else if (g_view == APP_VIEW_ROMS) {
             int count = g_catalog.count;
             if      (pressed & PAD_UP)       g_rom_selected--;
@@ -895,6 +1298,61 @@ int main(int argc, char *argv[]) {
                 }
             }
             clamp_scroll(&g_dl_selected, &g_dl_scroll, count);
+        } else if (g_view == APP_VIEW_SAVES) {
+            int count = g_saves.count;
+            if      (pressed & PAD_UP)       g_saves_selected--;
+            else if (pressed & PAD_DOWN)     g_saves_selected++;
+            else if (pressed & PAD_LEFT)     g_saves_selected -= ui_list_visible();
+            else if (pressed & PAD_RIGHT)    g_saves_selected += ui_list_visible();
+            else if (pressed & PAD_SQUARE)   scan_saves();
+            else if (pressed & PAD_CROSS)    upload_selected_save();
+            else if (pressed & PAD_TRIANGLE) pull_all_saves();
+            clamp_scroll(&g_saves_selected, &g_saves_scroll, g_saves.count);
+        } else if (g_view == APP_VIEW_MCARD) {
+            if      (pressed & PAD_UP)       g_mcard_selected--;
+            else if (pressed & PAD_DOWN)     g_mcard_selected++;
+            else if (pressed & PAD_LEFT)     g_mcard_selected -= ui_list_visible();
+            else if (pressed & PAD_RIGHT)    g_mcard_selected += ui_list_visible();
+            else if (pressed & PAD_SQUARE)   scan_mcard_list(0, &g_mcard);
+            else if (pressed & PAD_CROSS)    upload_mc_game_at(&g_mcard, g_mcard_selected);
+            else if (pressed & PAD_TRIANGLE) restore_mc_game_at(&g_mcard, g_mcard_selected);
+            else if (pressed & PAD_SELECT)   cycle_mmce_mode(0);
+            else if (pressed & PAD_R1) {
+                if (g_mcard.count > 0 && g_mcard_selected < g_mcard.count)
+                    mcp_switch_gameid(g_mcard.items[g_mcard_selected].serial, 0);
+            }
+            clamp_scroll(&g_mcard_selected, &g_mcard_scroll, g_mcard.count);
+        } else if (g_view == APP_VIEW_MCARD2) {
+            if      (pressed & PAD_UP)       g_mcard2_selected--;
+            else if (pressed & PAD_DOWN)     g_mcard2_selected++;
+            else if (pressed & PAD_LEFT)     g_mcard2_selected -= ui_list_visible();
+            else if (pressed & PAD_RIGHT)    g_mcard2_selected += ui_list_visible();
+            else if (pressed & PAD_SQUARE)   scan_mcard_list(1, &g_mcard2);
+            else if (pressed & PAD_CROSS)    upload_mc_game_at(&g_mcard2, g_mcard2_selected);
+            else if (pressed & PAD_TRIANGLE) restore_mc_game_at(&g_mcard2, g_mcard2_selected);
+            else if (pressed & PAD_SELECT)   cycle_mmce_mode(1);
+            else if (pressed & PAD_R1) {
+                if (g_mcard2.count > 0 && g_mcard2_selected < g_mcard2.count)
+                    mcp_switch_gameid(g_mcard2.items[g_mcard2_selected].serial, 1);
+            }
+            clamp_scroll(&g_mcard2_selected, &g_mcard2_scroll, g_mcard2.count);
+        } else if (g_view == APP_VIEW_SERVER) {
+            if      (pressed & PAD_UP)       g_server_selected--;
+            else if (pressed & PAD_DOWN)     g_server_selected++;
+            else if (pressed & PAD_LEFT)     g_server_selected -= ui_list_visible();
+            else if (pressed & PAD_RIGHT)    g_server_selected += ui_list_visible();
+            else if (pressed & PAD_START)    cycle_server_source();
+            else if (pressed & PAD_SQUARE)   fetch_server_saves();
+            else if (pressed & PAD_CROSS)    server_download_to_source();
+            else if (pressed & PAD_TRIANGLE) server_upload_from_source();
+            else if (pressed & PAD_L1)       server_sync_all();
+            else if (pressed & PAD_SELECT)   cycle_mmce_mode(source_port() < 0 ? 0 : source_port());
+            else if (pressed & PAD_R1) {
+                if (g_server.count > 0 && g_server_selected < g_server.count)
+                    mcp_switch_gameid(g_server.items[g_server_selected].serial,
+                                      source_port() < 0 ? 0 : source_port());
+            }
+            clamp_scroll(&g_server_selected, &g_server_scroll, g_server.count);
         } else if (g_view == APP_VIEW_CONFIG) {
             if (pressed & PAD_LEFT) {
                 cycle_storage_pref(-1);

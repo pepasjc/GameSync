@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 
-from shared.systems import SYSTEM_CODES
+from shared.systems import SYSTEM_ALIASES, SYSTEM_CODES
 
 
 # Regex for emulator title_id format: SYSTEM_slug.
@@ -53,6 +53,13 @@ _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 _MULTI_UNDERSCORE_RE = re.compile(r"_+")
 
 
+#: Memo for the slug rules. Pure function, so caching is safe, and building a
+#: title matcher calls it once per catalogue name - thousands of times on a
+#: real library, where the regex chain dominates.
+_SLUG_MEMO: dict = {}
+_SLUG_MEMO_LIMIT = 50000
+
+
 def normalize_rom_name(filename: str) -> str:
     """Strip extension and revision/disc tags; append region to the slug.
 
@@ -69,6 +76,10 @@ def normalize_rom_name(filename: str) -> str:
     ``"Legend of Zelda, The - Minish Cap (USA).gba"`` → ``"legend_of_zelda_the_minish_cap_usa"``
     ``"Homebrew Game.sfc"``                           → ``"homebrew_game"``
     """
+    cached = _SLUG_MEMO.get(filename)
+    if cached is not None:
+        return cached
+
     name = _strip_extension(filename)
 
     # Extract region before stripping all parenthetical tags.
@@ -90,11 +101,20 @@ def normalize_rom_name(filename: str) -> str:
     if region_parts:
         name = f"{name}_{region_parts}"
 
-    return name or "unknown"
+    result = name or "unknown"
+    if len(_SLUG_MEMO) >= _SLUG_MEMO_LIMIT:
+        _SLUG_MEMO.clear()
+    _SLUG_MEMO[filename] = result
+    return result
 
 
 def make_title_id(system: str, rom_filename: str) -> str:
     """Return the canonical title_id, e.g. ``GBA_legend_of_zelda_the_minish_cap_usa``.
+
+    The system is resolved through ``SYSTEM_ALIASES`` first: ``SYSTEM_CODES``
+    deliberately contains aliases so they validate, but an alias must never
+    reach a title_id or the same game ends up in two server slots
+    (``GEN_sonic`` next to ``MD_sonic``).
 
     Raises ``ValueError`` when ``system`` isn't in the shared registry —
     callers should either pass a canonicalised code or fall back to a
@@ -105,6 +125,7 @@ def make_title_id(system: str, rom_filename: str) -> str:
         raise ValueError(
             f"Unknown system code: {system!r}. Valid codes: {sorted(SYSTEM_CODES)}"
         )
+    system = SYSTEM_ALIASES.get(system, system)
     return f"{system}_{normalize_rom_name(rom_filename)}"
 
 

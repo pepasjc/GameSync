@@ -166,6 +166,7 @@ class DownloadManager(
         romDirOverrides: Map<String, String> = emptyMap(),
         extractFormat: String? = null,
         cdGamesPerContentFolder: Boolean = false,
+        bundleKind: String? = null,
     ): Deferred<String> = appScope.async {
         enqueue(
             api = api,
@@ -177,6 +178,7 @@ class DownloadManager(
             romDirOverrides = romDirOverrides,
             extractFormat = extractFormat,
             cdGamesPerContentFolder = cdGamesPerContentFolder,
+            bundleKind = bundleKind,
         )
     }
 
@@ -212,13 +214,16 @@ class DownloadManager(
         romDirOverrides: Map<String, String> = emptyMap(),
         extractFormat: String? = null,
         cdGamesPerContentFolder: Boolean = false,
+        bundleKind: String? = null,
     ): String {
         val (finalFile, partFile) = resolveTargetFiles(
             romScanDir = romScanDir,
             system = system,
-            filename = filename,
+            // An MSU pack downloads as `<name>.zip` beside the folder it
+            // will unpack into; never into a per-game CD folder.
+            filename = if (bundleKind != null) filename.removeSuffix(".zip") + ".zip" else filename,
             romDirOverrides = romDirOverrides,
-            cdGamesPerContentFolder = cdGamesPerContentFolder,
+            cdGamesPerContentFolder = cdGamesPerContentFolder && bundleKind == null,
         )
         val now = nowMillis()
         val entity = DownloadEntity(
@@ -241,6 +246,7 @@ class DownloadManager(
             extractFormat = extractFormat,
             createdAt = now,
             updatedAt = now,
+            bundleKind = bundleKind,
         )
         dao.upsert(entity)
         // Pre-seed a progress event so the UI shows the row immediately
@@ -626,6 +632,26 @@ class DownloadManager(
 
     private suspend fun promotePartFile(entity: DownloadEntity) {
         val partFile = File(entity.partFilePath)
+
+        // Wii U catalog entries are folder-shaped and always arrive as a ZIP:
+        // the raw WUP set by default, or the decrypted code/content/meta tree
+        // with ``extract=loadiine``.  Cemu wants a folder either way, so
+        // unpack both.  Keying on system + .zip rather than on extractFormat
+        // covers the raw case, where there is no extract format at all.
+        //
+        // Unpack straight from the .part so a mid-extract crash leaves no
+        // orphaned .zip for the user to chase down.
+        if (entity.system.equals("WIIU", ignoreCase = true) &&
+            entity.finalFilePath.endsWith(".zip", ignoreCase = true)
+        ) {
+            unpackWiiuBundle(entity, partFile)
+            return
+        }
+        if (entity.bundleKind != null) {
+            unpackMsuPack(entity, partFile)
+            return
+        }
+
         val finalFile = File(entity.finalFilePath)
         finalFile.parentFile?.mkdirs()
         if (finalFile.exists()) {
@@ -642,6 +668,77 @@ class DownloadManager(
             }
             partFile.delete()
         }
+    }
+
+    /**
+     * Extract a Wii U title into ``<finalFilePath minus .zip>/``.
+     *
+     * A previous partial extraction is wiped first: both Cemu and WUP
+     * installers read whatever files they find, so a half-written tree from
+     * an interrupted run would look installed but fail to load.
+     */
+    private fun unpackWiiuBundle(entity: DownloadEntity, partFile: File) {
+        val targetDir = File(entity.finalFilePath.removeSuffix(".zip"))
+        if (targetDir.exists()) {
+            runCatching { targetDir.deleteRecursively() }
+        }
+        targetDir.mkdirs()
+
+        val canonicalRoot = targetDir.canonicalPath
+        java.util.zip.ZipInputStream(partFile.inputStream().buffered()).use { zis ->
+            while (true) {
+                val zipEntry = zis.nextEntry ?: break
+                val out = File(targetDir, zipEntry.name)
+                // Zip-slip guard — a crafted archive could otherwise write
+                // outside the ROM folder entirely.
+                if (!out.canonicalPath.startsWith(canonicalRoot + File.separator)) {
+                    throw IOException("Refusing unsafe ZIP member: ${zipEntry.name}")
+                }
+                if (zipEntry.isDirectory) {
+                    out.mkdirs()
+                } else {
+                    out.parentFile?.mkdirs()
+                    out.outputStream().use { output -> zis.copyTo(output) }
+                }
+                zis.closeEntry()
+            }
+        }
+        partFile.delete()
+    }
+
+    /**
+     * Lay an MSU pack out in `<finalFilePath minus .zip>/`.
+     *
+     * The zip is the operator's own, so its members go through
+     * [MsuPack.planExtraction]: the wrapping folder is hoisted away and the
+     * pack's junk dropped, leaving the ROM with its audio beside it — the
+     * shape every MSU-capable core finds the tracks in.  A half-written
+     * folder from an interrupted run is wiped first, as for Wii U.
+     */
+    private fun unpackMsuPack(entity: DownloadEntity, partFile: File) {
+        val targetDir = File(entity.finalFilePath.removeSuffix(".zip"))
+        if (targetDir.exists()) {
+            runCatching { targetDir.deleteRecursively() }
+        }
+        targetDir.mkdirs()
+
+        val canonicalRoot = targetDir.canonicalPath
+        java.util.zip.ZipFile(partFile).use { zip ->
+            val members = zip.entries().asSequence().map { it.name }.toList()
+            val layout = MsuPack.planExtraction(members)
+            if (layout.isEmpty()) throw IOException("Pack archive holds no files")
+            for ((member, rel) in layout) {
+                val out = File(targetDir, rel)
+                if (!out.canonicalPath.startsWith(canonicalRoot + File.separator)) {
+                    throw IOException("Refusing unsafe ZIP member: $member")
+                }
+                out.parentFile?.mkdirs()
+                zip.getInputStream(zip.getEntry(member)).use { input ->
+                    out.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+        }
+        partFile.delete()
     }
 
     private suspend fun markCompleted(id: String) {

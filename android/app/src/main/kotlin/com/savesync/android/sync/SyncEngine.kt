@@ -92,7 +92,10 @@ class SyncEngine(
     }
 
     suspend fun sync(saves: List<SaveEntry>): SyncResult {
-        val resolvedSaves = normalizeCanonicalSlugEntries(saves)
+        // The list may predate a download or an emulator session: a "server-only"
+        // row whose predicted file now exists is a local save with possibly newer
+        // play on it, and must go through the three-way check, not a blind download.
+        val resolvedSaves = normalizeCanonicalSlugEntries(saves.map { it.reconcileWithDisk() })
         val errors = mutableListOf<String>()
         var uploaded = 0
         var downloaded = 0
@@ -391,18 +394,24 @@ class SyncEngine(
         }
     }
 
-    private fun is3dsBundleEntry(entry: SaveEntry): Boolean {
-        return entry.systemName == "3DS" && entry.isMultiFile && entry.saveDir != null
-    }
+    /**
+     * Save archives that travel as a bundle of relative paths: 3DS (Azahar)
+     * and Wii U (Cemu).  Both are recursive trees, so the flat PSP slot bundle
+     * would lose their directory structure.
+     */
+    private fun isTreeBundleEntry(entry: SaveEntry): Boolean = entry.isTreeSaveDir
 
-    suspend fun uploadSave(entry: SaveEntry): Boolean {
+    suspend fun uploadSave(rawEntry: SaveEntry): Boolean {
+        // A stale server-only flag would make readBytes()/computeHash() return
+        // nothing and upload an empty save.
+        val entry = rawEntry.reconcileWithDisk()
         if (isSharedYabaSanshiroContainer(entry)) {
             autoResolveSharedSaturnArchives(entry)
         }
         return if (entry.isPspSlot) {
             uploadPspBundle(entry)
-        } else if (is3dsBundleEntry(entry)) {
-            upload3dsBundle(entry)
+        } else if (isTreeBundleEntry(entry)) {
+            uploadTreeBundle(entry)
         } else if (isPs1RawEntry(entry)) {
             uploadPs1Card(entry)
         } else if (isPs2RawEntry(entry)) {
@@ -414,21 +423,29 @@ class SyncEngine(
         }
     }
 
-    private suspend fun upload3dsBundle(entry: SaveEntry): Boolean {
+    private suspend fun uploadTreeBundle(entry: SaveEntry): Boolean {
         val saveDir = entry.saveDir ?: return false
         return try {
             val bundleBytes = BundleUtils.createTreeBundle(entry.titleId, saveDir)
             val requestBody = bundleBytes.toRequestBody("application/octet-stream".toMediaType())
             val response = api.uploadSaveBundle(
                 titleId = entry.titleId,
-                source = "3ds_emu",
+                source = if (entry.systemName == "WIIU") "wiiu_emu" else "3ds_emu",
                 force = true,
                 consoleId = consoleId,
+                // The server names a Wii U save from its 4-char product code
+                // (meta.xml), not its title id — without this the stored
+                // metadata keeps the raw hex id as the game name.  The
+                // meta.xml name rides along for titles the Wii U DAT misses.
+                gameCode = entry.gameCode ?: "",
+                gameName = entry.displayName.takeIf {
+                    entry.systemName == "WIIU" && it != entry.titleId
+                } ?: "",
                 body = requestBody
             )
             response.status == "ok"
         } catch (e: Exception) {
-            Log.e(TAG, "upload3dsBundle failed for ${entry.titleId}", e)
+            Log.e(TAG, "uploadTreeBundle failed for ${entry.titleId}", e)
             false
         }
     }
@@ -511,8 +528,8 @@ class SyncEngine(
     suspend fun downloadSave(entry: SaveEntry, titleId: String): Boolean {
         return if (entry.isPspSlot) {
             downloadPspBundle(entry, titleId)
-        } else if (is3dsBundleEntry(entry)) {
-            download3dsBundle(entry, titleId)
+        } else if (isTreeBundleEntry(entry)) {
+            downloadTreeBundle(entry, titleId)
         } else if (entry.systemName == "PS1" && entry.saveFile != null) {
             downloadPs1Card(entry, titleId)
         } else if (entry.systemName == "PS2" && entry.saveFile != null) {
@@ -754,13 +771,13 @@ class SyncEngine(
         }
     }
 
-    private suspend fun download3dsBundle(entry: SaveEntry, titleId: String): Boolean {
+    private suspend fun downloadTreeBundle(entry: SaveEntry, titleId: String): Boolean {
         val saveDir = entry.saveDir ?: return false
         val response = api.downloadSaveBundle(titleId)
         if (!response.isSuccessful) {
             val message = response.errorBody()?.string()?.let(::extractErrorDetail)
                 ?: "Download failed (${response.code()})"
-            Log.e(TAG, "Download 3DS bundle HTTP error for $titleId: $message")
+            Log.e(TAG, "Download tree bundle HTTP error for $titleId: $message")
             throw IOException(message)
         }
         return try {
@@ -782,13 +799,13 @@ class SyncEngine(
             }
             true
         } catch (e: Exception) {
-            Log.e(TAG, "download3dsBundle failed for $titleId", e)
+            Log.e(TAG, "downloadTreeBundle failed for $titleId", e)
             false
         }
     }
 
     suspend fun recordSyncedState(entry: SaveEntry) {
-        updateSyncState(entry)
+        updateSyncState(entry.reconcileWithDisk())
     }
 
     suspend fun recordSyncedStateFromFile(entry: SaveEntry) {
@@ -827,10 +844,12 @@ class SyncEngine(
                 // PSP/PSX slot: hash = sha256(all files sorted by name, data only, no paths)
                 entry.isPspSlot && entry.saveDir?.exists() == true ->
                     HashUtils.sha256DirFiles(entry.saveDir)
-                is3dsBundleEntry(entry) && entry.saveDir?.exists() == true ->
+                isTreeBundleEntry(entry) && entry.saveDir?.exists() == true ->
                     HashUtils.sha256DirTreeFiles(entry.saveDir)
                 saturnSnapshot != null ->
                     HashUtils.sha256Bytes(saturnSnapshot.bytes)
+                entry.saveFile?.exists() == true && entry.systemName == "PS2" ->
+                    Ps2CardEcc.normalizedHash(entry.saveFile) ?: HashUtils.sha256File(entry.saveFile)
                 entry.saveFile?.exists() == true -> HashUtils.sha256File(entry.saveFile)
                 entry.saveDir?.exists() == true  -> HashUtils.sha256Dir(entry.saveDir)
                 else -> return  // nothing to record

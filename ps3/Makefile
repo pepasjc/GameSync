@@ -38,12 +38,18 @@ include $(PSL1GHT)/ppu_rules
 
 all: $(TARGET).pkg
 
-# Copy games.conf into the package so it's installed alongside EBOOT.BIN
-$(TARGET).pkg: $(BUILD)/pkg/USRDIR/games.conf
+# Copy games.conf into the package so it's installed alongside EBOOT.BIN.
+# games.conf comes from the Apollo Save Tool and is GPL-3.0, so its licence
+# notice ships with it — do not drop games.conf.LICENSE from the package.
+$(TARGET).pkg: $(BUILD)/pkg/USRDIR/games.conf $(BUILD)/pkg/USRDIR/games.conf.LICENSE
 
 $(BUILD)/pkg/USRDIR/games.conf: data/games.conf | $(BUILD)
 	@mkdir -p $(BUILD)/pkg/USRDIR
 	cp data/games.conf $(BUILD)/pkg/USRDIR/games.conf
+
+$(BUILD)/pkg/USRDIR/games.conf.LICENSE: data/games.conf.LICENSE | $(BUILD)
+	@mkdir -p $(BUILD)/pkg/USRDIR
+	cp data/games.conf.LICENSE $(BUILD)/pkg/USRDIR/games.conf.LICENSE
 
 $(BUILD):
 	mkdir -p $(BUILD)

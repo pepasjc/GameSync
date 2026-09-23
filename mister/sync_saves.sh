@@ -16,8 +16,19 @@
 
 set -euo pipefail
 
-CONFIG_FILE="/media/fat/3dssync.cfg"
-STATE_FILE="/media/fat/3dssync_state.json"
+# Config and state live in the MiSTer script convention directory, shared with
+# the on-device GameSync client and the desktop client's SSH sync. All three
+# write the same state file, so the paths must agree or each keeps its own idea
+# of the last synced hash and every save looks like a conflict.
+# The pre-0.5.4 locations are still honoured when the current ones are absent.
+CONFIG_DIR="/media/fat/Scripts/.config/gamesync"
+CONFIG_FILE="$CONFIG_DIR/gamesync.cfg"
+STATE_FILE="$CONFIG_DIR/state.json"
+LEGACY_CONFIG_FILE="/media/fat/3dssync.cfg"
+LEGACY_STATE_FILE="/media/fat/3dssync_state.json"
+[ -f "$CONFIG_FILE" ] || { [ -f "$LEGACY_CONFIG_FILE" ] && CONFIG_FILE="$LEGACY_CONFIG_FILE"; } || true
+[ -f "$STATE_FILE" ] || { [ -f "$LEGACY_STATE_FILE" ] && STATE_FILE="$LEGACY_STATE_FILE"; } || true
+mkdir -p "$CONFIG_DIR" 2>/dev/null || true
 SAVES_DIR="/media/fat/saves"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SYSTEMS_JSON="${SYSTEMS_JSON:-$SCRIPT_DIR/systems.json}"

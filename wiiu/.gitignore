@@ -1,0 +1,8 @@
+# Build artifacts
+build/
+*.elf
+*.rpx
+*.wuhb
+*.map
+*.lst
+*.o

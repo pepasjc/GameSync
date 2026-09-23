@@ -83,6 +83,19 @@ data class NormalizeResponse(val results: List<NormalizeResult>)
 
 // ── PSP/game name lookup ──────────────────────────────────────────────────
 data class GameNameRequest(val codes: List<String>)
+
+/**
+ * Fills in server-side names for titles stored under their raw id.
+ *
+ * [codes] are product codes the server resolves through its own DATs;
+ * [names] are display names for titles no DAT covers — a Wii U save is keyed
+ * by a 16-hex title id whose low word is not the product code, so the only
+ * source is the title's meta.xml on whichever device has the game.
+ */
+data class NameHintRequest(
+    val codes: Map<String, String> = emptyMap(),
+    val names: Map<String, String> = emptyMap()
+)
 data class GameNameResponse(
     val names: Map<String, String>,
     val types: Map<String, String>,
@@ -134,9 +147,113 @@ data class RomEntry(
     val source: String? = null,
     @SerializedName("extract_format")
     val extractFormat: String? = null,
+    /**
+     * Nullable on purpose.  Gson instantiates via Unsafe and does not run the
+     * Kotlin constructor, so a declared `= emptyList()` default is NOT applied
+     * when the key is absent from the JSON — the field is left null and any
+     * non-null-typed access NPEs at the first call.  The server omits this key
+     * for systems with nothing to advertise, so read it through [extractFormatList].
+     */
     @SerializedName("extract_formats")
-    val extractFormats: List<String> = emptyList()
+    val extractFormats: List<String>? = null,
+    /** True for folder-shaped catalog entries (PS3 packages, Wii U WUP sets). */
+    @SerializedName("is_bundle")
+    val isBundle: Boolean = false,
+    /**
+     * `msu1` / `msu-md` / `mdplus` when the bundle is an enhanced-audio pack
+     * (see [com.savesync.android.sync.MsuPack]); absent for every other entry.
+     */
+    @SerializedName("bundle_kind")
+    val bundleKind: String? = null,
+    /**
+     * How many RetroAchievements this exact ROM has.  0 means RA knows the
+     * hash but no set is published, -1 that the server had no API key and
+     * could not read the count, and absent that the server has not indexed
+     * this ROM yet.  Only a positive count is worth a badge — see [hasRa].
+     */
+    @SerializedName("ra_achievements")
+    val raAchievements: Int? = null,
+    /** RA's game id, for linking out to the set. */
+    @SerializedName("ra_game_id")
+    val raGameId: Int? = null,
+    /**
+     * How the game was identified: `hash` (exact - RA will recognise this
+     * dump) or `title` (a set exists for a game of this name, but nothing
+     * verified this particular disc).  Absent means hash.
+     */
+    @SerializedName("ra_match")
+    val raMatch: String? = null,
+    /** Wii U only: `game` / `update` / `dlc` / `demo`. */
+    @SerializedName("content_type")
+    val contentType: String? = null,
+    /** Wii U only: the base-game title id this entry belongs to. */
+    @SerializedName("base_title_id")
+    val baseTitleId: String? = null,
+    /**
+     * Wii U only: the *other* pieces of this game (its update, DLC, or the
+     * base game if this is one of those), server-ordered game → update → DLC.
+     * Nullable for the same Gson reason as [extractFormats].
+     */
+    @SerializedName("related_rom_ids")
+    val relatedRomIds: List<String>? = null
 )
+
+/**
+ * The MSU pack kind of this entry, or null when it is not a pack.  Only a
+ * bundle can be one, and only kinds this client knows how to lay out count.
+ */
+val RomEntry.msuPackKind: String?
+    get() = bundleKind?.trim()?.lowercase()
+        ?.takeIf { isBundle && it in com.savesync.android.sync.MsuPack.KINDS }
+
+/**
+ * Install order for a Wii U title's pieces.  MCP rejects an update or DLC
+ * whose base game is not on the console yet, so downloading — and therefore
+ * installing — has to follow this sequence.
+ */
+private val WIIU_CONTENT_ORDER = listOf("game", "update", "dlc", "demo")
+
+/**
+ * This entry together with its updates / DLC, in install order.
+ *
+ * Returns just `this` for systems with no grouping, or for a Wii U title the
+ * server found no siblings for.  Tapping *any* piece yields the whole set:
+ * an update on its own is unusable, so queuing the group is what the user
+ * actually wants either way.
+ */
+fun RomEntry.withRelated(catalog: List<RomEntry>): List<RomEntry> {
+    val ids = relatedRomIds.orEmpty()
+    if (ids.isEmpty()) return listOf(this)
+
+    val byId = catalog.associateBy { it.rom_id ?: it.title_id }
+    return (listOf(this) + ids.mapNotNull { byId[it] })
+        .distinctBy { it.rom_id ?: it.title_id }
+        .sortedBy {
+            val idx = WIIU_CONTENT_ORDER.indexOf(it.contentType?.trim()?.lowercase())
+            if (idx < 0) WIIU_CONTENT_ORDER.size else idx
+        }
+}
+
+/**
+ * True when RetroAchievements has a *published* set for this exact ROM.
+ *
+ * A registered hash with no set (0) promises nothing, and -1 means the
+ * server could not read the count at all, so neither earns a badge.
+ */
+val RomEntry.hasRa: Boolean
+    get() = (raAchievements ?: 0) > 0
+
+/**
+ * True when the badge rests on a name match rather than the ROM's hash -
+ * see shared/ra_titles.py.  Shown as "RA?" so it is never read as a promise
+ * that this dump works.
+ */
+val RomEntry.raIsTitleOnly: Boolean
+    get() = raMatch?.lowercase() == "title"
+
+/** Server-advertised extract formats, lowercased; empty when none. */
+val RomEntry.extractFormatList: List<String>
+    get() = extractFormats.orEmpty().mapNotNull { it.trim().lowercase().ifEmpty { null } }
 
 data class RomsResponse(
     val roms: List<RomEntry>,
@@ -193,6 +310,15 @@ fun RomEntry.preferredDownloadExtractFormat(): String? {
         return "iso"
     }
 
+    if (sysUp == "WIIU") {
+        // Unlike 3DS/Xbox above, a Wii U WUP bundle is directly usable as
+        // downloaded: Cemu decrypts it from the bundled ticket, exactly as
+        // the console does.  So take the raw bundle unless this server has
+        // actually advertised a decrypted format — requesting one it can't
+        // produce would turn a working download into a 503.
+        return if (isBundle && "loadiine" in extractFormatList) "loadiine" else null
+    }
+
     return null
 }
 
@@ -216,6 +342,10 @@ fun RomEntry.preferredDownloadFilename(extractFormat: String?): String {
         "rvz"           -> "$stem.iso"  // server's rvz → iso conversion
         "gdi"           -> "$stem.gdi"
         "cue"           -> "$stem.cue"
+        // The ZIP is a staging artifact only — DownloadManager unpacks it to
+        // "<stem>/" and deletes it.  Naming it here keeps the .part path and
+        // the extract target derivable from one field.
+        "loadiine"      -> "$stem.zip"
         else            -> filename
     }
 }

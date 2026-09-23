@@ -31,6 +31,9 @@ async def lifespan(app: FastAPI):
         dats_dir / "Nintendo - GameCube.dat"
     )
     count_wii += game_names.load_libretro_dat_to_dicts(dats_dir / "Nintendo - Wii.dat")
+    count_wiiu = game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Nintendo - Wii U.dat"
+    )
 
     # Load libretro DATs (replace legacy .txt files for PS1/PSP/Vita/3DS/DS)
     # Retail DATs are loaded first (psn=False); PSN DATs second (psn=True) so
@@ -42,6 +45,9 @@ async def lifespan(app: FastAPI):
         dats_dir / "Sony - PlayStation 2.dat"
     )
     count_sat = game_names.load_libretro_dat_to_dicts(dats_dir / "Sega - Saturn.dat")
+    count_dc = game_names.load_libretro_dat_to_dicts(
+        dats_dir / "Sega - Dreamcast.dat"
+    )
     count_ps3 = game_names.load_libretro_dat_to_dicts(
         dats_dir / "Sony - PlayStation 3.dat"
     )
@@ -76,13 +82,15 @@ async def lifespan(app: FastAPI):
 
     count_psn_retail = game_names.build_psx_psn_to_retail()
     count_sat_slugs = game_names.build_saturn_slug_index()
+    count_dc_slugs = game_names.build_dreamcast_slug_index()
     count_sat_archives = saturn_archives.load_seed(
         data_dir / "saturn_archive_names.json"
     )
     print(
         f"Loaded {count_3ds_title_ids} 3DS TitleIDs + {count_3ds} 3DS codes + {count_ds} DS + "
-        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX + {count_ps2} PS2 + {count_sat} Saturn + {count_ps3} PS3 + {count_wii} GC/Wii + {count_xbox} Xbox game names "
-        f"({count_psn_retail} PSN→retail mappings, {count_sat_slugs} Saturn slug mappings, {count_sat_archives} Saturn archive mappings)"
+        f"{count_psp} PSP + {count_vita} Vita + {count_psx} PSX + {count_ps2} PS2 + {count_sat} Saturn + {count_dc} Dreamcast + {count_ps3} PS3 + {count_wii} GC/Wii + {count_wiiu} Wii U + {count_xbox} Xbox game names "
+        f"({count_psn_retail} PSN→retail mappings, {count_sat_slugs} Saturn slug mappings, "
+        f"{count_dc_slugs} Dreamcast slug mappings, {count_sat_archives} Saturn archive mappings)"
     )
 
     # Load No-Intro / Redump DAT files for ROM normalization
@@ -92,6 +100,7 @@ async def lifespan(app: FastAPI):
     # Load ROM catalog from cache (or scan if no cache)
     rom_scan_task = None
     rom_cleanup_task = None
+    ra_index_task = None
     if settings.rom_dir:
         rom_db_path = settings.save_dir / "roms.db"
         from app.services import rom_db
@@ -120,8 +129,15 @@ async def lifespan(app: FastAPI):
         if settings.rom_scan_interval > 0:
             rom_scan_task = asyncio.create_task(_periodic_rom_scan())
         rom_cleanup_task = asyncio.create_task(_periodic_rom_cleanup())
+        if settings.ra_enabled:
+            # Index after the catalog is up, never during the scan: this
+            # reads every cartridge ROM once and would otherwise hold up
+            # startup for minutes on a large library.
+            ra_index_task = asyncio.create_task(_ra_index_pass(rom_catalog))
 
     yield
+
+    _ra_stop.set()
 
     if rom_scan_task:
         rom_scan_task.cancel()
@@ -135,6 +151,47 @@ async def lifespan(app: FastAPI):
             await rom_cleanup_task
         except asyncio.CancelledError:
             pass
+    if ra_index_task:
+        # Not cancelled: the pass runs in a worker thread and checks
+        # ``_ra_stop`` between ROMs, so it exits on its own with a
+        # consistent cache rather than mid-write.
+        try:
+            await asyncio.wait_for(ra_index_task, timeout=10)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass
+
+
+_ra_stop = asyncio.Event()
+
+
+async def _ra_index_pass(catalog) -> None:
+    """Hash the catalog for RetroAchievements in a worker thread.
+
+    Everything in here is best-effort: no network, a bad key or an
+    unreadable ROM all leave the catalog serving fine, just unbadged.
+    """
+    if catalog is None:
+        return
+    from app.services import ra_index
+
+    try:
+        result = await asyncio.to_thread(
+            ra_index.refresh,
+            catalog.list_all(),
+            settings.save_dir / ".ra_cache",
+            settings.ra_api_key,
+            settings.ra_username,
+            _ra_stop.is_set,
+            200,
+            settings.rom_dir,
+        )
+        if result.get("hashed"):
+            logger.info(
+                "[ra_index] %d ROM(s) hashed, %d known to RetroAchievements",
+                result["hashed"], result["known"],
+            )
+    except Exception:
+        logger.exception("[ra_index] indexing pass failed")
 
 
 async def _periodic_rom_scan():
@@ -159,6 +216,8 @@ async def _periodic_rom_scan():
                     logger.info(
                         "[rom_scanner] Periodic scan: %d ROMs", len(catalog.entries)
                     )
+                    if settings.ra_enabled:
+                        await _ra_index_pass(catalog)
             except Exception:
                 logger.exception("[rom_scanner] Periodic scan failed")
     except asyncio.CancelledError:

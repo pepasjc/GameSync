@@ -1,0 +1,5 @@
+server_url=http://192.168.1.100:8000
+api_key=your-secret-key
+ps3_user=00000001
+scan_ps3=1
+scan_ps1=1

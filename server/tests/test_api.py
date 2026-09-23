@@ -1,4 +1,5 @@
 import hashlib
+import os
 
 from app.models.save import BundleFile, SaveBundle
 from app.services.bundle import create_bundle
@@ -1118,3 +1119,406 @@ class Test3dsLookup:
         result = r.json()["results"][0]
         assert result["canonical_name"] == "Mario Kart 7 (USA)"
         assert result["title_id"] == "0004000000030800"
+
+
+class TestPs2VmcImport:
+    def test_import_splits_card_into_per_game_saves(self, client, auth_headers):
+        from app.services import ps2mc
+
+        games = {
+            "BASLUS-20312": [("icon.sys", b"\x01" * 964), ("save.bin", b"A" * 5000)],
+            "BESLES-50490": [("data", b"B" * 2048)],
+            "BADATA-SYSTEM": [("sys", b"C" * 16)],  # no serial -> skipped
+        }
+        card = ps2mc.build_card(games)
+
+        r = client.post(
+            "/api/v1/saves/ps2-vmc/import",
+            content=card,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        serials = {row["serial"] for row in body["imported"]}
+        assert serials == {"SLUS20312", "SLES50490"}
+        assert body["skipped"] == ["BADATA-SYSTEM"]
+
+        # Each imported game is now downloadable as its own card and round-trips.
+        dl = client.get("/api/v1/saves/SLUS20312/ps2-card", headers=auth_headers)
+        assert dl.status_code == 200
+        parsed = ps2mc.parse_card(dl.content)
+        assert dict(parsed["BASLUS-20312"]) == dict(games["BASLUS-20312"])
+
+    def test_import_accepts_ecc_ps2_image(self, client, auth_headers):
+        from app.services import ps2mc
+        from app.services.ps2_cards import add_ecc
+
+        card = ps2mc.build_card({"BASLUS-20312": [("s", b"Z" * 100)]})
+        r = client.post(
+            "/api/v1/saves/ps2-vmc/import",
+            content=add_ecc(card),
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        assert r.json()["imported"][0]["serial"] == "SLUS20312"
+
+    def test_import_rejects_non_card(self, client, auth_headers):
+        r = client.post(
+            "/api/v1/saves/ps2-vmc/import",
+            content=b"not a card",
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 400
+
+
+class TestGcVmcImport:
+    def _make_card(self, game_code="GM8E", fill=0x5A):
+        import struct
+
+        from app.services.gc_cards import gc_card_from_gci
+
+        de = bytearray(b"\x00" * 64)
+        de[0:4] = game_code.encode("ascii")
+        de[4:6] = b"01"
+        struct.pack_into(">H", de, 54, 99)   # source first_block
+        struct.pack_into(">H", de, 56, 1)    # 1 block
+        gci = bytes(de) + bytes([fill]) * 8192
+        return gc_card_from_gci(gci), gci
+
+    def test_import_splits_card_into_per_game_saves(self, client, auth_headers):
+        card, gci = self._make_card("GM8E")
+        r = client.post(
+            "/api/v1/saves/gc-vmc/import",
+            content=card,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        assert r.json()["imported"][0]["title_id"] == "GC_GM8E"
+
+        dl = client.get("/api/v1/saves/GC_GM8E/gc-card?format=gci", headers=auth_headers)
+        assert dl.status_code == 200
+        assert dl.content[64:] == gci[64:]
+
+    def test_import_rejects_non_card(self, client, auth_headers):
+        r = client.post(
+            "/api/v1/saves/gc-vmc/import",
+            content=b"not a card",
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 400
+
+    def test_lowercase_gc_title_id_hits_the_same_save(self, client, auth_headers):
+        """The Dolphin scanners emit GC_gm8e while the GC/Wii U homebrew and
+        this import emit GC_GM8E.  Both must address one storage key or the
+        same game duplicates on the server."""
+        card, gci = self._make_card("GM8E")
+        r = client.post(
+            "/api/v1/saves/gc-vmc/import",
+            content=card,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+
+        dl = client.get("/api/v1/saves/GC_gm8e/gc-card?format=gci", headers=auth_headers)
+        assert dl.status_code == 200
+        assert dl.content[64:] == gci[64:]
+
+        # And only one title is listed, under the canonical uppercase ID.
+        titles = client.get("/api/v1/titles", headers=auth_headers).json()
+        gc_ids = [
+            t["title_id"] for t in titles["titles"] if t["title_id"].upper().startswith("GC_")
+        ]
+        assert gc_ids == ["GC_GM8E"]
+
+    def test_lowercase_gc_upload_lands_on_canonical_id(self, client, auth_headers):
+        """A lowercase-ID upload must not create a second directory."""
+        card, _ = self._make_card("GM4E")
+        r = client.post(
+            "/api/v1/saves/GC_gm4e/gc-card?format=raw",
+            content=card,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+
+        meta = client.get("/api/v1/saves/GC_GM4E/meta", headers=auth_headers)
+        assert meta.status_code == 200
+        assert meta.json()["title_id"] == "GC_GM4E"
+
+
+class TestCodeFormTitleIdCanonicalisation:
+    """GC_/WII_ IDs carry a 4-char gamecode, which is case-insensitive.
+    Real slug IDs (GBA_zelda_the_minish_cap) must keep their lowercase slug."""
+
+    def test_gamecode_form_is_uppercased(self):
+        from app.models.save import validate_any_title_id
+
+        assert validate_any_title_id("GC_grse") == "GC_GRSE"
+        assert validate_any_title_id("GC_GRSE") == "GC_GRSE"
+        assert validate_any_title_id("gc_grse") == "GC_GRSE"
+        assert validate_any_title_id("WII_rmce") == "WII_RMCE"
+
+    def test_slug_ids_keep_their_case(self):
+        from app.models.save import validate_any_title_id
+
+        assert (
+            validate_any_title_id("GBA_zelda_the_minish_cap")
+            == "GBA_zelda_the_minish_cap"
+        )
+        # A 4-char slug on a slug-strategy system is NOT a gamecode.
+        assert validate_any_title_id("GBA_doom") == "GBA_doom"
+        assert validate_any_title_id("SAT_GS-9188") == "SAT_GS-9188"
+
+    def test_is_code_form_predicate(self):
+        from shared.sync_id import is_code_form_title_id
+
+        assert is_code_form_title_id("GC_grse") is True
+        assert is_code_form_title_id("WII_RMCE") is True
+        assert is_code_form_title_id("GBA_doom") is False
+        assert is_code_form_title_id("GC_zelda_wind_waker") is False
+        assert is_code_form_title_id("") is False
+
+
+class TestPs2Files:
+    """Physical-card path: P2FD folder payload <-> stored single-game card."""
+
+    def test_push_folder_then_download_as_files(self, client, auth_headers):
+        from app.services import ps2mc
+
+        files = [("icon.sys", b"\x07" * 964), ("BASLUS-20312.save", b"S" * 6000)]
+        payload = ps2mc.build_p2fd("BASLUS-20312", files)
+
+        up = client.post(
+            "/api/v1/saves/SLUS20312/ps2-files",
+            content=payload,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert up.status_code == 200
+
+        # Downloadable both as a P2FD folder and as a full card (cross-source).
+        dl = client.get("/api/v1/saves/SLUS20312/ps2-files", headers=auth_headers)
+        assert dl.status_code == 200
+        assert dl.headers["X-Save-Dir"] == "BASLUS-20312"
+        got_dir, got_files = ps2mc.parse_p2fd(dl.content)
+        assert got_dir == "BASLUS-20312"
+        assert dict(got_files) == dict(files)
+
+        card = client.get("/api/v1/saves/SLUS20312/ps2-card", headers=auth_headers)
+        assert card.status_code == 200
+        assert dict(ps2mc.parse_card(card.content)["BASLUS-20312"]) == dict(files)
+
+    def test_vmc_import_then_files_download(self, client, auth_headers):
+        """A save imported from a VMC is restorable to a physical card via P2FD."""
+        from app.services import ps2mc
+
+        files = [("data.bin", b"D" * 3000)]
+        card = ps2mc.build_card({"BESLES-50490": files})
+        client.post(
+            "/api/v1/saves/ps2-vmc/import",
+            content=card,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        dl = client.get("/api/v1/saves/SLES50490/ps2-files", headers=auth_headers)
+        assert dl.status_code == 200
+        got_dir, got_files = ps2mc.parse_p2fd(dl.content)
+        assert got_dir == "BESLES-50490"
+        assert dict(got_files) == dict(files)
+
+    def test_push_rejects_garbage(self, client, auth_headers):
+        r = client.post(
+            "/api/v1/saves/SLUS20312/ps2-files",
+            content=b"nope",
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 400
+
+
+class TestPs1VmcImport:
+    def test_import_splits_card_and_downloads(self, client, auth_headers):
+        import struct
+        from app.services import ps1mc
+
+        card = ps1mc.format_empty_card()
+
+        def place(block, name, data):
+            padded = data + b"\x00" * (ps1mc.BLOCK_SIZE - len(data))
+            card[block * ps1mc.BLOCK_SIZE:(block + 1) * ps1mc.BLOCK_SIZE] = padded
+            fr = bytearray(ps1mc.FRAME_SIZE)
+            fr[0] = ps1mc.ST_FIRST
+            struct.pack_into("<I", fr, 0x04, ps1mc.BLOCK_SIZE)
+            struct.pack_into("<H", fr, 0x08, ps1mc.NO_NEXT)
+            nm = name.encode("ascii")
+            fr[0x0A:0x0A + len(nm)] = nm
+            fr[0x7F] = ps1mc._xor(fr[:0x7F])
+            card[block * ps1mc.FRAME_SIZE:(block + 1) * ps1mc.FRAME_SIZE] = fr
+
+        save_a = bytes(range(256)) * 8  # 2048 bytes
+        place(1, "BASLUS-00067HERO", save_a)
+        place(2, "BESLES-12345QUEST", os.urandom(2048))
+
+        r = client.post(
+            "/api/v1/saves/ps1-vmc/import",
+            content=bytes(card),
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        serials = {row["serial"] for row in r.json()["imported"]}
+        assert serials == {"SLUS00067", "SLES12345"}
+
+        # The imported save is downloadable as a single-save card and round-trips.
+        dl = client.get("/api/v1/saves/SLUS00067/ps1-card", headers=auth_headers)
+        assert dl.status_code == 200
+        parsed = dict(ps1mc.parse_card(dl.content))
+        assert "BASLUS-00067HERO" in parsed
+        assert parsed["BASLUS-00067HERO"][:2048] == save_a
+
+    def test_import_accepts_vmp(self, client, auth_headers):
+        from app.services import ps1mc
+        from app.services.ps1_cards import create_vmp
+
+        card = ps1mc.build_single_save_card("BASLUS-00067HERO", os.urandom(8192))
+        r = client.post(
+            "/api/v1/saves/ps1-vmc/import",
+            content=create_vmp(card),
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 200
+        assert r.json()["imported"][0]["serial"] == "SLUS00067"
+
+    def test_import_rejects_non_card(self, client, auth_headers):
+        r = client.post(
+            "/api/v1/saves/ps1-vmc/import",
+            content=b"junk",
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code == 400
+
+
+class TestWiiUTitles:
+    """`/titles?console_type=WIIU` is how the Wii U client lists its saves.
+
+    Also covers WII_<code>, the vWii id scheme, which resolves through the
+    existing emulator-style SYSTEM_slug parser with no server change.
+    """
+
+    def test_titles_filter_wiiu(self, client, auth_headers):
+        wiiu = _make_ps1_bundle_bytes(title_id="0005000010143500")
+        client.post(
+            "/api/v1/saves/0005000010143500",
+            content=wiiu,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        threeds = _make_ps1_bundle_bytes(title_id="0004000000055D00")
+        client.post(
+            "/api/v1/saves/0004000000055D00",
+            content=threeds,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/titles?console_type=WIIU", headers=auth_headers)
+        assert r.status_code == 200
+        titles = r.json()["titles"]
+        assert [t["title_id"] for t in titles] == ["0005000010143500"]
+        assert titles[0]["console_type"] == "WIIU"
+
+    def test_titles_filter_vwii(self, client, auth_headers):
+        vwii = _make_ps1_bundle_bytes(title_id="WII_RMCE")
+        client.post(
+            "/api/v1/saves/WII_RMCE",
+            content=vwii,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+
+        r = client.get("/api/v1/titles?console_type=WII", headers=auth_headers)
+        assert r.status_code == 200
+        titles = r.json()["titles"]
+        assert [t["title_id"] for t in titles] == ["WII_RMCE"]
+        assert titles[0]["console_type"] == "WII"
+
+
+class TestWiiUGameNames:
+    """A Wii U save can only be named by the client that has its meta.xml.
+
+    No DAT can resolve a 16-hex Wii U title id — its low word is not the
+    product code — so a save uploaded without a hint is listed as raw hex by
+    every client, and the desktop app (which has no console NAND or Cemu
+    install to read) can never show anything better.
+    """
+
+    WIIU_TID = "0005000010143500"
+
+    def _upload(self, client, auth_headers, params: str = "") -> None:
+        bundle = _make_bundle_bytes(
+            title_id=0x0005000010143500,
+            files=[("common/data.bin", b"wiiu save")],
+        )
+        r = client.post(
+            f"/api/v1/saves/{self.WIIU_TID}{params}",
+            content=bundle,
+            headers={**auth_headers, "Content-Type": "application/octet-stream"},
+        )
+        assert r.status_code in (200, 201)
+
+    def _stored_name(self, client, auth_headers) -> str:
+        r = client.get("/api/v1/titles?console_type=WIIU", headers=auth_headers)
+        assert r.status_code == 200
+        return r.json()["titles"][0]["game_name"]
+
+    def test_upload_without_hint_keeps_raw_id(self, client, auth_headers):
+        self._upload(client, auth_headers)
+        assert self._stored_name(client, auth_headers) == self.WIIU_TID
+
+    def test_upload_game_name_hint_is_used(self, client, auth_headers):
+        self._upload(client, auth_headers, "?game_name=Super%20Mario%203D%20World")
+        assert self._stored_name(client, auth_headers) == "Super Mario 3D World"
+
+    def test_dat_name_wins_over_client_hint(self, client, auth_headers):
+        """The DAT is authoritative — a client hint only fills a blank."""
+        game_names._wiiu_names["ARDE"] = "Canonical DAT Name"
+        try:
+            self._upload(
+                client, auth_headers, "?game_code=WIIU_ARDE&game_name=Client%20Name"
+            )
+            assert self._stored_name(client, auth_headers) == "Canonical DAT Name"
+        finally:
+            game_names._wiiu_names.pop("ARDE", None)
+
+    def test_update_names_backfills_by_name(self, client, auth_headers):
+        """Backfill for saves the console already uploaded under a raw id."""
+        self._upload(client, auth_headers)
+
+        r = client.post(
+            "/api/v1/titles/update_names",
+            json={"names": {self.WIIU_TID: "Splatoon"}},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert self._stored_name(client, auth_headers) == "Splatoon"
+
+    def test_update_names_backfills_by_code(self, client, auth_headers):
+        self._upload(client, auth_headers)
+        game_names._wiiu_names["ARDE"] = "Canonical DAT Name"
+        try:
+            r = client.post(
+                "/api/v1/titles/update_names",
+                json={
+                    "codes": {self.WIIU_TID: "WIIU_ARDE"},
+                    "names": {self.WIIU_TID: "Client Name"},
+                },
+                headers=auth_headers,
+            )
+            assert r.status_code == 200
+            assert self._stored_name(client, auth_headers) == "Canonical DAT Name"
+        finally:
+            game_names._wiiu_names.pop("ARDE", None)
+
+    def test_update_names_never_overwrites_a_real_name(self, client, auth_headers):
+        self._upload(client, auth_headers, "?game_name=Real%20Name")
+
+        r = client.post(
+            "/api/v1/titles/update_names",
+            json={"names": {self.WIIU_TID: "Wrong Name"}},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert self._stored_name(client, auth_headers) == "Real Name"

@@ -35,6 +35,15 @@
 
 #define MC_PORT 0
 #define MC_SLOT 0
+
+/* libmc (mcOpen) takes IOP open flags, NOT newlib POSIX flags.  newlib's
+ * O_RDONLY is 0 -> mcman denies the read (sceMcResDeniedPermit), so config
+ * reads silently failed and always fell back to defaults (ps2sdk issue #168). */
+#define IOP_O_RDONLY 0x0001
+#define IOP_O_WRONLY 0x0002
+#define IOP_O_CREAT  0x0200
+#define IOP_O_TRUNC  0x0400
+
 #define MC_APP_DIR "/3DSSYNC"
 #define MC_CONFIG_FILE "/3DSSYNC/CONFIG.TXT"
 #define MC_CONSOLE_ID_FILE "/3DSSYNC/CONSOLEID.TXT"
@@ -87,6 +96,26 @@ static void config_apply_defaults(SyncState *state) {
     strncpy(state->static_gateway, DEFAULT_GATEWAY,
             sizeof(state->static_gateway) - 1);
     state->static_gateway[sizeof(state->static_gateway) - 1] = '\0';
+    state->mmce_mode[0] = 1;   /* auto */
+    state->mmce_mode[1] = 1;   /* auto */
+}
+
+static int parse_mmce_mode_value(const char *value) {
+    if (!value) return 1;
+    if (strcasecmp(value, "off")  == 0) return 0;
+    if (strcasecmp(value, "auto") == 0) return 1;
+    if (strcasecmp(value, "gen1") == 0) return 2;
+    if (strcasecmp(value, "gen2") == 0) return 3;
+    return 1;
+}
+
+static const char *mmce_mode_to_str(int mode) {
+    switch (mode) {
+        case 0:  return "off";
+        case 2:  return "gen1";
+        case 3:  return "gen2";
+        default: return "auto";
+    }
 }
 
 static bool parse_bool_value(const char *value, bool *out) {
@@ -205,7 +234,7 @@ static bool mc_try_read_text(const char *path, char *out, size_t out_size) {
     if (!out || out_size == 0) return false;
     out[0] = '\0';
 
-    int rc = mcOpen(MC_PORT, MC_SLOT, path, O_RDONLY);
+    int rc = mcOpen(MC_PORT, MC_SLOT, path, IOP_O_RDONLY);
     if (rc < 0) return false;
     int fd = mc_wait_result();
     if (fd < 0) return false;
@@ -244,7 +273,7 @@ static bool mc_try_write_text(const char *path, const char *text) {
     mcDelete(MC_PORT, MC_SLOT, path);
     mc_wait_result();
 
-    int rc = mcOpen(MC_PORT, MC_SLOT, path, O_WRONLY | O_CREAT);
+    int rc = mcOpen(MC_PORT, MC_SLOT, path, IOP_O_WRONLY | IOP_O_CREAT | IOP_O_TRUNC);
     if (rc < 0) return false;
     int fd = mc_wait_result();
     if (fd < 0) return false;
@@ -353,6 +382,10 @@ static void parse_config_text(SyncState *state, char *text) {
                     if (parse_storage_pref_value(val, &pref)) {
                         state->storage_pref = pref;
                     }
+                } else if (strcmp(key, "gameid_slot1") == 0) {
+                    state->mmce_mode[0] = parse_mmce_mode_value(val);
+                } else if (strcmp(key, "gameid_slot2") == 0) {
+                    state->mmce_mode[1] = parse_mmce_mode_value(val);
                 }
             }
         }
@@ -415,6 +448,8 @@ bool config_save(const SyncState *state) {
              "static_netmask=%s\n"
              "static_gateway=%s\n"
              "storage=%s\n"
+             "gameid_slot1=%s\n"
+             "gameid_slot2=%s\n"
              "%s%s%s",
              state->server_url,
              state->api_key,
@@ -423,6 +458,8 @@ bool config_save(const SyncState *state) {
              state->static_netmask,
              state->static_gateway,
              config_storage_pref_to_str(state->storage_pref),
+             mmce_mode_to_str(state->mmce_mode[0]),
+             mmce_mode_to_str(state->mmce_mode[1]),
              state->console_id[0] ? "console_id=" : "",
              state->console_id[0] ? state->console_id : "",
              state->console_id[0] ? "\n" : "");

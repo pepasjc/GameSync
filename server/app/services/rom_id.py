@@ -12,13 +12,25 @@ _REPO_ROOT = str(Path(__file__).parent.parent.parent.parent)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from shared.rom_id import make_title_id, normalize_rom_name, parse_title_id  # noqa: E402
+from shared.rom_id import (  # noqa: E402
+    canonical_dc_serial,
+    dc_device_folder_ids,
+    make_dc_title_id,
+    make_title_id,
+    normalize_rom_name,
+    parse_dc_title_id,
+    parse_title_id,
+)
 from shared.systems import FOLDER_TO_SYSTEM, ROM_EXTENSIONS, SYSTEM_CODES  # noqa: E402
 
 __all__ = [
     "FOLDER_TO_SYSTEM",
     "ROM_EXTENSIONS",
     "SYSTEM_CODES",
+    "canonical_dc_serial",
+    "dc_device_folder_ids",
+    "make_dc_title_id",
+    "parse_dc_title_id",
     "make_title_id",
     "normalize_rom_name",
     "parse_title_id",

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Microsoft - XBOX [T-En] Collection</name>
+		<description>Microsoft - XBOX [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>2025-07-30</version>
+		<date>2025-07-30 (yy/mm/dd)</date>
+		<author>John Doe</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>Original dats and not copycat dats from Retroroms</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Microsoft - XBOX [T-En] Docs">
+		<description>_Microsoft - XBOX [T-En] Docs</description>
+		<rom name="Drihoo (Japan) [T-En by ShawnS v1.1].txt" size="1591" crc="21c71517" md5="961654b518534054ea426a1f8437c5e6" sha1="89020e1039da82dc68aecfae655a76c44b17d394"/>
+		<rom name="Metal Wolf Chaos (Japan) [T-En by NemsMole v1.0].txt" size="1716" crc="a9605f2e" md5="0f956e720063dd6e1583a129b4600839" sha1="d7db03c92b3075dfeca5b66839f90f2995e40a61"/>
+		<rom name="OutRun 2 (Japan) [T-En by Justin Gibbins v1.0].txt" size="5874" crc="0377c87f" md5="26e3d10347020616ced241400ddf983e" sha1="d8ad8db2400ec1fce02ae0ac7f3f26d499f7bf03"/>
+		<rom name="Thousand Land (Japan) [T-En by MrRichard999 v0.992b].txt" size="1076" crc="340ad345" md5="1a853cbd78ed06ca957dc307bed079e2" sha1="20deeb957010df0f29195d2adfadd355f3f9e4a9"/>
+		<rom name="Touge R (Japan) [T-En by MrRichard999 v1.0].txt" size="632" crc="94709de9" md5="f2fef60d3825e53fa6554f7cc3ca44e5" sha1="473113e3e8af9bbe7138608b5843b40dd5878cd6"/>
+		<rom name="Wild Rings, The  (Japan) [T-En by MrRichard999 v0.95].txt" size="915" crc="ddfcac16" md5="1353eae25e2ce1390fe174a52ee14f56" sha1="22da1566757fe1662a0c6224c01fa7aed8f8d29a"/>
+	</machine>
+	<machine name="Drihoo (Japan) [T-En by ShawnS v1.1]">
+		<description>Drihoo (Japan) [T-En by ShawnS v1.1]</description>
+		<rom name="Drihoo (Japan) [T-En by ShawnS v1.1].iso" size="876937216" crc="db0ce39b" md5="5e9555d7cd23137738f8dcf9af584a7a" sha1="6992dda712caa1f5eb000746b01517c4adc9dcfe"/>
+	</machine>
+	<machine name="Kikou Heidan J-Phoenix + (Japan) [T-En by MrRichard999 v0.15] [i]">
+		<description>Kikou Heidan J-Phoenix + (Japan) [T-En by MrRichard999 v0.15] [i]</description>
+		<rom name="Kikou Heidan J-Phoenix + (Japan) [T-En by MrRichard999 v0.15] [i].iso" size="717225984" crc="a812521d" md5="3daf17720da91b624d0ffb1a9e73d0b1" sha1="355ce91f4d24280a79914824eab872f289e6f803"/>
+	</machine>
+	<machine name="Metal Wolf Chaos (Japan) [T-En by NemsMole v1.0]">
+		<description>Metal Wolf Chaos (Japan) [T-En by NemsMole v1.0]</description>
+		<rom name="Metal Wolf Chaos (Japan) [T-En by NemsMole v1.0].iso" size="2005467136" crc="df200798" md5="027d757401ab504b5b9dfd5c8de40a42" sha1="96731f60f59f16bc50c9819740f7004eed07c5d1"/>
+	</machine>
+	<machine name="OutRun 2 (Japan) [T-En by Justin Gibbins v1.0]">
+		<description>OutRun 2 (Japan) [T-En by Justin Gibbins v1.0]</description>
+		<rom name="OutRun 2 (Japan) [T-En by Justin Gibbins v1.0].iso" size="1100283904" crc="d0c033f9" md5="af73fb441c07c7a2ecebed3fcc617eb5" sha1="0c704f3da621a676090348fd6a5c446433573158"/>
+	</machine>
+	<machine name="Thousand Land (Japan) [T-En by MrRichard999 v0.992b]">
+		<description>Thousand Land (Japan) [T-En by MrRichard999 v0.992b]</description>
+		<rom name="Thousand Land (Japan) [T-En by MrRichard999 v0.992b].iso" size="1098186752" crc="b418c5da" md5="905b4ea5ce7d44619ca02d8c27d8c6ed" sha1="4596d66bc776234a427ee5946142865c57560ecc"/>
+	</machine>
+	<machine name="Touge R (Japan) [T-En by MrRichard999 v1.0]">
+		<description>Touge R (Japan) [T-En by MrRichard999 v1.0]</description>
+		<rom name="Touge R (Japan) [T-En by MrRichard999 v1.0].iso" size="733741056" crc="c53c23b1" md5="bdb51e1c4b6a14ce6583b7be123ac9bb" sha1="457566c1aa90c9acfcdbcceddc2bc40d17d14500"/>
+	</machine>
+	<machine name="Wild Rings, The (Japan) [T-En by MrRichard999 v0.95]">
+		<description>Wild Rings, The (Japan) [T-En by MrRichard999 v0.95]</description>
+		<rom name="Save data\gameid.ini" size="325" crc="eb3cd348" md5="8423cffda22b6e19d86b71b0a3d769d7" sha1="a1a787ba79a8d63c9cda33c3cadf93a807236d98"/>
+		<rom name="Save data\UDATA\4d530048\78BC294B82A9\Modify100.Bin" size="64420" crc="eff5d6b2" md5="b95e8d0f9b17fdb6d0cfc64e058ee111" sha1="a58dd4fd7499f17193b3b8c709469be09e7849bd"/>
+		<rom name="Save data\UDATA\4d530048\78BC294B82A9\players.doc" size="50905" crc="c6452d03" md5="ac1c990309c33e2157cf5d6f16844701" sha1="ed7f830ad2b18d3e30bfbc9424fcd912d8292b05"/>
+		<rom name="Save data\UDATA\4d530048\78BC294B82A9\SaveMeta.xbx" size="36" crc="749f13fa" md5="1ae72cafd53f4779b0f10b37d23dd90c" sha1="04d6844b0ec81954176757c3952c974ff049f7f3"/>
+		<rom name="Wild Rings, The (Japan) [T-En by MrRichard999 v0.95].iso" size="661323776" crc="1da1c269" md5="1cc272cce74a699e10d9e2fad4404b95" sha1="34401d991fe1be6297b3c6b28bdbd497df855314"/>
+	</machine>
+</datafile>

@@ -35,7 +35,8 @@ from pathlib import Path
 from typing import Optional
 
 from shared.rom_id import make_title_id, normalize_rom_name, parse_title_id
-from shared.systems import SYNC_ID_RULES, normalize_system_code
+from shared.rom_id.dreamcast import canonical_dc_serial
+from shared.systems import SYNC_ID_RULES, SYSTEM_ALIASES, normalize_system_code
 
 
 # Serial characters that survive canonicalisation.  Everything else is
@@ -45,6 +46,19 @@ _SERIAL_STRIP_RE = re.compile(r"[^A-Z0-9]")
 
 # Hex title_id format for the NDS prefix_hex_serial strategy output.
 _HEX_TITLE_ID_RE = re.compile(r"^[0-9A-F]{16}$")
+
+# Systems whose sync_id suffix is a 4-char *gamecode*, not a slug.  These are
+# case-insensitive identifiers (the code is stamped uppercase on the disc, e.g.
+# ``DL-DOL-GRSE-USA``), so they must be canonicalised to uppercase or the same
+# game arrives under two keys: the GC/Wii U homebrew and the server's VMC
+# import emit ``GC_GRSE`` while the Dolphin scanners emit ``GC_grse``.
+_CODE_FORM_SYSTEMS = frozenset({"GC", "WII"})
+
+# Systems whose serials need more than punctuation stripping to converge on one
+# spelling.  Dreamcast is the only one: Sega's own discs say "MK-51000" while
+# the Redump DAT records "51000" for the same game.
+_SERIAL_CANONICALISERS = {"DC": canonical_dc_serial}
+_CODE_FORM_TITLE_ID_RE = re.compile(r"^([A-Za-z0-9]{2,8})_([A-Za-z0-9]{4})$")
 
 
 @dataclass
@@ -106,6 +120,34 @@ def is_hex_title_id(value: str) -> bool:
     return bool(value) and bool(_HEX_TITLE_ID_RE.match(value.upper()))
 
 
+def is_code_form_title_id(title_id: str) -> bool:
+    """True for gamecode-form sync_ids (``GC_GRSE``, ``WII_RMCE``), any casing."""
+    if not title_id:
+        return False
+    m = _CODE_FORM_TITLE_ID_RE.match(title_id.strip())
+    return m is not None and m.group(1).upper() in _CODE_FORM_SYSTEMS
+
+
+def canonicalize_code_form_title_id(title_id: str) -> str:
+    """Uppercase gamecode-form sync_ids (``GC_grse`` → ``GC_GRSE``).
+
+    Only ``SYSTEM_xxxx`` IDs whose system is in :data:`_CODE_FORM_SYSTEMS` and
+    whose suffix is exactly four alphanumerics are touched.  Real slug IDs
+    (``GBA_zelda_the_minish_cap``) keep their lowercase slug — uppercasing
+    those would orphan every save already stored under the slug form.
+
+    Safe to call on any string; non-matching input is returned unchanged.
+    """
+    if not title_id:
+        return title_id
+    m = _CODE_FORM_TITLE_ID_RE.match(title_id.strip())
+    if m is None:
+        return title_id
+    if m.group(1).upper() not in _CODE_FORM_SYSTEMS:
+        return title_id
+    return title_id.strip().upper()
+
+
 def nds_gamecode_to_sync_id(gamecode: str, prefix: str = "00048000") -> Optional[str]:
     """Convert a 4-char NDS gamecode to the canonical hex sync_id.
 
@@ -120,6 +162,23 @@ def nds_gamecode_to_sync_id(gamecode: str, prefix: str = "00048000") -> Optional
     if len(prefix) != 8 or not all(c in "0123456789ABCDEFabcdef" for c in prefix):
         return None
     return prefix.upper() + "".join(f"{ord(c):02X}" for c in gamecode)
+
+
+def identity_strategy(system: str) -> str:
+    """The rule that decides a system's sync id: serial, title_id or slug."""
+    rule = SYNC_ID_RULES.get((system or "").upper(), {"strategy": "slug"})
+    return rule.get("strategy", "slug")
+
+
+def uses_serial_identity(system: str) -> bool:
+    """True when a system is keyed by a disc serial rather than its name.
+
+    For these (PS1, Saturn, PS2, PSP, GC, ...) the file name is only ever a
+    hint, so a client may match it loosely against the server. For slug-keyed
+    systems the name *is* the identity and must never be matched loosely, or
+    two different games end up sharing one save slot.
+    """
+    return identity_strategy(system) == "serial"
 
 
 def slug_sync_id(system: str, rom_filename: str) -> str:
@@ -215,21 +274,27 @@ def resolve(
             sync_id=f"{system}_unknown", strategy="slug", fallback=True
         )
 
-    # --- serial strategy (PS1/PS2/PSP/Vita/Saturn) ---------------------
+    # --- serial strategy (PS1/PS2/PSP/Vita/Saturn/Dreamcast) -----------
     if strategy == "serial":
+        prefix = rule.get("prefix", "")
+        canonicalise = _SERIAL_CANONICALISERS.get(system, canonicalize_serial)
         if data.serial:
-            canonical = canonicalize_serial(data.serial)
+            canonical = canonicalise(data.serial)
             if canonical:
-                return ResolveResult(sync_id=canonical, strategy="serial")
+                return ResolveResult(
+                    sync_id=f"{prefix}{canonical}", strategy="serial"
+                )
         if data.rom_filename and serial_lookup is not None:
             try:
                 looked_up = serial_lookup(system, data.rom_filename)
             except Exception:
                 looked_up = None
             if looked_up:
-                canonical = canonicalize_serial(looked_up)
+                canonical = canonicalise(looked_up)
                 if canonical:
-                    return ResolveResult(sync_id=canonical, strategy="serial")
+                    return ResolveResult(
+                        sync_id=f"{prefix}{canonical}", strategy="serial"
+                    )
         if data.rom_filename:
             return ResolveResult(
                 sync_id=slug_sync_id(system, data.rom_filename),
@@ -291,6 +356,14 @@ def canonicalize_slug_title_id(
         return title_id  # not a slug form
 
     system, slug = parsed
+    # An alias in the system position is its own divergence: a client that
+    # sends GEN_sonic must land in the same slot as MD_sonic.  Do this before
+    # anything else so it applies to slug-canonical systems too.
+    canonical_system = SYSTEM_ALIASES.get(system, system)
+    if canonical_system != system:
+        system = canonical_system
+        title_id = f"{system}_{slug}"
+
     rule = SYNC_ID_RULES.get(system, {"strategy": "slug"})
     if rule.get("strategy") == "slug":
         return title_id  # system uses slugs as canonical — nothing to upgrade
@@ -322,8 +395,10 @@ def canonicalize_slug_title_id(
 __all__ = [
     "ResolveInput",
     "ResolveResult",
+    "canonicalize_code_form_title_id",
     "canonicalize_serial",
     "canonicalize_slug_title_id",
+    "is_code_form_title_id",
     "is_hex_title_id",
     "nds_gamecode_to_sync_id",
     "resolve",

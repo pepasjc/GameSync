@@ -23,6 +23,7 @@ EE_OBJS    = source/main.o \
              source/downloads.o \
              source/hdl.o \
              source/sha256.o \
+             source/saves.o \
              source/ui.o \
              source/irx_mods.o
 
@@ -99,11 +100,15 @@ IRX_FILES   = iomanX.irx \
               netman.irx \
               smap.irx
 
+# IRX outside the SDK tree (full path). mmceman.irx talks the MMCE protocol to
+# MemCard Pro 2 / SD2PSX for GameID channel switching.
+IRX_EXTRA   = irx/mmceman.irx
+
 # Generate include/irx_mods.h + source/irx_mods.c with bin2c blobs.
 # bin2c output is one .o per IRX, concatenated via the wrapper file.
-source/irx_mods.c include/irx_mods.h: $(addprefix $(IRX_SRC_DIR)/,$(IRX_FILES)) tools/gen_irx_mods.sh Makefile
+source/irx_mods.c include/irx_mods.h: $(addprefix $(IRX_SRC_DIR)/,$(IRX_FILES)) $(IRX_EXTRA) tools/gen_irx_mods.sh Makefile
 	@mkdir -p source include
-	bash tools/gen_irx_mods.sh "$(IRX_SRC_DIR)" "$(IRX_FILES)" source/irx_mods.c include/irx_mods.h
+	bash tools/gen_irx_mods.sh "$(IRX_SRC_DIR)" "$(IRX_FILES) $(IRX_EXTRA)" source/irx_mods.c include/irx_mods.h
 
 source/irx_mods.o: source/irx_mods.c include/irx_mods.h
 

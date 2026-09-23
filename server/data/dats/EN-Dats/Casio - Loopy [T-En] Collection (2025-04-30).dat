@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE datafile PUBLIC "-//Logiqx//DTD ROM Management Datafile//EN" "http://www.logiqx.com/Dats/datafile.dtd">
+
+<datafile>
+	<header>
+		<name>Casio - Loopy [T-En] Collection</name>
+		<description>Casio - Loopy [T-En] Collection</description>
+		<category>Standard DatFile</category>
+		<version>2025-04-30</version>
+		<date>2025-04-30 (yy/mm/dd)</date>
+		<author>John Doe</author>
+		<email>-insert email-</email>
+		<homepage>-insert homepage-</homepage>
+		<url>-insert url-</url>
+		<comment>Original dats and not copycat dats from Retroroms</comment>
+		<clrmamepro/>
+	</header>
+	<machine name="_Casio Loopy [T-En] Docs">
+		<description>_Casio Loopy [T-En] Docs</description>
+		<rom name="Puppy Love Story (Japan) [T-En by Roger Braunstein v1.0] [n] [manual].pdf" size="9988496" crc="9c88aa9c" md5="c236b93aa3752af2ee895f264a3dd7d7" sha1="1c92610a15cab7bcb3007ac5610fe689b1ef9634"/>
+		<rom name="Puppy Love Story (Japan) [T-En by Roger Braunstein v1.0] [n].md" size="2959" crc="683f527e" md5="6e80ccafa073b3825f3443ae7e81df85" sha1="b33846c03873d53f01dc4bc56cfea65d115e0d44"/>
+	</machine>
+	<machine name="Puppy Love Story (Japan) [T-En by Roger Braunstein v1.0] [n]">
+		<description>Puppy Love Story (Japan) [T-En by Roger Braunstein v1.0] [n]</description>
+		<rom name="pcm\src01.wav" size="386336" crc="4e3967f1" md5="39709cbfe3b926e69c01ffcf46395104" sha1="8c49a343adf4228f0d58e6ddd5de14e081de5867"/>
+		<rom name="pcm\src02.wav" size="904028" crc="d6a13482" md5="5fae879b66f116a6e1c0850fc8fb0410" sha1="c4ab5cbb45004a3570d087ae39d93492c18ccbbc"/>
+		<rom name="pcm\src03.wav" size="525436" crc="3e027973" md5="59288428026d347d8087ede555c4dcad" sha1="27367d60571d6ded52485c50ef0171ce6f19eea8"/>
+		<rom name="pcm\src04.wav" size="617936" crc="68f250cf" md5="4e5a421055b21bb60607ab95ce644a7e" sha1="aadd6c1c2ba08eefe78ceb2fe5c763f702fe932c"/>
+		<rom name="pcm\src05.wav" size="525444" crc="a2eaac62" md5="ff9e790cf0df0c123a82cb1d43385097" sha1="82f20364190fb6ad038d35e6566ef779b5df7a63"/>
+		<rom name="pcm\src06.wav" size="324548" crc="76b05061" md5="5feae97889330742e3e561d560fe5a6f" sha1="760ef4de3527d4fb0bebecdc398afd9190b4fbe6"/>
+		<rom name="pcm\src07.wav" size="479064" crc="26aa506f" md5="df59bc0479a4dd1536220c10a8f0f854" sha1="0dfe93a980fcb05bae42a652622b26c03c63ec32"/>
+		<rom name="pcm\src08.wav" size="224104" crc="ee5a3108" md5="4474f220697bc842ee2b7dc18a882457" sha1="67745270c63c8410ef13433939b80fdc578b430f"/>
+		<rom name="pcm\src09.wav" size="726320" crc="c2f9df92" md5="b0a4d557ef699e4e7aa857dd52ffda16" sha1="5b5ac27c6f1e811016beff79bddffca60965ce00"/>
+		<rom name="pcm\src10.wav" size="525336" crc="924e442b" md5="9780e69104848f02c17d63a619a48f20" sha1="a44a8ff2adaf3f16220e619fe56d403492cf49b8"/>
+		<rom name="pcm\src11.wav" size="316820" crc="9308f5d3" md5="a48d0fb7819e09c78619603203184c50" sha1="d9e5be954c9680bc547140610943cd18eafa5127"/>
+		<rom name="pcm\src12.wav" size="618068" crc="9a8f7c55" md5="5cd4b3b38c4d8d9dbc7d33849c36a01d" sha1="7dff8ee5791bbd9e219deb5a44fbf8bc83598d54"/>
+		<rom name="pcm\src13.wav" size="386256" crc="1c23a3fd" md5="bbebfdfd23f1da8bb8892bb0b271a47b" sha1="31f35a845d0984797063eed7c477ff647af75a63"/>
+		<rom name="pcm\src14.wav" size="92756" crc="77ae1111" md5="e60e7f73bbb13bb0e8397ca88a949113" sha1="d9de697e5ed6c2f49dd1ad38647531982ffd0662"/>
+		<rom name="pcm\src15.wav" size="231808" crc="2ab950e2" md5="3504a654950884aa4eea64c88a58e1bf" sha1="2ec8ac4ae3978a139fb5e48144f74bc844ce265e"/>
+		<rom name="pcm\src16.wav" size="571788" crc="d181e87b" md5="5c8ad49437374e265def52a695109e2b" sha1="bd7b65e7234058ac7ce3b2035a634f7ee376680f"/>
+		<rom name="pcm\src17.wav" size="231840" crc="1e12a3ff" md5="a30fed82573ec1bc252178e76c275ef8" sha1="321e20da10a9f7a7bee7f6fc0ee096bd8e320c4b"/>
+		<rom name="pcm\src18.wav" size="896288" crc="c04c06f9" md5="3216dcb659e41b69655610296cb5bbda" sha1="25250d26500834a9d63cf18e099c5227938fc7bf"/>
+		<rom name="pcm\src19.wav" size="424988" crc="6aa6759e" md5="5c2bf47de0219713faaf5a3d4b609539" sha1="c26f251d79939a5099971dcb972571872c0a8e0e"/>
+		<rom name="pcm\src20.wav" size="564060" crc="6bc5e8d4" md5="9c2fe025c32f707aea00929d5c21305e" sha1="5b71bf03ab04804f6be001978366fb993f372ba0"/>
+		<rom name="pcm\src21.wav" size="1545320" crc="9e1849d6" md5="ac2c81c676b9ab5924177ecb6d6d3566" sha1="86a9376f5c87b96fdf210f8e078bda7184b4d4da"/>
+		<rom name="pcm\src22.wav" size="231832" crc="3d737cc1" md5="1d06fc9ba16edc66bf5f62ba36d5f820" sha1="20ed2aa094bd26d8e611390cccc60c8ec9f56909"/>
+		<rom name="Puppy Love Story (Japan) [T-En by Roger Braunstein v1.0] [n].bin" size="2097152" crc="038a02a9" md5="957d5ff4f96b91cbf31fc00bc5b09331" sha1="42f69a770d13c4e3a016838512a968c942d5b361"/>
+	</machine>
+</datafile>

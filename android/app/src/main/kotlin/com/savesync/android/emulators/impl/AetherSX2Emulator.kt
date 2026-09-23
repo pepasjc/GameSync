@@ -1,21 +1,27 @@
 package com.savesync.android.emulators.impl
 
 import com.savesync.android.emulators.EmulatorBase
+import com.savesync.android.emulators.Ps2EmulatorChoice
 import com.savesync.android.emulators.SaveEntry
 import java.io.File
 
+/**
+ * PS2 memory-card sync for the PCSX2-derived Android emulators: AetherSX2 /
+ * NetherSX2 and ARMSX2.  [variant] picks which app's memcards folder to use.
+ */
 class AetherSX2Emulator(
+    private val variant: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2,
     private val romScanDir: String = "",
     private val storageBaseDir: File? = null,
     /**
      * Optional explicit memcards folder override, configured in the Emulator
      * Configuration screen.  Wins over [storageBaseDir] / the auto-detected
-     * AetherSX2 / NetherSX2 paths when set.
+     * paths of the selected [variant] when set.
      */
     private val saveDirOverride: String? = null
 ) : EmulatorBase() {
 
-    override val name: String = "AetherSX2 / NetherSX2"
+    override val name: String = variant.label
     override val systemPrefix: String = "PS2"
 
     private val romExtensions = setOf("iso", "bin", "img", "mdf", "cue", "chd")
@@ -33,7 +39,7 @@ class AetherSX2Emulator(
             if (ext !in setOf("ps2", "mc2")) return@forEach
 
             val stem = file.nameWithoutExtension
-            // AetherSX2's shared default cards (Mcd001/Mcd002) are not game-specific saves,
+            // PCSX2's shared default cards (Mcd001/Mcd002) are not game-specific saves,
             // so skip them here and let the user manage per-game downloads explicitly.
             if (sharedCardRegex.matches(stem)) return@forEach
             val serial = romSerialsByStem[stem]
@@ -83,7 +89,7 @@ class AetherSX2Emulator(
             val overrideDir = File(saveDirOverride)
             if (overrideDir.exists() && overrideDir.isDirectory) return overrideDir
         }
-        return findMemcardsDir(storageBaseDir ?: baseDir)
+        return findMemcardsDir(storageBaseDir ?: baseDir, variant = variant)
     }
 
     private fun buildPs2RomSerialMap(): Map<String, String> {
@@ -138,24 +144,16 @@ class AetherSX2Emulator(
     companion object {
         /** Key used in [com.savesync.android.storage.Settings.saveDirOverrides]. */
         const val EMULATOR_KEY = "AetherSX2"
+        const val ARMSX2_EMULATOR_KEY = "ARMSX2"
 
         private val embeddedSerialRegex = Regex("""^([A-Z]{4}\d{5})(?:[_\-\s].+)?$""", RegexOption.IGNORE_CASE)
 
-        fun findMemcardsDir(baseDir: File, allowNonExistent: Boolean = false): File? {
-            val candidates = listOf(
-                "Android/data/xyz.aethersx2.android/files/memcards",
-                "Android/data/xyz.aethersx2.android/files/Memcards",
-                "Android/data/xyz.aethersx2.android/files/memorycards",
-                "Android/data/xyz.aethersx2.android/files/MemoryCards",
-                "memcards",
-                "Memcards",
-                "memorycards",
-                "MemoryCards",
-                "AetherSX2/memcards",
-                "NetherSX2/memcards",
-                "aethersx2/memcards",
-                "nethersx2/memcards"
-            )
+        fun findMemcardsDir(
+            baseDir: File,
+            allowNonExistent: Boolean = false,
+            variant: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2
+        ): File? {
+            val candidates = variant.memcardCandidates
             val dirs = candidates
                 .map { File(baseDir, it) }
             return dirs.firstOrNull { it.exists() && it.isDirectory }

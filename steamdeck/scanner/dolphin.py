@@ -7,7 +7,10 @@ Ported from Android's DolphinEmulator.kt:
   - Groups multiple .gci files per game code
   - Most recently modified file is the primary, rest are extra_files
   - Display name extracted from filename description part
-  - Title ID: GC_<code_lowercase>
+  - Title ID: GC_<CODE> — uppercase.  The gamecode is case-insensitive
+    (it is stamped uppercase on the disc, e.g. DL-DOL-GRSE-USA), so all
+    clients must agree on one casing or the server stores the same game
+    twice.  The server canonicalises to uppercase.
 """
 
 import re
@@ -157,7 +160,7 @@ def scan(
         primary = sorted_files[0]
         extras = sorted_files[1:]
 
-        title_id = f"GC_{code.lower()}"
+        title_id = f"GC_{code.upper()}"
         display_name = _gci_description(primary.stem)
 
         entry = GameEntry(

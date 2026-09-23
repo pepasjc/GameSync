@@ -393,6 +393,65 @@
       border-radius: 12px; padding: 1px 9px; font-size: 11px; color: var(--text-2);
     }
 
+    /* ── STICKY VIEW HEADER (ctx-bar + alphabet jump) ── */
+    /* Wraps the back-bar and A-Z strip so both stay pinned just below the
+       page header while the ROM grid/list scrolls underneath. */
+    .view-head {
+      position: sticky; top: var(--hdr-h, 56px); z-index: 80;
+      background: var(--bg); margin-bottom: 16px; padding-top: 4px;
+    }
+    .view-head .ctx-bar { margin-bottom: 0; padding-bottom: 10px; border-bottom: none; }
+
+    /* ── VIEW TOGGLE (grid / list) ── */
+    .view-toggle {
+      margin-left: auto; display: flex; gap: 2px;
+      background: var(--bg-card); border: 1px solid var(--border-muted);
+      border-radius: 7px; padding: 2px; flex-shrink: 0;
+    }
+    .vt-btn {
+      background: none; border: none; cursor: pointer; color: var(--text-2);
+      padding: 4px 9px; border-radius: 5px; font-size: 14px; line-height: 1;
+      transition: background .12s, color .12s;
+    }
+    .vt-btn:hover  { color: var(--text); }
+    .vt-btn.active { background: var(--accent); color: #fff; }
+
+    /* ── ALPHABET JUMP STRIP ── */
+    .alpha-bar {
+      display: flex; flex-wrap: wrap; gap: 2px;
+      padding: 8px 0; border-bottom: 1px solid var(--border-muted);
+    }
+    .alpha-btn {
+      min-width: 22px; height: 22px; padding: 0 4px;
+      background: none; border: 1px solid transparent; border-radius: 5px;
+      color: var(--text-2); font-size: 11px; font-weight: 600; cursor: pointer;
+      transition: background .1s, color .1s, border-color .1s;
+    }
+    .alpha-btn:hover { background: var(--bg-card); color: var(--text); border-color: var(--border); }
+    .alpha-btn:disabled, .alpha-btn.off { color: var(--border); cursor: default; background: none; border-color: transparent; }
+
+    /* Quick-jump target offset: clear the sticky page header + view header. */
+    .card-grid > *, .rom-list > * { scroll-margin-top: calc(var(--hdr-h, 56px) + 96px); }
+
+    /* ── ROM LIST (compact rows — alternative to card grid) ── */
+    .rom-list { display: flex; flex-direction: column; gap: 4px; }
+    .rom-row {
+      display: flex; align-items: center; gap: 12px; position: relative;
+      background: var(--bg-card); border: 1px solid var(--border-muted);
+      border-radius: 6px; padding: 7px 12px;
+      transition: border-color .12s, background .12s;
+    }
+    .rom-row:hover { border-color: var(--border); background: var(--bg-card-h); }
+    .row-stripe { width: 3px; align-self: stretch; border-radius: 2px; flex-shrink: 0; }
+    .row-name {
+      flex: 1; min-width: 0; font-size: 13px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .rom-row .save-dot { margin-left: 0; flex-shrink: 0; }
+    .row-size { font-size: 11px; color: var(--text-muted); width: 74px; text-align: right; flex-shrink: 0; }
+    .rom-row .badge { font-size: 9px; flex-shrink: 0; }
+    .rom-row .rom-btns { margin-left: 0; flex-shrink: 0; flex-wrap: nowrap; }
+
     /* ── LOAD MORE SENTINEL ── */
     .load-more {
       padding: 22px; text-align: center; color: var(--text-muted); font-size: 12px;
@@ -457,6 +516,12 @@
       #sys-chips::-webkit-scrollbar { display: none; }
       #app { padding: 20px 16px; gap: 0; }
       .card-grid { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+
+      /* View header sits BELOW the sticky system chips on mobile. */
+      .view-head { top: calc(var(--hdr-h, 56px) + var(--chips-h, 52px)); }
+      .card-grid > *, .rom-list > * {
+        scroll-margin-top: calc(var(--hdr-h, 56px) + var(--chips-h, 52px) + 96px);
+      }
     }
 
     /* ── RESPONSIVE — phone ── */
@@ -624,6 +689,8 @@ const S = {
   searchAbort:   null,
   tab:           'roms',
   q:             '',
+  // Grid (cards) vs list (compact rows). Persisted across sessions.
+  layout:        localStorage.getItem('gamesync_layout') || 'grid',
   // Lazy render state — reused by both the system view and search view
   lazy: { items: [], rendered: 0, observer: null, containerId: null, renderFn: null },
 };
@@ -889,6 +956,11 @@ const FMT_META = {
   decrypted_cci: { badge:'CCI',  source:'3DS CART', suffix:' · decrypted',   ext:'.cci',  errHint:'Configure SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND on the server (see install-3ds-rom-tools-rpi.sh).' },
   cci: { badge:'CCI',           source:'Xbox',    suffix:' · ZIP',              ext:'.zip',  errHint:'Configure SYNC_ROM_XBOX_CCI_COMMAND on the server.' },
   folder: { badge:'FOLDER',     source:'Xbox',    suffix:' · ZIP',              ext:'.zip',  errHint:'Configure SYNC_ROM_XBOX_FOLDER_COMMAND on the server.' },
+  eboot: { badge:'EBOOT',       source:'PS1 disc', suffix:' · building PBP', ext:'.PBP', errHint:'Configure SYNC_ROM_PS1_EBOOT_COMMAND (pop-fe) on the server.' },
+  vcd: { badge:'VCD',           source:'PS1 disc', suffix:' · POPStarter',   ext:'.VCD', errHint:'Configure SYNC_ROM_PS1_VCD_COMMAND on the server.' },
+  psio: { badge:'PSIO',         source:'PS1 disc', suffix:' · BIN/CU2 ZIP',  ext:'.zip', errHint:'Check that chdman is installed on the server.' },
+  loadiine: { badge:'LOADIINE', source:'Wii U WUP', suffix:' · decrypting',  ext:'.zip', errHint:'Configure SYNC_ROM_WIIU_LOADIINE_COMMAND (CDecrypt) on the server.' },
+  wua: { badge:'WUA',           source:'Wii U WUP', suffix:' · packing',     ext:'.wua', errHint:'Configure SYNC_ROM_WIIU_WUA_COMMAND on the server.' },
 };
 
 function queueKey(titleId, fmt) {
@@ -1393,13 +1465,17 @@ async function openSystem(sys) {
     return;
   }
 
-  // Shell: context bar + grid + load-more sentinel.
+  // Sort by name so the alphabet quick-jump and grouping are meaningful.
+  sortByName(roms);
+
+  // Shell: sticky view header + grid/list + load-more sentinel.
   qs('#roms-pane').innerHTML =
-    contextBar(sys, roms.length) +
-    `<div class="card-grid" id="lazy-grid"></div>
+    contextBar(sys, roms.length, roms) +
+    `<div class="${gridClass()}" id="lazy-grid"></div>
      <div class="load-more" id="lazy-sentinel">Loading more…</div>`;
 
-  startLazy(roms, 'lazy-grid', 'lazy-sentinel', romCardHtml);
+  startLazy(roms, 'lazy-grid', 'lazy-sentinel', rowOrCard());
+  syncHdrHeight();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1435,6 +1511,7 @@ async function runSearch(q) {
   }
 
   const roms = (data.roms || []).map(r => ({ ...r, hasSave: S.savedTitleIds.has(r.title_id) }));
+  sortByName(roms);
   S.searchResults = { q, total: data.total, shown: roms.length, roms };
 
   if (!roms.length) {
@@ -1445,11 +1522,12 @@ async function runSearch(q) {
   }
 
   qs('#roms-pane').innerHTML =
-    searchBar(q, roms.length, data.total) +
-    `<div class="card-grid" id="lazy-grid"></div>
+    searchBar(q, roms.length, data.total, roms) +
+    `<div class="${gridClass()}" id="lazy-grid"></div>
      <div class="load-more" id="lazy-sentinel">Loading more…</div>`;
 
-  startLazy(roms, 'lazy-grid', 'lazy-sentinel', romCardHtml);
+  startLazy(roms, 'lazy-grid', 'lazy-sentinel', rowOrCard());
+  syncHdrHeight();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1512,7 +1590,43 @@ function disposeLazy() {
 // ═══════════════════════════════════════════════════════
 //  ROM CARD — HTML builder (same markup as before, now per-item)
 // ═══════════════════════════════════════════════════════
-function romCardHtml(rom) {
+// Every extract format the server can advertise, with the button label and
+// tooltip the WebUI shows for it.  Driving the buttons off this table instead
+// of a chain of per-system `if` branches is deliberate: the old chain only
+// matched a handful of exact format combinations, so anything else — PS1's
+// ['cue','eboot','psio','vcd'], a PS1 folder bundle's ['psio'], Wii U's
+// ['loadiine','wua'] — silently fell through to a bare "↓" and the
+// conversions became unreachable from the web UI.
+const EXTRACT_BTN = {
+  cue:           { label: 'CUE/BIN',  tip: 'Convert to CUE/BIN ZIP' },
+  gdi:           { label: 'GDI',      tip: 'Convert to GDI (Dreamcast) ZIP' },
+  iso:           { label: 'ISO',      tip: 'Convert to ISO' },
+  cso:           { label: 'CSO',      tip: 'Convert and compress to CSO' },
+  eboot:         { label: 'EBOOT',    tip: 'Convert to PSP EBOOT.PBP (PSP / Adrenaline)' },
+  vcd:           { label: 'VCD',      tip: 'Convert to POPStarter VCD (OPL on PS2)' },
+  psio:          { label: 'PSIO',     tip: 'Convert to PSIO BIN/CU2 ZIP' },
+  cia:           { label: 'CIA',      tip: 'Convert to decrypted CIA (installable on CFW 3DS, works in emulators)' },
+  decrypted_cci: { label: 'CCI',      tip: 'Convert to decrypted CCI (for emulators)' },
+  cci:           { label: 'CCI',      tip: 'Download or convert to CCI ZIP' },
+  folder:        { label: 'FOLDER',   tip: 'Extract disc files and download as ZIP' },
+  loadiine:      { label: 'LOADIINE', tip: 'Decrypt to a code/content/meta folder ZIP' },
+  wua:           { label: 'WUA',      tip: 'Convert to a Cemu .wua archive' },
+};
+
+// Label for the "download what's on disk" button.  Bundles are folders, so
+// their filename has no usable extension — call those ZIP, which is what the
+// server actually sends.
+function rawDownloadLabel(rom) {
+  const name = rom.filename || '';
+  const dot = name.lastIndexOf('.');
+  const ext = dot > 0 ? name.slice(dot + 1) : '';
+  if (ext && ext.length <= 5) return ext.toUpperCase();
+  return rom.is_bundle ? 'ZIP' : 'ROM';
+}
+
+// Build the download/extract button group + share metadata for a ROM.
+// Shared by the card (grid) and row (list) renderers so both stay in sync.
+function romActions(rom) {
   const sys  = rom.system || 'UNKNOWN';
   const c    = clr(sys);
   // Always prefer rom_id over title_id for routing/extract: title_id
@@ -1526,7 +1640,49 @@ function romCardHtml(rom) {
   const fmt  = rom.extract_format;
   const extractFormats = Array.isArray(rom.extract_formats) ? rom.extract_formats : [];
   const rawUrl = `/api/v1/roms/${encodeURIComponent(dlId)}`;
-  const rawLabel = (rom.filename?.split('.').pop() || 'ROM').toUpperCase();
+  const rawLabel = rawDownloadLabel(rom);
+  const name = esc(rom.name);
+
+  // Unknown formats are dropped rather than rendered blank — this page can be
+  // older than the server it talks to.
+  const opts = extractFormats
+    .map(f => ({ fmt: f, meta: EXTRACT_BTN[f] }))
+    .filter(o => o.meta);
+
+  let btnHtml;
+  if (!opts.length) {
+    btnHtml = `<button class="dl-btn" data-action="dl"
+      data-url="${rawUrl}" data-fn="${fn}">↓</button>`;
+  } else {
+    const buttons = opts.map(o => {
+      // RVZ sources advertise 'iso', but ?extract=rvz is the form the queue
+      // UI has a DolphinTool-specific error hint for.  Both reach the same
+      // handler server-side.
+      const reqFmt = (o.fmt === 'iso' && fmt === 'rvz') ? 'rvz' : o.fmt;
+      return `<button class="dl-btn extract" data-action="extract"
+        data-tid="${tid}" data-name="${name}" data-fmt="${esc(reqFmt)}"
+        title="${esc(o.meta.tip)}">${o.meta.label}</button>`;
+    });
+    // Skip the raw button when a conversion button already wears the same
+    // label — an Xbox .cci offering ?extract=cci would otherwise show two
+    // "CCI" buttons that do different things.
+    if (!opts.some(o => o.meta.label === rawLabel)) {
+      buttons.push(`<button class="dl-btn" data-action="dl"
+        data-url="${rawUrl}" data-fn="${fn}"
+        title="Download original ${rawLabel}">${rawLabel}</button>`);
+    }
+    const cls = buttons.length > 2 ? 'rom-btns rom-btns-3ds' : 'rom-btns';
+    btnHtml = `<div class="${cls}">${buttons.join('')}</div>`;
+  }
+
+  return { btnHtml, rawUrl, rawLabel, c, sys };
+}
+
+// ═══════════════════════════════════════════════════════
+//  ROM CARD — grid layout
+// ═══════════════════════════════════════════════════════
+function romCardHtml(rom) {
+  const { btnHtml, rawUrl, rawLabel, c, sys } = romActions(rom);
 
   // Floating share icon — anchored top-right of the card via .rom-share.
   // Only points at the raw/direct download (rawUrl): ?extract= conversion
@@ -1534,94 +1690,6 @@ function romCardHtml(rom) {
   const shareIcon = `<button class="rom-share" data-action="copy"
         data-url="${rawUrl}" title="Copy share link to original ${rawLabel}"
         aria-label="Copy share link">🔗</button>`;
-
-  let btnHtml;
-  if (extractFormats.length && extractFormats.includes('iso') && extractFormats.includes('cso')) {
-    // PSP: three options — ISO, CSO, CHD
-    btnHtml = `<div class="rom-btns">
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
-        title="Extract to ISO">ISO</button>
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cso"
-        title="Extract and compress to CSO">CSO</button>
-      <button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>
-    </div>`;
-  } else if (extractFormats.length === 1 && (extractFormats[0] === 'gdi' || extractFormats[0] === 'cue')) {
-    const singleFmt = extractFormats[0];
-    const label = singleFmt === 'gdi' ? 'GDI' : 'CUE/BIN';
-    const tip   = singleFmt === 'gdi' ? 'GDI (Dreamcast) ZIP' : 'CUE/BIN ZIP';
-    btnHtml = `<div class="rom-btns">
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="${singleFmt}"
-        title="Convert to ${tip}">${label}</button>
-      <button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>
-    </div>`;
-  } else if (extractFormats.length === 1 && extractFormats[0] === 'iso' && fmt === 'rvz') {
-    btnHtml = `<div class="rom-btns">
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="rvz"
-        title="Convert RVZ to ISO">ISO</button>
-      <button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>
-    </div>`;
-  } else if (extractFormats.length === 1 && extractFormats[0] === 'iso') {
-    // PS2 DVD: CHD source, server runs ``chdman extractdvd`` to a single
-    // ISO.  Order matters — this branch must come AFTER the rvz one so
-    // GC / Wii cards keep the "Convert RVZ to ISO" tooltip.
-    btnHtml = `<div class="rom-btns">
-      <button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
-        title="Convert CHD to ISO">ISO</button>
-      <button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>
-    </div>`;
-  } else if (extractFormats.some(f => ['cia', 'decrypted_cci'].includes(f))) {
-    const cartButtons = [];
-    if (extractFormats.includes('cia')) {
-      cartButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cia"
-        title="Convert to decrypted CIA (installable on CFW 3DS, works in emulators)">CIA</button>`);
-    }
-    if (extractFormats.includes('decrypted_cci')) {
-      cartButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="decrypted_cci"
-        title="Convert to decrypted CCI (for emulators)">CCI</button>`);
-    }
-    cartButtons.push(`<button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel} cart image">3DS</button>`);
-    btnHtml = `<div class="rom-btns rom-btns-3ds">${cartButtons.join('')}</div>`;
-  } else if (extractFormats.some(f => ['cci', 'iso', 'folder'].includes(f))) {
-    // Xbox / Xbox 360 disc image.  Show the target formats; the
-    // server decides whether that is a direct stream/ZIP or a conversion.
-    const xboxButtons = [];
-    if (extractFormats.includes('cci')) {
-      xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="cci"
-        title="Download or convert to CCI ZIP">CCI</button>`);
-    }
-    if (extractFormats.includes('folder')) {
-      xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="folder"
-        title="Extract Xbox disc files and download as ZIP">FOLDER</button>`);
-    }
-    if (extractFormats.includes('iso')) {
-      xboxButtons.push(`<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${esc(rom.name)}" data-fmt="iso"
-        title="Download or convert to ISO">ISO</button>`);
-    }
-    btnHtml = `<div class="rom-btns rom-btns-3ds">${xboxButtons.join('')}</div>`;
-  } else {
-    btnHtml = `<button class="dl-btn" data-action="dl"
-      data-url="${rawUrl}" data-fn="${fn}">↓</button>`;
-  }
 
   return `<div class="rom-card">
     ${shareIcon}
@@ -1641,29 +1709,114 @@ function romCardHtml(rom) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  CONTEXT-BAR HELPERS (back button + header for drill-down views)
+//  ROM ROW — compact list layout (denser, better for desktop)
 // ═══════════════════════════════════════════════════════
-function contextBar(sys, count) {
-  const c = clr(sys);
-  return `<div class="ctx-bar">
-    <button class="back-btn" data-action="nav-overview" title="Back to systems">← Systems</button>
-    <div class="ctx-title">
-      <span class="badge" style="background:${c}">${esc(sys)}</span>
-      <h2>${esc(lbl(sys))}</h2>
-      <span class="ctx-count">${count}</span>
-    </div>
+function romRowHtml(rom) {
+  const { btnHtml, rawUrl, c, sys } = romActions(rom);
+  return `<div class="rom-row">
+    <div class="row-stripe" style="background:${c}"></div>
+    <span class="badge" style="background:${c}">${esc(sys)}</span>
+    <div class="row-name" title="${esc(rom.name)}">${esc(rom.name)}</div>
+    ${rom.hasSave ? `<span class="save-dot">save</span>` : ''}
+    <span class="row-size">${fmtB(rom.size)}</span>
+    <button class="dl-btn copy" data-action="copy" data-url="${rawUrl}" title="Copy share link">🔗</button>
+    ${btnHtml}
   </div>`;
 }
 
-function searchBar(q, shown, total) {
-  const capped = total > shown ? ` (showing first ${shown} — narrow your search for more)` : '';
-  return `<div class="ctx-bar">
-    <button class="back-btn" data-action="nav-overview" title="Clear search">← Systems</button>
-    <div class="ctx-title">
-      <h2>Search: "${esc(q)}"</h2>
-      <span class="ctx-count">${total} match${total === 1 ? '' : 'es'}${capped}</span>
+// ═══════════════════════════════════════════════════════
+//  CONTEXT-BAR HELPERS (back button + header for drill-down views)
+// ═══════════════════════════════════════════════════════
+function contextBar(sys, count, items) {
+  const c = clr(sys);
+  return `<div class="view-head">
+    <div class="ctx-bar">
+      <button class="back-btn" data-action="nav-overview" title="Back to systems">← Systems</button>
+      <div class="ctx-title">
+        <span class="badge" style="background:${c}">${esc(sys)}</span>
+        <h2>${esc(lbl(sys))}</h2>
+        <span class="ctx-count">${count}</span>
+      </div>
+      ${viewToggleHtml()}
     </div>
+    ${alphaBarHtml(items)}
   </div>`;
+}
+
+function searchBar(q, shown, total, items) {
+  const capped = total > shown ? ` (showing first ${shown} — narrow your search for more)` : '';
+  return `<div class="view-head">
+    <div class="ctx-bar">
+      <button class="back-btn" data-action="nav-overview" title="Clear search">← Systems</button>
+      <div class="ctx-title">
+        <h2>Search: "${esc(q)}"</h2>
+        <span class="ctx-count">${total} match${total === 1 ? '' : 'es'}${capped}</span>
+      </div>
+      ${viewToggleHtml()}
+    </div>
+    ${alphaBarHtml(items)}
+  </div>`;
+}
+
+// ── VIEW HEADER WIDGETS ──────────────────────────────────
+// Grid/list toggle. Reflects S.layout; persisted in setLayout().
+function viewToggleHtml() {
+  const g = S.layout === 'grid', l = S.layout === 'list';
+  return `<div class="view-toggle">
+    <button class="vt-btn${g ? ' active' : ''}" data-action="layout" data-layout="grid" title="Grid view" aria-label="Grid view">▦</button>
+    <button class="vt-btn${l ? ' active' : ''}" data-action="layout" data-layout="list" title="List view" aria-label="List view">☰</button>
+  </div>`;
+}
+
+// First sort key of a name: A-Z, or '#' for anything starting non-alpha.
+function firstLetter(name) {
+  const ch = (name || '').trim().charAt(0).toUpperCase();
+  return (ch >= 'A' && ch <= 'Z') ? ch : '#';
+}
+
+// A-Z (+#) quick-jump strip. Letters with no matching ROM are disabled.
+function alphaBarHtml(items) {
+  const present = new Set((items || []).map(it => firstLetter(it.name)));
+  const letters = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+  const btns = letters.map(L => {
+    const on = present.has(L);
+    return on
+      ? `<button class="alpha-btn" data-action="alpha" data-letter="${L}">${L}</button>`
+      : `<button class="alpha-btn off" disabled>${L}</button>`;
+  }).join('');
+  return `<div class="alpha-bar">${btns}</div>`;
+}
+
+const gridClass = () => S.layout === 'list' ? 'rom-list' : 'card-grid';
+const rowOrCard = () => S.layout === 'list' ? romRowHtml : romCardHtml;
+
+function sortByName(arr) {
+  arr.sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+}
+
+// Switch grid/list. Persists and re-renders the current ROM view.
+function setLayout(layout) {
+  if (layout !== 'grid' && layout !== 'list') return;
+  if (layout === S.layout) return;
+  S.layout = layout;
+  localStorage.setItem('gamesync_layout', layout);
+  if (S.view === 'system' && S.currentSystem) openSystem(S.currentSystem);
+  else if (S.view === 'search' && S.q)         runSearch(S.q);
+}
+
+// Scroll to the first ROM whose name starts with `letter`. Because cards are
+// lazy-rendered, render forward until the target index exists, then scroll to
+// it (DOM child index === item index, nothing else lives in the container).
+function jumpToLetter(letter) {
+  const items = S.lazy.items;
+  const idx = items.findIndex(it => firstLetter(it.name) === letter);
+  if (idx < 0) return;
+  let guard = 0;
+  while (S.lazy.rendered <= idx && guard++ < 1000) renderNextBatch();
+  const container = document.getElementById(S.lazy.containerId);
+  const el = container && container.children[idx];
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1866,6 +2019,8 @@ document.addEventListener('click', e => {
   if (action === 'extract')      enqueueExtract(tid, name, fmt);
   if (action === 'nav-system')   { qs('#search').value = ''; S.q = ''; openSystem(sys); }
   if (action === 'nav-overview') { qs('#search').value = ''; S.q = ''; renderOverview(); }
+  if (action === 'layout')       setLayout(btn.dataset.layout);
+  if (action === 'alpha')        jumpToLetter(btn.dataset.letter);
 });
 
 // ── QUEUE ACTIONS / OUTSIDE CLOSE ────────────────────────
@@ -1891,6 +2046,12 @@ document.addEventListener('click', e => {
 function syncHdrHeight() {
   const h = document.querySelector('header').getBoundingClientRect().height;
   document.documentElement.style.setProperty('--hdr-h', h + 'px');
+  // Mobile-only: the system chip bar sits below the header and the view
+  // header must stack below both. Measure it so the sticky offset is exact.
+  const chips = document.getElementById('sys-chips');
+  const ch = (chips && getComputedStyle(chips).display !== 'none')
+    ? chips.getBoundingClientRect().height : 0;
+  document.documentElement.style.setProperty('--chips-h', ch + 'px');
 }
 
 // ── SEARCH ───────────────────────────────────────────────

@@ -40,13 +40,18 @@ cat > "$OUT_C" <<EOF
 
 EOF
 
+# List entries may be a bare filename (resolved against IRX_DIR) or a path
+# containing '/' (used verbatim, for IRX outside the SDK tree like mmceman).
 for irx in $IRX_LIST; do
-    src="$IRX_DIR/$irx"
+    case "$irx" in
+        */*) src="$irx";          base="$(basename "$irx")" ;;
+        *)   src="$IRX_DIR/$irx";  base="$irx" ;;
+    esac
     if [ ! -f "$src" ]; then
         echo "Missing IRX: $src" >&2
         exit 1
     fi
-    sym="$(echo "$irx" | sed 's/\./_/g')"
+    sym="$(echo "$base" | sed 's/\./_/g')"
 
     {
         # 16-byte alignment is required by SifExecModuleBuffer — the

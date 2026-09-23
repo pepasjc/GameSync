@@ -324,6 +324,7 @@ private fun MainApp() {
     // the single source of truth for which tab is visible. L1/R1 emits on
     // a separate systemCycleEvents flow that each screen subscribes to.
     val activity = LocalContext.current.findComponentActivity() as? MainActivity
+
     LaunchedEffect(activity, navController) {
         activity?.tabCycleEvents?.collect { delta ->
             val route = navController.currentDestination?.route

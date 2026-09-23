@@ -65,7 +65,7 @@ class EmudeckPathsTest {
         val entries = DolphinEmulator(dolphinRootDir = dolphinRoot).discoverSaves()
 
         assertEquals(1, entries.size)
-        assertEquals("GC_gm4e", entries.single().titleId)
+        assertEquals("GC_GM4E", entries.single().titleId)
         assertEquals(gci.absolutePath, entries.single().saveFile?.absolutePath)
     }
 }

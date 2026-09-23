@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from pydantic import BaseModel, field_validator
+
+# Make the repo root importable so 'shared' can be found (same bootstrap as
+# app/services/rom_id.py — models are imported before that shim runs).
+_REPO_ROOT = str(Path(__file__).parent.parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from shared.sync_id import canonicalize_code_form_title_id  # noqa: E402
 
 
 BUNDLE_MAGIC = b"3DSS"
@@ -48,9 +58,13 @@ def validate_any_title_id(v: str) -> str:
         or _SAVE_DIR_TITLE_ID_RE.match(v_upper)
     ):
         return v_upper
-    # Emulator format preserves case (system uppercase, slug lowercase)
-    if _EMULATOR_TITLE_ID_RE.match(v):
-        return v
+    # Emulator format preserves case (system uppercase, slug lowercase) —
+    # except gamecode-form IDs (GC_grse/WII_rmce), which are case-insensitive
+    # identifiers and are canonicalised to uppercase so every client converges
+    # on one storage key.
+    canonical = canonicalize_code_form_title_id(v)
+    if _EMULATOR_TITLE_ID_RE.match(canonical):
+        return canonical
     raise ValueError(
         "title_id must be a 16-char hex string (3DS/DS), "
         "an 8-char hex string (original Xbox), "

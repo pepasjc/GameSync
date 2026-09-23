@@ -13,7 +13,11 @@ STEAMDECK_ROOT = ROOT / "steamdeck"
 if str(STEAMDECK_ROOT) not in sys.path:
     sys.path.insert(0, str(STEAMDECK_ROOT))
 
-from config import normalize_rom_dir_overrides  # noqa: E402
+from config import (  # noqa: E402
+    normalize_rom_dir_overrides,
+    normalize_save_dir_overrides,
+    save_dir_override,
+)
 from scanner.rom_target import (  # noqa: E402
     SYSTEM_ROM_DIRS,
     prepare_rom_folders,
@@ -152,6 +156,31 @@ def test_normalize_overrides_rejects_non_dict_inputs():
 
 def test_normalize_overrides_skips_non_string_keys():
     assert normalize_rom_dir_overrides({42: "/x", "PS1": "/y"}) == {"PS1": "/y"}
+
+
+# ---------------------------------------------------------------------------
+# save_dir_overrides — per-emulator save folders (Cemu)
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_save_dir_overrides_keeps_key_case():
+    """Keys name an emulator, matching Android's saveDirOverrides spelling."""
+    src = {"Cemu": "  /mnt/sd2/Cemu  ", "Blank": "  "}
+    assert normalize_save_dir_overrides(src) == {"Cemu": "/mnt/sd2/Cemu"}
+
+
+def test_normalize_save_dir_overrides_rejects_malformed_inputs():
+    assert normalize_save_dir_overrides(None) == {}
+    assert normalize_save_dir_overrides("not a dict") == {}
+    assert normalize_save_dir_overrides({42: "/x", "Cemu": "/y"}) == {"Cemu": "/y"}
+
+
+def test_save_dir_override_lookup_is_case_insensitive():
+    """A hand-edited config shouldn't silently do nothing."""
+    assert save_dir_override({"cemu": "/mnt/cemu"}, "Cemu") == "/mnt/cemu"
+    assert save_dir_override({"Cemu": "/mnt/cemu"}, "cemu") == "/mnt/cemu"
+    assert save_dir_override({}, "Cemu") == ""
+    assert save_dir_override(None, "Cemu") == ""
 
 
 # ---------------------------------------------------------------------------
@@ -574,3 +603,124 @@ def test_plan_rom_download_x360_requests_iso():
     )
     assert filename == "Gears of War.iso"
     assert extract == "iso"
+
+
+# ---------------------------------------------------------------------------
+# plan_rom_download — Wii U decryption for Cemu
+# ---------------------------------------------------------------------------
+
+
+def test_plan_rom_download_wiiu_wup_requests_loadiine():
+    """A WUP bundle must be requested decrypted — Cemu cannot read the
+    encrypted .app contents real hardware installs."""
+    client = SyncClient("localhost", 8000, "key")
+    filename, extract = client.plan_rom_download(
+        {
+            "rom_id": "0005000010145C00",
+            "system": "WIIU",
+            "filename": "Super Mario 3D World (USA).zip",
+            "is_bundle": True,
+            "extract_formats": ["loadiine", "wua"],
+        },
+        "WIIU",
+    )
+    assert filename == "Super Mario 3D World (USA).zip"
+    assert extract == "loadiine"
+
+
+def test_plan_rom_download_wiiu_wua_needs_no_conversion():
+    """A single-file .wua library is already Cemu-native."""
+    client = SyncClient("localhost", 8000, "key")
+    filename, extract = client.plan_rom_download(
+        {
+            "rom_id": "0005000010157F00",
+            "system": "WIIU",
+            "filename": "Bayonetta 2.wua",
+        },
+        "WIIU",
+    )
+    assert filename == "Bayonetta 2.wua"
+    assert extract is None
+
+
+def test_rom_target_wiiu_folder(tmp_path):
+    assert resolve_rom_target_dir(tmp_path, "WIIU") == tmp_path / "wiiu"
+    (tmp_path / "Wii U").mkdir()
+    assert resolve_rom_target_dir(tmp_path, "WIIU") == tmp_path / "Wii U"
+
+
+# ---------------------------------------------------------------------------
+# related_roms — Wii U update / DLC grouping
+# ---------------------------------------------------------------------------
+
+
+class _StubCatalogClient(SyncClient):
+    """SyncClient with ``list_roms`` stubbed so no server is needed."""
+
+    def __init__(self, catalog):
+        super().__init__("localhost", 8000, "key")
+        self._catalog = catalog
+
+    def list_roms(self, system=None):  # type: ignore[override]
+        return self._catalog
+
+
+_WIIU_BASE = {
+    "rom_id": "0005000010145C00",
+    "system": "WIIU",
+    "name": "Super Mario 3D World (USA)",
+    "size": 1_000,
+    "content_type": "game",
+    "is_bundle": True,
+    "related_rom_ids": ["0005000E10145C00", "0005000C10145C00"],
+}
+_WIIU_UPDATE = {
+    "rom_id": "0005000E10145C00",
+    "system": "WIIU",
+    "name": "Super Mario 3D World (USA) (Update)",
+    "size": 200,
+    "content_type": "update",
+    "is_bundle": True,
+    "related_rom_ids": ["0005000010145C00", "0005000C10145C00"],
+}
+_WIIU_DLC = {
+    "rom_id": "0005000C10145C00",
+    "system": "WIIU",
+    "name": "Super Mario 3D World (USA) (DLC)",
+    "size": 50,
+    "content_type": "dlc",
+    "is_bundle": True,
+    "related_rom_ids": ["0005000010145C00", "0005000E10145C00"],
+}
+
+
+def test_related_roms_returns_update_then_dlc():
+    """Install order matters — MCP rejects a DLC whose base game is absent."""
+    client = _StubCatalogClient([_WIIU_BASE, _WIIU_UPDATE, _WIIU_DLC])
+    related = client.related_roms(_WIIU_BASE, "WIIU")
+    assert [r["rom_id"] for r in related] == [
+        "0005000E10145C00",
+        "0005000C10145C00",
+    ]
+
+
+def test_related_roms_excludes_self():
+    """Opening the update must not queue the update twice."""
+    client = _StubCatalogClient([_WIIU_BASE, _WIIU_UPDATE, _WIIU_DLC])
+    related = client.related_roms(_WIIU_UPDATE, "WIIU")
+    assert [r["rom_id"] for r in related] == [
+        "0005000010145C00",
+        "0005000C10145C00",
+    ]
+
+
+def test_related_roms_empty_for_ungrouped_systems():
+    client = _StubCatalogClient([])
+    assert client.related_roms({"rom_id": "x", "system": "GBA"}, "GBA") == []
+
+
+def test_related_roms_skips_ids_missing_from_the_catalog():
+    """A dangling id (DLC folder deleted between scans) is dropped, not fatal."""
+    client = _StubCatalogClient([_WIIU_BASE, _WIIU_UPDATE])
+    related = client.related_roms(_WIIU_BASE, "WIIU")
+    assert [r["rom_id"] for r in related] == ["0005000E10145C00"]

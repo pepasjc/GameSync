@@ -36,9 +36,14 @@ from shared.systems import (  # noqa: E402
     SYSTEM_DEFAULT_SAVE_EXT,
 )
 from shared.mister import (  # noqa: E402
+    MISTER_CD_SYSTEMS,
     MISTER_FOLDER_MAP,
     MISTER_FOLDER_TO_SYSTEM,
+    MISTER_GAMES_ROOTS,
+    MISTER_SYSTEM_FOLDER_CANDIDATES,
     MISTER_SYSTEM_TO_FOLDER,
+    mister_system_folder_candidates,
+    mister_system_save_folder_candidates,
 )
 
 __all__ = [
@@ -50,9 +55,14 @@ __all__ = [
     "DEFAULT_SYSTEM_COLOR",
     "FOLDER_TO_SYSTEM",
     "MEGA_EVERDRIVE_CD_SYSTEMS",
+    "MISTER_CD_SYSTEMS",
     "MISTER_FOLDER_MAP",
     "MISTER_FOLDER_TO_SYSTEM",
+    "MISTER_GAMES_ROOTS",
+    "MISTER_SYSTEM_FOLDER_CANDIDATES",
     "MISTER_SYSTEM_TO_FOLDER",
+    "mister_system_folder_candidates",
+    "mister_system_save_folder_candidates",
     "PSX_RETAIL_PREFIXES",
     "ROM_EXTENSIONS",
     "SAVE_EXTENSIONS",

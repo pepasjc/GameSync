@@ -162,7 +162,14 @@ class DuckStationEmulator(
             val stemNoSlot = slotSuffixRegex.replace(file.nameWithoutExtension, "")
             if (stemNoSlot.lowercase() in sharedCardNames) return@forEach
 
-            val titleId = normalizeSerial(stemNoSlot) ?: toPs1TitleId(stemNoSlot)
+            // Prefer the product code embedded in the save block itself — that is
+            // what the server keys by (ps1mc.serial_from_filename), and it stays
+            // stable across regional/limited editions whose disc serial differs.
+            // Fall back to the filename serial, then a slug, when the card has no
+            // parseable save yet (freshly created / unplayed).
+            val titleId = readPs1SaveCardSerial(file)
+                ?: normalizeSerial(stemNoSlot)
+                ?: toPs1TitleId(stemNoSlot)
             val current = best[titleId]
             val shouldReplace = when {
                 current == null -> true

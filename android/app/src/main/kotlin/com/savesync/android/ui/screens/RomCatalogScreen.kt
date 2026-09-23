@@ -63,8 +63,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.savesync.android.MainActivity
 import com.savesync.android.api.RomEntry
+import com.savesync.android.api.hasRa
+import com.savesync.android.api.raIsTitleOnly
 import com.savesync.android.api.preferredDownloadExtractFormat
+import com.savesync.android.api.msuPackKind
+import com.savesync.android.sync.MsuPack
 import com.savesync.android.api.preferredDownloadFilename
+import com.savesync.android.api.withRelated
 import com.savesync.android.catalog.RomCatalogFilter
 import com.savesync.android.findComponentActivity
 import com.savesync.android.ui.MainViewModel
@@ -494,16 +499,37 @@ fun RomCatalogScreen(
     }
 
     confirmTarget?.let { rom ->
+        // A Wii U game's update and DLC are separate titles that are useless
+        // apart, so one tap queues the whole set in install order.
+        val group = rom.withRelated(catalog)
         AlertDialog(
             onDismissRequest = { confirmTarget = null },
-            title = { Text("Download ROM?") },
+            title = { Text(if (group.size > 1) "Download ${group.size} titles?" else "Download ROM?") },
             text = {
                 Column {
                     Text(rom.name.ifEmpty { rom.filename }, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text("System: ${rom.system}")
-                    Text("File: ${rom.filename}")
-                    if (rom.size > 0) Text("Size: ${formatBytes(rom.size)}")
+                    if (group.size > 1) {
+                        Spacer(Modifier.height(6.dp))
+                        group.forEach { part ->
+                            val label = part.contentType?.replaceFirstChar { it.uppercase() }
+                                ?: "Game"
+                            Text("$label: ${formatBytes(part.size)}")
+                        }
+                        Text(
+                            "Total: ${formatBytes(group.sumOf { it.size })}",
+                            fontWeight = FontWeight.Bold,
+                        )
+                    } else if (rom.msuPackKind != null) {
+                        // Unpacked into its own folder: the ROM plus the
+                        // audio it streams from beside itself.
+                        Text("Type: ${MsuPack.label(rom.msuPackKind)}, unpacked into a folder")
+                        if (rom.size > 0) Text("Size: ${formatBytes(rom.size)}")
+                    } else {
+                        Text("File: ${rom.filename}")
+                        if (rom.size > 0) Text("Size: ${formatBytes(rom.size)}")
+                    }
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "Saves into the ROM folder configured in Settings " +
@@ -515,14 +541,16 @@ fun RomCatalogScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val id = rom.rom_id ?: rom.title_id
-                    val extract = rom.preferredDownloadExtractFormat()
-                    viewModel.downloadRom(
-                        romId = id,
-                        system = rom.system,
-                        filename = rom.preferredDownloadFilename(extract),
-                        extractFormat = extract,
-                    )
+                    group.forEach { part ->
+                        val extract = part.preferredDownloadExtractFormat()
+                        viewModel.downloadRom(
+                            romId = part.rom_id ?: part.title_id,
+                            system = part.system,
+                            filename = part.preferredDownloadFilename(extract),
+                            extractFormat = extract,
+                            bundleKind = part.msuPackKind,
+                        )
+                    }
                     confirmTarget = null
                 }) { Text("Download") }
             },
@@ -560,11 +588,18 @@ private fun CatalogRomCard(
         ) {
             SystemBadge(rom.system)
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    rom.name.ifEmpty { rom.filename },
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        rom.name.ifEmpty { rom.filename },
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (rom.hasRa) RaBadge(rom.raIsTitleOnly)
+                }
                 val subtitle = buildString {
                     append(rom.filename)
                     if (rom.size > 0) append("  ·  ${formatBytes(rom.size)}")

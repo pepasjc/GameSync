@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -126,6 +127,68 @@ def _system_profile_info(profile: dict, system: str) -> dict:
         (s for s in profile["systems"] if s.get("system") == system),
         {},
     )
+
+
+class CatalogLoadWorker(QThread):
+    """Pull the ROM catalog for each system in the current results.
+
+    Runs after a scan so the Sync tab can tell which saves have a game
+    available to install.  One system at a time, emitting as it goes, so
+    the buttons appear progressively instead of after the slowest fetch.
+    """
+
+    system_ready = pyqtSignal(str, list)  # system, catalog rows
+    finished_all = pyqtSignal()
+
+    def __init__(self, systems: list[str], parent=None):
+        super().__init__(parent)
+        self.systems = systems
+
+    def run(self):
+        from rom_installer import catalog_for_system
+
+        for system in self.systems:
+            if self.isInterruptionRequested():
+                break
+            try:
+                self.system_ready.emit(system, catalog_for_system(system))
+            except Exception:
+                # Offline or a system the server doesn't know — that row just
+                # keeps its empty Install cell.
+                self.system_ready.emit(system, [])
+        self.finished_all.emit()
+
+
+class GameInstallWorker(QThread):
+    """Install one game (every disc) using the ROM installer's own logic."""
+
+    progress = pyqtSignal(int, int)
+    item_started = pyqtSignal(int, int, str)
+    finished_all = pyqtSignal(int, int, list, list)  # ok, fail, paths, errors
+
+    def __init__(self, plans, parent=None):
+        super().__init__(parent)
+        self.plans = plans
+
+    def run(self):
+        from rom_installer import install_rom
+
+        ok = 0
+        fail = 0
+        paths: list[str] = []
+        errors: list[str] = []
+        total = len(self.plans)
+        for idx, plan in enumerate(self.plans, 1):
+            self.item_started.emit(idx, total, plan.display_name)
+            try:
+                paths.extend(str(p) for p in install_rom(plan, self.progress.emit))
+                ok += 1
+            except Exception as exc:
+                fail += 1
+                errors.append(
+                    f"{plan.display_name}: {exc or exc.__class__.__name__}"
+                )
+        self.finished_all.emit(ok, fail, paths, errors)
 
 
 class ScanWorker(QThread):
@@ -255,6 +318,11 @@ class SyncTab(QWidget):
         self._statuses: list = []
         self._saved_profile_name = ""
         self._last_download_folder: Path | None = None
+        # system -> {title_id: [catalog rows]}, filled in the background
+        # after a scan so the Install Game column knows what's available.
+        self._catalog_index: dict[str, dict] = {}
+        self._catalog_worker: CatalogLoadWorker | None = None
+        self._install_worker: GameInstallWorker | None = None
         self._init_ui()
 
     def _init_ui(self):
@@ -346,9 +414,17 @@ class SyncTab(QWidget):
         layout.addLayout(filter_row)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
+        self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(
-            ["System", "Game", "Title ID", "Local File", "Server Status", "Action"]
+            [
+                "System",
+                "Game",
+                "Title ID",
+                "Local File",
+                "Server Status",
+                "Action",
+                "Install Game",
+            ]
         )
         self.table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.Stretch
@@ -523,7 +599,7 @@ class SyncTab(QWidget):
         for st in statuses:
             save = st.save
             is_ps_code = _PS_TITLE_ID_RE.match(save.title_id)
-            is_gc_code = save.system == "GC" and save.title_id.startswith("GC_")
+            is_gc_code = save.system == "GC" and save.title_id.upper().startswith("GC_")
             if not is_ps_code and not is_gc_code:
                 continue
             if is_ps_code and not self._looks_like_raw_code_label(
@@ -719,6 +795,198 @@ class SyncTab(QWidget):
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, i)
 
         self._apply_filter()
+        self._start_catalog_load(sorted_statuses)
+
+    # ── Install Game column ────────────────────────────────────────────
+    #
+    # A save is only half the story: the game it belongs to may not be on
+    # the device at all (every server-only row is like this).  When the ROM
+    # catalog has that title, offer to install it right here, using the ROM
+    # installer's own layout rules — folder-per-game for CD systems, all
+    # discs of a multi-disc set together, per-device formats.
+
+    def _start_catalog_load(self, sorted_statuses: list):
+        from rom_installer import profile_can_install
+
+        for row in range(self.table.rowCount()):
+            self.table.setCellWidget(row, 6, None)
+
+        from rom_installer import profile_systems
+
+        profile = self.profile_combo.currentData()
+        if not profile_can_install(profile):
+            return
+
+        # Only systems this profile actually holds games for — a MiSTer has
+        # nowhere to put a 3DS ROM, and this keeps the catalog fetch small.
+        supported = {s.upper() for s in profile_systems(profile)}
+        systems: list[str] = []
+        for _, st in sorted_statuses:
+            system = (st.save.system or "").upper()
+            if system and system in supported and system not in systems:
+                systems.append(system)
+        if not systems:
+            return
+
+        pending = [s for s in systems if s not in self._catalog_index]
+        for system in systems:
+            if system in self._catalog_index:
+                self._add_install_buttons_for_system(system)
+        if not pending:
+            return
+
+        if self._catalog_worker and self._catalog_worker.isRunning():
+            self._catalog_worker.requestInterruption()
+            self._catalog_worker.wait(2000)
+        self._catalog_worker = CatalogLoadWorker(pending, self)
+        self._catalog_worker.system_ready.connect(self._on_catalog_system_ready)
+        self._catalog_worker.start()
+
+    def _on_catalog_system_ready(self, system: str, roms: list):
+        from rom_installer import index_catalog_by_title
+
+        self._catalog_index[system] = index_catalog_by_title(roms)
+        self._add_install_buttons_for_system(system)
+
+    def _add_install_buttons_for_system(self, system: str):
+        index = self._catalog_index.get(system) or {}
+        if not index:
+            return
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item is None or (item.text() or "").upper() != system:
+                continue
+            if self.table.cellWidget(row, 6) is not None:
+                continue
+            idx = item.data(Qt.ItemDataRole.UserRole)
+            try:
+                st = self._statuses[idx]
+            except (IndexError, TypeError):
+                continue
+            matches = index.get(st.save.title_id)
+            if not matches:
+                continue
+            button = QPushButton("Install")
+            button.setFixedHeight(22)
+            names = {str(r.get("filename") or "") for r in matches}
+            button.setToolTip(
+                f"{len(matches)} catalog file(s) for this title:\n"
+                + "\n".join(sorted(names)[:8])
+            )
+            button.clicked.connect(lambda _, i=idx: self._install_game(i))
+            holder = QWidget()
+            holder_layout = QHBoxLayout(holder)
+            holder_layout.setContentsMargins(2, 2, 2, 2)
+            holder_layout.addWidget(button)
+            self.table.setCellWidget(row, 6, holder)
+
+    def _install_game(self, status_idx: int):
+        from rom_installer import (
+            catalog_install_groups,
+            build_title_install_plans,
+        )
+
+        st = self._statuses[status_idx]
+        profile = self.profile_combo.currentData()
+        if not profile:
+            return
+        system = (st.save.system or "").upper()
+        matches = (self._catalog_index.get(system) or {}).get(st.save.title_id) or []
+        if not matches:
+            QMessageBox.information(
+                self, "Install Game", "This title is no longer in the ROM catalog."
+            )
+            return
+
+        groups = catalog_install_groups(profile, matches, system)
+        if len(groups) > 1:
+            # Same title, different dumps (a translation patch and the
+            # original share one serial) — let the user say which.
+            labels = []
+            for group in groups:
+                discs = len(group.get("disc_members") or [])
+                suffix = f"  [{discs} discs]" if discs > 1 else ""
+                labels.append(f"{group.get('filename') or group.get('name')}{suffix}")
+            choice, ok = QInputDialog.getItem(
+                self,
+                "Install Game",
+                f"{len(groups)} versions of this game are in the catalog.\n"
+                "Which one should be installed?",
+                labels,
+                0,
+                False,
+            )
+            if not ok:
+                return
+            group = groups[labels.index(choice)]
+        else:
+            group = groups[0]
+
+        try:
+            plans = build_title_install_plans(profile, group, system)
+        except Exception as exc:
+            QMessageBox.critical(self, "Install Game", str(exc))
+            return
+        if not plans:
+            return
+
+        if len(plans) == 1:
+            body = (
+                f"Install {plans[0].display_name} as {plans[0].format_label} to:\n"
+                f"{plans[0].target_path}"
+            )
+        else:
+            listing = "\n".join(f"  • {p.target_path.name}" for p in plans)
+            parents = {str(p.target_path.parent) for p in plans}
+            where = f"\n\nInto:\n{parents.pop()}" if len(parents) == 1 else ""
+            body = f"Install {len(plans)} files:\n\n{listing}{where}"
+        if (
+            QMessageBox.question(
+                self,
+                "Install Game",
+                body,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
+            return
+
+        self._install_worker = GameInstallWorker(plans, self)
+        self._install_worker.item_started.connect(
+            lambda i, total, name: self.status_label.setText(
+                f"Installing {name}… ({i}/{total})" if total > 1
+                else f"Installing {name}…"
+            )
+        )
+        self._install_worker.progress.connect(self._on_install_progress)
+        self._install_worker.finished_all.connect(self._on_install_finished)
+        self._install_worker.start()
+
+    def _on_install_progress(self, downloaded: int, total: int):
+        if total > 0:
+            pct = int(downloaded * 100 / total)
+            self.status_label.setText(
+                f"Installing… {downloaded // (1024 * 1024)} MB / "
+                f"{total // (1024 * 1024)} MB ({pct}%)"
+            )
+
+    def _on_install_finished(
+        self, ok: int, fail: int, paths: list, errors: list
+    ):
+        if fail:
+            self.status_label.setText(f"Installed {ok}, failed {fail}.")
+            QMessageBox.warning(
+                self,
+                "Install Game",
+                f"Installed {ok} file(s), {fail} failed.\n\n" + "\n".join(errors[:10]),
+            )
+            return
+        self.status_label.setText(f"Installed {ok} file(s).")
+        QMessageBox.information(
+            self,
+            "Install Game",
+            "Installed:\n" + "\n".join(paths[:10]),
+        )
 
     def _apply_filter(self):
         system_filter = self.system_filter_combo.currentText()
@@ -775,8 +1043,7 @@ class SyncTab(QWidget):
         # already part of the current selection.
         self.table.selectRow(row)
         st = self._statuses[status_idx]
-        save_exists = getattr(st.save, "save_exists", True)
-        has_local = st.save.path is not None and save_exists
+        has_local = self._has_local_file(st)
         has_server = bool(st.server_hash) or st.status == "server_only"
 
         menu = QMenu(self)
@@ -804,6 +1071,42 @@ class SyncTab(QWidget):
     def _sync_selected(self):
         self._do_sync(self._selected_status_indices())
 
+    def _has_local_file(self, st) -> bool:
+        """Whether a local save exists *now* — the scan-time flag, or a file
+        that appeared at the expected path since (emulator wrote it)."""
+        if not st.save.path:
+            return False
+        if getattr(st.save, "save_exists", True):
+            return True
+        try:
+            return Path(st.save.path).is_file()
+        except OSError:
+            return False
+
+    def _local_changed_since_scan(self, st, path: Path | None = None) -> bool:
+        """True when the local file no longer matches what the scan recorded.
+
+        The table is a snapshot: a save the emulator created or rewrote since
+        the scan must not be overwritten on the strength of a stale status
+        (a "download" verdict reached when the file was older, or absent).
+        Compares mtime rather than hash because several systems store a
+        canonical hash that is not the raw file's.  FTP-backed paths never
+        exist locally, so they fall through unchanged.
+        """
+        path = path if path is not None else st.save.path
+        if not path:
+            return False
+        try:
+            p = Path(path)
+            if not p.is_file():
+                return False
+            current = p.stat().st_mtime
+        except OSError:
+            return False
+        if not getattr(st.save, "save_exists", True):
+            return True  # scan saw nothing here; something is here now
+        return abs(current - (st.save.mtime or 0)) > 1.0
+
     def _do_sync(self, indices):
         from sync_engine import upload_save, download_save
 
@@ -812,6 +1115,7 @@ class SyncTab(QWidget):
         errors = []
         synced = 0
         skipped = 0
+        stale = 0
 
         indices = list(indices)
         progress = QProgressDialog("Syncing saves...", "Cancel", 0, len(indices), self)
@@ -830,6 +1134,7 @@ class SyncTab(QWidget):
                     "MemCard Pro",
                     "MemCard Pro FTP",
                 }
+                is_openmenu = profile.get("device_type") == "openMenu"
                 save_exists = getattr(st.save, "save_exists", True)
                 if (
                     st.status in ("local_newer", "not_on_server")
@@ -846,6 +1151,9 @@ class SyncTab(QWidget):
                     self._update_row_status(idx, "up_to_date")
                     synced += 1
                 elif st.status == "server_newer" and st.save.path:
+                    if self._local_changed_since_scan(st):
+                        stale += 1
+                        continue
                     if is_saroo:
                         dest_path = self._resolve_download_path(st)
                         if dest_path is None:
@@ -890,7 +1198,11 @@ class SyncTab(QWidget):
                     synced += 1
                 elif st.status == "server_only":
                     dest_path = self._resolve_download_path(st)
-                    if dest_path:
+                    if dest_path and self._local_changed_since_scan(st, dest_path):
+                        # Scan attributed nothing to this title, yet the
+                        # destination is occupied — never blind-write it.
+                        stale += 1
+                    elif dest_path:
                         self._download_to_paths(
                             st.save.title_id,
                             [dest_path],
@@ -909,6 +1221,10 @@ class SyncTab(QWidget):
                             self._finalize_memcard_pro_download(
                                 dest_path, st.save.game_name
                             )
+                        if is_openmenu:
+                            self._finalize_openmenu_download(
+                                dest_path, st.save.game_name
+                            )
                         self._update_row_status(idx, "up_to_date", new_path=dest_path)
                         synced += 1
                     else:
@@ -925,6 +1241,11 @@ class SyncTab(QWidget):
         msg = f"Synced {synced} saves."
         if skipped:
             msg += f"\n{skipped} item(s) skipped (conflicts / unresolvable server-only — use the action buttons)."
+        if stale:
+            msg += (
+                f"\n{stale} item(s) skipped: the local save changed since the last scan. "
+                f"Scan again before syncing them."
+            )
         if errors:
             msg += f"\n\nErrors:\n" + "\n".join(errors)
         QMessageBox.information(self, "Sync Complete", msg)
@@ -942,6 +1263,14 @@ class SyncTab(QWidget):
         if new_path is not None:
             st.save.path = new_path
             st.save.save_exists = True
+        # Record what is on disk now, so the staleness check does not mistake
+        # our own write for an emulator session.
+        try:
+            if st.save.path and Path(st.save.path).is_file():
+                st.save.mtime = Path(st.save.path).stat().st_mtime
+                st.save.save_exists = True
+        except OSError:
+            pass
 
         # Find the table row whose UserRole matches status_idx
         target_row = None
@@ -1034,8 +1363,7 @@ class SyncTab(QWidget):
     def _force_upload(self, status_idx: int):
         """Upload the local save regardless of the current sync status."""
         st = self._statuses[status_idx]
-        save_exists = getattr(st.save, "save_exists", True)
-        if not st.save.path or not save_exists:
+        if not self._has_local_file(st):
             QMessageBox.warning(
                 self, "No Local File", "No local save exists for this row."
             )
@@ -1062,6 +1390,13 @@ class SyncTab(QWidget):
         from sync_engine import finalize_memcard_pro_download
 
         finalize_memcard_pro_download(path, game_name)
+
+    def _finalize_openmenu_download(self, path, game_name: str):
+        """Label a downloaded Serial VMU so openMenu shows the game's name."""
+        from sync_engine import finalize_openmenu_download
+
+        if isinstance(path, Path):
+            finalize_openmenu_download(path, game_name)
 
     def _finalize_saroo_download(
         self, title_id: str, bkr_path: Path, profile: dict
@@ -1149,6 +1484,23 @@ class SyncTab(QWidget):
             return None
 
         device_type = profile.get("device_type", "Generic")
+
+        # MiSTer over SSH: the save lives on the MiSTer itself, no local root.
+        if device_type == "MiSTer":
+            from sync_engine import build_mister_ssh_save_path, mister_profile_uses_ssh
+
+            if mister_profile_uses_ssh(profile):
+                ssh_system = (st.save.system or "").upper()
+                ssh_info = _system_profile_info(profile, ssh_system)
+                ssh_ext = ssh_info.get("save_ext", ".sav") or ".sav"
+                return build_mister_ssh_save_path(
+                    profile,
+                    st.save.title_id,
+                    ssh_system,
+                    st.save.game_name or st.save.title_id,
+                    ssh_ext,
+                )
+
         save_root_str = profile.get("save_folder") or profile.get("path", "")
         if not save_root_str:
             return None
@@ -1215,7 +1567,10 @@ class SyncTab(QWidget):
                 # Title ID is GC_xxxx; reconstruct the DL-DOL-XXXX-USA folder.
                 # We can't know the exact region suffix from the title_id alone,
                 # so we look for an existing matching folder, or default to -USA.
-                gc_code = st.save.title_id[3:].upper()  # e.g. "GBZE"
+                tid = st.save.title_id
+                if not tid.upper().startswith("GC_"):
+                    return None
+                gc_code = tid[3:7].upper()  # e.g. "GBZE"
                 existing = (
                     next(
                         (
@@ -1238,6 +1593,19 @@ class SyncTab(QWidget):
 
         if device_type == "MemCard Pro FTP":
             return build_memcard_pro_ftp_path(profile, st.save.title_id, system)
+
+        if device_type in ("MemCard Pro DC", "openMenu") or (
+            device_type == "MemCard Pro" and system == "DC"
+        ):
+            # Both layouts name the game folder after the disc's Game ID, so a
+            # title the Dreamcast DAT can't resolve returns None and the user
+            # downloads it by hand.
+            from sync_engine import build_dreamcast_vmu_path
+
+            return build_dreamcast_vmu_path(profile, st.save.title_id)
+
+        if device_type == "GDEMU":
+            return None  # ROM-install profile — no save storage on the card
 
         if device_type == "SAROO":
             # For server-only downloads, prefer the mednafen save folder so the
@@ -1477,7 +1845,22 @@ class SyncTab(QWidget):
             # dest_path is already computed from the ROM scan (correct name + location)
             save_exists = getattr(st.save, "save_exists", True)
             dest_paths = [dest_path, *getattr(st.save, "alternate_paths", [])]
-            if st.status == "local_newer":
+            if self._local_changed_since_scan(st, dest_path):
+                # The status was decided against a file that has since been
+                # written (or did not exist). Say so instead of trusting it.
+                reply = QMessageBox.question(
+                    self,
+                    "Local Save Changed Since Scan",
+                    f"The local save for {st.save.game_name} was modified after the "
+                    f"last scan:\n{dest_path}\n\n"
+                    f"It may hold newer progress than the server. Overwrite it anyway?\n"
+                    f"(Scan again to compare the current file.)",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+            elif st.status == "local_newer":
                 reply = QMessageBox.question(
                     self,
                     "Overwrite Newer Local Save",
