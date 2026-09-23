@@ -24,6 +24,13 @@ object EmudeckPaths {
     fun netherSx2Root(emudeckDir: String): File? =
         storageDir(emudeckDir)?.let { File(it, "NetherSX2") }
 
+    /**
+     * EmuDeck only ships NetherSX2, so ARMSX2 has no EmuDeck folder and
+     * resolves against external storage instead.
+     */
+    fun ps2Root(emudeckDir: String, ps2Emulator: Ps2EmulatorChoice): File? =
+        if (ps2Emulator == Ps2EmulatorChoice.AETHERSX2) netherSx2Root(emudeckDir) else null
+
     fun ppssppRoot(emudeckDir: String): File? =
         storageDir(emudeckDir)?.let { File(it, "PPSSPP") }
 

@@ -64,6 +64,7 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
 import java.util.concurrent.TimeUnit
 import com.savesync.android.emulators.impl.AetherSX2Emulator
+import com.savesync.android.emulators.Ps2EmulatorChoice
 
 sealed class SyncState {
     object Idle : SyncState()
@@ -472,6 +473,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     saveDirOverrides = saveDirOverrides,
                     saturnSyncFormat = currentSettings.saturnSyncFormat,
                     segaCdSyncFormat = currentSettings.segaCdSyncFormat,
+                    ps2Emulator = currentSettings.ps2Emulator,
                     beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
                     cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
                 )
@@ -486,6 +488,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     saveDirOverrides = saveDirOverrides,
                     saturnSyncFormat = currentSettings.saturnSyncFormat,
                     segaCdSyncFormat = currentSettings.segaCdSyncFormat,
+                    ps2Emulator = currentSettings.ps2Emulator,
                     beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
                     cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
                 )
@@ -789,6 +792,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     titleInfo,
                                     currentSettings.saveDirOverrides,
                                     currentSettings.emudeckDir,
+                                    currentSettings.ps2Emulator,
                                     canonicalNames
                                 )
                             }
@@ -1131,6 +1135,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         titleInfo: com.savesync.android.api.TitleInfo,
         saveDirOverrides: Map<String, String>,
         emudeckDir: String,
+        ps2Emulator: Ps2EmulatorChoice,
         canonicalNames: Map<String, String> = emptyMap()
     ): SaveEntry? {
         val system = normalizeSystemCode(
@@ -1146,16 +1151,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // configured in Emulator Configuration would be silently ignored
         // for server-only PS2 entries (the Emudeck-based companion call
         // that follows would resolve a different path first).
-        val override = saveDirOverrides[AetherSX2Emulator.EMULATOR_KEY]
+        val override = saveDirOverrides[ps2Emulator.emulatorKey]
             ?.takeIf { it.isNotBlank() }
         val memcardsDir = if (override != null) {
             File(override)
         } else {
-            val ps2Base = EmudeckPaths.netherSx2Root(emudeckDir)
-                ?: Environment.getExternalStorageDirectory()
+            val ps2Root = EmudeckPaths.ps2Root(emudeckDir, ps2Emulator)
+            val ps2Base = ps2Root ?: Environment.getExternalStorageDirectory()
             AetherSX2Emulator.findMemcardsDir(
                 ps2Base,
-                allowNonExistent = emudeckDir.isNotBlank()
+                allowNonExistent = ps2Root != null,
+                variant = ps2Emulator
             ) ?: return null
         }
 
@@ -2028,6 +2034,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         saveDirOverrides = saveDirOverrides,
                         saturnSyncFormat = currentSettings.saturnSyncFormat,
                         segaCdSyncFormat = currentSettings.segaCdSyncFormat,
+                        ps2Emulator = currentSettings.ps2Emulator,
                         beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
                         cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
                     ).also { found ->
@@ -2084,7 +2091,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         saturnSyncFormat: SaturnSyncFormat = SaturnSyncFormat.MEDNAFEN,
         beetleSaturnPerCoreFolder: Boolean = true,
         cdGamesPerContentFolder: Boolean = false,
-        segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX
+        segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
+        ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2
     ) {
         viewModelScope.launch {
             settingsStore.updateSettings(
@@ -2097,7 +2105,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 saturnSyncFormat = saturnSyncFormat,
                 beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
                 cdGamesPerContentFolder = cdGamesPerContentFolder,
-                segaCdSyncFormat = segaCdSyncFormat
+                segaCdSyncFormat = segaCdSyncFormat,
+                ps2Emulator = ps2Emulator
             )
             ApiClient.invalidate()
             scheduleOrCancelAutoSync(autoSync, intervalMinutes)
@@ -2243,6 +2252,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 saveDirOverrides = currentSettings.saveDirOverrides,
                 saturnSyncFormat = currentSettings.saturnSyncFormat,
                 segaCdSyncFormat = currentSettings.segaCdSyncFormat,
+                ps2Emulator = currentSettings.ps2Emulator,
                 beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
                 cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
             )

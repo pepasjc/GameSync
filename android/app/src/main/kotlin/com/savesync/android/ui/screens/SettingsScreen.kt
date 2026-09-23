@@ -60,6 +60,7 @@ import com.savesync.android.api.ApiClient
 import com.savesync.android.emulators.EmudeckPaths
 import com.savesync.android.sync.SaturnSyncFormat
 import com.savesync.android.sync.SegaCdSyncFormat
+import com.savesync.android.emulators.Ps2EmulatorChoice
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.components.FolderPickerDialog
 import kotlinx.coroutines.launch
@@ -87,6 +88,7 @@ fun SettingsScreen(
     var emudeckDir by remember { mutableStateOf("") }
     var saturnSyncFormat by remember { mutableStateOf(SaturnSyncFormat.MEDNAFEN) }
     var segaCdSyncFormat by remember { mutableStateOf(SegaCdSyncFormat.GENESIS_PLUS_GX) }
+    var ps2Emulator by remember { mutableStateOf(Ps2EmulatorChoice.AETHERSX2) }
     var showFolderPicker by remember { mutableStateOf(false) }
     var showEmudeckFolderPicker by remember { mutableStateOf(false) }
     var settingsLoaded by remember { mutableStateOf(false) }
@@ -107,6 +109,7 @@ fun SettingsScreen(
             emudeckDir = settings.emudeckDir
             saturnSyncFormat = settings.saturnSyncFormat
             segaCdSyncFormat = settings.segaCdSyncFormat
+            ps2Emulator = settings.ps2Emulator
             settingsLoaded = true
             // Auto-detect system folders once settings are loaded
             if (settings.romScanDir.isNotBlank() || settings.emudeckDir.isNotBlank()) {
@@ -218,7 +221,8 @@ fun SettingsScreen(
                             saturnSyncFormat = saturnSyncFormat,
                             beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
                             cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
-                            segaCdSyncFormat = segaCdSyncFormat
+                            segaCdSyncFormat = segaCdSyncFormat,
+                            ps2Emulator = ps2Emulator
                         )
                         savedConfirmation = true
                     },
@@ -438,6 +442,42 @@ fun SettingsScreen(
                             onClick = {
                                 segaCdSyncFormat = format
                                 segaCdFormatExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            var ps2EmulatorExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = ps2EmulatorExpanded,
+                onExpandedChange = { ps2EmulatorExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = ps2Emulator.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("PS2 Emulator") },
+                    supportingText = {
+                        Text("Which emulator's memcards folder PS2 saves are read from and downloaded to.")
+                    },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(ps2EmulatorExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = ps2EmulatorExpanded,
+                    onDismissRequest = { ps2EmulatorExpanded = false }
+                ) {
+                    Ps2EmulatorChoice.values().forEach { choice ->
+                        DropdownMenuItem(
+                            text = { Text(choice.label) },
+                            onClick = {
+                                ps2Emulator = choice
+                                ps2EmulatorExpanded = false
                             }
                         )
                     }
@@ -783,7 +823,8 @@ fun SettingsScreen(
                     saturnSyncFormat = saturnSyncFormat,
                     beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
                     cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
-                    segaCdSyncFormat = segaCdSyncFormat
+                    segaCdSyncFormat = segaCdSyncFormat,
+                    ps2Emulator = ps2Emulator
                 )
             }
         )
@@ -806,7 +847,8 @@ fun SettingsScreen(
                     saturnSyncFormat = saturnSyncFormat,
                     beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
                     cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
-                    segaCdSyncFormat = segaCdSyncFormat
+                    segaCdSyncFormat = segaCdSyncFormat,
+                    ps2Emulator = ps2Emulator
                 )
             }
         )

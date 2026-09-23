@@ -38,11 +38,12 @@ class SaveDirOverrideTest {
             MgbaEmulator.EMULATOR_KEY,
             DolphinEmulator.EMULATOR_KEY,
             AetherSX2Emulator.EMULATOR_KEY,
+            AetherSX2Emulator.ARMSX2_EMULATOR_KEY,
             AzaharEmulator.EMULATOR_KEY,
             CemuEmulator.EMULATOR_KEY,
         )
         // No duplicates means each constant is unique
-        assertEquals(10, keys.size)
+        assertEquals(11, keys.size)
         // No blanks, all distinct identifiers
         assertTrue(keys.all { it.isNotBlank() })
     }
@@ -58,6 +59,7 @@ class SaveDirOverrideTest {
             MgbaEmulator.EMULATOR_KEY,
             DolphinEmulator.EMULATOR_KEY,
             AetherSX2Emulator.EMULATOR_KEY,
+            AetherSX2Emulator.ARMSX2_EMULATOR_KEY,
             AzaharEmulator.EMULATOR_KEY,
             CemuEmulator.EMULATOR_KEY,
         )
