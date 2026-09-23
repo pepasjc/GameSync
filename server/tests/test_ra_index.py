@@ -232,7 +232,7 @@ def test_a_cached_title_match_is_reread_when_the_system_gains_a_reader(db, tmp_p
     stat = rom.stat()
     entry = _Entry(rom, system="PS1")
 
-    title_cached = {str(rom): (stat.st_size, stat.st_mtime, ra_index.MATCH_TITLE)}
+    title_cached = {str(rom): (stat.st_size, stat.st_mtime, ra_index.MATCH_TITLE, "")}
     assert _disc_stat(entry, title_cached, None) is not None
 
     hash_cached = {str(rom): (stat.st_size, stat.st_mtime, ra_index.MATCH_HASH)}
@@ -427,3 +427,46 @@ def test_archive_misses_from_the_old_rule_are_forgotten_once(db, tmp_path):
     conn.commit()
     ra_index._forget_archive_hashes(conn)
     assert conn.execute("SELECT count(*) FROM ra_roms WHERE path = 'snes/c.zip'").fetchone()[0] == 1
+
+
+def test_a_disc_read_but_matched_by_title_is_not_read_again(db, tmp_path):
+    from app.services.ra_index import DISC_READ, _disc_stat
+
+    rom = tmp_path / "game.chd"
+    rom.write_bytes(b"\x00" * 64)
+    stat = rom.stat()
+    entry = _Entry(rom, system="PS1")
+    for md5 in (DISC_READ, "0" * 32):
+        cached = {str(rom): (stat.st_size, stat.st_mtime, ra_index.MATCH_TITLE, md5)}
+        assert _disc_stat(entry, cached, None) is None
+
+
+def test_title_fallback_row_remembers_the_disc_was_read(db, tmp_path, monkeypatch):
+    rom = tmp_path / "game.chd"
+    rom.write_bytes(b"\x00" * 64)
+    reads = []
+    monkeypatch.setattr(ra_index, "hash_disc_file",
+                        lambda path, system: reads.append(path) or "ab" * 16)
+    monkeypatch.setattr(ra_index, "fetch_library",
+                        lambda cid, **kw: RaLibrary(cid, {}, {5: "Game"}, achievements={5: 3}))
+    entry = _Entry(rom, system="PS1")
+    entry.name = "Game"
+    ra_index.refresh([entry], tmp_path / "cache")
+    row = rom_db.connection().execute(
+        "SELECT md5, match_kind, game_id FROM ra_roms WHERE path = ?", (str(rom),)).fetchone()
+    assert (row["match_kind"], row["game_id"]) == (ra_index.MATCH_TITLE, 5)
+    assert row["md5"]                                   # read: not re-read next pass
+    assert "ra_hash" not in ra_index.lookup([str(rom)])[str(rom)]   # not advertised as exact
+    # A second pass has nothing to read.
+    ra_index.refresh([entry], tmp_path / "cache")
+    assert len(reads) == 1
+
+
+def test_old_title_rows_are_marked_read_once(db):
+    conn = rom_db.connection()
+    conn.execute("DELETE FROM ra_meta WHERE key = 'disc_rule'")
+    conn.execute("INSERT OR REPLACE INTO ra_roms (path, size, mtime, md5, game_id, match_kind) "
+                 "VALUES ('ps1/a.chd', 1, 1, '', 5, 'title')")
+    conn.commit()
+    ra_index._mark_title_discs_read(conn)
+    assert conn.execute("SELECT md5 FROM ra_roms WHERE path = 'ps1/a.chd'").fetchone()[0] == ra_index.DISC_READ

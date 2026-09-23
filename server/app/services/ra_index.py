@@ -65,6 +65,11 @@ ACHIEVEMENTS_UNKNOWN = -1
 MATCH_HASH = "hash"
 MATCH_TITLE = "title"
 
+#: ``md5`` of a title-match disc row whose image was read but gave no hash
+#: (unreadable, or not a layout the reader knows).  Distinguishes "read,
+#: nothing exact" from "never read", which is re-read.
+DISC_READ = "-"
+
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS ra_roms (
     path         TEXT PRIMARY KEY,
@@ -103,11 +108,34 @@ def _conn():
         conn.execute("ALTER TABLE ra_roms ADD COLUMN match_kind TEXT NOT NULL DEFAULT 'hash'")
         conn.commit()
     _forget_archive_hashes(conn)
+    _mark_title_discs_read(conn)
     return conn
 
 
 #: Bump to re-hash zipped ROMs cached by an older hashing rule.
 _ARCHIVE_RULE = 1
+
+
+#: Bump when title-match disc rows must be treated as unread again.
+_DISC_RULE = 1
+
+
+def _mark_title_discs_read(conn) -> None:
+    """Stop the re-read loop left by rows written before :data:`DISC_READ`.
+
+    Those rows dropped the disc hash when falling back to a title match,
+    so every pass took them for never-read discs and read them again -
+    thousands of CHDs, each time.  Every such row has been through the
+    reader already, so they are marked read once.
+    """
+    conn.execute("CREATE TABLE IF NOT EXISTS ra_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL)")
+    row = conn.execute("SELECT value FROM ra_meta WHERE key = 'disc_rule'").fetchone()
+    if row is not None and row[0] >= _DISC_RULE:
+        return
+    conn.execute("UPDATE ra_roms SET md5 = ? WHERE match_kind = ? AND md5 = ''",
+                 (DISC_READ, MATCH_TITLE))
+    conn.execute("INSERT OR REPLACE INTO ra_meta (key, value) VALUES ('disc_rule', ?)", (_DISC_RULE,))
+    conn.commit()
 
 
 def _forget_archive_hashes(conn) -> None:
@@ -163,7 +191,7 @@ def lookup(paths: Iterable[str]) -> dict[str, dict]:
                 "ra_title": row["title"],
                 "ra_match": row["match_kind"] or MATCH_HASH,
             }
-            if row["md5"]:
+            if row["md5"] and row["match_kind"] != MATCH_TITLE:
                 data["ra_hash"] = row["md5"]
             out[row["path"]] = data
     return out
@@ -213,10 +241,10 @@ def stats() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
-def _cached_paths(conn) -> dict[str, tuple[int, float, str]]:
-    """``path -> (size, mtime, match_kind)`` for everything already indexed."""
-    rows = conn.execute("SELECT path, size, mtime, match_kind FROM ra_roms").fetchall()
-    return {r["path"]: (r["size"], r["mtime"], r["match_kind"] or MATCH_HASH)
+def _cached_paths(conn) -> dict[str, tuple[int, float, str, str]]:
+    """``path -> (size, mtime, match_kind, md5)`` for everything already indexed."""
+    rows = conn.execute("SELECT path, size, mtime, match_kind, md5 FROM ra_roms").fetchall()
+    return {r["path"]: (r["size"], r["mtime"], r["match_kind"] or MATCH_HASH, r["md5"] or "")
             for r in rows}
 
 
@@ -306,11 +334,12 @@ def _needs_hash(
 def _disc_stat(entry, cached, rom_dir) -> Optional[tuple[int, float]]:
     """``(size, mtime)`` when a disc image needs reading, else None.
 
-    Same freshness rule as a cartridge, plus one more: a row cached as a
-    *title* match predates this system gaining a reader, so it is read
-    again to see whether it can be identified exactly now.  Without that,
-    a library indexed before the reader existed would keep the weaker
-    badge forever.
+    Same freshness rule as a cartridge, plus one more: a title-match row
+    that was never read (no ``md5`` - it predates this system gaining a
+    reader) is read again to see whether it can be identified exactly now.
+    Without that, a library indexed before the reader existed would keep
+    the weaker badge forever.  A disc that *was* read and only matched by
+    title keeps a marker instead, so it is not re-read on every pass.
     """
     path = getattr(entry, "path", "")
     if not path:
@@ -320,7 +349,9 @@ def _disc_stat(entry, cached, rom_dir) -> Optional[tuple[int, float]]:
     except OSError:
         return None
     previous = cached.get(path)
-    if previous is None or previous[2] == MATCH_TITLE:
+    never_read = previous is not None and previous[2] == MATCH_TITLE and not (
+        previous[3] if len(previous) > 3 else "")
+    if previous is None or never_read:
         return stat.st_size, stat.st_mtime
     if previous[0] == stat.st_size and abs(previous[1] - stat.st_mtime) < 1:
         return None
@@ -505,7 +536,8 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
         if should_stop and should_stop():
             break
         name = getattr(entry, "name", "") or Path(entry.path).name
-        md5 = hash_disc_file(resolve_path(entry.path, rom_dir), entry.system)
+        disc_md5 = hash_disc_file(resolve_path(entry.path, rom_dir), entry.system)
+        md5 = disc_md5
         game_id = achievements = 0
         title = ""
         kind = MATCH_HASH
@@ -514,7 +546,8 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
         if not game_id:
             game_id, achievements, title = libraries.find_by_title(name, entry.system)
             kind = MATCH_TITLE
-            md5 = ""
+            # Remember the disc was read, so it is not read again next pass.
+            md5 = disc_md5 or DISC_READ
         if game_id and kind == MATCH_HASH:
             disc_hashed += 1
         batch.append((entry.path, size, mtime, md5 or "", game_id, achievements,
