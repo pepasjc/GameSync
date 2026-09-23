@@ -241,10 +241,11 @@ def stats() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
-def _cached_paths(conn) -> dict[str, tuple[int, float, str, str]]:
-    """``path -> (size, mtime, match_kind, md5)`` for everything already indexed."""
-    rows = conn.execute("SELECT path, size, mtime, match_kind, md5 FROM ra_roms").fetchall()
-    return {r["path"]: (r["size"], r["mtime"], r["match_kind"] or MATCH_HASH, r["md5"] or "")
+def _cached_paths(conn) -> dict[str, tuple[int, float, str, str, int]]:
+    """``path -> (size, mtime, match_kind, md5, game_id)`` for everything indexed."""
+    rows = conn.execute("SELECT path, size, mtime, match_kind, md5, game_id FROM ra_roms").fetchall()
+    return {r["path"]: (r["size"], r["mtime"], r["match_kind"] or MATCH_HASH, r["md5"] or "",
+                        r["game_id"] or 0)
             for r in rows}
 
 
@@ -454,25 +455,31 @@ def refresh(
 
 def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
              rom_dir=None) -> dict[str, int]:
+    global _generation
     conn = _conn()
     cached = _cached_paths(conn)
 
     todo = []
     by_title = []
     by_disc = []
+    retitle = []      # cached title matches: re-matched by name, no file read
     for entry in entries:
         system = getattr(entry, "system", "")
+        path = getattr(entry, "path", "")
         if disc_hash_supported(system) and not getattr(entry, "is_bundle", False):
             stat = _disc_stat(entry, cached, rom_dir)
             if stat is not None:
                 by_disc.append((entry, stat))
+            elif path in cached and cached[path][2] == MATCH_TITLE:
+                retitle.append(entry)
             continue
         if ra_title_match_only(system):
             # No file is read for these: the name is the whole input, so a
             # path already in the cache has nothing new to say.
-            path = getattr(entry, "path", "")
             if path and path not in cached and not getattr(entry, "is_bundle", False):
                 by_title.append(entry)
+            elif path in cached:
+                retitle.append(entry)
             continue
         stat = _needs_hash(entry, cached, rom_dir)
         if stat is not None:
@@ -492,7 +499,7 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
                 )
             conn.commit()
 
-    if not todo and not by_title and not by_disc:
+    if not todo and not by_title and not by_disc and not retitle:
         return {"hashed": 0, "known": 0, "titled": 0,
                 "skipped": len(cached), "removed": len(gone)}
 
@@ -574,13 +581,33 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
             batch = []
     _flush(conn, batch)
 
+    # Cached title matches are re-matched every pass: it costs no file read,
+    # and a smarter matcher (or a game RA added since) then reaches rows
+    # that were cached as unknown.  Only rows whose answer changed are written.
+    rematched = 0
+    updates = []
+    for entry in retitle:
+        name = getattr(entry, "name", "") or Path(entry.path).name
+        game_id, achievements, title = libraries.find_by_title(name, entry.system)
+        if game_id != cached[entry.path][4]:
+            updates.append((game_id, achievements, title, now, entry.path))
+    if updates:
+        _generation += 1
+        with _lock:
+            conn.executemany(
+                "UPDATE ra_roms SET game_id = ?, achievements = ?, title = ?, checked_at = ? "
+                "WHERE path = ?", updates)
+            conn.commit()
+        rematched = len(updates)
+        logger.info("[ra_index] %d title match(es) updated", rematched)
+
     logger.info(
         "[ra_index] done: %d hashed (%d known), %d disc(s) identified exactly, "
         "%d matched by title",
         hashed, known, disc_hashed, titled,
     )
     return {"hashed": hashed, "known": known, "titled": titled,
-            "disc_hashed": disc_hashed,
+            "disc_hashed": disc_hashed, "rematched": rematched,
             "skipped": len(cached), "removed": len(gone)}
 
 

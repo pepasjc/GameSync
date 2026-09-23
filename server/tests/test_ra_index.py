@@ -470,3 +470,22 @@ def test_old_title_rows_are_marked_read_once(db):
     conn.commit()
     ra_index._mark_title_discs_read(conn)
     assert conn.execute("SELECT md5 FROM ra_roms WHERE path = 'ps1/a.chd'").fetchone()[0] == ra_index.DISC_READ
+
+
+def test_cached_title_miss_is_rematched_when_the_matcher_improves(db, tmp_path, monkeypatch):
+    rom = tmp_path / "Super Mario Sunshine (USA).rvz"
+    rom.write_bytes(b"x")
+    entry = _Entry(rom, system="GC")
+    entry.name = "Super Mario Sunshine (USA)"
+    conn = rom_db.connection()
+    conn.execute("INSERT INTO ra_roms (path, size, mtime, md5, game_id, match_kind) "
+                 "VALUES (?, 0, 0, '', 0, 'title')", (str(rom),))
+    conn.commit()
+    monkeypatch.setattr(ra_index, "fetch_library", lambda cid, **kw: RaLibrary(
+        cid, {}, {6049: "Super Mario Sunshine", 28562: "Super Mario Sunshine [Subset - Bonus]"},
+        achievements={6049: 148, 28562: 75}))
+    result = ra_index.refresh([entry], tmp_path / "cache")
+    assert result["rematched"] == 1
+    assert ra_index.lookup([str(rom)])[str(rom)]["ra_game_id"] == 6049
+    # Nothing changes on the next pass, so nothing is written.
+    assert ra_index.refresh([entry], tmp_path / "cache")["rematched"] == 0

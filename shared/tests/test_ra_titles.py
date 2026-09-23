@@ -128,3 +128,24 @@ def test_build_index_marks_unknown_counts_as_minus_one():
 
 def test_build_index_over_an_empty_library():
     assert len(build_index(RaLibrary(12))) == 0
+
+
+def test_subsets_do_not_erase_the_base_game():
+    index = TitleIndex([
+        (6049, "Super Mario Sunshine", 148),
+        (28562, "Super Mario Sunshine [Subset - Bonus]", 75),
+        (28560, "Super Mario Sunshine [Subset - Hoverless]", 53),
+    ])
+    assert index.lookup("Super Mario Sunshine (USA)") == (6049, 148)
+
+
+def test_retail_entry_outranks_a_tagged_one_of_the_same_name():
+    index = TitleIndex([(2, "~Hack~ Star Fox", 10), (1, "Star Fox", 40)])
+    assert index.lookup("Star Fox (USA)") == (1, 40)
+    index = TitleIndex([(1, "Star Fox", 40), (2, "~Hack~ Star Fox", 10)])
+    assert index.lookup("Star Fox (USA)") == (1, 40)
+
+
+def test_two_retail_games_with_one_name_stay_ambiguous():
+    index = TitleIndex([(1, "Tetris", 10), (2, "Tetris", 20)])
+    assert index.lookup("Tetris") is None

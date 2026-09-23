@@ -99,14 +99,28 @@ class TitleIndex:
 
     def __init__(self, games: Iterable[tuple[int, str, int]]):
         seen: dict[str, tuple[int, int]] = {}
+        tagged: dict[str, bool] = {}      # key -> the entry holding it is ~Tagged~
         clashed: set[str] = set()
         for game_id, title, achievements in games:
+            # A subset ("Super Mario Sunshine [Subset - Bonus]") is an extra
+            # set for the same disc, never the disc itself; indexing it
+            # would clash with - and so erase - the base game's key.
+            if "[subset" in title.lower():
+                continue
+            is_tagged = bool(_RA_TAG_RE.match(title))
             for key in title_variants(title):
                 existing = seen.get(key)
                 if existing is None:
                     seen[key] = (game_id, achievements)
+                    tagged[key] = is_tagged
                 elif existing[0] != game_id:
-                    clashed.add(key)
+                    # The plain retail entry outranks a ~Hack~/~Demo~ that
+                    # shares its name; two of a kind are truly ambiguous.
+                    if tagged[key] and not is_tagged:
+                        seen[key] = (game_id, achievements)
+                        tagged[key] = False
+                    elif tagged[key] == is_tagged:
+                        clashed.add(key)
         for key in clashed:
             seen.pop(key, None)
         self._by_title = seen
