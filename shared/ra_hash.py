@@ -383,8 +383,68 @@ def ra_hash_bytes(data: bytes, system: str, filename: str = "") -> RaHash:
     return ra_hash_stream(io.BytesIO(data), system, filename)
 
 
+#: Archive members that are never the ROM: scans, readmes, saves.
+_ARCHIVE_JUNK = frozenset({
+    ".txt", ".nfo", ".diz", ".doc", ".pdf", ".htm", ".html", ".url", ".xml",
+    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".sav", ".srm", ".sfv", ".md5",
+})
+
+
+def pick_archive_member(members: list[tuple[str, int]]) -> str | None:
+    """The ROM inside an archive, given ``(name, size)`` for each file.
+
+    A frontend loading a zipped ROM (RetroArch, the MiSTer menu) loads the
+    ROM file inside it, and that is what RetroAchievements hashes - never
+    the archive.  Readmes and scans are ignored; of what is left, the
+    largest file wins (a set with a tiny bonus file still resolves to the
+    game).
+    """
+    candidates = [(n, size) for n, size in members
+                  if not n.endswith("/") and PurePath(n).suffix.lower() not in _ARCHIVE_JUNK]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda m: m[1])[0]
+
+
+def _hash_archive(p, sysc: str) -> RaHash:
+    import zipfile
+
+    if p.suffix.lower() == ".7z":
+        try:
+            import py7zr  # optional: not every install has it
+        except ImportError:
+            return RaHash(None, ".7z archives need py7zr")
+        import io
+        import tempfile
+
+        with py7zr.SevenZipFile(p, "r") as sz:
+            infos = [(i.filename, i.uncompressed or 0) for i in sz.list() if not i.is_directory]
+            member = pick_archive_member(infos)
+            if member is None:
+                return RaHash(None, "no ROM in archive")
+            with tempfile.TemporaryDirectory() as tmp:
+                sz.extract(path=tmp, targets=[member])
+                with open(PurePath(tmp, member), "rb") as fh:
+                    return ra_hash_stream(io.BufferedReader(fh), sysc, member)
+    try:
+        with zipfile.ZipFile(p) as zf:
+            infos = [(i.filename, i.file_size) for i in zf.infolist() if not i.is_dir()]
+            member = pick_archive_member(infos)
+            if member is None:
+                return RaHash(None, "no ROM in archive")
+            with zf.open(member) as fh:   # seekable, which N64/DS need
+                return ra_hash_stream(fh, sysc, member)
+    except zipfile.BadZipFile as exc:
+        return RaHash(None, f"bad zip: {exc}")
+
+
 def ra_hash_file(path, system: str) -> RaHash:
-    """Hash a ROM on disk.  ``path`` may be ``str`` or ``Path``."""
+    """Hash a ROM on disk.  ``path`` may be ``str`` or ``Path``.
+
+    A ``.zip`` (or ``.7z``, when py7zr is available) is opened and the ROM
+    inside it hashed - except for arcade sets, where the zip *is* the
+    romset and its name is the identity.
+    """
     from pathlib import Path
 
     p = Path(path)
@@ -393,6 +453,8 @@ def ra_hash_file(path, system: str) -> RaHash:
         # No need to open the file: the name is the identity.
         return ra_hash_stream(None, sysc, str(p))  # type: ignore[arg-type]
     try:
+        if p.suffix.lower() in (".zip", ".7z") and sysc in RA_CONSOLE_IDS:
+            return _hash_archive(p, sysc)
         with open(p, "rb") as fh:
             return ra_hash_stream(fh, sysc, str(p))
     except OSError as exc:

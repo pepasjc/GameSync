@@ -260,3 +260,52 @@ def test_ra_hash_file_missing_file_is_an_error(tmp_path):
     result = ra_hash_file(tmp_path / "missing.gba", "GBA")
     assert not result.ok
     assert result.reason
+
+
+# --- archives ------------------------------------------------------------------
+
+
+def _zip(tmp_path, members, name="game.zip"):
+    import zipfile
+
+    p = tmp_path / name
+    with zipfile.ZipFile(p, "w", zipfile.ZIP_DEFLATED) as zf:
+        for n, data in members.items():
+            zf.writestr(n, data)
+    return p
+
+
+def test_zipped_rom_hashes_the_rom_inside_not_the_archive(tmp_path):
+    body = b"\x24" * 0x40000
+    p = _zip(tmp_path, {"1943 Kai (Japan).pce": body})
+    assert ra_hash_file(p, "PCE").md5 == md5(body)
+
+
+def test_zipped_rom_keeps_the_system_rule(tmp_path):
+    body = b"\x11" * 0x8000
+    p = _zip(tmp_path, {"game.nes": b"NES\x1a" + b"\x00" * 12 + body})
+    assert ra_hash_file(p, "NES").md5 == md5(body)
+
+
+def test_zipped_n64_rom_is_byteswapped_through_the_archive(tmp_path):
+    z64 = b"\x80\x37\x12\x40" + bytes(range(256)) * 16
+    v64 = bytearray(z64)
+    v64[0::2], v64[1::2] = z64[1::2], z64[0::2]
+    p = _zip(tmp_path, {"game.v64": bytes(v64)})
+    assert ra_hash_file(p, "N64").md5 == md5(z64)
+
+
+def test_archive_readmes_and_scans_are_ignored(tmp_path):
+    body = b"\x33" * 0x2000
+    p = _zip(tmp_path, {"readme.txt": b"x" * 0x10000, "box.jpg": b"y" * 0x10000, "game.sg": body})
+    assert ra_hash_file(p, "SG1000").md5 == md5(body)
+
+
+def test_archive_with_no_rom_reports_why(tmp_path):
+    p = _zip(tmp_path, {"readme.txt": b"hello"})
+    assert ra_hash_file(p, "PCE").md5 is None
+
+
+def test_arcade_zip_still_hashes_by_name(tmp_path):
+    p = _zip(tmp_path, {"a.bin": b"\x00" * 16}, name="sf2.zip")
+    assert ra_hash_file(p, "MAME").md5 == md5(b"sf2")

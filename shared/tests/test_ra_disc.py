@@ -203,7 +203,7 @@ def test_missing_executable_raises():
 
 
 def test_readable_disc_systems():
-    for system in ("PS1", "ps1", "PS2", "PSP", "SAT", "SEGACD", "PCECD"):
+    for system in ("PS1", "ps1", "PS2", "PSP", "SAT", "SEGACD", "PCECD", "PCFX", "pcfx"):
         assert disc_hash_supported(system), system
     assert not disc_hash_supported("SNES")      # a cartridge, hashed elsewhere
     assert not disc_hash_supported("DC")        # GD-ROM: not implemented
@@ -373,3 +373,98 @@ def test_pce_cd_without_a_data_track_is_rejected():
     from shared.ra_disc import DiscError
     with pytest.raises(DiscError):
         hash_pce_cd(FakeCd([(1, "AUDIO", 150, 0, "MODE1")]))
+
+
+# --- PC-FX ----------------------------------------------------------------------
+
+from shared.ra_disc import hash_pcfx  # noqa: E402
+
+
+def _pcfx_header(start: int, count: int, title: bytes = b"MY PC-FX GAME") -> bytes:
+    """Sector 1 of a PC-FX track: title at 0, then LE program sector / count."""
+    head = bytearray(2048)
+    head[0:len(title)] = title
+    head[32:36] = start.to_bytes(4, "little")
+    head[36:40] = count.to_bytes(4, "little")
+    head[40:128] = bytes(range(88))                  # load address etc. - hashed too
+    head[200:210] = b"not hashed"                    # beyond the 128 bytes RA reads
+    return bytes(head)
+
+
+def _pcfx_disc(cd, number, start, count, program):
+    base = next(t["start"] for t in cd_tracks(cd) if t["number"] == number)
+    cd.put(base, b"PC-FX:Hu_CD-ROM " + b"\x00" * 16)
+    head = _pcfx_header(start, count)
+    cd.put(base + 1, head)
+    cd.put(base + start, program)
+    return hashlib.md5(head[:128] + program).hexdigest()
+
+
+def test_pcfx_hashes_128_header_bytes_then_the_program():
+    cd = FakeCd([(1, "AUDIO", 150, 0, "MODE1"), (2, "MODE1_RAW", 3000, 0, "MODE1")])
+    program = b"\x11" * 2048 + b"\x22" * 2048 + b"\x33" * 2048
+    expected = _pcfx_disc(cd, 2, 20, 3, program)
+    assert hash_pcfx(cd) == expected
+
+
+def test_pcfx_program_fields_are_little_endian_24_bit():
+    cd = FakeCd([(1, "MODE1_RAW", 0x20000, 0, "MODE1")])
+    program = b"\x5A" * 2048
+    # 0x010005 read little-endian: a big-endian reading would land elsewhere.
+    expected = _pcfx_disc(cd, 1, 0x010005, 1, program)
+    assert hash_pcfx(cd) == expected
+
+
+def test_pcfx_prefers_the_largest_data_track():
+    cd = FakeCd([(1, "AUDIO", 150, 0, "MODE1"), (2, "MODE1_RAW", 100, 0, "MODE1"),
+                 (3, "MODE1_RAW", 5000, 0, "MODE1")])
+    _pcfx_disc(cd, 2, 4, 1, b"\x01" * 2048)          # decoy on the small track
+    expected = _pcfx_disc(cd, 3, 8, 1, b"\x02" * 2048)
+    assert hash_pcfx(cd) == expected
+
+
+def test_pcfx_falls_back_to_track_2():
+    cd = FakeCd([(1, "AUDIO", 150, 0, "MODE1"), (2, "MODE1_RAW", 100, 0, "MODE1"),
+                 (3, "MODE1_RAW", 5000, 0, "MODE1")])
+    expected = _pcfx_disc(cd, 2, 4, 1, b"\x01" * 2048)
+    assert hash_pcfx(cd) == expected
+
+
+def test_pcfx_disc_identifying_as_pc_engine_uses_the_pce_rule():
+    cd = FakeCd([(1, "AUDIO", 150, 0, "MODE1"), (2, "MODE1_RAW", 1000, 0, "MODE1")])
+    base = cd_tracks(cd)[1]["start"]
+    head = bytearray(2048)
+    head[0:3] = (5).to_bytes(3, "big")
+    head[3] = 1
+    head[32:55] = b"PC Engine CD-ROM SYSTEM"
+    head[106:128] = b"PCE TITLE             "
+    cd.put(base + 1, bytes(head))
+    cd.put(base + 5, b"\xCC" * 2048)
+    assert hash_pcfx(cd) == hashlib.md5(bytes(head[106:128]) + b"\xCC" * 2048).hexdigest()
+
+
+def test_pcfx_without_a_marker_is_rejected():
+    import pytest
+    from shared.ra_disc import DiscError
+    cd = FakeCd([(1, "AUDIO", 150, 0, "MODE1"), (2, "MODE1_RAW", 1000, 0, "MODE1")])
+    with pytest.raises(DiscError):
+        hash_pcfx(cd)
+    with pytest.raises(DiscError):
+        hash_pcfx(FakeCd([(1, "AUDIO", 150, 0, "MODE1")]))
+
+
+def test_pcfx_program_past_the_track_end_repeats_the_last_sector():
+    """RA reads each track from its own file: past the end, the buffer is stale.
+
+    The next track's data - which in a CHD sits right after - is never hashed.
+    """
+    cd = FakeCd([(1, "AUDIO", 150, 0, "MODE1"), (2, "MODE1_RAW", 4, 0, "MODE1"),
+                 (3, "MODE1_RAW", 2, 0, "MODE1")])
+    base2, base3 = cd_tracks(cd)[1]["start"], cd_tracks(cd)[2]["start"]
+    cd.put(base2, b"PC-FX:Hu_CD-ROM " + bytes(16))
+    head = _pcfx_header(2, 4)                        # sectors 2..5 of a 4-sector track
+    cd.put(base2 + 1, head)
+    cd.put(base2 + 2, b"\x01" * 2048 + b"\x02" * 2048)
+    cd.put(base3, b"\xEE" * 4096)                    # must not leak into the hash
+    expected = hashlib.md5(head[:128] + b"\x01" * 2048 + b"\x02" * 2048 * 3).hexdigest()
+    assert hash_pcfx(cd) == expected

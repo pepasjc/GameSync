@@ -102,7 +102,32 @@ def _conn():
     if "match_kind" not in columns:
         conn.execute("ALTER TABLE ra_roms ADD COLUMN match_kind TEXT NOT NULL DEFAULT 'hash'")
         conn.commit()
+    _forget_archive_hashes(conn)
     return conn
+
+
+#: Bump to re-hash zipped ROMs cached by an older hashing rule.
+_ARCHIVE_RULE = 1
+
+
+def _forget_archive_hashes(conn) -> None:
+    """Drop cached misses for zipped ROMs hashed before archives were opened.
+
+    Those rows hold the MD5 of the *archive*, which RA never recognises, and
+    the (size, mtime) cache would keep them forever.  Only misses go: a zip
+    that did match (an MSU pack, hashed through its cartridge) was right.
+    """
+    conn.execute("CREATE TABLE IF NOT EXISTS ra_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL)")
+    row = conn.execute("SELECT value FROM ra_meta WHERE key = 'archive_rule'").fetchone()
+    if row is not None and row[0] >= _ARCHIVE_RULE:
+        return
+    conn.execute(
+        "DELETE FROM ra_roms WHERE game_id = 0 AND match_kind = ? "
+        "AND (lower(path) LIKE '%.zip' OR lower(path) LIKE '%.7z')",
+        (MATCH_HASH,),
+    )
+    conn.execute("INSERT OR REPLACE INTO ra_meta (key, value) VALUES ('archive_rule', ?)", (_ARCHIVE_RULE,))
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------

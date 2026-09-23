@@ -399,3 +399,31 @@ def test_an_ordinary_bundle_is_still_skipped(db, library, tmp_path):
     entry = _Entry(folder, is_bundle=True)
     entry.bundle_kind = ""
     assert ra_index.refresh([entry], tmp_path / "cache")["hashed"] == 0
+
+
+def test_zipped_rom_is_matched_through_its_member(db, library, tmp_path):
+    import zipfile
+
+    rom = tmp_path / "game.zip"
+    with zipfile.ZipFile(rom, "w") as zf:
+        zf.writestr("game.sfc", ROM_BYTES)
+    ra_index.refresh([_Entry(rom)], tmp_path / "cache")
+    assert ra_index.lookup([str(rom)])[str(rom)]["ra_game_id"] == 42
+
+
+def test_archive_misses_from_the_old_rule_are_forgotten_once(db, tmp_path):
+    conn = rom_db.connection()
+    conn.execute("DELETE FROM ra_meta")
+    rows = [("snes/a.zip", 0), ("snes/pack.zip", 9), ("snes/b.sfc", 0)]
+    for path, gid in rows:
+        conn.execute("INSERT OR REPLACE INTO ra_roms (path, size, mtime, game_id) VALUES (?, 1, 1, ?)",
+                     (path, gid))
+    conn.commit()
+    ra_index._forget_archive_hashes(conn)
+    left = {r[0] for r in conn.execute("SELECT path FROM ra_roms")}
+    assert left == {"snes/pack.zip", "snes/b.sfc"}
+    # Second run is a no-op: a fresh miss stays cached.
+    conn.execute("INSERT INTO ra_roms (path, size, mtime, game_id) VALUES ('snes/c.zip', 1, 1, 0)")
+    conn.commit()
+    ra_index._forget_archive_hashes(conn)
+    assert conn.execute("SELECT count(*) FROM ra_roms WHERE path = 'snes/c.zip'").fetchone()[0] == 1

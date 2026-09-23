@@ -8,8 +8,10 @@ CHD (:mod:`shared.chd`) and hashes what RetroAchievements hashes.
 Implemented: PlayStation and PS2 (``SYSTEM.CNF`` names the boot
 executable; the hash is that name followed by the executable), PSP
 (``PARAM.SFO`` then ``EBOOT.BIN``), Sega CD and Saturn (the 512-byte volume
-and ROM header at sector 0) and PC Engine CD (the title and boot program
-named by the header sector of the first data track).  The ISO9660 walk underneath
+and ROM header at sector 0), PC Engine CD (the title and boot program
+named by the header sector of the first data track) and PC-FX (the
+128-byte program header and the program it names, on the largest data
+track).  The ISO9660 walk underneath
 is system-agnostic and reads both CD images and DVD-type (UMD) CHDs, so
 the other disc systems are additions rather than rewrites.
 
@@ -121,6 +123,7 @@ def cd_tracks(chd: ChdFile) -> list[dict]:
             "number": int(fields.get("TRACK", "0")),
             "type": fields.get("TYPE", "").upper(),
             "start": offset + stored_pregap,
+            "sectors": frames - stored_pregap,
         })
         offset += frames + (-frames % _TRACK_PADDING)
     tracks.sort(key=lambda t: t["number"])
@@ -333,6 +336,42 @@ def hash_sega(chd: ChdFile) -> str:
 # ---------------------------------------------------------------------------
 
 
+_PCE_MARKER = b"PC Engine CD-ROM SYSTEM"
+_PCFX_MARKER = b"PC-FX:Hu_CD-ROM"
+
+
+def _offset_candidates(track: dict) -> list[int]:
+    """User-data offsets to try for ``track``: its mode's first, then the rest."""
+    offset = _MODE_OFFSETS.get(track["type"])
+    return ([offset] if offset is not None else []) + [o for o in (16, 0, 24) if o != offset]
+
+
+def _hash_sectors(md5, track: DataTrack, start: int, count: int,
+                  track_sectors: Optional[int] = None) -> None:
+    """Feed ``count`` whole sectors from ``start`` into ``md5``.
+
+    With ``track_sectors`` given, a sector past the end of the track is not
+    read from whatever follows it in the CHD: rcheevos reads each track of
+    a (Redump, one file per track) dump from its own file, where a read past
+    the end fails and the previous sector's buffer is hashed again.  RA's
+    registered hashes were made that way.
+    """
+    last = bytes(SECTOR_USER_DATA)
+    for sector in range(start, start + count):
+        if track_sectors is None or sector < track_sectors:
+            last = track.read_sector(sector).ljust(SECTOR_USER_DATA, b"\x00")
+        md5.update(last)
+
+
+def _hash_pce_header(track: DataTrack, head: bytes,
+                     track_sectors: Optional[int] = None) -> str:
+    """The PC Engine CD rule, given the track and its sector-1 header."""
+    md5 = hashlib.md5(head[106:128])
+    start = (head[0] << 16) | (head[1] << 8) | head[2]
+    _hash_sectors(md5, track, start, head[3], track_sectors)
+    return md5.hexdigest()
+
+
 def hash_pce_cd(chd: ChdFile) -> str:
     """RetroAchievements MD5 for a PC Engine CD.
 
@@ -346,17 +385,12 @@ def hash_pce_cd(chd: ChdFile) -> str:
     if not data:
         raise DiscError("no data track")
     first = data[0]
-    offset = _MODE_OFFSETS.get(first["type"])
-    candidates = ([offset] if offset is not None else []) + [o for o in (16, 0, 24) if o != offset]
+    candidates = _offset_candidates(first)
     for offset in candidates:
         track = DataTrack(chd, offset, first["start"])
         head = track.read_sector(1, 128)
-        if head[32:55] == b"PC Engine CD-ROM SYSTEM":
-            md5 = hashlib.md5(head[106:128])
-            start = (head[0] << 16) | (head[1] << 8) | head[2]
-            for sector in range(start, start + head[3]):
-                md5.update(track.read_sector(sector))
-            return md5.hexdigest()
+        if head[32:55] == _PCE_MARKER:
+            return _hash_pce_header(track, head)
     for offset in candidates:
         track = DataTrack(chd, offset, first["start"])
         boot = find_file(track, "BOOT.BIN")
@@ -365,6 +399,69 @@ def hash_pce_cd(chd: ChdFile) -> str:
             _hash_iso_file(md5, track, boot)
             return md5.hexdigest()
     raise DiscError("not a PC Engine CD")
+
+
+# ---------------------------------------------------------------------------
+# PC-FX
+# ---------------------------------------------------------------------------
+
+
+def _pcfx_track(chd: ChdFile, info: dict) -> Optional[DataTrack]:
+    """``info`` opened at the offset where a PC-FX or PC Engine marker shows."""
+    tracks = [DataTrack(chd, offset, info["start"]) for offset in _offset_candidates(info)]
+    for track in tracks:
+        if track.read_sector(0, 32)[:15] == _PCFX_MARKER:
+            return track
+    for track in tracks:
+        if track.read_sector(1, 128)[32:55] == _PCE_MARKER:
+            return track
+    return None
+
+
+def hash_pcfx(chd: ChdFile) -> str:
+    """RetroAchievements MD5 for a PC-FX disc.
+
+    The executable can sit in any track, so the *largest* data track is
+    checked first (the first of equal size wins), then track 2.  A PC-FX
+    track starts with ``PC-FX:Hu_CD-ROM`` in sector 0; sector 1 is the
+    program header.  The hash is that header's first 128 bytes (the title
+    is bytes 0-31) followed by the program, whose track-relative sector is
+    the little-endian 24-bit value at bytes 32-34 and whose length in
+    sectors is the one at bytes 36-38.  Some PC-FX discs still identify as
+    PC Engine CDs; a track 2 carrying the PC Engine header is hashed by
+    that rule instead.
+
+    A program that runs past the end of its track (Angelique: Tenkuu no
+    Requiem does) is hashed the way RA's own reader sees it - see
+    :func:`_hash_sectors`.
+    """
+    tracks = cd_tracks(chd)
+    largest = None
+    for info in tracks:
+        if info["type"] != "AUDIO" and (largest is None or info["sectors"] > largest["sectors"]):
+            largest = info
+    if largest is None:
+        raise DiscError("no data track")
+
+    info = largest
+    track = _pcfx_track(chd, info)
+    if track is None or track.read_sector(0, 32)[:15] != _PCFX_MARKER:
+        info = next((t for t in tracks if t["number"] == 2), None)
+        if info is None:
+            raise DiscError("not a PC-FX CD")
+        track = _pcfx_track(chd, info)
+        if track is None:
+            raise DiscError("not a PC-FX CD")
+
+    head = track.read_sector(1, 128)
+    if track.read_sector(0, 32)[:15] != _PCFX_MARKER:
+        # Found only the PC Engine header (checked for track 2 alone, as RA does).
+        return _hash_pce_header(track, head, info["sectors"])
+    md5 = hashlib.md5(head)
+    start = head[32] | (head[33] << 8) | (head[34] << 16)
+    count = head[36] | (head[37] << 8) | (head[38] << 16)
+    _hash_sectors(md5, track, start, count, info["sectors"])
+    return md5.hexdigest()
 
 
 #: RetroAchievements hashes at most this much of any one file.
@@ -451,6 +548,7 @@ _DISC_HASHERS = {
     "SCD": hash_sega,
     "SAT": hash_sega,
     "PCECD": hash_pce_cd,
+    "PCFX": hash_pcfx,
 }
 
 
