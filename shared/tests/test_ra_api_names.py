@@ -79,3 +79,41 @@ def test_a_redump_file_name_finds_its_game_whatever_its_region(tmp_path):
     index = build_name_index(lib, names)
     assert index.lookup("Big Tournament Golf ~ Neo Turf Masters (Japan) (En,Ja).chd") == (23831, 30)
     assert index.lookup("Bakumatsu Roman - Gekka no Kenshi ~ The Last Blade (World).chd") == (23827, 40)
+
+
+class _ThrottledSession(_Session):
+    """429 on the first ``throttled`` requests, then answers normally."""
+
+    def __init__(self, table, throttled):
+        super().__init__(table)
+        self.throttled = throttled
+
+    def get(self, url, params=None, headers=None, timeout=None):
+        if self.throttled:
+            self.throttled -= 1
+            self.calls.append(("429", params["i"]))
+            return _Resp({}, status_code=429)
+        return super().get(url, params, headers, timeout)
+
+
+def test_throttling_is_waited_out_not_given_up_on(tmp_path):
+    waits = []
+    session = _ThrottledSession(NAMES, throttled=2)
+    names = fetch_hash_names(_library(), cache_dir=tmp_path, api_key="K", session=session,
+                             delay=0, sleep=waits.append)
+    assert set(names) == {23827, 23831}
+    assert waits[:2] == [10, 30]
+
+
+def test_persistent_throttling_keeps_what_was_fetched(tmp_path):
+    session = _ThrottledSession(NAMES, throttled=99)
+    names = fetch_hash_names(_library(), cache_dir=tmp_path, api_key="K", session=session,
+                             delay=0, sleep=lambda s: None)
+    assert names == {}
+
+
+def test_fetch_can_be_limited_to_some_games(tmp_path):
+    session = _Session(NAMES)
+    fetch_hash_names(_library(), cache_dir=tmp_path, api_key="K", session=session, delay=0,
+                     game_ids={23831})
+    assert session.calls == [23831]

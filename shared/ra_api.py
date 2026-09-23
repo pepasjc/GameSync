@@ -280,14 +280,20 @@ def _write_names(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")
 
 
+#: Seconds to wait after each consecutive 429 before trying the game again.
+_THROTTLE_BACKOFF = (10, 30, 60, 120)
+
+
 def fetch_hash_names(
     library: RaLibrary,
     cache_dir: Path = CACHE_DIR,
     api_key: str = "",
     username: str = "",
     session=None,
-    delay: float = 0.25,
+    delay: float = 0.5,
     should_stop=None,
+    sleep=time.sleep,
+    game_ids=None,
 ) -> dict[int, list[str]]:
     """RA's registered file names for each game with achievements.
 
@@ -301,7 +307,8 @@ def fetch_hash_names(
     game together with how many hashes the library listed for it; a game is
     only asked about again when that number changes (a dump was added).
     Needs the web API key - without one, or offline, whatever is cached is
-    returned.
+    returned.  ``game_ids`` limits the fetch to those games (the cache is
+    still returned whole).
     """
     path = _names_path(cache_dir, library.console_id)
     try:
@@ -313,7 +320,8 @@ def fetch_hash_names(
         counts[game_id] = counts.get(game_id, 0) + 1
     # Subsets are extra sets for a disc indexed under its base game.
     wanted = [g for g, title in library.titles.items()
-              if (library.achievement_count(g) or 0) > 0 and "[subset" not in title.lower()]
+              if (library.achievement_count(g) or 0) > 0 and "[subset" not in title.lower()
+              and (game_ids is None or g in game_ids)]
     stale = [g for g in wanted if cached.get(str(g), {}).get("n") != counts.get(g, 0)]
 
     if stale and api_key:
@@ -326,6 +334,13 @@ def fetch_hash_names(
                 params["z"] = username
             try:
                 resp = _get(RA_GAME_HASHES_URL, params, session)
+                # RA throttles bursts with a 429: wait and retry rather
+                # than give up, a few times, then leave the rest for later.
+                for wait in _THROTTLE_BACKOFF:
+                    if resp.status_code != 429 or (should_stop and should_stop()):
+                        break
+                    sleep(wait)
+                    resp = _get(RA_GAME_HASHES_URL, params, session)
                 if resp.status_code in (401, 403):
                     raise RaAuthError("RetroAchievements rejected the web API key")
                 resp.raise_for_status()
@@ -333,7 +348,7 @@ def fetch_hash_names(
             except RaAuthError:
                 raise
             except (RuntimeError, AttributeError) + NETWORK_ERRORS:
-                break           # offline or throttled: keep what we have
+                break           # offline or still throttled: keep what we have
             cached[str(game_id)] = {
                 "n": counts.get(game_id, 0),
                 "names": [str(r["Name"]) for r in results if isinstance(r, dict) and r.get("Name")],
@@ -342,7 +357,7 @@ def fetch_hash_names(
             if fetched % 50 == 0:
                 _write_names(path, cached)
             if delay:
-                time.sleep(delay)
+                sleep(delay)
         if fetched:
             _write_names(path, cached)
 
