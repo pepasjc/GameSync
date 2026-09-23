@@ -489,3 +489,17 @@ def test_cached_title_miss_is_rematched_when_the_matcher_improves(db, tmp_path, 
     assert ra_index.lookup([str(rom)])[str(rom)]["ra_game_id"] == 6049
     # Nothing changes on the next pass, so nothing is written.
     assert ra_index.refresh([entry], tmp_path / "cache")["rematched"] == 0
+
+
+def test_title_only_system_matches_ra_dump_names(db, tmp_path, monkeypatch):
+    rom = tmp_path / "Big Tournament Golf ~ Neo Turf Masters (Japan) (En,Ja).chd"
+    rom.write_bytes(b"x")
+    entry = _Entry(rom, system="NEOCD")
+    entry.name = rom.stem
+    lib = RaLibrary(56, {"a1": 23831}, {23831: "Neo Turf Masters"}, achievements={23831: 30})
+    monkeypatch.setattr(ra_index, "fetch_library", lambda cid, **kw: lib)
+    monkeypatch.setattr(ra_index, "fetch_hash_names",
+                        lambda library, **kw: {23831: [rom.stem]} if library.console_id == 56 else {})
+    ra_index.refresh([entry], tmp_path / "cache")
+    found = ra_index.lookup([str(rom)])[str(rom)]
+    assert (found["ra_game_id"], found["ra_match"]) == (23831, ra_index.MATCH_TITLE)

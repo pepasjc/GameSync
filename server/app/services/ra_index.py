@@ -42,7 +42,7 @@ from app.services import rom_db
 
 # rom_id puts the repo root on sys.path for us, so `shared` imports plainly.
 from app.services import rom_id  # noqa: F401
-from shared.ra_api import RaAuthError, RaLibrary, fetch_library
+from shared.ra_api import RaAuthError, RaLibrary, fetch_hash_names, fetch_library
 from shared.ra_hash import (
     ra_console_ids,
     ra_hash_file,
@@ -50,7 +50,7 @@ from shared.ra_hash import (
     ra_title_match_only,
 )
 from shared.ra_disc import disc_hash_supported, hash_disc_file
-from shared.ra_titles import build_index
+from shared.ra_titles import build_index, build_name_index
 from shared import msu
 
 logger = logging.getLogger(__name__)
@@ -368,6 +368,7 @@ class _Libraries:
         self.username = username
         self._cache: dict[int, Optional[RaLibrary]] = {}
         self._titles: dict[int, object] = {}
+        self._names: dict[int, object] = {}
 
     def get(self, console_id: int) -> Optional[RaLibrary]:
         if console_id not in self._cache:
@@ -401,18 +402,37 @@ class _Libraries:
             self._titles[console_id] = build_index(library) if library else None
         return self._titles[console_id]
 
+    def names(self, console_id: int):
+        """Lazy index over RA's registered dump names, or None."""
+        if console_id not in self._names:
+            library = self.get(console_id)
+            index = None
+            if library is not None:
+                try:
+                    names = fetch_hash_names(library, cache_dir=self.cache_dir,
+                                             api_key=self.api_key, username=self.username)
+                    index = build_name_index(library, names) if names else None
+                except Exception as exc:  # noqa: BLE001 - a title match still works
+                    logger.warning("[ra_index] no dump names for console %d: %s", console_id, exc)
+            self._names[console_id] = index
+        return self._names[console_id]
+
     def find_by_title(self, name: str, system: str) -> tuple[int, int, str]:
-        """``(game_id, achievements, title)`` from the game's name alone."""
+        """``(game_id, achievements, title)`` from the game's name alone.
+
+        Systems matched only by name try RA's registered dump names first
+        (a Redump file name), then the display title.
+        """
+        by_dump_name = ra_title_match_only(system)
         for console_id in ra_console_ids(system):
-            index = self.titles(console_id)
-            if index is None:
-                continue
-            found = index.lookup(name)
-            if found:
-                game_id, achievements = found
-                library = self.get(console_id)
-                title = library.titles.get(game_id, "") if library else ""
-                return game_id, achievements, title
+            indexes = ([self.names(console_id)] if by_dump_name else []) + [self.titles(console_id)]
+            for index in indexes:
+                found = index.lookup(name) if index is not None else None
+                if found:
+                    game_id, achievements = found
+                    library = self.get(console_id)
+                    title = library.titles.get(game_id, "") if library else ""
+                    return game_id, achievements, title
         return 0, 0, ""
 
     def find(self, md5: str, system: str) -> tuple[int, int, str]:

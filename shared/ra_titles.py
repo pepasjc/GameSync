@@ -147,3 +147,18 @@ def build_index(library) -> TitleIndex:
         count = library.achievement_count(game_id)
         games.append((game_id, title, -1 if count is None else count))
     return TitleIndex(games)
+
+
+def build_name_index(library, names: dict) -> TitleIndex:
+    """TitleIndex over RA's registered dump names (``{game_id: [name, ...]}``).
+
+    Built from :func:`shared.ra_api.fetch_hash_names`.  A Redump name is
+    normalised like any file name, so a library file named after the same
+    dump - whatever its region tags say - finds its game.
+    """
+    games = []
+    for game_id, dump_names in names.items():
+        count = library.achievement_count(game_id)
+        for name in dump_names:
+            games.append((game_id, name, -1 if count is None else count))
+    return TitleIndex(games)

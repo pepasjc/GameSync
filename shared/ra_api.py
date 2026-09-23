@@ -264,6 +264,91 @@ def fetch_library(
     return library
 
 
+# ---------------------------------------------------------------------------
+# Registered dump names (per game)
+# ---------------------------------------------------------------------------
+
+RA_GAME_HASHES_URL = RA_BASE_URL + "/API/API_GetGameHashes.php"
+
+
+def _names_path(cache_dir: Path, console_id: int) -> Path:
+    return cache_dir / f"console_{console_id}_names.json"
+
+
+def _write_names(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def fetch_hash_names(
+    library: RaLibrary,
+    cache_dir: Path = CACHE_DIR,
+    api_key: str = "",
+    username: str = "",
+    session=None,
+    delay: float = 0.25,
+    should_stop=None,
+) -> dict[int, list[str]]:
+    """RA's registered file names for each game with achievements.
+
+    Every hash RA accepts carries the name of the dump it came from - a
+    Redump / No-Intro name like ``"Big Tournament Golf ~ Neo Turf Masters
+    (Japan) (En,Ja)"``.  For systems matched by name rather than by hash,
+    that is a far better key than the game's display title, which a Redump
+    name often shares no words with.
+
+    One ``API_GetGameHashes.php`` call per game, so the answer is cached per
+    game together with how many hashes the library listed for it; a game is
+    only asked about again when that number changes (a dump was added).
+    Needs the web API key - without one, or offline, whatever is cached is
+    returned.
+    """
+    path = _names_path(cache_dir, library.console_id)
+    try:
+        cached = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cached = {}
+    counts: dict[int, int] = {}
+    for game_id in library.hashes.values():
+        counts[game_id] = counts.get(game_id, 0) + 1
+    # Subsets are extra sets for a disc indexed under its base game.
+    wanted = [g for g, title in library.titles.items()
+              if (library.achievement_count(g) or 0) > 0 and "[subset" not in title.lower()]
+    stale = [g for g in wanted if cached.get(str(g), {}).get("n") != counts.get(g, 0)]
+
+    if stale and api_key:
+        fetched = 0
+        for game_id in stale:
+            if should_stop and should_stop():
+                break
+            params = {"i": game_id, "y": api_key}
+            if username:
+                params["z"] = username
+            try:
+                resp = _get(RA_GAME_HASHES_URL, params, session)
+                if resp.status_code in (401, 403):
+                    raise RaAuthError("RetroAchievements rejected the web API key")
+                resp.raise_for_status()
+                results = resp.json().get("Results") or []
+            except RaAuthError:
+                raise
+            except (RuntimeError, AttributeError) + NETWORK_ERRORS:
+                break           # offline or throttled: keep what we have
+            cached[str(game_id)] = {
+                "n": counts.get(game_id, 0),
+                "names": [str(r["Name"]) for r in results if isinstance(r, dict) and r.get("Name")],
+            }
+            fetched += 1
+            if fetched % 50 == 0:
+                _write_names(path, cached)
+            if delay:
+                time.sleep(delay)
+        if fetched:
+            _write_names(path, cached)
+
+    return {int(k): v.get("names", []) for k, v in cached.items() if int(k) in library.titles}
+
+
 def clear_cache(cache_dir: Path = CACHE_DIR) -> int:
     """Delete cached libraries; returns how many files went."""
     if not cache_dir.exists():
