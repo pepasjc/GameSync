@@ -353,6 +353,7 @@ ROM_EXTENSIONS: frozenset[str] = frozenset(
         # Super Nintendo
         ".sfc",
         ".smc",
+        ".bs",     # Satellaview (BS-X) broadcast game
         ".sgb",    # Super Game Boy cartridge
         # Nintendo 64
         ".n64",

@@ -3012,3 +3012,24 @@ class TestPcfxCatalog:
         # Both discs of one game share the save slot, but stay separate rows.
         assert len({e.title_id for e in discs}) == 1
         assert len({e.rom_id for e in discs}) == 2
+
+
+class TestSatellaviewCatalog:
+    """Satellaview (BS-X) broadcast games are ``.bs`` files, usually kept in
+    the SNES folder beside the carts; they must be catalogued, not skipped."""
+
+    def test_bs_files_in_the_snes_folder_are_indexed(self, tmp_path, monkeypatch):
+        from app.services import rom_db, rom_scanner
+
+        rom_db.init_db(tmp_path)
+        rom_dir = tmp_path / "roms"
+        folder = rom_dir / "snes"
+        folder.mkdir(parents=True)
+        (folder / "BS F-Zero Grand Prix 2 - Practice (Japan) (12-6).bs").write_bytes(b"x" * 64)
+        (folder / "Super Metroid (USA).sfc").write_bytes(b"x" * 64)
+
+        monkeypatch.setattr(settings, "rom_dir", rom_dir)
+        catalog = rom_scanner.RomCatalog()
+        assert catalog.scan(rom_dir, use_crc32=False) == 2
+        names = {e.filename for e in catalog.list_by_system("SNES")}
+        assert "BS F-Zero Grand Prix 2 - Practice (Japan) (12-6).bs" in names
