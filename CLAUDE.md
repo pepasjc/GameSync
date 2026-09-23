@@ -82,7 +82,7 @@ cd steamdeck && python main.py
 
 ### Version
 
-Single source of truth: the root `VERSION` file (currently `0.5.3`). Every
+Single source of truth: the root `VERSION` file (currently `0.5.4`). Every
 Makefile reads it and passes `-DAPP_VERSION`. Never hardcode a version.
 
 ## Architecture
