@@ -135,7 +135,7 @@ def build(deploy=False, host=None, password=None, user="root", port=22):
         result = subprocess.run(
             [sys.executable, "-c",
              "import gamesync.app, gamesync.sync, gamesync.downloads, "
-             "gamesync.consolemode"],
+             "gamesync.consolemode, gamesync.precompile"],
             cwd=stage, capture_output=True, text=True,
             env={**os.environ, "PYTHONPATH": stage})
         if result.returncode:

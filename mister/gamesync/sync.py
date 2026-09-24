@@ -126,6 +126,10 @@ class SaveEntry:
                 self.display.lower(), self.is_cd)
 
 
+#: How long the server's title list is trusted for name matching.
+TITLES_TTL = 24 * 3600.0
+
+
 class SyncEngine:
     def __init__(self, config=None, provider=None, client=None):
         self.config = config or gsconfig.load_config()
@@ -136,6 +140,10 @@ class SyncEngine:
         self.net = NetCache()
         self.entries = []
         self.last_error = ""
+        #: Set when the server did not answer: the scan then resolves names
+        #: from whatever is cached, however old, and never waits on the
+        #: network - a hung server used to cost a 60 s timeout per lookup.
+        self.offline = False
 
     # ------------------------------------------------------------------ scan
 
@@ -160,6 +168,9 @@ class SyncEngine:
         self.cache.save()
         self.entries = entries
         self._label_entries()
+        # Once, at the end: it holds every system's matcher, and writing it
+        # after each lookup cost seconds of JSON per scan.
+        self.net.save()
         return entries
 
     # ------------------------------------------------------- CD / ISO pairs
@@ -351,57 +362,109 @@ class SyncEngine:
         if cached is not None:
             return cached
 
-        snapshot = self.net.get("matcher:%s" % system)
-        if snapshot is not None:
-            matcher = TitleMatcher.from_dict(snapshot)
+        try:
+            roms = self._roms_for(system)
+        except Exception:
+            roms = []  # offline: fall back to slug ids
+        try:
+            titles = self._server_titles()
+        except Exception:
+            titles = {}
+
+        # Building a matcher runs the slug rules over every name - seconds
+        # on a MiSTer - so a built one is kept for as long as what it was
+        # built from is unchanged, however long that is. Keyed on its
+        # inputs rather than on a timer, which rebuilt it every ten minutes.
+        signature = "%d:%s|%s" % (len(roms), self._catalog_signature(system),
+                                  self.net.stored("titles"))
+        key = "matcher:%s" % system
+        snapshot = self.net.get(key, max_age=float("inf"))
+        if isinstance(snapshot, dict) and snapshot.get("signature") == signature:
+            matcher = TitleMatcher.from_dict(snapshot.get("matcher") or {})
             self._matcher_cache[system] = matcher
             return matcher
 
         matcher = TitleMatcher()
-        try:
-            for rom in self._roms_for(system):
-                matcher.add(rom.get("title_id"),
-                            rom.get("filename"), rom.get("name"))
-        except Exception:
-            pass  # offline: fall back to slug ids
+        for rom in roms:
+            matcher.add(rom.get("title_id"),
+                        rom.get("filename"), rom.get("name"))
+        for title_id, info in titles.items():
+            if not _row_is_system(title_id, info, system):
+                continue
+            # Slots that already hold a save outrank the catalogue.
+            matcher.add(title_id, info.get("name"),
+                        info.get("game_name"), authoritative=True)
 
-        try:
-            for title_id, info in self._server_titles().items():
-                if not _row_is_system(title_id, info, system):
-                    continue
-                # Slots that already hold a save outrank the catalogue.
-                matcher.add(title_id, info.get("name"),
-                            info.get("game_name"), authoritative=True)
-        except Exception:
-            pass
-
-        self.net.put("matcher:%s" % system, matcher.to_dict())
-        self.net.save()
+        self.net.put(key, {"signature": signature,
+                           "matcher": matcher.to_dict()})
         self._matcher_cache[system] = matcher
         return matcher
+
+    #: Set by the app: ``system -> fingerprint`` of the catalogue cache, so a
+    #: matcher knows when the ROMs it was built from have changed.
+    catalog_fingerprint = None
+
+    def _catalog_signature(self, system) -> str:
+        if self.catalog_fingerprint is None:
+            return ""
+        try:
+            return str(self.catalog_fingerprint(system) or "")
+        except Exception:
+            return ""
 
     _titles_cache = None
 
     def _roms_for(self, system):
-        """The catalogue for one system, cached briefly on disk."""
+        """The catalogue for one system.
+
+        From the app's catalogue cache when it has one: that copy is kept
+        current per system by the server's fingerprints, so fetching the same
+        list again here only cost a round trip and a large JSON write. The
+        server is asked only before the app has ever loaded a catalogue.
+        """
+        if self.catalog_rows is not None:
+            try:
+                rows = self.catalog_rows(system)
+            except Exception:
+                rows = None
+            if rows or self._catalog_known():
+                return rows or []
         key = "roms:%s" % system
-        rows = self.net.get(key)
+        rows = self.net.get(key, max_age=float("inf") if self.offline
+                            else None)
         if rows is None:
+            if self.offline:
+                return []
             rows = self.client.list_roms(
                 system, fields=("title_id", "filename", "name"))
             self.net.put(key, rows)
-            self.net.save()
         return rows
 
+    #: Set by the app: whether its catalogue cache holds anything at all. A
+    #: system missing from a populated cache has no ROMs on the server.
+    catalog_known = None
+
+    def _catalog_known(self) -> bool:
+        try:
+            return bool(self.catalog_known and self.catalog_known())
+        except Exception:
+            return False
+
     def _server_titles(self):
-        """Every title the server holds, cached briefly on disk.
+        """Every title the server holds, cached on disk for a day.
 
         Only used for name matching. What to upload or download always comes
-        from a live sync plan, never from here.
+        from a live sync plan, never from here, so a day-old copy can at
+        worst leave a save that another console uploaded today unmatched by
+        name until the next refresh - and Y refreshes it on demand. Fetching
+        it cost 2-4 s of server time on every start ten minutes apart.
         """
         if self._titles_cache is None:
-            cached = self.net.get("titles")
+            cached = self.net.get("titles", max_age=float("inf")
+                                  if self.offline else TITLES_TTL)
             if cached is None:
+                if self.offline:
+                    raise RuntimeError("offline and no cached titles")
                 cached = {
                     title_id: {key: info.get(key)
                                for key in ("system", "platform", "name",
@@ -409,7 +472,6 @@ class SyncEngine:
                     for title_id, info in self.client.list_titles().items()
                 }
                 self.net.put("titles", cached)
-                self.net.save()
             self._titles_cache = cached
         return self._titles_cache
 
@@ -477,11 +539,27 @@ class SyncEngine:
         unknown = [tid for tid in server_only if tid not in by_id]
         metadata = {}
         if unknown:
-            # Only worth a round trip when there is something to name.
+            # Named from the cached title list; the server spends seconds on
+            # a fresh one. Only a save the cache has never seen - uploaded
+            # from another console since - is worth fetching it again for.
             try:
-                metadata = self.client.list_titles()
+                metadata = self._server_titles()
             except Exception:
                 metadata = {}
+            if any(tid not in metadata for tid in unknown) \
+                    and not self.offline:
+                try:
+                    fresh = self.client.list_titles()
+                    metadata = {
+                        tid: {key: info.get(key)
+                              for key in ("system", "platform", "name",
+                                          "game_name", "save_size")}
+                        for tid, info in fresh.items()}
+                    self.net.put("titles", metadata)
+                    self._titles_cache = metadata
+                    self.net.save()
+                except Exception:
+                    pass
 
         for title_id in server_only:
             entry = by_id.get(title_id)
@@ -595,20 +673,33 @@ class SyncEngine:
         back as "download" on every run. The dedicated card endpoint reports the
         hash of the card itself, which is like-for-like.
         """
+        from concurrent.futures import ThreadPoolExecutor
+
         from .api import CARD_SYSTEMS
 
-        for entry in self.entries:
-            if entry.system not in CARD_SYSTEMS or entry.is_blank:
-                continue
-            if not entry.exists or not entry.hash:
-                # Nothing local to compare: this is a download, not a clash.
-                # Running the three-way rule here turned every server-only card
-                # into a conflict, because "" never equals the server's hash
-                # and there is no sync history for a save we have never had.
-                continue
+        # Nothing local to compare means a download, not a clash: running the
+        # three-way rule on it turned every server-only card into a conflict,
+        # because "" never equals the server's hash and there is no sync
+        # history for a save we have never had.
+        cards = [entry for entry in self.entries
+                 if entry.system in CARD_SYSTEMS and not entry.is_blank
+                 and entry.exists and entry.hash]
+        if not cards:
+            return
+
+        def fetch(entry):
             try:
-                meta = self.client.card_meta(entry.title_id)
+                return self.client.card_meta(entry.title_id)
             except Exception:
+                return False
+
+        # One request per card, and each is mostly round trip: asked one at
+        # a time they were most of the plan's wait on a MiSTer over Wi-Fi.
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            metas = list(pool.map(fetch, cards))
+
+        for entry, meta in zip(cards, metas):
+            if meta is False:
                 continue
             server_hash = str((meta or {}).get("save_hash") or "")
             entry.status = three_way_status(

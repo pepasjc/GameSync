@@ -258,7 +258,10 @@ def group_discs(rows) -> List["DiscGroup"]:
         group.rows.append(row)
 
     for group in groups:
-        # Keep the discs in order, so disc 1 installs first.
+        # Keep the discs in order, so disc 1 installs first. Single-disc
+        # games are nearly the whole catalogue: skip their no-op sort.
+        if len(group.rows) < 2:
+            continue
         group.rows.sort(key=lambda row: (int(row.get("disc_index") or 0),
                                          str(row.get("filename") or "")))
     return groups

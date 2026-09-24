@@ -10,6 +10,7 @@ than the screen - measured at 0.72 ms against 8 ms for a full repaint.
 
 from __future__ import annotations
 
+import json
 import os
 import posixpath
 import pkgutil
@@ -33,6 +34,7 @@ SAVES_ROOT = "/media/fat/saves"
 # The vendored shared/ modules are the single source of truth for folder names
 # and extensions, exactly as the desktop client uses them.
 from shared.mister import (  # noqa: E402
+    MISTER_CONFIG_DIR,
     MISTER_FOLDER_TO_SYSTEM,
     MISTER_GAMES_ROOTS,
     MISTER_SYSTEM_FOLDER_CANDIDATES,
@@ -73,6 +75,39 @@ def _group_pack_kind(group) -> str:
     if not isinstance(first, dict) or not first.get("is_bundle"):
         return ""
     return str(first.get("bundle_kind") or "").lower()
+
+
+def _group_facts(group):
+    """``(installed key, detail text, RA badge)`` for one catalogue game.
+
+    Runs for every game in the catalogue, so it avoids the DiscGroup
+    properties for the single-disc case that nearly every game is.
+    """
+    rows = group.rows
+    if len(rows) == 1:
+        detail = _human_size(int(rows[0].get("size") or 0))
+    else:
+        detail = "%d discs  %s" % (len(rows), _human_size(group.size))
+    kind = _group_pack_kind(group)
+    if kind:
+        detail = "%s  %s" % (MSU_KIND_LABELS.get(kind, kind), detail)
+    return (_installed_key(group, kind=kind), detail, _group_ra_kind(group))
+
+
+def _installed_key(group, name_key=None, kind=None):
+    """What ``installed_ids`` holds for this game when it is on the card."""
+    if kind is None:
+        kind = _group_pack_kind(group)
+    system = group.system
+    if kind:
+        # A pack lives in the core folder its kind wants (an MSU-MD title
+        # is a MegaCD install), so look there.
+        layout = gsinstall.msu_pack_layout(kind, system)
+        if layout is not None:
+            system = layout[0]
+    if name_key is None:
+        name_key = _normalize(group.name)
+    return (system, name_key, bool(kind))
 
 
 def row_pack_kind(row) -> str:
@@ -161,6 +196,7 @@ class App:
             # carries the overscan inset, and that changes the size of every
             # box the layout is about to be computed from.
             self.config = gsconfig.load_config()
+            load_name_cache()
             # A 240p display that has never been calibrated gets the CRT
             # default; what a monitor shows is the whole picture.
             self.overscan = self.config.overscan_for(
@@ -216,6 +252,8 @@ class App:
             # exact file name; hand it the rows we already hold so that
             # never costs a fetch.
             self.engine.catalog_rows = self.catalog_cache.rows
+            self.engine.catalog_fingerprint = self.catalog_cache.fingerprint
+            self.engine.catalog_known = lambda: len(self.catalog_cache) > 0
             self.group_by_title = {}
             #: (system, normalized name) for every catalogue game with a
             #: published RA set, so the Saves and Installed tabs can badge
@@ -276,7 +314,16 @@ class App:
             self._data_version = 0
             self._rows_key = None
             self._rows_cache = []
-            self.load_data()
+            #: Per catalogue game, what load_data shows about it - see
+            #: _index_catalog(). Keyed by id(): DiscGroup has __slots__.
+            self._group_facts = {}
+            self._group_by_name = {}
+            self._catalog_rows = []
+            self._catalog_keys = []
+            self._installed_scanned = False
+            # Rows for the first paint only. The games folders are walked
+            # once, by initial_load: walking them here as well cost ~2 s.
+            self.load_data(rescan=False)
         except Exception:
             self.close()
             raise
@@ -319,24 +366,15 @@ class App:
             for item in self.installed_entries
         }
         self.installed_ids = installed_ids
-        catalog = []
-        ra_games = {}
-        for group in self.catalog_groups:
-            state = ("installed" if self.game_installed(group)
-                     else "not installed")
-            detail = _human_size(group.size)
-            if group.disc_count > 1:
-                detail = "%d discs  %s" % (group.disc_count, detail)
-            kind = str(group.rows[0].get("bundle_kind") or "").lower() \
-                if group.rows and group.rows[0].get("is_bundle") else ""
-            if kind:
-                detail = "%s  %s" % (MSU_KIND_LABELS.get(kind, kind), detail)
-            has_ra = _group_ra_kind(group)
-            if has_ra:
-                ra_games[(group.system, _normalize(group.name))] = has_ra
-            catalog.append(Row(group.system, group.name, detail, state,
-                               ref=group, ra=has_ra))
-        self.ra_games = ra_games
+        if (getattr(self, "_indexed_groups", None) is not self.catalog_groups
+                or len(self._catalog_rows) != len(self.catalog_groups)):
+            self._index_catalog()
+        # The rows are built once per catalogue; a refresh only has to say
+        # which of them are on the card now.
+        for row, key in zip(self._catalog_rows, self._catalog_keys):
+            row.status = ("installed" if key in installed_ids
+                          else "not installed")
+        catalog = list(self._catalog_rows)
 
         queued = [
             Row(item.system, item.name,
@@ -386,6 +424,7 @@ class App:
         # Kept as objects alongside the rows so delete and move know the real
         # path, whether it is a folder, and which storage it currently sits on.
         self.installed_entries = []
+        self._installed_scanned = True
         for root in GAMES_ROOTS:
             for folder in sorted(_listdir(root)):
                 path = os.path.join(root, folder)
@@ -1131,6 +1170,7 @@ class App:
                     break
         self.worker.stop()
         self.save_ui_state()
+        save_name_cache()
 
     def service_downloads(self) -> None:
         """Reflect the background downloads on screen.
@@ -1298,23 +1338,37 @@ class App:
 
     def initial_load(self) -> None:
         """Scan on startup, and check the server if one is configured."""
+        # The server first, and briefly: the scan resolves some names through
+        # it, and against a server that accepts connections but never answers
+        # every one of those lookups waited out a full timeout. Knowing it is
+        # down up front lets the scan run from cache instead.
+        server_error = None
+        if self.client is not None:
+            self.toast("Contacting %s..." % self.config.server_url)
+            try:
+                self.client.status(timeout=STATUS_TIMEOUT)
+            except Exception as exc:
+                server_error = exc
+            self.engine.offline = server_error is not None
+
         self.toast("Scanning saves...")
         try:
             self.engine.scan(progress=lambda text: self.toast(text))
         except Exception as exc:
             self.notice("Scan failed: %s" % exc, theme.DANGER)
 
-        if self.client is not None:
+        if self.client is None:
+            self.server_status = "no server configured"
+        elif server_error is not None:
+            self.server_status = str(server_error)[:60]
+            self.notice("Server unreachable: %s" % server_error, theme.DANGER)
+        else:
             try:
-                self.toast("Contacting %s..." % self.config.server_url)
-                self.client.status()
-                self.server_status = "connected"
                 self.engine.fetch_plan(progress=lambda text: self.toast(text))
+                self.server_status = "connected"
             except Exception as exc:
                 self.server_status = str(exc)[:60]
                 self.notice("Server unreachable: %s" % exc, theme.DANGER)
-        else:
-            self.server_status = "no server configured"
 
         self.load_data()
         self.draw_all()
@@ -1322,16 +1376,30 @@ class App:
             # Cheap now that it is cached by difference, and it is what lets
             # the Saves tab say which games are not installed.
             self.load_catalog(quiet=True)
+        elif len(self.catalog_cache):
+            # Offline: last run's catalogue beats an empty tab, and it still
+            # knows which saves have their game installed.
+            self._install_catalog(self.catalog_cache.all_rows(), quiet=True)
 
     def do_rescan(self) -> None:
         if self.tab != 0:
             return
-        # An explicit rescan is also how you say "the server changed".
-        self.engine.refresh_server_data()
+        online = False
+        if self.client is not None:
+            try:
+                self.client.status(timeout=STATUS_TIMEOUT)
+                online = True
+            except Exception as exc:
+                self.notice("Server unreachable: %s" % exc, theme.DANGER)
+            self.engine.offline = not online
+        if online:
+            # An explicit rescan is also how you say "the server changed".
+            # Not when it is down: the cached lists are all a scan has then.
+            self.engine.refresh_server_data()
         self.toast("Scanning saves...")
         try:
             self.engine.scan(progress=lambda text: self.toast(text))
-            if self.client is not None:
+            if online:
                 self.engine.fetch_plan(progress=lambda text: self.toast(text))
         except Exception as exc:
             self.notice("Scan failed: %s" % exc, theme.DANGER)
@@ -1513,7 +1581,11 @@ class App:
                         hold=1.5)
             self.selected = 0
             self.scroll = 0
-        self.load_data()
+        self._index_catalog()
+        save_name_cache()
+        # A new catalogue changes nothing on the card: reuse the last walk
+        # of the games folders unless there has not been one yet.
+        self.load_data(rescan=not self._installed_scanned)
         self.restore_catalog_position()
         self.draw_all()
 
@@ -1527,23 +1599,45 @@ class App:
         group = self.group_by_title.get(str(entry.title_id or "").upper())
         if group is not None:
             return group
-        wanted = _normalize(entry.name)
-        for candidate in self.catalog_groups:
-            if candidate.system == entry.system \
-                    and _normalize(candidate.name) == wanted:
-                return candidate
-        return None
+        if getattr(self, "_indexed_groups", None) is not self.catalog_groups:
+            self._index_catalog()
+        return self._group_by_name.get((entry.system, _normalize(entry.name)))
 
     def game_installed(self, group) -> bool:
-        kind = _group_pack_kind(group)
-        system = group.system
-        if kind:
-            # A pack lives in the core folder its kind wants (an MSU-MD
-            # title is a MegaCD install), so look there.
-            layout = gsinstall.msu_pack_layout(kind, system)
-            if layout is not None:
-                system = layout[0]
-        return (system, _normalize(group.name), bool(kind)) in self.installed_ids
+        facts = getattr(self, "_group_facts", {}).get(id(group))
+        key = facts[0] if facts is not None else _installed_key(group)
+        return key in self.installed_ids
+
+    def _index_catalog(self) -> None:
+        """Work out once what every refresh would otherwise redo per game.
+
+        load_data runs after every download, move and refresh, and with a
+        full catalogue each of those recomputed a normalised name, a size and
+        a badge for fifteen thousand games. None of it changes until the
+        catalogue does.
+        """
+        facts = {}
+        by_name = {}
+        ra_games = {}
+        rows = []
+        keys = []
+        for group in self.catalog_groups:
+            fact = _group_facts(group)
+            installed_key, detail, has_ra = fact
+            name_key = installed_key[1]
+            if has_ra:
+                ra_games[(group.system, name_key)] = has_ra
+            by_name.setdefault((group.system, name_key), group)
+            facts[id(group)] = fact
+            rows.append(Row(group.system, group.name, detail,
+                            "not installed", ref=group, ra=has_ra))
+            keys.append(installed_key)
+        self._catalog_rows = rows
+        self._catalog_keys = keys
+        self._group_facts = facts
+        self._group_by_name = by_name
+        self._indexed_groups = self.catalog_groups
+        self.ra_games = ra_games
 
     def queue_group(self, group):
         """Queue every disc of a game and start downloading.
@@ -2770,6 +2864,71 @@ def _group_ra_kind(group) -> str:
         if kind == "title":
             best = "title"
     return best
+
+
+#: Seconds to wait for the server's health check at startup. It is the one
+#: request that decides whether the rest of startup may use the network.
+STATUS_TIMEOUT = 5
+
+
+#: _NORMALIZE_CACHE kept between runs. Normalising the catalogue's names is
+#: a regex chain per game: ~5 s per start on a MiSTer at fifteen thousand
+#: games, for answers that only change when the normaliser does.
+NAME_CACHE_PATH = os.path.join(MISTER_CONFIG_DIR, "name_cache.json")
+_name_cache_loaded = 0
+
+
+def _build_stamp() -> str:
+    """Identifies the installed zipapp, so a new build drops the cache.
+
+    Empty when not running from an archive (tests, a checkout): there is no
+    cheap way to know the normaliser is unchanged, so nothing is persisted.
+    """
+    import gamesync
+
+    archive = getattr(getattr(gamesync, "__loader__", None), "archive", "")
+    try:
+        info = os.stat(archive) if archive else None
+    except OSError:
+        info = None
+    if info is None:
+        return ""
+    return "%s:%d:%d" % (archive, info.st_size, int(info.st_mtime))
+
+
+def load_name_cache(path: str = NAME_CACHE_PATH, stamp=None) -> None:
+    global _name_cache_loaded
+    stamp = _build_stamp() if stamp is None else stamp
+    if not stamp:
+        return
+    try:
+        with open(path, "r") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return
+    if not isinstance(data, dict) or data.get("build") != stamp:
+        return
+    names = data.get("names")
+    if isinstance(names, dict):
+        _NORMALIZE_CACHE.update(names)
+        _name_cache_loaded = len(_NORMALIZE_CACHE)
+
+
+def save_name_cache(path: str = NAME_CACHE_PATH, stamp=None) -> None:
+    """Write the cache back, but only when this run added to it."""
+    global _name_cache_loaded
+    stamp = _build_stamp() if stamp is None else stamp
+    if not stamp or len(_NORMALIZE_CACHE) == _name_cache_loaded:
+        return
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w") as handle:
+            json.dump({"build": stamp, "names": _NORMALIZE_CACHE}, handle,
+                      separators=(",", ":"))
+        os.replace(tmp, path)
+        _name_cache_loaded = len(_NORMALIZE_CACHE)
+    except OSError:
+        pass
 
 
 def _normalize(name: str) -> str:

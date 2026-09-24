@@ -91,9 +91,9 @@ class Client:
 
     # ----------------------------------------------------------------- calls
 
-    def status(self):
+    def status(self, timeout=None):
         """Server health. The only endpoint that needs no API key."""
-        return self._get_json("/status")
+        return self._get_json("/status", timeout=timeout)
 
     def sync_plan(self, titles, console_id="", platforms=None):
         """One round trip that classifies every title.

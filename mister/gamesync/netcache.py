@@ -57,8 +57,13 @@ class NetCache:
         if isinstance(entries, dict):
             self._entries = entries
 
-    def get(self, key: str, now=None):
-        """The cached value for *key*, or None when absent or stale."""
+    def get(self, key: str, now=None, max_age=None):
+        """The cached value for *key*, or None when absent or stale.
+
+        ``max_age`` overrides the cache's TTL for this lookup; ``None`` for
+        the default, ``float("inf")`` for "any copy at all" (offline, or a
+        value validated some other way).
+        """
         entry = self._entries.get(key)
         if not entry:
             self.misses += 1
@@ -69,11 +74,19 @@ class NetCache:
         except (TypeError, ValueError):
             self.misses += 1
             return None
-        if age < 0 or age > self.ttl:
+        limit = self.ttl if max_age is None else max_age
+        if age > limit or (age < 0 and limit != float("inf")):
             self.misses += 1
             return None
         self.hits += 1
         return entry.get("value")
+
+    def stored(self, key: str) -> float:
+        """When *key* was written, or 0 when it is not cached."""
+        try:
+            return float((self._entries.get(key) or {}).get("stored", 0))
+        except (TypeError, ValueError):
+            return 0.0
 
     def put(self, key: str, value, now=None) -> None:
         self._entries[key] = {

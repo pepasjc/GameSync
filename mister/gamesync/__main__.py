@@ -71,6 +71,14 @@ def main(argv=None):
         from . import consolemode
 
         return consolemode.setup()
+    if "--precompile" in argv:
+        # Run by the installer on the device, right after the upload.
+        from . import precompile
+
+        archive = getattr(__loader__, "archive", "") or sys.argv[0]
+        print("  bytecode             %d modules compiled"
+              % precompile.compile_archive(archive))
+        return 0
     if "--console-mode-remove" in argv:
         from . import consolemode
 

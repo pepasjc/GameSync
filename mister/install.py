@@ -279,6 +279,11 @@ def main():
         write_config(client, sftp, args)
         sftp.close()
 
+        # Bytecode has to come from the device's own Python; a zipapp gets
+        # no bytecode cache otherwise and recompiles itself on every launch.
+        status, out, err = run(client, "python3 %s --precompile" % REMOTE_PYZ)
+        print(out or ("  bytecode             skipped: %s" % err))
+
         print("\nVerifying on the device...")
         status, out, err = run(client, "python3 %s --selftest" % REMOTE_PYZ,
                                timeout=180)
