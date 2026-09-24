@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -38,6 +37,7 @@ from config import (
 )
 from dialogs.history_dialog import HistoryDialog
 from saroo_format import SATURN_DOWNLOAD_FORMATS, convert_saturn_save_format
+from table_sorting import SortableItem, make_sortable, sorting_suspended
 
 
 def _saturn_download_choices() -> list[str]:
@@ -138,6 +138,7 @@ class ServerSavesTab(QWidget):
         self.table.doubleClicked.connect(self._on_double_click)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._context_menu)
+        make_sortable(self.table)
         layout.addWidget(self.table)
 
         self.status_label = QLabel("Ready")
@@ -154,6 +155,10 @@ class ServerSavesTab(QWidget):
             self.status_label.setText("Error loading saves")
 
     def _populate_table(self):
+        with sorting_suspended(self.table):
+            self._fill_table()
+
+    def _fill_table(self):
         self.table.setRowCount(0)
         for save in self.saves:
             title_id = save.get("title_id", "")
@@ -174,12 +179,12 @@ class ServerSavesTab(QWidget):
 
             row = self.table.rowCount()
             self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(console_type))
-            self.table.setItem(row, 1, QTableWidgetItem(title_id))
-            self.table.setItem(row, 2, QTableWidgetItem(name))
-            self.table.setItem(row, 3, QTableWidgetItem(last_saved))
-            self.table.setItem(row, 4, QTableWidgetItem(f"{size:,}"))
-            self.table.setItem(row, 5, QTableWidgetItem(str(files)))
+            self.table.setItem(row, 0, SortableItem(console_type))
+            self.table.setItem(row, 1, SortableItem(title_id))
+            self.table.setItem(row, 2, SortableItem(name))
+            self.table.setItem(row, 3, SortableItem(last_saved))
+            self.table.setItem(row, 4, SortableItem(f"{size:,}"))
+            self.table.setItem(row, 5, SortableItem(str(files)))
             self.table.item(row, 0).setData(
                 Qt.ItemDataRole.UserRole,
                 {

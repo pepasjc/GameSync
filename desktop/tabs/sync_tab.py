@@ -17,7 +17,6 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QMenu,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -32,6 +31,7 @@ from config import (
     get_base_url,
 )
 from systems import MEGA_EVERDRIVE_CD_SYSTEMS
+from table_sorting import SortableItem, make_sortable, sorting_suspended
 
 
 _PS_TITLE_ID_RE = re.compile(r"^[A-Z]{4}\d{5}$")
@@ -437,6 +437,7 @@ class SyncTab(QWidget):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_context_menu)
+        make_sortable(self.table)
         layout.addWidget(self.table)
 
         self.status_label = QLabel("Select a profile and click Scan to begin.")
@@ -684,18 +685,25 @@ class SyncTab(QWidget):
         self.system_filter_combo.setCurrentIndex(idx if idx >= 0 else 0)
         self.system_filter_combo.blockSignals(False)
 
+        with sorting_suspended(self.table):
+            self._fill_table(sorted_statuses)
+
+        self._apply_filter()
+        self._start_catalog_load(sorted_statuses)
+
+    def _fill_table(self, sorted_statuses: list):
         self.table.setRowCount(0)
         for i, st in sorted_statuses:
             save = st.save
             row = self.table.rowCount()
             self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(save.system))
+            self.table.setItem(row, 0, SortableItem(save.system))
             self.table.setItem(
                 row,
                 1,
-                QTableWidgetItem(format_display_game_name(save.game_name, save.system)),
+                SortableItem(format_display_game_name(save.game_name, save.system)),
             )
-            title_item = QTableWidgetItem(save.title_id)
+            title_item = SortableItem(save.title_id)
             details = []
             if (
                 getattr(save, "legacy_title_id", "")
@@ -733,7 +741,7 @@ class SyncTab(QWidget):
                         unique_paths.append(path)
                 local_tooltip = "\n".join(str(path) for path in unique_paths)
                 local_color = None
-            local_item = QTableWidgetItem(local_name)
+            local_item = SortableItem(local_name)
             if local_color:
                 local_item.setForeground(local_color)
             if local_tooltip:
@@ -741,7 +749,7 @@ class SyncTab(QWidget):
             self.table.setItem(row, 3, local_item)
 
             status_label = STATUS_LABELS.get(st.status, st.status)
-            status_item = QTableWidgetItem(status_label)
+            status_item = SortableItem(status_label)
             color = STATUS_COLORS.get(st.status)
             if color:
                 status_item.setForeground(color)
@@ -793,9 +801,6 @@ class SyncTab(QWidget):
                 self.table.setCellWidget(row, 5, action_widget)
 
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, i)
-
-        self._apply_filter()
-        self._start_catalog_load(sorted_statuses)
 
     # ── Install Game column ────────────────────────────────────────────
     #
@@ -1282,33 +1287,35 @@ class SyncTab(QWidget):
         if target_row is None:
             return
 
-        # Update status column
-        status_label = STATUS_LABELS.get(new_status, new_status)
-        status_item = QTableWidgetItem(status_label)
-        color = STATUS_COLORS.get(new_status)
-        if color:
-            status_item.setForeground(color)
-        self.table.setItem(target_row, 4, status_item)
+        # Several cells change; keep the row put until they're all written.
+        with sorting_suspended(self.table):
+            # Update status column
+            status_label = STATUS_LABELS.get(new_status, new_status)
+            status_item = SortableItem(status_label)
+            color = STATUS_COLORS.get(new_status)
+            if color:
+                status_item.setForeground(color)
+            self.table.setItem(target_row, 4, status_item)
 
-        # Update local file column
-        save = st.save
-        save_exists = getattr(save, "save_exists", True)
-        if save.path is None:
-            local_name = "(server only)"
-            local_color = QColor(140, 140, 140)
-        elif not save_exists:
-            local_name = "(no local save)"
-            local_color = QColor(160, 120, 40)
-        else:
-            local_name = save.path.name
-            local_color = None
-        local_item = QTableWidgetItem(local_name)
-        if local_color:
-            local_item.setForeground(local_color)
-        self.table.setItem(target_row, 3, local_item)
+            # Update local file column
+            save = st.save
+            save_exists = getattr(save, "save_exists", True)
+            if save.path is None:
+                local_name = "(server only)"
+                local_color = QColor(140, 140, 140)
+            elif not save_exists:
+                local_name = "(no local save)"
+                local_color = QColor(160, 120, 40)
+            else:
+                local_name = save.path.name
+                local_color = None
+            local_item = SortableItem(local_name)
+            if local_color:
+                local_item.setForeground(local_color)
+            self.table.setItem(target_row, 3, local_item)
 
-        # Clear action buttons — row is now up_to_date (no actions needed)
-        self.table.setCellWidget(target_row, 5, None)
+            # Clear action buttons — row is now up_to_date (no actions needed)
+            self.table.setCellWidget(target_row, 5, None)
 
     def _download_to_paths(
         self,

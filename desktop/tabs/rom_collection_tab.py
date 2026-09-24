@@ -17,13 +17,13 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from chd_converter import find_chdman
 from config import SYSTEM_CHOICES, load_config, resolve_profile_for_sd
+from table_sorting import SortableItem, make_sortable, sorting_suspended
 
 
 def format_build_confirmation_message(
@@ -390,6 +390,7 @@ class RomCollectionTab(QWidget):
         hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        make_sortable(self.table)
         layout.addWidget(self.table)
 
         self.status_label = QLabel("Select a ROM folder and system, then scan.")
@@ -547,18 +548,19 @@ class RomCollectionTab(QWidget):
 
     def _refresh_table(self):
         entries = self._entries
-        self.table.setRowCount(len(entries))
-        for row, entry in enumerate(entries):
-            source_name = (
-                entry.source_path.name
-                if entry.archive_member is None
-                else f"{entry.source_path.name} :: {Path(entry.archive_member).name}"
-            )
-            self.table.setItem(row, 0, QTableWidgetItem(source_name))
-            self.table.setItem(row, 1, QTableWidgetItem(entry.output_name))
-            self.table.setItem(row, 2, QTableWidgetItem(entry.source_kind))
-            self.table.setItem(row, 3, QTableWidgetItem(entry.match_source))
-            self.table.setItem(row, 4, QTableWidgetItem(entry.region))
+        with sorting_suspended(self.table):
+            self.table.setRowCount(len(entries))
+            for row, entry in enumerate(entries):
+                source_name = (
+                    entry.source_path.name
+                    if entry.archive_member is None
+                    else f"{entry.source_path.name} :: {Path(entry.archive_member).name}"
+                )
+                self.table.setItem(row, 0, SortableItem(source_name))
+                self.table.setItem(row, 1, SortableItem(entry.output_name))
+                self.table.setItem(row, 2, SortableItem(entry.source_kind))
+                self.table.setItem(row, 3, SortableItem(entry.match_source))
+                self.table.setItem(row, 4, SortableItem(entry.region))
 
         self._refresh_build_button()
         all_count = len(getattr(self, "_all_entries", []))

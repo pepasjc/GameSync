@@ -14,12 +14,12 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from config import load_config, save_config
+from table_sorting import SORT_ROLE, SortableItem, make_sortable, sorting_suspended
 from rom_installer import (
     ROM_FORMAT_OPTIONS,
     available_systems_for_profiles,
@@ -190,6 +190,7 @@ class RomInstallerTab(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.doubleClicked.connect(lambda _idx: self.install_selected())
+        make_sortable(self.table)
         layout.addWidget(self.table, 1)
 
     def refresh_profiles(self):
@@ -273,6 +274,11 @@ class RomInstallerTab(QWidget):
         QMessageBox.critical(self, "ROM Installer", message)
 
     def _populate_table(self, roms: list[dict]):
+        with sorting_suspended(self.table):
+            self._fill_table(roms)
+        self.status_label.setText(f"{len(roms)} ROM(s)")
+
+    def _fill_table(self, roms: list[dict]):
         profile = self._current_profile()
         system = self.system_combo.currentText()
         override = str(self.format_combo.currentData() or "auto")
@@ -307,14 +313,14 @@ class RomInstallerTab(QWidget):
                 rom.get("rom_id") or rom.get("title_id", ""),
             ]
             for col, value in enumerate(values):
-                item = QTableWidgetItem(str(value))
+                item = SortableItem(str(value))
                 if col == 0:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if col == 3:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    item.setData(SORT_ROLE, int(rom.get("size") or 0))
                 self.table.setItem(row, col, item)
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, rom)
-        self.status_label.setText(f"{len(roms)} ROM(s)")
 
     def _selected_rows(self) -> list[int]:
         return sorted({idx.row() for idx in self.table.selectionModel().selectedRows()})

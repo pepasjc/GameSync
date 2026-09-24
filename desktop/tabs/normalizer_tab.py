@@ -24,6 +24,7 @@ from PyQt6.QtGui import QColor
 
 from config import load_config, resolve_profile_for_sd, SYSTEM_CHOICES
 from systems import CD_ALL_EXTENSIONS, CD_DATA_EXTENSIONS, CD_FOLDER_SYSTEMS
+from table_sorting import SortableItem, make_sortable, sorting_suspended
 
 
 # Regex to extract a disc number from a folder name — used to restore the
@@ -705,6 +706,7 @@ class RomNormalizerTab(QWidget):
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.table.cellDoubleClicked.connect(self._on_cell_double_clicked)
         self.table.itemChanged.connect(self._on_item_changed)
+        make_sortable(self.table)
         layout.addWidget(self.table)
 
         self.status_label = QLabel("Select a folder and system, then click Scan.")
@@ -877,6 +879,10 @@ class RomNormalizerTab(QWidget):
         self._worker.start()
 
     def _on_scan_done(self, renames: list):
+        with sorting_suspended(self.table):
+            self._fill_table(renames)
+
+    def _fill_table(self, renames: list):
         self._renames = renames
         self.table.setRowCount(len(renames))
 
@@ -903,9 +909,11 @@ class RomNormalizerTab(QWidget):
         }
         for row, r in enumerate(renames):
             ro = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
-            name_item = QTableWidgetItem(r["old"].name)
+            name_item = SortableItem(r["old"].name)
             name_item.setFlags(ro | Qt.ItemFlag.ItemIsUserCheckable)
             name_item.setCheckState(Qt.CheckState.Unchecked)
+            # Rows can be re-ordered by sorting; remember the _renames index.
+            name_item.setData(Qt.ItemDataRole.UserRole, row)
             tip_lines = []
             comps = r.get("companions", [])
             if comps:
@@ -922,16 +930,16 @@ class RomNormalizerTab(QWidget):
             if tip_lines:
                 name_item.setToolTip("\n\n".join(tip_lines))
             self.table.setItem(row, 0, name_item)
-            new_item = QTableWidgetItem(r["new"].name)
+            new_item = SortableItem(r["new"].name)
             if comps:
                 new_item.setToolTip(
                     f"+{len(comps)} companion file(s) will follow this name"
                 )
             self.table.setItem(row, 1, new_item)  # editable
-            subfolder_item = QTableWidgetItem(r["subfolder"])
+            subfolder_item = SortableItem(r["subfolder"])
             subfolder_item.setFlags(ro)
             self.table.setItem(row, 2, subfolder_item)
-            src_item = QTableWidgetItem(r["source"])
+            src_item = SortableItem(r["source"])
             src_item.setFlags(ro)
             src_item.setForeground(
                 SOURCE_COLORS.get(r["source"], QColor(255, 255, 255))
@@ -939,7 +947,7 @@ class RomNormalizerTab(QWidget):
             self.table.setItem(row, 3, src_item)
             if r["source"] != "Save":
                 has_save = r.get("has_save", False)
-                save_col_item = QTableWidgetItem("✓" if has_save else "—")
+                save_col_item = SortableItem("✓" if has_save else "—")
                 save_col_item.setFlags(ro)
                 save_col_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 save_col_item.setForeground(
@@ -1076,12 +1084,12 @@ class RomNormalizerTab(QWidget):
             r
             for r in range(self.table.rowCount())
             if not self.table.isRowHidden(r)
-            and (self.table.item(r, 2) or QTableWidgetItem("")).text() == subfolder
+            and (self.table.item(r, 2) or SortableItem("")).text() == subfolder
         ]
 
         # If every visible row in the group is checked, uncheck all; otherwise check all
         all_checked = all(
-            (self.table.item(r, 0) or QTableWidgetItem("")).checkState()
+            (self.table.item(r, 0) or SortableItem("")).checkState()
             == Qt.CheckState.Checked
             for r in rows_in_folder
         )
@@ -1101,14 +1109,24 @@ class RomNormalizerTab(QWidget):
             if item:
                 item.setCheckState(state)
 
+    def _table_rows_by_index(self) -> dict[int, int]:
+        """Map each ``_renames`` index to its current (possibly sorted) table row."""
+        rows = {}
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item is not None:
+                rows[item.data(Qt.ItemDataRole.UserRole)] = row
+        return rows
+
     def _apply(self):
         if not self._renames:
             return
+        table_row = self._table_rows_by_index()
         nointro_only = self.nointro_only_check.isChecked()
         to_apply = []
         applied_rom_indices: set[int] = set()
-        for row, r in enumerate(self._renames):
-            item = self.table.item(row, 0)
+        for idx, r in enumerate(self._renames):
+            item = self.table.item(table_row[idx], 0)
             if item and item.checkState() != Qt.CheckState.Checked:
                 continue
             if nointro_only and r["source"] not in (
@@ -1120,22 +1138,22 @@ class RomNormalizerTab(QWidget):
                 "Save",
             ):
                 continue
-            to_apply.append((row, r))
+            to_apply.append((idx, r))
             if r["source"] != "Save":
-                applied_rom_indices.add(row)
+                applied_rom_indices.add(idx)
 
         # Auto-include Save rows linked to an applied ROM, even if unchecked.
         # This ensures save files always follow their ROM rename automatically.
-        applied_rows = {row for row, _ in to_apply}
-        for row, r in enumerate(self._renames):
-            if row in applied_rows:
+        applied = {idx for idx, _ in to_apply}
+        for idx, r in enumerate(self._renames):
+            if idx in applied:
                 continue
             if r["source"] != "Save":
                 continue
             rom_idx = r.get("rom_idx")
             if rom_idx is not None and rom_idx in applied_rom_indices:
-                to_apply.append((row, r))
-        to_apply.sort(key=lambda x: x[0])  # keep original row order
+                to_apply.append((idx, r))
+        to_apply.sort(key=lambda x: x[0])  # keep original scan order
         if not to_apply:
             QMessageBox.information(
                 self,
@@ -1164,14 +1182,16 @@ class RomNormalizerTab(QWidget):
             return
         import rom_normalizer as rn
 
-        done_rows = []  # table row indices that were successfully renamed
+        done_indices = []  # _renames indices that were successfully renamed
         skipped = 0
         log_entries: list[str] = []  # (old_path, new_path) pairs for the undo log
 
-        for row, r in to_apply:
+        for idx, r in to_apply:
             old = r["old"]
             # Use the (possibly user-edited) name from the table cell
-            new_name = (self.table.item(row, 1) or QTableWidgetItem("")).text().strip()
+            new_name = (
+                self.table.item(table_row[idx], 1) or SortableItem("")
+            ).text().strip()
             if not new_name:
                 skipped += 1
                 continue
@@ -1213,7 +1233,7 @@ class RomNormalizerTab(QWidget):
                     if save_dir_new != save_dir_old and not save_dir_new.exists():
                         save_dir_old.rename(save_dir_new)
                         log_entries.append(f"{save_dir_new}\t{save_dir_old}")
-                done_rows.append(row)
+                done_indices.append(idx)
             except Exception as e:
                 QMessageBox.warning(
                     self, "Rename Error", f"Could not rename {old.name}:\n{e}"
@@ -1247,13 +1267,29 @@ class RomNormalizerTab(QWidget):
         # Remove successfully renamed rows from the table and _renames list.
         # Iterate in reverse so that removing a row doesn't shift subsequent indices.
         self.table.blockSignals(True)
-        for row in sorted(done_rows, reverse=True):
+        for row in sorted((table_row[idx] for idx in done_indices), reverse=True):
             self.table.removeRow(row)
-            self._renames.pop(row)
+        done_set = set(done_indices)
+        remap = {
+            old: new
+            for new, old in enumerate(
+                i for i in range(len(self._renames)) if i not in done_set
+            )
+        }
+        self._renames = [r for i, r in enumerate(self._renames) if i not in done_set]
+        for r in self._renames:
+            if r.get("rom_idx") is not None:
+                r["rom_idx"] = remap.get(r["rom_idx"])
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item is not None:
+                item.setData(
+                    Qt.ItemDataRole.UserRole, remap[item.data(Qt.ItemDataRole.UserRole)]
+                )
         self.table.blockSignals(False)
 
         remaining = self.table.rowCount()
-        done = len(done_rows)
+        done = len(done_indices)
         log_note = f" — log saved to logs/renames_{ts}.txt" if log_entries else ""
         if remaining == 0:
             self.apply_btn.setEnabled(False)

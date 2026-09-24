@@ -5,7 +5,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -14,6 +13,10 @@ from PyQt6.QtCore import Qt
 from config import load_config, resolve_profile_for_sd, save_config
 from dialogs.profile_dialog import ProfileDialog
 from rom_installer import ROM_FORMAT_LABELS
+from table_sorting import SortableItem, make_sortable, sorting_suspended
+
+# Position in the saved profile list, so sorting the view never reorders config.
+_ORDER_ROLE = Qt.ItemDataRole.UserRole + 1
 
 
 def _profile_path_display(profile: dict) -> str:
@@ -74,29 +77,40 @@ class ProfilesTab(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        make_sortable(self.table)
         layout.addWidget(self.table)
+
+    def _set_row(self, row: int, profile: dict, order: int):
+        with sorting_suspended(self.table):
+            self.table.setItem(row, 0, SortableItem(profile.get("name", "")))
+            self.table.setItem(row, 1, SortableItem(profile.get("device_type", "")))
+            self.table.setItem(row, 2, SortableItem(_profile_path_display(profile)))
+            sf = profile.get("save_folder", "")
+            self.table.setItem(row, 3, SortableItem(sf or "(same as game folder)"))
+            self.table.setItem(row, 4, SortableItem(_profile_rom_format_display(profile)))
+            self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, profile)
+            self.table.item(row, 0).setData(_ORDER_ROLE, order)
+
+    def _append_row(self, profile: dict):
+        orders = [item.data(_ORDER_ROLE) for item in self._profile_items()]
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        self._set_row(row, profile, max(orders, default=-1) + 1)
+
+    def _profile_items(self) -> list:
+        """Column-0 items in saved-profile order, whatever the view's sort."""
+        items = [self.table.item(row, 0) for row in range(self.table.rowCount())]
+        return sorted((i for i in items if i), key=lambda i: i.data(_ORDER_ROLE))
 
     def _load_profiles(self):
         config = load_config()
         profiles = config.get("profiles", [])
         self.table.setRowCount(0)
         for p in profiles:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(p.get("name", "")))
-            self.table.setItem(row, 1, QTableWidgetItem(p.get("device_type", "")))
-            self.table.setItem(row, 2, QTableWidgetItem(_profile_path_display(p)))
-            save_folder = p.get("save_folder", "")
-            self.table.setItem(row, 3, QTableWidgetItem(save_folder or "(same as game folder)"))
-            self.table.setItem(row, 4, QTableWidgetItem(_profile_rom_format_display(p)))
-            self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, p)
+            self._append_row(p)
 
     def _save_profiles(self):
-        profiles = []
-        for row in range(self.table.rowCount()):
-            item = self.table.item(row, 0)
-            if item:
-                profiles.append(item.data(Qt.ItemDataRole.UserRole))
+        profiles = [item.data(Qt.ItemDataRole.UserRole) for item in self._profile_items()]
         config = load_config()
         config["profiles"] = profiles
         save_config(config)
@@ -104,43 +118,27 @@ class ProfilesTab(QWidget):
     def get_profiles(self) -> list[dict]:
         # SD-card profiles get their drive letter remapped to the currently
         # mounted reader; the stored copy in the table keeps its fixed letter.
-        profiles = []
-        for row in range(self.table.rowCount()):
-            item = self.table.item(row, 0)
-            if item:
-                profiles.append(resolve_profile_for_sd(item.data(Qt.ItemDataRole.UserRole)))
-        return profiles
+        return [
+            resolve_profile_for_sd(item.data(Qt.ItemDataRole.UserRole))
+            for item in self._profile_items()
+        ]
 
     def _add_profile(self):
         dialog = ProfileDialog(parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            profile = dialog.get_profile()
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(profile["name"]))
-            self.table.setItem(row, 1, QTableWidgetItem(profile["device_type"]))
-            self.table.setItem(row, 2, QTableWidgetItem(_profile_path_display(profile)))
-            sf = profile.get("save_folder", "")
-            self.table.setItem(row, 3, QTableWidgetItem(sf or "(same as game folder)"))
-            self.table.setItem(row, 4, QTableWidgetItem(_profile_rom_format_display(profile)))
-            self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, profile)
+            self._append_row(dialog.get_profile())
             self._save_profiles()
 
     def _edit_profile(self):
         row = self.table.currentRow()
         if row < 0:
             return
-        profile = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        item = self.table.item(row, 0)
+        profile = item.data(Qt.ItemDataRole.UserRole)
+        order = item.data(_ORDER_ROLE)
         dialog = ProfileDialog(profile=profile, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            updated = dialog.get_profile()
-            self.table.setItem(row, 0, QTableWidgetItem(updated["name"]))
-            self.table.setItem(row, 1, QTableWidgetItem(updated["device_type"]))
-            self.table.setItem(row, 2, QTableWidgetItem(_profile_path_display(updated)))
-            sf = updated.get("save_folder", "")
-            self.table.setItem(row, 3, QTableWidgetItem(sf or "(same as game folder)"))
-            self.table.setItem(row, 4, QTableWidgetItem(_profile_rom_format_display(updated)))
-            self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, updated)
+            self._set_row(row, dialog.get_profile(), order)
             self._save_profiles()
 
     def _delete_profile(self):

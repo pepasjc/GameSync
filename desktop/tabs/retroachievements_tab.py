@@ -19,7 +19,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -27,6 +26,7 @@ from PyQt6.QtWidgets import (
 import retroachievements as ra
 from config import SYSTEM_CHOICES, get_retroachievements_credentials
 from shared.ra_hash import ra_hash_supported
+from table_sorting import SortableItem, make_sortable, sorting_suspended
 
 _STATUS_COLORS = {
     ra.STATUS_SUPPORTED: QColor(198, 239, 206),
@@ -175,7 +175,7 @@ class RetroAchievementsTab(QWidget):
         self.table.setHorizontalHeaderLabels(_COLUMNS)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setSortingEnabled(True)
+        make_sortable(self.table)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(_COL_FILE, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(_COL_GAME, QHeaderView.ResizeMode.Stretch)
@@ -268,7 +268,10 @@ class RetroAchievementsTab(QWidget):
     def _populate_table(self):
         entries = self._visible_entries()
         positions = {id(e): i for i, e in enumerate(self._entries)}
-        self.table.setSortingEnabled(False)
+        with sorting_suspended(self.table):
+            self._fill_table(entries, positions)
+
+    def _fill_table(self, entries: list[ra.RaScanEntry], positions: dict[int, int]):
         self.table.setRowCount(len(entries))
         for row, entry in enumerate(entries):
             values = [
@@ -284,14 +287,13 @@ class RetroAchievementsTab(QWidget):
             ]
             color = _STATUS_COLORS.get(entry.status)
             for col, value in enumerate(values):
-                item = QTableWidgetItem(value)
+                item = SortableItem(value)
                 item.setData(Qt.ItemDataRole.UserRole, positions[id(entry)])
                 if col == _COL_FILE:
                     item.setToolTip(str(entry.path))
                 if color is not None and col == _COL_STATUS:
                     item.setBackground(color)
                 self.table.setItem(row, col, item)
-        self.table.setSortingEnabled(True)
 
     def _entry_at(self, row: int) -> ra.RaScanEntry | None:
         item = self.table.item(row, _COL_FILE)
