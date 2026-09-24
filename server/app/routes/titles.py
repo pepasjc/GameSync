@@ -41,18 +41,12 @@ def _resolve_console_type(title: dict, typed: dict[str, tuple[str, str]]) -> str
 
 
 @router.get("/titles")
-async def list_titles(console_type: list[str] | None = Query(default=None)):
-    titles = storage.list_titles()
-
-    # Keep PS3 listing hashes aligned with /meta and /sync by refreshing rows
-    # from the current on-disk files before we hand them to clients.
-    for idx, title in enumerate(titles):
-        tid = title.get("title_id", "")
-        if not tid:
-            continue
-        meta = storage.get_metadata_for_sync(tid)
-        if meta is not None:
-            titles[idx] = meta.to_dict()
+def list_titles(console_type: list[str] | None = Query(default=None)):
+    # A plain def, so FastAPI runs it in its thread pool: it reads the DB and
+    # the name tables, and as ``async def`` every other request waited for it.
+    # Hashes are the ones /meta and /sync compare against (see
+    # storage.get_metadata_for_sync).
+    titles = [meta.to_dict() for meta in storage.list_metadata_for_sync()]
 
     if titles:
         # Overlay locally-known DAT/database names onto the response so old

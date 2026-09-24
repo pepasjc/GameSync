@@ -38,6 +38,15 @@ CREATE TABLE IF NOT EXISTS saves (
 """
 
 
+#: One-off facts about the DB itself, such as "this migration has run".
+_CREATE_FLAGS_SQL = """
+CREATE TABLE IF NOT EXISTS db_flags (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+)
+"""
+
+
 def init_db(save_dir: Path) -> None:
     """Initialise the SQLite DB at save_dir/metadata.db.
 
@@ -54,6 +63,7 @@ def init_db(save_dir: Path) -> None:
     _conn.row_factory = sqlite3.Row
     _conn.execute("PRAGMA journal_mode=WAL")
     _conn.execute(_CREATE_TABLE_SQL)
+    _conn.execute(_CREATE_FLAGS_SQL)
     _conn.commit()
     _current_db_path = db_path
 
@@ -170,5 +180,25 @@ def update_name_and_platform(title_id: str, name: str, platform: str) -> None:
         conn.execute(
             "UPDATE saves SET name=?, platform=? WHERE title_id=?",
             (name, platform, title_id),
+        )
+        conn.commit()
+
+
+def get_flag(key: str) -> Optional[str]:
+    """The value stored under *key* in db_flags, or None."""
+    conn = _get()
+    row = conn.execute(
+        "SELECT value FROM db_flags WHERE key = ?", (key,)
+    ).fetchone()
+    return row["value"] if row is not None else None
+
+
+def set_flag(key: str, value: str) -> None:
+    conn = _get()
+    with _lock:
+        conn.execute(
+            "INSERT INTO db_flags (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
         )
         conn.commit()

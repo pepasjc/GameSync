@@ -150,6 +150,9 @@ def update_metadata_name(title_id: str, name: str, platform: str) -> None:
         data["name"] = name
         data["platform"] = platform
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        # An in-place rewrite does not move the save dir's mtime.
+        global _legacy_cache
+        _legacy_cache = None
 
 
 def list_titles() -> list[dict]:
@@ -158,25 +161,52 @@ def list_titles() -> list[dict]:
     db_rows = {r["title_id"]: r for r in db.list_all()}
 
     # Fallback: include any JSON-only saves not yet migrated to DB
-    save_dir = settings.save_dir
-    if save_dir.exists():
-        for entry in sorted(save_dir.iterdir()):
-            if not entry.is_dir():
-                continue
-            meta_path = entry / "metadata.json"
-            if meta_path.exists():
-                try:
-                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                    tid = meta.get("title_id", "")
-                    if tid and tid not in db_rows:
-                        meta.setdefault("system", "")
-                        db_rows[tid] = meta
-                except json.JSONDecodeError as exc:
-                    logger.warning("Skipping malformed JSON metadata %s: %s", meta_path, exc)
-                except Exception as exc:
-                    logger.warning("Unexpected error reading metadata %s: %s", meta_path, exc)
+    for meta in _legacy_json_metadata():
+        tid = meta.get("title_id", "")
+        if tid and tid not in db_rows:
+            db_rows[tid] = dict(meta)
 
     return list(db_rows.values())
+
+
+#: (save_dir, its mtime) -> the legacy metadata.json dicts found under it.
+_legacy_cache: tuple | None = None
+
+
+def _legacy_json_metadata() -> list[dict]:
+    """Every legacy metadata.json under the save dir.
+
+    Walking it costs a stat per title on every listing - over a thousand on
+    the live server - to find files that stopped being written when the DB
+    arrived. Cached until the save dir's own mtime moves, which it does
+    whenever a title folder is added or removed.
+    """
+    global _legacy_cache
+    save_dir = settings.save_dir
+    try:
+        stamp = save_dir.stat().st_mtime_ns
+    except OSError:
+        return []
+    if _legacy_cache is not None and _legacy_cache[0] == (save_dir, stamp):
+        return _legacy_cache[1]
+
+    found = []
+    for entry in sorted(save_dir.iterdir()):
+        if not entry.is_dir():
+            continue
+        meta_path = entry / "metadata.json"
+        if meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                if meta.get("title_id", ""):
+                    meta.setdefault("system", "")
+                    found.append(meta)
+            except json.JSONDecodeError as exc:
+                logger.warning("Skipping malformed JSON metadata %s: %s", meta_path, exc)
+            except Exception as exc:
+                logger.warning("Unexpected error reading metadata %s: %s", meta_path, exc)
+    _legacy_cache = ((save_dir, stamp), found)
+    return found
 
 
 def get_metadata(title_id: str, console_id: str = "") -> SaveMetadata | None:
@@ -188,22 +218,90 @@ def get_metadata(title_id: str, console_id: str = "") -> SaveMetadata | None:
     return _load_json_metadata(title_id)
 
 
-def get_metadata_for_sync(title_id: str, console_id: str = "") -> SaveMetadata | None:
-    """Load metadata used for sync comparison.
+#: db_flags key recording that every PS3 row carries the current hash scheme
+#: (PARAM.SFO, PARAM.PFD and *.PNG excluded - see _is_ps3_hash_ignored).
+PS3_HASH_FLAG = "ps3_hash_scheme"
+PS3_HASH_SCHEME = "2"
+#: The DB path migrate_ps3_hashes() is known to have finished on. A path,
+#: not a bool: tests (and a changed SYNC_SAVE_DIR) switch databases.
+_ps3_hashes_current_for = None
 
-    PS3 save hashes were recently redefined to ignore PARAM.* and PNG metadata.
-    Existing DB rows may still hold the older hash, so refresh PS3 metadata from
-    the current on-disk files before comparing.
+
+def ps3_hashes_current() -> bool:
+    """Has migrate_ps3_hashes() finished on this DB? Cached once true."""
+    global _ps3_hashes_current_for
+    db._get()
+    path = db._current_db_path
+    if _ps3_hashes_current_for == path:
+        return True
+    if db.get_flag(PS3_HASH_FLAG) == PS3_HASH_SCHEME:
+        _ps3_hashes_current_for = path
+        return True
+    return False
+
+
+def migrate_ps3_hashes() -> int:
+    """Bring every PS3 row to the current hash scheme, once per DB.
+
+    PS3 hashes were redefined to leave out PARAM.* and PNG files, and rows
+    written before that still held the old value. That used to be handled
+    by re-reading and re-hashing every PS3 save on every /titles and /sync
+    request - 71 MB per call on the live server, for a result that only
+    ever changes on upload, where store_save already hashes the new way.
+    Returns how many rows changed.
     """
-    meta = get_metadata(title_id, console_id)
-    if meta is None:
-        return None
-
-    if game_names.detect_platform(title_id) == "PS3":
+    global _ps3_hashes_current_for
+    if ps3_hashes_current():
+        return 0
+    changed = 0
+    for row in db.list_all():
+        title_id = row.get("title_id", "")
+        if not title_id or game_names.detect_platform(title_id) != "PS3":
+            continue
+        before = row.get("save_hash", "")
         refreshed = rebuild_metadata_from_current(title_id)
+        if refreshed is not None and refreshed.save_hash != before:
+            changed += 1
+    db.set_flag(PS3_HASH_FLAG, PS3_HASH_SCHEME)
+    _ps3_hashes_current_for = db._current_db_path
+    return changed
+
+
+def _for_sync(meta: SaveMetadata | None) -> SaveMetadata | None:
+    """Until migrate_ps3_hashes() has run, a PS3 row may hold the old hash."""
+    if meta is None or ps3_hashes_current():
+        return meta
+    if game_names.detect_platform(meta.title_id) == "PS3":
+        refreshed = rebuild_metadata_from_current(meta.title_id)
         if refreshed is not None:
             return refreshed
     return meta
+
+
+def get_metadata_for_sync(title_id: str, console_id: str = "") -> SaveMetadata | None:
+    """Load metadata used for sync comparison."""
+    return _for_sync(get_metadata(title_id, console_id))
+
+
+def list_metadata_for_sync() -> list[SaveMetadata]:
+    """Every title's sync metadata, from one DB read.
+
+    What calling get_metadata_for_sync() per title returns, without a
+    query per title on top of the one that listed them.
+    """
+    out = []
+    for row in list_titles():
+        tid = row.get("title_id", "")
+        if not tid:
+            continue
+        if "save_hash" in row and "last_sync" in row:
+            meta = _row_to_metadata(row)
+        else:
+            meta = get_metadata(tid)
+        meta = _for_sync(meta)
+        if meta is not None:
+            out.append(meta)
+    return out
 
 
 def store_save(
