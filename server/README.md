@@ -36,6 +36,9 @@ All settings are via environment variables with the `SYNC_` prefix, or in a `ser
 | `SYNC_SAVE_DIR` | `./saves` | Directory where save files and history are stored |
 | `SYNC_ROM_DIR` | *(unset)* | ROM root directory for the web library (see [ROM Library](#rom-library)) |
 | `SYNC_ROM_SCAN_INTERVAL` | `300` | Background ROM rescan interval in seconds (`0` disables it) |
+| `SYNC_CHD_RECOMPRESS_ZSTD` | `true` | After each scan, rewrite zstd-compressed CHDs to chdman's standard codecs (needs `chdman` 0.264+). Lossless: a file is only replaced when `chdman verify` passes and the uncompressed image's SHA-1 is unchanged. The server's CHD reader cannot decode zstd, so such discs otherwise get no exact RetroAchievements match |
+| `SYNC_RA_ENABLED` | `true` | Build the RetroAchievements index after each scan (catalog badges) |
+| `SYNC_RA_API_KEY` / `SYNC_RA_USERNAME` | `""` | RetroAchievements web API key and user; without them the public endpoints are used and achievement counts are unknown |
 | `SYNC_ROM_3DS_CIA_COMMAND` | `""` | Optional command template that converts a `.3ds` / `.cci` cart image into a decrypted `.cia` (installable on CFW 3DS **and** usable in emulators) |
 | `SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND` | `""` | Optional command template that converts a `.3ds` / `.cci` cart image into a decrypted `.cci` for emulators |
 | `SYNC_HOST` | `0.0.0.0` | Bind address |

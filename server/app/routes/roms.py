@@ -686,6 +686,12 @@ async def trigger_scan(request: Request, use_crc32: bool = Query(False)):
     catalog = rom_scanner.rescan(use_crc32=use_crc32)
     if not catalog:
         return {"status": "no_rom_dir", "count": 0}
+    # Same housekeeping as the periodic scan (zstd CHDs, RA index), in the
+    # background so the response doesn't wait for it.
+    import asyncio
+
+    from app.main import library_maintenance
+    asyncio.create_task(library_maintenance(catalog))
     return {"status": "ok", "count": len(catalog.entries)}
 
 

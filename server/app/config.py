@@ -144,6 +144,11 @@ class Settings(BaseSettings):
     ra_enabled: bool = True
     ra_api_key: str = ""
     ra_username: str = ""
+    # Rewrite zstd-compressed CHDs in the ROM library to chdman's standard
+    # codecs after each scan (lossless, verified; see
+    # services/chd_normalize.py).  The server's own CHD reader cannot decode
+    # zstd, so such discs would otherwise never get an exact RA badge.
+    chd_recompress_zstd: bool = True
     site_title: str = "GameSync"
     # Comma-separated list of nginx Basic Auth usernames that get admin access.
     # Everyone else can download but cannot trigger rescans or change settings.

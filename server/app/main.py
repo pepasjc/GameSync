@@ -129,11 +129,10 @@ async def lifespan(app: FastAPI):
         if settings.rom_scan_interval > 0:
             rom_scan_task = asyncio.create_task(_periodic_rom_scan())
         rom_cleanup_task = asyncio.create_task(_periodic_rom_cleanup())
-        if settings.ra_enabled:
-            # Index after the catalog is up, never during the scan: this
-            # reads every cartridge ROM once and would otherwise hold up
-            # startup for minutes on a large library.
-            ra_index_task = asyncio.create_task(_ra_index_pass(rom_catalog))
+        # Housekeeping after the catalog is up, never during the scan: the
+        # RA pass reads every cartridge ROM once and would otherwise hold up
+        # startup for minutes on a large library.
+        ra_index_task = asyncio.create_task(library_maintenance(rom_catalog))
 
     yield
 
@@ -162,6 +161,36 @@ async def lifespan(app: FastAPI):
 
 
 _ra_stop = asyncio.Event()
+_maintenance_lock = asyncio.Lock()
+
+
+async def library_maintenance(catalog) -> None:
+    """After a scan: fix zstd CHDs, then refresh the RetroAchievements index.
+
+    Serialised - a scan that lands while a pass is running waits for it
+    rather than starting a second one over the same files.
+    """
+    if catalog is None:
+        return
+    async with _maintenance_lock:
+        if settings.chd_recompress_zstd:
+            from app.services import chd_normalize
+
+            try:
+                counts = await asyncio.to_thread(
+                    chd_normalize.normalize,
+                    chd_normalize.catalog_chds(catalog.list_all(), settings.rom_dir),
+                    _ra_stop.is_set,
+                )
+                if counts["recompressed"]:
+                    logger.info("[chd_normalize] re-compressed %d zstd CHD(s)", counts["recompressed"])
+                    # Sizes changed on disk; let the catalog catch up
+                    # before the RA pass reads it.
+                    catalog = await asyncio.to_thread(rom_scanner.rescan) or catalog
+            except Exception:
+                logger.exception("[chd_normalize] pass failed")
+        if settings.ra_enabled:
+            await _ra_index_pass(catalog)
 
 
 async def _ra_index_pass(catalog) -> None:
@@ -216,8 +245,7 @@ async def _periodic_rom_scan():
                     logger.info(
                         "[rom_scanner] Periodic scan: %d ROMs", len(catalog.entries)
                     )
-                    if settings.ra_enabled:
-                        await _ra_index_pass(catalog)
+                    await library_maintenance(catalog)
             except Exception:
                 logger.exception("[rom_scanner] Periodic scan failed")
     except asyncio.CancelledError:
