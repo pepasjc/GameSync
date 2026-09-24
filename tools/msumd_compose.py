@@ -3,7 +3,8 @@ complete, flat packs the catalog can index.
 
     python tools/msumd_compose.py "<set dir>" <out dir> [--report file]
 
-The curated Mega Drive set ships two shapes side by side.  The old one is
+Works for the MD+ set too (same split, ``[MD+ hack by X]`` carts and WAV
+soundpacks).  The curated Mega Drive set ships two shapes side by side.  The old one is
 a complete zip (``Game (USA) (MSU-MD) [Hack by X].zip``: ``.md`` + ``.cue``
 + ``.bin``).  The new one splits it: ``Game (USA) [MSU-MD hack by X].zip``
 holds only the patched cart, ``(Soundpack) Game (USA) [MSU-MD … Arranged by
@@ -37,10 +38,11 @@ from pathlib import Path
 _BRACKET_RE = re.compile(r"\s*\[[^\]]*\]")
 _REV_RE = re.compile(r"\s*\(Rev [^)]*\)")
 _CART_MOD_RE = re.compile(
-    r"Color hack|Invincibility|cheat|region hacked|Edition by|\[m |port\]|\[Add by",
+    r"Color hack|Invincibility|cheat|region hacked|Edition by|\[m |port\]|\[Add by"
+    r"|voice samples|Hack by (?!.*MD)|Director's Cut",
     re.IGNORECASE,
 )
-_SOUND_PLAIN_RE = re.compile(r"\[MSU-MD Arranged by [^\]]*\]$")
+_SOUND_PLAIN_RE = re.compile(r"\[(?:MSU-MD|MD\+) Arranged by [^\]]*\]$")
 _DATE_RE = re.compile(r"v(\d{8})")
 
 
@@ -49,7 +51,7 @@ def game_title(name: str) -> str:
     stem = name[:-4] if name.lower().endswith(".zip") else name
     stem = stem.replace("(Soundpack) ", "")
     stem = _BRACKET_RE.sub("", stem)
-    stem = stem.replace("(MSU-MD)", "")
+    stem = stem.replace("(MSU-MD)", "").replace("(MD+)", "")
     return re.sub(r"\s{2,}", " ", stem).strip()
 
 

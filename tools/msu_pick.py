@@ -244,6 +244,7 @@ def main() -> int:
     ap.add_argument("--system", default="SNES")
     ap.add_argument("--report", default="msu_report.md")
     ap.add_argument("--plan", default="msu_plan.txt")
+    ap.add_argument("--prefer-kind", default="", help="bundle kind that wins a game outright (mdplus)")
     args = ap.parse_args()
 
     dat_normalizer.init(ROOT / "server" / "data" / "dats")
@@ -334,7 +335,10 @@ def main() -> int:
     def _policy_rank(r):
         name = r["filename"]
         beta = 1 if _LOSER_RE.search(name) else 0
-        return (modification_count(name), is_messy(name), beta, -r["set_index"], _rank(name))
+        # --prefer-kind (e.g. mdplus) outranks everything: a format choice,
+        # not a quality one.
+        kind = 0 if args.prefer_kind and r.get("bundle_kind") == args.prefer_kind else 1
+        return (kind, modification_count(name), is_messy(name), beta, -r["set_index"], _rank(name))
 
     for r in sorted(all_rows, key=_policy_rank):
         name = r["filename"]
