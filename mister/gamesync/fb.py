@@ -206,6 +206,25 @@ class Framebuffer:
             self._tty_fd = fd
             return
 
+    def describe(self) -> str:
+        """One line on what the driver handed us, for the log.
+
+        Console Mode drives the framebuffer itself (``vmode -r``, and a
+        native CRT path of its own), so the geometry a script inherits
+        depends on what its UI left behind. When the picture comes out
+        wrong, this line is what tells the two apart.
+        """
+        driver = "?"
+        try:
+            with open("/sys/module/MiSTer_fb/parameters/mode") as handle:
+                driver = handle.read().strip()
+        except Exception:
+            pass
+        return "fb %dx%d stride=%d bpp=%d via=%s driver_mode=[%s]" % (
+            self.phys_width, self.phys_height, self.stride,
+            self.bytes_per_pixel * 8,
+            "/dev/mem" if self._mem_fd >= 0 else "fb0", driver)
+
     # -------------------------------------------------------------- viewport
 
     def set_viewport(self, left: int, top: int, width: int, height: int) -> None:

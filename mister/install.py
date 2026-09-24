@@ -180,6 +180,12 @@ def write_config(client, sftp, args):
 
 
 def uninstall(client, sftp):
+    # Console Mode menu entry and boot hook go first, while the zipapp that
+    # knows how to remove them is still there.
+    status, out, err = run(client, "[ -e %s ] && python3 %s --console-mode-remove"
+                           % (REMOTE_PYZ, REMOTE_PYZ))
+    if out.strip():
+        print(out.rstrip())
     for path in (REMOTE_PYZ, REMOTE_LAUNCHER):
         try:
             sftp.remove(path)
@@ -279,6 +285,16 @@ def main():
         print(out or err)
         if status != 0:
             return fail("the client did not pass its selftest on the device")
+
+        # Console Mode (Retro-Remake's frontend) gets a GameSync entry in its
+        # own menu; a no-op on a stock MiSTer.
+        status, out, err = run(client, "python3 %s --console-mode-setup"
+                               % REMOTE_PYZ)
+        if out and not out.startswith("Console Mode is not"):
+            print("\nConsole Mode:")
+            print(out)
+        if status != 0:
+            print("  Console Mode setup failed: %s" % (err or out))
 
         print("\nInstalled. On the MiSTer: OSD -> Scripts -> GameSync")
         status, out, _ = run(

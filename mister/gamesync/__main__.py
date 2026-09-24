@@ -61,6 +61,21 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     os.environ.setdefault("TERM", "linux")
 
+    # Console Mode menu entry. Dispatched before the UI is imported: the
+    # watcher stays resident and must not hold anything it doesn't need.
+    if "--console-mode-watch" in argv:
+        from . import consolemode
+
+        return consolemode.watch()
+    if "--console-mode-setup" in argv:
+        from . import consolemode
+
+        return consolemode.setup()
+    if "--console-mode-remove" in argv:
+        from . import consolemode
+
+        return consolemode.remove()
+
     from .app import App
 
     app = None
@@ -113,6 +128,7 @@ def main(argv=None):
     try:
         with QuietConsole():
             app = App()
+            _log_display(app.fb)
             app.run(timeout=timeout, start_tab=start_tab,
                     show_conflict=show_conflict, calibrate=calibrate,
                     demo_confirm=demo_confirm, demo_choose=demo_choose,
@@ -134,6 +150,40 @@ def main(argv=None):
         if app is not None:
             app.close()
     return 0
+
+
+def _console_mode() -> bool:
+    """Whether Retro-Remake's Console Mode host is the one running us."""
+    if os.path.exists("/tmp/consolemode_script_path"):
+        return True
+    try:
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                # comm is cut to 15 characters: "MiSTer_ConsoleM".
+                with open("/proc/%s/comm" % pid) as handle:
+                    if handle.read().strip() == "MiSTer_ConsoleMode"[:15]:
+                        return True
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return False
+
+
+def _log_display(fb):
+    """Record the geometry each launch inherited. Never fatal."""
+    try:
+        import time
+
+        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
+        with open(LOG_PATH, "a") as handle:
+            handle.write("%s start %s console_mode=%d\n" % (
+                time.strftime("%Y-%m-%d %H:%M:%S"), fb.describe(),
+                int(_console_mode())))
+    except Exception:
+        pass
 
 
 def selftest():

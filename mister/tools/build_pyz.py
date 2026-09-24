@@ -59,7 +59,16 @@ status=$?
 # ask MiSTer to go straight back to the menu instead. A crash (non-zero)
 # keeps the console so the traceback can be read, and so do the text
 # subcommands. GAMESYNC_STAY=1 opts out for the SSH dev loop.
-case " $* " in *" --selftest "*) stay=1 ;; *) stay="${GAMESYNC_STAY:-0}" ;; esac
+#
+# Console Mode (Retro-Remake's frontend) replaces the MiSTer main binary
+# with MiSTer_ConsoleMode, which runs the script on tty2 itself and
+# relaunches its own UI the moment the script returns. Loading menu.rbf
+# on top of that swaps the core out from under the relaunch and strands
+# the user on the tty1 login prompt, so under Console Mode just exit.
+case " $* " in *" --selftest "*|*" --console-mode-"*) stay=1 ;; *) stay="${GAMESYNC_STAY:-0}" ;; esac
+if pidof MiSTer_ConsoleMode >/dev/null 2>&1 || [ -e /tmp/consolemode_script_path ]; then
+    stay=1
+fi
 if [ "$status" -eq 0 ] && [ "$stay" != 1 ] && [ -w /dev/MiSTer_cmd ]; then
     echo "load_core /media/fat/menu.rbf" > /dev/MiSTer_cmd
 fi
@@ -125,7 +134,8 @@ def build(deploy=False, host=None, password=None, user="root", port=22):
         # device, where it takes the whole app down before it draws a pixel.
         result = subprocess.run(
             [sys.executable, "-c",
-             "import gamesync.app, gamesync.sync, gamesync.downloads"],
+             "import gamesync.app, gamesync.sync, gamesync.downloads, "
+             "gamesync.consolemode"],
             cwd=stage, capture_output=True, text=True,
             env={**os.environ, "PYTHONPATH": stage})
         if result.returncode:
