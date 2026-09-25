@@ -115,7 +115,10 @@ toast and shows up on Installed. Closing the app mid-download is safe: the
 Y opens a search: an on-screen keyboard driven by the pad (a USB keyboard types
 straight in), Y again or OK applies it. Every word has to appear in the name,
 in any order, and the search stacks with the system filter; the header shows
-the active search and SELECT clears it. The system and row you were on are
+the active search and SELECT clears it. X (Square on a PlayStation pad)
+toggles **RA only**: just the games with a RetroAchievements set - `RA?`
+disc matches included - with the L1/R1 stops narrowed to systems that have
+one; X again shows everything. The system and row you were on are
 remembered across runs, so the tab reopens where you left it. A forced refresh
 of the catalog - "I changed the server's library" - lives on the **Settings**
 tab. On **Downloads**, A retries a failed row (or starts a stopped queue),

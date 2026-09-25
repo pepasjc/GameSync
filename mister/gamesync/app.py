@@ -185,6 +185,9 @@ class InstalledGame:
 class App:
     #: Catalog search text; empty means no filter (see set_search).
     search = ""
+    #: Catalog shows only games with a RetroAchievements set (see
+    #: toggle_ra_only).
+    ra_only = False
 
     def __init__(self, take_over_console: bool = True):
         self.fb = Framebuffer(take_over_console=take_over_console).open()
@@ -411,7 +414,7 @@ class App:
             ],
         }
         self.tab_systems = {
-            tab: (catalog_systems(rows) if tab == 1
+            tab: (catalog_systems(self._catalog_filter_rows(rows)) if tab == 1
                   else ["All"] + sorted({row.system for row in rows if row.system}))
             for tab, rows in self.all_rows.items()
         }
@@ -481,7 +484,8 @@ class App:
         is the difference between instant and unusable.
         """
         key = (self.tab, self.system_filter, self._data_version,
-               self.search if self.tab == 1 else "")
+               self.search if self.tab == 1 else "",
+               self.ra_only and self.tab == 1)
         if self._rows_key == key:
             return self._rows_cache
         rows = self.all_rows.get(self.tab, [])
@@ -492,6 +496,8 @@ class App:
                     if row.system == packs_of and row_pack_kind(row)]
         elif wanted != "All":
             rows = [row for row in rows if row.system == wanted]
+        if self.tab == 1 and self.ra_only:
+            rows = [row for row in rows if row.ra]
         if self.tab == 1 and self.search:
             rows = _search_rows(rows, self.search)
         self._rows_key = key
@@ -551,10 +557,13 @@ class App:
                   - self.font_small.line_height - 2,
                   "MiSTer", theme.ACCENT, theme.HEADER)
 
-        label = "%s  -  %d items" % (self.current_system, len(self.rows()))
+        scope = self.current_system
+        if self.tab == 1 and self.ra_only:
+            scope += "  RA only"
+        label = "%s  -  %d items" % (scope, len(self.rows()))
         if self.tab == 1 and self.search:
-            label = '%s  "%s"  -  %d items' % (self.current_system,
-                                                self.search, len(self.rows()))
+            label = '%s  "%s"  -  %d items' % (scope, self.search,
+                                                len(self.rows()))
         width = self.font_small.measure(label)
         self.text(self.font_small, metrics.width - metrics.pad - width,
                   (metrics.header_h - self.font_small.line_height) // 2,
@@ -631,6 +640,10 @@ class App:
             if self.search:
                 return ('Nothing matches "%s" - %s clears the search'
                         % (self.search, self.input.label(gsinput.SEARCH)))
+            if self.ra_only:
+                return ("No RetroAchievements games%s - %s shows all"
+                        % ((" for " + scope) if scope else "",
+                           self.input.label(gsinput.SYNC)))
             return ("No %s ROMs on the server" % scope) if scope else                 "The server has no ROMs this MiSTer can run"
         if self.tab == 0:
             return ("No %s saves on this MiSTer" % scope) if scope else                 "No saves found in /media/fat/saves"
@@ -842,10 +855,13 @@ class App:
         alt = self.input.label(gsinput.ALT)
 
         if self.tab == 1:
-            hints = [(primary, "Install"), (back, "Exit"),
-                     (alt, "Search"), (systems, "System"), (tabs, "Tab")]
+            # RA ahead of Exit: 240p keeps three hints, and Back is guessable.
+            hints = [(primary, "Install"),
+                     (sync, "All games" if self.ra_only else "RA only"),
+                     (alt, "Search"), (back, "Exit"),
+                     (systems, "System"), (tabs, "Tab")]
             if self.search:
-                hints.insert(4, (self.input.label(gsinput.SEARCH), "Clear"))
+                hints.insert(5, (self.input.label(gsinput.SEARCH), "Clear"))
         elif self.tab == 2:
             hints = [(primary, "Move SD/USB"), (back, "Exit"), (sync, "Delete"),
                      (alt, "Refresh"), (systems, "System"), (tabs, "Tab")]
@@ -1017,7 +1033,11 @@ class App:
         elif action == gsinput.PREV_SYSTEM:
             self.set_system(-1)
         elif action == gsinput.SYNC:
-            if self.tab in (1, 3):
+            if self.tab == 1:
+                # Installing from the catalogue starts the queue by itself,
+                # so this button was spare here; Downloads keeps Start.
+                self.toggle_ra_only()
+            elif self.tab == 3:
                 self.do_run_queue()
             elif self.tab == 2:
                 self.do_delete_installed()
@@ -2202,6 +2222,30 @@ class App:
             self.draw_all()
             return
         self.set_search(text)
+
+    def _catalog_filter_rows(self, rows):
+        """The catalogue rows the system filter may offer stops for."""
+        return [row for row in rows if row.ra] if self.ra_only else rows
+
+    def toggle_ra_only(self) -> None:
+        """Square on Catalog: only games with a RetroAchievements set, or all.
+
+        "RA?" rows (a set exists for a game of that name, but the disc could
+        not be hashed) count too - hiding them would hide every disc game.
+        """
+        self.ra_only = not self.ra_only
+        # The L1/R1 stops follow, so no system comes up empty while it is on.
+        self.tab_systems[1] = catalog_systems(
+            self._catalog_filter_rows(self.all_rows.get(1, [])))
+        self._resync_system_filter()
+        self.selected = self.scroll = 0
+        self._rows_key = None
+        self.draw_all()
+        if self.ra_only:
+            count = len(self.rows())
+            self.toast("RetroAchievements games only: %d" % count, hold=1.2)
+        else:
+            self.toast("Showing all games", hold=1.0)
 
     def set_search(self, text: str) -> None:
         self.search = " ".join(text.split())
