@@ -12,7 +12,7 @@ PATCH = {
     "Title": "Tetris DS",
     "Achievements": [
         {"ID": 230051, "Flags": 3, "Points": 1, "MemAddr": "0xH0001=1_0xH0002=2",
-         "Title": "Yep, It Ain't Moving", "Description": "Rotate a	Square Block"},
+         "Title": "Yep, It Ain't Moving", "Description": "Rotate a\tSquare Block"},
         {"ID": 101000001, "Flags": 3, "Points": 0, "MemAddr": "1=1.300.",
          "Title": "Warning: Unknown Emulator"},
         {"ID": 999, "Flags": 5, "Points": 5, "MemAddr": "0xH0003=1", "Title": "Unofficial"},
@@ -34,8 +34,8 @@ def test_render_set_keeps_core_only_and_cleans_titles():
     assert text.splitlines() == [
         "RASET\t1",
         f"game\t9878\t{MD5}\tTetris DS",
-        "ach\t230051\t1\t0xH0001=1_0xH0002=2\tYep, It Ain't Moving	Rotate a Square Block",
-        "ach\t230045\t1\t0xH0004=2\tDouble Trouble	",
+        "ach\t230051\t1\t0xH0001=1_0xH0002=2\tYep, It Ain't Moving\tRotate a Square Block",
+        "ach\t230045\t1\t0xH0004=2\tDouble Trouble\t",
     ]
 
 
