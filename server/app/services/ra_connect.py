@@ -115,10 +115,10 @@ def render_set(patch: dict, md5: str) -> str:
 
         RASET<TAB>1
         game<TAB><game id><TAB><md5><TAB><title>
-        ach<TAB><id><TAB><points><TAB><MemAddr><TAB><title>
+        ach<TAB><id><TAB><points><TAB><MemAddr><TAB><title><TAB><description>
 
-    Titles come last so nothing after them needs parsing; condition strings
-    never contain tabs.
+    Condition strings never contain tabs, and titles and descriptions have
+    theirs folded to spaces.
     """
     lines = ["RASET\t1", f"game\t{int(patch.get('ID', 0))}\t{md5.lower()}\t{_clean(patch.get('Title'))}"]
     for ach in patch.get("Achievements") or []:
@@ -127,7 +127,8 @@ def render_set(patch: dict, md5: str) -> str:
         mem = str(ach.get("MemAddr") or "")
         if not mem or "\t" in mem or "\n" in mem:
             continue
-        lines.append(f"ach\t{int(ach['ID'])}\t{int(ach.get('Points', 0))}\t{mem}\t{_clean(ach.get('Title'))}")
+        lines.append(f"ach\t{int(ach['ID'])}\t{int(ach.get('Points', 0))}\t{mem}\t{_clean(ach.get('Title'))}"
+                     f"\t{_clean(ach.get('Description'))}")
     return "\n".join(lines) + "\n"
 
 
