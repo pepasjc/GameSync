@@ -38,6 +38,9 @@ PATCH_MAX_AGE = 24 * 60 * 60
 _TIMEOUT = 60
 # rcheevos achievement category: 3 = core (published), 5 = unofficial.
 CORE_FLAGS = 3
+# RA adds fake achievements from this id up ("Warning: Unknown Emulator")
+# for clients it doesn't recognise; rcheevos ignores them, so do we.
+WARNING_ACHIEVEMENT_ID = 101000001
 
 _log_lock = threading.Lock()
 
@@ -119,7 +122,7 @@ def render_set(patch: dict, md5: str) -> str:
     """
     lines = ["RASET\t1", f"game\t{int(patch.get('ID', 0))}\t{md5.lower()}\t{_clean(patch.get('Title'))}"]
     for ach in patch.get("Achievements") or []:
-        if int(ach.get("Flags", 0)) != CORE_FLAGS:
+        if int(ach.get("Flags", 0)) != CORE_FLAGS or int(ach["ID"]) >= WARNING_ACHIEVEMENT_ID:
             continue
         mem = str(ach.get("MemAddr") or "")
         if not mem or "\t" in mem or "\n" in mem:
@@ -196,6 +199,9 @@ def record_unlocks(save_dir: Path, md5: str, game_id: int, unlocks: list[dict],
             entry = {"id": ach_id, "md5": md5.lower(), "game_id": game_id,
                      "received_at": now, "ago": ago}
             # Dry-run entries don't block a later live upload of the same unlock.
+            if ach_id >= WARNING_ACHIEVEMENT_ID:
+                results.append({"id": ach_id, "status": "ignored"})
+                continue
             if ach_id in done or (not live and ach_id in dry):
                 results.append({"id": ach_id, "status": "duplicate"})
                 continue

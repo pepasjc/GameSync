@@ -13,6 +13,8 @@ PATCH = {
     "Achievements": [
         {"ID": 230051, "Flags": 3, "Points": 1, "MemAddr": "0xH0001=1_0xH0002=2",
          "Title": "Yep, It Ain't Moving"},
+        {"ID": 101000001, "Flags": 3, "Points": 0, "MemAddr": "1=1.300.",
+         "Title": "Warning: Unknown Emulator"},
         {"ID": 999, "Flags": 5, "Points": 5, "MemAddr": "0xH0003=1", "Title": "Unofficial"},
         {"ID": 230045, "Flags": 3, "Points": 1, "MemAddr": "0xH0004=2",
          "Title": "Double\tTrouble\n"},
@@ -106,3 +108,10 @@ def test_unlocks_live_error_is_retried(client, auth_headers, ra_settings, monkey
     monkeypatch.setattr(ra_connect, "award", lambda *a, **k: {"Success": True})
     resp = client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers).json()
     assert resp["results"] == [{"id": 1, "status": "submitted"}]
+
+
+def test_warning_achievement_is_never_recorded(client, auth_headers, ra_settings):
+    body = {"md5": MD5, "unlocks": [{"id": 101000001}]}
+    resp = client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers).json()
+    assert resp["results"] == [{"id": 101000001, "status": "ignored"}]
+    assert client.get("/api/v1/ra/unlocks", headers=auth_headers).json()["unlocks"] == []
