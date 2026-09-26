@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.middleware.auth import APIKeyMiddleware
-from app.routes import catalog, normalize, roms, saves, status, sync, titles, update, web
+from app.routes import catalog, normalize, ra, roms, saves, status, sync, titles, update, web
 from app.services import dat_normalizer, db, game_names, rom_scanner, saturn_archives
 
 import asyncio
@@ -314,6 +314,7 @@ def create_app() -> FastAPI:
     app.include_router(normalize.router, prefix="/api/v1")
     app.include_router(roms.router, prefix="/api/v1")
     app.include_router(catalog.router, prefix="/api/v1")
+    app.include_router(ra.router, prefix="/api/v1")
 
     return app
 

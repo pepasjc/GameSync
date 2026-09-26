@@ -144,6 +144,12 @@ class Settings(BaseSettings):
     ra_enabled: bool = True
     ra_api_key: str = ""
     ra_username: str = ""
+    # Connect token for the DS real-hardware achievements (routes/ra.py):
+    # set sets and awards need it, the catalog badges above don't.  Get it
+    # with ``uv run python ra_login.py``.  Unlocks are only logged until
+    # ra_submit is turned on.
+    ra_token: str = ""
+    ra_submit: bool = False
     # Rewrite zstd-compressed CHDs in the ROM library to chdman's standard
     # codecs after each scan (lossless, verified; see
     # services/chd_normalize.py).  The server's own CHD reader cannot decode
