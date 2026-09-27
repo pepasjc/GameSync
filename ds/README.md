@@ -31,6 +31,17 @@ make dsi      # ndssync_dsi.nds  (DSi-enhanced)
 make clean
 ```
 
+### Host tests
+
+The plain-C parts (catalog JSON parsing and paging, file names, the batched RA set parser) build and run on a PC:
+
+```bash
+# from the repo root, e.g. in a Debian container
+docker run --rm -v "$PWD":/src -w /src debian:bookworm-slim sh ds/tests/run_host_tests.sh
+# the real http.c + catalog code against this repo's server on a fixture library
+docker run --rm -v "$PWD":/src -w /src python:3.12-slim sh ds/tests/run_e2e.sh
+```
+
 ### Output files
 
 | File | Target |
@@ -73,10 +84,12 @@ RetroAchievements; it needs `SYNC_RA_USERNAME` and a token from `ra_login.py`.
 Open it from the config panel: **L**, then **Achievements**.
 
 - **Update achievement sets**: scans `sd:/roms/nds` recursively (or `sd:/roms` if that doesn't exist; 4 folder
-  levels deep, up to 1000 ROMs, `saves` folders skipped), computes each ROM's RetroAchievements hash, and saves the
-  set for every ROM RA knows to `sd:/_nds/ra/sets/<ROM file name>.txt`, where nds-bootstrap loads it. ROMs RA doesn't
-  know are skipped. Hashes are cached in `sd:/_nds/ra/hashes.txt` by file name and size, so later runs only
-  download. Hold **B** to stop.
+  levels deep, up to 1000 ROMs, `saves` folders skipped) and computes each ROM's RetroAchievements hash first.
+  Hashes are cached in `sd:/_nds/ra/hashes.txt` by file name and size, so later runs only download. Then it asks the
+  server for the sets in batches (`POST /api/v1/ra/sets`, 32 hashes per request on a DSi, 12 in DS mode) and saves
+  the set for every ROM RA knows to `sd:/_nds/ra/sets/<ROM file name>.txt`, where nds-bootstrap loads it. ROMs RA
+  doesn't know are skipped. Batching matters: the DSi network stack stops opening connections after a few dozen,
+  so one request per ROM used to fail part way through a big library. Hold **B** to stop.
 - **Upload unlocks**: first moves unlocks still sitting in `sd:/_nds/nds-bootstrap/ramDump.bin` into
   `sd:/_nds/ra/unlocks.log`, the same way nds-bootstrap does on the next game boot. Then it sends the new log lines
   to the server, one request per game. The unlock time comes from the DS clock. The screen shows how many were
@@ -88,12 +101,52 @@ Open it from the config panel: **L**, then **Achievements**.
 The files go under `sd:/`, or under `fat:/` if only a flashcard with `_nds` is present. nds-bootstrap only runs
 achievements from the DSi SD card, though.
 
+## Game catalog
+
+Browse the DS games on the server and install them to the SD card. Open it with **SELECT** from the save list,
+or **L**, then **Game Catalog**. It needs WiFi; it works even when no saves were found.
+
+The bottom screen lists the games (the server pages and filters the list, so a catalog of thousands of games never
+has to fit on the DS); the top screen shows the selected game's full name, size, RetroAchievements status and
+whether it is already on the SD.
+
+- **RA NN** (yellow) marks games with a RetroAchievements set of NN achievements. **RA?** means the server matched
+  the game by name only, so the set may not fit this dump.
+- **\*** (green) marks games already on the SD: a `.nds`/`.dsi` file with the same name (extension and case
+  ignored) somewhere under the install folder.
+- Installing downloads the ROM to `sd:/roms/nds/<name>.nds` (TWiLight Menu++'s folder; `roms/dsi` for DSiWare if
+  the server has a `DSI` system). The server keeps DS ROMs zipped and unzips them while sending
+  (`?extract=nds`), so the DS writes the plain `.nds` straight to the SD: nothing is held in RAM and nothing is
+  unzipped on the DS. The download goes to `<name>.nds.part` first and is renamed when complete. The progress screen
+  shows size, percentage, speed (KB/s, current and average) and time left, and the summary shows the average
+  WiFi throughput. Free space is checked before writing.
+- After installing a game that has achievements, its set is fetched right away (like **Update achievement sets**
+  does), so it is ready to play with nds-bootstrap-ra.
+
+| Button | Action |
+|---|---|
+| Up / Down | Move (hold to repeat; wraps around) |
+| Left / Right | Page up / down |
+| L / R | Jump 100 games |
+| A | Install the selected game (asks first; replaces the file if it is already there). After an error: try again |
+| Y | Toggle "only games with RetroAchievements" |
+| X | Search game names (D-pad text editor; confirm with Y, empty = all) |
+| START | Clear the search |
+| SELECT | Next system, if the server has more than one DS system |
+| B | Back (during a download: hold to cancel) |
+
+Needs a server with `has_ra` and `?extract=nds` support on `/api/v1/roms` (older servers are reported as such).
+
 ## Controls
 
 | Button | Action |
 |---|---|
-| A | Upload selected save to server |
-| B | Download selected save from server |
+| A | Smart sync of the selected save (suggests upload or download) |
+| R | Upload the selected save |
+| X | Scan all saves against the server (out-of-sync ones turn red) |
+| Y | Save details |
 | Up / Down | Navigate save list |
-| L | Toggle config editor panel (also holds Rescan, Connect WiFi, Check Updates, Achievements) |
+| Left / Right | Page up / down |
+| SELECT | Game catalog |
+| L | Toggle config editor panel (also holds Rescan, Connect WiFi, Check Updates, Achievements, Game Catalog) |
 | START | Exit |

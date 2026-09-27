@@ -212,7 +212,7 @@ bool config_save(const SyncState *state) {
 }
 
 // Characters available in the D-pad text editor
-static const char charset[] = "abcdefghijklmnopqrstuvwxyz0123456789.:/-_ABCDEFGHIJKLMNOPQRSTUVWXYZ@?=&#%+!";
+static const char charset[] = "abcdefghijklmnopqrstuvwxyz0123456789.:/-_ABCDEFGHIJKLMNOPQRSTUVWXYZ@?=&#%+! ";
 static const int charset_len = sizeof(charset) - 1;
 
 // Find character index in charset, or 0 if not found

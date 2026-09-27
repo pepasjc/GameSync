@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <stdbool.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -395,6 +397,154 @@ HttpResponse http_request(
     size_t body_size
 ) {
     return http_request_ex(url, method, api_key, "application/octet-stream", body, body_size);
+}
+
+// ---------------------------------------------------------------------------
+// Streaming download
+// ---------------------------------------------------------------------------
+
+// Body chunk handed to the sink: big enough for efficient SD writes
+#define HTTP_DL_CHUNK (32 * 1024)
+static uint8_t dl_buf[HTTP_DL_CHUNK];
+
+static void close_socket(int fd) {
+    shutdown(fd, 0);
+    closesocket(fd);
+}
+
+// Value of a response header (case-insensitive name), or NULL
+static const char *find_header(const char *headers, const char *name) {
+    size_t len = strlen(name);
+    for (const char *line = headers; line && *line; ) {
+        if (strncasecmp(line, name, len) == 0 && line[len] == ':') {
+            const char *v = line + len + 1;
+            while (*v == ' ' || *v == '\t') v++;
+            return v;
+        }
+        line = strchr(line, '\n');
+        if (line) line++;
+    }
+    return NULL;
+}
+
+HttpDownloadResult http_download(const char *url, const char *api_key,
+                                 HttpSinkFn sink, void *user, HttpDownloadInfo *info) {
+    HttpDownloadInfo local;
+    if (!info) info = &local;
+    memset(info, 0, sizeof(*info));
+
+    char host[256] = {0};
+    char path[512] = {0};
+    int port = 80;
+    if (strlen(url) >= sizeof(path) - 1 || parse_url(url, host, &port, path) != 0)
+        return HTTP_DL_CONNECT;
+
+    struct hostent *he = gethostbyname(host);
+    if (!he) return HTTP_DL_CONNECT;
+
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return HTTP_DL_CONNECT;
+
+    struct timeval tv = { .tv_sec = http_timeout, .tv_usec = 0 };
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv));
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr = *(struct in_addr *)he->h_addr_list[0];
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        closesocket(fd);
+        return HTTP_DL_CONNECT;
+    }
+
+    char request[1024];
+    int req_len = snprintf(request, sizeof(request),
+        "GET %s HTTP/1.0\r\n"
+        "Host: %s\r\n"
+        "User-Agent: NDSSyncClient/1.0\r\n"
+        "X-API-Key: %s\r\n"
+        "Connection: close\r\n\r\n",
+        path, host, api_key);
+    if (req_len <= 0 || req_len >= (int)sizeof(request) ||
+        send(fd, request, req_len, 0) < 0) {
+        close_socket(fd);
+        return HTTP_DL_CONNECT;
+    }
+
+    // Headers
+    char headers[2048];
+    int have = 0;
+    char *body = NULL;
+    while (!body) {
+        if (have >= (int)sizeof(headers) - 1) {
+            close_socket(fd);
+            return HTTP_DL_CONNECT;
+        }
+        int n = recv(fd, headers + have, sizeof(headers) - 1 - have, 0);
+        if (n <= 0) {
+            close_socket(fd);
+            return HTTP_DL_CONNECT;
+        }
+        have += n;
+        headers[have] = '\0';
+        body = strstr(headers, "\r\n\r\n");
+    }
+    body += 4;
+    int leftover = have - (int)(body - headers);
+
+    sscanf(headers, "HTTP/%*d.%*d %d", &info->status_code);
+    const char *cl = find_header(headers, "Content-Length");
+    if (cl) info->total = (uint32_t)strtoul(cl, NULL, 10);
+
+    if (info->status_code < 200 || info->status_code >= 300) {
+        // Keep the start of the error body for the user
+        int n = leftover < (int)sizeof(info->error) - 1 ? leftover : (int)sizeof(info->error) - 1;
+        memcpy(info->error, body, n);
+        while (n < (int)sizeof(info->error) - 1) {
+            int got = recv(fd, info->error + n, sizeof(info->error) - 1 - n, 0);
+            if (got <= 0) break;
+            n += got;
+        }
+        info->error[n] = '\0';
+        close_socket(fd);
+        return HTTP_DL_STATUS;
+    }
+
+    // Body: fill the chunk buffer, hand it over, repeat
+    int fill = leftover < HTTP_DL_CHUNK ? leftover : HTTP_DL_CHUNK;
+    memcpy(dl_buf, body, fill);
+    bool failed = false;
+    HttpDownloadResult result = HTTP_DL_OK;
+    while (1) {
+        bool eof = false;
+        while (fill < HTTP_DL_CHUNK &&
+               !(info->total && info->received + (uint32_t)fill >= info->total)) {
+            int n = recv(fd, dl_buf + fill, HTTP_DL_CHUNK - fill, 0);
+            if (n <= 0) {
+                eof = true;
+                failed = (n < 0);
+                break;
+            }
+            fill += n;
+        }
+        if (info->total && info->received + (uint32_t)fill > info->total)
+            fill = (int)(info->total - info->received);
+        if (fill > 0) {
+            info->received += (uint32_t)fill;
+            int r = sink(dl_buf, (size_t)fill, info->received, info->total, user);
+            fill = 0;
+            if (r < 0) { result = HTTP_DL_WRITE; break; }
+            if (r > 0) { result = HTTP_DL_CANCELLED; break; }
+        }
+        if (eof || (info->total && info->received >= info->total)) break;
+    }
+    close_socket(fd);
+
+    if (result != HTTP_DL_OK) return result;
+    if (info->total ? info->received < info->total : failed) return HTTP_DL_SHORT;
+    return HTTP_DL_OK;
 }
 
 void http_response_free(HttpResponse *response) {

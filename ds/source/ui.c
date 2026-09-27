@@ -234,7 +234,8 @@ void ui_draw_config(const SyncState *state, int selected, bool focused, bool has
         "Rescan Saves",
         "Connect WiFi",
         "Check Updates",
-        "Achievements"
+        "Achievements",
+        "Game Catalog"
     };
     const int item_count = UI_CONFIG_ITEMS;
 
@@ -281,7 +282,8 @@ void ui_draw_config(const SyncState *state, int selected, bool focused, bool has
         iprintf("A:Edit/Action L:Back START:Exit\n");
     } else if (has_wifi) {
         iprintf("A:Smart Sync X:Scan R:UL\n");
-        iprintf("Y:Info L:Config START:Exit\n");
+        iprintf("Y:Info SELECT:Game Catalog\n");
+        iprintf("L:Config START:Exit\n");
     } else {
         iprintf("Y:Info L:Config START:Exit\n");
     }

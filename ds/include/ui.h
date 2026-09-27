@@ -19,7 +19,7 @@ bool ui_confirm_sync(Title *title, const char *server_hash, size_t server_size, 
 SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision);
 
 // Entries in the config menu (see ui_draw_config)
-#define UI_CONFIG_ITEMS 8
+#define UI_CONFIG_ITEMS 9
 
 // Draw config menu on current console
 void ui_draw_config(const SyncState *state, int selected, bool focused, bool has_wifi);
