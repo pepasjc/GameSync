@@ -233,3 +233,62 @@ def test_landed_pack_is_unpacked_hoisted_and_cart_renamed(tmp_path, monkeypatch)
         "Sonic 2 (MSU-MD).bin", "Sonic 2 (MSU-MD).cue", "cart.rom"]
     assert (folder / "cart.rom").read_bytes() == b"ROM"
     assert not zip_path.exists()
+
+
+def test_dreamcast_chd_queues_as_a_gdi_zip_beside_its_game_folder(tmp_path, monkeypatch):
+    """Dreamcast runs through DreamSTer, which wants GDI: the server converts
+    the CHD and the zip parks beside games/Dreamcast/<Game>/."""
+    monkeypatch.setattr(gsdownloads, "QUEUE_PATH",
+                        str(tmp_path / "downloads.json"))
+    queue = gsdownloads.DownloadQueue(provider=_CoreProvider("Dreamcast"))
+
+    item = queue.enqueue({"rom_id": "dc1", "name": "Crazy Taxi (USA)",
+                          "system": "DC", "filename": "Crazy Taxi (USA).chd",
+                          "size": 70})
+    assert item.status == gsdownloads.QUEUED
+    assert item.extract == "gdi"
+    assert item.directory == "/media/fat/games/Dreamcast/Crazy Taxi (USA)"
+    assert item.target == "/media/fat/games/Dreamcast/Crazy Taxi (USA).zip"
+    assert queue._url(item).endswith("/roms/dc1?extract=gdi")
+
+    # Other CD systems still take their CHD as-is.
+    psx = queue.enqueue({"rom_id": "ps1", "name": "Game (USA)", "system": "PS1",
+                         "filename": "Game (USA).chd", "size": 5})
+    assert psx.extract == "" and psx.target.endswith("/Game (USA)/Game (USA).chd")
+
+    # The conversion survives a restart of the app.
+    reloaded = gsdownloads.DownloadQueue(provider=_CoreProvider("Dreamcast"))
+    assert {i.rom_id: i.extract for i in reloaded.items}["dc1"] == "gdi"
+
+
+def test_landed_gdi_zip_is_unpacked_with_the_sheet_named_after_the_folder(tmp_path, monkeypatch):
+    import zipfile
+
+    monkeypatch.setattr(gsdownloads, "QUEUE_PATH",
+                        str(tmp_path / "downloads.json"))
+    queue = gsdownloads.DownloadQueue(provider=_CoreProvider())
+
+    games = tmp_path / "games" / "Dreamcast"
+    games.mkdir(parents=True)
+    zip_path = games / "Crazy Taxi (USA).zip"
+    gdi = "3\n1 0 4 2352 \"Crazy Taxi (USA)01.bin\" 0\n"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("Crazy Taxi (USA).gdi", gdi)
+        zf.writestr("Crazy Taxi (USA)01.bin", b"T1")
+        zf.writestr("Crazy Taxi (USA)02.raw", b"T2")
+        zf.writestr("Crazy Taxi (USA)03.bin", b"T3")
+
+    item = gsdownloads.Download(
+        "dc1", "Crazy Taxi", "DC", "Crazy Taxi (USA).zip", size=1,
+        directory=str(games / "Crazy Taxi"), target=str(zip_path),
+        extract="gdi")
+    # The zip is already there from a run whose unpack failed: no network.
+    queue._download(item)
+
+    folder = games / "Crazy Taxi"
+    assert sorted(p.name for p in folder.iterdir()) == [
+        "Crazy Taxi (USA)01.bin", "Crazy Taxi (USA)02.raw",
+        "Crazy Taxi (USA)03.bin", "Crazy Taxi.gdi"]
+    # Tracks keep their names: the sheet still points at them.
+    assert (folder / "Crazy Taxi.gdi").read_text() == gdi
+    assert not zip_path.exists()

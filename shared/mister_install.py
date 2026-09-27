@@ -17,7 +17,9 @@ of how MiSTer cores actually behave:
   silently breaks a working CD core, which is why :func:`bios_seed_sources`
   exists.
 * CD cores read CHD natively, so a CHD is installed byte-for-byte with no
-  server-side conversion.
+  server-side conversion. Dreamcast is the one exception: it runs through
+  DreamSTer, which wants GDI, so its CHDs come down as the server's GDI zip
+  and are unpacked into ``games/Dreamcast/<Game>/``.
 * An MSU pack is a folder, and which core plays it depends on its audio
   container: MSU-1 and MD+ packs go under their own system's folder and are
   loaded as the ROM they contain, while an MSU-MD pack is a *MegaCD* core
@@ -27,19 +29,23 @@ of how MiSTer cores actually behave:
 
 from __future__ import annotations
 
+import os
 import posixpath
 import re
 from typing import List, Optional
 
 from shared import msu
 from shared.mister import (
+    DREAMSTER_LAUNCHER,
     MISTER_CD_SYSTEMS,
     MISTER_GAMES_ROOTS,
+    MISTER_SYSTEM_FOLDER_CANDIDATES,
     mister_system_folder_candidates,
 )
 
 __all__ = [
     "bios_seed_sources",
+    "extract_archive_name",
     "group_discs",
     "games_root",
     "install_target",
@@ -47,6 +53,7 @@ __all__ = [
     "msu_pack_layout",
     "msu_pack_target",
     "needs_extract",
+    "runnable_systems",
     "safe_file_name",
     "safe_folder_name",
     "strip_disc_tag",
@@ -194,10 +201,29 @@ def msu_pack_target(provider, system: str, kind: str, display_name: str,
 def needs_extract(system: str, filename: str) -> Optional[str]:
     """The ``?extract=`` format to request, or None to take the file as-is.
 
-    MiSTer CD cores read CHD natively, so a CHD is never converted. Nothing
-    else on a MiSTer wants a server-side conversion either.
+    MiSTer CD cores read CHD natively, so their CHDs are never converted.
+    Dreamcast is the exception: DreamSTer's disc reader predates the CHD
+    variants the library uses, so a Dreamcast CHD comes down as the server's
+    GDI zip (``<stem>.gdi`` + track files) and is unpacked into the game
+    folder.
     """
+    if (system or "").upper() == "DC" and str(filename or "").lower().endswith(".chd"):
+        return "gdi"
     return None
+
+
+def extract_archive_name(display_name: str, filename: str) -> str:
+    """Name of the zip a converted download parks beside its game folder."""
+    return safe_folder_name(strip_disc_tag(display_name or filename)) + ".zip"
+
+
+def runnable_systems(dreamster_launcher: str = DREAMSTER_LAUNCHER) -> set:
+    """Systems this MiSTer can play: every core folder system, plus
+    Dreamcast only when DreamSTer is installed on the card."""
+    systems = set(MISTER_SYSTEM_FOLDER_CANDIDATES)
+    if not os.path.isfile(dreamster_launcher):
+        systems.discard("DC")
+    return systems
 
 
 class DiscGroup:

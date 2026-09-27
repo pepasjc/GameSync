@@ -42,9 +42,11 @@ from shared import msu
 from shared.mister import MISTER_CONFIG_DIR
 from shared.mister_install import (
     bios_seed_sources,
+    extract_archive_name,
     install_target,
     msu_pack_layout,
     msu_pack_target,
+    needs_extract,
     safe_file_name,
     safe_folder_name,
 )
@@ -54,6 +56,13 @@ QUEUE_PATH = posixpath.join(MISTER_CONFIG_DIR, "downloads.json")
 CHUNK = 256 * 1024
 #: How often progress is written back to disk while a download runs.
 PERSIST_INTERVAL = 3.0
+#: Socket timeout for a plain download.
+TIMEOUT = 60
+#: A converted download (``?extract=``) can sit silent while the server runs
+#: chdman on a CHD it has not converted before - up to its own 10 minute
+#: limit. It keeps going and caches the result even if we give up, but
+#: waiting it out saves a failed item and a manual retry.
+EXTRACT_TIMEOUT = 660
 
 QUEUED = "queued"
 DOWNLOADING = "downloading"
@@ -65,11 +74,11 @@ CANCELLED = "cancelled"
 class Download:
     __slots__ = ("rom_id", "name", "system", "filename", "size", "directory",
                  "target", "status", "received", "error", "bundle_kind",
-                 "rom_rename")
+                 "rom_rename", "extract")
 
     def __init__(self, rom_id, name, system, filename, size=0, directory="",
                  target="", status=QUEUED, received=0, error="",
-                 bundle_kind="", rom_rename=None):
+                 bundle_kind="", rom_rename=None, extract=""):
         self.rom_id = rom_id
         self.name = name
         self.system = system
@@ -85,6 +94,10 @@ class Download:
         #: when the core insists on a name (MegaCD: ``cart.rom``).
         self.bundle_kind = bundle_kind or ""
         self.rom_rename = rom_rename
+        #: ``?extract=`` format when the server converts the file first
+        #: (Dreamcast CHD -> GDI zip); the zip parks beside ``directory``
+        #: like an MSU pack and is unpacked into it on completion.
+        self.extract = extract or ""
 
     @property
     def progress(self) -> float:
@@ -206,6 +219,11 @@ class DownloadQueue:
         else:
             directory, target_name = install_target(
                 self.provider, system, filename, display, self.rom_target)
+        extract = "" if bundle_kind else (needs_extract(system, filename) or "")
+        if extract and directory:
+            # Converted on the server: the zip parks beside the game folder
+            # and is unpacked into it, like an MSU pack.
+            target_name = extract_archive_name(display, filename)
         if not directory:
             item = Download(rom_id, display or filename, system, filename,
                             int(rom.get("size") or 0), status=FAILED)
@@ -215,6 +233,7 @@ class DownloadQueue:
                 self.save()
             return item
 
+        parked = bundle_kind or extract
         item = Download(
             rom_id=rom_id,
             name=display or filename,
@@ -223,9 +242,10 @@ class DownloadQueue:
             size=int(rom.get("size") or 0),
             directory=directory,
             target=(posixpath.join(posixpath.dirname(directory), target_name)
-                    if bundle_kind else posixpath.join(directory, target_name)),
+                    if parked else posixpath.join(directory, target_name)),
             bundle_kind=bundle_kind,
             rom_rename=rom_rename,
+            extract=extract,
         )
         self.items.append(item)
         if save:
@@ -278,9 +298,15 @@ class DownloadQueue:
                 self.rom_target)
             if not directory:
                 return False
+            item.extract = needs_extract(item.system, item.filename) or ""
             item.directory = directory
-            item.filename = target_name
-            item.target = posixpath.join(directory, target_name)
+            if item.extract:
+                item.filename = extract_archive_name(item.name, item.filename)
+                item.target = posixpath.join(posixpath.dirname(directory),
+                                             item.filename)
+            else:
+                item.filename = target_name
+                item.target = posixpath.join(directory, target_name)
         item.status = QUEUED
         item.error = ""
         self.save()
@@ -330,11 +356,11 @@ class DownloadQueue:
 
         self._prepare_directory(item)
 
-        if item.bundle_kind and os.path.isfile(item.target):
+        if (item.bundle_kind or item.extract) and os.path.isfile(item.target):
             # The zip landed last time and only the unpack failed (card
             # full, say): don't fetch a gigabyte again to retry it.
             item.received = item.size = os.path.getsize(item.target)
-            self._unpack(item)
+            self._unpack_any(item)
             return
 
         part = item.target + ".part"
@@ -349,7 +375,8 @@ class DownloadQueue:
         if existing:
             request.add_header("Range", "bytes=%d-" % existing)
 
-        response = urllib.request.urlopen(request, timeout=60)
+        response = urllib.request.urlopen(
+            request, timeout=EXTRACT_TIMEOUT if item.extract else TIMEOUT)
         resumed = existing and response.status == 206
         if existing and not resumed:
             # The server ignored the range; start over rather than corrupting
@@ -403,8 +430,47 @@ class DownloadQueue:
         os.replace(part, item.target)
         item.received = os.path.getsize(item.target)
 
+        if item.bundle_kind or item.extract:
+            self._unpack_any(item)
+
+    def _unpack_any(self, item):
         if item.bundle_kind:
             self._unpack(item)
+        else:
+            self._unpack_disc(item)
+
+    def _unpack_disc(self, item):
+        """Lay a converted disc (the server's GDI/CUE zip) out in its game
+        folder, then drop the zip.
+
+        The server zips chdman's output flat: one ``<stem>.gdi`` (or
+        ``.cue``) plus the track files it names. Tracks keep their names -
+        the sheet refers to them - but the sheet itself is renamed after the
+        game folder, the ``games/Dreamcast/<Game>/<Game>.gdi`` layout
+        DreamSTer's game list shows.
+        """
+        folder = os.path.basename(os.path.normpath(item.directory))
+        try:
+            with zipfile.ZipFile(item.target) as zf:
+                members = [i for i in zf.infolist() if not i.is_dir()]
+                sheets = [i for i in members
+                          if i.filename.lower().endswith((".gdi", ".cue"))]
+                if not sheets:
+                    raise RuntimeError("archive holds no .gdi/.cue")
+                os.makedirs(item.directory, exist_ok=True)
+                for info in members:
+                    name = safe_file_name(info.filename)
+                    if len(sheets) == 1 and info is sheets[0]:
+                        name = folder + os.path.splitext(name)[1].lower()
+                    destination = os.path.join(item.directory, name)
+                    with zf.open(info) as src, open(destination, "wb") as dst:
+                        shutil.copyfileobj(src, dst, CHUNK)
+        except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
+            raise RuntimeError("unpack failed: %s" % exc)
+        try:
+            os.remove(item.target)
+        except OSError:
+            pass
 
     def _unpack(self, item):
         """Lay an MSU pack out in its game folder, then drop the zip.
@@ -444,8 +510,11 @@ class DownloadQueue:
 
     def _url(self, item):
         base = self.client.base_url if self.client is not None else ""
-        return "%s/roms/%s" % (base,
-                               urllib.parse.quote(str(item.rom_id), safe=""))
+        url = "%s/roms/%s" % (base,
+                              urllib.parse.quote(str(item.rom_id), safe=""))
+        if item.extract:
+            url += "?extract=" + urllib.parse.quote(item.extract, safe="")
+        return url
 
     def _prepare_directory(self, item):
         """Create the target folder, seeding a USB core folder's BIOS first.

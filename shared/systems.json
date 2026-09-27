@@ -221,6 +221,7 @@
     ".a52",
     ".a78",
     ".bin",
+    ".bs",
     ".ccd",
     ".cci",
     ".chd",
@@ -323,6 +324,7 @@
   ],
   "save_extensions": [
     ".bkr",
+    ".bup",
     ".dsv",
     ".frz",
     ".fs",
@@ -349,6 +351,8 @@
     ".mc2",
     ".ps2",
     ".dsv",
+    ".bup",
+    ".vmu",
     ".frz",
     ".fs",
     ".raw",
@@ -782,6 +786,10 @@
     "SAT": {
       "strategy": "serial"
     },
+    "DC": {
+      "strategy": "serial",
+      "prefix": "DC_"
+    },
     "32X": {
       "strategy": "slug"
     },
@@ -819,9 +827,6 @@
       "strategy": "slug"
     },
     "CPS3": {
-      "strategy": "slug"
-    },
-    "DC": {
       "strategy": "slug"
     },
     "FBA": {
@@ -980,7 +985,8 @@
     "GG": "GG",
     "NEOGEO": "NEOGEO",
     "Lynx48": "LYNX",
-    "Saturn": "SAT"
+    "Saturn": "SAT",
+    "Dreamcast": "DC"
   },
   "mister_system_to_folder": {
     "GBA": "GBA",
@@ -1085,6 +1091,9 @@
     ],
     "3DO": [
       "3DO"
+    ],
+    "DC": [
+      "Dreamcast"
     ]
   },
   "mister_games_roots": {
@@ -1093,6 +1102,7 @@
   },
   "mister_cd_systems": [
     "3DO",
+    "DC",
     "NEOCD",
     "PCECD",
     "PS1",

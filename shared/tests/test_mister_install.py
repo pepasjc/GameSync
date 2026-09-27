@@ -71,8 +71,8 @@ def test_existing_legacy_folder_is_reused():
 
 def test_unknown_system_is_refused_rather_than_dumped_in_the_root():
     provider = FakeProvider({"/media/fat/games": []})
-    assert system_games_dir(provider, "DREAMCAST") == ""
-    assert install_target(provider, "DREAMCAST", "game.gdi") == ("", "")
+    assert system_games_dir(provider, "VECTREX") == ""
+    assert install_target(provider, "VECTREX", "game.vec") == ("", "")
 
 
 def test_pcfx_has_no_mister_core_so_it_is_hidden_and_refused():
@@ -242,3 +242,32 @@ def test_msu_pack_layout_routes_msu_md_to_the_megacd_core():
     assert msu_pack_target(provider, "MD", "mdplus", "Sonic 2 (MD+)") == (
         "/media/fat/games/Genesis/Sonic 2 (MD+)", None)
     assert msu_pack_target(provider, "MD", "nope", "x") == ("", None)
+
+
+def test_dreamcast_installs_into_a_per_game_folder_as_a_converted_gdi():
+    # Dreamcast runs through DreamSTer (games/Dreamcast/<Game>/<Game>.gdi),
+    # which cannot read the library's CHDs: the server sends a GDI zip.
+    from shared.mister_install import extract_archive_name, needs_extract
+
+    provider = FakeProvider({"/media/fat/games": ["Dreamcast"],
+                             "/media/fat/games/Dreamcast": []})
+    directory, name = install_target(provider, "DC", "Soulcalibur (USA).chd",
+                                     "Soulcalibur (USA)")
+    assert directory == "/media/fat/games/Dreamcast/Soulcalibur (USA)"
+    assert name == "Soulcalibur (USA).chd"
+
+    assert needs_extract("DC", "Soulcalibur (USA).chd") == "gdi"
+    assert needs_extract("DC", "Soulcalibur (USA).gdi") is None
+    assert needs_extract("PS1", "Game (USA).chd") is None
+    assert extract_archive_name("Grandia II (USA) (Disc 1)",
+                                "x.chd") == "Grandia II (USA).zip"
+
+
+def test_dreamcast_is_only_offered_when_dreamster_is_installed(tmp_path):
+    from shared.mister_install import runnable_systems
+
+    launcher = tmp_path / "DreamSTer.sh"
+    assert "DC" not in runnable_systems(str(launcher))
+    assert "PS1" in runnable_systems(str(launcher))
+    launcher.write_text("#!/usr/bin/env python3")
+    assert "DC" in runnable_systems(str(launcher))

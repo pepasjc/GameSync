@@ -37,7 +37,6 @@ from shared.mister import (  # noqa: E402
     MISTER_CONFIG_DIR,
     MISTER_FOLDER_TO_SYSTEM,
     MISTER_GAMES_ROOTS,
-    MISTER_SYSTEM_FOLDER_CANDIDATES,
 )
 from shared.mister_scan import (  # noqa: E402
     installed_game_save_paths,
@@ -1512,7 +1511,7 @@ class App:
             return
         if not quiet:
             self.toast("Loading catalog...")
-        runnable = sorted(MISTER_SYSTEM_FOLDER_CANDIDATES)
+        runnable = sorted(gsinstall.runnable_systems())
         cache = self.catalog_cache
 
         if force:
@@ -1577,7 +1576,7 @@ class App:
     def _install_catalog(self, roms, quiet: bool = False) -> None:
         """Turn catalogue rows into what the tabs show."""
         # Only offer what this device could actually run.
-        runnable = set(MISTER_SYSTEM_FOLDER_CANDIDATES)
+        runnable = gsinstall.runnable_systems()
         self.catalog = sorted(
             (rom for rom in roms
              if str(rom.get("system") or "").upper() in runnable),

@@ -50,6 +50,8 @@ MISTER_FOLDER_TO_SYSTEM: dict[str, str] = {
     "NEOGEO": "NEOGEO",
     "Lynx48": "LYNX",
     "Saturn": "SAT",
+    # Played through DreamSTer (FPGA PowerVR + ARM emulator), not a core.
+    "Dreamcast": "DC",
 }
 
 MISTER_SYSTEM_TO_FOLDER: dict[str, str] = {
@@ -103,6 +105,10 @@ MISTER_SYSTEM_FOLDER_CANDIDATES: dict[str, list[str]] = {
     "WSWAN": ["WonderSwan"],
     "WSWANC": ["WonderSwanColor"],
     "3DO": ["3DO"],
+    # Dreamcast has no MiSTer core: it runs through DreamSTer, which reads
+    # games/Dreamcast/<Game>/<Game>.gdi. Only offered when DreamSTer is
+    # installed - see shared.mister_install.runnable_systems().
+    "DC": ["Dreamcast"],
     # Deliberately absent: PCFX. There is no MiSTer PC-FX core (checked
     # 2026-09 on a fully updated device), and this table is what the
     # on-device client treats as "runnable", so leaving it out hides PC-FX
@@ -244,8 +250,12 @@ def mister_system_save_folder_candidates(system: str) -> list[str]:
 # backup RAM after the game's folder, so each game gets a dedicated save and
 # multi-disc games (disc tag stripped from the folder name) share one card.
 MISTER_CD_SYSTEMS: frozenset[str] = frozenset(
-    {"PS1", "SAT", "SEGACD", "PCECD", "NEOCD", "3DO"}
+    {"PS1", "SAT", "SEGACD", "PCECD", "NEOCD", "3DO", "DC"}
 )
+
+#: DreamSTer's launcher. Its presence is what makes Dreamcast runnable: without
+#: it no MiSTer program plays the games, so they are not offered.
+DREAMSTER_LAUNCHER = "/media/fat/Scripts/DreamSTer.sh"
 
 
 def mister_system_folder_candidates(system: str) -> list[str]:
