@@ -8,6 +8,7 @@
 #include "sync.h"
 #include "ui.h"
 #include "update.h"
+#include "ra.h"
 
 #define LIST_VISIBLE 20  // Visible titles on screen
 
@@ -148,7 +149,7 @@ int main(int argc, char *argv[]) {
         
         if (pressed & KEY_DOWN) {
             if (focus_on_config) {
-                config_selected = (config_selected + 1) % 7;
+                config_selected = (config_selected + 1) % UI_CONFIG_ITEMS;
                 redraw = true;
             } else if (state.num_titles > 0) {
                 selected = (selected + 1) % state.num_titles;
@@ -159,7 +160,7 @@ int main(int argc, char *argv[]) {
         
         if (pressed & KEY_UP) {
             if (focus_on_config) {
-                config_selected = (config_selected - 1 + 7) % 7;
+                config_selected = (config_selected - 1 + UI_CONFIG_ITEMS) % UI_CONFIG_ITEMS;
                 redraw = true;
             } else if (state.num_titles > 0) {
                 selected = (selected - 1 + state.num_titles) % state.num_titles;
@@ -319,6 +320,11 @@ int main(int argc, char *argv[]) {
                             if(keysDown()) break;
                         }
                     }
+                    redraw = true;
+                } else if (config_selected == 7) {
+                    // RetroAchievements (nds-bootstrap-ra)
+                    consoleSelect(&bottomScreen);
+                    ra_menu(&state, has_wifi);
                     redraw = true;
                 }
                 continue;

@@ -18,6 +18,9 @@ bool ui_confirm_sync(Title *title, const char *server_hash, size_t server_size, 
 // Returns SYNC_UP_TO_DATE if user cancels
 SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision);
 
+// Entries in the config menu (see ui_draw_config)
+#define UI_CONFIG_ITEMS 8
+
 // Draw config menu on current console
 void ui_draw_config(const SyncState *state, int selected, bool focused, bool has_wifi);
 

@@ -233,9 +233,10 @@ void ui_draw_config(const SyncState *state, int selected, bool focused, bool has
         "WiFi WEP Key",
         "Rescan Saves",
         "Connect WiFi",
-        "Check Updates"
+        "Check Updates",
+        "Achievements"
     };
-    const int item_count = 7;
+    const int item_count = UI_CONFIG_ITEMS;
 
     for (int i = 0; i < item_count; i++) {
         char cursor = (focused && i == selected) ? '>' : ' ';

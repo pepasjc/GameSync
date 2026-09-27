@@ -31,6 +31,19 @@ HttpResponse http_request(
     size_t body_size
 );
 
+// Same, with an explicit Content-Type for the body (NULL = octet-stream)
+HttpResponse http_request_ex(
+    const char *url,
+    HttpMethod method,
+    const char *api_key,
+    const char *content_type,
+    const uint8_t *body,
+    size_t body_size
+);
+
+// Turn the connection debug output on/off (default on)
+void http_set_verbose(int verbose);
+
 // Free response body
 void http_response_free(HttpResponse *response);
 

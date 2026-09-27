@@ -65,6 +65,29 @@ wifi_wep_key=your-wep-key
 
 The config can also be edited in-app: press **L** to toggle the config panel and use the on-screen keyboard.
 
+## RetroAchievements (DSi + nds-bootstrap-ra)
+
+For playing with achievements on real hardware through the nds-bootstrap-ra fork
+(DSi, TWiLight Menu++ on the SD card). The GameSync server talks to
+RetroAchievements; it needs `SYNC_RA_USERNAME` and a token from `ra_login.py`.
+Open it from the config panel: **L**, then **Achievements**.
+
+- **Update achievement sets**: scans `sd:/roms/nds` recursively (or `sd:/roms` if that doesn't exist; 4 folder
+  levels deep, up to 1000 ROMs, `saves` folders skipped), computes each ROM's RetroAchievements hash, and saves the
+  set for every ROM RA knows to `sd:/_nds/ra/sets/<ROM file name>.txt`, where nds-bootstrap loads it. ROMs RA doesn't
+  know are skipped. Hashes are cached in `sd:/_nds/ra/hashes.txt` by file name and size, so later runs only
+  download. Hold **B** to stop.
+- **Upload unlocks**: first moves unlocks still sitting in `sd:/_nds/nds-bootstrap/ramDump.bin` into
+  `sd:/_nds/ra/unlocks.log`, the same way nds-bootstrap does on the next game boot. Then it sends the new log lines
+  to the server, one request per game. The unlock time comes from the DS clock. The screen shows how many were
+  submitted, already awarded, duplicate, dry-run or failed. `sd:/_nds/ra/uploaded.txt` records how far the log was
+  uploaded. That mark only moves when every unlock reached RetroAchievements, so failed uploads, and uploads to a
+  server in dry-run mode (`SYNC_RA_SUBMIT` off), are sent again next time; the server skips repeats. Delete
+  `uploaded.txt` to send the whole log again.
+
+The files go under `sd:/`, or under `fat:/` if only a flashcard with `_nds` is present. nds-bootstrap only runs
+achievements from the DSi SD card, though.
+
 ## Controls
 
 | Button | Action |
@@ -72,5 +95,5 @@ The config can also be edited in-app: press **L** to toggle the config panel and
 | A | Upload selected save to server |
 | B | Download selected save from server |
 | Up / Down | Navigate save list |
-| L | Toggle config editor panel |
+| L | Toggle config editor panel (also holds Rescan, Connect WiFi, Check Updates, Achievements) |
 | START | Exit |

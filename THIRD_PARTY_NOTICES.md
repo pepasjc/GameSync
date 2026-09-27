@@ -97,6 +97,7 @@ are in [README.md](README.md).
 | Component | License | Used by |
 |---|---|---|
 | SHA-256 reference implementation (**Brad Conte**) | Public domain | all C clients |
+| MD5 (**L. Peter Deutsch**, Aladdin Enterprises), as vendored in [rcheevos](https://github.com/RetroAchievements/rcheevos) | zlib-style, notice kept in `ds/source/md5.c` | `ds/` |
 | `mmceman.irx` ([ps2-mmce/mmceman](https://github.com/ps2-mmce/mmceman)) | MIT — [`licenses/MIT-mmceman.txt`](licenses/MIT-mmceman.txt) | `ps2/` |
 | PSPSDK debug font (**M. R. Brown**, **J. Forshaw**, **J. Kelley**) | BSD | `vita/` |
 | Vegur typeface (**Sora Sagano**) | Public domain | `xbox/assets/font.ttf` |
