@@ -242,12 +242,12 @@ bool config_edit_field(const char *hint, char *buffer, int max_len) {
         iprintf(" ");
         for (int i = 0; i < len; i++) {
             if (i == cursor)
-                iprintf("\x1b[7m%c\x1b[0m", temp[i]);
+                iprintf(CON_YELLOW "%c" CON_RESET, temp[i]);
             else
                 iprintf("%c", temp[i]);
         }
         if (cursor == len)
-            iprintf("\x1b[7m \x1b[0m");
+            iprintf(CON_YELLOW "_" CON_RESET);  // end-of-text cursor
         iprintf("\n\n");
 
         iprintf("D-Pad L/R: move cursor\n");

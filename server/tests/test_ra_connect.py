@@ -136,3 +136,106 @@ def test_warning_achievement_is_never_recorded(client, auth_headers, ra_settings
     resp = client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers).json()
     assert resp["results"] == [{"id": 101000001, "status": "ignored"}]
     assert client.get("/api/v1/ra/unlocks", headers=auth_headers).json()["unlocks"] == []
+
+
+# ---------------------------------------------------------------------------
+# POST /ra/sets: several sets in one response
+# ---------------------------------------------------------------------------
+
+MD5_B = "0123456789abcdef0123456789abcdef"
+MD5_UNKNOWN = "ffffffffffffffffffffffffffffffff"
+MD5_FAILS = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+
+
+def _parse_batch(text: str) -> tuple[dict, list[str], bool]:
+    """Read a /ra/sets body the way the DS does: by byte counts."""
+    data = text.encode("utf-8")
+    assert data.startswith(b"RASETS\t1\n")
+    pos = len(b"RASETS\t1\n")
+    sets, others, ended = {}, [], False
+    while pos < len(data):
+        nl = data.index(b"\n", pos)
+        line = data[pos:nl].decode()
+        pos = nl + 1
+        if line == "END":
+            ended = True
+            break
+        if line.startswith("=== "):
+            _, md5, length = line.split(" ")
+            sets[md5] = data[pos:pos + int(length)].decode("utf-8")
+            pos += int(length)
+        else:
+            others.append(line)
+    return sets, others, ended
+
+
+@pytest.fixture()
+def batch_ra(monkeypatch, ra_settings):
+    from app.routes import ra as ra_routes
+
+    game_ids = {MD5: 9878, MD5_B: 9878, MD5_FAILS: 5}
+    monkeypatch.setattr(ra_routes, "_game_id_for",
+                        lambda md5, libraries=None: game_ids.get(md5, 0))
+    fetched = []
+
+    def fake_fetch(game_id, *a, **k):
+        fetched.append(game_id)
+        if game_id == 5:
+            raise ra_connect.RaConnectError("server said no")
+        return PATCH
+
+    monkeypatch.setattr(ra_connect, "fetch_patch", fake_fetch)
+    return fetched
+
+
+def test_batch_returns_every_known_set_with_byte_lengths(client, auth_headers, batch_ra):
+    resp = client.post("/api/v1/ra/sets", headers=auth_headers,
+                       json={"md5s": [MD5, MD5_UNKNOWN, MD5_B.upper(), MD5_FAILS]})
+    assert resp.status_code == 200
+    sets, others, ended = _parse_batch(resp.text)
+    assert ended
+    # Same text as the single-set route, md5 line included.
+    assert sets[MD5] == ra_connect.render_set(PATCH, MD5)
+    assert sets[MD5_B] == ra_connect.render_set(PATCH, MD5_B)
+    assert others == [f"--- {MD5_UNKNOWN} unknown",
+                      f"--- {MD5_FAILS} error server said no"]
+
+
+def test_batch_byte_length_counts_utf8_bytes(client, auth_headers, batch_ra, monkeypatch):
+    patch = dict(PATCH, Title="Pokémon Café")
+    monkeypatch.setattr(ra_connect, "fetch_patch", lambda *a, **k: patch)
+    resp = client.post("/api/v1/ra/sets", headers=auth_headers, json={"md5s": [MD5, MD5_B]})
+    sets, _, ended = _parse_batch(resp.text)
+    assert ended
+    assert "Pokémon Café" in sets[MD5] and "Pokémon Café" in sets[MD5_B]
+
+
+def test_batch_asks_once_per_repeated_md5(client, auth_headers, batch_ra):
+    resp = client.post("/api/v1/ra/sets", headers=auth_headers, json={"md5s": [MD5, MD5]})
+    sets, _, _ = _parse_batch(resp.text)
+    assert list(sets) == [MD5]
+    assert batch_ra == [9878]
+
+
+def test_batch_rejects_bad_md5(client, auth_headers, batch_ra):
+    resp = client.post("/api/v1/ra/sets", headers=auth_headers, json={"md5s": [MD5, "nothex"]})
+    assert resp.status_code == 400
+
+
+def test_batch_is_capped(client, auth_headers, batch_ra):
+    from app.routes.ra import MAX_BATCH_SETS
+
+    md5s = [f"{i:032x}" for i in range(MAX_BATCH_SETS + 1)]
+    resp = client.post("/api/v1/ra/sets", headers=auth_headers, json={"md5s": md5s})
+    assert resp.status_code == 422
+
+
+def test_batch_without_token(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(settings, "ra_token", "")
+    resp = client.post("/api/v1/ra/sets", headers=auth_headers, json={"md5s": [MD5]})
+    assert resp.status_code == 503
+
+
+def test_empty_batch_is_just_the_frame(client, auth_headers, batch_ra):
+    resp = client.post("/api/v1/ra/sets", headers=auth_headers, json={"md5s": []})
+    assert resp.text == "RASETS\t1\nEND\n"

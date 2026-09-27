@@ -148,22 +148,22 @@ SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision) {
     switch (decision->action) {
         case SYNC_UP_TO_DATE:
             iprintf("-- Suggested --\n");
-            iprintf("\x1b[32m Already in sync!\x1b[0m\n");
+            iprintf(CON_GREEN " Already in sync!" CON_RESET "\n");
             iprintf("\nPress any button\n");
             while (pmMainLoop()) {
                 swiWaitForVBlank();
                 scanKeys();
                 if (keysDown()) break;
             }
-            iprintf("\x1b[0m");
+            iprintf(CON_RESET);
             return SYNC_UP_TO_DATE;
 
         case SYNC_UPLOAD:
             iprintf("-- Suggested --\n");
             if (decision->has_last_synced)
-                iprintf("\x1b[32m>> UPLOAD (local changed)\x1b[0m\n");
+                iprintf(CON_GREEN ">> UPLOAD (local changed)" CON_RESET "\n");
             else
-                iprintf("\x1b[32m>> UPLOAD\x1b[0m\n");
+                iprintf(CON_GREEN ">> UPLOAD" CON_RESET "\n");
 
             iprintf("\nA=Upload  B=Cancel\n");
 
@@ -171,18 +171,18 @@ SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision) {
                 swiWaitForVBlank();
                 scanKeys();
                 int pressed = keysDown();
-                if (pressed & KEY_A) { iprintf("\x1b[0m"); return SYNC_UPLOAD; }
-                if (pressed & KEY_B) { iprintf("\x1b[0m"); return SYNC_UP_TO_DATE; }
+                if (pressed & KEY_A) { iprintf(CON_RESET); return SYNC_UPLOAD; }
+                if (pressed & KEY_B) { iprintf(CON_RESET); return SYNC_UP_TO_DATE; }
             }
-            iprintf("\x1b[0m");
+            iprintf(CON_RESET);
             return SYNC_UP_TO_DATE;
 
         case SYNC_DOWNLOAD:
             iprintf("-- Suggested --\n");
             if (decision->has_last_synced)
-                iprintf("\x1b[32m>> DOWNLOAD (server changed)\x1b[0m\n");
+                iprintf(CON_GREEN ">> DOWNLOAD (server changed)" CON_RESET "\n");
             else
-                iprintf("\x1b[32m>> DOWNLOAD\x1b[0m\n");
+                iprintf(CON_GREEN ">> DOWNLOAD" CON_RESET "\n");
 
             iprintf("\nA=Download  B=Cancel\n");
 
@@ -190,15 +190,15 @@ SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision) {
                 swiWaitForVBlank();
                 scanKeys();
                 int pressed = keysDown();
-                if (pressed & KEY_A) { iprintf("\x1b[0m"); return SYNC_DOWNLOAD; }
-                if (pressed & KEY_B) { iprintf("\x1b[0m"); return SYNC_UP_TO_DATE; }
+                if (pressed & KEY_A) { iprintf(CON_RESET); return SYNC_DOWNLOAD; }
+                if (pressed & KEY_B) { iprintf(CON_RESET); return SYNC_UP_TO_DATE; }
             }
-            iprintf("\x1b[0m");
+            iprintf(CON_RESET);
             return SYNC_UP_TO_DATE;
 
         case SYNC_CONFLICT:
             iprintf("-- Suggested --\n");
-            iprintf("\x1b[31m!! CONFLICT !!\x1b[0m\n");
+            iprintf(CON_RED "!! CONFLICT !!" CON_RESET "\n");
             iprintf("Both changed.\n");
 
             iprintf("\nR=Force Upload\n");
@@ -209,15 +209,15 @@ SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision) {
                 swiWaitForVBlank();
                 scanKeys();
                 int pressed = keysDown();
-                if (pressed & KEY_R) { iprintf("\x1b[0m"); return SYNC_UPLOAD; }
-                if (pressed & KEY_L) { iprintf("\x1b[0m"); return SYNC_DOWNLOAD; }
-                if (pressed & KEY_B) { iprintf("\x1b[0m"); return SYNC_UP_TO_DATE; }
+                if (pressed & KEY_R) { iprintf(CON_RESET); return SYNC_UPLOAD; }
+                if (pressed & KEY_L) { iprintf(CON_RESET); return SYNC_DOWNLOAD; }
+                if (pressed & KEY_B) { iprintf(CON_RESET); return SYNC_UP_TO_DATE; }
             }
-            iprintf("\x1b[0m");
+            iprintf(CON_RESET);
             return SYNC_UP_TO_DATE;
     }
 
-    iprintf("\x1b[0m");
+    iprintf(CON_RESET);
     return SYNC_UP_TO_DATE;
 }
 

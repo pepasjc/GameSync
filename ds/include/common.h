@@ -15,6 +15,15 @@
 #define HASH_SIZE 32
 #define CONFIG_SIZE 256
 
+// Console colours. The libnds 2.x text console only understands SGR 30-37
+// (colour) and 39 (default colour); ESC[0m and ESC[7m are ignored, so reset
+// with CON_RESET or everything printed afterwards keeps the colour.
+#define CON_RED    "\x1b[31m"
+#define CON_GREEN  "\x1b[32m"
+#define CON_YELLOW "\x1b[33m"
+#define CON_CYAN   "\x1b[36m"
+#define CON_RESET  "\x1b[39m"
+
 // Sync action
 typedef enum {
     SYNC_UP_TO_DATE,

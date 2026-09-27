@@ -44,6 +44,9 @@ HttpResponse http_request_ex(
 // Turn the connection debug output on/off (default on)
 void http_set_verbose(int verbose);
 
+// Socket send/receive timeout in seconds for later requests (default 30)
+void http_set_timeout(int seconds);
+
 // Free response body
 void http_response_free(HttpResponse *response);
 

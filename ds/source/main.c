@@ -523,7 +523,7 @@ int main(int argc, char *argv[]) {
                 // Apply color based on scan status
                 if (state.titles[i].scanned) {
                     if (state.titles[i].scan_result != SYNC_UP_TO_DATE) {
-                        iprintf("\x1b[31m");  // Red for out-of-sync
+                        iprintf(CON_RED);  // Red for out-of-sync
                     }
                 }
 
@@ -544,7 +544,7 @@ int main(int argc, char *argv[]) {
 
                 // Reset color
                 if (state.titles[i].scanned) {
-                    iprintf("\x1b[0m");
+                    iprintf(CON_RESET);
                 }
                 iprintf("\n");
             }

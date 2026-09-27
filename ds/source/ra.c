@@ -1,5 +1,6 @@
 #include "ra.h"
 #include "ra_hash.h"
+#include "ra_sets.h"
 #include "http.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -134,15 +135,15 @@ static HttpResponse ra_http(const char *url, HttpMethod method, const char *api_
 static bool report_http_failure(const HttpResponse *resp) {
     switch (resp->status_code) {
         case 0:
-            iprintf("\x1b[31mNo response from server\x1b[0m\n");
+            iprintf(CON_RED "No response from server" CON_RESET "\n");
             iprintf("Check WiFi and server_url\n");
             return true;
         case 401:
         case 403:
-            iprintf("\x1b[31mAPI key rejected (HTTP %d)\x1b[0m\n", resp->status_code);
+            iprintf(CON_RED "API key rejected (HTTP %d)" CON_RESET "\n", resp->status_code);
             return true;
         case 503:
-            iprintf("\x1b[31mServer has no RA login\x1b[0m\n");
+            iprintf(CON_RED "Server has no RA login" CON_RESET "\n");
             iprintf("Set SYNC_RA_USERNAME and run\n");
             iprintf("ra_login.py on the server\n");
             return true;
@@ -322,9 +323,20 @@ static const char *hash_cache_find(const HashCache *cache, const char *name, uin
 // Update achievement sets
 // ---------------------------------------------------------------------------
 
-static int count_achievements(const char *set) {
+// Sets per POST /ra/sets. Each connection costs the DSi stack local ports
+// it runs out of after a few dozen, so ask for many sets at once; the
+// response is held in RAM, so fewer in DS mode (4 MB).
+#define RA_BATCH_DSI 32
+#define RA_BATCH_DS 12
+// A batch of sets RA hasn't sent the server yet can take a while
+#define RA_BATCH_TIMEOUT 120
+
+static int count_achievements(const char *set, size_t len) {
+    static const char tag[] = "\nach\t";
     int n = 0;
-    for (const char *p = set; (p = strstr(p, "\nach\t")) != NULL; p++) n++;
+    for (size_t i = 0; i + sizeof(tag) - 1 <= len; i++) {
+        if (memcmp(set + i, tag, sizeof(tag) - 1) == 0) n++;
+    }
     return n;
 }
 
@@ -336,6 +348,124 @@ static bool write_set(const char *rom_name, const uint8_t *data, size_t size) {
     bool ok = fwrite(data, 1, size, f) == size;
     if (fclose(f) != 0) ok = false;
     return ok;
+}
+
+// ROMs and their hashes ("" = couldn't hash), and what the batches did
+typedef struct {
+    char **paths;
+    char (*md5s)[33];
+    int count;
+    const char (*batch)[33];
+    int batch_count;
+    bool *seen;             // per batch entry
+    int with_set, unknown, errors;
+    int last_achievements;  // of the last set written
+    bool verbose;           // a line per ROM
+} SetRun;
+
+static void set_run_item(RaBatchKind kind, const char *md5, const char *data, size_t len, void *user) {
+    SetRun *run = user;
+    for (int b = 0; b < run->batch_count; b++) {
+        if (strcmp(run->batch[b], md5) == 0) run->seen[b] = true;
+    }
+    bool valid = (kind != RA_BATCH_SET) || (len > 6 && memcmp(data, "RASET\t", 6) == 0);
+    int achievements = (kind == RA_BATCH_SET && valid) ? count_achievements(data, len) : 0;
+
+    for (int i = 0; i < run->count; i++) {
+        if (strcmp(run->md5s[i], md5) != 0) continue;
+        const char *name = base_name(run->paths[i]);
+        if (kind == RA_BATCH_UNKNOWN) {
+            run->unknown++;
+        } else if (kind == RA_BATCH_ERROR) {
+            run->errors++;
+            if (run->verbose) iprintf("%.24s\n  " CON_RED "%.28s" CON_RESET "\n", name, data);
+        } else if (!valid) {
+            run->errors++;
+            if (run->verbose) iprintf("%.24s\n  " CON_RED "bad set file" CON_RESET "\n", name);
+        } else if (write_set(name, (const uint8_t *)data, len)) {
+            run->with_set++;
+            run->last_achievements = achievements;
+            if (run->verbose) iprintf("%.24s\n  " CON_GREEN "%d achievements" CON_RESET "\n", name, achievements);
+        } else {
+            run->errors++;
+            if (run->verbose) iprintf("%.24s\n  " CON_RED "SD write failed" CON_RESET "\n", name);
+        }
+    }
+}
+
+// Mark every ROM with this hash as failed
+static void set_run_fail(SetRun *run, const char *md5) {
+    for (int i = 0; i < run->count; i++) {
+        if (strcmp(run->md5s[i], md5) == 0) run->errors++;
+    }
+}
+
+// Fetch the sets for uniq[0..n) and write them for every matching ROM.
+// Returns false if the whole run should stop.
+static bool fetch_set_batch(SyncState *state, SetRun *run, const char (*uniq)[33], int n) {
+    run->batch = uniq;
+    run->batch_count = n;
+    bool seen[RA_BATCH_DSI];
+    memset(seen, 0, sizeof(seen));
+    run->seen = seen;
+
+    char json[RA_BATCH_DSI * 35 + 32];
+    size_t len = ra_sets_request(json, sizeof(json), uniq, n);
+    char url[320];
+    snprintf(url, sizeof(url), "%s/api/v1/ra/sets", state->server_url);
+
+    http_set_timeout(RA_BATCH_TIMEOUT);
+    HttpResponse resp = ra_http(url, HTTP_POST, state->api_key, "application/json",
+                                (const uint8_t *)json, len);
+    http_set_timeout(0);
+
+    bool go_on = true;
+    if (resp.status_code == 200 && resp.body) {
+        if (!ra_sets_parse((const char *)resp.body, resp.body_size, set_run_item, run))
+            iprintf(CON_RED "Incomplete reply from server" CON_RESET "\n");
+    } else if (resp.status_code == 404 || resp.status_code == 405) {
+        iprintf(CON_RED "Server too old: update it" CON_RESET "\n");
+        iprintf("(no POST /api/v1/ra/sets)\n");
+        go_on = false;
+    } else if (report_http_failure(&resp)) {
+        go_on = false;
+    }
+    http_response_free(&resp);
+
+    for (int b = 0; b < n; b++) {
+        if (!seen[b]) set_run_fail(run, uniq[b]);
+    }
+    run->batch = NULL;
+    run->batch_count = 0;
+    run->seen = NULL;
+    return go_on;
+}
+
+// Hash with the cache: cached by file name + size, else computed (and added
+// to `fresh`). Returns false if the file isn't a readable DS ROM.
+static bool hash_rom(const char *path, const HashCache *cache, HashCache *fresh, char md5[33]) {
+    struct stat st;
+    if (stat(path, &st) != 0) return false;
+    const char *name = base_name(path);
+    uint32_t size = (uint32_t)st.st_size;
+    const char *cached = hash_cache_find(cache, name, size);
+    if (cached) {
+        strcpy(md5, cached);
+    } else if (!ra_hash_nds_file(path, md5)) {
+        return false;
+    }
+    if (fresh) hash_cache_add(fresh, name, size, md5);
+    return true;
+}
+
+// Keep hashes of ROMs not seen this time, then write the cache
+static void hash_cache_merge_save(HashCache *fresh, const HashCache *old) {
+    for (int i = 0; i < old->count; i++) {
+        const HashEntry *e = &old->entries[i];
+        if (!hash_cache_find(fresh, e->name, e->size))
+            hash_cache_add(fresh, e->name, e->size, e->md5);
+    }
+    hash_cache_save(fresh);
 }
 
 static void ra_update_sets(SyncState *state) {
@@ -357,97 +487,121 @@ static void ra_update_sets(SyncState *state) {
 
     ra_ensure_dirs();
 
+    char (*md5s)[33] = calloc(roms.count, sizeof(*md5s));
+    char (*uniq)[33] = calloc(roms.count, sizeof(*uniq));
+    if (!md5s || !uniq) {
+        free(md5s);
+        free(uniq);
+        rom_list_free(&roms);
+        iprintf(CON_RED "Out of memory" CON_RESET "\n");
+        wait_any_button();
+        return;
+    }
+
+    // 1. Hash every ROM (no network)
     HashCache old_cache = {0}, new_cache = {0};
     hash_cache_load(&old_cache);
-
-    int with_set = 0, unknown = 0, hash_failed = 0, errors = 0, done = 0;
+    int hash_failed = 0, hashed = 0, nuniq = 0;
     bool stopped = false, aborted = false;
-    http_set_verbose(0);
-
     for (int i = 0; i < roms.count; i++) {
         if (!pmMainLoop() || cancel_requested()) {
             stopped = true;
             break;
         }
-
-        const char *path = roms.paths[i];
-        const char *name = base_name(path);
-        iprintf("%d/%d %.24s\n", i + 1, roms.count, name);
-
-        struct stat st;
-        if (stat(path, &st) != 0) {
-            iprintf("  \x1b[31mcan't read\x1b[0m\n");
+        iprintf("\rHashing %d/%d", i + 1, roms.count);
+        if (!hash_rom(roms.paths[i], &old_cache, &new_cache, md5s[i])) {
+            iprintf("\n%.24s\n  " CON_RED "not a DS ROM" CON_RESET "\n", base_name(roms.paths[i]));
+            md5s[i][0] = '\0';
             hash_failed++;
-            done++;
             continue;
         }
-        uint32_t size = (uint32_t)st.st_size;
-
-        char md5[33];
-        const char *cached = hash_cache_find(&old_cache, name, size);
-        if (cached) {
-            strcpy(md5, cached);
-        } else if (!ra_hash_nds_file(path, md5)) {
-            iprintf("  \x1b[31mnot a DS ROM\x1b[0m\n");
-            hash_failed++;
-            done++;
-            continue;
-        }
-        hash_cache_add(&new_cache, name, size, md5);
-
-        char url[384];
-        snprintf(url, sizeof(url), "%s/api/v1/ra/set/%s", state->server_url, md5);
-        HttpResponse resp = ra_http(url, HTTP_GET, state->api_key, NULL, NULL, 0);
-
-        if (resp.status_code == 200 && resp.body &&
-            strncmp((const char *)resp.body, "RASET\t", 6) == 0) {
-            int count = count_achievements((const char *)resp.body);
-            if (write_set(name, resp.body, resp.body_size)) {
-                iprintf("  \x1b[32m%d achievements\x1b[0m\n", count);
-                with_set++;
-            } else {
-                iprintf("  \x1b[31mSD write failed\x1b[0m\n");
-                errors++;
-            }
-        } else if (resp.status_code == 200) {
-            iprintf("  \x1b[31mbad set file\x1b[0m\n");
-            errors++;
-        } else if (resp.status_code == 404) {
-            iprintf("  not on RetroAchievements\n");
-            unknown++;
-        } else {
-            errors++;
-            if (report_http_failure(&resp)) aborted = true;
-        }
-        http_response_free(&resp);
-        done++;
-        if (aborted) break;
+        hashed++;
+        bool dup = false;
+        for (int u = 0; u < nuniq && !dup; u++) dup = (strcmp(uniq[u], md5s[i]) == 0);
+        if (!dup) strcpy(uniq[nuniq++], md5s[i]);
     }
-
-    http_set_verbose(1);
-
-    // Keep hashes of ROMs not reached this time
-    for (int i = 0; i < old_cache.count; i++) {
-        const HashEntry *e = &old_cache.entries[i];
-        if (!hash_cache_find(&new_cache, e->name, e->size))
-            hash_cache_add(&new_cache, e->name, e->size, e->md5);
-    }
-    hash_cache_save(&new_cache);
+    iprintf("\n");
+    hash_cache_merge_save(&new_cache, &old_cache);
     hash_cache_free(&old_cache);
     hash_cache_free(&new_cache);
+
+    // 2. Ask for the sets, a batch of hashes per request
+    SetRun run = { .paths = roms.paths, .md5s = md5s, .count = roms.count, .verbose = true };
+    int batch = isDSiMode() ? RA_BATCH_DSI : RA_BATCH_DS;
+    int requested = 0;
+    if (!stopped && nuniq > 0) {
+        iprintf("%d games, %d request%s\n", nuniq, (nuniq + batch - 1) / batch,
+                (nuniq + batch - 1) / batch == 1 ? "" : "s");
+        http_set_verbose(0);
+        for (int b = 0; b < nuniq; b += batch) {
+            if (!pmMainLoop() || cancel_requested()) {
+                stopped = true;
+                break;
+            }
+            int n = nuniq - b < batch ? nuniq - b : batch;
+            iprintf("Getting sets %d-%d...\n", b + 1, b + n);
+            requested += n;
+            if (!fetch_set_batch(state, &run, (const char (*)[33])uniq + b, n)) {
+                aborted = true;
+                break;
+            }
+        }
+        http_set_verbose(1);
+    }
+
     int total = roms.count;
+    free(md5s);
+    free(uniq);
     rom_list_free(&roms);
 
     iprintf("\n");
-    if (aborted) iprintf("\x1b[31mStopped on error\x1b[0m\n");
+    if (aborted) iprintf(CON_RED "Stopped on error" CON_RESET "\n");
     else if (stopped) iprintf("Stopped\n");
-    iprintf("Checked %d of %d ROMs\n", done, total);
-    iprintf(" With achievements: %d\n", with_set);
-    iprintf(" Not on RA:         %d\n", unknown);
+    iprintf("Hashed %d of %d ROMs\n", hashed, total);
+    iprintf(" With achievements: %d\n", run.with_set);
+    iprintf(" Not on RA:         %d\n", run.unknown);
     if (hash_failed) iprintf(" Unreadable:        %d\n", hash_failed);
-    if (errors) iprintf(" Errors:            %d\n", errors);
-    if (with_set) iprintf("Sets in %s/_nds/ra/sets\n", ra_get_root());
+    if (run.errors) iprintf(" Errors:            %d\n", run.errors);
+    if (requested < nuniq && !stopped && !aborted) iprintf(" Not asked:         %d\n", nuniq - requested);
+    if (run.with_set) iprintf("Sets in %s/_nds/ra/sets\n", ra_get_root());
     wait_any_button();
+}
+
+// ---------------------------------------------------------------------------
+// Used by the game catalog
+// ---------------------------------------------------------------------------
+
+const char *ra_sd_root(void) {
+    return ra_get_root();
+}
+
+int ra_install_set(SyncState *state, const char *rom_path, int *achievements) {
+    if (achievements) *achievements = 0;
+    ra_ensure_dirs();
+
+    HashCache old_cache = {0}, new_cache = {0};
+    hash_cache_load(&old_cache);
+    char md5s[1][33];
+    bool ok = hash_rom(rom_path, &old_cache, &new_cache, md5s[0]);
+    if (ok) {
+        hash_cache_merge_save(&new_cache, &old_cache);
+    }
+    hash_cache_free(&old_cache);
+    hash_cache_free(&new_cache);
+    if (!ok) return RA_SET_NOT_DS_ROM;
+
+    char *paths[1] = { (char *)rom_path };
+    SetRun run = { .paths = paths, .md5s = md5s, .count = 1, .verbose = false };
+    http_set_verbose(0);
+    bool reachable = fetch_set_batch(state, &run, (const char (*)[33])md5s, 1);
+    http_set_verbose(1);
+
+    if (run.with_set) {
+        if (achievements) *achievements = run.last_achievements;
+        return RA_SET_OK;
+    }
+    if (run.unknown) return RA_SET_UNKNOWN;
+    return reachable ? RA_SET_ERROR : RA_SET_NO_SERVER;
 }
 
 // ---------------------------------------------------------------------------
@@ -699,7 +853,7 @@ static void ra_upload_unlocks(SyncState *state) {
     char *buf = malloc(to_read + 1);
     if (!buf) {
         fclose(log);
-        iprintf("\x1b[31mOut of memory\x1b[0m\n");
+        iprintf(CON_RED "Out of memory" CON_RESET "\n");
         wait_any_button();
         return;
     }
@@ -729,7 +883,7 @@ static void ra_upload_unlocks(SyncState *state) {
     if (!unlocks) {
         free(buf);
         fclose(log);
-        iprintf("\x1b[31mOut of memory\x1b[0m\n");
+        iprintf(CON_RED "Out of memory" CON_RESET "\n");
         wait_any_button();
         return;
     }
@@ -769,7 +923,7 @@ static void ra_upload_unlocks(SyncState *state) {
         size_t json_cap = 96 + (size_t)in_group * 48;
         char *json = malloc(json_cap);
         if (!json) {
-            iprintf("\x1b[31mOut of memory\x1b[0m\n");
+            iprintf(CON_RED "Out of memory" CON_RESET "\n");
             all_ok = false;
             break;
         }
@@ -832,8 +986,8 @@ static void ra_upload_unlocks(SyncState *state) {
     iprintf(" Submitted: %-4d Already: %d\n", tally.submitted, tally.already);
     iprintf(" Duplicate: %-4d Pending: %d\n", tally.duplicate, tally.pending);
     iprintf(" Ignored:   %-4d Error:   %d\n", tally.ignored, tally.error + tally.other);
-    if (tally.detail[0]) iprintf("\x1b[31m%.60s\x1b[0m\n", tally.detail);
-    if (aborted) iprintf("\x1b[31mStopped on error\x1b[0m\n");
+    if (tally.detail[0]) iprintf(CON_RED "%.60s" CON_RESET "\n", tally.detail);
+    if (aborted) iprintf(CON_RED "Stopped on error" CON_RESET "\n");
     if (!saved) {
         iprintf("\nSome uploads failed; they\n");
         iprintf("will be retried next time\n");
@@ -880,7 +1034,7 @@ void ra_menu(SyncState *state, bool has_wifi) {
                 iprintf("%c %s\n", i == selected ? '>' : ' ', items[i]);
             }
             iprintf("\n");
-            if (!has_wifi) iprintf("\x1b[31mWiFi not connected\x1b[0m\n\n");
+            if (!has_wifi) iprintf(CON_RED "WiFi not connected" CON_RESET "\n\n");
             iprintf("A:Select  B:Back\n");
             redraw = false;
         }

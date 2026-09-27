@@ -12,7 +12,7 @@
 // Note: This is a minimal implementation suitable for DS constraints
 
 #define HTTP_BUFFER_SIZE 4096
-#define HTTP_TIMEOUT 10
+#define HTTP_TIMEOUT 30
 
 static int socket_fd = -1;
 
@@ -22,6 +22,13 @@ static int http_verbose = 1;
 
 void http_set_verbose(int verbose) {
     http_verbose = verbose;
+}
+
+// Socket send/receive timeout (seconds)
+static int http_timeout = HTTP_TIMEOUT;
+
+void http_set_timeout(int seconds) {
+    http_timeout = seconds > 0 ? seconds : HTTP_TIMEOUT;
 }
 
 int http_init(void) {
@@ -126,9 +133,9 @@ HttpResponse http_request_ex(
     }
     HTTP_LOG("Socket created: %d\n", socket_fd);
     
-    // Set socket timeout (30 seconds)
+    // Set socket timeout (30 seconds unless http_set_timeout changed it)
     struct timeval tv;
-    tv.tv_sec = 30;
+    tv.tv_sec = http_timeout;
     tv.tv_usec = 0;
     setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
     setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof(tv));
