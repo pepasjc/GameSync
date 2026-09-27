@@ -1,6 +1,7 @@
 package com.savesync.android.catalog
 
 import com.savesync.android.api.RomEntry
+import com.savesync.android.api.hasRa
 
 /**
  * Client-side smart search over the server's ROM catalog, mirroring the
@@ -142,16 +143,23 @@ object RomCatalogFilter {
         return true
     }
 
-    /** Filter + sort by (system, name). */
+    /**
+     * Filter + sort by (system, name).
+     *
+     * [raOnly] keeps just the games with a published RetroAchievements set
+     * ([hasRa]), "RA?" title matches included - leaving those out would hide
+     * nearly every disc game. Same rule as the MiSTer client's RA-only view.
+     */
     fun filter(
         catalog: List<RomEntry>,
         query: String = "",
         system: String? = null,
+        raOnly: Boolean = false,
     ): List<RomEntry> {
         if (catalog.isEmpty()) return emptyList()
         val normalizedSystem = system?.trim()?.takeIf { it.isNotEmpty() }
         return catalog
-            .filter { matches(it, query, normalizedSystem) }
+            .filter { (!raOnly || it.hasRa) && matches(it, query, normalizedSystem) }
             .sortedWith(
                 compareBy(
                     { it.system.uppercase() },
@@ -160,10 +168,15 @@ object RomCatalogFilter {
             )
     }
 
-    /** The set of system codes the catalog actually contains, sorted. */
-    fun uniqueSystems(catalog: List<RomEntry>): List<String> =
-        catalog.mapNotNull { it.system.trim().takeIf { s -> s.isNotEmpty() } }
+    /** The set of system codes the catalog actually contains, sorted.  With
+     *  [raOnly], only systems that have an RA game, so the system filter
+     *  never lands on an empty list. */
+    fun uniqueSystems(catalog: List<RomEntry>, raOnly: Boolean = false): List<String> =
+        catalog.asSequence()
+            .filter { !raOnly || it.hasRa }
+            .mapNotNull { it.system.trim().takeIf { s -> s.isNotEmpty() } }
             .map { it.uppercase() }
             .distinct()
             .sorted()
+            .toList()
 }

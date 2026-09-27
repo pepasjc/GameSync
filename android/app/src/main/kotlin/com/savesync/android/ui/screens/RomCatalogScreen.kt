@@ -26,6 +26,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -121,6 +122,9 @@ fun RomCatalogScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var systemFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var searchVisible by rememberSaveable { mutableStateOf(false) }
+    // X (Square on a PlayStation pad) / the RA chip: only games with a
+    // RetroAchievements set.  Same toggle as the MiSTer client's catalog.
+    var raOnly by rememberSaveable { mutableStateOf(false) }
     // confirmTarget intentionally stays as plain remember — re-showing the
     // download confirmation dialog after the user navigated away is creepy
     // (they'd come back to a modal they didn't open).
@@ -167,8 +171,11 @@ fun RomCatalogScreen(
             }
         )
     ) { mutableMapOf() }
-    // Stable map key for the active filter — null filter == "ALL".
-    val systemKey = systemFilter ?: "ALL"
+    val systems = remember(catalog, raOnly) { RomCatalogFilter.uniqueSystems(catalog, raOnly) }
+    val activeSystem = systemFilter?.takeIf { it in systems }
+    // Stable map key for the active filter — null filter == "ALL".  The RA
+    // view keeps its own scroll positions: its rows are a different list.
+    val systemKey = (activeSystem ?: "ALL") + if (raOnly) "|RA" else ""
 
     // Lazy first-load when the tab is opened.
     LaunchedEffect(Unit) {
@@ -219,9 +226,22 @@ fun RomCatalogScreen(
         }
     }
 
-    val systems = remember(catalog) { RomCatalogFilter.uniqueSystems(catalog) }
-    val filtered = remember(catalog, query, systemFilter) {
-        RomCatalogFilter.filter(catalog, query, systemFilter)
+    val filtered = remember(catalog, query, activeSystem, raOnly) {
+        RomCatalogFilter.filter(catalog, query, activeSystem, raOnly)
+    }
+
+    fun toggleRaOnly() {
+        raOnly = !raOnly
+        val message = if (raOnly) {
+            val count = RomCatalogFilter.filter(catalog, "", null, raOnly = true).size
+            "RetroAchievements games only: $count"
+        } else {
+            "Showing all games"
+        }
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message)
+        }
     }
 
     // Keep the cursor in range when filters/search change the list size.
@@ -272,7 +292,7 @@ fun RomCatalogScreen(
     fun cycleSystem(delta: Int) {
         if (systems.isEmpty()) return
         val all = listOf<String?>(null) + systems
-        val idx = all.indexOf(systemFilter).let { if (it < 0) 0 else it }
+        val idx = all.indexOf(activeSystem).let { if (it < 0) 0 else it }
         val next = (idx + delta + all.size) % all.size
         systemFilter = all[next]
     }
@@ -298,7 +318,7 @@ fun RomCatalogScreen(
                             onTabClick = onNavigateToTab,
                         )
                         SystemFilterChip(
-                            label = systemFilter ?: ALL_SYSTEMS_LABEL,
+                            label = activeSystem ?: ALL_SYSTEMS_LABEL,
                             options = listOf(ALL_SYSTEMS_LABEL) + systems,
                             onSelect = { choice ->
                                 systemFilter = choice.takeIf { it != ALL_SYSTEMS_LABEL }
@@ -307,6 +327,12 @@ fun RomCatalogScreen(
                     }
                 },
                 actions = {
+                    FilterChip(
+                        selected = raOnly,
+                        onClick = { toggleRaOnly() },
+                        label = { Text("RA") },
+                        modifier = Modifier.padding(end = 4.dp),
+                    )
                     IconButton(onClick = {
                         searchVisible = !searchVisible
                         if (!searchVisible) query = ""
@@ -382,6 +408,11 @@ fun RomCatalogScreen(
                             filtered.getOrNull(selectedIndex)?.let { confirmTarget = it }
                             true
                         }
+                        // X (Square) → RetroAchievements games only / all
+                        Key.ButtonX -> {
+                            toggleRaOnly()
+                            true
+                        }
                         // Y → toggle search
                         Key.ButtonY -> {
                             searchVisible = !searchVisible
@@ -455,6 +486,13 @@ fun RomCatalogScreen(
                             detail = "Upload ROMs via the server and tap refresh.",
                         )
                     }
+                    filtered.isEmpty() && raOnly && query.isBlank() -> {
+                        CenterMessage(
+                            title = "No RetroAchievements games" +
+                                (activeSystem?.let { " for $it" } ?: "") + ".",
+                            detail = "Press X or tap RA to show every game.",
+                        )
+                    }
                     filtered.isEmpty() -> {
                         CenterMessage(
                             title = "No ROMs match this search.",
@@ -494,7 +532,7 @@ fun RomCatalogScreen(
                 }
             }
 
-            CatalogFooter(total = catalog.size, shown = filtered.size)
+            CatalogFooter(total = catalog.size, shown = filtered.size, raOnly = raOnly)
         }
     }
 
@@ -639,7 +677,7 @@ private fun DownloadBanner(name: String) {
 }
 
 @Composable
-private fun CatalogFooter(total: Int, shown: Int) {
+private fun CatalogFooter(total: Int, shown: Int, raOnly: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -647,7 +685,8 @@ private fun CatalogFooter(total: Int, shown: Int) {
         horizontalArrangement = Arrangement.End,
     ) {
         Text(
-            text = if (shown == total) "$total ROMs" else "$shown / $total ROMs",
+            text = (if (shown == total) "$total ROMs" else "$shown / $total ROMs") +
+                if (raOnly) "  ·  RA only (X)" else "",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

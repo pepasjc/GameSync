@@ -96,4 +96,46 @@ class RomCatalogFilterTest {
     fun `uniqueSystems returns sorted dedup list`() {
         assertEquals(listOf("GBA", "NDS", "PS1", "SAT"), RomCatalogFilter.uniqueSystems(catalog))
     }
+
+    // ── RA only (X on the catalog) ───────────────────────────────────────
+
+    private val raCatalog = listOf(
+        rom("SLUS01324", "PS1", "Breath of Fire IV (USA)", "Breath of Fire IV (USA).chd")
+            .copy(raAchievements = 57, raMatch = "title"),
+        rom("GBA_pokemon_emerald", "GBA", "Pokemon Emerald (USA)", "Pokemon - Emerald Version (USA).gba")
+            .copy(raAchievements = 81, raMatch = "hash"),
+        // Registered with RA but no published set: promises nothing.
+        rom("GBA_no_set", "GBA", "No Set (USA)", "No Set (USA).gba")
+            .copy(raAchievements = 0, raMatch = "hash"),
+        // Server had no RA key and could not read the count.
+        rom("NDS_unknown", "NDS", "Unknown (USA)", "Unknown (USA).nds")
+            .copy(raAchievements = -1),
+        rom("SAT_T-4507G", "SAT", "Grandia (Japan) (Disc 1)", "Grandia (Japan) (Disc 1) (4M).chd"),
+    )
+
+    @Test
+    fun `raOnly keeps games with a published set, title matches included`() {
+        val result = RomCatalogFilter.filter(raCatalog, raOnly = true)
+        assertEquals(listOf("GBA_pokemon_emerald", "SLUS01324"), result.map { it.title_id })
+    }
+
+    @Test
+    fun `raOnly off shows everything`() {
+        assertEquals(raCatalog.size, RomCatalogFilter.filter(raCatalog).size)
+    }
+
+    @Test
+    fun `raOnly stacks with system and search`() {
+        assertEquals(
+            listOf("SLUS01324"),
+            RomCatalogFilter.filter(raCatalog, system = "PS1", raOnly = true).map { it.title_id },
+        )
+        assertTrue(RomCatalogFilter.filter(raCatalog, query = "grandia", raOnly = true).isEmpty())
+    }
+
+    @Test
+    fun `raOnly systems list skips systems without an RA game`() {
+        assertEquals(listOf("GBA", "PS1"), RomCatalogFilter.uniqueSystems(raCatalog, raOnly = true))
+        assertEquals(listOf("GBA", "NDS", "PS1", "SAT"), RomCatalogFilter.uniqueSystems(raCatalog))
+    }
 }
