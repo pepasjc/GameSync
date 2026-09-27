@@ -62,37 +62,55 @@ def test_get_set_rejects_bad_md5(client, auth_headers, ra_settings):
     assert client.get("/api/v1/ra/set/nothex", headers=auth_headers).status_code == 400
 
 
-def test_unlocks_dry_run_never_calls_ra(client, auth_headers, ra_settings, monkeypatch):
+def test_unlocks_are_stored_pending_without_calling_ra(client, auth_headers, ra_settings, monkeypatch):
     def boom(*a, **k):
-        raise AssertionError("dry run must not contact RA")
+        raise AssertionError("submission is off: RA must not be contacted")
 
     monkeypatch.setattr(ra_connect, "award", boom)
     body = {"md5": MD5, "game_id": 9878, "unlocks": [{"id": 230051, "ago": 10}]}
     first = client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers).json()
     again = client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers).json()
-    assert first == {"submit": False, "results": [{"id": 230051, "status": "dry-run"}]}
+    assert first == {"submit": False, "results": [{"id": 230051, "status": "pending"}]}
     assert again["results"] == [{"id": 230051, "status": "duplicate"}]
     log = client.get("/api/v1/ra/unlocks", headers=auth_headers).json()["unlocks"]
-    assert [(e["id"], e["status"], e["ago"]) for e in log] == [(230051, "dry-run", 10)]
+    assert [(e["id"], e["status"], e["ago"]) for e in log] == [(230051, "pending", 10)]
 
 
-def test_unlocks_live_submits_once(client, auth_headers, ra_settings, monkeypatch):
+def test_pending_unlocks_go_out_when_submission_is_on(client, auth_headers, ra_settings,
+                                                      monkeypatch, tmp_save_dir):
     calls = []
 
-    def fake_award(ach_id, md5, username, token, ago):
-        calls.append((ach_id, md5, username, token, ago))
+    def fake_award(ach_id, md5, username, token, seconds_ago):
+        calls.append((ach_id, md5, username, token))
         return {"Success": True}
 
     monkeypatch.setattr(ra_connect, "award", fake_award)
-    body = {"md5": MD5, "unlocks": [{"id": 230051}]}
-    # A dry-run entry must not stop the later live upload.
+    body = {"md5": MD5, "unlocks": [{"id": 230051}, {"id": 230045}]}
     client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers)
+    assert calls == []
+
+    # Turning submission on sends what was stored, once
+    assert ra_connect.submit_pending(tmp_save_dir, "tester", "tok") == 2
+    assert ra_connect.submit_pending(tmp_save_dir, "tester", "tok") == 0
+    assert calls == [(230051, MD5, "tester", "tok"), (230045, MD5, "tester", "tok")]
+    log = client.get("/api/v1/ra/unlocks", headers=auth_headers).json()["unlocks"]
+    assert {e["status"] for e in log} == {"submitted"}
+
+
+def test_unlocks_live_submits_new_and_pending(client, auth_headers, ra_settings, monkeypatch):
+    calls = []
+    monkeypatch.setattr(ra_connect, "award",
+                        lambda ach_id, *a, **k: calls.append(ach_id) or {"Success": True})
+    client.post("/api/v1/ra/unlocks", json={"md5": MD5, "unlocks": [{"id": 1}]},
+                headers=auth_headers)
     monkeypatch.setattr(settings, "ra_submit", True)
-    live = client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers).json()
-    again = client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers).json()
-    assert live["results"] == [{"id": 230051, "status": "submitted"}]
-    assert again["results"] == [{"id": 230051, "status": "duplicate"}]
-    assert calls == [(230051, MD5, "tester", "tok", 0)]
+    live = client.post("/api/v1/ra/unlocks", json={"md5": MD5, "unlocks": [{"id": 2}]},
+                       headers=auth_headers).json()
+    again = client.post("/api/v1/ra/unlocks", json={"md5": MD5, "unlocks": [{"id": 2}]},
+                        headers=auth_headers).json()
+    assert live["results"] == [{"id": 2, "status": "submitted"}]
+    assert again["results"] == [{"id": 2, "status": "duplicate"}]
+    assert calls == [1, 2]  # the stored one went out with the new one
 
 
 def test_unlocks_live_error_is_retried(client, auth_headers, ra_settings, monkeypatch):
@@ -105,9 +123,12 @@ def test_unlocks_live_error_is_retried(client, auth_headers, ra_settings, monkey
     body = {"md5": MD5, "unlocks": [{"id": 1}]}
     resp = client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers).json()
     assert resp["results"] == [{"id": 1, "status": "error", "detail": "server hiccup"}]
+    # Stored all the same, so the DS may forget it; the next upload retries
     monkeypatch.setattr(ra_connect, "award", lambda *a, **k: {"Success": True})
-    resp = client.post("/api/v1/ra/unlocks", json=body, headers=auth_headers).json()
-    assert resp["results"] == [{"id": 1, "status": "submitted"}]
+    resp = client.post("/api/v1/ra/unlocks", json={"md5": MD5, "unlocks": [{"id": 3}]},
+                       headers=auth_headers).json()
+    log = client.get("/api/v1/ra/unlocks", headers=auth_headers).json()["unlocks"]
+    assert [(e["id"], e["status"]) for e in log] == [(1, "submitted"), (3, "submitted")]
 
 
 def test_warning_achievement_is_never_recorded(client, auth_headers, ra_settings):

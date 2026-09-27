@@ -578,7 +578,7 @@ typedef struct {
 } LogUnlock;
 
 typedef struct {
-    int submitted, already, duplicate, dry_run, ignored, error, other;
+    int submitted, already, duplicate, pending, ignored, error, other;
     char detail[64];  // first error detail
 } UploadTally;
 
@@ -633,7 +633,7 @@ static void tally_results(const char *json, UploadTally *t) {
         if (strncmp(p, "submitted\"", 10) == 0) t->submitted++;
         else if (strncmp(p, "already\"", 8) == 0) t->already++;
         else if (strncmp(p, "duplicate\"", 10) == 0) t->duplicate++;
-        else if (strncmp(p, "dry-run\"", 8) == 0) t->dry_run++;
+        else if (strncmp(p, "pending\"", 8) == 0) t->pending++;
         else if (strncmp(p, "ignored\"", 8) == 0) t->ignored++;
         else if (strncmp(p, "error\"", 6) == 0) t->error++;
         else t->other++;
@@ -792,7 +792,7 @@ static void ra_upload_unlocks(SyncState *state) {
             UploadTally before = tally;
             tally_results((const char *)resp.body, &tally);
             if (!json_submit_flag((const char *)resp.body)) live = false;
-            if (tally.error > before.error || tally.other > before.other) all_ok = false;
+            if (tally.other > before.other) all_ok = false; // a reply we don't understand
             iprintf("  ok\n");
         } else {
             all_ok = false;
@@ -804,10 +804,10 @@ static void ra_upload_unlocks(SyncState *state) {
     http_set_verbose(1);
     free(unlocks);
 
-    // Only remember lines that reached RetroAchievements; dry-run and failed
-    // uploads go again next time (the server skips repeats).
+    // Once the server has them the unlocks are its to deliver: it keeps
+    // pending ones until SYNC_RA_SUBMIT is on and retries failed ones itself.
     bool saved = false;
-    if (all_ok && live && !aborted) {
+    if (all_ok && !aborted) {
         save_uploaded_offset(log, offset + used);
         saved = true;
     }
@@ -815,17 +815,20 @@ static void ra_upload_unlocks(SyncState *state) {
 
     iprintf("\n%d game%s\n", games, games == 1 ? "" : "s");
     iprintf(" Submitted: %-4d Already: %d\n", tally.submitted, tally.already);
-    iprintf(" Duplicate: %-4d Dry-run: %d\n", tally.duplicate, tally.dry_run);
+    iprintf(" Duplicate: %-4d Pending: %d\n", tally.duplicate, tally.pending);
     iprintf(" Ignored:   %-4d Error:   %d\n", tally.ignored, tally.error + tally.other);
     if (tally.detail[0]) iprintf("\x1b[31m%.60s\x1b[0m\n", tally.detail);
     if (aborted) iprintf("\x1b[31mStopped on error\x1b[0m\n");
-    if (!live && !aborted) {
-        iprintf("\nServer is in dry-run mode\n");
-        iprintf("(SYNC_RA_SUBMIT off): these\n");
-        iprintf("will be sent again next time\n");
-    } else if (!saved) {
+    if (!saved) {
         iprintf("\nSome uploads failed; they\n");
         iprintf("will be retried next time\n");
+    } else if (!live && tally.pending) {
+        iprintf("\nStored on the server; it sends\n");
+        iprintf("them to RetroAchievements once\n");
+        iprintf("SYNC_RA_SUBMIT is turned on\n");
+    } else if (tally.error) {
+        iprintf("\nStored; the server retries the\n");
+        iprintf("failed ones on the next upload\n");
     } else if (more) {
         iprintf("\nMore unlocks left: run again\n");
     }

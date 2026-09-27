@@ -80,10 +80,10 @@ Open it from the config panel: **L**, then **Achievements**.
 - **Upload unlocks**: first moves unlocks still sitting in `sd:/_nds/nds-bootstrap/ramDump.bin` into
   `sd:/_nds/ra/unlocks.log`, the same way nds-bootstrap does on the next game boot. Then it sends the new log lines
   to the server, one request per game. The unlock time comes from the DS clock. The screen shows how many were
-  submitted, already awarded, duplicate, dry-run or failed. `sd:/_nds/ra/uploaded.txt` records how far the log was
-  uploaded. That mark only moves when every unlock reached RetroAchievements, so failed uploads, and uploads to a
-  server in dry-run mode (`SYNC_RA_SUBMIT` off), are sent again next time; the server skips repeats. Delete
-  `uploaded.txt` to send the whole log again.
+  submitted, already awarded, duplicate, pending or failed. `sd:/_nds/ra/uploaded.txt` records how far the log was
+  uploaded; it moves as soon as the server has stored the unlocks. From there the server delivers them: pending
+  ones (`SYNC_RA_SUBMIT` off) go to RetroAchievements when submission is turned on, and failed ones are retried on
+  the next upload. Delete `uploaded.txt` to send the whole log again; the server skips repeats.
 
 The files go under `sd:/`, or under `fat:/` if only a flashcard with `_nds` is present. nds-bootstrap only runs
 achievements from the DSi SD card, though.

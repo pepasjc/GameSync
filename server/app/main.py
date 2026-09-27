@@ -14,6 +14,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+async def _submit_pending_ra_unlocks() -> None:
+    from app.services import ra_connect
+
+    try:
+        sent = await asyncio.to_thread(
+            ra_connect.submit_pending, settings.save_dir,
+            settings.ra_username, settings.ra_token,
+        )
+        if sent:
+            logger.info("[ra] sent %d stored DS unlock(s) to RetroAchievements", sent)
+    except Exception as exc:  # noqa: BLE001 - retried on the next upload
+        logger.warning("[ra] could not send stored DS unlocks: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Fail fast on an insecure config (weak/placeholder API key) before we
@@ -22,6 +36,11 @@ async def lifespan(app: FastAPI):
 
     settings.save_dir.mkdir(parents=True, exist_ok=True)
     db.init_db(settings.save_dir)
+
+    if settings.ra_submit and settings.ra_token:
+        # DS unlocks stored while submission was off go out now; a slow RA
+        # must not hold up startup.
+        asyncio.create_task(_submit_pending_ra_unlocks())
 
     data_dir = Path(__file__).parent.parent / "data"
     dats_dir = data_dir / "dats"

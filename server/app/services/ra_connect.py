@@ -13,7 +13,8 @@ API key used for catalog badges.  Request shapes follow rcheevos
 ``src/rapi/rc_api_runtime.c`` / ``rc_api_user.c``.
 
 Unlocks are always softcore: RA only takes hardcore from approved emulators.
-Until ``SYNC_RA_SUBMIT`` is on, awards are recorded here and never sent.
+Every unlock is stored here until RA has it; until ``SYNC_RA_SUBMIT`` is on
+they wait as "pending" and go out when it is (at startup or next upload).
 """
 
 from __future__ import annotations
@@ -180,47 +181,85 @@ def load_unlocks(save_dir: Path) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+RETRYABLE = ("pending", "dry-run", "error")  # "dry-run": older logs
+
+
+def _save_unlocks(save_dir: Path, log: list[dict]) -> None:
+    path = unlock_log_path(save_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(log, indent=1), encoding="utf-8")
+
+
+def _submit_pending(log: list[dict], username: str, token: str) -> int:
+    """Send every stored unlock RA hasn't taken yet; returns how many went."""
+    now = int(time.time())
+    sent = 0
+    for entry in log:
+        if entry["status"] not in RETRYABLE:
+            continue
+        unlocked_at = entry.get("unlocked_at", entry["received_at"] - entry.get("ago", 0))
+        try:
+            resp = award(entry["id"], entry["md5"], username, token, max(0, now - unlocked_at))
+            entry["status"] = "already" if resp.get("AlreadyAwarded") else "submitted"
+            entry.pop("detail", None)
+            sent += 1
+        except Exception as exc:  # noqa: BLE001 - keep the rest going; retried later
+            entry["status"] = "error"
+            entry["detail"] = str(exc)
+    return sent
+
+
+def submit_pending(save_dir: Path, username: str, token: str) -> int:
+    """Send stored unlocks to RA, e.g. once SYNC_RA_SUBMIT is turned on."""
+    with _log_lock:
+        log = load_unlocks(save_dir)
+        sent = _submit_pending(log, username, token)
+        if sent or any(e["status"] == "error" for e in log):
+            _save_unlocks(save_dir, log)
+    return sent
+
+
 def record_unlocks(save_dir: Path, md5: str, game_id: int, unlocks: list[dict],
                    submit: bool, username: str, token: str) -> list[dict]:
-    """Log each unlock and, when ``submit``, send it to RA.
+    """Store each new unlock; when ``submit``, send everything pending to RA.
 
-    An achievement already sent (or accepted as a repeat) is skipped, so the
-    DS can re-upload its whole log safely.  Returns one result per unlock.
+    The server keeps every unlock until RA has it, so once this returns the
+    DS can forget them: pending ones go out when submission is turned on
+    (see :func:`submit_pending`), failed ones on the next upload.  An
+    achievement already stored is reported as a duplicate.  Returns one
+    result per unlock.
     """
     with _log_lock:
         log = load_unlocks(save_dir)
-        done = {e["id"] for e in log if e["status"] in ("submitted", "already")}
-        dry = {e["id"] for e in log if e["status"] == "dry-run"}
-        live = submit and bool(token)
-        results = []
+        by_id = {e["id"]: e for e in log}
         now = int(time.time())
+        fresh: list[tuple[int, dict | None]] = []
         for unlock in unlocks:
             ach_id = int(unlock["id"])
+            if ach_id >= WARNING_ACHIEVEMENT_ID:
+                fresh.append((ach_id, None))
+                continue
+            if ach_id in by_id:
+                fresh.append((ach_id, {"status": "duplicate"}))
+                continue
             ago = max(0, int(unlock.get("ago", 0)))
             entry = {"id": ach_id, "md5": md5.lower(), "game_id": game_id,
-                     "received_at": now, "ago": ago}
-            # Dry-run entries don't block a later live upload of the same unlock.
-            if ach_id >= WARNING_ACHIEVEMENT_ID:
-                results.append({"id": ach_id, "status": "ignored"})
-                continue
-            if ach_id in done or (not live and ach_id in dry):
-                results.append({"id": ach_id, "status": "duplicate"})
-                continue
-            if not live:
-                entry["status"] = "dry-run"
-                dry.add(ach_id)
-            else:
-                try:
-                    resp = award(ach_id, md5, username, token, ago)
-                    entry["status"] = "already" if resp.get("AlreadyAwarded") else "submitted"
-                    done.add(ach_id)
-                except Exception as exc:  # noqa: BLE001 - keep the rest going
-                    entry["status"] = "error"
-                    entry["detail"] = str(exc)
+                     "received_at": now, "ago": ago, "unlocked_at": now - ago,
+                     "status": "pending"}
             log.append(entry)
-            results.append({"id": ach_id, "status": entry["status"], **(
-                {"detail": entry["detail"]} if "detail" in entry else {})})
-        path = unlock_log_path(save_dir)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(log, indent=1), encoding="utf-8")
+            by_id[ach_id] = entry
+            fresh.append((ach_id, entry))
+        if submit and token:
+            _submit_pending(log, username, token)
+        _save_unlocks(save_dir, log)
+
+    results = []
+    for ach_id, entry in fresh:
+        if entry is None:
+            results.append({"id": ach_id, "status": "ignored"})
+        else:
+            result = {"id": ach_id, "status": entry["status"]}
+            if "detail" in entry:
+                result["detail"] = entry["detail"]
+            results.append(result)
     return results
