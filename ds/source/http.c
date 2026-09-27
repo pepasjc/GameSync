@@ -9,6 +9,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
 
 // Simple HTTP client for DS
 // Note: This is a minimal implementation suitable for DS constraints
@@ -17,6 +19,33 @@
 #define HTTP_TIMEOUT 30
 
 static int socket_fd = -1;
+
+#define CONNECT_TIMEOUT_SECONDS 10
+
+// connect() with a time limit.  A blocking connect on the DS stack can hang
+// for good (seen after an install: the next request never left the DSi), and
+// the socket's receive timeout doesn't cover it.  Success is judged by
+// select() + SO_ERROR rather than errno, whose values this stack may not set.
+static int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t len) {
+    int on = 1;
+    ioctl(fd, FIONBIO, &on);
+    int r = connect(fd, addr, len);
+    if (r < 0) {
+        fd_set wfds;
+        FD_ZERO(&wfds);
+        FD_SET(fd, &wfds);
+        struct timeval tv = { CONNECT_TIMEOUT_SECONDS, 0 };
+        r = -1;
+        if (select(fd + 1, NULL, &wfds, NULL, &tv) > 0 && FD_ISSET(fd, &wfds)) {
+            int err = 0;
+            socklen_t err_len = sizeof(err);
+            if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &err_len) == 0 && err == 0) r = 0;
+        }
+    }
+    int off = 0;
+    ioctl(fd, FIONBIO, &off);
+    return r;
+}
 
 // Connection debug output (on by default; batch jobs turn it off)
 static int http_verbose = 1;
@@ -152,7 +181,7 @@ HttpResponse http_request_ex(
     HTTP_LOG("Connecting to %s:%d...\n", 
             inet_ntoa(server_addr.sin_addr), port);
     
-    if (connect(socket_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect_with_timeout(socket_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         HTTP_LOG("Connection failed to %s:%d\n", host, port);
         close(socket_fd);
         socket_fd = -1;
@@ -454,7 +483,7 @@ HttpDownloadResult http_download(const char *url, const char *api_key,
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     addr.sin_addr = *(struct in_addr *)he->h_addr_list[0];
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect_with_timeout(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         closesocket(fd);
         return HTTP_DL_CONNECT;
     }
