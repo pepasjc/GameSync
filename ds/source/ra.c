@@ -116,6 +116,21 @@ static long days_from_civil(int y, int m, int d) {
 
 // Explain an HTTP failure shared by both actions. Returns true if the whole
 // run should stop (server unreachable, bad key, no RA login).
+// After ~100 back-to-back requests the DS network stack stops opening
+// connections for a while (closed ones linger), so a request that gets no
+// response at all is retried after a growing pause before giving up.
+static HttpResponse ra_http(const char *url, HttpMethod method, const char *api_key,
+                            const char *content_type, const uint8_t *body, size_t size) {
+    HttpResponse resp = http_request_ex(url, method, api_key, content_type, body, size);
+    for (int attempt = 1; resp.status_code == 0 && attempt <= 4; attempt++) {
+        http_response_free(&resp);
+        iprintf("  no response, retrying (%d)\n", attempt);
+        for (int frame = 0; frame < 60 * 2 * attempt; frame++) swiWaitForVBlank();
+        resp = http_request_ex(url, method, api_key, content_type, body, size);
+    }
+    return resp;
+}
+
 static bool report_http_failure(const HttpResponse *resp) {
     switch (resp->status_code) {
         case 0:
@@ -382,7 +397,7 @@ static void ra_update_sets(SyncState *state) {
 
         char url[384];
         snprintf(url, sizeof(url), "%s/api/v1/ra/set/%s", state->server_url, md5);
-        HttpResponse resp = http_request(url, HTTP_GET, state->api_key, NULL, 0);
+        HttpResponse resp = ra_http(url, HTTP_GET, state->api_key, NULL, NULL, 0);
 
         if (resp.status_code == 200 && resp.body &&
             strncmp((const char *)resp.body, "RASET\t", 6) == 0) {
@@ -784,7 +799,7 @@ static void ra_upload_unlocks(SyncState *state) {
 
         char url[384];
         snprintf(url, sizeof(url), "%s/api/v1/ra/unlocks", state->server_url);
-        HttpResponse resp = http_request_ex(url, HTTP_POST, state->api_key, "application/json",
+        HttpResponse resp = ra_http(url, HTTP_POST, state->api_key, "application/json",
                                             (const uint8_t *)json, len);
         free(json);
 
