@@ -30,4 +30,15 @@ const char *ra_sd_root(void);
 // except retry notices.
 int ra_install_set(SyncState *state, const char *rom_path, int *achievements);
 
+// Unlocks waiting to go up: in the ramDump.bin ring, or in unlocks.log past
+// what uploaded.txt says went up
+int ra_pending_unlocks(void);
+
+// True if the ROM folder has a file the hash cache has never seen
+bool ra_has_new_roms(void);
+
+// RA Sync: upload unlocks and fetch sets for new ROMs without waiting for
+// buttons.  WiFi must be up.
+void ra_auto_sync(SyncState *state);
+
 #endif

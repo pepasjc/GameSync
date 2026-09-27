@@ -77,7 +77,14 @@ static void ra_ensure_dirs(void) {
 // Small helpers
 // ---------------------------------------------------------------------------
 
+// RA Sync (rasync.nds) runs the same screens unattended
+static bool ra_auto = false;
+
 static void wait_any_button(void) {
+    if (ra_auto) {
+        for (int i = 0; i < 60 && pmMainLoop(); i++) swiWaitForVBlank();
+        return;
+    }
     iprintf("\nPress any button\n");
     while (pmMainLoop()) {
         swiWaitForVBlank();
@@ -476,6 +483,26 @@ static void ra_update_sets(SyncState *state) {
     RomList roms = {0};
     iprintf("Scanning ROMs...\n");
     find_roms(&roms, rom_dir, sizeof(rom_dir));
+    if (ra_auto) {
+        // Unattended: only ROMs never hashed before (every other one is in
+        // the cache, so RetroAchievements was already asked about it)
+        HashCache seen = {0};
+        hash_cache_load(&seen);
+        int kept = 0;
+        for (int i = 0; i < roms.count; i++) {
+            struct stat st;
+            bool known = stat(roms.paths[i], &st) == 0
+                      && hash_cache_find(&seen, base_name(roms.paths[i]), (uint32_t)st.st_size);
+            if (known) free(roms.paths[i]);
+            else roms.paths[kept++] = roms.paths[i];
+        }
+        roms.count = kept;
+        hash_cache_free(&seen);
+        if (roms.count == 0) {
+            rom_list_free(&roms);
+            return;
+        }
+    }
     iprintf("%s: %d ROMs%s\n", rom_dir, roms.count, roms.truncated ? " (limit)" : "");
     if (roms.count == 0) {
         iprintf("\nNo .nds files found\n");
@@ -1066,4 +1093,38 @@ void ra_menu(SyncState *state, bool has_wifi) {
             redraw = recount = true;
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// RA Sync (rasync.nds): unattended, after quitting a game
+// ---------------------------------------------------------------------------
+
+int ra_pending_unlocks(void) {
+    int ring = ring_unlocks(false);
+    int lines = pending_log_lines();
+    return (ring > 0 ? ring : 0) + (lines > 0 ? lines : 0);
+}
+
+bool ra_has_new_roms(void) {
+    char rom_dir[64];
+    RomList roms = {0};
+    find_roms(&roms, rom_dir, sizeof(rom_dir));
+    HashCache seen = {0};
+    hash_cache_load(&seen);
+    bool found = false;
+    for (int i = 0; i < roms.count && !found; i++) {
+        struct stat st;
+        found = stat(roms.paths[i], &st) == 0
+             && !hash_cache_find(&seen, base_name(roms.paths[i]), (uint32_t)st.st_size);
+    }
+    hash_cache_free(&seen);
+    rom_list_free(&roms);
+    return found;
+}
+
+void ra_auto_sync(SyncState *state) {
+    ra_auto = true;
+    if (ra_pending_unlocks() > 0) ra_upload_unlocks(state);
+    ra_update_sets(state);
+    ra_auto = false;
 }
