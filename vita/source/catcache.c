@@ -298,12 +298,39 @@ static bool write_head(FILE *f, const char *system, const char *fp, uint32_t cou
 }
 
 /* Position `f` at the rows of `system`; fills *h.  False if not found. */
+/* Read past `n` bytes (or copy them to `out` when given).  Plain reads,
+ * no fseek / ftell: on the PSP those go through newlib's buffered
+ * position bookkeeping, which was seen jumping to the end of the file
+ * (PPSSPP), and sections are small enough that reading them is cheap. */
+static bool pass_bytes(FILE *in, uint32_t n, FILE *out) {
+    static char buf[4096];
+    while (n > 0) {
+        size_t chunk = n < sizeof(buf) ? n : sizeof(buf);
+        if (fread(buf, 1, chunk, in) != chunk) return false;
+        if (out && fwrite(buf, 1, chunk, out) != chunk) return false;
+        n -= (uint32_t)chunk;
+    }
+    return true;
+}
+
 static bool seek_section(FILE *f, const char *system, SectionHead *h) {
     while (read_head(f, h)) {
         if (strcmp(h->system, system) == 0) return true;
-        if (fseek(f, (long)h->bytes, SEEK_CUR) != 0) return false;
+        if (!pass_bytes(f, h->bytes, NULL)) return false;
     }
     return false;
+}
+
+/* Number of complete sections at the start of the file (a truncated
+ * tail - an interrupted write - is not counted). */
+static int complete_sections(void) {
+    FILE *f = open_cache();
+    if (!f) return 0;
+    SectionHead h;
+    int n = 0;
+    while (read_head(f, &h) && pass_bytes(f, h.bytes, NULL)) n++;
+    fclose(f);
+    return n;
 }
 
 /* ------------------------------------------------------------------ */
@@ -356,26 +383,15 @@ static bool rewrite(const char *system, const char *fp, const RomCatalog *rows) 
     if (!out) return false;
     bool ok = fwrite(MAGIC, 1, 4, out) == 4 && put_u32(out, CATCACHE_VERSION);
 
-    FILE *in = open_cache();
+    /* A truncated tail section (interrupted write) is dropped. */
+    int complete = complete_sections();
+    FILE *in = complete > 0 ? open_cache() : NULL;
     if (in) {
-        long start = ftell(in);
-        fseek(in, 0, SEEK_END);
-        long size = ftell(in);
-        fseek(in, start, SEEK_SET);
         SectionHead h;
-        static char buf[16 * 1024];
-        while (ok && read_head(in, &h)) {
-            /* A truncated tail section (interrupted write) is dropped. */
-            if (ftell(in) + (long)h.bytes > size) break;
+        for (int i = 0; ok && i < complete && read_head(in, &h); i++) {
             bool keep = strcmp(h.system, system) != 0;
             if (keep) ok = write_head(out, h.system, h.fingerprint, h.count, h.bytes);
-            uint32_t left = h.bytes;
-            while (ok && left > 0) {
-                size_t chunk = left < sizeof(buf) ? left : sizeof(buf);
-                if (fread(buf, 1, chunk, in) != chunk) ok = false;
-                else if (keep && fwrite(buf, 1, chunk, out) != chunk) ok = false;
-                left -= (uint32_t)chunk;
-            }
+            if (ok) ok = pass_bytes(in, h.bytes, keep ? out : NULL);
         }
         fclose(in);
     }
@@ -391,7 +407,7 @@ static bool rewrite(const char *system, const char *fp, const RomCatalog *rows) 
         remove(tmp);
         return false;
     }
-    remove(g_path);   /* the Vita's rename won't replace an existing file */
+    remove(g_path);   /* the PSP's / Vita's rename won't replace an existing file */
     return rename(tmp, g_path) == 0;
 }
 

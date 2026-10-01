@@ -23,6 +23,8 @@
  * a file with another version is treated as empty.
  *
  * Pure C + stdio so it builds on the host for tests (vita/tests/).
+ * The PSP client carries the same module (psp/source/catcache.c):
+ * same file format and API - keep the two in step.
  */
 
 #ifndef VITASYNC_CATCACHE_H
