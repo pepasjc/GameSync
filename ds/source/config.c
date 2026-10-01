@@ -98,6 +98,7 @@ bool config_load(SyncState *state, char *error, size_t error_size) {
     state->custom_save_dir[0] = '\0';
     state->wifi_ssid[0] = '\0';
     state->wifi_wep_key[0] = '\0';
+    state->tcp_window = 0;
     
     while (fgets(line, sizeof(line), f)) {
         // Remove trailing newline and carriage return
@@ -142,6 +143,8 @@ bool config_load(SyncState *state, char *error, size_t error_size) {
             strncpy(state->wifi_ssid, value, sizeof(state->wifi_ssid) - 1);
         } else if (strcmp(key, "wifi_wep_key") == 0) {
             strncpy(state->wifi_wep_key, value, sizeof(state->wifi_wep_key) - 1);
+        } else if (strcmp(key, "tcp_window") == 0) {
+            state->tcp_window = atoi(value);
         }
     }
     
@@ -206,6 +209,8 @@ bool config_save(const SyncState *state) {
         fprintf(f, "save_dir=%s\n", state->custom_save_dir);
     fprintf(f, "wifi_ssid=%s\n", state->wifi_ssid);
     fprintf(f, "wifi_wep_key=%s\n", state->wifi_wep_key);
+    if (state->tcp_window > 0)
+        fprintf(f, "tcp_window=%d\n", state->tcp_window);
 
     fclose(f);
     return true;

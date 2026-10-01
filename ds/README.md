@@ -19,7 +19,8 @@ pacman -S nds-dev
 
 ```bash
 make          # ndssync.nds
-make dsi      # ndssync_dsi.nds  (DSi-enhanced)
+make dsi      # ndssync_dsi.nds  (DSi build, faster WiFi)
+make both     # both
 make clean
 ```
 
@@ -27,7 +28,8 @@ make clean
 
 ```bash
 make          # ndssync.nds
-make dsi      # ndssync_dsi.nds  (DSi-enhanced)
+make dsi      # ndssync_dsi.nds  (DSi build, faster WiFi)
+make both     # both
 make clean
 ```
 
@@ -46,10 +48,34 @@ docker run --rm -v "$PWD":/src -w /src python:3.12-slim sh ds/tests/run_e2e.sh
 
 | File | Target |
 |---|---|
-| `ndssync.nds` | DS / DS Lite / DSi (standard) |
-| `ndssync_dsi.nds` | DSi / DSi XL (extra RAM, enhanced build) |
+| `ndssync.nds` | DS / DS Lite, or a DSi running it from a flashcard (DS mode) |
+| `ndssync_dsi.nds` | DSi / DSi XL in DSi mode (SD card, TWiLight Menu++ / Unlaunch / hiyaCFW): faster WiFi |
 
-Copy the `.nds` file to the flashcard SD and launch it from the flashcard menu.
+Copy the `.nds` file to the flashcard SD and launch it from the flashcard menu. On a DSi, put `ndssync_dsi.nds`
+on the console's SD card and launch it in DSi mode.
+
+### DSi build: faster WiFi
+
+Both builds use the DSi's own WiFi chip (WPA2, firmware access points 4–6) when they run in DSi mode, but the
+stock dswifi TCP stack (sgIP) caps every download at one packet per round trip: it never advertises a receive
+window above 1400 bytes, and sends no MSS option, so the server falls back to 536-byte segments.
+
+`ndssync_dsi.nds` links a patched copy of dswifi (`third_party/dswifi`, see the notes at the top of
+`sgIP_Config.h`) instead of `-ldswifi9`:
+
+- a 64 KB TCP receive buffer and a real receive window (32 KB by default) in DSi mode, so many segments are in
+  flight at once
+- an MSS option on SYN, so the server sends full-size (1420-byte) segments
+- 48 extra 2 KB WiFi packet buffers so a full window has somewhere to land, and the ARM9 at 134 MHz
+- `recv()` copies with `memcpy` instead of a byte loop
+
+Started in DS mode (from a flashcard) the same file behaves like the standard build (1400-byte window, plus the MSS
+option) and says so when WiFi starts. The window can be tuned in `config.txt`; the catalog's progress screen shows
+the resulting KB/s:
+
+```ini
+tcp_window=32768   # DSi build only: 1400..65535, default 32768
+```
 
 ## Configuration
 

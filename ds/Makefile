@@ -51,10 +51,22 @@ CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
 ASFLAGS := -g $(ARCH)
 
 LDFLAGS = -specs=ds_arm9.specs -g $(ARCH) -Wl,-Map,$(BUILD)/$(TARGET).map -L$(LIBNDS)/lib
-LDFLAGS_DSI = -specs=dsi_arm9.specs -g $(ARCH) -Wl,-Map,$(BUILD_DSI)/$(TARGET_DSI).map -L$(LIBNDS)/lib
 
 LIBS := -ldswifi9 -lnds9 -lfat
-LIBS_DSI := -ldswifi9 -lnds9 -lfat
+
+#---------------------------------------------------------------------------------
+# DSi build (ndssync_dsi.nds): same sources, linked against the patched dswifi
+# in third_party/dswifi instead of -ldswifi9. In DSi mode it advertises a real
+# TCP receive window (source/network.c sets it, tcp_window= in config.txt) and
+# sends an MSS option, so downloads are no longer one segment per round trip.
+#---------------------------------------------------------------------------------
+DSWIFI := third_party/dswifi
+DSWIFI_DEFS := -DSGIP_TCP_RECEIVEBUFFERLENGTH=65536 -DSGIP_TCP_TRANSMITBUFFERLENGTH=16384 	-DSGIP_TCP_MAXWINDOW_VAR=sgip_tcp_max_window -DSGIP_TCP_SEND_MSS
+DSWIFI_CFILES := $(wildcard $(DSWIFI)/source/*.c) $(wildcard $(DSWIFI)/source/sgIP/*.c)
+DSWIFI_OFILES := $(DSWIFI_CFILES:$(DSWIFI)/source/%.c=$(BUILD_DSI)/dswifi/%.o)
+
+LDFLAGS_DSI = -specs=ds_arm9.specs -g $(ARCH) -Wl,-Map,$(BUILD_DSI)/$(TARGET_DSI).map -L$(LIBNDS)/lib
+LIBS_DSI := -lnds9 -lfat
 
 #---------------------------------------------------------------------------------
 CFILES := $(wildcard $(SOURCES)/*.c)
@@ -80,11 +92,13 @@ $(TARGET).nds: $(TARGET).elf
 
 $(TARGET).elf: $(BUILD) $(OFILES)
 
+$(TARGET_DSI).nds: GAME_SUBTITLE2 := for Nintendo DSi
 $(TARGET_DSI).nds: $(TARGET_DSI).elf
 
-$(TARGET_DSI).elf: $(BUILD_DSI) $(OFILES_DSI)
-	@echo "linking DSi-enhanced $(notdir $@)"
-	@$(LD) $(LDFLAGS_DSI) $(OFILES_DSI) $(LIBPATHS) $(LIBS_DSI) -o $@
+$(TARGET_DSI).elf: OFILES := $(OFILES_DSI) $(DSWIFI_OFILES)
+$(TARGET_DSI).elf: LDFLAGS = $(LDFLAGS_DSI)
+$(TARGET_DSI).elf: LIBS := $(LIBS_DSI)
+$(TARGET_DSI).elf: $(BUILD_DSI) $(OFILES_DSI) $(DSWIFI_OFILES)
 
 $(BUILD):
 	@mkdir -p $@
@@ -98,7 +112,12 @@ $(BUILD)/%.o: $(SOURCES)/%.c
 
 $(BUILD_DSI)/%.o: $(SOURCES)/%.c
 	@echo "DSi: $(notdir $<)"
-	@$(CC) $(CFLAGS) -D__DSI__ -c $< -o $@
+	@$(CC) -I$(CURDIR)/$(DSWIFI)/include $(CFLAGS) -D__DSI__ -c $< -o $@
+
+$(BUILD_DSI)/dswifi/%.o: $(DSWIFI)/source/%.c
+	@mkdir -p $(dir $@)
+	@echo "DSi dswifi: $(notdir $<)"
+	@$(CC) -I$(CURDIR)/$(DSWIFI)/include $(CFLAGS) $(DSWIFI_DEFS) -c $< -o $@
 
 clean:
 	@echo clean ...

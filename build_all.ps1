@@ -88,7 +88,7 @@ if ($want3ds) {
 if ($wantNds) {
     Write-Host "Building NDS client..." -ForegroundColor Yellow
     Push-Location ds
-    & C:\devkitpro\msys2\usr\bin\bash.exe --login -c 'cd /e/projects/3dssync/ds && make clean && make'
+    & C:\devkitpro\msys2\usr\bin\bash.exe --login -c 'cd /e/projects/3dssync/ds && make clean && make both'
     if ($LASTEXITCODE -ne 0) {
         Pop-Location
         Write-Host "NDS build failed!" -ForegroundColor Red
@@ -97,6 +97,7 @@ if ($wantNds) {
     Pop-Location
 
     Copy-Item "ds\ndssync.nds" "$OUTPUT_DIR\ndssync-$VERSION.nds"
+    Copy-Item "ds\ndssync_dsi.nds" "$OUTPUT_DIR\ndssync_dsi-$VERSION.nds"
     Write-Host "NDS build complete!" -ForegroundColor Green
     Write-Host ""
 }

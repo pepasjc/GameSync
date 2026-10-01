@@ -22,6 +22,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ******************************************************************************/
+// Modified for GameSync (https://github.com/pepasjc/GameSync): see the
+// "GameSync" comments. Upstream: https://github.com/devkitPro/dswifi v2.0.2
 
 
 #ifndef SGIP_CONFIG_H
@@ -99,10 +101,34 @@ SOFTWARE.
 #define SGIP_IP_TTL								128
 
 // SGIP_TCPRECEIVEBUFFERLENGTH: The size (in bytes) of the receive FIFO in a TCP connection
+// (GameSync: overridable with -D; the DSi build uses 64 KB)
+#ifndef SGIP_TCP_RECEIVEBUFFERLENGTH
 #define SGIP_TCP_RECEIVEBUFFERLENGTH			8192
+#endif
 
 // SGIP_TCPTRANSMITBUFFERLENGTH: The size (in bytes) of the transmit FIFO in a TCP connection
+#ifndef SGIP_TCP_TRANSMITBUFFERLENGTH
 #define SGIP_TCP_TRANSMITBUFFERLENGTH			8192
+#endif
+
+// SGIP_TCP_MAXWINDOW: Largest receive window advertised to the peer (GameSync).
+//  Stock sgIP never advertises more than 1400 bytes, which allows a single
+//  segment in flight per round trip.  The window is not a segment size (that
+//  is the MSS, see SGIP_TCP_SEND_MSS), so it can go up to the FIFO size, or
+//  65535 since window scaling is not supported.
+//  With SGIP_TCP_MAXWINDOW_VAR defined it is a global int of that name that
+//  the application sets at run time (the DSi build: large window in DSi
+//  mode, stock 1400 when the same ROM runs in DS mode).
+#if defined(SGIP_TCP_MAXWINDOW_VAR)
+extern int SGIP_TCP_MAXWINDOW_VAR;
+#define SGIP_TCP_MAXWINDOW						SGIP_TCP_MAXWINDOW_VAR
+#elif !defined(SGIP_TCP_MAXWINDOW)
+#define SGIP_TCP_MAXWINDOW						1400
+#endif
+
+// SGIP_TCP_SEND_MSS: Send an MSS option with SYN (GameSync). Without one the
+//  peer has to assume the RFC 879 default of 536 bytes per segment.
+//#define SGIP_TCP_SEND_MSS
 
 // SGIP_TCPOOBBUFFERLENGTH: The size (in bytes) of the receive OOB data FIFO in a TCP connection
 #define SGIP_TCP_OOBBUFFERLENGTH				256

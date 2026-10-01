@@ -200,9 +200,56 @@ static int network_init_once(SyncState *state) {
     return -1;
 }
 
+#ifdef __DSI__
+// DSi build: links a patched copy of dswifi (third_party/dswifi) whose TCP
+// receive window is set here. Stock sgIP advertises at most 1400 bytes, so
+// only one segment is ever in flight; the DSi's Atheros WiFi and 16 MB of RAM
+// can take far more.
+#define DSI_TCP_WINDOW_DEFAULT (32 * 1024)
+#define DSI_TCP_WINDOW_MAX 65535   // no window scaling in sgIP
+#define DSI_PACKET_BUFFERS 48      // extra 2 KB WiFi packet buffers
+
+int sgip_tcp_max_window = 1400;
+
+alignas(ARM_CACHE_LINE_SZ)
+static u8 dsi_packet_heap[WLMGR_MIN_PACKET_MEM_SZ + DSI_PACKET_BUFFERS * (sizeof(NetBuf) + 2048)];
+
+static void dsi_wifi_setup(const SyncState *state) {
+    static bool done = false;
+    if (done) return;
+    done = true;
+
+    if (!isDSiMode()) {
+        iprintf(CON_YELLOW "DS mode: no DSi WiFi speedup" CON_RESET "\n");
+        return;
+    }
+    setCpuClock(true);  // 134 MHz: the ARM9 runs the TCP/IP stack
+
+    int window = state && state->tcp_window > 0 ? state->tcp_window : DSI_TCP_WINDOW_DEFAULT;
+    if (window > DSI_TCP_WINDOW_MAX) window = DSI_TCP_WINDOW_MAX;
+    if (window < 1400) window = 1400;
+    sgip_tcp_max_window = window;
+
+    // More packet buffers than calico's default so a full window of segments
+    // has somewhere to land. Bits set in allocmap go to TX: every fourth
+    // buffer, the rest RX. Must run before dswifi's own wlmgrInitDefault(),
+    // which is then a no-op.
+    static const WlMgrInitConfig config = {
+        .pktmem = dsi_packet_heap,
+        .pktmem_sz = sizeof(dsi_packet_heap),
+        .pktmem_allocmap = 0x11111111,
+    };
+    if (!wlmgrInit(&config, WLMGR_DEFAULT_THREAD_PRIO))
+        iprintf(CON_RED "WiFi buffer setup failed" CON_RESET "\n");
+}
+#endif
+
 int network_init(SyncState *state) {
     iprintf("Connecting WiFi...\n");
     wifi_connected = false;
+#ifdef __DSI__
+    dsi_wifi_setup(state);
+#endif
 
     const int max_attempts = 3;
     for (int attempt = 1; attempt <= max_attempts; attempt++) {

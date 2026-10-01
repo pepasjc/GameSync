@@ -96,6 +96,7 @@ preservation communities. Thanks to everyone below.
 | [tiny-AES-c](https://github.com/kokke/tiny-AES-c) | `server/third_party/mcr2vmp/aes.c` | **kokke** and contributors (public domain) |
 | SHA-1 | `server/third_party/mcr2vmp/sha1.c` | **Steve Reid** (public domain) |
 | SHA-256 (FIPS 180-4) | `3ds/`, `ds/`, `gc/`, `ps2/`, `psp/`, `vita/`, `wiiu/`, `xbox/` `sha256.c` | Public-domain reference implementation by **Brad Conte** ([B-Con/crypto-algorithms](https://github.com/B-Con/crypto-algorithms)) |
+| [dswifi](https://github.com/devkitPro/dswifi) 2.0.2 (sgIP TCP/IP stack) | `ds/third_party/dswifi/` | **Stephen Stair** (sgIP / DSWifi) and the **devkitPro** team (calico port), MIT — see `ds/third_party/dswifi/dswifi_license.txt`. Linked into the DSi build only, patched for a larger TCP receive window, an MSS option and a faster `recv()` copy (changes marked `GameSync`). |
 | MD5 (RFC 1321) | `ds/source/md5.c`, `ds/include/md5.h` | **L. Peter Deutsch** / Aladdin Enterprises (zlib-style license), taken unmodified from [rcheevos](https://github.com/RetroAchievements/rcheevos) `src/rhash/` |
 | `mmceman.irx` — MMCE (MemCard PRO2 / SD2PSX) IOP driver | `ps2/irx/` | [ps2-mmce/mmceman](https://github.com/ps2-mmce/mmceman) — "MMCE Authors" (MIT). Rebuilt locally with an added gen1 MemCard Pro `0x21` GameID command. |
 | Debug screen font | `vita/source/debugScreenFont.c` | PSPSDK debug font — **Marcus R. Brown**, **James Forshaw**, **John Kelley** (BSD) |

@@ -22,11 +22,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ******************************************************************************/
+// Modified for GameSync (https://github.com/pepasjc/GameSync): see the
+// "GameSync" comments. Upstream: https://github.com/devkitPro/dswifi v2.0.2
 
 #include "sgIP_TCP.h"
 #include "sgIP_IP.h"
 #include "sgIP_Hub.h"
 #include <sys/socket.h>
+#include <string.h>
 
 sgIP_Record_TCP * tcprecords;
 int port_counter;
@@ -280,7 +283,7 @@ int sgIP_TCP_ReceivePacket(sgIP_memblock * mb, unsigned long srcip, unsigned lon
                rec->sequence=htonl(tcp->acknum);
                rec->ack=htonl(tcp->seqnum);
                rec->sequence_next=rec->sequence;
-               rec->rxwindow=rec->ack+1400; // last byte in receive window
+               rec->rxwindow=rec->ack+SGIP_TCP_MAXWINDOW; // last byte in receive window
                rec->txwindow=rec->sequence+htons(tcp->window);
 
                sgIP_memblock_free(mb);
@@ -599,7 +602,7 @@ sgIP_memblock * sgIP_TCP_GenHeader(sgIP_Record_TCP * rec, int flags, int datalen
 	if(windowlen<0) windowlen=0;
     if(flags&SGIP_TCP_FLAG_ACK) rec->want_reack = windowlen<SGIP_TCP_REACK_THRESH; // indicate an additional ack should be sent when we have more space in the buffer.
 	if(windowlen>65535) windowlen=65535;
-   if(windowlen>1400) windowlen=1400; // don't want to deal with IP fragmentation.
+   if(windowlen>SGIP_TCP_MAXWINDOW) windowlen=SGIP_TCP_MAXWINDOW; // GameSync: was 1400
    rec->rxwindow=rec->ack+windowlen; // last byte in receive window
 	tcp->window=htons(windowlen);
 	return mb;
@@ -635,12 +638,27 @@ int sgIP_TCP_SendPacket(sgIP_Record_TCP * rec, int flags, int datalength) { // d
    j=rec->buf_tx_out-rec->buf_tx_in;
    if(j<0) j+=SGIP_TCP_TRANSMITBUFFERLENGTH;
    if(datalength>j) datalength=j;
-   sgIP_memblock * mb =sgIP_TCP_GenHeader(rec,flags,datalength);
+#ifdef SGIP_TCP_SEND_MSS
+   int optlen=(flags&SGIP_TCP_FLAG_SYN)?4:0; // GameSync: MSS option on SYN
+#else
+   int optlen=0;
+#endif
+   sgIP_memblock * mb =sgIP_TCP_GenHeader(rec,flags,datalength+optlen);
 	if(!mb) {
 		SGIP_INTR_UNPROTECT();
 		return 0;
 	}
-   j=20; // destination offset in memblock for data
+   if(optlen) {
+      sgIP_Header_TCP * tcp = (sgIP_Header_TCP *) mb->datastart;
+      unsigned char * opt = ((unsigned char *) mb->datastart)+20;
+      int mss=sgIP_IP_MaxContentsSize(rec->destip)-20;
+      tcp->dataofs_=6<<4; // header length == 24 (20 + MSS option)
+      opt[0]=2; // kind: MSS
+      opt[1]=4; // length
+      opt[2]=(mss>>8)&0xFF;
+      opt[3]=mss&0xFF;
+   }
+   j=20+optlen; // destination offset in memblock for data
    rec->sequence_next=rec->sequence+datalength;
    k=rec->buf_tx_in;
    while(datalength>0) {
@@ -681,7 +699,7 @@ int sgIP_TCP_SendSynReply(int flags,unsigned long seq, unsigned long ack, unsign
    tcp->checksum=0;
    tcp->dataofs_=5<<4; // header length == 20 (5*32bit)
 
-   if(windowlen<0 || windowlen>1400) windowlen=1400; // don't want to deal with IP fragmentation.
+   if(windowlen<0 || windowlen>SGIP_TCP_MAXWINDOW) windowlen=SGIP_TCP_MAXWINDOW; // GameSync: was 1400
    tcp->window=htons(windowlen);
 
    sgIP_TCP_FixChecksum(srcip,destip,mb);
@@ -898,10 +916,13 @@ int sgIP_TCP_Recv(sgIP_Record_TCP * rec, char * databuf, int buflength, int flag
 	if(buflength>rxlen) buflength=rxlen;
 	int i,j;
 	j=rec->buf_rx_in;
-	for(i=0;i<buflength;i++) {
-		databuf[i]=rec->buf_rx[j++];
-		if(j==SGIP_TCP_RECEIVEBUFFERLENGTH) j=0;
-	}
+	// GameSync: two memcpy()s instead of a byte loop
+	i=SGIP_TCP_RECEIVEBUFFERLENGTH-j;
+	if(i>buflength) i=buflength;
+	memcpy(databuf,rec->buf_rx+j,i);
+	memcpy(databuf+i,rec->buf_rx,buflength-i);
+	j+=buflength;
+	if(j>=SGIP_TCP_RECEIVEBUFFERLENGTH) j-=SGIP_TCP_RECEIVEBUFFERLENGTH;
 
     if(!(flags&MSG_PEEK)) {
 	    rec->buf_rx_in=j;

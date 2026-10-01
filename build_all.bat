@@ -113,7 +113,7 @@ if "!BUILD_NDS!"=="1" (
     echo.
     echo [Building NDS client...]
     cd ds
-    C:\devkitpro\msys2\usr\bin\bash.exe --login -c "cd /e/projects/3dssync/ds && make clean && make"
+    C:\devkitpro\msys2\usr\bin\bash.exe --login -c "cd /e/projects/3dssync/ds && make clean && make both"
     if errorlevel 1 (
         cd ..
         echo [ERROR] NDS build failed!
@@ -121,6 +121,7 @@ if "!BUILD_NDS!"=="1" (
     ) else (
         cd ..
         copy ds\ndssync.nds "%OUTPUT_DIR%\ndssync.nds"
+        copy ds\ndssync_dsi.nds "%OUTPUT_DIR%\ndssync_dsi.nds"
         echo [NDS build complete!]
         set OK_LIST=!OK_LIST! NDS
     )
