@@ -79,6 +79,7 @@ newer). Without it the app still runs; the vWii / Wii U views report
 sd:/3dssync/config.txt              settings (created on first run)
 sd:/3dssync/consoleid.txt           per-console id sent to the server
 sd:/3dssync/downloads.dat           resumable download queue
+sd:/3dssync/catalog/<SYSTEM>.bin    cached server catalog (GC / WII / WIIU)
 sd:/3dssync/state/<title_id>.txt    last-synced hash (three-way sync)
 sd:/3dssync/hashcache/<id>.txt      local save-hash cache
 sd:/3dssync/backup/<title_id>/      pre-restore backup of a NAND save
@@ -126,23 +127,56 @@ HTTP wait can be aborted with `B`.
 
 ## Screens and controls
 
-`ZL` / `ZR` cycle the views (the tab strip under the header shows where you
-are). `+` asks to quit; `HOME` quits. In every list `Up` / `Down` move and
-`Left` / `Right` page.
+The same scheme as every other GameSync client. Only the GamePad is read
+(the client has never polled Pro / Wii Remote controllers).
 
-| View | Shows | Buttons |
-|---|---|---|
-| **Catalog** | server games for the GC / Wii / Wii U tab, queue state per row; detail: file, install format and target folder, related update / DLC | `A` download now · `X` add to queue · `Y` refresh · `-` switch GC / Wii / Wii U |
-| **Installed** | games on SD / USB tagged GC / Wii / Wii U; detail: path, title id | `A` install (Wii U, with its update / DLC, base game first) · `X` delete · `Y` rescan |
-| **Downloads** | one row per title with status pill and progress bar; detail: bytes, files, speed | `A` start / resume title · `Y` run the whole queue · `X` remove · `B` pause a running transfer |
-| **GC Cards** | saves inside the open Nintendont card; detail: title id, blocks, whether the server has it | `A` upload save · `Y` restore from server · `R` next card · `L` import the whole card · `X` rescan |
-| **GC Server** | every GC save on the server, marked when it is on the open card | `A` restore into the open card · `Y` pull every save as `.gci` · `X` refresh |
-| **vWii** / **Wii U** | console saves plus server-only titles with a sync status (synced / upload / download / conflict / server only); detail: status card and the plan totals | `A` smart sync · `X` force upload · `Y` force download · `-` rescan and plan · `L` run the whole plan |
-| **Settings** | server, API key, download and install targets, folders, sync toggles; detail: what the setting does | `A` edit / toggle / save · `Left` / `Right` change a toggle |
+| Button | Everywhere |
+|---|---|
+| `L` / `R` | previous / next view, wrapping (the tab strip under the header shows where you are) |
+| `Up` / `Down` | move one row (hold to repeat) |
+| `Left` / `Right` | page up / page down (hold to repeat) |
+| `-` | switch the sub-tab inside a view (catalog system, memory card) |
+| `A` | confirm / the focused row's main action |
+| `B` | cancel: closes a dialog, pauses a running download, aborts any server wait |
+| `+` | exit GameSync (asks first); `HOME` also exits |
+
+| View | Shows | `A` | `X` | `Y` | `-` |
+|---|---|---|---|---|---|
+| **Catalog** | server games for the GC / Wii / Wii U sub-tab, queue state per row; detail: file, install format and target folder, related update / DLC | download now (asks first; loads the catalog when empty) | add to queue | details | GC → Wii → Wii U |
+| **Installed** | games on SD / USB tagged GC / Wii / Wii U; detail: path, title id | install (Wii U, with its update / DLC, base game first) | delete | details | — |
+| **Downloads** | one row per title with status pill and progress bar; detail: bytes, files, speed | start / resume the title | run the whole queue | remove from the queue | — |
+| **GC Cards** | saves inside the open Nintendont card; detail: title id, blocks, whether the server has it | card for the save: `A` upload · `Y` restore the server copy · `B` cancel | import the whole card | details | next card image |
+| **GC Server** | every GC save on the server, marked when it is on the open card | restore into the open card (loads the list when empty) | pull every save as `.gci` | details | — |
+| **vWii** / **Wii U** | console saves plus server-only titles with a sync status (synced / upload / download / conflict / server only); detail: status card and the plan totals | sync card: `A` smart sync · `X` force upload · `Y` force download · `B` cancel | sync all (run the whole plan) | details | — |
+| **Settings** | server, API key, download and install targets, folders, sync toggles, maintenance; detail: what the setting does | edit / toggle / run / save | — | — | — |
+
+Settings also holds the maintenance actions that used to sit on per-view
+buttons:
+
+- **Refresh catalog** — asks the server to rescan its ROM folder
+  (`GET /api/v1/roms/scan`; a refusal is reported and the refresh carries
+  on), wipes the catalog cache on SD and downloads every system again.
+- **Rescan saves and games** — rescans installed games, GC card images and
+  vWii / Wii U saves, reloads the server GC save list and recomputes the
+  sync plan.
 
 Text settings open an editor card: `Up` / `Down` change the character under
 the cursor (the card shows the next and previous ones), `Left` / `Right` move,
-`ZR` inserts, `X` deletes, `A` keeps, `B` cancels.
+`Y` inserts, `X` deletes, `A` keeps, `B` cancels.
+
+## Catalog cache
+
+The catalog is kept on SD per system (`sd:/3dssync/catalog/GC.bin`,
+`WII.bin`, `WIIU.bin`) next to the fingerprint the server published for it
+(`GET /api/v1/roms/fingerprints`) — the same strategy as the MiSTer client.
+The fingerprints are fetched once per session; opening a system then reads
+its rows from SD when the fingerprint still matches and downloads it again
+only when it changed. If the server cannot be reached, the SD copy is shown
+and the list header says `offline copy`; a server without the fingerprints
+route gets a plain fetch with nothing cached. The files are a compact
+big-endian binary (magic `GSWC`, a format version that is bumped whenever a
+row field changes, then only the fields the client uses — see
+`include/catcache.h`).
 
 ## Server prerequisite for Wii downloads
 

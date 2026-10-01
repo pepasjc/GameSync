@@ -123,6 +123,43 @@ int network_fetch_rom_catalog(const SyncState *state,
     return http_get_buf(&req, (uint8_t *)out, out_size, status_out);
 }
 
+int network_fetch_rom_fingerprints(const SyncState *state,
+                                   char *out, uint32_t out_size,
+                                   int *status_out)
+{
+    if (status_out) *status_out = 0;
+    if (!network_is_ready(state)) return -100;
+
+    HttpRequest req = {0};
+    req.server_url = state->server_url;
+    req.api_key    = state->api_key;
+    req.console_id = state->console_id;
+    req.path       = "/api/v1/roms/fingerprints";
+    req.method     = "GET";
+    req.header_timeout_ms = HTTP_API_TIMEOUT_MS;
+
+    return http_get_buf(&req, (uint8_t *)out, out_size, status_out);
+}
+
+int network_rescan_roms(const SyncState *state)
+{
+    if (!network_is_ready(state)) return -100;
+
+    HttpRequest req = {0};
+    req.server_url = state->server_url;
+    req.api_key    = state->api_key;
+    req.console_id = state->console_id;
+    req.path       = "/api/v1/roms/scan";
+    req.method     = "GET";
+    /* A full rescan walks the whole library before it answers. */
+    req.header_timeout_ms = 10u * 60u * 1000u;
+
+    static uint8_t buf[16 * 1024];
+    int status = 0;
+    int n = http_get_buf(&req, buf, sizeof(buf), &status);
+    return n < 0 ? n : status;
+}
+
 int network_download_path_resumable(const SyncState *state,
                                     const char *path,
                                     const char *target_path,

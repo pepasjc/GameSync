@@ -397,7 +397,7 @@ void ui_draw_header_plain(const SyncState *st, const char *section) {
 void ui_draw_header(const SyncState *st, AppView view) {
     header_bar(st, ui_view_name(view));
 
-    /* View tabs: ZL ... ZR around the eight views. */
+    /* View tabs: L ... R around the eight views. */
     int y = UI_HEADER_H;
     gfx_rect(0, y, GFX_W, UI_TABS_H, 0x152029);
     gfx_rect(0, y + UI_TABS_H - 1, GFX_W, 1, HEX_LINE);
@@ -408,10 +408,10 @@ void ui_draw_header(const SyncState *st, AppView view) {
     for (int v = 0; v < APP_VIEW_COUNT; v++)
         total += gfx_text_w(UI_S_SMALL, view_tab((AppView)v)) + pad * 2 + gap;
     total -= gap;
-    int zl = ui_button_w("ZL"), zr = ui_button_w("ZR");
+    int zl = ui_button_w("L"), zr = ui_button_w("R");
     int x = (GFX_W - total) / 2;
-    ui_button(x - zl - 16, cy, "ZL");
-    ui_button(x + total + 16, cy, "ZR");
+    ui_button(x - zl - 16, cy, "L");
+    ui_button(x + total + 16, cy, "R");
     (void)zr;
 
     for (int v = 0; v < APP_VIEW_COUNT; v++) {
