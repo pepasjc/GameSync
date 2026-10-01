@@ -16,6 +16,7 @@
  */
 
 #include "config.h"
+#include "ui.h"
 
 #include <fcntl.h>
 #include <libmc.h>
@@ -25,7 +26,6 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <time.h>
-#include <debug.h>
 
 #define DEFAULT_SERVER_URL "http://192.168.1.201:8000"
 #define DEFAULT_API_KEY    "anything"
@@ -193,9 +193,9 @@ static int mc_wait_result(void) {
 static bool mc_ensure_ready(char *err_out, size_t err_size) {
     if (g_mc_ready) return true;
 
-    scr_printf("  mc_ensure_ready: mcInit...\n");
+    ui_log("  mc_ensure_ready: mcInit...\n");
     int rc = mcInit(MC_TYPE_MC);
-    scr_printf("  mc_ensure_ready: mcInit -> %d\n", rc);
+    ui_log("  mc_ensure_ready: mcInit -> %d\n", rc);
     if (rc < 0) {
         set_err(err_out, err_size, "mcInit failed (%d)", rc);
         return false;
@@ -204,17 +204,17 @@ static bool mc_ensure_ready(char *err_out, size_t err_size) {
     int type = 0;
     int free_clusters = 0;
     int formatted = 0;
-    scr_printf("  mc_ensure_ready: mcGetInfo...\n");
+    ui_log("  mc_ensure_ready: mcGetInfo...\n");
     rc = mcGetInfo(MC_PORT, MC_SLOT, &type, &free_clusters, &formatted);
-    scr_printf("  mc_ensure_ready: mcGetInfo -> %d\n", rc);
+    ui_log("  mc_ensure_ready: mcGetInfo -> %d\n", rc);
     if (rc < 0) {
         set_err(err_out, err_size, "mcGetInfo failed to start (%d)", rc);
         return false;
     }
 
-    scr_printf("  mc_ensure_ready: mcSync wait...\n");
+    ui_log("  mc_ensure_ready: mcSync wait...\n");
     int result = mc_wait_result();
-    scr_printf("  mc_ensure_ready: mcSync -> %d (type=%d)\n", result, type);
+    ui_log("  mc_ensure_ready: mcSync -> %d (type=%d)\n", result, type);
     if (result == -2) {
         set_err(err_out, err_size, "Memory card in slot 1 is not formatted");
         return false;

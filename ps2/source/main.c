@@ -8,14 +8,14 @@
  *        ata_bd                           — internal HDD as BDM mass storage
  *        usbd, usbhdfsd                   — USB mass storage (mass:/)
  *        ps2dev9, netman, smap            — network adapter / ATA bridge
- *   3. Initialise libdebug screen
+ *   3. Boot splash (gsKit) with a live log of every step
  *   4. Load config from mc0:/3DSSYNC/CONFIG.TXT
  *   5. Bring up networking via ps2ip (static IP by default, DHCP optional)
  *   6. Probe storage: APA/HDLoader hdd0: or mass:/ folder installs
  *   7. Run the menu loop (ROMs / Downloads / Config views)
  *
- * Phase 1 only: ROM browser + USB/APA HDD installer.  Save sync (MCP2)
- * is stubbed in the menu - the next phase wires it up.
+ * Views: ROM catalog / installed games / download queue / VMC images /
+ * memory card slots 1-2 / server saves / settings (L2/R2 cycle them).
  */
 
 #include "common.h"
@@ -46,7 +46,6 @@
 #include <libpad.h>
 #include <libmc.h>
 #include <libhdd.h>
-#include <debug.h>
 #include <delaythread.h>
 #include <netman.h>
 #include <ps2ip.h>
@@ -88,14 +87,14 @@ static int load_irx(const unsigned char *blob, unsigned int size,
     int id = SifExecModuleBuffer((void *)blob, size, argc,
                                  (char *)argv, &ret);
     if (id < 0) {
-        scr_printf("  IRX %s failed (id=%d ret=%d)\n", label, id, ret);
+        ui_log("  IRX %s failed (id=%d ret=%d)\n", label, id, ret);
         return id;
     }
     if (ret != 0 && ret != 1) {
-        scr_printf("  IRX %s start error (id=%d ret=%d)\n", label, id, ret);
+        ui_log("  IRX %s start error (id=%d ret=%d)\n", label, id, ret);
         return -1;
     }
-    scr_printf("  IRX %s ok (id=%d)\n", label, id);
+    ui_log("  IRX %s ok (id=%d)\n", label, id);
     return 0;
 }
 
@@ -116,7 +115,7 @@ static void boot_iop_modules(void) {
     sbv_patch_enable_lmb();
     sbv_patch_disable_prefix_check();
 
-    scr_printf("Loading IOP modules...\n");
+    ui_log("Loading IOP modules...\n");
 
     /* iomanX + fileXio first. Storage modules are loaded after config
      * so storage=usb/hdd/auto can decide which bridges come up. */
@@ -129,13 +128,13 @@ static void boot_iop_modules(void) {
      * PS2 and use the original Sony RPC numbers libmc expects. */
     int ret;
     ret = SifLoadModule("rom0:SIO2MAN", 0, NULL);
-    scr_printf("  rom0:SIO2MAN -> %d\n", ret);
+    ui_log("  rom0:SIO2MAN -> %d\n", ret);
     ret = SifLoadModule("rom0:MCMAN",   0, NULL);
-    scr_printf("  rom0:MCMAN   -> %d\n", ret);
+    ui_log("  rom0:MCMAN   -> %d\n", ret);
     ret = SifLoadModule("rom0:MCSERV",  0, NULL);
-    scr_printf("  rom0:MCSERV  -> %d\n", ret);
+    ui_log("  rom0:MCSERV  -> %d\n", ret);
     ret = SifLoadModule("rom0:PADMAN",  0, NULL);
-    scr_printf("  rom0:PADMAN  -> %d\n", ret);
+    ui_log("  rom0:PADMAN  -> %d\n", ret);
 
     /* mmceman: MMCE protocol for MemCard Pro 2 / SD2PSX GameID switching.
      * Needs iomanX + fileXio (loaded above) and SIO2MAN (rom0, above). */
@@ -146,8 +145,8 @@ static void boot_device_modules(const SyncState *state) {
     bool want_usb = !state || state->storage_pref != STORAGE_PREF_HDD;
     bool want_hdd = !state || state->storage_pref != STORAGE_PREF_USB;
 
-    scr_printf("Loading device modules (storage=%s)...\n",
-               state ? config_storage_pref_to_str(state->storage_pref) : "auto");
+    ui_log("Loading device modules (storage=%s)...\n",
+           state ? config_storage_pref_to_str(state->storage_pref) : "auto");
 
     /* DEV9 backs both the PS2 fat network adapter and internal ATA HDD. */
     if (load_irx(ps2dev9_irx, ps2dev9_irx_size, "ps2dev9", 0, NULL) == 0) {
@@ -181,11 +180,11 @@ static void boot_device_modules(const SyncState *state) {
     int bdmfs_rc      = load_irx(bdmfs_fatfs_irx, bdmfs_fatfs_irx_size, "bdmfs_fatfs", 0, NULL);
 
     if (want_usb && (bdm_rc != 0 || usbmass_rc != 0 || bdmfs_rc != 0)) {
-        scr_printf("  bdm stack failed - falling back to usbhdfsd\n");
+        ui_log("  bdm stack failed - falling back to usbhdfsd\n");
         load_irx(usbhdfsd_irx, usbhdfsd_irx_size, "usbhdfsd", 0, NULL);
     }
     if (want_hdd && ata_rc != 0) {
-        scr_printf("  internal HDD BDM bridge unavailable (rc=%d)\n", ata_rc);
+        ui_log("  internal HDD BDM bridge unavailable (rc=%d)\n", ata_rc);
     }
 
     load_irx(netman_irx,      netman_irx_size,      "netman",      0, NULL);
@@ -195,7 +194,7 @@ static void boot_device_modules(const SyncState *state) {
      * call against an iomanX-registered device (mass:, hdd:, etc.)
      * silently fails — the RPC descriptor is uninitialised. */
     int fxr = fileXioInit();
-    scr_printf("  fileXioInit -> %d\n", fxr);
+    ui_log("  fileXioInit -> %d\n", fxr);
 }
 
 /* ---- mass:/ wait ---- */
@@ -244,7 +243,7 @@ static bool wait_for_mass(SyncState *state, int timeout_seconds) {
             int stat_errno = errno;
 
             if (stat_rc == 0) {
-                scr_printf("  storage: stat ok at %s\n", data_dir);
+                ui_log("  storage: stat ok at %s\n", data_dir);
                 strncpy(state->usb_root, roots[r], sizeof(state->usb_root) - 1);
                 state->usb_root[sizeof(state->usb_root) - 1] = '\0';
                 state->usb_ready = true;
@@ -256,7 +255,7 @@ static bool wait_for_mass(SyncState *state, int timeout_seconds) {
             int mkdir_rc = mkdir(data_dir, 0777);
             int mkdir_errno = errno;
             if (mkdir_rc == 0 || mkdir_errno == EEXIST) {
-                scr_printf("  storage: mkdir ok at %s\n", data_dir);
+                ui_log("  storage: mkdir ok at %s\n", data_dir);
                 strncpy(state->usb_root, roots[r], sizeof(state->usb_root) - 1);
                 state->usb_root[sizeof(state->usb_root) - 1] = '\0';
                 state->usb_ready = true;
@@ -266,7 +265,7 @@ static bool wait_for_mass(SyncState *state, int timeout_seconds) {
 
             errno = 0;
             if (stat(root_dir, &st) == 0) {
-                scr_printf("  storage: root stat ok at %s - using anyway\n", root_dir);
+                ui_log("  storage: root stat ok at %s - using anyway\n", root_dir);
                 mkdir(data_dir, 0777);
                 strncpy(state->usb_root, roots[r], sizeof(state->usb_root) - 1);
                 state->usb_root[sizeof(state->usb_root) - 1] = '\0';
@@ -281,9 +280,9 @@ static bool wait_for_mass(SyncState *state, int timeout_seconds) {
     }
 
     /* Show why we gave up — last errno from each candidate root. */
-    scr_printf("  storage: wait_for_mass timed out after %ds\n", timeout_seconds);
+    ui_log("  storage: wait_for_mass timed out after %ds\n", timeout_seconds);
     for (int r = 0; roots[r]; r++) {
-        scr_printf("    %-7s last errno=%d\n", roots[r], last_errno[r]);
+        ui_log("    %-7s last errno=%d\n", roots[r], last_errno[r]);
     }
     return false;
 }
@@ -335,6 +334,8 @@ static unsigned int pad_read_pressed(void) {
     return pressed;
 }
 
+static void draw_screen(void);
+
 /* Modal yes/no prompt for read/write/sync operations.  Blocks until the
  * user presses CROSS (confirm) or CIRCLE (cancel). */
 static bool confirm(const char *fmt, ...) {
@@ -344,10 +345,8 @@ static bool confirm(const char *fmt, ...) {
     vsnprintf(msg, sizeof(msg), fmt, ap);
     va_end(ap);
 
-    char body[320];
-    snprintf(body, sizeof(body), "%s\n\nCROSS = Confirm    CIRCLE = Cancel", msg);
-    ui_clear();
-    ui_draw_message("Confirm", body);
+    draw_screen();
+    ui_draw_confirm("Confirm", msg);
     ui_flush();
 
     for (;;) {
@@ -401,16 +400,16 @@ static bool require_storage_ready(void) {
 }
 
 static bool init_hdloader_targets(void) {
-    scr_printf("BOOT: probing APA/HDLoader hdd0:...\n");
+    ui_log("BOOT: probing APA/HDLoader hdd0:...\n");
     if (!ensure_hdd_format_modules()) return false;
 
     if (hddCheckPresent() != 0) {
-        scr_printf("BOOT: no internal HDD present\n");
+        ui_log("BOOT: no internal HDD present\n");
         return false;
     }
 
     if (hddCheckFormatted() != 0) {
-        scr_printf("BOOT: internal HDD is not APA-formatted\n");
+        ui_log("BOOT: internal HDD is not APA-formatted\n");
         ui_status("HDD needs APA format; Config TRIANGLE twice");
         return false;
     }
@@ -423,7 +422,7 @@ static bool init_hdloader_targets(void) {
     roms_set_storage_root("hdd0:");
     roms_set_downloads_file(HDL_DOWNLOADS_FILE);
     downloads_load(&g_downloads);
-    scr_printf("BOOT: APA/HDLoader storage ready at hdd0:\n");
+    ui_log("BOOT: APA/HDLoader storage ready at hdd0:\n");
     return true;
 }
 
@@ -432,13 +431,13 @@ static void init_storage_targets(void) {
     g_state.usb_ready = false;
     g_downloads.count = 0;
 
-    scr_printf("BOOT: probing storage (%s)...\n",
-               config_storage_pref_to_str(g_state.storage_pref));
+    ui_log("BOOT: probing storage (%s)...\n",
+           config_storage_pref_to_str(g_state.storage_pref));
 
     if (g_state.storage_pref != STORAGE_PREF_USB) {
         if (init_hdloader_targets()) return;
         if (g_state.storage_pref == STORAGE_PREF_HDD) {
-            scr_printf("WARN: APA/HDLoader storage unavailable\n");
+            ui_log("WARN: APA/HDLoader storage unavailable\n");
             ui_status("HDD not ready; format APA from Config");
             return;
         }
@@ -446,13 +445,13 @@ static void init_storage_targets(void) {
 
     if (g_state.storage_pref != STORAGE_PREF_HDD) {
         if (!wait_for_mass(&g_state, 12)) {
-            scr_printf("WARN: no storage root mounted\n");
+            ui_log("WARN: no storage root mounted\n");
             ui_status("Storage not ready; downloads disabled");
             return;
         }
 
         g_state.storage_backend = STORAGE_BACKEND_MASS;
-        scr_printf("BOOT: mass storage ready at %s\n", g_state.usb_root);
+        ui_log("BOOT: mass storage ready at %s\n", g_state.usb_root);
         roms_ensure_target_dirs();
         downloads_load(&g_downloads);
     }
@@ -506,7 +505,7 @@ static bool ensure_hdd_format_modules(void) {
 
     (void)hddPreparePoweroff();
     rc = fileXioInit();
-    scr_printf("  fileXioInit (hdd formatter) -> %d\n", rc);
+    ui_log("  fileXioInit (hdd formatter) -> %d\n", rc);
     return true;
 }
 
@@ -574,8 +573,16 @@ static volatile uint64_t g_active_done  = 0;
 static volatile uint64_t g_active_total = 0;
 static volatile uint64_t g_active_bps   = 0;
 static volatile bool     g_pause_requested = false;
+static bool              g_transfer_active = false;
+static char              g_active_name[160];
+static uint32_t          g_active_start_ms = 0;
+static uint32_t          g_last_draw_ms = 0;
 static time_t            g_last_speed_t = 0;
 static uint64_t          g_last_speed_bytes = 0;
+
+/* Progress redraws are capped at 4 per second and skip the vblank wait,
+ * so the HTTP receive loop never stalls on the display. */
+#define PROGRESS_REDRAW_MS 250
 
 static int progress_cb(uint64_t done, uint64_t total) {
     g_active_done  = done;
@@ -586,12 +593,18 @@ static int progress_cb(uint64_t done, uint64_t total) {
         g_active_bps = done > g_last_speed_bytes
                      ? (done - g_last_speed_bytes) / (uint64_t)(now - g_last_speed_t + 1)
                      : 0;
-        /* Refresh the screen at most once per wall-clock second so the
-         * progress bar / KB/s line update without flooding libdebug
-         * with full-frame char DMA. */
-        redraw();
         g_last_speed_t     = now;
         g_last_speed_bytes = done;
+    }
+
+    uint32_t ms = ui_ms();
+    if (ms - g_last_draw_ms >= PROGRESS_REDRAW_MS) {
+        g_last_draw_ms = ms;
+        /* CIRCLE held at a refresh pauses (USB downloads resume later;
+         * HDLoader installs restart from zero). */
+        if (pad_read_pressed() & PAD_CIRCLE) g_pause_requested = true;
+        draw_screen();
+        ui_flush_nowait();
     }
 
     return g_pause_requested ? 1 : 0;
@@ -1010,9 +1023,15 @@ static void run_active_download(DownloadEntry *e) {
 
     g_active_done       = e->offset;
     g_active_total      = e->total;
+    g_active_bps        = 0;
     g_pause_requested   = false;
     g_last_speed_t      = time(NULL);
     g_last_speed_bytes  = e->offset;
+    g_active_start_ms   = ui_ms();
+    g_last_draw_ms      = 0;
+    snprintf(g_active_name, sizeof(g_active_name), "%s",
+             e->name[0] ? e->name : e->filename);
+    g_transfer_active   = true;
 
     network_set_progress64_cb(progress_cb);
 
@@ -1056,6 +1075,7 @@ static void run_active_download(DownloadEntry *e) {
                                             &total);
     }
     network_set_progress64_cb(NULL);
+    g_transfer_active = false;
     if (total > 0) e->total = total;
 
     if (rc == 0) {
@@ -1104,8 +1124,10 @@ static void cycle_storage_pref(int delta) {
     }
 }
 
-static void redraw(void) {
-    ui_clear();
+/* Build the current view into the frame without presenting it, so modal
+ * cards (confirm, transfer) can be layered on top. */
+static void draw_screen(void) {
+    ui_begin();
     ui_draw_header(&g_state, g_view);
     switch (g_view) {
         case APP_VIEW_ROMS:
@@ -1115,8 +1137,7 @@ static void redraw(void) {
             ui_draw_local(&g_local, g_local_selected, g_local_scroll);
             break;
         case APP_VIEW_DOWNLOADS:
-            ui_draw_downloads(&g_downloads, g_dl_selected, g_dl_scroll,
-                              g_active_done, g_active_total, g_active_bps);
+            ui_draw_downloads(&g_downloads, g_dl_selected, g_dl_scroll);
             break;
         case APP_VIEW_SAVES:
             ui_draw_saves(&g_saves, g_saves_selected, g_saves_scroll);
@@ -1135,58 +1156,71 @@ static void redraw(void) {
             break;
         default: break;
     }
+    if (g_transfer_active) {
+        char target[48];
+        if (g_state.storage_backend == STORAGE_BACKEND_HDLOADER)
+            snprintf(target, sizeof(target), "the internal HDD (HDLoader)");
+        else
+            snprintf(target, sizeof(target), "USB / HDD storage (%s)", g_state.usb_root);
+        ui_draw_transfer(g_active_name, target,
+                         g_active_done, g_active_total, g_active_bps,
+                         ui_ms() - g_active_start_ms);
+    }
+}
+
+static void redraw(void) {
+    draw_screen();
+    ui_flush();
 }
 
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
 
-    /* Phase 1: bring up the libdebug scrolling console so every boot
-     * step (IRX load, mc init, network bring-up) leaves a visible
-     * line.  gsKit isn't initialised yet — that happens after boot
-     * completes, in the ui_init() call below. */
-    ui_boot_init();
-    scr_printf("ps2sync v%s booting...\n", APP_VERSION);
+    /* gsKit owns the GS from the very first frame: the boot splash logs
+     * every step (IRX load, mc init, network bring-up) as it happens.
+     * gsKit only drives the EE DMA controller and the GS, so the IOP
+     * reset below doesn't disturb it. */
+    ui_init();
+    ui_set_context(&g_local, &g_downloads);
+    ui_log("ps2sync v%s booting...\n", APP_VERSION);
 
     boot_iop_modules();
-    scr_printf("BOOT: IRX done — pausing 3 s so you can read the log\n");
+    ui_log("BOOT: IRX done - pausing 3 s so you can read the log\n");
     DelayThread(3000000);
 
-    scr_printf("BOOT: loading config (mcInit...)\n");
+    ui_log("BOOT: loading config (mcInit...)\n");
     char err[256];
     if (!config_load(&g_state, err, sizeof(err))) {
-        ui_draw_message("Config", err);
-        scr_printf("\nPress CIRCLE to exit.\n");
+        ui_boot_done();
         pad_init();
+        ui_draw_message("Config error", err);
         for (;;) {
             unsigned int p = pad_read_pressed();
             if (p & PAD_CIRCLE) break;
+            DelayThread(16000);
         }
         return 1;
     }
     config_load_console_id(&g_state);
     ui_set_mmce(0, g_state.mmce_mode[0]);   /* reflect persisted GameID modes */
     ui_set_mmce(1, g_state.mmce_mode[1]);
-    scr_printf("BOOT: console_id=%s server=%s\n",
-               g_state.console_id, g_state.server_url);
+    ui_log("BOOT: console_id=%s server=%s\n",
+           g_state.console_id, g_state.server_url);
 
     boot_device_modules(&g_state);
 
-    scr_printf("BOOT: bringing up network\n");
+    ui_log("BOOT: bringing up network\n");
     network_init(&g_state);
-    scr_printf("BOOT: net ready=%d dhcp=%d ip=%s\n",
-               g_state.net_ready, g_state.dhcp_ok, g_state.ip);
+    ui_log("BOOT: net ready=%d dhcp=%d ip=%s\n",
+           g_state.net_ready, g_state.dhcp_ok, g_state.ip);
 
     init_storage_targets();
 
-    scr_printf("BOOT: pad init\n");
+    ui_log("BOOT: pad init\n");
     pad_init();
 
-    scr_printf("BOOT: ready - switching to gsKit UI\n");
-    /* Pause briefly so user sees boot log before gsKit overwrites it. */
-    DelayThread(2000000);
-
-    /* Phase 2: hand the GS to gsKit. */
-    ui_init();
+    ui_log("BOOT: ready\n");
+    ui_boot_done();
 
     /* Auto-populate the views so the user lands on a usable list
      * instead of "Press X to fetch catalog" / an empty Local view. */
@@ -1202,15 +1236,12 @@ int main(int argc, char *argv[]) {
     }
 
     redraw();
-    ui_flush();
 
     for (;;) {
         unsigned int pressed = pad_read_pressed();
 
-        /* Event-driven redraw: libdebug renders synchronously into the
-         * GS frame buffer with no double buffer, so repainting on every
-         * frame produces visible flicker (~140 KB of char DMA per
-         * frame).  Only redraw when state actually changed. */
+        /* Event-driven redraw: the last frame stays on screen (double
+         * buffered), so only repaint when input changed something. */
         if (pressed == 0) {
             DelayThread(16000);
             continue;

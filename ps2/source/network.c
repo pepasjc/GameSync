@@ -14,6 +14,7 @@
 
 #include "network.h"
 #include "http.h"
+#include "ui.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -24,7 +25,6 @@
 #include <kernel.h>
 #include <netman.h>
 #include <ps2ip.h>
-#include <debug.h>
 
 static NetProgress64Fn g_progress_cb = NULL;
 static uint64_t g_progress_base = 0;
@@ -53,8 +53,8 @@ static int wait_for_link(int timeout_seconds) {
     for (int i = 0; i < timeout_seconds * 10; i++) {
         int status = NetManIoctl(NETMAN_NETIF_IOCTL_GET_LINK_STATUS, NULL, 0, NULL, 0);
         if (status != last_status) {
-            scr_printf("  link status=%d (target=%d) at t=%d.%ds\n",
-                       status, NETMAN_NETIF_ETH_LINK_STATE_UP, i / 10, i % 10);
+            ui_log("  link status=%d (target=%d) at t=%d.%ds\n",
+                   status, NETMAN_NETIF_ETH_LINK_STATE_UP, i / 10, i % 10);
             last_status = status;
         }
         if (status == NETMAN_NETIF_ETH_LINK_STATE_UP) return 0;
@@ -104,9 +104,9 @@ int network_init(SyncState *state) {
     state->net_ready = false;
     state->dhcp_ok   = false;
 
-    scr_printf("  net: NetManInit...\n");
+    ui_log("  net: NetManInit...\n");
     int rc = NetManInit();
-    scr_printf("  net: NetManInit -> %d\n", rc);
+    ui_log("  net: NetManInit -> %d\n", rc);
     if (rc < 0) {
         snprintf(state->ip, sizeof(state->ip), "netman-fail");
         return -1;
@@ -116,7 +116,7 @@ int network_init(SyncState *state) {
      * stack — without it the SMAP driver may stay in the default
      * disabled state. */
     rc = NetManSetLinkMode(NETMAN_NETIF_ETH_LINK_MODE_AUTO);
-    scr_printf("  net: NetManSetLinkMode(AUTO) -> %d\n", rc);
+    ui_log("  net: NetManSetLinkMode(AUTO) -> %d\n", rc);
 
     ip4_addr_t ip, nm, gw;
 
@@ -138,9 +138,9 @@ int network_init(SyncState *state) {
     /* ps2ipInit only registers the netif. DHCP is enabled separately
      * via ps2ip_setconfig(). Passing zero IP here is fine — the actual
      * address comes from the dhcp negotiation triggered below. */
-    scr_printf("  net: ps2ipInit...\n");
+    ui_log("  net: ps2ipInit...\n");
     rc = ps2ipInit(&ip, &nm, &gw);
-    scr_printf("  net: ps2ipInit -> %d\n", rc);
+    ui_log("  net: ps2ipInit -> %d\n", rc);
     if (rc < 0) {
         snprintf(state->ip, sizeof(state->ip), "ps2ip-fail");
         NetManDeinit();
@@ -148,8 +148,8 @@ int network_init(SyncState *state) {
     }
 
     rc = apply_ip_config(!state->use_static_ip, &ip, &nm, &gw);
-    scr_printf("  net: apply_ip_config(dhcp=%d) -> %d\n",
-               !state->use_static_ip, rc);
+    ui_log("  net: apply_ip_config(dhcp=%d) -> %d\n",
+           !state->use_static_ip, rc);
     if (rc < 0) {
         snprintf(state->ip, sizeof(state->ip), "ipcfg-fail");
         NetManDeinit();
@@ -158,12 +158,12 @@ int network_init(SyncState *state) {
 
     state->net_ready = true;
 
-    scr_printf("  net: waiting for link (30s)...\n");
+    ui_log("  net: waiting for link (30s)...\n");
     if (wait_for_link(30) != 0) {
         snprintf(state->ip, sizeof(state->ip), "no-link");
         return 0;
     }
-    scr_printf("  net: link UP\n");
+    ui_log("  net: link UP\n");
 
     if (state->use_static_ip) {
         state->dhcp_ok = true;
