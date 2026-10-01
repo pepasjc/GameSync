@@ -4,6 +4,31 @@ Homebrew client for Nintendo DS / DS Lite / DSi. Syncs save files stored on a fl
 
 Requires a flashcard (e.g. R4, DSTT, Acekard) — saves are read directly from the flashcard filesystem via libfat.
 
+![Save list](docs/screenshots/main.png) ![Smart Sync](docs/screenshots/smart_sync.png) ![Game catalog](docs/screenshots/catalog.png)
+
+## Screens
+
+Both screens are 16-bit bitmaps drawn in software (`source/gfx.c`, `theme.c`, `views.c`): a dark slate theme with a
+teal accent, a header (app name, screen, WiFi state, version), cards, status pills and a footer showing the buttons
+each screen accepts. The top screen shows details, the bottom screen the list or dialog you are working in.
+
+- **Save list** (bottom): a coloured dot per save (grey = not checked yet, green = up to date, amber = needs
+  upload, blue = needs download, red = conflict or check failed) and a cloud for saves the server has. The header
+  counts each status after a scan. The top screen shows the selected save: status, what A would do, size, title
+  ID, file, and the server address with an online/offline badge.
+- **Settings & tools** (top, **L**): the connection settings with their values and the tools (Rescan, Connect
+  WiFi, Check Updates, Achievements, Game Catalog).
+- **Smart Sync / Upload**: this DS's save and the server's side by side on the top screen (size, SHA-256 prefix,
+  last sync), the suggested action and its buttons on the bottom.
+- **Work in progress** (scan, upload, download, WiFi, updates, achievement sets): a status card with a progress
+  bar where the length is known, over an activity log of everything the client prints, so error details stay
+  readable. The result is shown in the same card.
+- **Editor**: the D-pad text editor shows the field in a box with the cursor highlighted and a strip of the
+  characters Up/Down step through.
+
+The UI can be rendered on a PC, without a DS, for review: `sh ds/tests/render_screens.sh [OUT_DIR]` (needs gcc;
+Pillow for PNGs) draws every screen from mock data.
+
 ## Requirements
 
 - [devkitPro](https://devkitpro.org/wiki/Getting_Started) with NDS support
@@ -100,7 +125,9 @@ wifi_wep_key=your-wep-key
 
 > **WEP only:** The DS WiFi chip only supports WEP encryption. DS Lite has the same limitation. DSi supports WPA via its firmware.
 
-The config can also be edited in-app: press **L** to toggle the config panel and use the on-screen keyboard.
+The config can also be edited in-app: press **L** for the Settings & tools menu and **A** on a field. The D-pad editor:
+Left/Right move the cursor, Up/Down change the letter under it (or add one at the end), **A** inserts, **B** deletes,
+**Y** saves, **X** cancels.
 
 ## RetroAchievements (DSi + nds-bootstrap-ra)
 
@@ -129,23 +156,23 @@ The bottom screen lists the games (the server pages and filters the list, so a c
 has to fit on the DS); the top screen shows the selected game's full name, size, RetroAchievements status and
 whether it is already on the SD.
 
-- **RA NN** (yellow) marks games with a RetroAchievements set of NN achievements. **RA?** means the server matched
-  the game by name only, so the set may not fit this dump.
-- **\*** (green) marks games already on the SD: a `.nds`/`.dsi` file with the same name (extension and case
+- **RA NN** (gold badge) marks games with a RetroAchievements set of NN achievements. **RA?** (outlined) means the
+  server matched the game by name only, so the set may not fit this dump.
+- A green **check mark** marks games already on the SD: a `.nds`/`.dsi` file with the same name (extension and case
   ignored) somewhere under the install folder.
 - Installing downloads the ROM to `sd:/roms/nds/<name>.nds` (TWiLight Menu++'s folder; `roms/dsi` for DSiWare if
   the server has a `DSI` system). The server keeps DS ROMs zipped and unzips them while sending
   (`?extract=nds`), so the DS writes the plain `.nds` straight to the SD: nothing is held in RAM and nothing is
   unzipped on the DS. The download goes to `<name>.nds.part` first and is renamed when complete. The progress screen
-  shows size, percentage, speed (KB/s, current and average) and time left, and the summary shows the average
-  WiFi throughput. Free space is checked before writing.
+  shows a progress bar, size, percentage, speed (KB/s, current and average) and time left, and the summary shows the
+  average WiFi throughput. Free space is checked before writing.
 - After installing a game that has achievements, its set is fetched right away (like **Update achievement sets**
   does), so it is ready to play with nds-bootstrap-ra.
 
 | Button | Action |
 |---|---|
 | Up / Down | Move (hold to repeat; wraps around) |
-| Left / Right | Page up / down |
+| Left / Right | Page up / down (10 games) |
 | L / R | Jump 100 games |
 | A | Install the selected game (asks first; replaces the file if it is already there). After an error: try again |
 | Y | Toggle "only games with RetroAchievements" |
@@ -165,7 +192,7 @@ Needs a server with `has_ra` and `?extract=nds` support on `/api/v1/roms` (older
 | X | Scan all saves against the server (out-of-sync ones turn red) |
 | Y | Save details |
 | Up / Down | Navigate save list |
-| Left / Right | Page up / down |
+| Left / Right | Page up / down (11 saves) |
 | SELECT | Game catalog |
-| L | Toggle config editor panel (also holds Rescan, Connect WiFi, Check Updates, Achievements, Game Catalog) |
+| L | Toggle the Settings & tools menu on the top screen (server/WiFi settings, Rescan, Connect WiFi, Check Updates, Achievements, Game Catalog); Up/Down and A use it while it has the focus |
 | START | Exit |
