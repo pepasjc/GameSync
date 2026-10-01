@@ -54,6 +54,24 @@ provisions of LGPLv3 §4 are satisfied regardless, since the complete source of
 the Wii U client is in [`wiiu/`](wiiu/) and `wiiu/README.md` documents the
 toolchain and the libmocha build.
 
+### `SDL_gfx` and `SDL_ttf` — LGPL-2.1
+
+**Upstream:** [SDL_gfx](https://www.ferzkopp.net/wordpress/2016/01/02/sdl_gfx-sdlgfx/)
+2.0.22 by **Andreas Schiffler**; [SDL_ttf](https://github.com/libsdl-org/SDL_ttf)
+2.0.10 by **Sam Lantinga**. Both as built by the ps3dev `ps3libraries` portlibs.
+**License text:** [`licenses/LGPL-2.1.txt`](licenses/LGPL-2.1.txt)
+
+The PS3 client draws its interface with SDL_gfx (rounded panels, circles,
+lines, and the built-in 8x8 font as a fallback) and rasterises text with
+SDL_ttf on top of FreeType (`-lSDL_ttf -lSDL_gfx`, see `ps3/Makefile`). Both are
+statically linked into `ps3sync.pkg`'s `EBOOT.BIN`, unmodified.
+
+LGPL-2.1 §3 lets the licensee apply the terms of the GNU GPL (version 2 or any
+later version) to the library instead, so combining it with a GPL-3.0 program
+is permitted. The relink provisions of §6 are met regardless: the complete
+source of the PS3 client is in [`ps3/`](ps3/) and `ps3/README.md` documents the
+toolchain, so the program can be rebuilt against a modified library.
+
 ### Apollo Save Tool `games.conf` — GPL-3.0-or-later
 
 **Location:** `ps3/data/games.conf` (shipped inside `ps3sync.pkg`)
@@ -104,6 +122,8 @@ are in [README.md](README.md).
 | Apktool (**Connor Tumbleson**) | Apache-2.0 — [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt) | `tools/apktool.jar` |
 | zlib (**Gailly**, **Adler**) | zlib | several clients |
 | PolarSSL / mbed TLS | Apache-2.0 | `ps3/` via PSL1GHT |
+| SDL, PSL1GHT port (**Sam Lantinga**) | zlib | `ps3/` |
+| FreeType 2.4.3 (The FreeType Project) | FreeType License — [`licenses/FreeType-FTL.txt`](licenses/FreeType-FTL.txt). Portions of this software are copyright © 2010 The FreeType Project (www.freetype.org). All rights reserved. | `ps3/` |
 | FastAPI, Pydantic, Uvicorn, httpx, Pillow | MIT / BSD | `server/` |
 | requests, paramiko, py7zr, pygame | Apache-2.0 / LGPL | desktop, Steam Deck |
 | AndroidX, Compose, Room, Retrofit, OkHttp, Kotlin | Apache-2.0 | `android/` |
