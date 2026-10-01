@@ -103,6 +103,59 @@ void theme_header(Surface *s, const char *title) {
     }
 }
 
+// Tab strip in the app header: logo, L, the tabs (the active one filled),
+// R, then WiFi and version like theme_header
+void theme_tabs(Surface *s, const char *const *names, int n, int active) {
+    bar_background(s, 0, HEADER_H, true);
+    gfx_round_rect(s, 5, 3, 14, 14, 4, C_ACCENT, 256);
+    gfx_icon(s, &icon_logo, 7, 5, C_ON_ACCENT);
+
+    char ver[24];
+    snprintf(ver, sizeof(ver), "v%s", APP_VERSION);
+    int vx = s->w - 6 - gfx_text_width(&font_mono, ver);
+    int wx = vx - 17;
+
+    int x = 24;
+    x += theme_button(s, x, 5, "L") + 3;
+    int tabs_w = 0;
+    for (int i = 0; i < n; i++)
+        tabs_w += gfx_text_width(i == active ? &font_bold : &font_regular, names[i]) + 10;
+    // No room for the version: drop it before squeezing the tabs
+    bool show_ver = x + tabs_w + 3 + 11 + 6 <= wx;
+    if (!show_ver) wx = s->w - 6 - 11;
+    for (int i = 0; i < n; i++) {
+        const Font *f = i == active ? &font_bold : &font_regular;
+        int w = gfx_text_width(f, names[i]) + 10;
+        if (i == active) {
+            gfx_round_rect(s, x, 3, w, 14, 5, C_ACCENT, 256);
+            gfx_text(s, f, x + 5, 3, C_ON_ACCENT, names[i]);
+        } else {
+            gfx_text(s, f, x + 5, 3, C_TEXT_DIM, names[i]);
+        }
+        x += w;
+    }
+    theme_button(s, x + 3, 5, "R");
+
+    if (show_ver) gfx_text(s, &font_mono, vx, 7, C_TEXT_FAINT, ver);
+    if (theme_wifi) {
+        gfx_icon(s, &icon_wifi, wx, 6, C_ACCENT);
+    } else {
+        gfx_icon(s, &icon_wifi, wx, 6, C_TEXT_FAINT);
+        for (int i = 0; i < 9; i++) gfx_fill(s, wx + 1 + i, 5 + i, 1, 1, C_ERR);
+    }
+}
+
+// Segmented control: one chip per option, the current one filled
+int theme_segments(Surface *s, int x, int y, const char *const *names, int n, int active) {
+    int x0 = x;
+    for (int i = 0; i < n; i++) {
+        if (i == active) x += theme_pill(s, x, y, names[i], C_ACCENT, C_ON_ACCENT);
+        else x += theme_pill_outline(s, x, y, names[i], C_TEXT_FAINT);
+        x += 2;
+    }
+    return x - x0;
+}
+
 void theme_toolbar(Surface *s, const char *title, const char *right) {
     bar_background(s, 0, HEADER_H, true);
     gfx_round_rect(s, 6, 5, 3, 10, 1, C_ACCENT, 256);

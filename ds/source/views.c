@@ -66,82 +66,102 @@ static void badge(Surface *s, int x, int y, const Icon *icon, Color c) {
 static const Hint hints_close[] = { { "A", "Close" }, { NULL, NULL } };
 
 // ---------------------------------------------------------------------------
-// Main screen: top
+// Tabs
+// ---------------------------------------------------------------------------
+
+const char *const view_tab_names[TAB_COUNT] = { "Saves", "Catalog", "Settings" };
+
+void view_tab_header(Surface *s, int active) {
+    theme_tabs(s, view_tab_names, TAB_COUNT, active);
+}
+
+// Footer of the top screen on every tab without screen-specific hints
+static const Hint hints_tabs[] = { { "L/R", "Tabs" }, { "START", "Exit" }, { NULL, NULL } };
+
+// ---------------------------------------------------------------------------
+// Settings tab
 // ---------------------------------------------------------------------------
 
 static const struct {
     const char *label;
     const Icon *icon;
+    const char *help;
 } menu_items[MENU_ITEMS] = {
-    { "Server URL", &icon_link },
-    { "API Key", &icon_key },
-    { "WiFi SSID", &icon_wifi },
-    { "WiFi WEP Key", &icon_key },
-    { "Rescan Saves", &icon_refresh },
-    { "Connect WiFi", &icon_wifi },
-    { "Check Updates", &icon_box },
-    { "Achievements", &icon_trophy },
-    { "Game Catalog", &icon_sd },
+    { "Server URL", &icon_link, "Address of the GameSync server, e.g. http://192.168.1.100:8000." },
+    { "API Key", &icon_key, "The API key of the server (SYNC_API_KEY)." },
+    { "WiFi SSID", &icon_wifi,
+      "DS / DS Lite: the network to join (WEP only). Leave blank to use the firmware WiFi settings." },
+    { "WiFi WEP Key", &icon_key, "5, 13 or 16 characters. The DS WiFi chip only speaks WEP." },
+    { "Rescan Saves", &icon_refresh, "Look for save files on the card again." },
+    { "Connect WiFi", &icon_wifi, "Connect to WiFi again, e.g. after changing the settings above." },
+    { "Check Updates", &icon_box, "Look for a newer GameSync through the server and install it." },
+    { "Achievement Sets", &icon_trophy,
+      "Save the RetroAchievements set of every ROM in the ROM folder for nds-bootstrap-ra. "
+      "Hold B to stop." },
+    { "Refresh Catalog", &icon_sd,
+      "Ask the server to rescan its ROMs, clear the catalog cache on the SD and download the game "
+      "list again." },
 };
 
-static void menu_value(const SyncState *st, int i, bool has_wifi, char *out, size_t size, Color *c) {
+static void menu_value(const SyncState *st, int i, bool has_wifi, const SettingsInfo *info, char *out,
+                       size_t size, Color *c) {
     *c = C_TEXT_DIM;
     out[0] = '\0';
     switch (i) {
-        case 0:
+        case SET_SERVER_URL:
             snprintf(out, size, "%.60s", st->server_url[0] ? st->server_url : "not set");
             break;
-        case 1:
+        case SET_API_KEY:
             if (strlen(st->api_key) > 4) snprintf(out, size, "%.4s****", st->api_key);
             else snprintf(out, size, "not set");
             break;
-        case 2:
+        case SET_WIFI_SSID:
             snprintf(out, size, "%s", st->wifi_ssid[0] ? st->wifi_ssid : "not set");
             break;
-        case 3:
+        case SET_WEP_KEY:
             if (st->wifi_wep_key[0]) snprintf(out, size, "%d chars", (int)strlen(st->wifi_wep_key));
             else snprintf(out, size, "not set");
             break;
-        case 4:
+        case SET_RESCAN:
             snprintf(out, size, "%d saves", st->num_titles);
             break;
-        case 5:
+        case SET_WIFI:
             snprintf(out, size, "%s", has_wifi ? "Connected" : "Offline");
             *c = has_wifi ? C_OK : C_ERR;
             break;
-        case 6:
+        case SET_UPDATES:
             snprintf(out, size, "v%s", APP_VERSION);
             break;
-        case 7:
-            snprintf(out, size, "nds-bootstrap-ra");
+        case SET_RA:
+            snprintf(out, size, "%s/_nds/ra", info && info->ra_root ? info->ra_root : "sd:");
             break;
-        case 8:
-            snprintf(out, size, "SELECT");
+        case SET_CATALOG:
+            snprintf(out, size, "%s", info && info->catalog ? info->catalog : "");
             break;
     }
     if (!strcmp(out, "not set")) *c = C_TEXT_FAINT;
 }
 
-static void draw_menu(Surface *s, const SyncState *st, int sel, bool focused, bool has_wifi) {
+static void draw_menu(Surface *s, const SyncState *st, int sel, bool has_wifi, const SettingsInfo *info) {
     int y = CONTENT_Y + 3;
     for (int i = 0; i < MENU_ITEMS; i++) {
-        if (i == 0 || i == 4) {
-            gfx_text(s, &font_mono, 10, y + 2, C_TEXT_FAINT, i == 0 ? "CONNECTION" : "TOOLS");
-            gfx_hline(s, i == 0 ? 64 : 44, y + 5, s->w - (i == 0 ? 74 : 54), C_CARD_LINE);
+        if (i == SET_SERVER_URL || i == SET_RESCAN) {
+            bool conn = (i == SET_SERVER_URL);
+            gfx_text(s, &font_mono, 10, y + 2, C_TEXT_FAINT, conn ? "CONNECTION" : "TOOLS");
+            gfx_hline(s, conn ? 64 : 44, y + 5, s->w - (conn ? 74 : 54), C_CARD_LINE);
             y += 11;
         }
         bool hot = (i == sel);
-        theme_row(s, 5, y, s->w - 10, 13, hot, focused);
-        bool on_accent = hot && focused;
-        Color icon_c = on_accent ? C_ON_ACCENT : (i == 7 ? C_GOLD : C_ACCENT);
+        theme_row(s, 5, y, s->w - 10, 13, hot, true);
+        Color icon_c = hot ? C_ON_ACCENT : (i == SET_RA ? C_GOLD : C_ACCENT);
         gfx_icon(s, menu_items[i].icon, 11 + (11 - menu_items[i].icon->w) / 2,
                  y + 7 - menu_items[i].icon->h / 2, icon_c);
-        int lx = gfx_text(s, hot ? &font_bold : &font_regular, 26, y, on_accent ? C_ON_ACCENT : C_TEXT,
+        int lx = gfx_text(s, hot ? &font_bold : &font_regular, 26, y, hot ? C_ON_ACCENT : C_TEXT,
                           menu_items[i].label);
         char val[64];
         Color vc;
-        menu_value(st, i, has_wifi, val, sizeof(val), &vc);
-        if (on_accent) vc = C_ON_ACCENT;
+        menu_value(st, i, has_wifi, info, val, sizeof(val), &vc);
+        if (hot) vc = C_ON_ACCENT;
         int room = s->w - 14 - (lx + 10);
         int vw = gfx_text_width(&font_regular, val);
         if (vw > room) vw = room;
@@ -150,12 +170,69 @@ static void draw_menu(Surface *s, const SyncState *st, int sel, bool focused, bo
     }
 }
 
+// Server address and online/offline badge along the bottom of a top screen
+static void server_strip(Surface *s, const SyncState *st, bool has_wifi) {
+    int sy = CONTENT_Y + CONTENT_H - 23;
+    gfx_round_rect(s, 6, sy, s->w - 12, 19, 5, C_INSET, 256);
+    gfx_icon(s, &icon_link, 12, sy + 6, C_TEXT_DIM);
+    const char *pill = has_wifi ? "ONLINE" : "OFFLINE";
+    int pw = theme_pill_width(pill);
+    gfx_text_fit(s, &font_regular, 26, sy + 3, s->w - 12 - pw - 32, C_TEXT_DIM,
+                 st->server_url[0] ? st->server_url : "No server set");
+    theme_pill(s, s->w - 12 - pw - 4, sy + 4, pill, has_wifi ? C_OK : C_ERR, C_ON_ACCENT);
+}
+
+void view_settings_top(Surface *s, const SyncState *st, int sel, bool has_wifi, const SettingsInfo *info) {
+    theme_background(s);
+    view_tab_header(s, TAB_SETTINGS);
+    if (sel < 0 || sel >= MENU_ITEMS) sel = 0;
+
+    int x = 6, y = 25, w = s->w - 12;
+    int help_lines = gfx_text_wrap(NULL, &font_regular, 0, 0, w - 20, 13, 5, 0, menu_items[sel].help);
+    bool cache_row = (sel == SET_CATALOG && info && info->cache_dir);
+    int h = 22 + help_lines * 13 + 6 + 13 + (cache_row ? 13 : 0) + 6;
+    theme_card(s, x, y, w, h, menu_items[sel].label, sel == SET_RA ? C_GOLD : C_ACCENT);
+    int cy = y + 22;
+    gfx_text_wrap(s, &font_regular, x + 10, cy, w - 20, 13, 5, C_TEXT, menu_items[sel].help);
+    cy += help_lines * 13 + 3;
+    gfx_hline(s, x + 10, cy, w - 20, C_CARD_LINE);
+    cy += 3;
+    char val[64];
+    Color vc;
+    menu_value(st, sel, has_wifi, info, val, sizeof(val), &vc);
+    const char *key = sel <= SET_WEP_KEY ? "Value"
+                      : sel == SET_RA    ? "Sets folder"
+                      : sel == SET_CATALOG ? "Cache"
+                                           : "Now";
+    theme_kv(s, x + 10, cy, w - 20, key, val, vc == C_TEXT_DIM ? C_TEXT : vc);
+    if (cache_row) {
+        cy += 13;
+        theme_kv(s, x + 10, cy, w - 20, "Folder", info->cache_dir, C_TEXT_DIM);
+    }
+
+    server_strip(s, st, has_wifi);
+    theme_footer(s, hints_tabs);
+}
+
+void view_settings_list(Surface *s, const SyncState *st, int sel, bool has_wifi, const SettingsInfo *info) {
+    theme_background(s);
+    theme_toolbar(s, "Settings & tools", NULL);
+    draw_menu(s, st, sel, has_wifi, info);
+    static const Hint edit[] = { { "A", "Edit" }, { "UD", "Move" }, { NULL, NULL } };
+    static const Hint run[] = { { "A", "Run" }, { "UD", "Move" }, { NULL, NULL } };
+    theme_footer(s, sel <= SET_WEP_KEY ? edit : run);
+}
+
+// ---------------------------------------------------------------------------
+// Saves tab: top
+// ---------------------------------------------------------------------------
+
 static void draw_details(Surface *s, const SyncState *st, int sel, bool has_wifi) {
     if (st->num_titles == 0) {
         theme_card(s, 8, 32, s->w - 16, 74, "No saves found", C_WARN);
         gfx_text_wrap(s, &font_regular, 18, 56, s->w - 36, 13, 4, C_TEXT_DIM,
-                      "No save files were found on this card. The Game Catalog (SELECT) can "
-                      "still install games.");
+                      "No save files were found on this card. The Catalog tab (R) can still "
+                      "install games.");
     } else {
         const Title *t = &st->titles[sel];
         int x = 6, y = 25, w = s->w - 12;
@@ -197,35 +274,18 @@ static void draw_details(Surface *s, const SyncState *st, int sel, bool has_wifi
         gfx_text_fit_left(s, &font_mono, kx + 10, cy + 3, x + w - 10 - (kx + 10), C_TEXT, t->save_path);
     }
 
-    // Server strip
-    int sy = CONTENT_Y + CONTENT_H - 23;
-    gfx_round_rect(s, 6, sy, s->w - 12, 19, 5, C_INSET, 256);
-    gfx_icon(s, &icon_link, 12, sy + 6, C_TEXT_DIM);
-    const char *pill = has_wifi ? "ONLINE" : "OFFLINE";
-    int pw = theme_pill_width(pill);
-    gfx_text_fit(s, &font_regular, 26, sy + 3, s->w - 12 - pw - 32, C_TEXT_DIM,
-                 st->server_url[0] ? st->server_url : "No server set");
-    theme_pill(s, s->w - 12 - pw - 4, sy + 4, pill, has_wifi ? C_OK : C_ERR, C_ON_ACCENT);
+    server_strip(s, st, has_wifi);
 }
 
-void view_main_top(Surface *s, const SyncState *state, int selected, bool menu_focused,
-                   int menu_selected, bool has_wifi) {
+void view_saves_top(Surface *s, const SyncState *state, int selected, bool has_wifi) {
     theme_background(s);
-    theme_header(s, menu_focused ? "Settings" : "Save details");
-    if (menu_focused) {
-        draw_menu(s, state, menu_selected, true, has_wifi);
-        static const Hint edit[] = { { "A", "Edit" }, { "L", "Back to saves" }, { "START", "Exit" }, { NULL, NULL } };
-        static const Hint run[] = { { "A", "Open" }, { "L", "Back to saves" }, { "START", "Exit" }, { NULL, NULL } };
-        theme_footer(s, menu_selected < 4 ? edit : run);
-    } else {
-        draw_details(s, state, selected, has_wifi);
-        static const Hint hints[] = { { "L", "Menu" }, { "SELECT", "Catalog" }, { "START", "Exit" }, { NULL, NULL } };
-        theme_footer(s, hints);
-    }
+    view_tab_header(s, TAB_SAVES);
+    draw_details(s, state, selected, has_wifi);
+    theme_footer(s, hints_tabs);
 }
 
 // ---------------------------------------------------------------------------
-// Main screen: save list
+// Saves tab: save list
 // ---------------------------------------------------------------------------
 
 static void list_counts(Surface *s, const SyncState *st) {
@@ -255,7 +315,7 @@ static void list_counts(Surface *s, const SyncState *st) {
     }
 }
 
-void view_save_list(Surface *s, const SyncState *st, int selected, int scroll, bool focused, bool has_wifi) {
+void view_save_list(Surface *s, const SyncState *st, int selected, int scroll, bool has_wifi) {
     theme_background(s);
     theme_toolbar(s, "Saves", NULL);
     list_counts(s, st);
@@ -265,7 +325,7 @@ void view_save_list(Surface *s, const SyncState *st, int selected, int scroll, b
         gfx_round_rect(s, s->w / 2 - 16, cy, 32, 32, 16, C_CARD, 256);
         gfx_icon_scaled(s, &icon_sd, s->w / 2 - 8, cy + 7, 2, C_TEXT_FAINT);
         gfx_text_center(s, &font_bold, s->w / 2, cy + 40, C_TEXT, "No saves found");
-        gfx_text_center(s, &font_regular, s->w / 2, cy + 55, C_TEXT_DIM, "Press SELECT to browse the");
+        gfx_text_center(s, &font_regular, s->w / 2, cy + 55, C_TEXT_DIM, "Press R to browse the");
         gfx_text_center(s, &font_regular, s->w / 2, cy + 68, C_TEXT_DIM, "Game Catalog");
     }
 
@@ -275,10 +335,9 @@ void view_save_list(Surface *s, const SyncState *st, int selected, int scroll, b
         const Title *t = &st->titles[i];
         int y = CONTENT_Y + 1 + r * ROW_H;
         bool hot = (i == selected);
-        bool on_accent = hot && focused;
-        theme_row(s, 4, y, s->w - 14, ROW_H - 1, hot, focused);
+        theme_row(s, 4, y, s->w - 14, ROW_H - 1, hot, true);
         Color dc = status_color(t);
-        if (on_accent) {
+        if (hot) {
             gfx_round_rect(s, 9, y + 3, 7, 7, 3, C_ON_ACCENT, 256);
             gfx_round_rect(s, 10, y + 4, 5, 5, 2, dc, 256);
         } else {
@@ -286,20 +345,17 @@ void view_save_list(Surface *s, const SyncState *st, int selected, int scroll, b
         }
         int right = s->w - 14;
         if (t->on_server) {
-            gfx_icon(s, &icon_cloud, right - 14, y + 4, on_accent ? C_ON_ACCENT : gfx_mix(C_BG, C_TEXT_FAINT, 200));
+            gfx_icon(s, &icon_cloud, right - 14, y + 4, hot ? C_ON_ACCENT : gfx_mix(C_BG, C_TEXT_FAINT, 200));
             right -= 16;
         }
         gfx_text_fit(s, hot ? &font_bold : &font_regular, 21, y, right - 4 - 21,
-                     on_accent ? C_ON_ACCENT : (t->scanned && t->scan_result != SYNC_UP_TO_DATE ? dc : C_TEXT),
+                     hot ? C_ON_ACCENT : (t->scanned && t->scan_result != SYNC_UP_TO_DATE ? dc : C_TEXT),
                      t->game_name);
     }
     theme_scrollbar(s, s->w - 7, CONTENT_Y + 2, SAVE_ROWS * ROW_H - 2, scroll, SAVE_ROWS, st->num_titles);
 
-    if (!focused) {
-        static const Hint h[] = { { "L", "Back to saves" }, { NULL, NULL } };
-        theme_footer(s, h);
-    } else if (has_wifi && st->num_titles > 0) {
-        static const Hint h[] = { { "A", "Sync" }, { "R", "Upload" }, { "X", "Scan all" }, { "Y", "Info" }, { NULL, NULL } };
+    if (has_wifi && st->num_titles > 0) {
+        static const Hint h[] = { { "A", "Sync" }, { "X", "Scan all" }, { "Y", "Info" }, { "LR", "Page" }, { NULL, NULL } };
         theme_footer(s, h);
     } else if (st->num_titles > 0) {
         static const Hint h[] = { { "Y", "Info" }, { "LR", "Page" }, { NULL, NULL } };
@@ -358,7 +414,8 @@ void view_save_details(Surface *s, const Title *t) {
     } else {
         gfx_text(s, &font_mono, x + 10, cy, C_TEXT_DIM, "not calculated");
     }
-    theme_footer(s, hints_close);
+    static const Hint h[] = { { "B", "Close" }, { NULL, NULL } };
+    theme_footer(s, h);
 }
 
 // ---------------------------------------------------------------------------
@@ -433,8 +490,8 @@ void view_sync_action(Surface *s, const char *game, SyncAction action, bool has_
     const char *text = "The save on this DS matches the server.";
     static const Hint ok[] = { { "A", "OK" }, { NULL, NULL } };
     static const Hint up[] = { { "A", "Upload" }, { "B", "Cancel" }, { NULL, NULL } };
-    static const Hint down[] = { { "A", "Download" }, { "B", "Cancel" }, { NULL, NULL } };
-    static const Hint conflict[] = { { "R", "Upload" }, { "L", "Download" }, { "B", "Cancel" }, { NULL, NULL } };
+    static const Hint down[] = { { "A", "Download" }, { "X", "Upload instead" }, { "B", "Cancel" }, { NULL, NULL } };
+    static const Hint conflict[] = { { "X", "Upload" }, { "Y", "Download" }, { "B", "Cancel" }, { NULL, NULL } };
     const Hint *hints = ok;
 
     switch (action) {
@@ -452,16 +509,18 @@ void view_sync_action(Surface *s, const char *game, SyncAction action, bool has_
             icon = &icon_down;
             c = C_INFO;
             heading = "Download from server";
-            text = has_last ? "The server has a newer save from another device. Copy it to this DS?"
-                            : "Replace this DS's save with the server's copy?";
+            text = has_last ? "The server has a newer save from another device. Copy it to this DS? "
+                              "(X sends this DS's save to the server instead.)"
+                            : "Replace this DS's save with the server's copy? "
+                              "(X sends this DS's save to the server instead.)";
             hints = down;
             break;
         case SYNC_CONFLICT:
             icon = &icon_conflict;
             c = C_ERR;
             heading = "Conflict";
-            text = "Both saves changed since the last sync. R keeps this DS's save (upload), "
-                   "L keeps the server's (download).";
+            text = "Both saves changed since the last sync. X keeps this DS's save (upload), "
+                   "Y keeps the server's (download).";
             hints = conflict;
             break;
     }
@@ -473,26 +532,6 @@ void view_sync_action(Surface *s, const char *game, SyncAction action, bool has_
     gfx_text_fit(s, &font_regular, x + 46, y + 25, w - 56, C_TEXT_DIM, game);
     gfx_hline(s, x + 10, y + 46, w - 20, C_CARD_LINE);
     gfx_text_wrap(s, &font_regular, x + 10, y + 52, w - 20, 13, 5, C_TEXT, text);
-    theme_footer(s, hints);
-}
-
-void view_transfer_confirm(Surface *s, const char *game, bool is_upload, bool has_server, bool match) {
-    theme_background(s);
-    theme_toolbar(s, is_upload ? "Upload" : "Download", NULL);
-    int x = 8, y = 32, w = s->w - 16, h = 120;
-    Color c = is_upload ? C_WARN : C_INFO;
-    theme_card(s, x, y, w, h, NULL, 0);
-    badge(s, x + 10, y + 10, is_upload ? &icon_up : &icon_down, c);
-    gfx_text_fit(s, &font_bold, x + 46, y + 11, w - 56, c, is_upload ? "Upload this save?" : "Download this save?");
-    gfx_text_fit(s, &font_regular, x + 46, y + 25, w - 56, C_TEXT_DIM, game);
-    gfx_hline(s, x + 10, y + 46, w - 20, C_CARD_LINE);
-    if (!has_server) theme_pill_outline(s, x + 10, y + 53, "NOT ON SERVER YET", C_TEXT_DIM);
-    else if (match) theme_pill(s, x + 10, y + 53, "SAME AS SERVER", C_OK, C_ON_ACCENT);
-    else theme_pill(s, x + 10, y + 53, "DIFFERENT FROM SERVER", C_WARN, C_ON_ACCENT);
-    gfx_text_wrap(s, &font_regular, x + 10, y + 70, w - 20, 13, 3, C_TEXT,
-                  is_upload ? "The server keeps the copy it replaces in its history."
-                            : "The save on this DS will be replaced.");
-    static const Hint hints[] = { { "A", "Confirm" }, { "B", "Cancel" }, { NULL, NULL } };
     theme_footer(s, hints);
 }
 
@@ -662,28 +701,7 @@ void view_editor(Surface *s, const char *hint, const char *text, int len, int cu
     int hx = dpad_hint(s, x + 12, hy, "LR", "Move cursor");
     dpad_hint(s, hx + 14, hy, "UD", cursor < len ? "Change letter" : "Add a letter");
 
-    static const Hint h[] = { { "A", "Insert" }, { "B", "Delete" }, { "Y", "Save" }, { "X", "Cancel" }, { NULL, NULL } };
-    theme_footer(s, h);
-}
-
-// ---------------------------------------------------------------------------
-// RetroAchievements
-// ---------------------------------------------------------------------------
-
-void view_ra_menu(Surface *s, const char *root, bool has_wifi) {
-    theme_background(s);
-    theme_toolbar(s, "RetroAchievements", NULL);
-    int x = 8, y = 28, w = s->w - 16;
-    theme_card(s, x, y, w, 118, "Achievement sets", C_GOLD);
-    gfx_icon_scaled(s, &icon_trophy, x + w - 30, y + 26, 2, gfx_mix(C_CARD, C_GOLD, 200));
-    gfx_text_wrap(s, &font_regular, x + 10, y + 24, w - 50, 13, 4, C_TEXT,
-                  "Saves the achievement set of every ROM in the ROM folder for nds-bootstrap-ra.");
-    char path[48];
-    snprintf(path, sizeof(path), "%s/_nds/ra", root);
-    gfx_text(s, &font_mono, x + 10, y + 80, C_TEXT_FAINT, "SETS FOLDER");
-    gfx_text(s, &font_mono, x + 10, y + 90, C_ACCENT_HI, path);
-    if (!has_wifi) theme_pill(s, x + 10, y + 102, "WIFI NOT CONNECTED", C_ERR, C_ON_ACCENT);
-    static const Hint h[] = { { "A", "Update sets" }, { "B", "Back" }, { NULL, NULL } };
+    static const Hint h[] = { { "A", "Save" }, { "B", "Cancel" }, { "X", "Delete" }, { "Y", "Insert" }, { NULL, NULL } };
     theme_footer(s, h);
 }
 
@@ -700,7 +718,7 @@ static void ra_badge_text(const CatEntry *e, char *out, size_t size) {
 
 void view_catalog_details(Surface *s, const CatalogView *v) {
     theme_background(s);
-    theme_header(s, "Game Catalog");
+    view_tab_header(s, TAB_CATALOG);
     int x = 6, y = 25, w = s->w - 12;
     const CatEntry *e = v->current;
     if (!e) {
@@ -746,9 +764,9 @@ void view_catalog_details(Surface *s, const CatalogView *v) {
 
     Hint h[5];
     int n = 0;
-    h[n++] = (Hint){ "Y", v->ra_only ? "All games" : "RA only" };
-    h[n++] = (Hint){ "X", "Search" };
-    if (v->search[0]) h[n++] = (Hint){ "START", "Clear" };
+    h[n++] = (Hint){ "X", v->ra_only ? "All games" : "RA only" };
+    h[n++] = (Hint){ "Y", "Search" };
+    if (v->search[0]) h[n++] = (Hint){ "B", "Clear" };
     if (v->nsystems > 1) h[n++] = (Hint){ "SELECT", "System" };
     h[n] = (Hint){ NULL, NULL };
     theme_footer(s, h);
@@ -757,7 +775,9 @@ void view_catalog_details(Surface *s, const CatalogView *v) {
 static void catalog_toolbar(Surface *s, const CatalogView *v) {
     theme_toolbar(s, "", NULL);
     int x = 14;
-    x += theme_pill(s, x, 5, v->system, C_ACCENT, C_ON_ACCENT) + 4;
+    if (v->systems && v->nsystems > 1) x += theme_segments(s, x, 5, v->systems, v->nsystems, v->sys) + 2;
+    else x += theme_pill(s, x, 5, v->system ? v->system : "NDS", C_ACCENT, C_ON_ACCENT) + 4;
+    if (v->offline) x += theme_pill(s, x, 5, "OFFLINE", C_WARN, C_ON_ACCENT) + 4;
     if (v->ra_only) x += theme_pill(s, x, 5, "RA ONLY", C_GOLD, C_ON_ACCENT) + 4;
     char pos[24] = "";
     if (v->total > 0) snprintf(pos, sizeof(pos), "%d/%d", v->selected + 1, v->total);
@@ -776,11 +796,13 @@ void view_catalog_strip(Surface *s, const CatalogView *v) {
     theme_background(&c);
     gfx_hline(&c, 8, y, s->w - 16, C_CARD_LINE);
     if (v->loading) {
-        gfx_text_center(&c, &font_regular, s->w / 2, y + 1, C_ACCENT_HI, "Loading...");
+        gfx_text_center(&c, &font_regular, s->w / 2, y + 1, C_ACCENT_HI, v->searching ? "Searching..." : "Loading...");
     } else if (v->error[0]) {
         gfx_text_fit(&c, &font_regular, 8, y + 1, s->w - 16, C_ERR, v->error);
     } else if (v->filter_ignored) {
         gfx_text_fit(&c, &font_regular, 8, y + 1, s->w - 16, C_ERR, "Server can't filter RA: update it");
+    } else if (v->notice && v->notice[0]) {
+        gfx_text_fit(&c, &font_regular, 8, y + 1, s->w - 16, v->offline ? C_WARN : C_ACCENT_HI, v->notice);
     } else {
         int x = 8;
         gfx_icon(&c, &icon_check, x, y + 5, C_OK);
@@ -798,20 +820,20 @@ void view_catalog_list(Surface *s, const CatalogView *v) {
         int cy = CONTENT_Y + 30;
         gfx_text_center(s, &font_bold, s->w / 2, cy, C_ERR, "Couldn't load the catalog");
         gfx_text_wrap(s, &font_regular, 16, cy + 18, s->w - 32, 13, 3, C_TEXT_DIM, v->error);
-        static const Hint h[] = { { "A", "Try again" }, { "B", "Back" }, { NULL, NULL } };
+        static const Hint h[] = { { "A", "Try again" }, { "L/R", "Tabs" }, { NULL, NULL } };
         theme_footer(s, h);
         return;
     }
     if (v->total == 0 && !v->error[0]) {
         int cy = CONTENT_Y + 34;
         const char *a, *b;
-        if (v->search[0]) { a = "No games match the search."; b = "X: new search   START: clear"; }
-        else if (v->ra_only) { a = "No games with achievements."; b = "Y: show all games"; }
+        if (v->search[0]) { a = "No games match the search."; b = "Y: new search   B: clear"; }
+        else if (v->ra_only) { a = "No games with achievements."; b = "X: show all games"; }
         else { a = "No games on the server."; b = ""; }
         gfx_icon_scaled(s, &icon_search, s->w / 2 - 9, cy, 2, C_TEXT_FAINT);
         gfx_text_center(s, &font_bold, s->w / 2, cy + 26, C_TEXT, a);
         gfx_text_center(s, &font_regular, s->w / 2, cy + 41, C_TEXT_DIM, b);
-        static const Hint h[] = { { "B", "Back" }, { NULL, NULL } };
+        static const Hint h[] = { { "L/R", "Tabs" }, { NULL, NULL } };
         theme_footer(s, h);
         return;
     }
@@ -845,7 +867,7 @@ void view_catalog_list(Surface *s, const CatalogView *v) {
         theme_scrollbar(s, s->w - 7, CONTENT_Y + 2, CAT_ROWS * ROW_H - 2, v->scroll, CAT_ROWS, v->total);
     view_catalog_strip(s, v);
 
-    static const Hint h[] = { { "A", "Install" }, { "B", "Back" }, { "LR", "Page" }, { "L/R", "Jump 100" }, { NULL, NULL } };
+    static const Hint h[] = { { "A", "Install" }, { "UD", "Move" }, { "LR", "Page" }, { "L/R", "Tabs" }, { NULL, NULL } };
     theme_footer(s, h);
 }
 

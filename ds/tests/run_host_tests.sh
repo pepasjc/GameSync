@@ -25,4 +25,7 @@ timeout 120 "$out/test_ra_sets"
 gcc $CFLAGS -o "$out/test_catalog_data" tests/test_catalog_data.c source/catalog_data.c
 timeout 120 "$out/test_catalog_data" "$out" ${CATALOG_JSON:+"$CATALOG_JSON"}
 
+gcc $CFLAGS -o "$out/test_catalog_cache" tests/test_catalog_cache.c source/catalog_cache.c source/catalog_data.c
+timeout 120 "$out/test_catalog_cache" "$out" ${CATALOG_JSON:+"$CATALOG_JSON"}
+
 rm -rf "$out"

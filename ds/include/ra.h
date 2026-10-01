@@ -8,9 +8,9 @@
 //   _nds/ra/sets/<ROM file name>.txt   achievement sets read by nds-bootstrap
 //   _nds/ra/hashes.txt                 RA ROM hash cache (file name + size)
 
-// "Achievements" menu: update sets.
-// Draws on the currently selected console; returns when the user presses B.
-void ra_menu(SyncState *state, bool has_wifi);
+// Settings > Achievement Sets: hash every ROM in the ROM folder and save the
+// sets RetroAchievements knows (hold B to stop), then show the summary.
+void ra_update_sets_ui(SyncState *state, bool has_wifi);
 
 // SD root holding _nds ("sd:" normally, "fat:" if only a flashcard has it)
 const char *ra_sd_root(void);
@@ -23,7 +23,7 @@ const char *ra_sd_root(void);
 #define RA_SET_NO_SERVER -4    // request failed (no response, bad key, no RA login)
 
 // Hash one ROM (remembered in hashes.txt) and save its achievement set, as
-// "Update achievement sets" does for the whole folder. Prints nothing
+// Settings > Achievement Sets does for the whole folder. Prints nothing
 // except retry notices.
 int ra_install_set(SyncState *state, const char *rom_path, int *achievements);
 

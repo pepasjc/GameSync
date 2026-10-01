@@ -1,10 +1,13 @@
 // End-to-end check of the DS catalog code paths against a running server:
 // the real http.c (BSD sockets on the host) and catalog_data.c.
 // Usage: e2e_catalog <server url> <api key> <expected rom file> <out dir>
+// Also fills the SD catalog cache the way catalog.c does (fingerprints,
+// paged list streamed into catalog_cache.c) and asks for a rescan.
 // Expects the fixture made by run_e2e.sh: NDS games "Alpha Quest (USA)"
 // (zip holding the expected ROM) and "Beta Twin (USA)" (zip with two ROMs).
 #include "http.h"
 #include "catalog_data.h"
+#include "catalog_cache.h"
 #include "test_util.h"
 #include <stdlib.h>
 #include <stdint.h>
@@ -42,6 +45,96 @@ static const CatEntry *find(const CatEntry *e, int n, const char *prefix) {
         if (strncmp(e[i].name, prefix, strlen(prefix)) == 0) return &e[i];
     }
     return NULL;
+}
+
+static bool fill_add(const CatEntry *e, void *user) {
+    return ccw_add((CatCacheWriter *)user, e);
+}
+
+// catalog.c's fill_system without the UI: page `system` into a cache file
+static int fill_cache(const char *base, const char *key, const char *system, const char *fp, const char *path,
+                      int page) {
+    char part[640], url[1024];
+    snprintf(part, sizeof(part), "%s.part", path);
+    CatCacheWriter w;
+    if (!ccw_begin(&w, part, system)) return -1;
+    CatEntry scratch;
+    int offset = 0, requests = 0;
+    while (1) {
+        snprintf(url, sizeof(url), "%s/api/v1/roms?system=%s&limit=%d&offset=%d", base, system, page, offset);
+        HttpResponse resp = http_request(url, HTTP_GET, key, NULL, 0);
+        requests++;
+        CatPageInfo info;
+        int n = resp.status_code == 200 && resp.body
+                    ? cat_parse_page_cb((const char *)resp.body, resp.body_size, &scratch, fill_add, &w, &info)
+                    : -1;
+        http_response_free(&resp);
+        if (n < 0) {
+            ccw_abort(&w);
+            return -1;
+        }
+        offset += n;
+        if (!info.has_more || n == 0) break;
+    }
+    return ccw_finish(&w, fp, path) ? requests : -1;
+}
+
+static void test_cache(const char *base, const char *key, const char *dir) {
+    static const char *const wanted[] = { "NDS", "DSI", NULL };
+    char url[1024], sys[2][8], fps[2][CAT_FP_LEN];
+    int counts[2];
+    snprintf(url, sizeof(url), "%s/api/v1/roms/fingerprints", base);
+    HttpResponse resp = http_request(url, HTTP_GET, key, NULL, 0);
+    CHECK(resp.status_code == 200);
+    int n = resp.body ? cat_parse_fingerprints((const char *)resp.body, resp.body_size, wanted, sys, fps, counts, 2)
+                      : -1;
+    http_response_free(&resp);
+    CHECK(n == 1);  // the fixture has NDS only
+    if (n != 1) return;
+    CHECK_STR(sys[0], "NDS");
+    CHECK(fps[0][0] != '\0');
+    CHECK(counts[0] == 3);
+    printf("fingerprint NDS: %s (%d)\n", fps[0], counts[0]);
+
+    // Page size 2: three games take two requests, like a big list in 500s
+    char path[600];
+    snprintf(path, sizeof(path), "%s/NDS.cat", dir);
+    CHECK(fill_cache(base, key, "NDS", fps[0], path, 2) == 2);
+    char have_fp[CAT_FP_LEN];
+    uint32_t count = 0;
+    CHECK(cc_peek(path, NULL, have_fp, &count));
+    CHECK_STR(have_fp, fps[0]);  // unchanged next time: no refetch
+    CHECK(count == 3);
+
+    CatCache c;
+    CHECK(cc_open(&c, path));
+    CatEntry e, scratch;
+    bool alpha = false;
+    for (uint32_t i = 0; i < c.count; i++) {
+        CHECK(cc_read(&c, c.refs[i], &e));
+        if (strncmp(e.name, "Alpha", 5) == 0) alpha = e.can_extract_nds && e.size > 0 && e.rom_id[0];
+    }
+    CHECK(alpha);
+    uint32_t *list;
+    CHECK(cc_filter(&c, false, "alpha quest", &list, &scratch) == 1);  // same answer as ?search=
+    free(list);
+    CHECK(cc_filter(&c, true, NULL, &list, &scratch) == 0);  // same answer as ?has_ra=true
+    free(list);
+    cc_close(&c);
+
+    // Settings > Refresh Catalog: rescan (open server: allowed), then the
+    // fingerprint is unchanged as nothing moved on disk
+    snprintf(url, sizeof(url), "%s/api/v1/roms/scan", base);
+    resp = http_request(url, HTTP_GET, key, NULL, 0);
+    CHECK(resp.status_code == 200);
+    CHECK(resp.body && strstr((const char *)resp.body, "\"count\"") != NULL);
+    http_response_free(&resp);
+    snprintf(url, sizeof(url), "%s/api/v1/roms/fingerprints", base);
+    resp = http_request(url, HTTP_GET, key, NULL, 0);
+    char fps2[2][CAT_FP_LEN];
+    n = resp.body ? cat_parse_fingerprints((const char *)resp.body, resp.body_size, wanted, sys, fps2, counts, 2) : -1;
+    http_response_free(&resp);
+    CHECK(n == 1 && strcmp(fps2[0], fps[0]) == 0);
 }
 
 int main(int argc, char **argv) {
@@ -145,6 +238,8 @@ int main(int argc, char **argv) {
     CHECK(rc == HTTP_DL_STATUS && (dl.status_code == 401 || dl.status_code == 403));
     rc = http_download("http://127.0.0.1:1/x", key, sink, &b, &dl);
     CHECK(rc == HTTP_DL_CONNECT);
+
+    test_cache(base, key, dir);
 
     // Batched RA sets without an RA login on the server: clean 503
     snprintf(url, sizeof(url), "%s/api/v1/ra/sets", base);

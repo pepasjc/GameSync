@@ -275,11 +275,15 @@ static bool parse_entry(JCur *c, CatEntry *e) {
     return r == 0;
 }
 
-int cat_parse_page(const char *json, size_t len, CatEntry *out, int max, CatPageInfo *info) {
+// Shared by both page parsers: entries go to out[] (up to max, the rest is
+// skipped) or, with fn set, one at a time through `scratch`.
+static int parse_page(const char *json, size_t len, CatEntry *out, int max, CatEntryFn fn,
+                      void *user, CatPageInfo *info) {
     JCur c = { json, json + len };
     CatPageInfo tmp = { .total = -1, .has_more = false, .has_ra = -1 };
     int count = 0;
     bool saw_roms = false;
+    bool stopped = false;
 
     if (!expect(&c, '{')) return -1;
     char key[32];
@@ -292,7 +296,11 @@ int cat_parse_page(const char *json, size_t len, CatEntry *out, int max, CatPage
             bool efirst = true;
             int er;
             while ((er = next_element(&c, &efirst)) == 1) {
-                if (count < max) {
+                if (fn && !stopped) {
+                    if (!parse_entry(&c, out)) return -1;
+                    count++;
+                    if (!fn(out, user)) stopped = true;
+                } else if (!fn && count < max) {
                     if (!parse_entry(&c, &out[count])) return -1;
                     count++;
                 } else if (!skip_value(&c)) {
@@ -318,6 +326,87 @@ int cat_parse_page(const char *json, size_t len, CatEntry *out, int max, CatPage
     if (tmp.total < 0) tmp.total = count;
     if (info) *info = tmp;
     return count;
+}
+
+int cat_parse_page(const char *json, size_t len, CatEntry *out, int max, CatPageInfo *info) {
+    return parse_page(json, len, out, max, NULL, NULL, info);
+}
+
+int cat_parse_page_cb(const char *json, size_t len, CatEntry *scratch, CatEntryFn fn, void *user,
+                      CatPageInfo *info) {
+    return parse_page(json, len, scratch, 0, fn, user, info);
+}
+
+int cat_parse_fingerprints(const char *json, size_t len, const char *const *wanted,
+                           char out[][8], char fps[][CAT_FP_LEN], int *counts, int max) {
+    JCur c = { json, json + len };
+    int nwanted = 0;
+    while (wanted[nwanted]) nwanted++;
+    if (nwanted > 16) nwanted = 16;
+    bool present[16] = { false };
+    char fp[16][CAT_FP_LEN];
+    int count[16] = { 0 };
+    bool saw_systems = false;
+
+    if (!expect(&c, '{')) return -1;
+    char key[32];
+    bool first = true;
+    int r;
+    while ((r = next_member(&c, &first, key, sizeof(key))) == 1) {
+        if (strcmp(key, "systems") != 0) {
+            if (!skip_value(&c)) return -1;
+            continue;
+        }
+        if (!expect(&c, '{')) return -1;
+        saw_systems = true;
+        bool sfirst = true;
+        int sr;
+        char sys[16];
+        while ((sr = next_member(&c, &sfirst, sys, sizeof(sys))) == 1) {
+            int slot = -1;
+            for (int i = 0; i < nwanted; i++) {
+                if (strcasecmp(sys, wanted[i]) == 0) slot = i;
+            }
+            if (slot < 0) {
+                if (!skip_value(&c)) return -1;
+                continue;
+            }
+            if (!expect(&c, '{')) return -1;
+            present[slot] = true;
+            fp[slot][0] = '\0';
+            bool ffirst = true;
+            int fr;
+            char fkey[32];
+            while ((fr = next_member(&c, &ffirst, fkey, sizeof(fkey))) == 1) {
+                bool ok;
+                if (strcmp(fkey, "fingerprint") == 0) {
+                    skip_ws(&c);
+                    bool trunc = false;
+                    if (c.p < c.end && *c.p == '"') ok = parse_string(&c, fp[slot], CAT_FP_LEN, &trunc);
+                    else ok = skip_value(&c);
+                    if (trunc) fp[slot][0] = '\0';  // never matches a cache: refetched
+                } else if (strcmp(fkey, "count") == 0) {
+                    ok = parse_int_field(&c, &count[slot]);
+                } else {
+                    ok = skip_value(&c);
+                }
+                if (!ok) return -1;
+            }
+            if (fr != 0) return -1;
+        }
+        if (sr != 0) return -1;
+    }
+    if (r != 0 || !saw_systems) return -1;
+
+    int n = 0;
+    for (int i = 0; i < nwanted && n < max; i++) {
+        if (!present[i]) continue;
+        snprintf(out[n], 8, "%s", wanted[i]);
+        snprintf(fps[n], CAT_FP_LEN, "%s", fp[i]);
+        if (counts) counts[n] = count[i];
+        n++;
+    }
+    return n;
 }
 
 int cat_parse_systems(const char *json, size_t len, const char *const *wanted,
@@ -471,6 +560,23 @@ void cat_ascii(const char *in, char *out, size_t size) {
         }
     }
     out[n] = '\0';
+}
+
+// ASCII case-insensitive substring test
+static bool contains_nocase(const char *hay, const char *needle) {
+    size_t n = strlen(needle);
+    if (n == 0) return true;
+    for (const char *p = hay; *p; p++) {
+        size_t i = 0;
+        while (i < n && p[i] && tolower((unsigned char)p[i]) == tolower((unsigned char)needle[i])) i++;
+        if (i == n) return true;
+    }
+    return false;
+}
+
+bool cat_entry_matches(const CatEntry *e, const char *search) {
+    if (!search || !search[0]) return true;
+    return contains_nocase(e->name, search) || contains_nocase(e->filename, search);
 }
 
 // ---------------------------------------------------------------------------
