@@ -32,7 +32,7 @@ set(SOURCES
     source/downloads.c
     source/sha256.c
     source/ui.c
-    source/debugScreen.c
+    source/gui.c
     # Bundled zlib (system libz.a has -fPIC GOT relocations vita-elf-create can't handle)
     source/zlib/adler32.c
     source/zlib/compress.c
@@ -52,6 +52,13 @@ include_directories(include source/zlib source)
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME}
+    vita2d
+    SceGxm_stub
+    ScePgf_stub
+    ScePvf_stub
+    SceCommonDialog_stub
+    SceAppUtil_stub
+    SceAppMgr_stub
     SceDisplay_stub
     SceCtrl_stub
     SceAudio_stub

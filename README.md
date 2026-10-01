@@ -99,7 +99,6 @@ preservation communities. Thanks to everyone below.
 | [dswifi](https://github.com/devkitPro/dswifi) 2.0.2 (sgIP TCP/IP stack) | `ds/third_party/dswifi/` | **Stephen Stair** (sgIP / DSWifi) and the **devkitPro** team (calico port), MIT — see `ds/third_party/dswifi/dswifi_license.txt`. Linked into the DSi build only, patched for a larger TCP receive window, an MSS option and a faster `recv()` copy (changes marked `GameSync`). |
 | MD5 (RFC 1321) | `ds/source/md5.c`, `ds/include/md5.h` | **L. Peter Deutsch** / Aladdin Enterprises (zlib-style license), taken unmodified from [rcheevos](https://github.com/RetroAchievements/rcheevos) `src/rhash/` |
 | `mmceman.irx` — MMCE (MemCard PRO2 / SD2PSX) IOP driver | `ps2/irx/` | [ps2-mmce/mmceman](https://github.com/ps2-mmce/mmceman) — "MMCE Authors" (MIT). Rebuilt locally with an added gen1 MemCard Pro `0x21` GameID command. |
-| Debug screen font | `vita/source/debugScreenFont.c` | PSPSDK debug font — **Marcus R. Brown**, **James Forshaw**, **John Kelley** (BSD) |
 | `zlib` | `3ds/`, `psp/`, `ps3/`, `wiiu/` | **Jean-loup Gailly** and **Mark Adler** |
 | PolarSSL / mbedTLS (AES-128-CBC, HMAC-SHA1) | `ps3/` (via PSL1GHT) | The PolarSSL / mbed TLS authors |
 
@@ -160,6 +159,7 @@ reads and writes.
 
 - **Server**: [FastAPI](https://fastapi.tiangolo.com/) and [Pydantic](https://docs.pydantic.dev/) (Sebastián Ramírez, Samuel Colvin and contributors), [Uvicorn](https://www.uvicorn.org/) (Encode), [httpx](https://www.python-httpx.org/), [Pillow](https://python-pillow.org/), [pytest](https://pytest.org/), [uv](https://docs.astral.sh/uv/) (Astral).
 - **Desktop / Steam Deck**: [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) (Riverbank Computing) and Qt, [requests](https://requests.readthedocs.io/), [paramiko](https://www.paramiko.org/), [py7zr](https://github.com/miurahr/py7zr), [pygame](https://www.pygame.org/).
+- **PS Vita**: [libvita2d](https://github.com/xerpi/libvita2d) by Sergi Granell (xerpi) and contributors (MIT), linked from the VitaSDK for the GUI; text uses the console's own PGF/PVF system fonts at runtime (nothing bundled).
 - **Android**: [AndroidX / Jetpack Compose](https://developer.android.com/jetpack/compose), Room, WorkManager and DataStore (Google), [Retrofit](https://square.github.io/retrofit/) and [OkHttp](https://square.github.io/okhttp/) (Square), [Kotlin](https://kotlinlang.org/) and kotlinx.coroutines (JetBrains), [Accompanist](https://github.com/google/accompanist) (Google).
 
 ### Assets
