@@ -2,8 +2,6 @@
 
 ``GET  /ra/set/{md5}``  achievement set in the DS's text format
 ``POST /ra/sets``       up to 64 sets in one response (see ``_render_batch``)
-``POST /ra/unlocks``    unlocks logged on the DS; dry-run unless SYNC_RA_SUBMIT
-``GET  /ra/unlocks``    what the server has received so far
 """
 
 import asyncio
@@ -140,36 +138,3 @@ async def get_sets(body: SetBatch):
     md5s = list(dict.fromkeys(_check_md5(m) for m in body.md5s))
     _require_token()
     return await asyncio.to_thread(_render_batch, md5s)
-
-
-class Unlock(BaseModel):
-    id: int
-    # Seconds between the unlock and the upload, from the DS clock.
-    ago: int = Field(default=0, ge=0)
-
-
-class UnlockUpload(BaseModel):
-    md5: str
-    game_id: int = 0
-    unlocks: list[Unlock]
-
-
-@router.post("/unlocks")
-async def post_unlocks(body: UnlockUpload):
-    md5 = _check_md5(body.md5)
-    live = settings.ra_submit
-    if live:
-        _require_token()
-    results = await asyncio.to_thread(
-        ra_connect.record_unlocks, settings.save_dir, md5, body.game_id,
-        [u.model_dump() for u in body.unlocks], live,
-        settings.ra_username, settings.ra_token,
-    )
-    for r in results:
-        logger.info("[ra] unlock %s -> %s", r["id"], r["status"])
-    return {"submit": live, "results": results}
-
-
-@router.get("/unlocks")
-async def get_unlocks():
-    return {"submit": settings.ra_submit, "unlocks": ra_connect.load_unlocks(settings.save_dir)}

@@ -33,6 +33,7 @@ server/data/archive/
 
 # ds build artifacts
 ds/build/
+ds/build_dsi/
 ds/*.nds
 ds/*.srl
 ds/*.elf

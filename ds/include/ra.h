@@ -7,11 +7,8 @@
 // Files, all under the SD root (sd:/ normally):
 //   _nds/ra/sets/<ROM file name>.txt   achievement sets read by nds-bootstrap
 //   _nds/ra/hashes.txt                 RA ROM hash cache (file name + size)
-//   _nds/ra/unlocks.log                unlocks, appended by nds-bootstrap
-//   _nds/ra/uploaded.txt               how much of unlocks.log went up
-//   _nds/nds-bootstrap/ramDump.bin     unlock ring written during play
 
-// "Achievements" menu: update sets / upload unlocks.
+// "Achievements" menu: update sets.
 // Draws on the currently selected console; returns when the user presses B.
 void ra_menu(SyncState *state, bool has_wifi);
 
@@ -29,16 +26,5 @@ const char *ra_sd_root(void);
 // "Update achievement sets" does for the whole folder. Prints nothing
 // except retry notices.
 int ra_install_set(SyncState *state, const char *rom_path, int *achievements);
-
-// Unlocks waiting to go up: in the ramDump.bin ring, or in unlocks.log past
-// what uploaded.txt says went up
-int ra_pending_unlocks(void);
-
-// True if the ROM folder has a file the hash cache has never seen
-bool ra_has_new_roms(void);
-
-// RA Sync: upload unlocks and fetch sets for new ROMs without waiting for
-// buttons.  WiFi must be up.
-void ra_auto_sync(SyncState *state);
 
 #endif
