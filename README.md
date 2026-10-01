@@ -75,6 +75,7 @@ preservation communities. Thanks to everyone below.
 |---|---|---|
 | [devkitPro](https://devkitpro.org/) — devkitARM / devkitPPC, `libctru`, `libnds`, `libogc`, `wut`, portlibs | `3ds/`, `ds/`, `gc/`, `wiiu/` | WinterMute and the devkitPro contributors |
 | [libctru](https://github.com/devkitPro/libctru) | `3ds/` | Smealum, fincs, devkitPro contributors |
+| [citro2d](https://github.com/devkitPro/citro2d) / [citro3d](https://github.com/devkitPro/citro3d) (zlib) | `3ds/` (GUI) | fincs and devkitPro contributors |
 | [libnds](https://github.com/devkitPro/libnds) | `ds/` | Dave Murphy (WinterMute), Dovoto and contributors |
 | [dswifi](https://github.com/devkitPro/libnds) | `ds/` | Stephen Stair (sgstair) |
 | [libfat](https://github.com/devkitPro/libfat) | `ds/`, `gc/` | Michael Chisholm (chishm), Dave Murphy |
@@ -165,6 +166,8 @@ reads and writes.
 ### Assets
 
 - `xbox/assets/font.ttf` — the **Vegur** typeface by **Sora Sagano** (public domain).
+- The 3DS client draws its text with the console's own shared system font, loaded
+  from the system at run time; no font is bundled.
 
 ### Interoperability targets
 

@@ -11,6 +11,8 @@ Homebrew client for Nintendo 3DS / 2DS. Syncs save files with the GameSync serve
 pacman -S 3ds-dev 3ds-zlib
 ```
 
+`3ds-dev` includes citro2d and citro3d, which draw the GUI.
+
 ## Build
 
 **On Windows** — open the devkitPro MSYS2 shell (not Git Bash), then:
@@ -59,7 +61,31 @@ server_url=http://192.168.1.100:8000
 api_key=your-secret-key
 ```
 
-The in-app config editor (L button) can also edit these values directly on the console using the system keyboard.
+The in-app settings menu (L button) can also edit these values directly on the console using the system keyboard (or a D-pad editor if the keyboard applet can't start).
+
+## Screens
+
+The GUI is drawn with citro2d in a dark theme shared with the DS client. Each
+screen has a header bar (with WiFi strength and a server status dot: green =
+the server answered, red = it didn't) and a footer with button hints.
+
+- **Saves**: the list is on the bottom screen, with All / 3DS / NDS tabs, a
+  mark box per row, a system tag (`3DS`, `NDS`, cyan `CART` for game cards) and
+  a status dot. The top screen shows the selected title: name, title id,
+  product code, storage, its sync state (up to date, needs upload / download,
+  conflict, failed, or *manual sync* for game cards, which Sync All skips) and
+  the result of the last compare with the server. The bar above the footer
+  shows the last action's result.
+- **Smart Sync / details**: this console's and the server's copy side by side
+  (size, files, hash, last sync), with the verdict below and a confirmation
+  card on the bottom screen.
+- **Progress**: syncs, restores, updates and catalog installs show a card with
+  a progress bar (with speed, elapsed and remaining time for downloads).
+- **History**, **Settings** and the **Game catalog** use the same layout: a
+  list on the bottom screen, details of the highlighted entry on the top.
+
+Rows can also be picked by tapping them on the touch screen. Holding the D-pad
+repeats.
 
 ## Controls
 
@@ -78,7 +104,7 @@ The in-app config editor (L button) can also edit these values directly on the c
 
 Press **B** on the save list (or pick *Game Catalog* in the L menu) to browse
 the server's ROM catalog and install games straight from the 3DS. The list is
-on the top screen, details and controls on the bottom.
+on the bottom screen, details of the highlighted game on the top.
 
 | Button | Action |
 |---|---|
@@ -91,8 +117,9 @@ on the top screen, details and controls on the bottom.
 | L / R | Jump 100 entries |
 | B | Back (hold B to cancel a download) |
 
-`RA NN` marks games with an achievement set (`RA?` when matched by name only);
-a green `*` marks games that are already installed.
+A gold `RA NN` badge marks games with an achievement set (an outlined `RA?`
+when matched by name only); a green check marks games that are already
+installed.
 
 **3DS games** install as a CIA directly through the system's AM service — the
 download is streamed into the install in 64 KB chunks, so nothing is staged on
