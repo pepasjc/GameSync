@@ -25,6 +25,7 @@ static void config_apply_defaults(SyncState *state) {
     strncpy(state->ps3_user, "00000001", sizeof(state->ps3_user) - 1);
     state->scan_ps3 = true;
     state->scan_ps1 = true;
+    state->show_server_only = true;
     state->selected_user = 0;  /* 0 = auto-detect on first run */
 }
 
@@ -92,6 +93,8 @@ bool config_load(
             state->scan_ps3 = atoi(value) != 0;
         } else if (strcmp(key, "scan_ps1") == 0) {
             state->scan_ps1 = atoi(value) != 0;
+        } else if (strcmp(key, "show_server_only") == 0) {
+            state->show_server_only = atoi(value) != 0;
         } else if (strcmp(key, "selected_user") == 0) {
             state->selected_user = atoi(value);
         }
@@ -134,6 +137,7 @@ bool config_save(const SyncState *state) {
     fprintf(fp, "ps3_user=%s\n", state->ps3_user);
     fprintf(fp, "scan_ps3=%d\n", state->scan_ps3 ? 1 : 0);
     fprintf(fp, "scan_ps1=%d\n", state->scan_ps1 ? 1 : 0);
+    fprintf(fp, "show_server_only=%d\n", state->show_server_only ? 1 : 0);
     fprintf(fp, "selected_user=%d\n", state->selected_user);
     fclose(fp);
     return true;

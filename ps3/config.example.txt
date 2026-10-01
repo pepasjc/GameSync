@@ -3,3 +3,4 @@ api_key=your-secret-key
 ps3_user=00000001
 scan_ps3=1
 scan_ps1=1
+show_server_only=1

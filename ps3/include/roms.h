@@ -61,6 +61,9 @@ typedef struct {
 typedef struct {
     RomEntry items[ROM_CATALOG_MAX];
     int      count;
+    /* Set when a later page failed and only part of the list arrived;
+     * such a list is shown but never written to the on-disk cache. */
+    bool     truncated;
     char     last_error[128];
 } RomCatalog;
 

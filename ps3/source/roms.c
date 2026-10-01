@@ -221,6 +221,7 @@ bool roms_fetch_catalog(const SyncState *state,
                         RomCatalog *catalog) {
     if (!state || !catalog || !scratch_buf) return false;
     catalog->count = 0;
+    catalog->truncated = false;
     catalog->last_error[0] = '\0';
 
     /* Walk pages of 500 rows each until the server says ``has_more=false``
@@ -252,6 +253,7 @@ bool roms_fetch_catalog(const SyncState *state,
             debug_log("roms: page %d at offset %d failed (status=%d n=%d) "
                       "— keeping %d entries already parsed",
                       pages, offset, status, n, catalog->count);
+            catalog->truncated = true;
             break;
         }
 
