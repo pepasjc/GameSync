@@ -2,49 +2,85 @@
 #define GCSYNC_UI_H
 
 #include "common.h"
+#include "gui.h"
 
 /*
- * UI over gxflux: a GX-rendered textured-font console.  ui_init() hands the
- * GS to gxflux and brings up the console grid.  Each frame is composed by
- * clearing the buffer, emitting positioned/coloured text, then flushing.
+ * ui — GameSync screen furniture on top of gui.c: the status line, the
+ * per-screen chrome (header, view tabs, status banner, footer hints), the
+ * scrolling list panel on the left, the detail panel on the right, and the
+ * boot / confirm screens.
  *
- * Drawing primitives are deliberately low level so view bodies (in main.c)
- * can compose lists, highlight bars and progress rows uniformly.
+ * Screen layout (logical 640x480):
+ *   header bar   | logo  GameSync • <view>          v0.x  ● ip  [SD sp2] |
+ *   tab strip    | L  Catalog Installed Queue VMC Slot A Slot B ... R      |
+ *   body         | list panel (rows + selection bar)  | detail panel      |
+ *   banner       | status / error line                                    |
+ *   footer       | button hints                                           |
  */
 
-/* Colour indices for ui_text / ui_text_hl. */
-enum {
-    UI_WHITE = 0,
-    UI_GREEN,
-    UI_RED,
-    UI_YELLOW,
-    UI_CYAN,
-    UI_BLUE,
-    UI_GREY,
-};
+/* List panel (left) and detail panel (right) geometry */
+#define UI_LIST_X   GUI_SAFE_X
+#define UI_LIST_Y   GUI_BODY_Y
+#define UI_LIST_W   348
+#define UI_LIST_H   (GUI_BANNER_Y - 6 - GUI_BODY_Y)
+#define UI_LIST_HEAD 28           /* title strip inside the list panel */
+#define UI_ROW_H    24
+#define UI_DETAIL_X (UI_LIST_X + UI_LIST_W + 10)
+#define UI_DETAIL_W (GUI_SAFE_R - UI_DETAIL_X)
+#define UI_PAD      12
 
 void ui_init(void);
 
-int  ui_rows(void);
-int  ui_cols(void);
-int  ui_list_visible(void);   /* rows available for a scrolling list body */
-int  ui_list_top(void);       /* first body row (0-based) */
+/* Rows a list panel shows (for paging / scroll clamping) */
+int  ui_list_visible(void);
 
-void ui_clear(void);          /* clear the text buffer for a new frame */
-void ui_flush(void);          /* render the buffer to the screen */
-
-void ui_text(int row, int col, int color, const char *fmt, ...);
-void ui_text_hl(int row, bool selected, int color, const char *fmt, ...);
-
-void ui_status(const char *fmt, ...);
-void ui_error(const char *fmt, ...);
+void ui_status(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+void ui_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 const char *ui_status_text(void);
 bool ui_status_is_error(void);
 
-void ui_draw_header(const SyncState *state, AppView view);
-void ui_draw_footer(const char *hint);   /* hint row + status line */
-void ui_draw_message(const char *title, const char *message);
+const char *ui_view_name(AppView view);   /* header title */
 
-const char *ui_view_name(AppView view);
+/* Header + tabs + status banner + footer for a main view */
+void ui_draw_chrome(const SyncState *state, AppView view, const GuiHint *hints, int nhints);
+
+/* ---- List panel ---- */
+
+/* Draws one row.  (x, y, w, h) is the row box; sel = row under the bar
+ * (draw text in HEX_INK then). */
+typedef void (*UiRowFn)(int idx, float x, float y, float w, float h, bool sel);
+
+/* Panel + title strip ("<title>  n/total") + rows + scrollbar.  When the
+ * list is empty, `empty` is shown centred instead (wrapped). */
+void ui_list(const char *title, int count, int sel, int scroll, UiRowFn row, const char *empty);
+/* Same panel, but rows start `skip` px lower (a custom banner sits on top) */
+void ui_list_ex(const char *title, int count, int sel, int scroll, int rows,
+                float skip, UiRowFn row, const char *empty);
+
+/* Row helpers: main text left (fitted), optional right-aligned text */
+void ui_row_text(float x, float y, float w, float h, bool sel, u32 hex,
+                 const char *text, const char *right);
+/* A small pill inside a row; returns its width */
+float ui_row_pill(float x, float y, float h, bool sel, u32 hex, const char *label);
+
+/* ---- Detail panel ---- */
+
+/* Panel + wrapped title (<= 3 lines).  Returns the y cursor below it. */
+float ui_detail_begin(const char *title);
+/* Empty detail panel with a centred hint */
+void  ui_detail_empty(const char *icon_text, const char *hint);
+/* "LABEL" small/dim, value below.  Returns the next y. */
+float ui_detail_field(float y, const char *label, const char *value, u32 value_hex);
+/* Row of pills starting at y; call ui_detail_pill repeatedly, x advances */
+float ui_detail_pill(float *x, float y, u32 bg, u32 fg, const char *label);
+
+/* ---- Full-screen states / dialogs ---- */
+
+void ui_draw_boot(const char *message);
+/* Confirm card over whatever is already drawn this frame */
+void ui_draw_confirm(const char *title, const char *message, u32 tone);
+
+/* Helpers */
+void ui_human_size(uint64_t b, char *out, size_t n);
 
 #endif /* GCSYNC_UI_H */
