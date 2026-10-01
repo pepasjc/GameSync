@@ -4,8 +4,8 @@
  * Boot: ProcUI + OSScreen UI -> mount SD -> config -> network -> libmocha
  *       (SLC + MLC) -> menu loop.
  *
- * Views (ZL/ZR cycle):
- *   CATALOG    server ROM catalog, GC / WII toggle
+ * Views (L/R cycle; see README "Screens and controls" for every button):
+ *   CATALOG    server ROM catalog, GC / WII / WIIU sub-tabs on MINUS
  *   LOCAL      installed games on SD
  *   DOWNLOADS  resumable queue
  *   GC CARDS   Nintendont memory-card images and the saves inside them
@@ -18,6 +18,7 @@
 #include <ctype.h>
 
 #include "common.h"
+#include "catcache.h"
 #include "config.h"
 #include "downloads.h"
 #include "appstate.h"
@@ -136,6 +137,39 @@ static uint64_t now_ms(void) {
     return (uint64_t)OSTicksToMilliseconds(OSGetTime());
 }
 
+/* D-pad presses plus auto-repeat while one is held: lists move a row (or a
+ * page) at a time for as long as the direction stays down.  A poll that
+ * returns no new sample leaves the repeat state alone — VPAD samples at
+ * 60 Hz and an empty read is not a release. */
+#define DPAD_MASK (VPAD_BUTTON_UP | VPAD_BUTTON_DOWN | VPAD_BUTTON_LEFT | VPAD_BUTTON_RIGHT)
+#define REPEAT_DELAY_MS 380
+#define REPEAT_RATE_MS  70
+
+static uint32_t g_rep_btn = 0;
+static uint64_t g_rep_at  = 0;
+
+static uint32_t pad_poll(void) {
+    VPADStatus st;
+    VPADReadError err = VPAD_READ_SUCCESS;
+    if (VPADRead(VPAD_CHAN_0, &st, 1, &err) < 1 || err != VPAD_READ_SUCCESS)
+        return 0;
+    uint32_t down = st.trigger;
+    uint32_t dir  = st.hold & DPAD_MASK;
+    uint64_t now  = now_ms();
+    if (down & DPAD_MASK) {
+        g_rep_btn = down & DPAD_MASK;
+        g_rep_at  = now + REPEAT_DELAY_MS;
+    } else if (g_rep_btn && (dir & g_rep_btn) == g_rep_btn) {
+        if (now >= g_rep_at) {
+            down |= g_rep_btn;
+            g_rep_at = now + REPEAT_RATE_MS;
+        }
+    } else {
+        g_rep_btn = 0;
+    }
+    return down;
+}
+
 /* ---- helpers ---- */
 
 static void human_size(uint64_t b, char *o, size_t n) { ui_human_size(b, o, n); }
@@ -234,26 +268,74 @@ static void show_boot(const char *label, const char *note) {
 
 static const UiHint YES_NO[] = { { "A", "Yes" }, { "B", "No" } };
 
-/* Modal yes/no over the current view.  A = yes, B = no. */
-static bool confirm_v(const char *title, uint32_t tone, const char *fmt, va_list ap) {
-    char msg[320];
-    vsnprintf(msg, sizeof(msg), fmt, ap);
+/* Map a hint's button name to its VPAD bit (only the face buttons a dialog
+ * answers with). */
+static uint32_t hint_bit(const char *b) {
+    if (!strcmp(b, "A")) return VPAD_BUTTON_A;
+    if (!strcmp(b, "X")) return VPAD_BUTTON_X;
+    if (!strcmp(b, "Y")) return VPAD_BUTTON_Y;
+    return 0;
+}
 
-    Dialog d = { title, msg, tone, YES_NO, 2 };
+/* Modal card over the current view.  Every hint is an answer: returns the
+ * VPAD bit of the face button pressed (A / X / Y as listed in ``hints``), or
+ * 0 for B — which always cancels and is never an action. */
+static uint32_t ask(const char *title, uint32_t tone, const UiHint *hints, int count,
+                    const char *msg) {
+    Dialog d = { title, msg, tone, hints, count };
+    uint32_t accept = 0;
+    for (int i = 0; i < count; i++) accept |= hint_bit(hints[i].button);
+
     g_dialog = &d;
-    bool repaint = true, answer = false;
+    bool repaint = true;
+    uint32_t answer = 0;
     while (app_running() && !g_quit_requested) {
         if (repaint || ui_consume_repaint_request()) {
             redraw();
             repaint = false;
         }
         uint32_t b = pad_read(NULL);
-        if (b & VPAD_BUTTON_A) { answer = true; break; }
         if (b & VPAD_BUTTON_B) break;
+        if (b & accept) {
+            answer = (b & VPAD_BUTTON_A) ? VPAD_BUTTON_A
+                   : (b & accept & VPAD_BUTTON_X) ? VPAD_BUTTON_X : VPAD_BUTTON_Y;
+            break;
+        }
         OSSleepTicks(OSMillisecondsToTicks(16));
     }
     g_dialog = NULL;
     return answer;
+}
+
+/* Modal yes/no over the current view.  A = yes, B = no. */
+static bool confirm_v(const char *title, uint32_t tone, const char *fmt, va_list ap) {
+    char msg[320];
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    return ask(title, tone, YES_NO, 2, msg) == VPAD_BUTTON_A;
+}
+
+/* Read-only details card (Y in the lists).  A or B closes it. */
+static void info_dialog(const char *title, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+static void info_dialog(const char *title, const char *fmt, ...) {
+    static const UiHint CLOSE[] = { { "B", "Close" } };
+    char msg[640];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+    Dialog d = { title, msg, HEX_INFO, CLOSE, 1 };
+    g_dialog = &d;
+    bool repaint = true;
+    while (app_running() && !g_quit_requested) {
+        if (repaint || ui_consume_repaint_request()) {
+            redraw();
+            repaint = false;
+        }
+        if (pad_read(NULL) & (VPAD_BUTTON_A | VPAD_BUTTON_B)) break;
+        OSSleepTicks(OSMillisecondsToTicks(16));
+    }
+    g_dialog = NULL;
 }
 
 static bool confirm(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -298,7 +380,7 @@ typedef struct {
 static void draw_edit_frame(void *ctx) {
     const EditCtx *e = (const EditCtx *)ctx;
     static const UiHint hints[] = {
-        { "UD", "Character" }, { "LR", "Move" }, { "ZR", "Insert" },
+        { "UD", "Character" }, { "LR", "Move" }, { "Y", "Insert" },
         { "X", "Delete" }, { "A", "Done" }, { "B", "Cancel" },
     };
     int len = (int)strlen(e->buf);
@@ -325,7 +407,7 @@ static bool edit_text(char *out, size_t cap, const char *label) {
     draw_edit(label, buf, cur);
     while (app_running() && !g_quit_requested) {
         if (ui_consume_repaint_request()) draw_edit(label, buf, cur);
-        uint32_t d = pad_read(NULL);
+        uint32_t d = pad_poll();
         if (d == 0) { OSSleepTicks(OSMillisecondsToTicks(16)); continue; }
 
         if (d & VPAD_BUTTON_A) {   /* PLUS is the global quit, not "accept" */
@@ -348,7 +430,7 @@ static bool edit_text(char *out, size_t cap, const char *label) {
             if (cur < len) { memmove(&buf[cur], &buf[cur + 1], (size_t)(len - cur)); len--; }
             else if (len > 0) { buf[--len] = '\0'; cur = len; }
         }
-        if (d & VPAD_BUTTON_ZR) {
+        if (d & VPAD_BUTTON_Y) {
             if (len < maxlen) {
                 memmove(&buf[cur + 1], &buf[cur], (size_t)(len - cur + 1));
                 buf[cur] = ' ';
@@ -365,8 +447,11 @@ static bool edit_text(char *out, size_t cap, const char *label) {
 typedef enum {
     CF_SERVER = 0, CF_APIKEY, CF_STORAGE, CF_INSTTARGET,
     CF_NINSAVES, CF_GAMES, CF_WBFS, CF_INSTALL,
-    CF_SYNCVWII, CF_SYNCWIIU, CF_SAVE, CF_COUNT
+    CF_SYNCVWII, CF_SYNCWIIU, CF_REFRESHCAT, CF_RESCAN, CF_SAVE, CF_COUNT
 } CfgField;
+
+static void refresh_catalog_all(void);
+static void rescan_everything(void);
 
 /* Where downloads land.  "usb" only takes effect once a FAT32 drive mounts,
  * so show what is actually in use next to what was asked for. */
@@ -411,7 +496,15 @@ static const struct {
     [CF_SYNCWIIU]   = { "Sync Wii U",
                         "List and sync Wii U saves (needs Aroma and libmocha). Turn both "
                         "sync options off on emulators." },
-    [CF_SAVE]       = { "Save settings",
+    [CF_REFRESHCAT] = { "Refresh catalog",
+                        "Asks the server to rescan its ROM folder, throws away the "
+                        "catalog cached on SD and downloads every system's list again. "
+                        "Normally only systems that changed on the server are fetched." },
+    [CF_RESCAN]     = { "Rescan saves and games",
+                        "Scans the SD / USB games, the GC memory cards and the vWii / "
+                        "Wii U saves again, reloads the server's GC save list and "
+                        "recomputes the sync plan." },
+    [CF_SAVE]     = { "Save settings",
                         "Write these settings to sd:/3dssync/config.txt." },
 };
 
@@ -456,6 +549,9 @@ static void draw_config(void) {
             r.icon = UI_ICON_OK;
             r.icon_color = HEX_OK;
             r.text_color = HEX_OK;
+        } else if (f == CF_REFRESHCAT || f == CF_RESCAN) {
+            r.icon = f == CF_REFRESHCAT ? UI_ICON_DOWN : UI_ICON_DOT;
+            r.icon_color = HEX_ACCENT;
         } else if ((f == CF_STORAGE && !strcasecmp(g_state.rom_storage, "usb") &&
                     !g_state.usb_fat_ready) ||
                    (f == CF_INSTTARGET && !strcasecmp(g_state.install_target, "usb") &&
@@ -494,12 +590,12 @@ static void draw_config(void) {
             ui_detail_note(HEX_WARN, "mocha: %s", g_state.mocha_error);
     }
     ui_detail_gap(6);
-    if (f == CF_SYNCVWII || f == CF_SYNCWIIU || f == CF_STORAGE || f == CF_INSTTARGET)
-        ui_detail_action("LR", "Change");
     ui_detail_action("A", f == CF_SAVE ? "Save to SD"
                         : (f == CF_SYNCVWII || f == CF_SYNCWIIU || f == CF_INSTTARGET)
                             ? "Toggle"
-                        : f == CF_STORAGE ? "Change / retry USB" : "Edit");
+                        : f == CF_STORAGE ? "Change / retry USB"
+                        : f == CF_REFRESHCAT ? "Refresh the catalog"
+                        : f == CF_RESCAN ? "Rescan" : "Edit");
 }
 
 static void config_change(void) {
@@ -553,6 +649,8 @@ static void config_activate(void) {
         case CF_INSTTARGET:
         case CF_SYNCVWII:
         case CF_SYNCWIIU: config_change(); break;
+        case CF_REFRESHCAT: refresh_catalog_all(); break;
+        case CF_RESCAN:     rescan_everything(); break;
         case CF_SAVE:
             if (!g_state.sd_ready) ui_error("No SD mounted - cannot save config");
             else if (config_save(&g_state)) ui_status("Config saved to SD");
@@ -563,34 +661,224 @@ static void config_activate(void) {
 }
 
 static void config_input(uint32_t d) {
-    if (d & VPAD_BUTTON_UP)    g_cfg_sel = (g_cfg_sel - 1 + CF_COUNT) % CF_COUNT;
-    if (d & VPAD_BUTTON_DOWN)  g_cfg_sel = (g_cfg_sel + 1) % CF_COUNT;
-    if (d & (VPAD_BUTTON_LEFT | VPAD_BUTTON_RIGHT)) config_change();
-    if (d & VPAD_BUTTON_A)     config_activate();
+    if      (d & VPAD_BUTTON_UP)    g_cfg_sel = (g_cfg_sel - 1 + CF_COUNT) % CF_COUNT;
+    else if (d & VPAD_BUTTON_DOWN)  g_cfg_sel = (g_cfg_sel + 1) % CF_COUNT;
+    else if (d & VPAD_BUTTON_LEFT)  g_cfg_sel -= ui_list_visible();
+    else if (d & VPAD_BUTTON_RIGHT) g_cfg_sel += ui_list_visible();
+    else if (d & VPAD_BUTTON_A)     config_activate();
     clamp_scroll(&g_cfg_sel, &g_cfg_scroll, CF_COUNT);
 }
 
 /* ---- catalog / downloads ---- */
 
-static void fetch_catalog(void) {
-    if (!network_is_ready(&g_state)) { ui_error("Network not ready (%s)", g_state.ip); return; }
-    ui_status("Fetching %s catalog...", g_cat_system);
+/* ---- catalog, cached on SD per system (see catcache.h) ----
+ *
+ * The server's per-system fingerprints are fetched once per session (and
+ * again by Settings > Refresh catalog).  Opening a system then costs nothing
+ * when its fingerprint matches the copy on SD; only a system that changed on
+ * the server is downloaded again.  An unreachable server falls back to the
+ * SD copy ("offline copy"); a server without the fingerprints route (404)
+ * gets the old behaviour — a full fetch, nothing cached.  The catalog has no
+ * server-side filters on this client (no search / RA filter), so a cached
+ * list is exactly what a live fetch would show. */
+
+typedef enum {
+    FP_UNKNOWN = 0,   /* not asked yet this session */
+    FP_OK,            /* g_fp_body holds the server's fingerprints */
+    FP_NONE,          /* server predates /roms/fingerprints: no caching */
+    FP_OFFLINE,       /* server unreachable: use the SD copy */
+} FpMode;
+
+static const char *const CATALOG_SYSTEMS[] = { "GC", "WII", "WIIU" };
+#define CATALOG_SYSTEM_COUNT 3
+
+static FpMode g_fp_mode = FP_UNKNOWN;
+static char   g_fp_body[16 * 1024];
+static int    g_fp_len = 0;
+static const char *g_catalog_source = "";   /* "" live, "cached", "offline copy" */
+
+static void catalog_dir(char *out, size_t n) { catcache_dir(g_state.sd_root, out, n); }
+
+static void fetch_fingerprints(void) {
+    g_fp_len = 0;
+    if (!network_is_ready(&g_state)) { g_fp_mode = FP_OFFLINE; return; }
+    int status = 0;
+    int n = network_fetch_rom_fingerprints(&g_state, g_fp_body, sizeof(g_fp_body), &status);
+    if (n > 0 && status == 200) {
+        char tmp[CATCACHE_FP_LEN];
+        if (roms_parse_fingerprint(g_fp_body, n, "GC", tmp, sizeof(tmp)) >= 0) {
+            g_fp_len = n;
+            g_fp_mode = FP_OK;
+        } else {
+            g_fp_mode = FP_NONE;      /* 200 but not a fingerprints object */
+        }
+    } else if (n >= 0 && (status == 404 || status == 405)) {
+        g_fp_mode = FP_NONE;
+    } else {
+        g_fp_mode = FP_OFFLINE;
+    }
+    WHBLogPrintf("catalog: fingerprints n=%d http=%d mode=%d", n, status, (int)g_fp_mode);
+}
+
+/* Fill g_catalog for g_cat_system — from SD when current, else the server. */
+static void load_catalog(void) {
+    char dir[SAVE_DIR_LEN], have[CATCACHE_FP_LEN], want[CATCACHE_FP_LEN];
+    catalog_dir(dir, sizeof(dir));
+    const char *sys = g_cat_system;
+    const bool sd = g_state.sd_ready;
+
     g_catalog_loading = true;
-    redraw();
-    bool ok = roms_fetch_catalog(&g_state, g_cat_system,
-                                 g_scratch, sizeof(g_scratch), &g_catalog);
-    g_catalog_loading = false;
-    /* Only a successful fetch counts as loaded — a failure (server briefly
-     * down at boot, say) retries the next time the view is entered. */
-    g_catalog_loaded = ok;
-    if (!ok) ui_error("%s", g_catalog.last_error);
-    else     ui_status("Catalog: %d %s ROM(s)", g_catalog.count, g_cat_system);
+    g_catalog.count = 0;
+    g_catalog.last_error[0] = '\0';
+    g_catalog_source = "";
     g_rom_sel = 0; g_rom_scroll = 0;
+
+    if (g_fp_mode == FP_UNKNOWN) {
+        ui_status("Checking the catalog...");
+        redraw();
+        fetch_fingerprints();
+    }
+
+    bool ok = false;
+    switch (g_fp_mode) {
+    case FP_OK: {
+        int listed = roms_parse_fingerprint(g_fp_body, g_fp_len, sys, want, sizeof(want));
+        if (listed == 0) {
+            /* The server has no games for this system (any more). */
+            if (sd) catcache_drop(dir, sys);
+            snprintf(g_catalog.system, sizeof(g_catalog.system), "%s", sys);
+            ok = true;
+            ui_status("The server has no %s games", sys);
+            break;
+        }
+        if (sd && catcache_load(dir, sys, have, sizeof(have), &g_catalog) &&
+            strcmp(have, want) == 0) {
+            ok = true;
+            g_catalog_source = "cached";
+            ui_status("Catalog: %d %s ROM(s) (unchanged, from SD)", g_catalog.count, sys);
+            break;
+        }
+        ui_status("Fetching %s catalog...", sys);
+        redraw();
+        ok = roms_fetch_catalog(&g_state, sys, g_scratch, sizeof(g_scratch), &g_catalog);
+        if (ok) {
+            if (sd && !g_catalog.partial && !catcache_save(dir, sys, want, &g_catalog))
+                WHBLogPrintf("catalog: could not write the %s cache", sys);
+            ui_status("Catalog: %d %s ROM(s)%s", g_catalog.count, sys,
+                      g_catalog.partial ? " (incomplete - not cached)" : "");
+        } else if (sd && catcache_load(dir, sys, have, sizeof(have), &g_catalog)) {
+            ok = true;
+            g_catalog_source = "offline copy";
+            ui_error("Fetch failed - showing the cached %s catalog", sys);
+        } else {
+            ui_error("%s", g_catalog.last_error);
+        }
+        break;
+    }
+    case FP_NONE:
+        /* Older server: today's behaviour, nothing cached. */
+        ui_status("Fetching %s catalog...", sys);
+        redraw();
+        ok = roms_fetch_catalog(&g_state, sys, g_scratch, sizeof(g_scratch), &g_catalog);
+        if (ok) ui_status("Catalog: %d %s ROM(s)", g_catalog.count, sys);
+        else    ui_error("%s", g_catalog.last_error);
+        break;
+    default:   /* FP_OFFLINE */
+        if (sd && catcache_load(dir, sys, have, sizeof(have), &g_catalog)) {
+            ok = true;
+            g_catalog_source = "offline copy";
+            ui_error("Server unreachable - cached %s catalog (Settings > Refresh catalog retries)",
+                     sys);
+        } else {
+            snprintf(g_catalog.last_error, sizeof(g_catalog.last_error),
+                     "Server unreachable and no cached %s catalog on SD. "
+                     "Settings > Refresh catalog retries.", sys);
+            ui_error("Server unreachable - no cached %s catalog", sys);
+        }
+        break;
+    }
+
+    g_catalog_loading = false;
+    /* A failure leaves the view unloaded, so the next entry retries. */
+    g_catalog_loaded = ok;
     redraw();
 }
 
+/* Settings > Refresh catalog: the MiSTer "force" path.  Ask the server to
+ * rescan its ROM folder (a refusal or failure is reported, not fatal), then
+ * throw the SD copies away and fetch every system again. */
+static void refresh_catalog_all(void) {
+    if (!network_is_ready(&g_state)) { ui_error("Network not ready - catalog not refreshed"); return; }
+
+    busy_begin(BUSY_STATIC, "Refreshing catalog", "Asking the server to rescan its ROMs...",
+               "B cancels the wait");
+    redraw();
+    int rc = network_rescan_roms(&g_state);
+    char scan_note[64];
+    if (rc == 200)      snprintf(scan_note, sizeof(scan_note), "server rescanned");
+    else if (rc == 403) snprintf(scan_note, sizeof(scan_note), "rescan not allowed");
+    else if (rc < 0)    snprintf(scan_note, sizeof(scan_note), "rescan failed");
+    else                snprintf(scan_note, sizeof(scan_note), "rescan HTTP %d", rc);
+
+    g_fp_mode = FP_UNKNOWN;
+    snprintf(g_busy_name, sizeof(g_busy_name), "Checking the catalog...");
+    redraw();
+    fetch_fingerprints();
+    if (g_fp_mode == FP_OFFLINE) {
+        /* Keep the SD copies: an unreachable server must not cost the
+         * offline catalog. */
+        busy_end();
+        ui_error("Server unreachable - catalog not refreshed (%s)", scan_note);
+        redraw();
+        return;
+    }
+
+    char dir[SAVE_DIR_LEN];
+    catalog_dir(dir, sizeof(dir));
+    if (g_state.sd_ready) catcache_wipe(dir);
+
+    char summary[160] = "";
+    if (g_fp_mode == FP_OK) {
+        size_t used = 0;
+        for (int i = 0; i < CATALOG_SYSTEM_COUNT; i++) {
+            const char *sys = CATALOG_SYSTEMS[i];
+            char fp[CATCACHE_FP_LEN];
+            int count = 0;
+            if (roms_parse_fingerprint(g_fp_body, g_fp_len, sys, fp, sizeof(fp)) == 1) {
+                snprintf(g_busy_name, sizeof(g_busy_name), "Fetching the %s catalog...", sys);
+                g_busy.done = (uint64_t)i;
+                g_busy.total = CATALOG_SYSTEM_COUNT;
+                redraw();
+                if (roms_fetch_catalog(&g_state, sys, g_scratch, sizeof(g_scratch), &g_catalog)) {
+                    count = g_catalog.count;
+                    if (g_state.sd_ready && !g_catalog.partial)
+                        catcache_save(dir, sys, fp, &g_catalog);
+                } else {
+                    count = -1;
+                }
+            }
+            if (used < sizeof(summary))
+                used += (size_t)snprintf(summary + used, sizeof(summary) - used, "%s%s %s",
+                                         i ? ", " : "", sys,
+                                         count < 0 ? "failed" : "");
+            if (count >= 0 && used < sizeof(summary))
+                used += (size_t)snprintf(summary + used, sizeof(summary) - used, "%d", count);
+        }
+    }
+    busy_end();
+
+    /* Show the current system again (now a cache hit, or a live fetch on a
+     * server without fingerprints). */
+    load_catalog();
+    if (g_fp_mode == FP_OK)
+        ui_status("Catalog refreshed (%s): %s", scan_note, summary);
+    else
+        ui_status("Catalog reloaded (%s; server has no fingerprints, not cached)", scan_note);
+    redraw();
+}
+
+/* MINUS on the catalog: GC -> Wii -> Wii U -> GC. */
 static void toggle_catalog_system(void) {
-    /* GC -> WII -> WIIU -> GC */
     const char *next = "GC";
     if (strcmp(g_cat_system, "GC") == 0)       next = "WII";
     else if (strcmp(g_cat_system, "WII") == 0) next = "WIIU";
@@ -598,9 +886,7 @@ static void toggle_catalog_system(void) {
     g_catalog.count = 0;
     g_catalog_loaded = false;
     g_rom_sel = 0; g_rom_scroll = 0;
-    /* Fetch right away rather than asking for a button press. */
-    if (network_is_ready(&g_state)) fetch_catalog();
-    else ui_status("Catalog set to %s (no network - Y retries)", g_cat_system);
+    load_catalog();       /* from SD when current; works offline too */
 }
 
 /* Staged WUP folders are named by title id, so give the list a real game name
@@ -1227,9 +1513,10 @@ static const char *content_label(const char *t) {
 static void draw_roms(void) {
     static const char *const tabs[] = { "GC", "Wii", "Wii U" };
     int active = !strcmp(g_cat_system, "WII") ? 1 : !strcmp(g_cat_system, "WIIU") ? 2 : 0;
-    char right[32] = "";
+    char right[64] = "";
     if (g_catalog.count > 0)
-        snprintf(right, sizeof(right), "%d / %d", g_rom_sel + 1, g_catalog.count);
+        snprintf(right, sizeof(right), "%s%s%d / %d", g_catalog_source,
+                 g_catalog_source[0] ? "  " BULLET "  " : "", g_rom_sel + 1, g_catalog.count);
     ui_list_panel_tabs(tabs, 3, active, right);
 
     if (g_catalog.count == 0) {
@@ -1237,18 +1524,24 @@ static void draw_roms(void) {
         if (g_catalog_loading) {
             snprintf(title, sizeof(title), "Loading the %s catalog...", sys_label(g_cat_system));
             ui_list_empty(title, "Waiting for the server. B cancels.");
+        } else if (g_catalog_loaded) {
+            snprintf(title, sizeof(title), "No %s games", sys_label(g_cat_system));
+            ui_list_empty(title, "The server has none for this system. "
+                                 "MINUS switches system.");
         } else {
             snprintf(title, sizeof(title), "%s catalog not loaded", sys_label(g_cat_system));
             ui_list_empty(g_catalog.last_error[0] ? "Could not load the catalog" : title,
                           g_catalog.last_error[0] ? g_catalog.last_error
-                              : "Press A to fetch it from the server. MINUS switches system.");
+                              : "Press A to load it. MINUS switches system.");
         }
         ui_detail_begin("Game Catalog");
         ui_detail_note(HEX_DIM, "Games on your GameSync server. GameCube games install "
                        "for Nintendont, Wii games as split WBFS for USB Loader GX / "
                        "WiiFlow, Wii U games as WUP folders for installing.");
+        ui_detail_note(HEX_DIM, "The list is cached on SD and only refetched when the "
+                       "server's copy changes. Settings > Refresh catalog forces it.");
         ui_detail_gap(6);
-        ui_detail_action("A", "Fetch catalog");
+        ui_detail_action("A", "Load catalog");
         ui_detail_action("-", "Switch system");
         return;
     }
@@ -1309,6 +1602,23 @@ static void draw_roms(void) {
     ui_detail_gap(4);
     ui_detail_action("A", "Download now");
     ui_detail_action("X", "Add to queue");
+    ui_detail_action("Y", "Details");
+}
+
+/* Y on a catalog row. */
+static void catalog_details(void) {
+    if (g_catalog.count == 0 || g_rom_sel >= g_catalog.count) return;
+    const RomEntry *r = &g_catalog.items[g_rom_sel];
+    char sz[16];
+    human_size(r->size, sz, sizeof(sz));
+    const char *ct = content_label(r->content_type);
+    info_dialog(r->name,
+                "System: %s%s%s%s\nSize: %s\nFile: %s\nROM id: %s\n%s%s",
+                sys_label(r->system[0] ? r->system : g_cat_system),
+                ct ? "  (" : "", ct ? ct : "", ct ? ")" : "",
+                sz, r->filename, r->rom_id,
+                r->related_count > 0 ? "Download also queues its update / DLC.\n" : "",
+                r->extract_format[0] ? "Converted by the server before download." : "");
 }
 
 static void draw_local(void) {
@@ -1320,12 +1630,11 @@ static void draw_local(void) {
     if (g_local.count == 0) {
         ui_list_empty("No installed games",
                       g_local.last_error[0] ? g_local.last_error
-                          : "Download games from the Catalog view. Y rescans.");
+                          : "Download games from the Catalog view. "
+                            "Settings > Rescan saves and games rescans.");
         ui_detail_begin("Installed Games");
         ui_detail_note(HEX_DIM, "GameCube and Wii games downloaded to this console, and "
                        "Wii U WUP folders waiting to be installed.");
-        ui_detail_gap(6);
-        ui_detail_action("Y", "Rescan");
         return;
     }
 
@@ -1367,6 +1676,24 @@ static void draw_local(void) {
                        : "Loaded by USB Loader GX / WiiFlow.");
     }
     ui_detail_action("X", "Delete from storage");
+    ui_detail_action("Y", "Details");
+}
+
+static void local_details(void) {
+    if (g_local.count == 0 || g_loc_sel >= g_local.count) return;
+    const LocalRom *r = &g_local.items[g_loc_sel];
+    char sz[16];
+    human_size(r->size, sz, sizeof(sz));
+    bool wiiu = !strcmp(r->system, "WIIU");
+    info_dialog(r->name, "System: %s\nSize: %s\n%s%s%s%s: %s\nPath: %s\n%s",
+                sys_label(r->system), r->size ? sz : "folder",
+                wiiu && r->title_id[0] ? "Title ID: " : "",
+                wiiu && r->title_id[0] ? r->title_id : "",
+                wiiu && r->title_id[0] ? "\n" : "",
+                wiiu ? "Folder" : "File", r->filename, r->path,
+                wiiu ? "A installs it (with any staged update / DLC)."
+                     : !strcmp(r->system, "GC") ? "Loaded by Nintendont."
+                                                : "Loaded by USB Loader GX / WiiFlow.");
 }
 
 /* ---- Wii U title install (MCP) ---- */
@@ -1556,8 +1883,9 @@ static void draw_downloads(void) {
         ui_detail_note(HEX_ERR, "The last attempt failed. A retries from where it stopped.");
     ui_detail_gap(4);
     ui_detail_action("A", "Start / resume");
-    ui_detail_action("Y", "Run the whole queue");
-    ui_detail_action("X", "Remove from queue");
+    ui_detail_action("X", "Run the whole queue");
+    ui_detail_action("Y", "Remove from queue");
+    ui_detail_action("B", "Pause a running transfer");
 }
 
 /* ---- GC memory-card images ---- */
@@ -1633,17 +1961,34 @@ static const ServerSave *server_save_find(const char *title_id) {
     return NULL;
 }
 
+/* Card chips for the GC Cards panel header: up to four card images by name
+ * (MINUS cycles them); more than that collapses to "Card n/m". */
+#define CARD_CHIPS_MAX 4
+
 static void draw_gccards(void) {
     char title[160], right[48] = "";
     if (g_cards.count > 0) {
-        snprintf(title, sizeof(title), "Card %d/%d  " BULLET "  %s",
-                 g_card_active + 1, g_cards.count, g_card.filename);
         snprintf(right, sizeof(right), "%d save%s", g_card.count,
                  g_card.count == 1 ? "" : "s");
+        if (g_cards.count <= CARD_CHIPS_MAX) {
+            static char labels[CARD_CHIPS_MAX][24];
+            const char *tabs[CARD_CHIPS_MAX];
+            for (int i = 0; i < g_cards.count; i++) {
+                snprintf(labels[i], sizeof(labels[i]), "%.20s", g_cards.items[i].filename);
+                char *dot = strrchr(labels[i], '.');
+                if (dot && dot != labels[i]) *dot = '\0';
+                tabs[i] = labels[i];
+            }
+            ui_list_panel_tabs(tabs, g_cards.count, g_card_active, right);
+        } else {
+            snprintf(title, sizeof(title), "Card %d/%d  " BULLET "  %s",
+                     g_card_active + 1, g_cards.count, g_card.filename);
+            ui_list_panel(title, right);
+        }
     } else {
         snprintf(title, sizeof(title), "Nintendont memory cards");
+        ui_list_panel(title, right);
     }
-    ui_list_panel(title, right);
 
     if (g_cards.count == 0 || g_card.count == 0) {
         const char *why = g_cards.count == 0
@@ -1654,9 +1999,11 @@ static void draw_gccards(void) {
         ui_detail_note(HEX_DIM, "Saves inside Nintendont's virtual memory cards, synced "
                        "one game at a time with the GameCube client, Dolphin and Android.");
         ui_detail_field("Folder", "%s", g_state.nin_saves_dir);
+        ui_detail_note(HEX_DIM, "Settings > Rescan saves and games looks for card "
+                       "images again.");
         ui_detail_gap(6);
-        ui_detail_action("X", "Rescan");
-        if (g_cards.count > 1) ui_detail_action("R", "Next card");
+        if (g_cards.count > 0) ui_detail_action("X", "Import the whole card");
+        if (g_cards.count > 1) ui_detail_action("-", "Next card");
         return;
     }
 
@@ -1691,15 +2038,17 @@ static void draw_gccards(void) {
     ui_detail_field("Save file", "%s", s->filename);
     ui_detail_field("Card", "%s", g_card.filename);
     if (sv)
-        ui_detail_status(UI_ICON_OK, HEX_OK, "On the server", "Y restores that copy here");
+        ui_detail_status(UI_ICON_OK, HEX_OK, "On the server",
+                         "A, then Y restores that copy here");
     else if (g_server_loaded)
         ui_detail_status(UI_ICON_UP, HEX_WARN, "Not on the server", "A uploads it");
     else
         ui_detail_status(UI_ICON_UNKNOWN, HEX_DIM, "Server not checked",
                          "Open the GC Server view to compare");
-    ui_detail_action("A", "Upload to server");
-    ui_detail_action("Y", "Restore from server");
-    ui_detail_action("L", "Import the whole card");
+    ui_detail_action("A", "Upload / restore");
+    ui_detail_action("X", "Import the whole card");
+    ui_detail_action("Y", "Details");
+    if (g_cards.count > 1) ui_detail_action("-", "Next card");
 }
 
 /* "2026-09-30 21:04" (UTC) from a unix timestamp. */
@@ -1722,7 +2071,7 @@ static void draw_server(void) {
     if (g_server.count == 0) {
         const char *why = g_server.last_error[0] ? g_server.last_error
                         : g_server_loaded        ? "No GC saves on the server yet."
-                        : "Not fetched yet. Press X to load the list.";
+                        : "Not fetched yet. Press A to load the list.";
         if (g_server_loading)
             ui_list_empty("Loading server saves...", "Waiting for the server. B cancels.");
         else
@@ -1732,7 +2081,7 @@ static void draw_server(void) {
         ui_detail_note(HEX_DIM, "Every GameCube save the server holds, from any device. "
                        "Restore one into the open memory card.");
         ui_detail_gap(6);
-        ui_detail_action("X", "Refresh");
+        ui_detail_action("A", "Load the list");
         return;
     }
 
@@ -1764,20 +2113,72 @@ static void draw_server(void) {
     ui_detail_field("Target", "%s", g_cards.count ? g_card.filename : "no card open");
     ui_detail_gap(4);
     ui_detail_action("A", "Restore into the card");
-    ui_detail_action("Y", "Pull every save as .gci");
-    ui_detail_action("X", "Refresh");
+    ui_detail_action("X", "Pull every save as .gci");
+    ui_detail_action("Y", "Details");
 }
 
-static void upload_gc_save(void) {
+static void server_details(void) {
+    if (g_server.count == 0 || g_sv_sel >= g_server.count) return;
+    const ServerSave *s = &g_server.items[g_sv_sel];
+    char when[40];
+    format_time(s->timestamp, when, sizeof(when));
+    info_dialog(s->name[0] ? s->name : s->title_id,
+                "Title ID: %s\nUploaded: %s\n%s\nRestore target: %s",
+                s->title_id, when,
+                s->local ? "Also on the open memory card." : "Not on the open memory card.",
+                g_cards.count ? g_card.filename : "no card open");
+}
+
+static void gccard_details(void) {
+    if (g_card.count == 0 || g_gc_sel >= g_card.count) return;
+    const VmcfsSave *s = &g_card.saves[g_gc_sel];
+    const ServerSave *sv = server_save_find(s->title_id);
+    info_dialog(s->name[0] ? s->name : s->filename,
+                "Title ID: %s\nGame code: %s%s\nSave file: %s\nBlocks: %d\nCard: %s\n%s",
+                s->title_id, s->gamecode, s->company, s->filename, s->blocks,
+                g_card.filename,
+                sv ? "The server has a copy."
+                   : g_server_loaded ? "Not on the server yet."
+                                     : "Server not checked (open GC Server).");
+}
+
+static void restore_gc_save(const char *tid);
+
+/* A on a card save: one card offering both directions.  A uploads (the
+ * primary action), Y restores the server copy over it, B cancels. */
+static void gc_card_action(void) {
     if (!network_is_ready(&g_state)) { ui_error("Network not ready"); return; }
     if (g_card.count == 0 || g_gc_sel >= g_card.count) return;
     const VmcfsSave *s = &g_card.saves[g_gc_sel];
-    if (!confirm("Upload %s\nfrom %s to the server?", s->title_id, g_card.filename)) return;
+    const char *name = s->name[0] ? s->name : s->title_id;
+    bool can_restore = !g_server_loaded || server_save_find(s->title_id) != NULL;
+
+    static const UiHint UP_ONLY[] = { { "A", "Upload" }, { "B", "Cancel" } };
+    static const UiHint UP_RESTORE[] = {
+        { "A", "Upload" }, { "Y", "Restore from server" }, { "B", "Cancel" },
+    };
+    char msg[320];
+    snprintf(msg, sizeof(msg), "%s (%s)\non %s\n\nUpload it to the server%s?",
+             name, s->title_id, g_card.filename,
+             can_restore ? ", or restore the server's copy into the card" : "");
+    uint32_t b = can_restore ? ask("Memory card save", HEX_ACCENT, UP_RESTORE, 3, msg)
+                             : ask("Memory card save", HEX_ACCENT, UP_ONLY, 2, msg);
+    if (b == VPAD_BUTTON_Y) {
+        char tid[sizeof(s->title_id)];
+        snprintf(tid, sizeof(tid), "%s", s->title_id);
+        restore_gc_save(tid);   /* asks its own overwrite confirmation */
+        return;
+    }
+    if (b != VPAD_BUTTON_A) return;
+
     ui_status("Uploading %s...", s->title_id);
     redraw();
-    char msg[160];
-    int rc = gcsaves_upload_save(&g_state, &g_card, g_gc_sel, msg, sizeof(msg));
-    if (rc < 0) ui_error("%s", msg); else ui_status("%s", msg);
+    char res[160];
+    int rc = gcsaves_upload_save(&g_state, &g_card, g_gc_sel, res, sizeof(res));
+    if (rc < 0) { ui_error("%s", res); redraw(); return; }
+    /* Refresh the server list so the row's "on the server" mark is true. */
+    if (g_server_loaded) fetch_server();
+    ui_status("%s", res);
     redraw();
 }
 
@@ -1966,7 +2367,8 @@ static void sync_progress(const char *msg, int done, int total, void *user) {
 }
 
 static void sync_all_natives(void) {
-    if (!g_plan_valid) { ui_error("Compute a plan first (MINUS)"); return; }
+    if (!g_plan_valid) compute_plan();
+    if (!g_plan_valid) return;   /* compute_plan reported why */
     if (!confirm("Run the full sync plan?\n%d upload, %d download, %d new.\n"
                  "Conflicts are skipped; restores back up to SD first.",
                  g_plan.upload_count, g_plan.download_count, g_plan.server_only_count))
@@ -2018,9 +2420,9 @@ static void native_action(AppView view, int action) {
 
     int rc = 0;
     switch (action) {
-        case 0:   /* smart */
-            if (!g_plan_valid) { ui_error("Compute a plan first (MINUS)"); return; }
-            if (!confirm("Sync %s now?", tid)) return;
+        case 0:   /* smart — already confirmed by the sync card */
+            if (!g_plan_valid) compute_plan();
+            if (!g_plan_valid) return;
             busy_begin(BUSY_STATIC, "Syncing", tid, "Smart sync");
             redraw();
             rc = sync_one_smart(&g_state, list, tid, &g_plan);
@@ -2052,6 +2454,79 @@ static void native_action(AppView view, int action) {
     if (rc == 0) ui_status("%s", outcome);
     else         ui_error("%s", outcome);
     redraw();
+}
+
+static const char *ts_label(TitleStatus s);
+static const char *ts_explain(TitleStatus s);
+
+/* A on a vWii / Wii U row: one card with every direction.  A = smart sync
+ * (the primary action), X = force upload, Y = force download, B = cancel.
+ * The two forced directions still ask their own overwrite confirmation. */
+static void native_sync_card(AppView view) {
+    SaveTitleList *list = native_list(view);
+    int sel = *native_sel(view);
+    const char *tid = NULL, *name = NULL;
+    bool local = false;
+    if (sel < list->title_count) {
+        const SaveTitle *t = &list->titles[sel];
+        if (t->error[0]) { ui_error("%s is unreadable: %s", t->title_id, t->error); return; }
+        tid = t->title_id;
+        name = t->name[0] ? t->name : t->title_id;
+        local = true;
+    } else if (g_plan_valid) {
+        int k = sel - list->title_count;
+        if (k >= 0 && k < g_plan.server_only_count) {
+            tid = g_plan.server_only_ids[k];
+            name = g_plan.server_only_names[k][0] ? g_plan.server_only_names[k] : tid;
+        }
+    }
+    if (!tid) return;
+    if (!network_is_ready(&g_state)) { ui_error("Network not ready"); return; }
+
+    TitleStatus st = g_plan_valid ? sync_plan_status(&g_plan, tid) : TITLE_STATUS_UNKNOWN;
+    if (!local) st = TITLE_STATUS_SERVER_ONLY;
+    char msg[320];
+    snprintf(msg, sizeof(msg), "%s\n%s\n\nStatus: %s - %s", name, tid, ts_label(st),
+             ts_explain(st));
+
+    static const UiHint ALL[] = {
+        { "A", "Sync" }, { "X", "Force upload" }, { "Y", "Force download" }, { "B", "Cancel" },
+    };
+    static const UiHint REMOTE[] = {
+        { "A", "Sync" }, { "Y", "Force download" }, { "B", "Cancel" },
+    };
+    uint32_t b = local ? ask("Sync save", HEX_ACCENT, ALL, 4, msg)
+                       : ask("Sync save", HEX_ACCENT, REMOTE, 3, msg);
+    if (b == VPAD_BUTTON_A)      native_action(view, 0);
+    else if (b == VPAD_BUTTON_X) native_action(view, 1);
+    else if (b == VPAD_BUTTON_Y) native_action(view, 2);
+}
+
+static void native_details(AppView view) {
+    SaveTitleList *list = native_list(view);
+    int sel = *native_sel(view);
+    if (sel < list->title_count) {
+        const SaveTitle *t = &list->titles[sel];
+        if (t->error[0]) {
+            info_dialog(t->name[0] ? t->name : t->title_id, "Title ID: %s\nUnreadable: %s",
+                        t->title_id, t->error);
+            return;
+        }
+        TitleStatus st = g_plan_valid ? sync_plan_status(&g_plan, t->title_id)
+                                      : TITLE_STATUS_UNKNOWN;
+        char sz[16];
+        human_size(t->total_size, sz, sizeof(sz));
+        info_dialog(t->name[0] ? t->name : t->title_id,
+                    "%s save\nTitle ID: %s\nFiles: %d (%s)\nStatus: %s - %s",
+                    view == APP_VIEW_VWII ? "vWii" : "Wii U", t->title_id,
+                    t->file_count, sz, ts_label(st), ts_explain(st));
+    } else if (g_plan_valid && sel - list->title_count < g_plan.server_only_count) {
+        int k = sel - list->title_count;
+        info_dialog(g_plan.server_only_names[k][0] ? g_plan.server_only_names[k]
+                                                   : g_plan.server_only_ids[k],
+                    "Title ID: %s\nOnly on the server - A downloads it to this console.",
+                    g_plan.server_only_ids[k]);
+    }
 }
 
 static const char *ts_label(TitleStatus s) {
@@ -2092,9 +2567,9 @@ static const char *ts_explain(TitleStatus s) {
         case TITLE_STATUS_UP_TO_DATE:     return "Console and server match";
         case TITLE_STATUS_NEEDS_UPLOAD:   return "Only this console changed - A uploads";
         case TITLE_STATUS_NEEDS_DOWNLOAD: return "Only the server changed - A downloads";
-        case TITLE_STATUS_CONFLICT:       return "Both changed - pick X or Y";
+        case TITLE_STATUS_CONFLICT:       return "Both changed - A, then X uploads or Y downloads";
         case TITLE_STATUS_SERVER_ONLY:    return "A downloads it to this console";
-        default:                          return "MINUS scans and asks the server";
+        default:                          return "Not compared yet - A asks the server";
     }
 }
 
@@ -2133,7 +2608,7 @@ static void draw_natives(AppView view) {
     if (list->title_count == 0 && extra == 0) {
         ui_list_empty("No saves found",
                       list->last_error[0] ? list->last_error
-                          : "MINUS rescans the console and asks the server for a plan.");
+                          : "Settings > Rescan saves and games scans the console again.");
         ui_detail_begin(ui_view_name(view));
         ui_detail_note(HEX_DIM, vwii
                        ? "vWii NAND saves, synced as whole save trees with three-way hash "
@@ -2142,7 +2617,6 @@ static void draw_natives(AppView view) {
         ui_detail_field("libmocha", "%s", g_state.mocha_ok ? "available" : "not available");
         if (g_state.mocha_error[0]) ui_detail_note(HEX_WARN, "%s", g_state.mocha_error);
         detail_plan_summary();
-        ui_detail_action("-", "Rescan + plan");
         return;
     }
 
@@ -2215,43 +2689,44 @@ static void draw_natives(AppView view) {
                                                        : g_plan.server_only_ids[k]);
         ui_detail_field("Title ID", "%s", g_plan.server_only_ids[k]);
         ui_detail_status(UI_ICON_PLUS, HEX_INFO, "Only on the server",
-                         "A or Y downloads it here");
+                         "A downloads it here");
     } else {
         ui_detail_begin(ui_view_name(view));
     }
     detail_plan_summary();
-    ui_detail_action("A", "Smart sync");
-    ui_detail_action("L", "Run the whole plan");
+    ui_detail_action("A", "Sync / force a direction");
+    ui_detail_action("X", "Sync all (run the plan)");
+    ui_detail_action("Y", "Details");
 }
 
 /* ---- frame ---- */
 
 static const UiHint HINTS_ROMS[] = {
-    { "A", "Download" }, { "X", "Queue" }, { "Y", "Refresh" }, { "-", "System" },
-    { "LR", "Page" }, { "+", "Quit" },
+    { "A", "Download" }, { "X", "Queue" }, { "Y", "Details" }, { "-", "System" },
+    { "LR", "Page" }, { "+", "Exit" },
 };
 static const UiHint HINTS_LOCAL[] = {
-    { "A", "Install" }, { "X", "Delete" }, { "Y", "Rescan" }, { "LR", "Page" },
-    { "+", "Quit" },
+    { "A", "Install" }, { "X", "Delete" }, { "Y", "Details" }, { "LR", "Page" },
+    { "+", "Exit" },
 };
 static const UiHint HINTS_DOWNLOADS[] = {
-    { "A", "Start" }, { "Y", "Run all" }, { "X", "Remove" }, { "B", "Pause" },
-    { "+", "Quit" },
+    { "A", "Start" }, { "X", "Run all" }, { "Y", "Remove" }, { "B", "Pause" },
+    { "LR", "Page" }, { "+", "Exit" },
 };
 static const UiHint HINTS_GCCARDS[] = {
-    { "A", "Upload" }, { "Y", "Restore" }, { "R", "Next card" }, { "L", "Import card" },
-    { "X", "Rescan" }, { "+", "Quit" },
+    { "A", "Upload / restore" }, { "X", "Import card" }, { "Y", "Details" },
+    { "-", "Next card" }, { "LR", "Page" }, { "+", "Exit" },
 };
 static const UiHint HINTS_SERVER[] = {
-    { "A", "Restore" }, { "X", "Refresh" }, { "Y", "Pull all .gci" }, { "LR", "Page" },
-    { "+", "Quit" },
+    { "A", "Restore" }, { "X", "Pull all .gci" }, { "Y", "Details" }, { "LR", "Page" },
+    { "+", "Exit" },
 };
 static const UiHint HINTS_NATIVE[] = {
-    { "A", "Sync" }, { "X", "Force upload" }, { "Y", "Force download" },
-    { "-", "Rescan" }, { "L", "Sync all" }, { "+", "Quit" },
+    { "A", "Sync" }, { "X", "Sync all" }, { "Y", "Details" }, { "LR", "Page" },
+    { "+", "Exit" },
 };
 static const UiHint HINTS_CONFIG[] = {
-    { "UD", "Select" }, { "LR", "Change" }, { "A", "Edit / save" }, { "+", "Quit" },
+    { "UD", "Select" }, { "A", "Edit / run" }, { "LR", "Page" }, { "+", "Exit" },
 };
 
 #define HINTS(a) a, (int)(sizeof(a) / sizeof(a[0]))
@@ -2324,11 +2799,34 @@ static void redraw(void) {
 /* Lazy load: the first time a networked view is opened, populate it.
  * Boot stays offline (an unreachable server must never stall startup), but
  * the user should not have to know that a view needs a manual refresh. */
+/* Settings > Rescan saves and games: everything the old per-view rescan /
+ * refresh buttons did, in one place. */
+static void rescan_everything(void) {
+    if (g_state.sd_ready) {
+        scan_local();
+        scan_cards();
+    }
+    scan_natives();
+    if (network_is_ready(&g_state)) {
+        fetch_server();
+        compute_plan_ex(true);
+    }
+    ui_status("Rescanned: %d game(s), %d card(s), vWii %d, Wii U %d save(s)%s",
+              g_local.count, g_cards.count, g_vwii.title_count, g_wiiu.title_count,
+              g_plan_valid ? ", plan updated" : "");
+    redraw();
+}
+
 static void enter_view(void) {
+    /* The catalog loads from SD when the server cannot be reached, so it is
+     * attempted even without a network (an offline session never touches
+     * the network again until Settings > Refresh catalog). */
+    if (g_view == APP_VIEW_ROMS && !g_catalog_loaded) {
+        load_catalog();           /* sets g_catalog_loaded on success */
+        return;
+    }
     if (!network_is_ready(&g_state)) return;
-    if (g_view == APP_VIEW_ROMS && !g_catalog_loaded)
-        fetch_catalog();          /* sets g_catalog_loaded on success */
-    else if (g_view == APP_VIEW_SERVER && !g_server_loaded)
+    if (g_view == APP_VIEW_SERVER && !g_server_loaded)
         fetch_server();           /* sets g_server_loaded on success */
     else if ((g_view == APP_VIEW_VWII || g_view == APP_VIEW_WIIU) && !g_plan_valid)
         /* Without a plan the view only shows saves found on the console —
@@ -2582,8 +3080,7 @@ int main(int argc, char **argv) {
             break;
         }
 
-        uint32_t held = 0;
-        uint32_t down = pad_read(&held);
+        uint32_t down = pad_poll();   /* D-pad presses + hold repeat */
         if (down == 0) {
             OSSleepTicks(OSMillisecondsToTicks(16));
             continue;
@@ -2601,8 +3098,9 @@ int main(int argc, char **argv) {
             break;
         }
 
-        if (down & VPAD_BUTTON_ZL)      cycle_view(-1);
-        else if (down & VPAD_BUTTON_ZR) cycle_view(+1);
+        /* L / R switch the top-level views on every screen, wrapping. */
+        if (down & VPAD_BUTTON_L)      cycle_view(-1);
+        else if (down & VPAD_BUTTON_R) cycle_view(+1);
 
         else if (g_view == APP_VIEW_ROMS) {
             if      (down & VPAD_BUTTON_UP)    g_rom_sel--;
@@ -2611,8 +3109,8 @@ int main(int argc, char **argv) {
             else if (down & VPAD_BUTTON_RIGHT) g_rom_sel += ui_list_visible();
             else if (down & VPAD_BUTTON_A) {
                 /* A is the confirm/primary action: download the selection.
-                 * On an empty list it (re)fetches instead. */
-                if (g_catalog.count == 0) fetch_catalog();
+                 * On an empty list it loads the catalog instead. */
+                if (g_catalog.count == 0) load_catalog();
                 else if (g_rom_sel < g_catalog.count) {
                     const RomEntry *rom = &g_catalog.items[g_rom_sel];
                     char sz[16]; human_size(rom->size, sz, sizeof(sz));
@@ -2622,7 +3120,7 @@ int main(int argc, char **argv) {
             }
             else if (down & VPAD_BUTTON_MINUS) toggle_catalog_system();
             else if (down & VPAD_BUTTON_X)     queue_selected_rom(false);
-            else if (down & VPAD_BUTTON_Y)     fetch_catalog();
+            else if (down & VPAD_BUTTON_Y)     catalog_details();
             clamp_scroll(&g_rom_sel, &g_rom_scroll, g_catalog.count);
         }
         else if (g_view == APP_VIEW_LOCAL) {
@@ -2632,7 +3130,7 @@ int main(int argc, char **argv) {
             else if (down & VPAD_BUTTON_LEFT)  g_loc_sel -= ui_list_visible();
             else if (down & VPAD_BUTTON_RIGHT) g_loc_sel += ui_list_visible();
             else if (down & VPAD_BUTTON_A)     install_selected_local();
-            else if (down & VPAD_BUTTON_Y)     scan_local();
+            else if (down & VPAD_BUTTON_Y)     local_details();
             else if (down & VPAD_BUTTON_X) {
                 if (c > 0 && g_loc_sel < c &&
                     confirm_danger("Delete game", "Delete %s\n(%s) from storage?",
@@ -2651,17 +3149,18 @@ int main(int argc, char **argv) {
             int c = g_dl_group_count;
             if      (down & VPAD_BUTTON_UP)    g_dl_sel--;
             else if (down & VPAD_BUTTON_DOWN)  g_dl_sel++;
+            else if (down & VPAD_BUTTON_LEFT)  g_dl_sel -= ui_list_visible();
+            else if (down & VPAD_BUTTON_RIGHT) g_dl_sel += ui_list_visible();
             else if (down & VPAD_BUTTON_A) {
                 if (c > 0 && g_dl_sel < c)
                     run_download_group(g_dl_groups[g_dl_sel].rom_id);
             }
-            else if (down & VPAD_BUTTON_Y) run_download_queue();
-            else if (down & VPAD_BUTTON_X) {
+            else if (down & VPAD_BUTTON_X) run_download_queue();
+            else if (down & VPAD_BUTTON_Y) {
                 if (c > 0 && g_dl_sel < c) {
                     DlGroup *g = &g_dl_groups[g_dl_sel];
-                    if (g->files <= 1 ||
-                        confirm("Remove %s\n(%d files) from the queue?",
-                                g->name, g->files))
+                    if (confirm("Remove %s\n(%d file%s) from the queue?",
+                                g->name, g->files, g->files == 1 ? "" : "s"))
                         remove_download_group(g->rom_id);
                 }
             }
@@ -2669,44 +3168,32 @@ int main(int argc, char **argv) {
             clamp_scroll(&g_dl_sel, &g_dl_scroll, g_dl_group_count);
         }
         else if (g_view == APP_VIEW_GCCARDS) {
-            int vis = ui_list_visible();
-            if (vis < 1) vis = 1;
             if      (down & VPAD_BUTTON_UP)    g_gc_sel--;
             else if (down & VPAD_BUTTON_DOWN)  g_gc_sel++;
-            else if (down & VPAD_BUTTON_LEFT)  g_gc_sel -= vis;
-            else if (down & VPAD_BUTTON_RIGHT) g_gc_sel += vis;
-            else if (down & VPAD_BUTTON_R) {
-                if (g_cards.count > 0) { open_card((g_card_active + 1) % g_cards.count); }
+            else if (down & VPAD_BUTTON_LEFT)  g_gc_sel -= ui_list_visible();
+            else if (down & VPAD_BUTTON_RIGHT) g_gc_sel += ui_list_visible();
+            else if (down & VPAD_BUTTON_MINUS) {
+                /* Sub-tab: next card image. */
+                if (g_cards.count > 1) open_card((g_card_active + 1) % g_cards.count);
             }
-            else if (down & VPAD_BUTTON_X)     scan_cards();
-            else if (down & VPAD_BUTTON_A)     upload_gc_save();
-            else if (down & VPAD_BUTTON_Y) {
-                if (g_card.count > 0 && g_gc_sel < g_card.count)
-                    restore_gc_save(g_card.saves[g_gc_sel].title_id);
-            }
-            else if (down & VPAD_BUTTON_L)     import_whole_card();
-
-            if (g_card.count == 0) { g_gc_sel = 0; g_gc_scroll = 0; }
-            else {
-                if (g_gc_sel < 0) g_gc_sel = 0;
-                if (g_gc_sel >= g_card.count) g_gc_sel = g_card.count - 1;
-                if (g_gc_sel < g_gc_scroll) g_gc_scroll = g_gc_sel;
-                if (g_gc_sel >= g_gc_scroll + vis) g_gc_scroll = g_gc_sel - vis + 1;
-                if (g_gc_scroll < 0) g_gc_scroll = 0;
-            }
+            else if (down & VPAD_BUTTON_A)     gc_card_action();
+            else if (down & VPAD_BUTTON_X)     import_whole_card();
+            else if (down & VPAD_BUTTON_Y)     gccard_details();
+            clamp_scroll(&g_gc_sel, &g_gc_scroll, g_card.count);
         }
         else if (g_view == APP_VIEW_SERVER) {
             if      (down & VPAD_BUTTON_UP)    g_sv_sel--;
             else if (down & VPAD_BUTTON_DOWN)  g_sv_sel++;
             else if (down & VPAD_BUTTON_LEFT)  g_sv_sel -= ui_list_visible();
             else if (down & VPAD_BUTTON_RIGHT) g_sv_sel += ui_list_visible();
-            else if (down & VPAD_BUTTON_X)     fetch_server();
             else if (down & VPAD_BUTTON_A) {
-                if (g_server.count > 0 && g_sv_sel < g_server.count)
+                if (g_server.count == 0) fetch_server();
+                else if (g_sv_sel < g_server.count)
                     restore_gc_save(g_server.items[g_sv_sel].title_id);
             }
-            else if (down & VPAD_BUTTON_Y) {
-                if (confirm("Download every server GC save as a .gci\ninto 3dssync/gci?")) {
+            else if (down & VPAD_BUTTON_X) {
+                if (g_server.count > 0 &&
+                    confirm("Download every server GC save as a .gci\ninto 3dssync/gci?")) {
                     char msg[160];
                     ui_status("Pulling GCIs...");
                     redraw();
@@ -2714,23 +3201,23 @@ int main(int argc, char **argv) {
                     ui_status("%s", msg);
                 }
             }
+            else if (down & VPAD_BUTTON_Y)     server_details();
             clamp_scroll(&g_sv_sel, &g_sv_scroll, g_server.count);
         }
         else if (g_view == APP_VIEW_VWII || g_view == APP_VIEW_WIIU) {
             SaveTitleList *list = native_list(g_view);
             int *sel = native_sel(g_view);
             int *scroll = native_scroll(g_view);
-            int count = list->title_count + (g_plan_valid ? g_plan.server_only_count : 0);
 
             if      (down & VPAD_BUTTON_UP)    (*sel)--;
             else if (down & VPAD_BUTTON_DOWN)  (*sel)++;
             else if (down & VPAD_BUTTON_LEFT)  (*sel) -= ui_list_visible();
             else if (down & VPAD_BUTTON_RIGHT) (*sel) += ui_list_visible();
-            else if (down & VPAD_BUTTON_MINUS) { scan_natives(); compute_plan(); }
-            else if (down & VPAD_BUTTON_L)     sync_all_natives();
-            else if (down & VPAD_BUTTON_A)     native_action(g_view, 0);
-            else if (down & VPAD_BUTTON_X)     native_action(g_view, 1);
-            else if (down & VPAD_BUTTON_Y)     native_action(g_view, 2);
+            else if (down & VPAD_BUTTON_A)     native_sync_card(g_view);
+            else if (down & VPAD_BUTTON_X)     sync_all_natives();
+            else if (down & VPAD_BUTTON_Y)     native_details(g_view);
+            /* Counted after the action: a sync or plan refresh changes it. */
+            int count = list->title_count + (g_plan_valid ? g_plan.server_only_count : 0);
             clamp_scroll(sel, scroll, count);
         }
         else if (g_view == APP_VIEW_CONFIG) config_input(down);

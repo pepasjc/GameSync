@@ -60,6 +60,9 @@ typedef struct {
     RomEntry items[ROM_CATALOG_MAX];
     int      count;
     char     system[8];          /* the system this catalog was fetched for */
+    /* Set when a later page failed after earlier ones landed: the rows are
+     * usable but must not be cached as the system's complete list. */
+    bool     partial;
     char     last_error[160];
 } RomCatalog;
 
@@ -67,6 +70,13 @@ bool roms_fetch_catalog(const SyncState *state,
                         const char *system_code,
                         char *scratch_buf, uint32_t scratch_buf_size,
                         RomCatalog *catalog);
+
+/* Look ``system`` up in a GET /api/v1/roms/fingerprints body
+ * ({"systems": {SYS: {"fingerprint": "...", "count": N}}}).
+ * Returns 1 and copies the fingerprint when listed, 0 when the server does
+ * not list the system, -1 when the body is not a fingerprints object. */
+int roms_parse_fingerprint(const char *body, int len, const char *system,
+                           char *fp_out, size_t fp_size);
 
 /* ?extract= value for this entry (whatever the server advertised). */
 const char *roms_preferred_extract_format(const RomEntry *rom);

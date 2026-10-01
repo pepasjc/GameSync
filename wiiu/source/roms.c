@@ -261,6 +261,7 @@ bool roms_fetch_catalog(const SyncState *state, const char *system_code,
                         RomCatalog *catalog) {
     if (!state || !catalog || !scratch_buf) return false;
     catalog->count = 0;
+    catalog->partial = false;
     catalog->last_error[0] = '\0';
     snprintf(catalog->system, sizeof(catalog->system), "%s",
              (system_code && system_code[0]) ? system_code : "GC");
@@ -283,6 +284,7 @@ bool roms_fetch_catalog(const SyncState *state, const char *system_code,
                              "Catalog fetch failed (HTTP %d, n=%d)", status, n);
                 return false;
             }
+            catalog->partial = true;
             break;
         }
 
@@ -296,6 +298,31 @@ bool roms_fetch_catalog(const SyncState *state, const char *system_code,
         if (pages >= (ROM_CATALOG_MAX / page_size) + 2) break;
     }
     return true;
+}
+
+int roms_parse_fingerprint(const char *body, int len, const char *system,
+                           char *fp_out, size_t fp_size) {
+    if (fp_out && fp_size) fp_out[0] = '\0';
+    if (!body || len <= 0 || !system) return -1;
+    const char *end = body + len;
+    const char *p = skip_ws(body);
+    if (p >= end || *p != '{') return -1;
+
+    const char *systems = find_key(p + 1, end, "systems");
+    if (!systems || systems >= end || *systems != '{') return -1;
+    const char *sys_end = NULL;
+    if (!object_bounds(systems, end, &sys_end)) return -1;
+
+    const char *entry = find_key(systems + 1, sys_end, system);
+    if (!entry || *entry != '{') return 0;
+    const char *entry_end = NULL;
+    if (!object_bounds(entry, sys_end + 1, &entry_end)) return -1;
+
+    const char *fp = find_key(entry + 1, entry_end, "fingerprint");
+    char tmp[128];
+    if (!fp || !extract_str(fp, entry_end, tmp, sizeof(tmp))) return -1;
+    if (fp_out && fp_size) snprintf(fp_out, fp_size, "%s", tmp);
+    return 1;
 }
 
 const char *roms_preferred_extract_format(const RomEntry *rom) {

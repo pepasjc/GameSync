@@ -34,6 +34,19 @@ int network_fetch_rom_catalog(const SyncState *state,
                               char *out, uint32_t out_size,
                               int *status_out);
 
+/* GET /api/v1/roms/fingerprints — per-system catalog fingerprints (see
+ * catcache.h).  Body into ``out``; returns its length or < 0 on a network
+ * error; ``status_out`` gets the HTTP status (404 = server predates it). */
+int network_fetch_rom_fingerprints(const SyncState *state,
+                                   char *out, uint32_t out_size,
+                                   int *status_out);
+
+/* GET /api/v1/roms/scan — ask the server to walk its ROM folder again.
+ * Returns the HTTP status (200 ok, 403 not allowed, ...) or < 0 on a
+ * network error.  Can take minutes on a big library; B cancels via the
+ * global wait callback. */
+int network_rescan_roms(const SyncState *state);
+
 /* Resumable streaming download to target_path (.part + atomic rename).
  *    0 ok / 1 paused / -1 net error / -2 fs error / -3 HTTP non-2xx */
 int network_download_rom_resumable(const SyncState *state,
