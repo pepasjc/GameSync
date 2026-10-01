@@ -9,7 +9,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <pspiofilemgr.h>
-#include <pspdebug.h>
 
 #include "saves.h"
 #include "sha256.h"
@@ -54,13 +53,8 @@ bool saves_is_valid_game_id(const char *game_id) {
 void saves_scan(SyncState *state) {
     state->num_titles = 0;
 
-    pspDebugScreenPrintf("saves_scan: opening %s\n", SAVEDATA_PATH);
     SceUID dir = sceIoDopen(SAVEDATA_PATH);
-    if (dir < 0) {
-        pspDebugScreenPrintf("saves_scan: sceIoDopen failed: %d\n", dir);
-        return;
-    }
-    pspDebugScreenPrintf("saves_scan: dir opened OK\n");
+    if (dir < 0) return;
 
     /* SceIoDirent must be zeroed: d_private is a kernel-filled pointer and
      * must start as NULL so the kernel skips writing long filenames through it
@@ -69,9 +63,7 @@ void saves_scan(SyncState *state) {
     SceIoDirent entry;
     memset(&entry, 0, sizeof(entry));
 
-    int scanned = 0;
     while (sceIoDread(dir, &entry) > 0) {
-        scanned++;
         if (!(entry.d_stat.st_attr & FIO_SO_IFDIR)) continue;
         if (entry.d_name[0] == '.') continue;
 
@@ -85,8 +77,6 @@ void saves_scan(SyncState *state) {
 
         if (!saves_is_valid_game_id(game_id)) continue;
         if (state->num_titles >= MAX_TITLES) break;
-
-        pspDebugScreenPrintf("  found: %s\n", game_id);
 
         TitleInfo *t = &state->titles[state->num_titles];
         memset(t, 0, sizeof(TitleInfo));
@@ -112,8 +102,6 @@ void saves_scan(SyncState *state) {
         if (t->file_count > 0)
             state->num_titles++;
     }
-    pspDebugScreenPrintf("saves_scan: done. scanned=%d found=%d\n",
-                         scanned, state->num_titles);
     sceIoDclose(dir);
 }
 

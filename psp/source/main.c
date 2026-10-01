@@ -23,7 +23,6 @@
  */
 
 #include <pspkernel.h>
-#include <pspdebug.h>
 #include <pspctrl.h>
 #include <psppower.h>
 #include <pspthreadman.h>
@@ -71,8 +70,6 @@ static void setup_callbacks(void) {
         sceKernelStartThread(thid, 0, NULL);
 }
 
-#define LIST_VISIBLE 20
-
 static SyncState g_state;
 static int g_selected = 0;
 static int g_scroll = 0;
@@ -88,7 +85,7 @@ static int g_dl_selected  = 0;
 static int g_dl_scroll    = 0;
 
 /* Catalog system cycle (PSP/PS1).  L1/R1 in ROMs view rotates. */
-static const char *G_ROM_SYSTEMS[] = { "PSP", "PS1" };
+static const char *const G_ROM_SYSTEMS[] = { "PSP", "PS1" };
 #define G_ROM_SYSTEM_COUNT ((int)(sizeof(G_ROM_SYSTEMS) / sizeof(G_ROM_SYSTEMS[0])))
 static int g_rom_system_index = 0;
 
@@ -116,11 +113,19 @@ static int title_compare(const void *a, const void *b) {
     return strcasecmp(ta->name, tb->name);
 }
 
-static void update_scroll(void) {
-    if (g_selected < g_scroll)
-        g_scroll = g_selected;
-    if (g_selected >= g_scroll + LIST_VISIBLE)
-        g_scroll = g_selected - LIST_VISIBLE + 1;
+/* Keep `*selected` inside the visible window starting at `*scroll`. */
+static void clamp_scroll(int selected, int *scroll) {
+    if (selected < *scroll)
+        *scroll = selected;
+    if (selected >= *scroll + UI_LIST_ROWS)
+        *scroll = selected - UI_LIST_ROWS + 1;
+}
+
+static void draw_downloads_view(bool vsync) {
+    ui_draw_downloads(&g_downloads, g_dl_selected, g_dl_scroll,
+                      g_active_in_progress,
+                      g_active_downloaded, g_active_total,
+                      g_active_bps, vsync);
 }
 
 /* ===== ROM download helpers (mirror of PS3 client) ===== */
@@ -151,23 +156,14 @@ static int rom_progress64_cb(uint64_t downloaded, uint64_t total) {
         g_dl_speed_anchor_bytes = downloaded;
     }
 
-    /* Partial repaint of the active-progress rows only.  Avoids the
-     * pspDebugScreenClear() call that caused visible flicker — the
-     * tab strip, list rows, and status line stay untouched between
-     * progress ticks.  Throttle still kept at ~4 Hz to bound CPU
-     * cost of formatting + writes during fast transfers. */
-    if (g_app_view == APP_VIEW_DOWNLOADS) {
-        static uint32_t last_draw_us = 0;
-        uint32_t now_us = sceKernelGetSystemTimeLow();
-        bool first = (last_draw_us == 0);
-        bool finished = (total > 0 && downloaded >= total);
-        if (first || finished || (now_us - last_draw_us) >= 250000U) {
-            last_draw_us = now_us;
-            ui_draw_progress_partial(&g_downloads,
-                                     g_active_downloaded,
-                                     g_active_total,
-                                     g_active_bps);
-        }
+    /* Redraw the Downloads view at most ~5 times a second, without
+     * waiting for vblank, so the transfer loop is never held up. */
+    static uint32_t last_draw_us = 0;
+    uint32_t now_us = sceKernelGetSystemTimeLow();
+    bool finished = (total > 0 && downloaded >= total);
+    if (last_draw_us == 0 || finished || (now_us - last_draw_us) >= 200000U) {
+        last_draw_us = now_us ? now_us : 1;
+        draw_downloads_view(false);
     }
     return 0;
 }
@@ -183,7 +179,7 @@ static void run_download(SyncState *state, DownloadEntry *e) {
         for (int i = 0; i < g_downloads.count; i++) {
             if (strcmp(g_downloads.items[i].rom_id, e->rom_id) == 0) {
                 g_dl_selected = i;
-                if (g_dl_selected < g_dl_scroll) g_dl_scroll = g_dl_selected;
+                clamp_scroll(g_dl_selected, &g_dl_scroll);
                 break;
             }
         }
@@ -221,15 +217,7 @@ static void run_download(SyncState *state, DownloadEntry *e) {
     g_active_rom_id[sizeof(g_active_rom_id) - 1] = '\0';
 
     e->status = DL_STATUS_ACTIVE;
-
-    /* One full repaint up front so the tab strip, list rows, and
-     * status line are on screen.  Subsequent progress updates from
-     * rom_progress64_cb are partial — only the 4 active-panel rows —
-     * which is what kills the flicker. */
-    ui_draw_downloads(&g_downloads, g_dl_selected, g_dl_scroll,
-                      "Downloading...  (Square = pause)", true,
-                      g_active_downloaded, g_active_total,
-                      g_active_bps, g_app_view);
+    draw_downloads_view(false);
 
     network_set_progress64_cb(rom_progress64_cb);
     uint64_t total_seen = 0;
@@ -242,27 +230,48 @@ static void run_download(SyncState *state, DownloadEntry *e) {
     e->offset = g_active_downloaded;
     if (total_seen > 0) e->total = total_seen;
 
-    if (rc == 0) {
-        e->status = DL_STATUS_COMPLETED;
-        ui_message("Download complete:\n%s\n\nSaved to:\n%s",
-                   e->name[0] ? e->name : e->filename, e->target_path);
-    } else if (rc == 1) {
-        e->status = DL_STATUS_PAUSED;
-        ui_status("Paused %s", e->filename);
-    } else {
-        e->status = DL_STATUS_ERROR;
-        ui_message("Download failed (code %d) for:\n%s",
-                   rc, e->filename);
-    }
-    downloads_save(&g_downloads);
-
     g_active_in_progress = false;
     g_pause_requested    = false;
     g_active_rom_id[0]   = '\0';
+
+    if (rc == 0) {
+        e->status = DL_STATUS_COMPLETED;
+        ui_message(UI_TONE_OK, "Download complete", "%s\n\nSaved to:\n%s",
+                   e->name[0] ? e->name : e->filename, e->target_path);
+    } else if (rc == 1) {
+        e->status = DL_STATUS_PAUSED;
+        ui_toast(UI_TONE_WARN, "Paused %s", e->name[0] ? e->name : e->filename);
+    } else {
+        e->status = DL_STATUS_ERROR;
+        ui_message(UI_TONE_ERR, "Download failed", "Error code %d while downloading:\n%s",
+                   rc, e->filename);
+    }
+    downloads_save(&g_downloads);
 }
 
 static void cycle_view(void) {
     g_app_view = (AppView)(((int)g_app_view + 1) % APP_VIEW_COUNT);
+}
+
+/* Fetch the save's server-side info and run the confirm dialog for
+ * `action`; on confirmation execute it and report the result. */
+static void confirm_and_sync(int idx, SyncAction action, const char *verb) {
+    TitleInfo *title = &g_state.titles[idx];
+    char server_hash[65] = "";
+    uint32_t server_size = 0;
+    char server_last_sync[32] = "";
+    network_get_save_info(&g_state, title->game_id, server_hash, &server_size, server_last_sync);
+
+    if (!ui_confirm(title, action, server_hash, server_size, server_last_sync))
+        return;
+
+    ui_status("%s %s...", verb, title->name[0] ? title->name : title->game_id);
+    int r = sync_execute(&g_state, idx, action);
+    if (r == 0)
+        ui_toast(UI_TONE_OK, "%s finished", action == SYNC_UPLOAD ? "Upload" : "Download");
+    else
+        ui_message(UI_TONE_ERR, "Sync failed", "%s failed (error %d) for:\n%s",
+                   action == SYNC_UPLOAD ? "Upload" : "Download", r, title->game_id);
 }
 
 int main(int argc, char *argv[]) {
@@ -282,18 +291,15 @@ int main(int argc, char *argv[]) {
 
     /* Load config */
     char err_buf[256];
-    ui_clear();
     ui_status("Loading config...");
 
     if (!config_load(&g_state, err_buf, sizeof(err_buf))) {
-        ui_clear();
-        pspDebugScreenPrintf("Config error:\n%s\n\n", err_buf);
-        pspDebugScreenPrintf("Create config.txt in:\n%s\n\n", SYNC_STATE_DIR);
-        pspDebugScreenPrintf("Format:\n");
-        pspDebugScreenPrintf("server_url=http://192.168.1.100:8000\n");
-        pspDebugScreenPrintf("api_key=your-key\n");
-        pspDebugScreenPrintf("wifi_ap=0\n\n");
-        pspDebugScreenPrintf("Press HOME to exit\n");
+        ui_fatal("Config error",
+                 "%s\n\nCreate config.txt in %s with:\n"
+                 "server_url=http://192.168.1.100:8000\n"
+                 "api_key=your-key\n"
+                 "wifi_ap=0",
+                 err_buf, SYNC_STATE_DIR);
         sceKernelSleepThread();
         return 0;
     }
@@ -301,55 +307,40 @@ int main(int argc, char *argv[]) {
     config_load_console_id(&g_state);
 
     /* Initialize network */
-    ui_clear();
     ui_status("Initializing network...");
     int net_init = network_init();
     bool has_wifi = false;
 
     if (net_init == 0) {
-        ui_status("Connecting to WiFi (AP %d)...", g_state.wifi_ap_index);
+        ui_status("Connecting to WiFi (access point %d)...", g_state.wifi_ap_index + 1);
         if (network_connect_ap(g_state.wifi_ap_index) == 0) {
             ui_status("WiFi connected. Checking server...");
             has_wifi = network_check_server(&g_state);
             if (!has_wifi) {
-                ui_message("Cannot reach server at:\n%s\n\nContinuing offline.",
+                ui_message(UI_TONE_WARN, "Server unreachable",
+                           "Cannot reach the server at:\n%s\n\nContinuing offline.",
                            g_state.server_url);
             }
         } else {
-            ui_message("WiFi connection failed.\nCheck AP index in config.txt.\n\nContinuing offline.");
+            ui_message(UI_TONE_WARN, "WiFi connection failed",
+                       "Check wifi_ap in config.txt.\n\nContinuing offline.");
         }
     } else {
-        /* Pause so pspDebugScreenPrintf output from network_init() stays visible */
-        pspDebugScreenPrintf("\n--- network_init returned 0x%08X ---\nPress X to continue\n", net_init);
-        {
-            SceCtrlData pad;
-            uint32_t prev = 0;
-            while (1) {
-                sceCtrlReadBufferPositive(&pad, 1);
-                uint32_t just = pad.Buttons & ~prev;
-                prev = pad.Buttons;
-                if (just & PSP_CTRL_CROSS) break;
-                sceKernelDelayThread(16000);
-            }
-        }
-        ui_message("Network init failed\n0x%08X (%d)\nContinuing offline.", net_init, net_init);
+        ui_message(UI_TONE_ERR, "Network unavailable",
+                   "Network init failed\n%s (%d)\n\nContinuing offline.",
+                   network_init_error(), net_init);
     }
+    ui_set_online(has_wifi);
 
     /* Scan saves */
-    ui_clear();
     ui_status("Scanning PSP/SAVEDATA...");
     saves_scan(&g_state);
 
     if (has_wifi) {
         ui_status("Checking server saves...");
         int srv_added = 0, srv_seen = 0;
-        int merge_rc = network_merge_server_titles(&g_state, &srv_added, &srv_seen);
-        if (merge_rc < 0) {
-            ui_status("Server titles fetch failed.");
-        } else {
-            ui_status("Server saves: %d listed, %d new (server-only).",
-                      srv_seen, srv_added);
-        }
+        if (network_merge_server_titles(&g_state, &srv_added, &srv_seen) < 0)
+            ui_toast(UI_TONE_WARN, "Couldn't fetch the server's save list");
     }
 
     if (has_wifi && g_state.num_titles > 0) {
@@ -360,20 +351,18 @@ int main(int argc, char *argv[]) {
     if (g_state.num_titles > 1)
         qsort(g_state.titles, g_state.num_titles, sizeof(TitleInfo), title_compare);
 
-    ui_message("Found %d save(s).", g_state.num_titles);
-
     if (g_state.num_titles == 0) {
-        ui_clear();
-        pspDebugScreenPrintf("No PSP/PS1 saves found locally or on the server.\n\n");
-        pspDebugScreenPrintf("Local path:\n%s\n\n", SAVEDATA_PATH);
-        pspDebugScreenPrintf("Press HOME to exit\n");
+        ui_fatal("No saves",
+                 "No PSP/PS1 saves were found locally or on the server.\n\n"
+                 "Local path: %s", SAVEDATA_PATH);
         sceKernelSleepThread();
         return 0;
     }
+    ui_toast(UI_TONE_OK, "Found %d save%s", g_state.num_titles,
+             g_state.num_titles == 1 ? "" : "s");
 
     /* Main loop */
     SceCtrlData pad;
-    bool redraw = true;
     uint32_t prev_buttons = 0;
 
     /* Drain any buttons held during startup/scan before entering the loop. */
@@ -386,6 +375,8 @@ int main(int argc, char *argv[]) {
     memset(&g_downloads,   0, sizeof(g_downloads));
     downloads_load(&g_downloads);
 
+    /* Each iteration handles input, then draws the current view; the
+     * draw waits for vblank, which paces the loop at 60 fps. */
     while (1) {
         sceCtrlReadBufferPositive(&pad, 1);
         uint32_t pressed = pad.Buttons;
@@ -394,134 +385,66 @@ int main(int argc, char *argv[]) {
 
         /* START: cycle Saves -> ROM Catalog -> Downloads.  Available
          * from any view so the user can always escape. */
-        if (just_pressed & PSP_CTRL_START) {
+        if (just_pressed & PSP_CTRL_START)
             cycle_view();
-            redraw = true;
-        }
 
-        /* ─────────────  Saves view (existing behaviour)  ───────────── */
+        /* ─────────────  Saves view  ───────────── */
         if (g_app_view == APP_VIEW_SAVES) {
+            int total = g_state.num_titles;
 
-        /* Navigate list */
-        if (just_pressed & PSP_CTRL_DOWN) {
-            g_selected = (g_selected + 1) % g_state.num_titles;
-            update_scroll();
-            redraw = true;
-        }
-        if (just_pressed & PSP_CTRL_UP) {
-            g_selected = (g_selected - 1 + g_state.num_titles) % g_state.num_titles;
-            update_scroll();
-            redraw = true;
-        }
-        if (just_pressed & PSP_CTRL_RIGHT) {
-            g_selected = g_selected + LIST_VISIBLE;
-            if (g_selected >= g_state.num_titles)
-                g_selected = g_state.num_titles - 1;
-            update_scroll();
-            redraw = true;
-        }
-        if (just_pressed & PSP_CTRL_LEFT) {
-            g_selected = g_selected - LIST_VISIBLE;
-            if (g_selected < 0) g_selected = 0;
-            update_scroll();
-            redraw = true;
-        }
-
-        /* X button: smart sync */
-        if (just_pressed & PSP_CTRL_CROSS && has_wifi) {
-            TitleInfo *title = &g_state.titles[g_selected];
-            ui_clear();
-            ui_status("Analyzing %s...", title->game_id);
-
-            SyncAction action = sync_decide(&g_state, g_selected);
-
-            char server_hash[65] = "";
-            uint32_t server_size = 0;
-            char server_last_sync[32] = "";
-            network_get_save_info(&g_state, title->game_id, server_hash, &server_size, server_last_sync);
-
-            if (ui_confirm(title, action, server_hash, server_size, server_last_sync)) {
-                ui_clear();
-                ui_status("%s %s...",
-                    action == SYNC_UPLOAD ? "Uploading" : "Downloading",
-                    title->game_id);
-                int r = sync_execute(&g_state, g_selected, action);
-                if (r == 0)
-                    ui_message("Success!");
-                else
-                    ui_message("Failed! (error %d)", r);
+            if (just_pressed & PSP_CTRL_DOWN)
+                g_selected = (g_selected + 1) % total;
+            if (just_pressed & PSP_CTRL_UP)
+                g_selected = (g_selected - 1 + total) % total;
+            if (just_pressed & PSP_CTRL_RIGHT) {
+                g_selected += UI_LIST_ROWS;
+                if (g_selected >= total) g_selected = total - 1;
             }
-            prev_buttons = 0;
-            redraw = true;
-        }
+            if (just_pressed & PSP_CTRL_LEFT) {
+                g_selected -= UI_LIST_ROWS;
+                if (g_selected < 0) g_selected = 0;
+            }
+            clamp_scroll(g_selected, &g_scroll);
 
-        /* Square button: manual upload */
-        if (just_pressed & PSP_CTRL_SQUARE && has_wifi) {
-            TitleInfo *title = &g_state.titles[g_selected];
-            if (title->server_only) {
-                ui_message("This save only exists on the server.\n\nDownload it first.");
+            /* X button: smart sync */
+            if ((just_pressed & PSP_CTRL_CROSS) && has_wifi) {
+                TitleInfo *title = &g_state.titles[g_selected];
+                ui_status("Comparing %s with the server...",
+                          title->name[0] ? title->name : title->game_id);
+                SyncAction action = sync_decide(&g_state, g_selected);
+                confirm_and_sync(g_selected, action,
+                                 action == SYNC_UPLOAD ? "Uploading" : "Downloading");
                 prev_buttons = 0;
-                redraw = true;
-                continue;
             }
-            char server_hash[65] = "";
-            uint32_t server_size = 0;
-            char server_last_sync[32] = "";
-            network_get_save_info(&g_state, title->game_id, server_hash, &server_size, server_last_sync);
 
-            if (ui_confirm(title, SYNC_UPLOAD, server_hash, server_size, server_last_sync)) {
-                ui_clear();
-                ui_status("Uploading %s...", title->game_id);
-                int r = sync_execute(&g_state, g_selected, SYNC_UPLOAD);
-                if (r == 0)
-                    ui_message("Upload OK!");
+            /* Square button: manual upload */
+            if ((just_pressed & PSP_CTRL_SQUARE) && has_wifi) {
+                if (g_state.titles[g_selected].server_only)
+                    ui_message(UI_TONE_WARN, "Nothing to upload",
+                               "This save only exists on the server.\n\nDownload it first.");
                 else
-                    ui_message("Upload failed! (error %d)", r);
+                    confirm_and_sync(g_selected, SYNC_UPLOAD, "Uploading");
+                prev_buttons = 0;
             }
-            prev_buttons = 0;
-            redraw = true;
-        }
 
-        /* Triangle button: manual download */
-        if (just_pressed & PSP_CTRL_TRIANGLE && has_wifi) {
-            TitleInfo *title = &g_state.titles[g_selected];
-            char server_hash[65] = "";
-            uint32_t server_size = 0;
-            char server_last_sync[32] = "";
-            network_get_save_info(&g_state, title->game_id, server_hash, &server_size, server_last_sync);
-
-            if (ui_confirm(title, SYNC_DOWNLOAD, server_hash, server_size, server_last_sync)) {
-                ui_clear();
-                ui_status("Downloading %s...", title->game_id);
-                int r = sync_execute(&g_state, g_selected, SYNC_DOWNLOAD);
-                if (r == 0)
-                    ui_message("Download OK!");
-                else
-                    ui_message("Download failed! (error %d)", r);
+            /* Triangle button: manual download */
+            if ((just_pressed & PSP_CTRL_TRIANGLE) && has_wifi) {
+                confirm_and_sync(g_selected, SYNC_DOWNLOAD, "Downloading");
+                prev_buttons = 0;
             }
-            prev_buttons = 0;
-            redraw = true;
-        }
 
-        /* Select: auto sync all saves */
-        if (just_pressed & PSP_CTRL_SELECT && has_wifi) {
-            ui_clear();
-            SyncSummary summary;
-            sync_auto_all(&g_state, &summary, sync_progress);
-            ui_message("Auto sync complete:\n"
-                       "Uploaded:   %d\n"
-                       "Downloaded: %d\n"
-                       "Up to date: %d\n"
-                       "Conflicts:  %d\n"
-                       "Failed:     %d\n\n"
-                       "Press X to continue.",
-                       summary.uploaded, summary.downloaded,
-                       summary.up_to_date, summary.conflicts, summary.failed);
-            prev_buttons = 0;
-            redraw = true;
-        }
+            /* Select: auto sync all saves */
+            if ((just_pressed & PSP_CTRL_SELECT) && has_wifi) {
+                SyncSummary summary;
+                ui_status("Starting sync...");
+                sync_auto_all(&g_state, &summary, sync_progress);
+                ui_sync_summary(&summary);
+                prev_buttons = 0;
+            }
 
-        }  /* end APP_VIEW_SAVES */
+            ui_draw_saves(&g_state, g_selected, g_scroll);
+            continue;
+        }
 
         /* ─────────────  ROM Catalog view  ───────────── */
         if (g_app_view == APP_VIEW_ROMS) {
@@ -542,7 +465,6 @@ int main(int argc, char *argv[]) {
                 g_rom_scroll   = 0;
                 current_system = G_ROM_SYSTEMS[g_rom_system_index];
                 total = 0;
-                redraw = true;
             }
 
             /* Auto-fetch on first entry / after a refresh. */
@@ -556,54 +478,35 @@ int main(int argc, char *argv[]) {
                 total = g_rom_catalog.count;
                 if (g_rom_selected >= total)
                     g_rom_selected = total > 0 ? total - 1 : 0;
-                redraw = true;
             }
 
-            if ((just_pressed & PSP_CTRL_DOWN) && total > 0) {
+            if ((just_pressed & PSP_CTRL_DOWN) && total > 0)
                 g_rom_selected = (g_rom_selected + 1) % total;
-                if (g_rom_selected >= g_rom_scroll + LIST_VISIBLE)
-                    g_rom_scroll = g_rom_selected - LIST_VISIBLE + 1;
-                if (g_rom_selected < g_rom_scroll)
-                    g_rom_scroll = g_rom_selected;
-                redraw = true;
-            }
-            if ((just_pressed & PSP_CTRL_UP) && total > 0) {
+            if ((just_pressed & PSP_CTRL_UP) && total > 0)
                 g_rom_selected = (g_rom_selected - 1 + total) % total;
-                if (g_rom_selected < g_rom_scroll)
-                    g_rom_scroll = g_rom_selected;
-                if (g_rom_selected >= g_rom_scroll + LIST_VISIBLE)
-                    g_rom_scroll = g_rom_selected - LIST_VISIBLE + 1;
-                redraw = true;
-            }
             if ((just_pressed & PSP_CTRL_RIGHT) && total > 0) {
-                g_rom_selected += LIST_VISIBLE;
+                g_rom_selected += UI_LIST_ROWS;
                 if (g_rom_selected >= total) g_rom_selected = total - 1;
-                if (g_rom_selected >= g_rom_scroll + LIST_VISIBLE)
-                    g_rom_scroll = g_rom_selected - LIST_VISIBLE + 1;
-                redraw = true;
             }
             if ((just_pressed & PSP_CTRL_LEFT) && total > 0) {
-                g_rom_selected -= LIST_VISIBLE;
+                g_rom_selected -= UI_LIST_ROWS;
                 if (g_rom_selected < 0) g_rom_selected = 0;
-                if (g_rom_selected < g_rom_scroll)
-                    g_rom_scroll = g_rom_selected;
-                redraw = true;
             }
+            clamp_scroll(g_rom_selected, &g_rom_scroll);
 
             /* Circle: rescan server + refetch. */
             if (just_pressed & PSP_CTRL_CIRCLE) {
                 if (has_wifi) {
-                    ui_status("Server rescan...");
+                    ui_status("Asking the server to rescan its ROMs...");
                     int count = -1;
                     int rc = network_trigger_rom_scan(&g_state, &count);
-                    if (rc != 0) {
-                        ui_message("Server rescan failed (code %d).", rc);
-                    }
+                    if (rc != 0)
+                        ui_message(UI_TONE_ERR, "Rescan failed",
+                                   "Server rescan failed (code %d).", rc);
                 }
                 memset(&g_rom_catalog, 0, sizeof(g_rom_catalog));
                 g_rom_selected = 0;
                 g_rom_scroll   = 0;
-                redraw = true;
             }
 
             /* Cross: queue + start the selected ROM. */
@@ -612,9 +515,10 @@ int main(int argc, char *argv[]) {
                 DownloadEntry *e =
                     downloads_upsert_from_catalog(&g_downloads, r);
                 if (!e) {
-                    ui_message("Download queue full (%d).", DOWNLOAD_MAX);
+                    ui_message(UI_TONE_WARN, "Queue full",
+                               "The download queue is full (%d).", DOWNLOAD_MAX);
                 } else if (e->status == DL_STATUS_COMPLETED) {
-                    ui_message("Already downloaded:\n%s\n\nLocation:\n%s",
+                    ui_message(UI_TONE_OK, "Already downloaded", "%s\n\nLocation:\n%s",
                                e->name[0] ? e->name : e->filename,
                                e->target_path);
                 } else {
@@ -624,7 +528,6 @@ int main(int argc, char *argv[]) {
                     run_download(&g_state, e);
                 }
                 prev_buttons = 0;
-                redraw = true;
             }
 
             /* Triangle on a paused/error entry: resume. */
@@ -638,21 +541,15 @@ int main(int argc, char *argv[]) {
                     run_download(&g_state, e);
                 }
                 prev_buttons = 0;
-                redraw = true;
             }
 
-            if (redraw) {
-                char roms_status[128];
-                snprintf(roms_status, sizeof(roms_status),
-                         "%d entries, %d in queue",
-                         g_rom_catalog.count, g_downloads.count);
+            /* A download switches to the Downloads view; that one is
+             * drawn from the next iteration, with fresh input. */
+            if (g_app_view == APP_VIEW_ROMS)
                 ui_draw_rom_catalog(&g_rom_catalog, &g_downloads,
-                                    current_system,
-                                    g_rom_selected, g_rom_scroll,
-                                    roms_status, g_app_view);
-                redraw = false;
-            }
-            sceKernelDelayThread(16000);
+                                    G_ROM_SYSTEMS, G_ROM_SYSTEM_COUNT,
+                                    g_rom_system_index,
+                                    g_rom_selected, g_rom_scroll);
             continue;
         }
 
@@ -660,20 +557,11 @@ int main(int argc, char *argv[]) {
         if (g_app_view == APP_VIEW_DOWNLOADS) {
             int total = g_downloads.count;
 
-            if ((just_pressed & PSP_CTRL_DOWN) && total > 0) {
+            if ((just_pressed & PSP_CTRL_DOWN) && total > 0)
                 g_dl_selected = (g_dl_selected + 1) % total;
-                if (g_dl_selected >= g_dl_scroll + LIST_VISIBLE)
-                    g_dl_scroll = g_dl_selected - LIST_VISIBLE + 1;
-                if (g_dl_selected < g_dl_scroll) g_dl_scroll = g_dl_selected;
-                redraw = true;
-            }
-            if ((just_pressed & PSP_CTRL_UP) && total > 0) {
+            if ((just_pressed & PSP_CTRL_UP) && total > 0)
                 g_dl_selected = (g_dl_selected - 1 + total) % total;
-                if (g_dl_selected < g_dl_scroll) g_dl_scroll = g_dl_selected;
-                if (g_dl_selected >= g_dl_scroll + LIST_VISIBLE)
-                    g_dl_scroll = g_dl_selected - LIST_VISIBLE + 1;
-                redraw = true;
-            }
+            clamp_scroll(g_dl_selected, &g_dl_scroll);
 
             /* Cross: start/resume selected. */
             if ((just_pressed & PSP_CTRL_CROSS) && total > 0 && has_wifi) {
@@ -687,16 +575,12 @@ int main(int argc, char *argv[]) {
                     run_download(&g_state, e);
                 }
                 prev_buttons = 0;
-                redraw = true;
             }
 
             /* Square: pause active. */
-            if (just_pressed & PSP_CTRL_SQUARE) {
-                if (g_active_in_progress) {
-                    g_pause_requested = true;
-                    ui_status("Pausing...");
-                }
-                redraw = true;
+            if ((just_pressed & PSP_CTRL_SQUARE) && g_active_in_progress) {
+                g_pause_requested = true;
+                ui_toast(UI_TONE_WARN, "Pausing...");
             }
 
             /* Circle: cancel selected (after pause). */
@@ -708,7 +592,7 @@ int main(int argc, char *argv[]) {
                            g_downloads.items[g_dl_selected].rom_id) == 0)
                 {
                     g_pause_requested = true;
-                    ui_status("Pause active first, then cancel.");
+                    ui_toast(UI_TONE_WARN, "Pause the active download first, then remove it.");
                 } else {
                     char rom_id[ROM_ID_LEN];
                     strncpy(rom_id, g_downloads.items[g_dl_selected].rom_id,
@@ -719,8 +603,8 @@ int main(int argc, char *argv[]) {
                     if (g_dl_selected >= g_downloads.count)
                         g_dl_selected = g_downloads.count > 0
                                       ? g_downloads.count - 1 : 0;
+                    clamp_scroll(g_dl_selected, &g_dl_scroll);
                 }
-                redraw = true;
             }
 
             /* Triangle: clear completed entries. */
@@ -744,36 +628,14 @@ int main(int argc, char *argv[]) {
                     if (g_dl_selected >= g_downloads.count)
                         g_dl_selected = g_downloads.count > 0
                                       ? g_downloads.count - 1 : 0;
-                    ui_status("Cleared %d completed.", removed);
+                    clamp_scroll(g_dl_selected, &g_dl_scroll);
+                    ui_toast(UI_TONE_OK, "Cleared %d finished download%s.",
+                             removed, removed == 1 ? "" : "s");
                 }
-                redraw = true;
             }
 
-            if (redraw) {
-                char dl_status[128];
-                snprintf(dl_status, sizeof(dl_status),
-                         "%d entries  (%s)",
-                         g_downloads.count,
-                         g_active_in_progress ? "downloading"
-                                              : (has_wifi ? "idle" : "offline"));
-                ui_draw_downloads(&g_downloads, g_dl_selected, g_dl_scroll,
-                                  dl_status,
-                                  g_active_in_progress,
-                                  g_active_downloaded, g_active_total,
-                                  g_active_bps, g_app_view);
-                redraw = false;
-            }
-            sceKernelDelayThread(16000);
-            continue;
+            draw_downloads_view(true);
         }
-
-        if (redraw) {
-            ui_clear();
-            ui_draw_list(&g_state, g_selected, g_scroll);
-            redraw = false;
-        }
-
-        sceKernelDelayThread(16000);  /* ~60fps */
     }
 
     network_disconnect();

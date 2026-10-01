@@ -100,7 +100,7 @@ are in [README.md](README.md).
 | MD5 (**L. Peter Deutsch**, Aladdin Enterprises), as vendored in [rcheevos](https://github.com/RetroAchievements/rcheevos) | zlib-style, notice kept in `ds/source/md5.c` | `ds/` |
 | `mmceman.irx` ([ps2-mmce/mmceman](https://github.com/ps2-mmce/mmceman)) | MIT — [`licenses/MIT-mmceman.txt`](licenses/MIT-mmceman.txt) | `ps2/` |
 | PSPSDK debug font (**M. R. Brown**, **J. Forshaw**, **J. Kelley**) | BSD | `vita/` |
-| Vegur typeface (**Sora Sagano**) | Public domain | `xbox/assets/font.ttf` |
+| Vegur typeface (**Sora Sagano**) | Public domain | `xbox/assets/font.ttf`, `psp/source/font_data.c` |
 | Apktool (**Connor Tumbleson**) | Apache-2.0 — [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt) | `tools/apktool.jar` |
 | zlib (**Gailly**, **Adler**) | zlib | several clients |
 | PolarSSL / mbed TLS | Apache-2.0 | `ps3/` via PSL1GHT |

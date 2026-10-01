@@ -21,7 +21,6 @@
 #include <sys/stat.h>
 
 #include <pspiofilemgr.h>
-#include <pspdebug.h>
 
 /* --- Tiny string helpers (mirror PS3 client) --- */
 
