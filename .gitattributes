@@ -1,0 +1,2 @@
+# WSL runs these; CRLF breaks bash (set -o pipefail, shebangs)
+*.sh text eol=lf
