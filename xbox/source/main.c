@@ -1,6 +1,9 @@
-// Save Sync - original Xbox client.
+// GameSync - original Xbox client.
 //
-// Phase 8: SDL2 + SDL_ttf renderer for a CRT-friendly UI.
+// SDL2 + SDL_ttf UI in the shared GameSync design: header bar with a tab
+// strip, a list panel with a detail panel beside it, a status banner and a
+// footer of controller hints. Dialogs and progress are modal cards drawn
+// over a dimmed screen.
 
 #include <SDL.h>
 #include <SDL_ttf.h>
@@ -28,7 +31,8 @@
 #define APP_VERSION "dev"
 #endif
 
-#define LIST_VISIBLE   9   // rows the body can show with the top status bar
+#define LIST_VISIBLE   9   // rows the list panel shows at once
+#define CONFIG_ROWS    11
 
 static XboxSaveList g_list;
 static XboxRomList  g_roms;
@@ -37,7 +41,7 @@ static XboxDriveSpace g_f_space;
 static XboxConfig   g_cfg;
 static SyncPlan     g_plan;
 static int          g_plan_loaded = 0;
-static char         g_status[200] = "Press LB to fetch sync plan.";
+static char         g_status[200] = "Press WHITE to compare saves with the server.";
 typedef enum {
     UI_STATUS_INFO_KIND,
     UI_STATUS_BUSY_KIND,
@@ -68,38 +72,41 @@ static void set_status_kind(StatusKind kind, const char *fmt, ...)
     va_end(ap);
 }
 
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
+
 static const char *fmt_kb(uint64_t bytes, char *buf, size_t buflen)
 {
-    snprintf(buf, buflen, "%llu KB", (unsigned long long)(bytes / 1024));
+    snprintf(buf, buflen, "%llu KB", (unsigned long long)((bytes + 1023) / 1024));
     return buf;
 }
 
+// "512 KB", "37.4 MB", "4.2 GB" - integer maths only.
 static const char *fmt_size(uint64_t bytes, char *buf, size_t buflen)
 {
-    const uint64_t mb = 1024ULL * 1024ULL;
+    const uint64_t kb = 1024ULL;
+    const uint64_t mb = 1024ULL * kb;
     const uint64_t gb = 1024ULL * mb;
     if (bytes >= gb) {
-        uint64_t whole = bytes / gb;
-        uint64_t tenths = ((bytes % gb) * 10ULL) / gb;
+        uint64_t tenths = (bytes * 10ULL + gb / 2) / gb;
         snprintf(buf, buflen, "%llu.%llu GB",
-                 (unsigned long long)whole,
-                 (unsigned long long)tenths);
+                 (unsigned long long)(tenths / 10),
+                 (unsigned long long)(tenths % 10));
+    } else if (bytes >= mb) {
+        uint64_t tenths = (bytes * 10ULL + mb / 2) / mb;
+        if (tenths >= 1000) {
+            snprintf(buf, buflen, "%llu MB", (unsigned long long)(tenths / 10));
+        } else {
+            snprintf(buf, buflen, "%llu.%llu MB",
+                     (unsigned long long)(tenths / 10),
+                     (unsigned long long)(tenths % 10));
+        }
     } else {
-        uint64_t whole = bytes / mb;
-        snprintf(buf, buflen, "%llu MB", (unsigned long long)whole);
+        snprintf(buf, buflen, "%llu KB",
+                 (unsigned long long)((bytes + kb - 1) / kb));
     }
     return buf;
-}
-
-// Truncate a string with "..." suffix to fit at most ``max_chars``.
-static void short_str(const char *src, char *out, int max_chars)
-{
-    int n = (int)strlen(src);
-    if (n <= max_chars) {
-        snprintf(out, max_chars + 1, "%s", src);
-    } else {
-        snprintf(out, max_chars + 1, "%.*s...", max_chars - 3, src);
-    }
 }
 
 static void short_hash(const char *src, char *out, int out_len)
@@ -111,262 +118,149 @@ static void short_hash(const char *src, char *out, int out_len)
     }
 
     int n = (int)strlen(src);
-    if (n <= 30) {
+    if (n <= 20) {
         snprintf(out, out_len, "%s", src);
     } else {
-        snprintf(out, out_len, "%.16s...%.8s", src, src + n - 8);
+        snprintf(out, out_len, "%.10s...%.6s", src, src + n - 6);
     }
 }
 
+// Unix epoch -> "2024-05-01 13:22" (UTC).
 static void fmt_timestamp(uint32_t ts, char *out, int out_len)
 {
     if (!out || out_len <= 0) return;
     if (ts == 0) {
         snprintf(out, out_len, "n/a");
+        return;
+    }
+    // civil_from_days from Howard Hinnant's public-domain date algorithms,
+    // https://howardhinnant.github.io/date_algorithms.html
+    uint32_t days = ts / 86400u, rem = ts % 86400u;
+    uint32_t z = days + 719468u;
+    uint32_t era = z / 146097u;
+    uint32_t doe = z - era * 146097u;
+    uint32_t yoe = (doe - doe / 1460u + doe / 36524u - doe / 146096u) / 365u;
+    uint32_t y = yoe + era * 400u;
+    uint32_t doy = doe - (365u * yoe + yoe / 4u - yoe / 100u);
+    uint32_t mp = (5u * doy + 2u) / 153u;
+    uint32_t d = doy - (153u * mp + 2u) / 5u + 1u;
+    uint32_t m = mp < 10u ? mp + 3u : mp - 9u;
+    if (m <= 2u) y++;
+    snprintf(out, out_len, "%04u-%02u-%02u %02u:%02u",
+             (unsigned)y, (unsigned)m, (unsigned)d,
+             (unsigned)(rem / 3600u), (unsigned)((rem / 60u) % 60u));
+}
+
+// Server ISO timestamps ("2024-05-01T13:22:11.123") -> "2024-05-01 13:22".
+static void fmt_server_time(const char *iso, char *out, int out_len)
+{
+    if (!iso || !iso[0]) {
+        snprintf(out, out_len, "n/a");
+        return;
+    }
+    snprintf(out, out_len, "%.16s", iso);
+    char *t = strchr(out, 'T');
+    if (t) *t = ' ';
+}
+
+static void fmt_duration(uint32_t secs, char *out, int out_len)
+{
+    if (secs >= 3600u) {
+        snprintf(out, out_len, "%u:%02u:%02u", (unsigned)(secs / 3600u),
+                 (unsigned)((secs / 60u) % 60u), (unsigned)(secs % 60u));
     } else {
-        snprintf(out, out_len, "%u", (unsigned)ts);
+        snprintf(out, out_len, "%u:%02u", (unsigned)(secs / 60u),
+                 (unsigned)(secs % 60u));
     }
 }
 
-static UiColor status_color(TitleStatus s)
+// ---------------------------------------------------------------------------
+// Status colours and labels
+// ---------------------------------------------------------------------------
+
+static uint32_t status_color(TitleStatus s)
 {
     switch (s) {
-    case TITLE_STATUS_UP_TO_DATE:    return UI_STATUS_OK;
-    case TITLE_STATUS_NEEDS_UPLOAD:  return UI_STATUS_UPLOAD;
-    case TITLE_STATUS_NEEDS_DOWNLOAD:return UI_STATUS_DOWNLOAD;
-    case TITLE_STATUS_CONFLICT:      return UI_STATUS_CONFLICT;
-    case TITLE_STATUS_SERVER_ONLY:   return UI_STATUS_NEW;
-    default:                         return UI_STATUS_UNKNOWN;
+    case TITLE_STATUS_UP_TO_DATE:    return UI_HEX_OK;
+    case TITLE_STATUS_NEEDS_UPLOAD:  return UI_HEX_WARN;
+    case TITLE_STATUS_NEEDS_DOWNLOAD:return UI_HEX_INFO;
+    case TITLE_STATUS_CONFLICT:      return UI_HEX_ERR;
+    case TITLE_STATUS_SERVER_ONLY:   return UI_HEX_INFO;
+    default:                         return UI_HEX_MUTED;
     }
 }
 
 static const char *status_label(TitleStatus s)
 {
     switch (s) {
-    case TITLE_STATUS_UP_TO_DATE:    return " OK ";
-    case TITLE_STATUS_NEEDS_UPLOAD:  return " UP ";
-    case TITLE_STATUS_NEEDS_DOWNLOAD:return "DOWN";
-    case TITLE_STATUS_CONFLICT:      return "CFLT";
-    case TITLE_STATUS_SERVER_ONLY:   return "NEW ";
-    default:                         return " ?  ";
+    case TITLE_STATUS_UP_TO_DATE:    return "Synced";
+    case TITLE_STATUS_NEEDS_UPLOAD:  return "Upload";
+    case TITLE_STATUS_NEEDS_DOWNLOAD:return "Download";
+    case TITLE_STATUS_CONFLICT:      return "Conflict";
+    case TITLE_STATUS_SERVER_ONLY:   return "Server";
+    default:                         return "Local";
     }
 }
 
-static UiColor status_bar_color(void)
+static const char *status_hint(TitleStatus s)
 {
-    switch (g_status_kind) {
-    case UI_STATUS_BUSY_KIND:    return UI_STATUS_UPLOAD;
-    case UI_STATUS_SUCCESS_KIND: return UI_STATUS_OK;
-    case UI_STATUS_ERROR_KIND:   return UI_STATUS_CONFLICT;
-    default:             return UI_ROW_BG_SEL;
-    }
-}
-
-static UiColor status_bar_text_color(void)
-{
-    switch (g_status_kind) {
-    case UI_STATUS_BUSY_KIND:
-    case UI_STATUS_SUCCESS_KIND:
-    case UI_STATUS_ERROR_KIND: {
-        UiColor dark = { 0x0B, 0x18, 0x10, 0xFF };
-        return dark;
-    }
+    switch (s) {
+    case TITLE_STATUS_UP_TO_DATE:
+        return "Same save on the server. Nothing to do.";
+    case TITLE_STATUS_NEEDS_UPLOAD:
+        return "Only this Xbox changed. A uploads it.";
+    case TITLE_STATUS_NEEDS_DOWNLOAD:
+        return "The server has a newer save. A downloads it.";
+    case TITLE_STATUS_CONFLICT:
+        return "Both sides changed. X uploads, Y downloads.";
+    case TITLE_STATUS_SERVER_ONLY:
+        return "Not on this Xbox yet. A downloads it.";
     default:
-        return UI_ACCENT;
+        return "WHITE compares every save with the server.";
+    }
+}
+
+static uint32_t status_tone(void)
+{
+    switch (g_status_kind) {
+    case UI_STATUS_BUSY_KIND:    return UI_HEX_INFO;
+    case UI_STATUS_SUCCESS_KIND: return UI_HEX_OK;
+    case UI_STATUS_ERROR_KIND:   return UI_HEX_ERR;
+    default:                     return UI_HEX_ACCENT;
     }
 }
 
 // ---------------------------------------------------------------------------
-// Layout helpers
+// Layout
 // ---------------------------------------------------------------------------
 
-#define HEADER_H      60
-#define FOOTER_H      80
-#define STATUS_BAR_H  28
-#define ROW_H         30
-#define LIST_Y        (HEADER_H + STATUS_BAR_H + 8)
+#define TABS_Y        70
+#define TABS_H        26
 
-// X-positions inside the row.
-#define COL_BADGE_X    (UI_SAFE_X + 4)
-#define COL_BADGE_W    52
-#define COL_TID_X      (COL_BADGE_X + COL_BADGE_W + 12)
-#define COL_TID_W      78
-#define COL_NAME_X     (COL_TID_X + COL_TID_W + 8)
-#define COL_SIZE_X     (UI_W - UI_SAFE_X - 70)
+#define PANEL_Y       104
+#define PANEL_H       282
+#define LIST_X        UI_MARGIN_X
+#define LIST_W        364
+#define DETAIL_X      (LIST_X + LIST_W + 8)
+#define DETAIL_W      (UI_W - UI_MARGIN_X - DETAIL_X)
 
-static void draw_header(void)
+#define LIST_HEAD_H   34
+#define ROW_H         26
+#define ROWS_Y        (PANEL_Y + LIST_HEAD_H + 6)
+
+#define BANNER_Y      (PANEL_Y + PANEL_H + 8)
+#define BANNER_H      28
+
+#define STATUS_PILL_W 64
+
+static const char *tab_section(void)
 {
-    ui_rect(0, 0, UI_W, HEADER_H, UI_HEADER_BG);
-
-    // Title left, IP/server right.
-    char title[64];
-    snprintf(title, sizeof(title), "Save Sync v%s - Xbox", APP_VERSION);
-    ui_text(UI_SAFE_X, 12, title, UI_ACCENT, UI_FONT_HEADER);
-
-    char info[96];
-    snprintf(info, sizeof(info), "%s   IP %s", g_server_text, g_local_ip);
-    int w = ui_text_width(info, UI_FONT_SMALL);
-    ui_text(UI_W - UI_SAFE_X - w, 14, info, UI_TEXT_DIM, UI_FONT_SMALL);
-
-    char tabs[128];
-    snprintf(tabs, sizeof(tabs), "%s  %s  %s  %s",
-             g_tab == TAB_SAVES ? "[Saves]" : "Saves",
-             g_tab == TAB_GAMES ? "[Games]" : "Games",
-             g_tab == TAB_INSTALLED ? "[Installed]" : "Installed",
-             g_tab == TAB_CONFIG ? "[Config]" : "Config");
-
-    // Summary line.
-    char plan[180];
-    if (g_tab == TAB_GAMES) {
-        snprintf(plan, sizeof(plan), "%s   ROMs: %d   format: %s",
-                 tabs, g_roms_loaded ? g_roms.count : 0,
-                 games_format_name(games_config_format(&g_cfg)));
-    } else if (g_tab == TAB_INSTALLED) {
-        if (g_f_space_loaded) {
-            char free_sz[24], total_sz[24];
-            snprintf(plan, sizeof(plan), "%s   F: %s free / %s   Installed: %d",
-                     tabs,
-                     fmt_size(g_f_space.free_bytes, free_sz, sizeof(free_sz)),
-                     fmt_size(g_f_space.total_bytes, total_sz, sizeof(total_sz)),
-                     g_installed_loaded ? g_installed.count : 0);
-        } else {
-            snprintf(plan, sizeof(plan), "%s   F: space unknown   Installed: %d",
-                     tabs, g_installed_loaded ? g_installed.count : 0);
-        }
-    } else if (g_tab == TAB_CONFIG) {
-        snprintf(plan, sizeof(plan), "%s   A toggles values, X saves", tabs);
-    } else if (g_plan_loaded) {
-        snprintf(plan, sizeof(plan),
-                 "%s   Plan: up %d   down %d   new %d   ok %d   conflict %d",
-                 tabs,
-                 g_plan.upload_count,
-                 g_plan.download_count,
-                 g_plan.server_only_count,
-                 g_plan.up_to_date_count,
-                 g_plan.conflict_count);
-    } else {
-        snprintf(plan, sizeof(plan),
-                 "%s   Plan: not fetched yet - press LB", tabs);
+    switch (g_tab) {
+    case TAB_GAMES:     return "Game Catalog";
+    case TAB_INSTALLED: return "Installed Games";
+    case TAB_CONFIG:    return "Settings";
+    default:            return "Saves";
     }
-    int max_chars = (int)strlen(plan);
-    int budget = UI_W - 2 * UI_SAFE_X;
-    while (max_chars > 4) {
-        if (ui_text_width(plan, UI_FONT_BODY) <= budget) break;
-        plan[--max_chars] = '\0';
-    }
-    ui_text(UI_SAFE_X, 38, plan, UI_TEXT, UI_FONT_BODY);
-}
-
-static void draw_footer(void)
-{
-    int y0 = UI_H - FOOTER_H;
-    ui_rect(0, y0, UI_W, FOOTER_H, UI_FOOTER_BG);
-
-    if (g_tab == TAB_GAMES) {
-        ui_text(UI_SAFE_X, y0 + 6,
-                "A download game  LB refresh catalog  BACK tab",
-                UI_TEXT, UI_FONT_BODY);
-        ui_text(UI_SAFE_X, y0 + 28,
-                "D-pad/Stick L/R page  START exit",
-                UI_TEXT_DIM, UI_FONT_SMALL);
-    } else if (g_tab == TAB_INSTALLED) {
-        ui_text(UI_SAFE_X, y0 + 6,
-                "Y uninstall game  LB refresh installed  BACK tab",
-                UI_TEXT, UI_FONT_BODY);
-        ui_text(UI_SAFE_X, y0 + 28,
-                "D-pad/Stick L/R page  START exit",
-                UI_TEXT_DIM, UI_FONT_SMALL);
-    } else if (g_tab == TAB_CONFIG) {
-        ui_text(UI_SAFE_X, y0 + 6,
-                "A toggle  X save config  LB reload config  BACK tab",
-                UI_TEXT, UI_FONT_BODY);
-        ui_text(UI_SAFE_X, y0 + 28,
-                "D-pad/Stick select  START exit",
-                UI_TEXT_DIM, UI_FONT_SMALL);
-    } else {
-        ui_text(UI_SAFE_X, y0 + 6,
-                "A smart  X upload  Y download  B clear cache  BACK tab",
-                UI_TEXT, UI_FONT_BODY);
-        ui_text(UI_SAFE_X, y0 + 28,
-                "D-pad/Stick L/R page  LB refresh  RB sync-all  START exit",
-                UI_TEXT_DIM, UI_FONT_SMALL);
-    }
-}
-
-static void draw_status_bar(void)
-{
-    int status_y = HEADER_H;
-    ui_rect(0, status_y, UI_W, STATUS_BAR_H, status_bar_color());
-
-    char line[160];
-    snprintf(line, sizeof(line), "%s", g_status);
-
-    // Compute the per-character width budget heuristically.
-    int max_chars = (int)strlen(line);
-    int budget = UI_W - 2 * UI_SAFE_X;
-    while (max_chars > 4) {
-        if (ui_text_width(line, UI_FONT_SMALL) <= budget) break;
-        line[--max_chars] = '\0';
-    }
-    ui_text(UI_SAFE_X, status_y + 5, line,
-            status_bar_text_color(), UI_FONT_SMALL);
-}
-
-static void draw_save_row(int row_idx, int local_count, int cursor, int y)
-{
-    int  selected = (row_idx == cursor);
-    int  is_local = (row_idx < local_count);
-
-    if (selected) {
-        ui_rect(UI_SAFE_X - 4, y - 2, UI_W - 2 * UI_SAFE_X + 8, ROW_H,
-                UI_ROW_BG_SEL);
-    }
-
-    const char  *tid = NULL;
-    const char  *name = NULL;
-    char         size_buf[24] = "";
-    TitleStatus  st = TITLE_STATUS_UNKNOWN;
-
-    if (is_local) {
-        const XboxSaveTitle *t = &g_list.titles[row_idx];
-        tid = t->title_id;
-        name = t->name[0] ? t->name : t->title_id;
-        fmt_kb(t->total_size, size_buf, sizeof(size_buf));
-        if (g_plan_loaded) st = sync_plan_status(&g_plan, t->title_id);
-    } else {
-        int j = row_idx - local_count;
-        tid  = g_plan.server_only_ids[j];
-        name = g_plan.server_only_names[j][0]
-                   ? g_plan.server_only_names[j]
-                   : g_plan.server_only_ids[j];
-        snprintf(size_buf, sizeof(size_buf), "server");
-        st = TITLE_STATUS_SERVER_ONLY;
-    }
-
-    UiColor sc = status_color(st);
-
-    // Badge: filled rect with status label centered inside.
-    ui_rect(COL_BADGE_X, y + 2, COL_BADGE_W, ROW_H - 6, sc);
-    {
-        const char *lbl = status_label(st);
-        int lw = ui_text_width(lbl, UI_FONT_SMALL);
-        UiColor on = { 0x10, 0x20, 0x18, 0xFF };  // dark text on light badge
-        ui_text(COL_BADGE_X + (COL_BADGE_W - lw) / 2, y + 5,
-                lbl, on, UI_FONT_SMALL);
-    }
-
-    // Title id (monospace-ish, accent color).
-    ui_text(COL_TID_X, y + 4, tid, UI_TEXT, UI_FONT_BODY);
-
-    // Game name, truncated to fit. Plenty of room between the TID column
-    // and the right-aligned size, so allow a long name.
-    char name_short[64];
-    short_str(name, name_short, 52);
-    ui_text(COL_NAME_X, y + 4, name_short, UI_TEXT, UI_FONT_BODY);
-
-    // Size, right-aligned.
-    int sw = ui_text_width(size_buf, UI_FONT_BODY);
-    ui_text(UI_W - UI_SAFE_X - sw, y + 4, size_buf, UI_TEXT_DIM, UI_FONT_BODY);
 }
 
 static int total_rows(void)
@@ -375,64 +269,198 @@ static int total_rows(void)
     if (g_tab == TAB_INSTALLED) {
         return g_installed_loaded ? g_installed.count : 0;
     }
-    if (g_tab == TAB_CONFIG) return 11;
+    if (g_tab == TAB_CONFIG) return CONFIG_ROWS;
     int n = g_list.title_count;
     if (g_plan_loaded) n += g_plan.server_only_count;
     return n;
 }
 
-static void draw_game_row(int row_idx, int cursor, int y)
+// Right-aligned pills; returns the new right edge.
+static int pill_left(int right, int y, int h, uint32_t bg, uint32_t fg,
+                     const char *label)
+{
+    int w = ui_pill_w(UI_FONT_TINY, label);
+    ui_pill(right - w, y, h, UI_FONT_TINY, bg, fg, label);
+    return right - w - 6;
+}
+
+static void draw_tab_row(void)
+{
+    static const char *const labels[] = { "Saves", "Catalog", "Installed", "Settings" };
+    int x = ui_tabs(UI_MARGIN_X, TABS_Y, TABS_H, labels, 4, (int)g_tab);
+    int bw = ui_button(x + 8, TABS_Y + TABS_H / 2, "BACK");
+    ui_text_mid(x + 8 + bw + 5, TABS_Y, TABS_H, UI_FONT_TINY, UI_HEX_MUTED,
+                UI_LEFT, 0, "next");
+
+    // Context on the right of the strip.
+    int right = UI_W - UI_MARGIN_X;
+    int py = TABS_Y + 3, ph = TABS_H - 6;
+    char buf[64];
+    if (g_tab == TAB_SAVES) {
+        if (!g_plan_loaded) {
+            ui_text_mid(right, TABS_Y, TABS_H, UI_FONT_SMALL, UI_HEX_MUTED,
+                        UI_RIGHT, 0, "Not compared yet");
+            return;
+        }
+        if (g_plan.conflict_count) {
+            snprintf(buf, sizeof(buf), "%d conflict", g_plan.conflict_count);
+            right = pill_left(right, py, ph, UI_HEX_ERR, UI_HEX_INK, buf);
+        }
+        if (g_plan.download_count + g_plan.server_only_count) {
+            snprintf(buf, sizeof(buf), "%d down",
+                     g_plan.download_count + g_plan.server_only_count);
+            right = pill_left(right, py, ph, UI_HEX_INFO, UI_HEX_INK, buf);
+        }
+        if (g_plan.upload_count) {
+            snprintf(buf, sizeof(buf), "%d up", g_plan.upload_count);
+            right = pill_left(right, py, ph, UI_HEX_WARN, UI_HEX_INK, buf);
+        }
+        snprintf(buf, sizeof(buf), "%d synced", g_plan.up_to_date_count);
+        pill_left(right, py, ph, UI_HEX_OK, UI_HEX_INK, buf);
+    } else if (g_tab == TAB_GAMES) {
+        snprintf(buf, sizeof(buf), "as %s",
+                 games_format_name(games_config_format(&g_cfg)));
+        right = pill_left(right, py, ph, UI_HEX_PANEL_HI, UI_HEX_DIM, buf);
+    } else if (g_tab == TAB_INSTALLED) {
+        if (g_f_space_loaded) {
+            char free_sz[24];
+            snprintf(buf, sizeof(buf), "F: %s free",
+                     fmt_size(g_f_space.free_bytes, free_sz, sizeof(free_sz)));
+            pill_left(right, py, ph, UI_HEX_PANEL_HI, UI_HEX_DIM, buf);
+        }
+    } else if (g_tab == TAB_CONFIG) {
+        if (g_server_text[0]) {
+            ui_text_mid(right, TABS_Y, TABS_H, UI_FONT_SMALL, UI_HEX_DIM,
+                        UI_RIGHT, 170, g_server_text);
+        }
+    }
+}
+
+// Selection bar for a row; returns the text colour to use on it.
+static uint32_t row_bg(int selected, int y)
+{
+    if (!selected) return UI_HEX_TEXT;
+    ui_rrect(LIST_X + 6, y, LIST_W - 22, ROW_H - 2, 6, UI_HEX_ACCENT);
+    return UI_HEX_INK;
+}
+
+// Fixed-width status pill so names line up.
+static void status_pill(int x, int y, TitleStatus st, int selected)
+{
+    uint32_t c = status_color(st);
+    ui_rrect(x, y, STATUS_PILL_W, 18, 9, selected ? UI_HEX_INK : c);
+    ui_text_mid(x + STATUS_PILL_W / 2, y, 18, UI_FONT_TINY,
+                selected ? c : UI_HEX_INK, UI_CENTER, 0, status_label(st));
+}
+
+static void row_title(int row_idx, const char **tid, const char **name,
+                      TitleStatus *st, uint64_t *size, int *is_local)
+{
+    *is_local = row_idx < g_list.title_count;
+    *st = TITLE_STATUS_UNKNOWN;
+    if (*is_local) {
+        const XboxSaveTitle *t = &g_list.titles[row_idx];
+        *tid = t->title_id;
+        *name = t->name[0] ? t->name : t->title_id;
+        *size = t->total_size;
+        if (g_plan_loaded) *st = sync_plan_status(&g_plan, t->title_id);
+    } else {
+        int j = row_idx - g_list.title_count;
+        *tid  = g_plan.server_only_ids[j];
+        *name = g_plan.server_only_names[j][0]
+                    ? g_plan.server_only_names[j]
+                    : g_plan.server_only_ids[j];
+        *size = 0;
+        *st = TITLE_STATUS_SERVER_ONLY;
+    }
+}
+
+static void draw_save_row(int row_idx, int cursor, int y)
 {
     int selected = (row_idx == cursor);
-    if (selected) {
-        ui_rect(UI_SAFE_X - 4, y - 2, UI_W - 2 * UI_SAFE_X + 8, ROW_H,
-                UI_ROW_BG_SEL);
-    }
+    uint32_t fg = row_bg(selected, y);
+
+    const char *tid, *name;
+    TitleStatus st;
+    uint64_t size;
+    int is_local;
+    row_title(row_idx, &tid, &name, &st, &size, &is_local);
+
+    status_pill(LIST_X + 12, y + 3, st, selected);
+
+    char size_buf[24];
+    if (is_local) fmt_kb(size, size_buf, sizeof(size_buf));
+    else snprintf(size_buf, sizeof(size_buf), "server");
+    int right = LIST_X + LIST_W - 24;
+    int sw = ui_text_mid(right, y, ROW_H - 2, UI_FONT_SMALL,
+                         selected ? UI_HEX_INK : UI_HEX_DIM, UI_RIGHT, 0, size_buf);
+
+    int nx = LIST_X + 12 + STATUS_PILL_W + 8;
+    ui_text_mid(nx, y, ROW_H - 2, UI_FONT_BODY, fg, UI_LEFT,
+                right - sw - 10 - nx, name);
+}
+
+static void draw_game_row(int row_idx, int cursor, int y)
+{
     if (row_idx < 0 || row_idx >= g_roms.count) return;
+    int selected = (row_idx == cursor);
+    uint32_t fg = row_bg(selected, y);
     const XboxRomEntry *r = &g_roms.roms[row_idx];
-    UiColor sc = r->is_bundle ? UI_STATUS_NEW : UI_STATUS_DOWNLOAD;
-    ui_rect(COL_BADGE_X, y + 2, COL_BADGE_W, ROW_H - 6, sc);
-    {
-        const char *lbl = r->is_bundle ? "CCI " : "ISO ";
-        UiColor dark = { 0x10, 0x20, 0x18, 0xFF };
-        ui_text(COL_BADGE_X + 8, y + 5, lbl, dark, UI_FONT_SMALL);
-    }
-    char name_short[72];
-    short_str(r->name, name_short, 58);
-    ui_text(COL_TID_X, y + 4, name_short, UI_TEXT, UI_FONT_BODY);
+
+    const char *fmt = r->is_bundle ? "CCI" : "ISO";
+    uint32_t pc = r->is_bundle ? UI_HEX_ACCENT : UI_HEX_INFO;
+    ui_rrect(LIST_X + 12, y + 3, 38, 18, 9, selected ? UI_HEX_INK : pc);
+    ui_text_mid(LIST_X + 31, y + 3, 18, UI_FONT_TINY,
+                selected ? pc : UI_HEX_INK, UI_CENTER, 0, fmt);
+
     char sz[24];
-    fmt_kb(r->size, sz, sizeof(sz));
-    int sw = ui_text_width(sz, UI_FONT_BODY);
-    ui_text(UI_W - UI_SAFE_X - sw, y + 4, sz, UI_TEXT_DIM, UI_FONT_BODY);
+    fmt_size(r->size, sz, sizeof(sz));
+    int right = LIST_X + LIST_W - 24;
+    int sw = ui_text_mid(right, y, ROW_H - 2, UI_FONT_SMALL,
+                         selected ? UI_HEX_INK : UI_HEX_DIM, UI_RIGHT, 0, sz);
+    int nx = LIST_X + 58;
+    ui_text_mid(nx, y, ROW_H - 2, UI_FONT_BODY, fg, UI_LEFT,
+                right - sw - 10 - nx, r->name);
 }
 
 static void draw_installed_row(int row_idx, int cursor, int y)
 {
-    int selected = (row_idx == cursor);
-    if (selected) {
-        ui_rect(UI_SAFE_X - 4, y - 2, UI_W - 2 * UI_SAFE_X + 8, ROW_H,
-                UI_ROW_BG_SEL);
-    }
     if (row_idx < 0 || row_idx >= g_installed.count) return;
-
+    int selected = (row_idx == cursor);
+    uint32_t fg = row_bg(selected, y);
     const XboxInstalledGame *game = &g_installed.games[row_idx];
-    ui_rect(COL_BADGE_X, y + 2, COL_BADGE_W, ROW_H - 6, UI_STATUS_OK);
-    {
-        UiColor dark = { 0x10, 0x20, 0x18, 0xFF };
-        ui_text(COL_BADGE_X + 6, y + 5, "HDD ", dark, UI_FONT_SMALL);
-    }
 
-    char name_short[72];
-    short_str(game->name, name_short, 56);
-    ui_text(COL_TID_X, y + 4, name_short, UI_TEXT, UI_FONT_BODY);
+    // Installed check mark: a green dot keeps the row light.
+    ui_circle(LIST_X + 20.5f, y + 12.0f, 4.0f, selected ? UI_HEX_INK : UI_HEX_OK);
 
     char sz[24];
     fmt_size(game->size, sz, sizeof(sz));
-    int sw = ui_text_width(sz, UI_FONT_BODY);
-    ui_text(UI_W - UI_SAFE_X - sw, y + 4, sz, UI_TEXT_DIM, UI_FONT_BODY);
+    int right = LIST_X + LIST_W - 24;
+    int sw = ui_text_mid(right, y, ROW_H - 2, UI_FONT_SMALL,
+                         selected ? UI_HEX_INK : UI_HEX_DIM, UI_RIGHT, 0, sz);
+    int nx = LIST_X + 34;
+    ui_text_mid(nx, y, ROW_H - 2, UI_FONT_BODY, fg, UI_LEFT,
+                right - sw - 10 - nx, game->name);
 }
 
 static const char *config_label(int row)
+{
+    switch (row) {
+    case 0: return "Server";
+    case 1: return "API key";
+    case 2: return "Console ID";
+    case 3: return "Network";
+    case 4: return "Game format";
+    case 5: return "Install to";
+    case 6: return "Static IP";
+    case 7: return "Netmask";
+    case 8: return "Gateway";
+    case 9: return "DNS 1";
+    default:return "DNS 2";
+    }
+}
+
+static const char *config_key(int row)
 {
     switch (row) {
     case 0: return "server_url";
@@ -453,7 +481,7 @@ static const char *config_value(int row)
 {
     switch (row) {
     case 0: return g_cfg.server_url;
-    case 1: return g_cfg.api_key[0] ? "********" : "";
+    case 1: return g_cfg.api_key[0] ? "set (hidden)" : "not set";
     case 2: return g_cfg.console_id;
     case 3: return g_cfg.network_mode;
     case 4: return games_format_name(games_config_format(&g_cfg));
@@ -466,20 +494,54 @@ static const char *config_value(int row)
     }
 }
 
+static const char *config_help(int row)
+{
+    switch (row) {
+    case 0: return "Address of the GameSync server, e.g. http://192.168.1.201:8000.";
+    case 1: return "Sent as X-API-Key with every request. Never shown on screen.";
+    case 2: return "Identifies this Xbox to the server. Created on first run.";
+    case 3: return "auto uses the dashboard network settings; dhcp or static force "
+                   "one. A cycles, X saves, restart to apply.";
+    case 4: return "cci keeps games as compressed CCI images; folder extracts the "
+                   "game files. A cycles, X saves.";
+    case 5: return "Where downloaded games are installed.";
+    default:return "Used when the network mode is static.";
+    }
+}
+
+static int config_cyclable(int row)
+{
+    return row == 3 || row == 4;
+}
+
 static void draw_config_row(int row_idx, int cursor, int y)
 {
     int selected = (row_idx == cursor);
-    if (selected) {
-        ui_rect(UI_SAFE_X - 4, y - 2, UI_W - 2 * UI_SAFE_X + 8, ROW_H,
-                UI_ROW_BG_SEL);
+    uint32_t fg = row_bg(selected, y);
+    ui_text_mid(LIST_X + 16, y, ROW_H - 2, UI_FONT_SMALL,
+                selected ? UI_HEX_INK : UI_HEX_DIM, UI_LEFT, 0,
+                config_label(row_idx));
+
+    const char *val = config_value(row_idx);
+    int vx = LIST_X + 124;
+    int vmax = LIST_X + LIST_W - 28 - vx;
+    if (config_cyclable(row_idx)) {
+        uint32_t ac = selected ? UI_HEX_INK : UI_HEX_ACCENT;
+        ui_icon_arrow(vx + 3, y + 12, 9, 0, ac);
+        int w = ui_text_mid(vx + 14, y, ROW_H - 2, UI_FONT_BODY, ac, UI_LEFT,
+                            0, val);
+        ui_icon_arrow(vx + 14 + w + 9, y + 12, 9, 1, ac);
+        return;
     }
-    ui_text(COL_BADGE_X, y + 4, config_label(row_idx), UI_ACCENT, UI_FONT_BODY);
-    char val[96];
-    short_str(config_value(row_idx), val, 56);
-    ui_text(COL_NAME_X, y + 4, val, UI_TEXT, UI_FONT_BODY);
+    if (!val || !val[0]) {
+        ui_text_mid(vx, y, ROW_H - 2, UI_FONT_BODY,
+                    selected ? UI_HEX_INK : UI_HEX_MUTED, UI_LEFT, vmax, "-");
+        return;
+    }
+    ui_text_mid(vx, y, ROW_H - 2, UI_FONT_BODY, fg, UI_LEFT, vmax, val);
 }
 
-static void draw_row(int row_idx, int local_count, int cursor, int y)
+static void draw_row(int row_idx, int cursor, int y)
 {
     if (g_tab == TAB_GAMES) {
         draw_game_row(row_idx, cursor, y);
@@ -488,50 +550,307 @@ static void draw_row(int row_idx, int local_count, int cursor, int y)
     } else if (g_tab == TAB_CONFIG) {
         draw_config_row(row_idx, cursor, y);
     } else {
-        draw_save_row(row_idx, local_count, cursor, y);
+        draw_save_row(row_idx, cursor, y);
     }
+}
+
+static const char *list_title(void)
+{
+    switch (g_tab) {
+    case TAB_GAMES:     return "Xbox games on the server";
+    case TAB_INSTALLED: return "Games in F:\\Games";
+    case TAB_CONFIG:    return "config.txt";
+    default:            return "Saves on this Xbox";
+    }
+}
+
+static const char *empty_message(void)
+{
+    if (g_tab == TAB_GAMES) {
+        return g_roms_loaded ? "No Xbox games in the server catalog."
+                             : "Press WHITE to load the game catalog.";
+    }
+    if (g_tab == TAB_INSTALLED) {
+        return g_installed_loaded ? "No installed games in F:\\Games."
+                                  : "Press WHITE to scan installed games.";
+    }
+    return "No saves on this Xbox or the server.";
+}
+
+static void draw_list(int cursor, int scroll)
+{
+    ui_panel(LIST_X, PANEL_Y, LIST_W, PANEL_H);
+
+    int total = total_rows();
+    ui_text_mid(LIST_X + 14, PANEL_Y, LIST_HEAD_H, UI_FONT_SMALL, UI_HEX_DIM,
+                UI_LEFT, LIST_W - 110, list_title());
+    if (total > 0) {
+        char range[32];
+        int last = scroll + LIST_VISIBLE;
+        if (last > total) last = total;
+        snprintf(range, sizeof(range), "%d-%d of %d", scroll + 1, last, total);
+        ui_text_mid(LIST_X + LIST_W - 14, PANEL_Y, LIST_HEAD_H, UI_FONT_TINY,
+                    UI_HEX_MUTED, UI_RIGHT, 0, range);
+    }
+    ui_rect(LIST_X + 10, PANEL_Y + LIST_HEAD_H, LIST_W - 20, 1, UI_HEX_LINE);
+
+    if (total == 0) {
+        ui_text_wrap(LIST_X + 16, ROWS_Y + 12, UI_FONT_BODY, UI_HEX_DIM,
+                     LIST_W - 32, 3, empty_message());
+        return;
+    }
+
+    int end = scroll + LIST_VISIBLE;
+    if (end > total) end = total;
+    int y = ROWS_Y;
+    for (int i = scroll; i < end; i++) {
+        draw_row(i, cursor, y);
+        y += ROW_H;
+    }
+    ui_scrollbar(LIST_X + LIST_W - 11, ROWS_Y, LIST_VISIBLE * ROW_H - 2,
+                 scroll, LIST_VISIBLE, total);
+}
+
+// ---------------------------------------------------------------------------
+// Detail panel
+// ---------------------------------------------------------------------------
+
+#define DX   (DETAIL_X + 14)
+#define DW   (DETAIL_W - 28)
+#define DETAIL_KEY_W 72
+
+static int detail_caption(const char *caption, const char *title)
+{
+    ui_text(DX, PANEL_Y + 10, UI_FONT_TINY, UI_HEX_MUTED, UI_LEFT, caption);
+    int n = ui_text_wrap(DX, PANEL_Y + 26, UI_FONT_BODY, UI_HEX_TEXT, DW, 2, title);
+    return PANEL_Y + 26 + (n > 0 ? n : 1) * ui_line_h(UI_FONT_BODY) + 6;
+}
+
+static int detail_rule(int y)
+{
+    ui_rect(DX, y, DW, 1, UI_HEX_LINE);
+    return y + 9;
+}
+
+static int detail_kv(int y, const char *key, const char *value, uint32_t hex)
+{
+    ui_text(DX, y, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, key);
+    ui_text_fit(DX + DETAIL_KEY_W, y - 2, UI_FONT_SMALL, hex, UI_LEFT,
+                DW - DETAIL_KEY_W,
+                value && value[0] ? value : "-");
+    return y + 20;
+}
+
+static void detail_hint(const char *text)
+{
+    int lh = ui_line_h(UI_FONT_TINY);
+    ui_text_wrap(DX, PANEL_Y + PANEL_H - 10 - 3 * lh, UI_FONT_TINY,
+                 UI_HEX_MUTED, DW, 3, text);
+}
+
+static void draw_save_detail(int cursor)
+{
+    if (cursor < 0 || cursor >= total_rows()) {
+        detail_caption("SAVE", "Nothing selected");
+        detail_hint("Saves live in E:\\UDATA. Start a game once so it creates one.");
+        return;
+    }
+    const char *tid, *name;
+    TitleStatus st;
+    uint64_t size;
+    int is_local;
+    row_title(cursor, &tid, &name, &st, &size, &is_local);
+
+    int y = detail_caption("SAVE", name);
+    int x = DX;
+    x += ui_pill(x, y, 20, UI_FONT_TINY, UI_HEX_XBOX, UI_HEX_INK, "XBOX") + 5;
+    ui_pill(x, y, 20, UI_FONT_TINY, status_color(st), UI_HEX_INK, status_label(st));
+    y = detail_rule(y + 28);
+
+    y = detail_kv(y, "Title ID", tid, UI_HEX_TEXT);
+    if (is_local) {
+        const XboxSaveTitle *t = &g_list.titles[cursor];
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%d", t->file_count);
+        y = detail_kv(y, "Files", buf, UI_HEX_TEXT);
+        y = detail_kv(y, "Size", fmt_kb(t->total_size, buf, sizeof(buf)), UI_HEX_TEXT);
+        fmt_timestamp(t->latest_mtime, buf, sizeof(buf));
+        detail_kv(y, "Saved", buf, UI_HEX_TEXT);
+    } else {
+        detail_kv(y, "Where", "server only", UI_HEX_INFO);
+    }
+    detail_hint(status_hint(st));
+}
+
+static void draw_game_detail(int cursor)
+{
+    if (!g_roms_loaded || cursor < 0 || cursor >= g_roms.count) {
+        detail_caption("GAME", "Game catalog");
+        detail_hint("Xbox games the server has in its ROM folder. WHITE loads the list.");
+        return;
+    }
+    const XboxRomEntry *r = &g_roms.roms[cursor];
+    int y = detail_caption("GAME", r->name);
+    char sz[24];
+    int x = DX;
+    x += ui_pill(x, y, 20, UI_FONT_TINY, UI_HEX_XBOX, UI_HEX_INK, "XBOX") + 5;
+    x += ui_pill(x, y, 20, UI_FONT_TINY, r->is_bundle ? UI_HEX_ACCENT : UI_HEX_INFO,
+                 UI_HEX_INK, r->is_bundle ? "CCI" : "ISO") + 5;
+    ui_pill(x, y, 20, UI_FONT_TINY, UI_HEX_PANEL_HI, UI_HEX_DIM,
+            fmt_size(r->size, sz, sizeof(sz)));
+    y = detail_rule(y + 28);
+
+    y = detail_kv(y, "File", r->filename, UI_HEX_TEXT);
+    y = detail_kv(y, "Install as",
+                  games_format_name(games_config_format(&g_cfg)), UI_HEX_TEXT);
+    detail_kv(y, "Into", g_cfg.game_install_dir, UI_HEX_TEXT);
+
+    char hint[160];
+    snprintf(hint, sizeof(hint), "A downloads it and installs it to %s.",
+             g_cfg.game_install_dir);
+    detail_hint(hint);
+}
+
+static void draw_installed_detail(int cursor)
+{
+    int y;
+    if (!g_installed_loaded || cursor < 0 || cursor >= g_installed.count) {
+        y = detail_caption("INSTALLED", "Installed games");
+    } else {
+        const XboxInstalledGame *g = &g_installed.games[cursor];
+        y = detail_caption("INSTALLED", g->name);
+        char sz[24], buf[32];
+        int x = DX;
+        x += ui_pill(x, y, 20, UI_FONT_TINY, UI_HEX_OK, UI_HEX_INK, "HDD") + 5;
+        ui_pill(x, y, 20, UI_FONT_TINY, UI_HEX_PANEL_HI, UI_HEX_DIM,
+                fmt_size(g->size, sz, sizeof(sz)));
+        y = detail_rule(y + 28);
+        snprintf(buf, sizeof(buf), "%u", (unsigned)g->file_count);
+        y = detail_kv(y, "Files", buf, UI_HEX_TEXT);
+        snprintf(buf, sizeof(buf), "%u", (unsigned)g->dir_count);
+        y = detail_kv(y, "Folders", buf, UI_HEX_TEXT);
+        ui_text(DX, y, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, "Path");
+        ui_text_wrap(DX + DETAIL_KEY_W, y - 2, UI_FONT_SMALL, UI_HEX_TEXT,
+                     DW - DETAIL_KEY_W, 2, g->path);
+    }
+
+    // F: drive usage near the bottom of the panel.
+    int by = PANEL_Y + PANEL_H - 82;
+    if (g_f_space_loaded && g_f_space.total_bytes > 0) {
+        char free_sz[24], total_sz[24], line[64];
+        uint64_t used = g_f_space.total_bytes - g_f_space.free_bytes;
+        float frac = (float)((double)used / (double)g_f_space.total_bytes);
+        ui_text(DX, by, UI_FONT_TINY, UI_HEX_MUTED, UI_LEFT, "F: DRIVE");
+        ui_bar(DX, by + 18, DW, 8, frac, frac > 0.9f ? UI_HEX_WARN : UI_HEX_ACCENT);
+        snprintf(line, sizeof(line), "%s free of %s",
+                 fmt_size(g_f_space.free_bytes, free_sz, sizeof(free_sz)),
+                 fmt_size(g_f_space.total_bytes, total_sz, sizeof(total_sz)));
+        ui_text(DX, by + 30, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, line);
+    }
+    ui_text(DX, PANEL_Y + PANEL_H - 10 - ui_line_h(UI_FONT_TINY), UI_FONT_TINY,
+            UI_HEX_MUTED, UI_LEFT,
+            g_installed_loaded ? "Y deletes the game folder." : "WHITE scans F:\\Games.");
+}
+
+static void draw_config_detail(int cursor)
+{
+    if (cursor < 0 || cursor >= CONFIG_ROWS) cursor = 0;
+    int y = detail_caption("SETTING", config_label(cursor));
+    ui_pill(DX, y, 20, UI_FONT_TINY, UI_HEX_PANEL_HI, UI_HEX_DIM, config_key(cursor));
+    y = detail_rule(y + 28);
+    ui_text_wrap(DX, y, UI_FONT_SMALL, UI_HEX_TEXT, DW, 5, config_help(cursor));
+    detail_hint("Edit text values in E:\\UDATA\\TDSV0000\\config.txt.");
+}
+
+static void draw_detail(int cursor)
+{
+    ui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+    switch (g_tab) {
+    case TAB_GAMES:     draw_game_detail(cursor); break;
+    case TAB_INSTALLED: draw_installed_detail(cursor); break;
+    case TAB_CONFIG:    draw_config_detail(cursor); break;
+    default:            draw_save_detail(cursor); break;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Whole screen
+// ---------------------------------------------------------------------------
+
+static void draw_footer(void)
+{
+    static const UiHint saves[] = {
+        { "A", "Sync" }, { "X", "Upload" }, { "Y", "Download" },
+        { "WHITE", "Compare" }, { "BLACK", "Sync all" },
+        { "B", "Clear hashes" }, { "START", "Exit" },
+    };
+    static const UiHint games[] = {
+        { "A", "Download" }, { "WHITE", "Reload" }, { "UD", "Move" },
+        { "LR", "Page" }, { "START", "Exit" },
+    };
+    static const UiHint installed[] = {
+        { "Y", "Uninstall" }, { "WHITE", "Rescan" }, { "UD", "Move" },
+        { "LR", "Page" }, { "START", "Exit" },
+    };
+    static const UiHint config[] = {
+        { "A", "Change" }, { "X", "Save" }, { "WHITE", "Reload" },
+        { "UD", "Move" }, { "START", "Exit" },
+    };
+    switch (g_tab) {
+    case TAB_GAMES:     ui_footer(games, 5); break;
+    case TAB_INSTALLED: ui_footer(installed, 5); break;
+    case TAB_CONFIG:    ui_footer(config, 5); break;
+    default:            ui_footer(saves, 7); break;
+    }
+}
+
+static void draw_screen(int cursor, int scroll)
+{
+    ui_clear(UI_HEX_BG);
+    ui_header(tab_section(), g_local_ip, UI_HEX_OK);
+    draw_tab_row();
+    draw_list(cursor, scroll);
+    draw_detail(cursor);
+    ui_banner(UI_MARGIN_X, BANNER_Y, UI_W - 2 * UI_MARGIN_X, BANNER_H,
+              status_tone(), g_status);
+    draw_footer();
 }
 
 static void redraw(int cursor, int scroll)
 {
-    ui_clear(UI_BG);
+    draw_screen(cursor, scroll);
+    ui_present();
+}
 
-    draw_header();
-    draw_status_bar();
-
-    int total = total_rows();
-    int y = LIST_Y;
-    int end = scroll + LIST_VISIBLE;
-    if (end > total) end = total;
-
-    if (total == 0) {
-        const char *msg = "No saves on Xbox or server.";
-        if (g_tab == TAB_GAMES) {
-            msg = g_roms_loaded ? "No Xbox ROMs in server catalog."
-                                : "Press LB to load Xbox ROM catalog.";
-        } else if (g_tab == TAB_INSTALLED) {
-            msg = g_installed_loaded ? "No installed games in F:\\Games."
-                                     : "Press LB to scan installed games.";
-        }
-        ui_text(UI_SAFE_X, y + 24, msg, UI_TEXT_DIM, UI_FONT_BODY);
-    } else {
-        for (int i = scroll; i < end; i++) {
-            draw_row(i, g_list.title_count, cursor, y);
-            y += ROW_H;
-        }
-
-        // Scrollbar hint.
-        if (total > LIST_VISIBLE) {
-            char nav[24];
-            snprintf(nav, sizeof(nav), "%d / %d", cursor + 1, total);
-            int w = ui_text_width(nav, UI_FONT_SMALL);
-            ui_text(UI_W - UI_SAFE_X - w,
-                    LIST_Y + LIST_VISIBLE * ROW_H + 2,
-                    nav, UI_TEXT_DIM, UI_FONT_SMALL);
-        }
+// Right-aligned button hints inside a card's bottom strip.
+static void card_actions(int x, int y, int w, int h, const UiHint *hints, int n)
+{
+    int sy = y + h - 40;
+    ui_rect(x, sy, w, 1, UI_HEX_LINE);
+    int right = x + w - 16;
+    int cy = sy + 20;
+    for (int i = n - 1; i >= 0; i--) {
+        int lw = ui_text_w(UI_FONT_SMALL, hints[i].label);
+        int bw = ui_button_w(hints[i].button);
+        ui_text_mid(right - lw, cy - 12, 24, UI_FONT_SMALL, UI_HEX_TEXT, UI_LEFT,
+                    0, hints[i].label);
+        ui_button(right - lw - 6 - bw, cy, hints[i].button);
+        right -= lw + 6 + bw + 22;
     }
+}
 
-    draw_footer();
+// Modal "please wait" card for blocking operations; shows g_status.
+static void show_busy(int cursor, int scroll, const char *title)
+{
+    draw_screen(cursor, scroll);
+    ui_dim();
+    const int w = 420, h = 108;
+    const int x = (UI_W - w) / 2, y = 172;
+    ui_card(x, y, w, h, title, UI_HEX_INFO);
+    ui_text_wrap(x + 20, y + UI_CARD_TITLE_H + 14, UI_FONT_SMALL, UI_HEX_TEXT,
+                 w - 40, 2, g_status);
+    ui_text(x + 20, y + h - 26, UI_FONT_TINY, UI_HEX_MUTED, UI_LEFT,
+            "Please wait...");
     ui_present();
 }
 
@@ -669,9 +988,37 @@ static void rescan_local_preserve_plan(void)
     resolve_local_names();
 }
 
-static const char *manual_op_name(UiKey op)
+#define COMPARE_KEY_W 64
+
+// One side of the upload/download comparison in the confirm dialog.
+static void draw_compare_box(int x, int y, int w, int h, const char *caption,
+                             int present, const char *size_line,
+                             const char *hash, const char *when,
+                             const char *extra)
 {
-    return op == UI_KEY_X ? "upload" : "download";
+    ui_rrect(x, y, w, h, 6, UI_HEX_BG2);
+    ui_text(x + 12, y + 9, UI_FONT_TINY, UI_HEX_MUTED, UI_LEFT, caption);
+    if (!present) {
+        ui_text_fit(x + 12, y + 30, UI_FONT_SMALL, UI_HEX_DIM, UI_LEFT, w - 24,
+                    size_line);
+        return;
+    }
+    ui_text_fit(x + 12, y + 28, UI_FONT_SMALL, UI_HEX_TEXT, UI_LEFT, w - 24,
+                size_line);
+    int ky = y + 52;
+    ui_text(x + 12, ky, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, "Hash");
+    ui_text_fit(x + 12 + COMPARE_KEY_W, ky, UI_FONT_TINY, UI_HEX_TEXT,
+                UI_LEFT, w - 24 - COMPARE_KEY_W, hash);
+    ky += 18;
+    ui_text(x + 12, ky, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, "Saved");
+    ui_text_fit(x + 12 + COMPARE_KEY_W, ky, UI_FONT_TINY, UI_HEX_TEXT,
+                UI_LEFT, w - 24 - COMPARE_KEY_W, when);
+    if (extra) {
+        ky += 18;
+        ui_text(x + 12, ky, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, "Uploaded");
+        ui_text_fit(x + 12 + COMPARE_KEY_W, ky, UI_FONT_TINY, UI_HEX_TEXT,
+                    UI_LEFT, w - 24 - COMPARE_KEY_W, extra);
+    }
 }
 
 static void draw_confirm_dialog(int cursor, int scroll,
@@ -681,90 +1028,65 @@ static void draw_confirm_dialog(int cursor, int scroll,
                                 const char *local_hash,
                                 const NetworkSaveMeta *server)
 {
-    redraw(cursor, scroll);
+    draw_screen(cursor, scroll);
+    ui_dim();
 
-    UiColor border = { 0x7E, 0xE8, 0xA1, 0xFF };
-    UiColor panel  = { 0x08, 0x1A, 0x13, 0xFF };
-    UiColor head   = { 0x10, 0x36, 0x25, 0xFF };
-    UiColor dark   = { 0x0B, 0x18, 0x10, 0xFF };
+    int upload = (op == UI_KEY_X);
+    // Downloading over an existing local save is the destructive case.
+    uint32_t tone = upload ? UI_HEX_WARN : (local ? UI_HEX_ERR : UI_HEX_INFO);
+    const int w = 540, h = 300;
+    const int x = (UI_W - w) / 2, y = 88;
+    ui_card(x, y, w, h, upload ? "Upload to server?" : "Download to this Xbox?",
+            tone);
 
-    const int x = 44;
-    const int y = 96;
-    const int w = 552;
-    const int h = 292;
-    ui_rect(x - 2, y - 2, w + 4, h + 4, border);
-    ui_rect(x, y, w, h, panel);
-    ui_rect(x, y, w, 34, head);
+    const char *name = (local && local->name[0]) ? local->name : tid;
+    int cy = y + UI_CARD_TITLE_H + 12;
+    ui_text_fit(x + 20, cy, UI_FONT_BODY, UI_HEX_TEXT, UI_LEFT, w - 40, name);
+    char line[160];
+    snprintf(line, sizeof(line), "Title ID %s", tid);
+    ui_text(x + 20, cy + 24, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, line);
 
-    char line[180];
-    snprintf(line, sizeof(line), "Confirm %s", manual_op_name(op));
-    ui_text(x + 14, y + 7, line, UI_ACCENT, UI_FONT_BODY);
-
-    char display_name[56];
-    if (local && local->name[0]) {
-        short_str(local->name, display_name, 46);
-    } else {
-        snprintf(display_name, sizeof(display_name), "%s", tid);
-    }
-    snprintf(line, sizeof(line), "Title %s  %s", tid, display_name);
-    ui_text(x + 14, y + 44, line, UI_TEXT, UI_FONT_SMALL);
-
-    char local_hash_short[40];
-    char server_hash_short[40];
-    char local_ts[24];
-    char server_ts[24];
+    char local_hash_short[40], server_hash_short[40];
+    char local_ts[24], server_ts[24], server_up[24];
     short_hash(local_hash, local_hash_short, sizeof(local_hash_short));
     short_hash(server && server->exists ? server->save_hash : "",
                server_hash_short, sizeof(server_hash_short));
     fmt_timestamp(local ? local->latest_mtime : 0, local_ts, sizeof(local_ts));
     fmt_timestamp(server && server->exists ? server->client_timestamp : 0,
                   server_ts, sizeof(server_ts));
+    fmt_server_time(server && server->exists ? server->server_timestamp : "",
+                    server_up, sizeof(server_up));
 
-    int ly = y + 72;
+    int bx = x + 20, by = cy + 48;
+    int bw = (w - 40 - 12) / 2, bh = 112;
+    char kb[24], local_line[64], server_line[64];
     if (local) {
-        char kb[24];
-        snprintf(line, sizeof(line), "Local: %s, %d file(s)",
-                 fmt_kb(local->total_size, kb, sizeof(kb)),
-                 local->file_count);
+        snprintf(local_line, sizeof(local_line), "%s, %d file(s)",
+                 fmt_kb(local->total_size, kb, sizeof(kb)), local->file_count);
     } else {
-        snprintf(line, sizeof(line), "Local: not present on this Xbox");
+        snprintf(local_line, sizeof(local_line), "Not on this Xbox");
     }
-    ui_text(x + 14, ly, line, UI_TEXT, UI_FONT_SMALL);
-    ly += 24;
-    snprintf(line, sizeof(line), "Local hash: %s", local_hash_short);
-    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
-    ly += 24;
-    snprintf(line, sizeof(line), "Local timestamp: %s", local_ts);
-    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
-
-    ly += 34;
     if (server && server->exists) {
-        char kb[24];
-        snprintf(line, sizeof(line), "Server: %s, %d file(s)",
-                 fmt_kb(server->save_size, kb, sizeof(kb)),
-                 server->file_count);
+        snprintf(server_line, sizeof(server_line), "%s, %d file(s)",
+                 fmt_kb(server->save_size, kb, sizeof(kb)), server->file_count);
     } else {
-        snprintf(line, sizeof(line), "Server: no save found");
+        snprintf(server_line, sizeof(server_line), "No save on the server");
     }
-    ui_text(x + 14, ly, line, UI_TEXT, UI_FONT_SMALL);
-    ly += 24;
-    snprintf(line, sizeof(line), "Server hash: %s", server_hash_short);
-    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
-    ly += 24;
-    snprintf(line, sizeof(line), "Server timestamp: %s", server_ts);
-    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
-    ly += 24;
-    snprintf(line, sizeof(line), "Server uploaded: %s",
-             (server && server->exists && server->server_timestamp[0])
-                 ? server->server_timestamp
-                 : "n/a");
-    ui_text(x + 14, ly, line, UI_TEXT_DIM, UI_FONT_SMALL);
+    draw_compare_box(bx, by, bw, bh, "THIS XBOX", local != NULL, local_line,
+                     local_hash_short, local_ts, NULL);
+    draw_compare_box(bx + bw + 12, by, bw, bh, "SERVER",
+                     server && server->exists, server_line,
+                     server_hash_short, server_ts, server_up);
 
-    ui_rect(x + 14, y + h - 44, 150, 28, UI_STATUS_OK);
-    ui_text(x + 36, y + h - 39, "A confirm", dark, UI_FONT_SMALL);
-    ui_rect(x + 184, y + h - 44, 130, 28, UI_STATUS_CONFLICT);
-    ui_text(x + 210, y + h - 39, "B cancel", dark, UI_FONT_SMALL);
+    const char *warn = upload
+        ? "Replaces the server copy. The old one stays in the server history."
+        : (local ? "Overwrites the save on this Xbox."
+                 : "Copies the server save onto this Xbox.");
+    ui_text_fit(x + 20, by + bh + 10, UI_FONT_SMALL,
+                (!upload && local) ? UI_HEX_ERR : UI_HEX_DIM, UI_LEFT, w - 40, warn);
 
+    static const UiHint actions[] = { { "B", "Cancel" }, { "A", "Confirm" } };
+    card_actions(x, y, w, h, actions, 2);
     ui_present();
 }
 
@@ -779,7 +1101,7 @@ static int confirm_manual_transfer(int cursor, int scroll,
         uint8_t raw[32];
         if (!state_get_cached_save_hash(local, local_hash)) {
             set_status_kind(UI_STATUS_BUSY_KIND, "Computing local hash: %s", tid);
-            redraw(cursor, scroll);
+            show_busy(cursor, scroll, "Hashing save");
             if (bundle_compute_save_hash(local, raw, local_hash) != 0) {
                 set_status_kind(UI_STATUS_ERROR_KIND,
                                 "Could not hash local save: %s", tid);
@@ -791,7 +1113,7 @@ static int confirm_manual_transfer(int cursor, int scroll,
 
     NetworkSaveMeta server;
     set_status_kind(UI_STATUS_BUSY_KIND, "Fetching server metadata: %s", tid);
-    redraw(cursor, scroll);
+    show_busy(cursor, scroll, "Contacting server");
     if (network_get_save_meta(&g_cfg, tid, &server) != 0) {
         const char *ne = network_last_error();
         set_status_kind(UI_STATUS_ERROR_KIND, "%s",
@@ -804,6 +1126,8 @@ static int confirm_manual_transfer(int cursor, int scroll,
         return 0;
     }
 
+    set_status_kind(UI_STATUS_INFO_KIND, "Confirm %s: %s",
+                    op == UI_KEY_X ? "upload" : "download", tid);
     draw_confirm_dialog(cursor, scroll, op, tid, local, local_hash, &server);
     while (1) {
         ui_pump();
@@ -856,10 +1180,12 @@ static void refresh_plan(void)
         return;
     }
     g_plan_loaded = 1;
-    set_status_kind(UI_STATUS_SUCCESS_KIND, "Plan loaded: up %d  down %d  new %d",
+    set_status_kind(UI_STATUS_SUCCESS_KIND,
+                    "Compared: %d to upload, %d to download, %d new, %d conflict",
                     g_plan.upload_count,
                     g_plan.download_count,
-                    g_plan.server_only_count);
+                    g_plan.server_only_count,
+                    g_plan.conflict_count);
 }
 
 static void rescan(void)
@@ -880,7 +1206,7 @@ static void clear_hash_cache(void)
     }
     if (g_plan_loaded) { sync_plan_free(&g_plan); g_plan_loaded = 0; }
     set_status_kind(UI_STATUS_SUCCESS_KIND,
-                    "Hash cache cleared; press LB to refresh plan");
+                    "Hash cache cleared; press WHITE to compare again");
 }
 
 static void load_rom_catalog(void)
@@ -894,7 +1220,7 @@ static void load_rom_catalog(void)
         return;
     }
     g_roms_loaded = 1;
-    set_status_kind(UI_STATUS_SUCCESS_KIND, "Loaded %d Xbox ROM(s)", g_roms.count);
+    set_status_kind(UI_STATUS_SUCCESS_KIND, "Catalog: %d Xbox game(s)", g_roms.count);
 }
 
 static void load_installed_games(void)
@@ -926,10 +1252,75 @@ static void load_installed_games(void)
                     fmt_size(g_installed.total_size, used, sizeof(used)));
 }
 
+// ---------------------------------------------------------------------------
+// Game download progress
+// ---------------------------------------------------------------------------
+
+// Progress callbacks fire every MB and every few files; repaint at most
+// this often so drawing never competes with the transfer.
+#define PROGRESS_REDRAW_MS 250
+
 typedef struct {
     int cursor;
     int scroll;
+    const char *name;
+    uint32_t start_ms;
+    uint32_t last_draw_ms;
+    int drawn;
 } GameRedrawCtx;
+
+static void draw_download_card(const GameRedrawCtx *ctx, const char *msg,
+                               uint64_t done, uint64_t total)
+{
+    draw_screen(ctx->cursor, ctx->scroll);
+    ui_dim();
+    const int w = 520, h = 214;
+    const int x = (UI_W - w) / 2, y = 120;
+    ui_card(x, y, w, h, "Downloading game", UI_HEX_ACCENT);
+
+    int cx = x + 20, cw = w - 40;
+    int cy = y + UI_CARD_TITLE_H + 12;
+    ui_text_fit(cx, cy, UI_FONT_BODY, UI_HEX_TEXT, UI_LEFT, cw, ctx->name);
+    ui_text_fit(cx, cy + 24, UI_FONT_SMALL, UI_HEX_DIM, UI_LEFT, cw, msg);
+
+    float frac = total > 0 ? (float)((double)done / (double)total) : 0.0f;
+    ui_bar(cx, cy + 52, cw, 14, frac, UI_HEX_ACCENT);
+
+    char a[24], b[24], line[96];
+    if (total > 0) {
+        snprintf(line, sizeof(line), "%s / %s",
+                 fmt_size(done, a, sizeof(a)), fmt_size(total, b, sizeof(b)));
+        ui_text(cx, cy + 74, UI_FONT_SMALL, UI_HEX_TEXT, UI_LEFT, line);
+        snprintf(line, sizeof(line), "%d%%", (int)(frac * 100.0f));
+        ui_text(cx + cw, cy + 74, UI_FONT_SMALL, UI_HEX_ACCENT2, UI_RIGHT, line);
+    } else {
+        ui_text(cx, cy + 74, UI_FONT_SMALL, UI_HEX_TEXT, UI_LEFT,
+                fmt_size(done, a, sizeof(a)));
+    }
+
+    uint32_t elapsed_ms = ui_ms() - ctx->start_ms;
+    uint32_t secs = elapsed_ms / 1000u;
+    char el[16], eta[16];
+    fmt_duration(secs, el, sizeof(el));
+    if (elapsed_ms > 500 && done > 0) {
+        uint64_t bps = done * 1000ULL / elapsed_ms;
+        if (total > done && bps > 0) {
+            fmt_duration((uint32_t)((total - done) / bps), eta, sizeof(eta));
+        } else {
+            snprintf(eta, sizeof(eta), "--:--");
+        }
+        snprintf(line, sizeof(line), "Speed %s/s    Elapsed %s    Remaining %s",
+                 fmt_size(bps, a, sizeof(a)), el, eta);
+    } else {
+        snprintf(line, sizeof(line), "Elapsed %s", el);
+    }
+    ui_text(cx, cy + 98, UI_FONT_SMALL, UI_HEX_DIM, UI_LEFT, line);
+
+    ui_rect(x, y + h - 36, w, 1, UI_HEX_LINE);
+    ui_text_mid(cx, y + h - 36, 36, UI_FONT_TINY, UI_HEX_MUTED, UI_LEFT, 0,
+                "Keep the console on until the install finishes.");
+    ui_present();
+}
 
 static void game_progress_cb(const char *msg, uint64_t done, uint64_t total,
                              void *user)
@@ -943,7 +1334,16 @@ static void game_progress_cb(const char *msg, uint64_t done, uint64_t total,
     } else {
         set_status_kind(UI_STATUS_BUSY_KIND, "%s", msg);
     }
-    redraw(ctx->cursor, ctx->scroll);
+
+    uint32_t now = ui_ms();
+    int final = (total > 0 && done >= total);
+    if (ctx->drawn && !final &&
+        (uint32_t)(now - ctx->last_draw_ms) < PROGRESS_REDRAW_MS) {
+        return;
+    }
+    ctx->drawn = 1;
+    ctx->last_draw_ms = now;
+    draw_download_card(ctx, msg, done, total);
     ui_pump();
 }
 
@@ -951,33 +1351,32 @@ static int confirm_game_download(int cursor, int scroll,
                                  const XboxRomEntry *rom,
                                  XboxGameFormat fmt)
 {
-    redraw(cursor, scroll);
-    UiColor border = { 0x7E, 0xE8, 0xA1, 0xFF };
-    UiColor panel  = { 0x08, 0x1A, 0x13, 0xFF };
-    UiColor head   = { 0x10, 0x36, 0x25, 0xFF };
-    UiColor dark   = { 0x0B, 0x18, 0x10, 0xFF };
+    draw_screen(cursor, scroll);
+    ui_dim();
+    const int w = 500, h = 214;
+    const int x = (UI_W - w) / 2, y = 128;
+    ui_card(x, y, w, h, "Download game?", UI_HEX_ACCENT);
 
-    const int x = 54, y = 132, w = 532, h = 190;
-    ui_rect(x - 2, y - 2, w + 4, h + 4, border);
-    ui_rect(x, y, w, h, panel);
-    ui_rect(x, y, w, 34, head);
-    ui_text(x + 14, y + 7, "Confirm game download", UI_ACCENT, UI_FONT_BODY);
+    int cx = x + 20, cw = w - 40;
+    int cy = y + UI_CARD_TITLE_H + 12;
+    int n = ui_text_wrap(cx, cy, UI_FONT_BODY, UI_HEX_TEXT, cw, 2, rom->name);
+    cy += n * ui_line_h(UI_FONT_BODY) + 6;
 
-    char line[180];
-    char short_name[80];
-    short_str(rom->name, short_name, 64);
-    snprintf(line, sizeof(line), "%s", short_name);
-    ui_text(x + 14, y + 50, line, UI_TEXT, UI_FONT_BODY);
-    snprintf(line, sizeof(line), "Format: %s   Destination: %s\\<game>",
-             games_format_name(fmt), g_cfg.game_install_dir);
-    ui_text(x + 14, y + 80, line, UI_TEXT_DIM, UI_FONT_SMALL);
-    snprintf(line, sizeof(line), "This will overwrite matching files in the game folder.");
-    ui_text(x + 14, y + 108, line, UI_TEXT_DIM, UI_FONT_SMALL);
+    char sz[24], line[200];
+    int px = cx;
+    px += ui_pill(px, cy, 20, UI_FONT_TINY, UI_HEX_XBOX, UI_HEX_INK, "XBOX") + 5;
+    px += ui_pill(px, cy, 20, UI_FONT_TINY, UI_HEX_ACCENT, UI_HEX_INK,
+                  games_format_name(fmt)) + 5;
+    ui_pill(px, cy, 20, UI_FONT_TINY, UI_HEX_PANEL_HI, UI_HEX_DIM,
+            fmt_size(rom->size, sz, sizeof(sz)));
+    cy += 30;
+    snprintf(line, sizeof(line), "Installs to %s\\<game>", g_cfg.game_install_dir);
+    ui_text_fit(cx, cy, UI_FONT_SMALL, UI_HEX_DIM, UI_LEFT, cw, line);
+    ui_text_fit(cx, cy + 20, UI_FONT_SMALL, UI_HEX_DIM, UI_LEFT, cw,
+                "Overwrites matching files in the game folder.");
 
-    ui_rect(x + 14, y + h - 44, 150, 28, UI_STATUS_OK);
-    ui_text(x + 36, y + h - 39, "A confirm", dark, UI_FONT_SMALL);
-    ui_rect(x + 184, y + h - 44, 130, 28, UI_STATUS_CONFLICT);
-    ui_text(x + 210, y + h - 39, "B cancel", dark, UI_FONT_SMALL);
+    static const UiHint actions[] = { { "B", "Cancel" }, { "A", "Download" } };
+    card_actions(x, y, w, h, actions, 2);
     ui_present();
 
     while (1) {
@@ -995,7 +1394,7 @@ static int confirm_game_download(int cursor, int scroll,
 static void run_game_download(int cursor, int scroll)
 {
     if (!g_roms_loaded || g_roms.count <= 0) {
-        set_status_kind(UI_STATUS_ERROR_KIND, "Load ROM catalog first (LB)");
+        set_status_kind(UI_STATUS_ERROR_KIND, "Load the game catalog first (WHITE)");
         return;
     }
     if (cursor < 0 || cursor >= g_roms.count) return;
@@ -1005,9 +1404,9 @@ static void run_game_download(int cursor, int scroll)
     if (!confirm_game_download(cursor, scroll, rom, fmt)) return;
 
     char err[180] = "";
-    GameRedrawCtx ctx = { cursor, scroll };
+    GameRedrawCtx ctx = { cursor, scroll, rom->name, ui_ms(), 0, 0 };
     set_status_kind(UI_STATUS_BUSY_KIND, "Starting game download...");
-    redraw(cursor, scroll);
+    draw_download_card(&ctx, "Connecting...", 0, rom->size);
     int rc = games_download_rom(&g_cfg, rom, fmt, game_progress_cb, &ctx,
                                 err, sizeof(err));
     if (rc == 0) {
@@ -1024,43 +1423,29 @@ static void run_game_download(int cursor, int scroll)
 static int confirm_game_uninstall(int cursor, int scroll,
                                   const XboxInstalledGame *game)
 {
-    redraw(cursor, scroll);
-    UiColor border = UI_STATUS_CONFLICT;
-    UiColor panel  = { 0x08, 0x1A, 0x13, 0xFF };
-    UiColor head   = { 0x36, 0x18, 0x18, 0xFF };
-    UiColor dark   = { 0x0B, 0x18, 0x10, 0xFF };
+    draw_screen(cursor, scroll);
+    ui_dim();
+    const int w = 500, h = 226;
+    const int x = (UI_W - w) / 2, y = 122;
+    ui_card(x, y, w, h, "Uninstall game?", UI_HEX_ERR);
 
-    const int x = 54, y = 132, w = 532, h = 198;
-    ui_rect(x - 2, y - 2, w + 4, h + 4, border);
-    ui_rect(x, y, w, h, panel);
-    ui_rect(x, y, w, 34, head);
-    ui_text(x + 14, y + 7, "Confirm uninstall", UI_STATUS_CONFLICT,
-            UI_FONT_BODY);
+    int cx = x + 20, cw = w - 40;
+    int cy = y + UI_CARD_TITLE_H + 12;
+    ui_text_fit(cx, cy, UI_FONT_BODY, UI_HEX_TEXT, UI_LEFT, cw, game->name);
 
-    char line[180];
-    char short_name[80];
-    char short_path[88];
-    short_str(game->name, short_name, 64);
-    short_str(game->path, short_path, 72);
-    snprintf(line, sizeof(line), "%s", short_name);
-    ui_text(x + 14, y + 50, line, UI_TEXT, UI_FONT_BODY);
-
-    char size_buf[24];
+    char line[180], size_buf[24];
     snprintf(line, sizeof(line), "%s   %u file(s)",
              fmt_size(game->size, size_buf, sizeof(size_buf)),
              (unsigned)game->file_count);
-    ui_text(x + 14, y + 80, line, UI_TEXT_DIM, UI_FONT_SMALL);
+    ui_text(cx, cy + 26, UI_FONT_SMALL, UI_HEX_DIM, UI_LEFT, line);
+    ui_text(cx, cy + 50, UI_FONT_TINY, UI_HEX_MUTED, UI_LEFT, "FOLDER");
+    ui_text_wrap(cx + 56, cy + 48, UI_FONT_SMALL, UI_HEX_TEXT, cw - 56, 2,
+                 game->path);
+    ui_text_fit(cx, cy + 96, UI_FONT_SMALL, UI_HEX_ERR, UI_LEFT, cw,
+                "Permanently deletes the installed game folder.");
 
-    snprintf(line, sizeof(line), "Folder: %s", short_path);
-    ui_text(x + 14, y + 106, line, UI_TEXT_DIM, UI_FONT_SMALL);
-    ui_text(x + 14, y + 132,
-            "This permanently deletes the installed game folder.",
-            UI_TEXT_DIM, UI_FONT_SMALL);
-
-    ui_rect(x + 14, y + h - 44, 150, 28, UI_STATUS_OK);
-    ui_text(x + 36, y + h - 39, "A confirm", dark, UI_FONT_SMALL);
-    ui_rect(x + 184, y + h - 44, 130, 28, UI_STATUS_CONFLICT);
-    ui_text(x + 210, y + h - 39, "B cancel", dark, UI_FONT_SMALL);
+    static const UiHint actions[] = { { "B", "Cancel" }, { "A", "Delete" } };
+    card_actions(x, y, w, h, actions, 2);
     ui_present();
 
     while (1) {
@@ -1078,7 +1463,7 @@ static int confirm_game_uninstall(int cursor, int scroll,
 static void run_game_uninstall(int cursor, int scroll)
 {
     if (!g_installed_loaded || g_installed.count <= 0) {
-        set_status_kind(UI_STATUS_ERROR_KIND, "Scan installed games first (LB)");
+        set_status_kind(UI_STATUS_ERROR_KIND, "Scan installed games first (WHITE)");
         return;
     }
     if (cursor < 0 || cursor >= g_installed.count) return;
@@ -1088,7 +1473,7 @@ static void run_game_uninstall(int cursor, int scroll)
 
     char err[180] = "";
     set_status_kind(UI_STATUS_BUSY_KIND, "Uninstalling %s...", game.name);
-    redraw(cursor, scroll);
+    show_busy(cursor, scroll, "Uninstalling");
 
     if (games_uninstall_installed(&g_cfg, &game, err, sizeof(err)) != 0) {
         set_status_kind(UI_STATUS_ERROR_KIND, "%s",
@@ -1120,14 +1505,17 @@ static void config_cycle_selected(int row)
         } else {
             snprintf(g_cfg.network_mode, sizeof(g_cfg.network_mode), "auto");
         }
-        set_status_kind(UI_STATUS_INFO_KIND, "network_mode=%s", g_cfg.network_mode);
+        set_status_kind(UI_STATUS_INFO_KIND,
+                        "network_mode=%s (X saves, restart to apply)",
+                        g_cfg.network_mode);
     } else if (row == 4) {
         if (games_config_format(&g_cfg) == XBOX_GAME_FORMAT_FOLDER) {
             snprintf(g_cfg.game_format, sizeof(g_cfg.game_format), "cci");
         } else {
             snprintf(g_cfg.game_format, sizeof(g_cfg.game_format), "folder");
         }
-        set_status_kind(UI_STATUS_INFO_KIND, "game_format=%s", g_cfg.game_format);
+        set_status_kind(UI_STATUS_INFO_KIND, "game_format=%s (X saves)",
+                        g_cfg.game_format);
     } else {
         set_status_kind(UI_STATUS_INFO_KIND,
                         "Edit text fields in E:\\UDATA\\TDSV0000\\config.txt");
@@ -1173,7 +1561,8 @@ static void run_sync_one(int cursor, int scroll, UiKey op)
     switch (op) {
     case UI_KEY_A:
         if (!g_plan_loaded) {
-            set_status_kind(UI_STATUS_ERROR_KIND, "Refresh plan first (LB)");
+            set_status_kind(UI_STATUS_ERROR_KIND,
+                            "Compare with the server first (WHITE)");
             return;
         }
         if (prior_status == TITLE_STATUS_CONFLICT) {
@@ -1183,7 +1572,7 @@ static void run_sync_one(int cursor, int scroll, UiKey op)
             return;
         }
         set_status_kind(UI_STATUS_BUSY_KIND, "Smart sync in progress: %s", tid);
-        redraw(cursor, scroll);
+        show_busy(cursor, scroll, "Syncing");
         rc = sync_one_smart(&g_cfg, &g_list, tid, &g_plan);
         break;
     case UI_KEY_X:
@@ -1195,7 +1584,7 @@ static void run_sync_one(int cursor, int scroll, UiKey op)
             return;
         }
         set_status_kind(UI_STATUS_BUSY_KIND, "Uploading %s...", tid);
-        redraw(cursor, scroll);
+        show_busy(cursor, scroll, "Uploading");
         rc = sync_one_upload_force(&g_cfg, local);
         break;
     case UI_KEY_Y:
@@ -1203,7 +1592,7 @@ static void run_sync_one(int cursor, int scroll, UiKey op)
             return;
         }
         set_status_kind(UI_STATUS_BUSY_KIND, "Downloading %s...", tid);
-        redraw(cursor, scroll);
+        show_busy(cursor, scroll, "Downloading");
         rc = sync_one_download(&g_cfg, &g_list, tid);
         break;
     default: return;
@@ -1236,13 +1625,36 @@ static void run_sync_one(int cursor, int scroll, UiKey op)
 // can repaint a coherent screen between titles.
 typedef struct { int cursor; int scroll; } RedrawCtx;
 
+static void draw_sync_all_card(int cursor, int scroll, const char *msg,
+                               int done, int total)
+{
+    draw_screen(cursor, scroll);
+    ui_dim();
+    const int w = 500, h = 170;
+    const int x = (UI_W - w) / 2, y = 150;
+    ui_card(x, y, w, h, "Syncing all saves", UI_HEX_ACCENT);
+
+    int cx = x + 20, cw = w - 40;
+    int cy = y + UI_CARD_TITLE_H + 14;
+    ui_text_fit(cx, cy, UI_FONT_SMALL, UI_HEX_TEXT, UI_LEFT, cw, msg);
+    float frac = total > 0 ? (float)done / (float)total : 0.0f;
+    ui_bar(cx, cy + 30, cw, 14, frac, UI_HEX_ACCENT);
+    char line[48];
+    snprintf(line, sizeof(line), "%d of %d title(s)", done, total);
+    ui_text(cx, cy + 52, UI_FONT_SMALL, UI_HEX_DIM, UI_LEFT, line);
+    snprintf(line, sizeof(line), "%d%%", (int)(frac * 100.0f));
+    ui_text(cx + cw, cy + 52, UI_FONT_SMALL, UI_HEX_ACCENT2, UI_RIGHT, line);
+    ui_text(cx, y + h - 28, UI_FONT_TINY, UI_HEX_MUTED, UI_LEFT,
+            "Conflicts are skipped; resolve them one by one with X or Y.");
+    ui_present();
+}
+
 static void sync_progress_cb(const char *msg, int done, int total,
                              void *user)
 {
     RedrawCtx *rc = (RedrawCtx *)user;
-    (void)done; (void)total;
     set_status_kind(UI_STATUS_BUSY_KIND, "%s", msg);
-    redraw(rc->cursor, rc->scroll);
+    draw_sync_all_card(rc->cursor, rc->scroll, msg, done, total);
     // Keep SDL events drained so the controller stays responsive and
     // the OS doesn't think we're locked.
     ui_pump();
@@ -1251,11 +1663,14 @@ static void sync_progress_cb(const char *msg, int done, int total,
 static void run_sync_all(int cursor, int scroll)
 {
     if (!g_plan_loaded) {
-        set_status_kind(UI_STATUS_ERROR_KIND, "Refresh plan first (LB)");
+        set_status_kind(UI_STATUS_ERROR_KIND,
+                        "Compare with the server first (WHITE)");
         return;
     }
     set_status_kind(UI_STATUS_BUSY_KIND, "Sync all: starting...");
-    redraw(cursor, scroll);
+    draw_sync_all_card(cursor, scroll, "Starting...", 0,
+                       g_plan.upload_count + g_plan.download_count +
+                       g_plan.server_only_count);
 
     RedrawCtx rc = { cursor, scroll };
     SyncSummary s;
@@ -1263,7 +1678,7 @@ static void run_sync_all(int cursor, int scroll)
 
     int failures = s.upload_failed + s.download_failed;
     set_status_kind(failures ? UI_STATUS_ERROR_KIND : UI_STATUS_SUCCESS_KIND,
-                    "Sync-all complete: up %d down %d skip %d cflt %d fail %d",
+                    "Sync all done: up %d, down %d, skipped %d, conflicts %d, failed %d",
                     s.uploaded, s.downloaded, s.up_to_date,
                     s.conflicts, failures);
     sync_plan_free(&g_plan);
@@ -1388,23 +1803,31 @@ int main(void)
             break;
         case UI_KEY_LB:
             if (g_tab == TAB_GAMES) {
+                set_status_kind(UI_STATUS_BUSY_KIND, "Loading Xbox ROM catalog...");
+                show_busy(cursor, scroll, "Loading catalog");
                 load_rom_catalog();
+                clamp_cursor_scroll(&cursor, &scroll);
             } else if (g_tab == TAB_INSTALLED) {
+                set_status_kind(UI_STATUS_BUSY_KIND, "Scanning F:\\Games...");
+                show_busy(cursor, scroll, "Scanning");
                 load_installed_games();
+                clamp_cursor_scroll(&cursor, &scroll);
             } else if (g_tab == TAB_CONFIG) {
                 config_reload();
             } else {
                 // Refresh plan: rescan local UDATA first (catches new saves
                 // from games run in this session), then ask the server.
-                rescan();
                 cursor = 0; scroll = 0;
-                redraw(cursor, scroll);
+                set_status_kind(UI_STATUS_BUSY_KIND, "Rescanning E:\\UDATA...");
+                show_busy(cursor, scroll, "Scanning saves");
+                rescan();
+                set_status_kind(UI_STATUS_BUSY_KIND, "Fetching sync plan...");
+                show_busy(cursor, scroll, "Comparing with server");
                 refresh_plan();
             }
             redraw_needed = 1; break;
         case UI_KEY_RB:
             if (g_tab == TAB_SAVES) {
-                redraw(cursor, scroll);
                 run_sync_all(cursor, scroll);
                 clamp_cursor_scroll(&cursor, &scroll);
             }
@@ -1417,10 +1840,12 @@ int main(void)
             cursor = 0;
             scroll = 0;
             if (g_tab == TAB_GAMES && !g_roms_loaded) {
-                redraw(cursor, scroll);
+                set_status_kind(UI_STATUS_BUSY_KIND, "Loading Xbox ROM catalog...");
+                show_busy(cursor, scroll, "Loading catalog");
                 load_rom_catalog();
             } else if (g_tab == TAB_INSTALLED && !g_installed_loaded) {
-                redraw(cursor, scroll);
+                set_status_kind(UI_STATUS_BUSY_KIND, "Scanning F:\\Games...");
+                show_busy(cursor, scroll, "Scanning");
                 load_installed_games();
             }
             redraw_needed = 1; break;
