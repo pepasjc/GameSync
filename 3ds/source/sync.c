@@ -308,6 +308,7 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
         // Skip cartridge games in automatic sync (use manual A/B buttons instead)
         if (titles[i].media_type == MEDIATYPE_GAME_CARD) {
             hash_cache[i][0] = '\0';  // Mark as skipped
+            if (i < MAX_TITLES) local_summary.title_state[i] = TSTATE_SKIPPED;
             continue;
         }
 
@@ -474,6 +475,16 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
         local_summary.conflict_titles[i][0] = '\0';
     }
 
+    // Per-title state for the save list
+    for (int j = 0; j < title_count && j < MAX_TITLES; j++) {
+        for (int i = 0; i < up_to_date_count; i++)
+            if (strcmp(titles[j].title_id_hex, up_to_date_ids[i]) == 0)
+                local_summary.title_state[j] = TSTATE_SYNCED;
+        for (int i = 0; i < conflict_count; i++)
+            if (strcmp(titles[j].title_id_hex, conflict_ids[i]) == 0)
+                local_summary.title_state[j] = TSTATE_CONFLICT;
+    }
+
     char msg[128];
 
     // Process uploads
@@ -485,10 +496,13 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
                     i + 1, upload_count, upload_ids[i]);
                 if (progress) progress(msg);
 
-                if (upload_title_with_hash(config, &titles[j], NULL, hash_cache[j]) == SYNC_OK)
+                bool ok = upload_title_with_hash(config, &titles[j], NULL, hash_cache[j]) == SYNC_OK;
+                if (ok)
                     local_summary.uploaded++;
                 else
                     local_summary.failed++;
+                if (j < MAX_TITLES)
+                    local_summary.title_state[j] = ok ? TSTATE_UPLOADED : TSTATE_FAILED;
                 break;
             }
         }
@@ -505,10 +519,13 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
                     ++dl_done, total_dl, download_ids[i]);
                 if (progress) progress(msg);
 
-                if (download_title(config, &titles[j], NULL) == SYNC_OK)
+                bool ok = download_title(config, &titles[j], NULL) == SYNC_OK;
+                if (ok)
                     local_summary.downloaded++;
                 else
                     local_summary.failed++;
+                if (j < MAX_TITLES)
+                    local_summary.title_state[j] = ok ? TSTATE_DOWNLOADED : TSTATE_FAILED;
                 break;
             }
         }
@@ -522,13 +539,16 @@ bool sync_all(const AppConfig *config, const TitleInfo *titles, int title_count,
                     ++dl_done, total_dl, server_only_ids[i]);
                 if (progress) progress(msg);
 
-                if (download_title(config, &titles[j], NULL) == SYNC_OK) {
+                bool ok = download_title(config, &titles[j], NULL) == SYNC_OK;
+                if (ok) {
                     local_summary.downloaded++;
                     local_summary.skipped--; // Was counted as skipped, now downloaded
                 } else {
                     local_summary.failed++;
                     local_summary.skipped--;
                 }
+                if (j < MAX_TITLES)
+                    local_summary.title_state[j] = ok ? TSTATE_DOWNLOADED : TSTATE_FAILED;
                 break;
             }
         }

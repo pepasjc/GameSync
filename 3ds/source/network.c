@@ -8,6 +8,17 @@
 #define TIMEOUT_RESPONSE (15ULL * 1000000000ULL) // 15s for server to respond
 #define TIMEOUT_TRANSFER (30ULL * 1000000000ULL) // 30s per data chunk
 
+// Whether the server answered the last request: -1 unknown, 0 no, 1 yes
+static int server_state = -1;
+
+static void note_server(bool answered) {
+    server_state = answered ? 1 : 0;
+}
+
+int network_server_state(void) {
+    return server_state;
+}
+
 // Brief delay between requests to let httpc clean up
 static void request_delay(void) {
     svcSleepThread(50000000LL); // 50ms
@@ -105,12 +116,14 @@ u8 *network_get(const AppConfig *config, const char *path,
 
     res = httpcBeginRequest(&context);
     if (R_FAILED(res)) {
+        note_server(false);
         httpcCancelConnection(&context);
         httpcCloseContext(&context);
         return NULL;
     }
 
     res = httpcGetResponseStatusCodeTimeout(&context, out_status, TIMEOUT_RESPONSE);
+    note_server(R_SUCCEEDED(res));
     if (R_FAILED(res)) {
         httpcCancelConnection(&context);
         httpcCloseContext(&context);
@@ -155,12 +168,14 @@ u8 *network_post(const AppConfig *config, const char *path,
 
     res = httpcBeginRequest(&context);
     if (R_FAILED(res)) {
+        note_server(false);
         httpcCancelConnection(&context);
         httpcCloseContext(&context);
         return NULL;
     }
 
     res = httpcGetResponseStatusCodeTimeout(&context, out_status, TIMEOUT_RESPONSE);
+    note_server(R_SUCCEEDED(res));
     if (R_FAILED(res)) {
         httpcCancelConnection(&context);
         httpcCloseContext(&context);
@@ -205,12 +220,14 @@ u8 *network_post_json(const AppConfig *config, const char *path,
 
     res = httpcBeginRequest(&context);
     if (R_FAILED(res)) {
+        note_server(false);
         httpcCancelConnection(&context);
         httpcCloseContext(&context);
         return NULL;
     }
 
     res = httpcGetResponseStatusCodeTimeout(&context, out_status, TIMEOUT_RESPONSE);
+    note_server(R_SUCCEEDED(res));
     if (R_FAILED(res)) {
         httpcCancelConnection(&context);
         httpcCloseContext(&context);
@@ -253,6 +270,7 @@ NetDlResult network_download(const AppConfig *config, const char *path,
     httpcAddRequestHeaderField(&context, "Connection", "close");
 
     if (R_FAILED(httpcBeginRequest(&context))) {
+        note_server(false);
         close_context(&context);
         return NET_DL_CONNECT;
     }
@@ -265,6 +283,7 @@ NetDlResult network_download(const AppConfig *config, const char *path,
         Result res = httpcGetResponseStatusCodeTimeout(&context, &status, 1000000000ULL);
         if (R_SUCCEEDED(res)) break;
         if (res != (Result)HTTPC_RESULTCODE_TIMEDOUT) {
+            note_server(false);
             close_context(&context);
             return NET_DL_CONNECT;
         }
@@ -279,6 +298,7 @@ NetDlResult network_download(const AppConfig *config, const char *path,
         }
     }
     info->status = status;
+    note_server(true);
 
     u8 *buf = (u8 *)malloc(NET_DL_CHUNK);
     if (!buf) {

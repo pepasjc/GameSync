@@ -34,6 +34,8 @@ typedef struct {
     int skipped;       // server_only titles not on this device
     // First few conflicting title IDs for display (null-terminated strings)
     char conflict_titles[MAX_CONFLICT_DISPLAY][17];
+    // TitleSyncState for each entry of the titles[] passed to sync_all
+    u8 title_state[MAX_TITLES];
 } SyncSummary;
 
 // Callback for progress updates during sync

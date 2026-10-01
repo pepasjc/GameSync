@@ -9,6 +9,10 @@ bool network_init(void);
 // Cleanup httpc service. Call at shutdown.
 void network_exit(void);
 
+// Did the server answer the most recent request? -1 nothing sent yet,
+// 0 no answer (down / unreachable), 1 answered (any HTTP status).
+int network_server_state(void);
+
 // HTTP GET - returns malloc'd response body, sets out_size and out_status.
 // Returns NULL on failure. Caller must free.
 u8 *network_get(const AppConfig *config, const char *path,
