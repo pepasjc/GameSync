@@ -65,10 +65,67 @@ The in-app config editor (L button) can also edit these values directly on the c
 
 | Button | Action |
 |---|---|
-| A | Sync selected save (upload or download based on sync plan) |
+| A | Smart sync the selected save (or upload all marked titles) |
 | X | Sync all saves |
-| B | Cancel / back |
-| L | Open config editor |
-| R | Show save details (local/server hashes, sync status) |
-| SELECT | Check for updates |
+| Y | Save history (restore an older version) |
+| SELECT | Mark / unmark the selected title for batch upload |
+| R | Switch tab (All / 3DS / NDS) |
+| L | Config menu (server, API key, NDS folder, rescan, updates, game catalog) |
+| B | Game catalog |
 | START | Exit |
+
+## Game catalog
+
+Press **B** on the save list (or pick *Game Catalog* in the L menu) to browse
+the server's ROM catalog and install games straight from the 3DS. The list is
+on the top screen, details and controls on the bottom.
+
+| Button | Action |
+|---|---|
+| A | Install the selected game |
+| SELECT | Switch system (3DS / NDS / DSi, whichever the server has) |
+| Y | Only games with RetroAchievements / all games |
+| X | Search (system keyboard) |
+| START | Clear the search |
+| Up/Down, Left/Right | Move, page |
+| L / R | Jump 100 entries |
+| B | Back (hold B to cancel a download) |
+
+`RA NN` marks games with an achievement set (`RA?` when matched by name only);
+a green `*` marks games that are already installed.
+
+**3DS games** install as a CIA directly through the system's AM service — the
+download is streamed into the install in 64 KB chunks, so nothing is staged on
+the SD card and the game appears on the HOME Menu when it finishes. Requires
+custom firmware (Luma3DS) like any CIA install.
+
+- A `.cia` in the server's `n3ds` folder is installed as-is.
+- A `.3ds` / `.cci` cart image (or a zip holding one) is converted on the
+  server with `?extract=cia`. That conversion is an optional server tool: set
+  `SYNC_ROM_3DS_CIA_COMMAND` (e.g. to `3dsconv`, see `server/README.md`).
+  Big games take a few minutes to convert
+  before the download starts; converted CIAs are cached on the server.
+- If the server can't convert (HTTP 503), the client offers to save the raw
+  `.3ds` to `sdmc:/roms/3ds/` instead; install it from there with GodMode9
+  (*Build CIA from file*). Press **X** on the install prompt to pick that
+  directly.
+
+Titles installed from the catalog are remembered in
+`sdmc:/3ds/3dssync/catalog_cia.txt` (rom id → title id) so the list can show
+them as installed.
+
+**DS / DSi games** are saved as `.nds` files in the TWiLight Menu++ layout:
+`sdmc:/roms/nds/` (or the configured *NDS ROM Directory*) and
+`sdmc:/roms/dsi/`. Zipped ROMs are unzipped by the server (`?extract=nds`).
+Downloads go to a `.part` file that is renamed when complete, and the free
+space is checked first. After a DS install the save list is rescanned so the
+new game's save can be synced.
+
+## Tests
+
+The catalog's parsing and planning code (`source/catalog_data.c`) is plain C
+and has host tests:
+
+```bash
+sh tests/run_host_tests.sh          # needs a host gcc (Linux / WSL)
+```

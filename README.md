@@ -7,7 +7,7 @@ Sync save files between consoles, handhelds, and emulators through a self-hosted
 | Folder | Description |
 |---|---|
 | `server/` | FastAPI server — stores saves and history |
-| `3ds/` | Nintendo 3DS homebrew client |
+| `3ds/` | Nintendo 3DS homebrew client — 3DS and DS saves; game catalog installs 3DS games as CIA and DS games as `.nds` |
 | `ds/` | Nintendo DS / DSi homebrew client |
 | `wiiu/` | Wii U homebrew client (Aroma) — GameCube/Nintendont, vWii and Wii U saves; GC/Wii/Wii U game catalog to SD or FAT32 USB |
 | `psp/` | PSP homebrew client |
@@ -115,6 +115,7 @@ reads and writes.
 - **gen1 MemCard Pro `0x21` GameID command** (`ps2/`) — [jdfr228/PS1-Disc-Based-Game-ID](https://github.com/jdfr228).
 - **Saroo `SS_SAVE.BIN` Saturn saves** (`shared/saturn_format.py`) — [SAROO](https://github.com/tpunix/SAROO) by **tpunix** and [save-file-converter](https://github.com/euan-forrester/save-file-converter) by **Euan Forrester**.
 - **3DS NCSD/NCCH header layout** (`server/app/services/ctr_rom.py`) — [ninfs / pyctr](https://github.com/ihaveamac/ninfs) and `3dsconv` by **ihaveamac**.
+- **3DS CIA header and TMD layout** (`3ds/source/catalog_data.c`) — section sizes, 64-byte section alignment, TMD signature types and the title id offset, as documented on [3dbrew](https://www.3dbrew.org/wiki/CIA) ([Title metadata](https://www.3dbrew.org/wiki/Title_metadata)). Used to note which title a catalog CIA installed. No code copied.
 - **MSU-1 / MSU-MD / MD+ pack layouts** (`shared/msu.py`, `shared/mister_install.py`) — file naming and per-core placement as documented by the [MiSTer MegaCD core docs](https://mister-devel.github.io/MkDocs_MiSTer/cores/highlights/megacd/) (`cart.rom` for MSU-MD), the [Zeldix MD+ emulator guide](https://www.zeldix.net/t2175-md-32x-emulators-mister-fpga-genesis-plus-gx-picodrive-mame) (WAVE-track MD+ in the MegaDrive core and Genesis Plus GX), and **ArcadeTV**'s [MSU-MD patches wiki](https://arcadetv.github.io/msu-md-patches/); MSU-1 itself is **byuu / Near**'s design. No code copied.
 - **Wii U WUP/NUS installable layout** (`server/app/services/rom_scanner.py`) — `title.tmd`/`title.tik`/`.app`/`.h3` structure and the TMD content flags (`0x0001` encrypted, `0x0002` hashed) as documented by [wiiubrew](https://wiiubrew.org/wiki/Title_metadata).
 - **Wii U MCP title installation** (`wiiu/source/install.c`) — the `MCP_InstallSetTargetDevice` → `MCP_InstallTitleAsync` → `MCP_InstallGetProgress` sequence, and the 0x40-byte heap alignment IOS requires for those structs, based on analysis of [WUP Installer GX2](https://github.com/Willyanto/wup-installer-gx2) by **Dimok**, **Maschell** and contributors (GPL-2.0-or-later). No code copied.
@@ -175,7 +176,7 @@ RetroArch and the libretro cores, Dolphin, DuckStation, PCSX2, AetherSX2, PPSSPP
 Cemu, melonDS, DraStic, mGBA, Azahar/Citra, RPCS3, Mednafen, yabasanshiro, xemu,
 EmuDeck, Adrenaline, POPStarter, Nintendont, Swiss, the Aroma environment,
 MiSTer FPGA, Analogue Pocket, EverDrive, SAROO, Super SD System 3, GDEMU,
-openMenu, Flycast, MemCard PRO / PRO2 / PRO DC and SD2PSX.
+openMenu, Flycast, TWiLight Menu++, GodMode9, MemCard PRO / PRO2 / PRO DC and SD2PSX.
 
 If your work is used here and is missing or mis-credited, please open an issue.
 
