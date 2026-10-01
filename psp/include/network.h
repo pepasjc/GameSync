@@ -104,6 +104,14 @@ int network_fetch_rom_catalog(const SyncState *state,
                               char *out, uint32_t out_size,
                               int *status_out);
 
+/* ``GET /api/v1/roms/fingerprints`` — per-system catalog fingerprints
+ * (see catcache.h), NUL-terminated in `out`.  Returns bytes received, or
+ * negative on error; ``status_out`` gets the HTTP status (404 on a server
+ * too old to have the route, 0 when it couldn't be reached). */
+int network_fetch_rom_fingerprints(const SyncState *state,
+                                   char *out, uint32_t out_size,
+                                   int *status_out);
+
 /* Bundle manifest fetch (single object response). */
 int network_fetch_rom_manifest(const SyncState *state,
                                const char *rom_id,
@@ -113,8 +121,9 @@ int network_fetch_rom_manifest(const SyncState *state,
 /* Trigger ``GET /api/v1/roms/scan`` so newly-added games on the server
  * show up without an app restart.  Returns 0 on 200 OK, negative on
  * transport/HTTP error.  ``count_out`` (optional) receives the catalog
- * row count the server reported. */
-int network_trigger_rom_scan(const SyncState *state, int *count_out);
+ * row count the server reported, ``status_out`` (optional) the HTTP
+ * status (403 when the server doesn't allow it). */
+int network_trigger_rom_scan(const SyncState *state, int *count_out, int *status_out);
 
 /* Streaming progress callback — receives cumulative bytes written and
  * the expected total (or 0 when unknown).  Return non-zero to abort

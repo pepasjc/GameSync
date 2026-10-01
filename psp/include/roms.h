@@ -45,6 +45,9 @@ typedef struct {
     char     filename[160];
     char     name[MAX_TITLE_LEN];
     char     system[8];          /* "PSP" / "PS1" */
+    /* Catalog title_id (disc serial, e.g. SLUS01279).  Parsed and kept
+     * in the catalog cache so its rows match the Vita client's. */
+    char     title_id[GAME_ID_LEN];
     uint64_t size;
     bool     is_bundle;
     int      file_count;
@@ -68,6 +71,9 @@ typedef struct {
     RomEntry items[ROM_CATALOG_MAX];
     int      count;
     char     last_error[128];
+    /* Set when a later page failed: the rows are usable but incomplete,
+     * so they must not be cached under the server's fingerprint. */
+    bool     partial;
 } RomCatalog;
 
 typedef struct {

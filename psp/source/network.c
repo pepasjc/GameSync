@@ -858,14 +858,32 @@ int network_fetch_rom_manifest(const SyncState *state,
     return n;
 }
 
-int network_trigger_rom_scan(const SyncState *state, int *count_out) {
+int network_fetch_rom_fingerprints(const SyncState *state,
+                                   char *out, uint32_t out_size,
+                                   int *status_out) {
+    if (status_out) *status_out = 0;
+    if (!state || !out || out_size < 2) return -1;
+    int status = 0;
+    int n = http_request(state, "GET", "/api/v1/roms/fingerprints",
+                         NULL, NULL, 0,
+                         (uint8_t *)out, out_size - 1, &status);
+    if (status_out) *status_out = status;
+    if (n < 0 || status != 200) return n < 0 ? n : -1;
+    out[n] = '\0';
+    return n;
+}
+
+int network_trigger_rom_scan(const SyncState *state, int *count_out, int *status_out) {
     if (count_out) *count_out = -1;
+    if (status_out) *status_out = 0;
     if (!state) return -1;
     static uint8_t resp[4096];
     int status = 0;
     int n = http_request(state, "GET", "/api/v1/roms/scan",
-                         NULL, NULL, 0, resp, sizeof(resp), &status);
+                         NULL, NULL, 0, resp, sizeof(resp) - 1, &status);
+    if (status_out) *status_out = status;
     if (n < 0 || status != 200) return n < 0 ? n : -1;
+    resp[n] = '\0';
     if (count_out) {
         const char *p = strstr((const char *)resp, "\"count\"");
         if (p) {

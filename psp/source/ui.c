@@ -59,7 +59,7 @@ typedef struct {
 static ListAnim g_anim[APP_VIEW_COUNT];
 
 static const char *const VIEW_TITLES[APP_VIEW_COUNT] = {
-    "Saves", "Catalog", "Downloads"
+    "Saves", "Catalog", "Downloads", "Settings"
 };
 
 /* ================================================================== */
@@ -189,7 +189,7 @@ static void view_begin(AppView view) {
     gui_begin();
     gui_vgrad(0, GUI_HEADER_H, GUI_W, GUI_FOOTER_Y - GUI_HEADER_H,
               gui_rgb(HEX_BG), gui_rgb(0x131D28));
-    gui_header(VIEW_TITLES[view], (int)view, APP_VIEW_COUNT);
+    gui_header(VIEW_TITLES, APP_VIEW_COUNT, (int)view);
 }
 
 static void view_end(const GuiHint *hints, int count, bool vsync) {
@@ -380,7 +380,91 @@ void ui_message(UiTone tone, const char *title, const char *fmt, ...) {
     hint(x + w - 14 - bw, y + h - 16, "CROSS", "OK", HEX_DIM);
     gui_end(true);
 
-    wait_buttons(PSP_CTRL_CROSS);
+    wait_buttons(PSP_CTRL_CROSS | PSP_CTRL_CIRCLE);
+}
+
+static uint32_t button_bit(const char *b) {
+    if (!strcmp(b, "CROSS"))    return PSP_CTRL_CROSS;
+    if (!strcmp(b, "CIRCLE"))   return PSP_CTRL_CIRCLE;
+    if (!strcmp(b, "SQUARE"))   return PSP_CTRL_SQUARE;
+    if (!strcmp(b, "TRIANGLE")) return PSP_CTRL_TRIANGLE;
+    return 0;
+}
+
+/* Hints right-aligned at the bottom of a card, Circle last */
+static void card_hints(float x, float w, float cy, const char *const *buttons,
+                       const char *const *labels, int count, const char *cancel) {
+    float hx = x + w - 14;
+    if (cancel) {
+        hx -= hint_w("CIRCLE", cancel);
+        hint(hx, cy, "CIRCLE", cancel, HEX_DIM);
+        hx -= 12;
+    }
+    for (int i = count - 1; i >= 0; i--) {
+        hx -= hint_w(buttons[i], labels[i]);
+        hint(hx, cy, buttons[i], labels[i], i == 0 ? HEX_TEXT : HEX_DIM);
+        hx -= 12;
+    }
+}
+
+uint32_t ui_ask(UiTone tone, const char *title,
+                const char *const *buttons, const char *const *labels, int count,
+                const char *fmt, ...) {
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+
+    char lines[8][GUI_WRAP_LINE];
+    float w = 380;
+    int n = gui_wrap(buf, F_BODY, w - 28, lines, 8);
+    int lh = gui_line_h(F_BODY);
+    float h = 22 + 12 + n * lh + 34;
+    float x = (GUI_W - w) / 2, y = (GUI_H - h) / 2;
+
+    modal_begin(true);
+    gui_card(x, y, w, h, title, tone_hex(tone));
+    for (int i = 0; i < n; i++)
+        gui_text(x + 14, y + 32 + i * lh, F_BODY, gui_rgb(HEX_TEXT), GUI_LEFT, lines[i]);
+    card_hints(x, w, y + h - 16, buttons, labels, count, "Cancel");
+    gui_end(true);
+
+    uint32_t mask = PSP_CTRL_CIRCLE;
+    for (int i = 0; i < count; i++) mask |= button_bit(buttons[i]);
+    return wait_buttons(mask);
+}
+
+void ui_details(const char *title, const char *const *labels,
+                const char *const *values, int count) {
+    if (count > 12) count = 12;
+    /* Values may wrap onto a second line */
+    char wrapped[12][2][GUI_WRAP_LINE];
+    int nl[12];
+    float w = 420, vw = w - 28 - 70;
+    float h = 22 + 10 + 30;
+    for (int i = 0; i < count; i++) {
+        nl[i] = gui_wrap(values[i] ? values[i] : "", F_SMALL, vw, wrapped[i], 2);
+        if (nl[i] < 1) { nl[i] = 1; wrapped[i][0][0] = '\0'; }
+        h += nl[i] * 13 + 3;
+    }
+    if (h > GUI_H - 8) h = GUI_H - 8;
+    float x = (GUI_W - w) / 2, y = (GUI_H - h) / 2;
+
+    modal_begin(true);
+    gui_card(x, y, w, h, title, HEX_ACCENT);
+    float ry = y + 30;
+    for (int i = 0; i < count && ry < y + h - 40; i++) {
+        gui_text(x + 14, ry, F_SMALL, gui_rgb(HEX_MUTED), GUI_LEFT, labels[i]);
+        for (int k = 0; k < nl[i]; k++)
+            gui_text(x + 14 + 70, ry + k * 13, F_SMALL, gui_rgb(HEX_TEXT), GUI_LEFT, wrapped[i][k]);
+        ry += nl[i] * 13 + 3;
+    }
+    float bw = hint_w("CIRCLE", "Close");
+    hint(x + w - 14 - bw, y + h - 16, "CIRCLE", "Close", HEX_DIM);
+    gui_end(true);
+
+    wait_buttons(PSP_CTRL_CROSS | PSP_CTRL_CIRCLE | PSP_CTRL_TRIANGLE);
 }
 
 void ui_fatal(const char *title, const char *fmt, ...) {
@@ -391,7 +475,7 @@ void ui_fatal(const char *title, const char *fmt, ...) {
     va_end(ap);
 
     gui_begin();
-    gui_header(NULL, -1, 0);
+    gui_header(NULL, 0, -1);
     char lines[10][GUI_WRAP_LINE];
     float w = 420;
     int n = gui_wrap(buf, F_BODY, w - 28, lines, 10);
@@ -420,9 +504,9 @@ static void compare_box(float x, float y, float w, float h, const char *label,
     gui_text_fit(x + 9, y + h - 17, F_SMALL, gui_rgb(HEX_DIM), GUI_LEFT, w - 18, detail);
 }
 
-bool ui_confirm(const TitleInfo *title, SyncAction action,
-                const char *server_hash, uint32_t server_size,
-                const char *server_last_sync) {
+int ui_confirm(const TitleInfo *title, SyncAction action, bool allow_upload,
+               const char *server_hash, uint32_t server_size,
+               const char *server_last_sync) {
     const char *heading, *explain;
     uint32_t tone;
     switch (action) {
@@ -438,8 +522,11 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
             break;
         case SYNC_CONFLICT:
             heading = "Conflict";
-            explain = "Both copies changed since the last sync. Pick a side with "
-                      "Square (upload) or Triangle (download).";
+            explain = allow_upload
+                    ? "Both copies changed since the last sync. Pick a side with "
+                      "Square (upload) or Triangle (download)."
+                    : "Both copies changed since the last sync. Triangle "
+                      "downloads the server copy.";
             tone = HEX_ERR;
             break;
         case SYNC_UP_TO_DATE:
@@ -507,23 +594,29 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
 
     gui_text_wrap(x + 14, by + bh + 8, F_SMALL, gui_rgb(HEX_DIM), w - 28, 2, explain);
 
-    float hy = y + h - 15, hx = x + w - 14;
-    if (can_confirm) {
-        hx -= hint_w("CIRCLE", "Cancel");
-        hint(hx, hy, "CIRCLE", "Cancel", HEX_DIM);
-        hx -= 14 + hint_w("CROSS", "Confirm");
-        hint(hx, hy, "CROSS", "Confirm", HEX_TEXT);
-    } else {
-        hx -= hint_w("CROSS", "Close");
-        hint(hx, hy, "CROSS", "Close", HEX_DIM);
-    }
+    /* Cross takes the suggested direction; Square / Triangle force one
+     * (the other direction, or either side of a conflict). */
+    bool can_force = (action != SYNC_UP_TO_DATE && action != SYNC_FAILED);
+    bool offer_up = can_force && allow_upload && action != SYNC_UPLOAD;
+    bool offer_down = can_force && action != SYNC_DOWNLOAD;
+    const char *buttons[3] = {NULL}, *labels[3] = {NULL};
+    int n = 0;
+    if (can_confirm) { buttons[n] = "CROSS"; labels[n++] = "Confirm"; }
+    if (offer_up)    { buttons[n] = "SQUARE"; labels[n++] = "Upload"; }
+    if (offer_down)  { buttons[n] = "TRIANGLE"; labels[n++] = "Download"; }
+    card_hints(x, w, y + h - 15, buttons, labels, n, n ? "Cancel" : "Close");
     gui_end(true);
 
-    if (!can_confirm) {
-        wait_buttons(PSP_CTRL_CROSS | PSP_CTRL_CIRCLE);
-        return false;
-    }
-    return wait_buttons(PSP_CTRL_CROSS | PSP_CTRL_CIRCLE) & PSP_CTRL_CROSS;
+    uint32_t mask = PSP_CTRL_CIRCLE;
+    if (can_confirm) mask |= PSP_CTRL_CROSS;
+    if (offer_up)    mask |= PSP_CTRL_SQUARE;
+    if (offer_down)  mask |= PSP_CTRL_TRIANGLE;
+    if (n == 0)      mask |= PSP_CTRL_CROSS;   /* Cross also closes */
+    uint32_t b = wait_buttons(mask);
+    if ((b & PSP_CTRL_CROSS) && can_confirm) return (int)action;
+    if (b & PSP_CTRL_SQUARE)   return SYNC_UPLOAD;
+    if (b & PSP_CTRL_TRIANGLE) return SYNC_DOWNLOAD;
+    return -1;
 }
 
 void ui_sync_summary(const SyncSummary *s) {
@@ -557,7 +650,7 @@ void ui_sync_summary(const SyncSummary *s) {
     hint(x + w - 14 - bw, y + h - 15, "CROSS", "Continue", HEX_DIM);
     gui_end(true);
 
-    wait_buttons(PSP_CTRL_CROSS);
+    wait_buttons(PSP_CTRL_CROSS | PSP_CTRL_CIRCLE);
 }
 
 /* ================================================================== */
@@ -607,6 +700,8 @@ void ui_draw_saves(const SyncState *state, int selected, int scroll) {
             gui_text_mid(x, y, ROW_H, F_BODY, gui_rgb(sel ? HEX_INK : HEX_TEXT), GUI_LEFT, right - x, name);
         }
         rows_end(V, total);
+    } else {
+        list_empty("No saves", "No PSP or PS1 saves on this Memory Stick or the server.", HEX_DIM);
     }
     snprintf(buf, sizeof(buf), "%d saves  \xC2\xB7  %d only on the server", total, n_srv);
     char pos[24];
@@ -664,14 +759,14 @@ void ui_draw_saves(const SyncState *state, int selected, int scroll) {
     gui_text_fit(DET_IX + 10, sy + 14, F_SMALL, gui_rgb(HEX_MUTED), GUI_LEFT, DET_IW - 10, buf);
 
     static const GuiHint online_hints[] = {
-        {"CROSS", "Sync"}, {"SQUARE", "Upload"}, {"TRIANGLE", "Download"},
-        {"SELECT", "Sync all"}, {"LR", "Page"}, {"START", "Catalog"},
+        {"CROSS", "Sync"}, {"SQUARE", "Sync all"}, {"TRIANGLE", "Details"},
+        {"LR", "Page"}, {"START", "Exit"},
     };
     static const GuiHint offline_hints[] = {
-        {"UD", "Browse"}, {"LR", "Page"}, {"START", "Catalog"},
+        {"UD", "Browse"}, {"LR", "Page"}, {"TRIANGLE", "Details"}, {"START", "Exit"},
     };
-    if (g_online) view_end(online_hints, 6, true);
-    else view_end(offline_hints, 3, true);
+    if (g_online) view_end(online_hints, 5, true);
+    else view_end(offline_hints, 4, true);
 }
 
 /* ================================================================== */
@@ -733,17 +828,17 @@ void ui_draw_rom_catalog(const RomCatalog *catalog,
                          const DownloadList *downloads,
                          const char *const *systems, int system_count,
                          int system_index,
-                         int selected, int scroll_offset) {
+                         int selected, int scroll_offset,
+                         const char *notice) {
     const AppView V = APP_VIEW_ROMS;
     int total = catalog ? catalog->count : 0;
     view_begin(V);
 
-    /* List: system tabs between L and R */
+    /* List: system chips, SELECT switches */
     list_panel(NULL);
     float tx = LIST_X + 8;
-    tx += gui_button(tx, LIST_Y + LIST_HEAD_H / 2.0f, "L") + 4;
     tx = gui_tabs(tx, LIST_Y + 3, 16, systems, system_count, system_index) + 4;
-    gui_button(tx, LIST_Y + LIST_HEAD_H / 2.0f, "R");
+    gui_button(tx, LIST_Y + LIST_HEAD_H / 2.0f, "SELECT");
     char buf[96];
     snprintf(buf, sizeof(buf), "%d / %d", total ? selected + 1 : 0, total);
     gui_text_mid(LIST_X + LIST_W - 10, LIST_Y, LIST_HEAD_H, F_SMALL, gui_rgb(HEX_DIM), GUI_RIGHT, 0, buf);
@@ -782,11 +877,23 @@ void ui_draw_rom_catalog(const RomCatalog *catalog,
     } else if (!g_online) {
         list_empty("Offline", "Connect to the server to browse games.", HEX_MUTED);
     } else {
-        list_empty("No games here yet", "Add ROMs to the server and press Circle to rescan.", HEX_DIM);
+        list_empty("No games here yet",
+                   "Add ROMs to the server, then use Refresh catalog in Settings.", HEX_DIM);
     }
     int queued = downloads ? downloads->count : 0;
-    snprintf(buf, sizeof(buf), "%d games  \xC2\xB7  %d in the download queue", total, queued);
-    list_status(buf, NULL);
+    if (notice && notice[0]) {
+        snprintf(buf, sizeof(buf), "%d games", total);
+        float y = ROWS_Y + UI_LIST_ROWS * ROW_H + 2;
+        float h = LIST_Y + LIST_H - y;
+        float pw = gui_pill_w(12, F_SMALL, notice);
+        gui_pill(LIST_X + 10, y + (h - 12) / 2, 12, F_SMALL, gui_rgba(HEX_WARN, 0x40),
+                 gui_rgb(HEX_WARN), notice);
+        gui_text_mid(LIST_X + LIST_W - 10, y, h, F_SMALL, gui_rgb(HEX_DIM), GUI_RIGHT,
+                     LIST_W - 30 - pw, buf);
+    } else {
+        snprintf(buf, sizeof(buf), "%d games  \xC2\xB7  %d in the download queue", total, queued);
+        list_status(buf, NULL);
+    }
 
     /* Detail */
     gui_panel(DET_X, DET_Y, DET_W, DET_H);
@@ -855,14 +962,15 @@ void ui_draw_rom_catalog(const RomCatalog *catalog,
     }
 
     static const GuiHint online_hints[] = {
-        {"CROSS", "Download"}, {"TRIANGLE", "Resume"}, {"CIRCLE", "Rescan"},
-        {"L/R", "System"}, {"START", "Downloads"},
+        {"CROSS", "Download"}, {"TRIANGLE", "Details"}, {"SELECT", "System"},
+        {"LR", "Page"}, {"START", "Exit"},
     };
     static const GuiHint offline_hints[] = {
-        {"UD", "Browse"}, {"L/R", "System"}, {"CIRCLE", "Reload"}, {"START", "Downloads"},
+        {"UD", "Browse"}, {"TRIANGLE", "Details"}, {"SELECT", "System"},
+        {"LR", "Page"}, {"START", "Exit"},
     };
     if (g_online) view_end(online_hints, 5, true);
-    else view_end(offline_hints, 4, true);
+    else view_end(offline_hints, 5, true);
 }
 
 /* ================================================================== */
@@ -909,7 +1017,7 @@ static void draw_active_transfer(const DownloadEntry *e, uint64_t done, uint64_t
 
     float by = DET_Y + DET_H - 34;
     gui_rrect(DET_IX - 3, by, DET_IW + 6, 26, 5, gui_rgb(HEX_BG2));
-    hint(DET_IX + 4, by + 13, "SQUARE", "Pause (resume later)", HEX_TEXT);
+    hint(DET_IX + 4, by + 13, "CIRCLE", "Pause (resume later)", HEX_TEXT);
 }
 
 /* Detail panel for a queued / paused / finished entry */
@@ -945,7 +1053,7 @@ static void draw_entry_detail(const DownloadEntry *e) {
         case DL_STATUS_QUEUED: what = "Start download"; break;
         case DL_STATUS_PAUSED: what = "Resume download"; break;
         case DL_STATUS_ERROR:  what = "Retry download"; break;
-        case DL_STATUS_COMPLETED: what = "Clear finished"; btn = "TRIANGLE"; break;
+        case DL_STATUS_COMPLETED: what = "Remove / clear finished"; btn = "SQUARE"; break;
         default: break;
     }
     if (what && (g_online || e->status == DL_STATUS_COMPLETED)) {
@@ -1015,7 +1123,7 @@ void ui_draw_downloads(const DownloadList *downloads,
         }
         rows_end(V, total);
     } else {
-        list_empty("Nothing queued", "Pick a game in the Catalog (START) to download it.", HEX_DIM);
+        list_empty("Nothing queued", "Pick a game in the Catalog (L / R) to download it.", HEX_DIM);
     }
     snprintf(buf, sizeof(buf), "%d waiting  \xC2\xB7  %d finished", waiting, done);
     list_status(buf, NULL);
@@ -1027,17 +1135,79 @@ void ui_draw_downloads(const DownloadList *downloads,
         draw_entry_detail(&downloads->items[selected]);
 
     if (active) {
-        static const GuiHint busy_hints[] = {{"SQUARE", "Pause"}};
+        static const GuiHint busy_hints[] = {{"CIRCLE", "Pause"}};
         view_end(busy_hints, 1, vsync);
         return;
     }
     static const GuiHint online_hints[] = {
-        {"UD", "Browse"}, {"CROSS", "Start / resume"}, {"CIRCLE", "Remove"},
-        {"TRIANGLE", "Clear done"}, {"START", "Saves"},
+        {"CROSS", "Start / resume"}, {"SQUARE", "Remove"}, {"TRIANGLE", "Details"},
+        {"LR", "Page"}, {"START", "Exit"},
     };
     static const GuiHint offline_hints[] = {
-        {"UD", "Browse"}, {"CIRCLE", "Remove"}, {"TRIANGLE", "Clear done"}, {"START", "Saves"},
+        {"UD", "Browse"}, {"SQUARE", "Remove"}, {"TRIANGLE", "Details"},
+        {"LR", "Page"}, {"START", "Exit"},
     };
     if (g_online) view_end(online_hints, 5, vsync);
-    else view_end(offline_hints, 4, vsync);
+    else view_end(offline_hints, 5, vsync);
+}
+
+/* ================================================================== */
+/* Settings view                                                       */
+/* ================================================================== */
+
+void ui_draw_settings(const UiSettingsRow *rows, int count,
+                      int selected, int scroll) {
+    const AppView V = APP_VIEW_SETTINGS;
+    view_begin(V);
+
+    list_panel("Settings");
+    if (list_anim(V, selected, scroll, count)) {
+        rows_begin(V);
+        int first, last;
+        rows_range(V, count, &first, &last);
+        for (int i = first; i < last; i++) {
+            const UiSettingsRow *r = &rows[i];
+            float y = row_y(V, i);
+            bool sel = row_selected(V, i, selected);
+            float x = ROWS_X + 8;
+            if (r->action) {
+                /* Action rows: accent label with a chevron */
+                uint32_t c = gui_rgb(sel ? HEX_INK : HEX_ACCENT2);
+                gui_text_mid(x, y, ROW_H, F_BOLD, c, GUI_LEFT, ROWS_W - 30, r->label);
+                float cx = ROWS_X + ROWS_W - 12, cy = y + ROW_H / 2.0f;
+                gui_line(cx - 2, cy - 4, cx + 2, cy, 1.6f, c);
+                gui_line(cx - 2, cy + 4, cx + 2, cy, 1.6f, c);
+            } else {
+                gui_text_mid(x, y, ROW_H, F_BODY, gui_rgb(sel ? HEX_INK : HEX_DIM), GUI_LEFT, 92, r->label);
+                gui_text_mid(ROWS_X + ROWS_W - 6, y, ROW_H, F_BODY, gui_rgb(sel ? HEX_INK : HEX_TEXT),
+                             GUI_RIGHT, ROWS_W - 110, r->value);
+            }
+        }
+        rows_end(V, count);
+    }
+    list_status("GameSync PSP client", "v" APP_VERSION);
+
+    gui_panel(DET_X, DET_Y, DET_W, DET_H);
+    if (count > 0 && selected < count) {
+        const UiSettingsRow *r = &rows[selected];
+        float y = DET_Y + 8;
+        int lines = gui_text_wrap(DET_IX, y, F_TITLE, gui_rgb(HEX_TEXT), DET_IW, 2, r->label);
+        y += lines * gui_line_h(F_TITLE) + 6;
+        if (!r->action && r->value[0]) {
+            lines = gui_text_wrap(DET_IX, y, F_BODY, gui_rgb(HEX_ACCENT2), DET_IW, 3, r->value);
+            y += lines * gui_line_h(F_BODY) + 6;
+        }
+        if (r->help)
+            gui_text_wrap(DET_IX, y, F_SMALL, gui_rgb(HEX_DIM), DET_IW, 7, r->help);
+        if (r->action) {
+            float by = DET_Y + DET_H - 34;
+            gui_rrect(DET_IX - 3, by, DET_IW + 6, 26, 5, gui_rgb(HEX_BG2));
+            hint(DET_IX + 4, by + 13, "CROSS", r->label, HEX_TEXT);
+        }
+    }
+
+    static const GuiHint hints[] = {
+        {"UD", "Browse"}, {"CROSS", "Select"}, {"START", "Exit"},
+    };
+    view_end(hints, 3, true);
 }
