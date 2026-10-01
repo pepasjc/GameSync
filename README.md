@@ -9,6 +9,7 @@ Sync save files between consoles, handhelds, and emulators through a self-hosted
 | `server/` | FastAPI server — stores saves and history |
 | `3ds/` | Nintendo 3DS homebrew client — 3DS and DS saves; game catalog installs 3DS games as CIA and DS games as `.nds` |
 | `ds/` | Nintendo DS / DSi homebrew client |
+| `gc/` | GameCube homebrew client — memory card / card image saves, MemCard Pro GC GameID, game catalog to SD |
 | `wiiu/` | Wii U homebrew client (Aroma) — GameCube/Nintendont, vWii and Wii U saves; GC/Wii/Wii U game catalog to SD or FAT32 USB |
 | `psp/` | PSP homebrew client |
 | `vita/` | PS Vita homebrew client |
@@ -79,8 +80,7 @@ preservation communities. Thanks to everyone below.
 | [libnds](https://github.com/devkitPro/libnds) | `ds/` | Dave Murphy (WinterMute), Dovoto and contributors |
 | [dswifi](https://github.com/devkitPro/libnds) | `ds/` | Stephen Stair (sgstair) |
 | [libfat](https://github.com/devkitPro/libfat) | `ds/`, `gc/` | Michael Chisholm (chishm), Dave Murphy |
-| [libogc](https://github.com/devkitPro/libogc) | `gc/` | Michael Wiedenbauer (shagkur), Dave Murphy |
-| [gxflux](https://github.com/Extrems/) | `gc/` | Extrems |
+| [libogc](https://github.com/devkitPro/libogc) — incl. its 8x16 console font (UI fallback when the IPL ROM font can't be read) | `gc/` | Michael Wiedenbauer (shagkur), Dave Murphy |
 | [wut](https://github.com/devkitPro/wut) | `wiiu/` | James Benton (exjam) and contributors |
 | [libmocha](https://github.com/wiiu-env/libmocha) + [MochaPayload](https://github.com/wiiu-env/MochaPayload) / [EnvironmentLoader](https://github.com/wiiu-env/EnvironmentLoader) | `wiiu/` | Maschell and the wiiu-env contributors (LGPL-3.0) |
 | [pspdev / pspsdk](https://github.com/pspdev/pspdev) | `psp/` | The pspdev contributors |

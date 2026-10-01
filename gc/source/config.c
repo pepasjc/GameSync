@@ -15,6 +15,7 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <sys/iosupport.h>   /* FindDevice */
 #include <time.h>
 
 #define DEFAULT_SERVER_URL "http://192.168.1.201:8000"
@@ -151,6 +152,10 @@ static void parse_config_text(SyncState *state, char *text) {
 }
 
 static void ensure_app_dir(void) {
+    /* libogc's mkdir() dereferences a NULL devoptab when the "sd:" device
+     * isn't mounted (open/fopen fail cleanly, mkdir faults) — so booting
+     * with no SD crashed while saving the default config / console id. */
+    if (FindDevice(APP_DIR_PATH) < 0) return;
     mkdir(APP_DIR_PATH, 0777);
 }
 
