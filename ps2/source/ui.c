@@ -4,14 +4,16 @@
  * Layout on the 640x448 canvas (see gui.h; PAL is centred):
  *
  *     0..44    header: logo, "GameSync • <screen>", version, network dot
- *    50..74    view tabs, flanked by the L2 / R2 glyphs that cycle them
+ *    50..74    view tabs, flanked by the L1 / R1 glyphs that cycle them
  *    82..370   content: list card (left) + detail card (right), or the
  *              settings cards
  *   376..404   status banner (info / working / error)
  *   414..448   footer: button glyph pills for the current view
  *
  * Long-running work (downloads) draws a modal card over whatever view is
- * active; confirmations do the same with a dimmed backdrop.
+ * active; confirmations, action menus and details cards do the same with a
+ * dimmed backdrop.  Views with sub-tabs (memory card slot, server sync
+ * source) show them as SELECT + chips in the list header.
  */
 
 #include "ui.h"
@@ -51,7 +53,9 @@ enum { STATUS_NONE, STATUS_INFO, STATUS_ERROR };
 
 static char    g_status[256];
 static int     g_status_kind = STATUS_NONE;
-static char    g_server_source_label[8] = "VMC";
+static int     g_server_source = 0;            /* 0 VMC, 1 slot 1, 2 slot 2 */
+static char    g_catalog_badge[16];
+static char    g_cache_desc[64] = "not used";
 static int     g_mmce_mode_disp[2] = {1, 1};   /* per slot: 0 off,1 auto,2 gen1,3 gen2 */
 static const LocalRomList *g_ctx_local;
 static const DownloadList *g_ctx_downloads;
@@ -65,8 +69,15 @@ static char  g_boot_log[BOOT_LINES][BOOT_LINE_LEN];
 static int   g_boot_count;
 static bool  g_booting;
 
-void ui_set_server_source(const char *src) {
-    snprintf(g_server_source_label, sizeof(g_server_source_label), "%s", src);
+static const char *const g_source_labels[3] = { "VMC", "Slot 1", "Slot 2" };
+
+void ui_set_server_source(int source) {
+    g_server_source = (source >= 0 && source < 3) ? source : 0;
+}
+
+void ui_set_catalog_info(const char *badge, const char *cache_desc) {
+    snprintf(g_catalog_badge, sizeof(g_catalog_badge), "%s", badge ? badge : "");
+    if (cache_desc) snprintf(g_cache_desc, sizeof(g_cache_desc), "%s", cache_desc);
 }
 
 void ui_set_mmce(int port, int mode) {
@@ -196,7 +207,7 @@ static const char *storage_backend_label(const SyncState *state) {
 /* ---- Views: titles, tabs, hints ---- */
 
 static const char *const g_tab_labels[APP_VIEW_COUNT] = {
-    "Catalog", "Installed", "Downloads", "VMC", "Slot 1", "Slot 2", "Server", "Settings",
+    "Catalog", "Installed", "Downloads", "VMC", "Memory Card", "Server", "Settings",
 };
 
 static const char *view_title(AppView v) {
@@ -205,8 +216,7 @@ static const char *view_title(AppView v) {
         case APP_VIEW_LOCAL:     return "Installed Games";
         case APP_VIEW_DOWNLOADS: return "Downloads";
         case APP_VIEW_SAVES:     return "Virtual Memory Cards";
-        case APP_VIEW_MCARD:     return "Memory Card 1";
-        case APP_VIEW_MCARD2:    return "Memory Card 2";
+        case APP_VIEW_MCARD:     return "Memory Card";
         case APP_VIEW_SERVER:    return "Server Saves";
         case APP_VIEW_CONFIG:    return "Settings";
         default:                 return "";
@@ -215,28 +225,29 @@ static const char *view_title(AppView v) {
 
 static void draw_footer(AppView v) {
     static const GuiHint roms[] = {
-        {"X", "Refresh"}, {"S", "Queue"}, {"T", "Download"},
-        {"UD", "Move"}, {"LR", "Page"}, {"O", "Exit"},
+        {"X", "Install"}, {"S", "Queue"}, {"T", "Details"},
+        {"LR", "Page"}, {"START", "Exit"},
     };
     static const GuiHint local[] = {
-        {"X", "Rescan"}, {"S", "Delete"}, {"UD", "Move"}, {"LR", "Page"}, {"O", "Exit"},
+        {"X", "Delete"}, {"S", "Rescan"}, {"T", "Details"}, {"LR", "Page"}, {"START", "Exit"},
     };
     static const GuiHint downloads[] = {
-        {"X", "Start / resume"}, {"S", "Remove"}, {"UD", "Move"}, {"O", "Exit"},
+        {"X", "Start / resume"}, {"S", "Remove"}, {"T", "Details"}, {"LR", "Page"},
+        {"START", "Exit"},
     };
     static const GuiHint vmc[] = {
-        {"X", "Upload card"}, {"T", "Pull all"}, {"S", "Rescan"}, {"UD", "Move"}, {"O", "Exit"},
+        {"X", "Actions"}, {"S", "Pull all"}, {"T", "Details"}, {"LR", "Page"}, {"START", "Exit"},
     };
     static const GuiHint mcard[] = {
-        {"X", "Upload"}, {"T", "Restore"}, {"S", "Rescan"},
-        {"R1", "Switch card"}, {"SELECT", "Device"}, {"O", "Exit"},
+        {"X", "Actions"}, {"S", "Upload all"}, {"T", "Details"},
+        {"SELECT", "Slot"}, {"START", "Exit"},
     };
     static const GuiHint server[] = {
-        {"X", "Download"}, {"T", "Upload"}, {"S", "Refresh"}, {"L1", "Sync all"},
-        {"R1", "Switch"}, {"START", "Source"}, {"SELECT", "Device"},
+        {"X", "Actions"}, {"S", "Sync all"}, {"T", "Details"},
+        {"SELECT", "Source"}, {"START", "Exit"},
     };
     static const GuiHint config[] = {
-        {"LR", "Storage"}, {"T", "Format HDD"}, {"O", "Exit"},
+        {"UD", "Select"}, {"LR", "Change"}, {"X", "Apply"}, {"START", "Exit"},
     };
 #define HINTS(a) gui_footer(a, (int)(sizeof(a) / sizeof(a[0])))
     switch (v) {
@@ -244,8 +255,7 @@ static void draw_footer(AppView v) {
         case APP_VIEW_LOCAL:     HINTS(local);     break;
         case APP_VIEW_DOWNLOADS: HINTS(downloads); break;
         case APP_VIEW_SAVES:     HINTS(vmc);       break;
-        case APP_VIEW_MCARD:
-        case APP_VIEW_MCARD2:    HINTS(mcard);     break;
+        case APP_VIEW_MCARD:     HINTS(mcard);     break;
         case APP_VIEW_SERVER:    HINTS(server);    break;
         case APP_VIEW_CONFIG:    HINTS(config);    break;
         default:                 gui_footer(NULL, 0); break;
@@ -274,12 +284,34 @@ static void draw_status_banner(void) {
 
 /* ---- List card ---- */
 
-static void list_frame(const char *title, const char *badge, uint32_t badge_hex,
-                       int count, int scroll)
+/* Sub-tab chips led by the SELECT glyph that cycles them; returns the width. */
+static float subtabs(float x, float cy, const char *const *labels, int count, int active) {
+    float x0 = x;
+    x += gui_button(x, cy, "SELECT") + 6;
+    float h = 20, y = cy - h / 2, pad = 8, total = 4;
+    for (int i = 0; i < count; i++) total += gui_text_w(FONT_TINY, labels[i]) + pad * 2;
+    gui_rrect(x, y, total, h, h / 2, HEX_BG);
+    float cx = x + 2;
+    for (int i = 0; i < count; i++) {
+        float w = gui_text_w(FONT_TINY, labels[i]) + pad * 2;
+        if (i == active) gui_rrect(cx, y + 2, w, h - 4, (h - 4) / 2, HEX_ACCENT2);
+        gui_text_mid(cx + w / 2, y, h, FONT_TINY, i == active ? HEX_INK : HEX_DIM,
+                     GUI_CENTER, 0, labels[i]);
+        cx += w;
+    }
+    return x + total - x0;
+}
+
+/* List card header: a title, or (chips != NULL) the view's sub-tabs. */
+static void list_frame_ex(const char *title, const char *const *chips, int nchips, int active,
+                          const char *badge, uint32_t badge_hex, int count, int scroll)
 {
     gui_panel(LIST_X, CONTENT_Y, LIST_W, CONTENT_H);
     float x = LIST_X + 14;
-    x += gui_text_mid(x, CONTENT_Y + 2, LIST_HEAD_H, FONT_SMALL, HEX_DIM, GUI_LEFT, 200, title);
+    if (chips)
+        x += subtabs(x, CONTENT_Y + 2 + LIST_HEAD_H / 2.0f, chips, nchips, active);
+    else
+        x += gui_text_mid(x, CONTENT_Y + 2, LIST_HEAD_H, FONT_SMALL, HEX_DIM, GUI_LEFT, 200, title);
     if (badge && *badge)
         gui_pill(x + 8, CONTENT_Y + 8, 18, FONT_TINY, badge_hex, HEX_INK, badge);
     if (count > 0) {
@@ -293,6 +325,12 @@ static void list_frame(const char *title, const char *badge, uint32_t badge_hex,
     gui_rect(LIST_X + 10, CONTENT_Y + LIST_HEAD_H, LIST_W - 20, 1, HEX_LINE);
     gui_scrollbar(LIST_X + LIST_W - 8, CONTENT_Y + LIST_HEAD_H + 6,
                   LIST_ROWS * ROW_H, scroll, LIST_ROWS, count);
+}
+
+static void list_frame(const char *title, const char *badge, uint32_t badge_hex,
+                       int count, int scroll)
+{
+    list_frame_ex(title, NULL, 0, 0, badge, badge_hex, count, scroll);
 }
 
 static void list_empty(const char *message) {
@@ -537,16 +575,16 @@ void ui_draw_header(const SyncState *state, AppView view) {
     snprintf(right, sizeof(right), "%s", state->ip[0] ? state->ip : "offline");
     gui_header(view_title(view), right, online ? HEX_OK : HEX_ERR);
 
-    /* Tabs centred between the L2 / R2 glyphs. */
+    /* Tabs centred between the L1 / R1 glyphs that cycle them. */
     float tabs_w = 4;
     for (int i = 0; i < APP_VIEW_COUNT; i++) tabs_w += gui_text_w(FONT_SMALL, g_tab_labels[i]) + 20;
-    float l2 = gui_button_w("L2"), r2 = gui_button_w("R2");
-    float total = l2 + 8 + tabs_w + 8 + r2;
+    float l1 = gui_button_w("L1"), r1 = gui_button_w("R1");
+    float total = l1 + 8 + tabs_w + 8 + r1;
     float x = (GUI_W - total) / 2;
     float cy = TABS_Y + TABS_H / 2.0f;
-    gui_button(x, cy, "L2");
-    gui_tabs(x + l2 + 8, TABS_Y, TABS_H, g_tab_labels, APP_VIEW_COUNT, (int)view);
-    gui_button(x + l2 + 8 + tabs_w + 8, cy, "R2");
+    gui_button(x, cy, "L1");
+    gui_tabs(x + l1 + 8, TABS_Y, TABS_H, g_tab_labels, APP_VIEW_COUNT, (int)view);
+    gui_button(x + l1 + 8 + tabs_w + 8, cy, "R1");
 
     draw_status_banner();
     draw_footer(view);
@@ -555,11 +593,12 @@ void ui_draw_header(const SyncState *state, AppView view) {
 /* ---- Game catalog ---- */
 
 void ui_draw_roms(const RomCatalog *catalog, int selected, int scroll) {
-    list_frame("PS2 games on the server", NULL, 0, catalog->count, scroll);
+    list_frame("PS2 games on the server", g_catalog_badge[0] ? g_catalog_badge : NULL,
+               HEX_WARN, catalog->count, scroll);
 
     if (catalog->count == 0) {
         list_empty(catalog->last_error[0] ? catalog->last_error
-                                          : "No games yet. Press X to fetch the catalog.");
+                                          : "No games yet. Settings > Refresh catalog fetches it.");
         detail_empty("GAME");
         return;
     }
@@ -611,8 +650,8 @@ void ui_draw_roms(const RomCatalog *catalog, int selected, int scroll) {
         snprintf(files, sizeof(files), "%d", r->file_count);
         detail_kv(&d, "Files", files, HEX_TEXT);
     }
-    detail_note(&d, installed ? "Already on this console. Triangle downloads it again."
-                              : "Square adds it to the queue, Triangle installs it now.",
+    detail_note(&d, installed ? "Already on this console. Cross downloads it again."
+                              : "Cross installs it now, Square adds it to the queue.",
                 HEX_MUTED);
 }
 
@@ -651,7 +690,7 @@ void ui_draw_local(const LocalRomList *list, int selected, int scroll) {
     detail_rule(&d);
     detail_kv(&d, "Serial", r->serial, HEX_TEXT);
     detail_kv_wrap(&d, "Location", r->path);
-    detail_note(&d, "Square deletes this game from the console.", HEX_MUTED);
+    detail_note(&d, "Cross deletes this game from the console (asks first).", HEX_MUTED);
 }
 
 /* ---- Virtual memory cards ---- */
@@ -695,7 +734,7 @@ void ui_draw_saves(const SaveVmcList *list, int selected, int scroll) {
     detail_kv_wrap(&d, "File", v->filename);
     detail_kv(&d, "Format", v->is_ps1 ? "PS1 card" : (v->has_ecc ? "PS2 card (ECC)" : "PS2 card"),
               HEX_TEXT);
-    detail_note(&d, "X uploads every game on this card, split per game. Triangle pulls all "
+    detail_note(&d, "Cross: upload this card (split per game) or rescan. Square pulls all "
                     "server saves into VMC/.", HEX_MUTED);
 }
 
@@ -703,10 +742,10 @@ void ui_draw_saves(const SaveVmcList *list, int selected, int scroll) {
 
 void ui_draw_mcard(const McGameList *list, int selected, int scroll) {
     int port = list->port == 1 ? 1 : 0;
-    char title[40];
-    snprintf(title, sizeof(title), "Saves on memory card %d", port + 1);
-    list_frame(title, list->count > 0 ? (list->is_ps1 ? "PS1 card" : "PS2 card") : NULL,
-               list->is_ps1 ? HEX_PS1 : HEX_PS2, list->count, scroll);
+    static const char *const slots[2] = { "Slot 1", "Slot 2" };
+    list_frame_ex(NULL, slots, 2, port,
+                  list->count > 0 ? (list->is_ps1 ? "PS1" : "PS2") : NULL,
+                  list->is_ps1 ? HEX_PS1 : HEX_PS2, list->count, scroll);
 
     if (list->count == 0) {
         list_empty(list->last_error[0] ? list->last_error : "No game saves on this card.");
@@ -745,20 +784,18 @@ void ui_draw_mcard(const McGameList *list, int selected, int scroll) {
     }
     detail_kv(&d, "GameID", mmce_name(port),
               g_mmce_mode_disp[port] == 0 ? HEX_MUTED : HEX_ACCENT2);
-    detail_note(&d, "R1 switches a MemCard Pro / SD2PSX to this game. "
-                    "Rescan with Square once it has.", HEX_MUTED);
+    detail_note(&d, "Cross: upload, restore, switch a MemCard Pro / SD2PSX to this game, "
+                    "or rescan the card.", HEX_MUTED);
 }
 
 /* ---- Server saves ---- */
 
 void ui_draw_server(const ServerSaveList *list, int selected, int scroll) {
-    char badge[24];
-    snprintf(badge, sizeof(badge), "Source: %s", g_server_source_label);
-    list_frame("Saves on the server", badge, HEX_ACCENT, list->count, scroll);
+    list_frame_ex(NULL, g_source_labels, 3, g_server_source, NULL, 0, list->count, scroll);
 
     if (list->count == 0) {
         list_empty(list->last_error[0] ? list->last_error
-                                       : "No saves on the server. Press Square to refresh.");
+                                       : "No saves on the server. Cross > Refresh to retry.");
         detail_empty("SERVER SAVE");
         return;
     }
@@ -795,9 +832,9 @@ void ui_draw_server(const ServerSaveList *list, int selected, int scroll) {
         else snprintf(when, sizeof(when), "%lu", (unsigned long)s->timestamp);
         detail_kv(&d, "Saved", when, HEX_TEXT);
     }
-    detail_kv(&d, "Sync with", g_server_source_label, HEX_ACCENT2);
-    detail_note(&d, "X writes this save to the source, Triangle uploads the "
-                    "source's copy. START changes the source.", HEX_MUTED);
+    detail_kv(&d, "Sync with", g_source_labels[g_server_source], HEX_ACCENT2);
+    detail_note(&d, "Cross: download to / upload from the source. SELECT changes "
+                    "the source.", HEX_MUTED);
 }
 
 /* ---- Downloads ---- */
@@ -864,7 +901,31 @@ static void cfg_row(float x, float *y, float w, const char *label, const char *v
     *y += KV_ROW_H;
 }
 
-void ui_draw_config(const SyncState *state) {
+/* One focusable Settings row.  Value rows show "< value >" (Left/Right or
+ * CROSS change it); action rows show the button that runs them. */
+static void cfg_item(float x, float *y, float w, bool focused, const char *label,
+                     const char *value, uint32_t value_hex, bool danger)
+{
+    float h = 26;
+    if (focused) gui_rrect(x - 6, *y, w + 12, h, 6, danger ? 0x3A2A16 : HEX_PANEL_HI);
+    if (focused) gui_rrect(x - 6, *y, 4, h, 2, danger ? HEX_WARN : HEX_ACCENT);
+    gui_text_mid(x + 2, *y, h, FONT_SMALL, danger ? HEX_WARN : (focused ? HEX_TEXT : HEX_DIM),
+                 GUI_LEFT, 130, label);
+    float vx = x + 132, vw = w - 132;
+    if (value) {
+        if (focused) {
+            gui_icon_arrow(vx + 6, *y + h / 2, 7, false, HEX_ACCENT2);
+            gui_icon_arrow(vx + vw - 6, *y + h / 2, 7, true, HEX_ACCENT2);
+        }
+        gui_text_mid(vx + vw / 2, *y, h, FONT_SMALL, value_hex, GUI_CENTER, vw - 28, value);
+    } else if (focused) {
+        float bw = gui_button_w("X");
+        gui_button(vx + vw - bw - 4, *y + h / 2, "X");
+    }
+    *y += h + 2;
+}
+
+void ui_draw_config(const SyncState *state, int selected_row) {
     float gap = 10;
     float w = (GUI_W - 2 * GUI_MARGIN - gap) / 2;
     float lx = GUI_MARGIN, rx = GUI_MARGIN + w + gap;
@@ -892,46 +953,42 @@ void ui_draw_config(const SyncState *state) {
     gui_text_wrap(x, top + h - 44, FONT_TINY, HEX_MUTED, iw, 2,
                   "Edit " CONFIG_PATH " in uLaunchELF to change these.");
 
-    /* Right: storage and devices */
+    /* Right: the editable settings, then where things are stored. */
     gui_card(rx, top, w, h, "Storage & devices", HEX_INFO);
     x = rx + 14;
-    y = top + 40;
+    y = top + 38;
     iw = w - 28;
 
-    /* Storage selector: < auto > */
-    gui_text_mid(x, y, 28, FONT_TINY, HEX_DIM, GUI_LEFT, 96, "Install to");
-    const char *pref = storage_pref_label(state->storage_pref);
-    float sw = 110, sx = x + 100;
-    gui_rrect(sx, y + 2, sw, 24, 12, HEX_BG2);
-    gui_icon_arrow(sx + 12, y + 14, 8, false, HEX_ACCENT2);
-    gui_icon_arrow(sx + sw - 12, y + 14, 8, true, HEX_ACCENT2);
-    gui_text_mid(sx + sw / 2, y + 2, 24, FONT_SMALL, HEX_TEXT, GUI_CENTER, 0, pref);
-    y += 32;
+    cfg_item(x, &y, iw, selected_row == CFG_ROW_STORAGE, "Install to",
+             storage_pref_label(state->storage_pref), HEX_TEXT, false);
+    cfg_item(x, &y, iw, selected_row == CFG_ROW_GAMEID1, "GameID slot 1", mmce_name(0),
+             g_mmce_mode_disp[0] == 0 ? HEX_MUTED : HEX_ACCENT2, false);
+    cfg_item(x, &y, iw, selected_row == CFG_ROW_GAMEID2, "GameID slot 2", mmce_name(1),
+             g_mmce_mode_disp[1] == 0 ? HEX_MUTED : HEX_ACCENT2, false);
+    cfg_item(x, &y, iw, selected_row == CFG_ROW_REFRESH, "Refresh catalog", NULL, 0, false);
+    cfg_item(x, &y, iw, selected_row == CFG_ROW_FORMAT, "Format internal HDD", NULL, 0, true);
 
+    y += 4;
+    gui_rect(x, y, iw, 1, HEX_LINE);
+    y += 6;
     cfg_row(x, &y, iw, "Active", storage_backend_label(state),
             state->usb_ready ? HEX_OK : HEX_WARN);
     cfg_row(x, &y, iw, "Queue file",
             state->storage_backend == STORAGE_BACKEND_HDLOADER ? HDL_DOWNLOADS_FILE
                                                                : roms_downloads_file(),
             HEX_TEXT);
-    cfg_row(x, &y, iw, "GameID slot 1", mmce_name(0),
-            g_mmce_mode_disp[0] == 0 ? HEX_MUTED : HEX_ACCENT2);
-    cfg_row(x, &y, iw, "GameID slot 2", mmce_name(1),
-            g_mmce_mode_disp[1] == 0 ? HEX_MUTED : HEX_ACCENT2);
-    y += 6;
+    cfg_row(x, &y, iw, "Catalog cache", g_cache_desc, HEX_TEXT);
 
-    /* HDD format: destructive, so it gets its own warning box. */
-    float bh = 56;
-    gui_rrect(x, y, iw, bh, 6, 0x3A2A16);
-    gui_rrect(x, y, 4, bh, 2, HEX_WARN);
-    gui_button(x + 12, y + 16, "T");
-    gui_text_mid(x + 38, y + 4, 24, FONT_SMALL, HEX_WARN, GUI_LEFT, iw - 44,
-                 "Format internal HDD (APA)");
-    gui_text_mid(x + 12, y + 28, 24, FONT_TINY, 0xE8D3A8, GUI_LEFT, iw - 20,
-                 "Press twice. Wipes the whole disk for OPL.");
-    gui_text_wrap(x, top + h - 62, FONT_TINY, HEX_MUTED, iw, 3,
-                  "Left/Right saves the install target (relaunch to apply). "
-                  "SELECT on a memory card screen picks the GameID device.");
+    const char *help = "";
+    switch (selected_row) {
+        case CFG_ROW_STORAGE: help = "Saved at once; relaunch to apply."; break;
+        case CFG_ROW_GAMEID1:
+        case CFG_ROW_GAMEID2: help = "MemCard Pro / SD2PSX: off, auto, gen1, gen2."; break;
+        case CFG_ROW_REFRESH: help = "Rescans the server and refetches the catalog."; break;
+        case CFG_ROW_FORMAT:  help = "Erases the internal HDD for OPL (asks twice)."; break;
+        default: break;
+    }
+    gui_text_fit(x, top + h - 18, FONT_TINY, HEX_MUTED, GUI_LEFT, iw, help);
 }
 
 /* ---- Modal cards ---- */
@@ -1016,6 +1073,43 @@ void ui_draw_confirm(const char *title, const char *message) {
     static const GuiHint hints[] = { {"O", "Cancel"}, {"X", "Confirm"} };
     gui_dim();
     draw_dialog(title, message, HEX_WARN, hints, 2);
+}
+
+void ui_draw_info(const char *title, const char *message) {
+    static const GuiHint hints[] = { {"O", "Close"} };
+    gui_dim();
+    draw_dialog(title, message, HEX_INFO, hints, 1);
+}
+
+void ui_draw_menu(const char *title, const char *const *items, int count, int selected) {
+    static const GuiHint hints[] = { {"O", "Cancel"}, {"X", "Select"} };
+    gui_dim();
+    if (count > 8) count = 8;
+    float w = 400, row = 28;
+    float h = 30 + 10 + count * row + 10 + 36;
+    float x = (GUI_W - w) / 2, y = (GUI_H - h) / 2;
+    gui_card(x, y, w, h, title, HEX_ACCENT);
+    float ry = y + 30 + 10;
+    for (int i = 0; i < count; i++) {
+        bool on = (i == selected);
+        if (on) gui_rrect(x + 12, ry + 1, w - 24, row - 2, 6, HEX_ACCENT);
+        gui_text_mid(x + 26, ry, row, FONT_BODY, on ? HEX_INK : HEX_TEXT, GUI_LEFT, w - 52,
+                     items[i]);
+        ry += row;
+    }
+
+    float fy = y + h - 34;
+    gui_rect(x + 1, fy, w - 2, 1, HEX_LINE);
+    float total = 0;
+    for (int i = 0; i < 2; i++)
+        total += gui_button_w(hints[i].button) + 6 + gui_text_w(FONT_SMALL, hints[i].label) +
+                 (i ? 24 : 0);
+    float bx = x + w - 20 - total, cy = fy + 17;
+    for (int i = 0; i < 2; i++) {
+        if (i) bx += 24;
+        bx += gui_button(bx, cy, hints[i].button) + 6;
+        bx += gui_text_mid(bx, cy - 12, 24, FONT_SMALL, HEX_TEXT, GUI_LEFT, 0, hints[i].label);
+    }
 }
 
 void ui_draw_message(const char *title, const char *message) {

@@ -35,6 +35,12 @@ int network_fetch_rom_catalog(const SyncState *state,
                               char *out, uint32_t out_size,
                               int *status_out);
 
+/* Plain GET of an /api/v1 path into a fixed buffer, NUL-terminated.
+ * Returns the body length or a negative error; -100 when the network is
+ * not up.  Used for /roms/fingerprints and /roms/scan. */
+int network_get(const SyncState *state, const char *path,
+                char *out, uint32_t out_size, int *status_out);
+
 /* Resumable streaming download.  Returns:
  *    0 ok
  *    1 paused (callback returned non-zero)

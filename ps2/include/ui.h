@@ -26,7 +26,7 @@ void ui_boot_done(void);
 /* Milliseconds since boot. */
 uint32_t ui_ms(void);
 
-/* Number of list rows on screen (page size for L/R paging). */
+/* Number of list rows on screen (page size for D-pad Left/Right). */
 int  ui_list_visible(void);
 
 void ui_begin(void);
@@ -40,8 +40,12 @@ void ui_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 /* Cross-references used to badge rows ("installed", "queued"). */
 void ui_set_context(const LocalRomList *local, const DownloadList *downloads);
-void ui_set_server_source(const char *src);
+/* Server view sync source: 0 = VMC, 1 = slot 1, 2 = slot 2. */
+void ui_set_server_source(int source);
 void ui_set_mmce(int port, int mode);
+/* Catalog badge ("Cached", "Offline", or NULL) and a short description of
+ * where the catalog cache lives, shown in Settings. */
+void ui_set_catalog_info(const char *badge, const char *cache_desc);
 
 /* Header, view tabs, status banner and the view's footer hints. */
 void ui_draw_header(const SyncState *state, AppView view);
@@ -51,7 +55,7 @@ void ui_draw_saves(const SaveVmcList *list, int selected, int scroll);
 void ui_draw_mcard(const McGameList *list, int selected, int scroll);
 void ui_draw_server(const ServerSaveList *list, int selected, int scroll);
 void ui_draw_downloads(const DownloadList *list, int selected, int scroll);
-void ui_draw_config(const SyncState *state);
+void ui_draw_config(const SyncState *state, int selected_row);
 
 /* Modal transfer card drawn over the current view. */
 void ui_draw_transfer(const char *name, const char *target,
@@ -59,6 +63,10 @@ void ui_draw_transfer(const char *name, const char *target,
                       uint32_t elapsed_ms);
 /* Modal yes/no card: CROSS confirms, CIRCLE cancels. */
 void ui_draw_confirm(const char *title, const char *message);
+/* Modal action menu: Up/Down pick, CROSS runs, CIRCLE cancels. */
+void ui_draw_menu(const char *title, const char *const *items, int count, int selected);
+/* Modal details card: CIRCLE (or CROSS / TRIANGLE) closes. */
+void ui_draw_info(const char *title, const char *message);
 /* Full-screen message card (fatal boot errors). */
 void ui_draw_message(const char *title, const char *message);
 

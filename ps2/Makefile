@@ -20,6 +20,7 @@ EE_OBJS    = source/main.o \
              source/network.o \
              source/http.o \
              source/roms.o \
+             source/catcache.o \
              source/downloads.o \
              source/hdl.o \
              source/sha256.o \
