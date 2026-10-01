@@ -222,3 +222,113 @@ u8 *network_post_json(const AppConfig *config, const char *path,
     httpcCloseContext(&context);
     return resp;
 }
+
+// ---------------------------------------------------------------------------
+// Streaming download
+// ---------------------------------------------------------------------------
+
+static void close_context(httpcContext *context) {
+    httpcCancelConnection(context);
+    httpcCloseContext(context);
+}
+
+NetDlResult network_download(const AppConfig *config, const char *path,
+                             u32 max_wait_s, NetWaitCb wait, NetSinkCb sink,
+                             void *user, NetDlInfo *info) {
+    memset(info, 0, sizeof(*info));
+    request_delay();
+
+    char url[MAX_URL_LEN + 1024];
+    build_url(config, path, url, sizeof(url));
+
+    httpcContext context;
+    if (R_FAILED(httpcOpenContext(&context, HTTPC_METHOD_GET, url, 0)))
+        return NET_DL_CONNECT;
+
+    httpcSetSSLOpt(&context, SSLCOPT_DisableVerify);
+    httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_DISABLED);
+    httpcAddRequestHeaderField(&context, "User-Agent", "3DSSaveSync/" APP_VERSION);
+    httpcAddRequestHeaderField(&context, "X-API-Key", config->api_key);
+    httpcAddRequestHeaderField(&context, "X-Console-ID", config->console_id);
+    httpcAddRequestHeaderField(&context, "Connection", "close");
+
+    if (R_FAILED(httpcBeginRequest(&context))) {
+        close_context(&context);
+        return NET_DL_CONNECT;
+    }
+
+    // The server only answers once a conversion (?extract=cia) is done, so
+    // wait in one-second slices and let the caller show progress / cancel.
+    u32 status = 0;
+    u32 waited = 0;
+    while (1) {
+        Result res = httpcGetResponseStatusCodeTimeout(&context, &status, 1000000000ULL);
+        if (R_SUCCEEDED(res)) break;
+        if (res != (Result)HTTPC_RESULTCODE_TIMEDOUT) {
+            close_context(&context);
+            return NET_DL_CONNECT;
+        }
+        waited++;
+        if (wait && wait(waited, user)) {
+            close_context(&context);
+            return NET_DL_CANCELLED;
+        }
+        if (waited >= max_wait_s) {
+            close_context(&context);
+            return NET_DL_TIMEOUT;
+        }
+    }
+    info->status = status;
+
+    u8 *buf = (u8 *)malloc(NET_DL_CHUNK);
+    if (!buf) {
+        close_context(&context);
+        return NET_DL_SINK;
+    }
+
+    if (status != 200) {
+        // Keep the start of the error text (FastAPI sends plain text/JSON)
+        u32 got = 0;
+        download_data_timeout(&context, buf, sizeof(info->error) - 1, &got, TIMEOUT_RESPONSE);
+        if (got > sizeof(info->error) - 1) got = sizeof(info->error) - 1;
+        memcpy(info->error, buf, got);
+        info->error[got] = '\0';
+        free(buf);
+        close_context(&context);
+        return NET_DL_STATUS;
+    }
+
+    u32 pos = 0, content = 0;
+    httpcGetDownloadSizeState(&context, &pos, &content);
+    info->total = content;
+
+    NetDlResult result = NET_DL_OK;
+    Result res;
+    do {
+        u32 got = 0;
+        res = download_data_timeout(&context, buf, NET_DL_CHUNK, &got, TIMEOUT_TRANSFER);
+        if (got > 0) {
+            info->received += got;
+            int s = sink(buf, got, info->received, info->total, user);
+            if (s != 0) {
+                result = (s > 0) ? NET_DL_CANCELLED : NET_DL_SINK;
+                break;
+            }
+        }
+        if (res == (Result)HTTPC_RESULTCODE_TIMEDOUT) {
+            result = NET_DL_SHORT;
+            break;
+        }
+    } while (res == (Result)HTTPC_RESULTCODE_DOWNLOADPENDING);
+
+    if (result == NET_DL_OK) {
+        if (R_FAILED(res) && res != (Result)HTTPC_RESULTCODE_DOWNLOADPENDING)
+            result = NET_DL_SHORT;
+        else if (info->total && info->received < info->total)
+            result = NET_DL_SHORT;
+    }
+
+    free(buf);
+    close_context(&context);
+    return result;
+}

@@ -10,6 +10,10 @@ void ui_init(void);
 // Reinitialize after gfx restart (e.g., after swkbd applet)
 void ui_reinit(void);
 
+// The two text consoles (for screens that draw themselves, e.g. the catalog)
+PrintConsole *ui_top_console(void);
+PrintConsole *ui_bottom_console(void);
+
 // View mode for title list filtering
 #define VIEW_ALL  0
 #define VIEW_3DS  1
@@ -55,6 +59,7 @@ char *ui_show_history(const TitleInfo *title, HistoryVersion *versions, int vers
 #define CONFIG_RESULT_SAVED     1
 #define CONFIG_RESULT_RESCAN    2
 #define CONFIG_RESULT_UPDATE    3
+#define CONFIG_RESULT_CATALOG   4
 
 // Show config editor menu on top screen
 // Returns CONFIG_RESULT_* code

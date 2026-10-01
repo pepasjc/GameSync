@@ -1,5 +1,6 @@
 #include "common.h"
 #include "card_spi.h"
+#include "catalog.h"
 #include "config.h"
 #include "network.h"
 #include "sync.h"
@@ -412,7 +413,7 @@ int main(int argc, char *argv[]) {
 
                     snprintf(conflict_msg + pos, sizeof(conflict_msg) - pos,
                         "\nConflicts \x1b[32mmarked\x1b[0m for batch resolve.\n"
-                        "Press B to download all, or\n"
+                        "Press A to upload all marked, or\n"
                         "resolve individually.\n\n"
                         "Press any button to continue.");
 
@@ -457,10 +458,15 @@ int main(int argc, char *argv[]) {
             redraw = true;
         }
 
+        // B button (or the config menu entry) - game catalog
+        bool open_catalog = (kDown & KEY_B) != 0;
+
         // L button - config editor (includes rescan + update options)
         if (kDown & KEY_L) {
             int result = ui_show_config_editor(&config);
-            if (result == CONFIG_RESULT_RESCAN) {
+            if (result == CONFIG_RESULT_CATALOG) {
+                open_catalog = true;
+            } else if (result == CONFIG_RESULT_RESCAN) {
                 scan_titles();
                 snprintf(status, sizeof(status), "Rescanned. %d title(s) found.", title_count);
             } else if (result == CONFIG_RESULT_SAVED) {
@@ -549,6 +555,16 @@ int main(int argc, char *argv[]) {
                 }
             } else {
                 snprintf(status, sizeof(status), "Config unchanged");
+            }
+            redraw = true;
+        }
+
+        if (open_catalog) {
+            if (catalog_screen(&config)) {
+                scan_titles();
+                snprintf(status, sizeof(status), "Catalog closed. %d title(s) found.", title_count);
+            } else {
+                snprintf(status, sizeof(status), "Catalog closed");
             }
             redraw = true;
         }

@@ -18,6 +18,14 @@ void ui_reinit(void) {
     consoleInit(GFX_BOTTOM, &bottom_screen);
 }
 
+PrintConsole *ui_top_console(void) {
+    return &top_screen;
+}
+
+PrintConsole *ui_bottom_console(void) {
+    return &bottom_screen;
+}
+
 static const char *media_type_str(const TitleInfo *t) {
     if (t->is_nds && t->media_type == MEDIATYPE_GAME_CARD) return "Cart";
     if (t->is_nds) return "NDS";
@@ -113,7 +121,7 @@ void ui_draw_status(const char *status_line) {
     printf("\x1b[2;1H A - Smart Sync | X - Sync All%-*s", BOT_COLS - 31, "");
     printf("\x1b[3;1H Y - History | SELECT - Mark%-*s", BOT_COLS - 28, "");
     printf("\x1b[4;1H R - Switch tab | L - Config%-*s", BOT_COLS - 30, "");
-    printf("\x1b[5;1H START - Exit%-*s", BOT_COLS - 15, "");
+    printf("\x1b[5;1H B - Game Catalog | START - Exit%-*s", BOT_COLS - 32, "");
     printf("\x1b[6;1H%-*s", BOT_COLS, "");
     printf("\x1b[7;1H\x1b[36mCyan\x1b[0m=cart \x1b[35mMag\x1b[0m=NDS \x1b[32mGrn\x1b[0m=mark%-*s", BOT_COLS - 26, "");
     printf("\x1b[8;1H%-*s", BOT_COLS, "");
@@ -429,10 +437,11 @@ static void draw_config_menu(const AppConfig *config, int selected) {
         "NDS ROM Directory",
         "Rescan Titles",
         "Check for Updates",
+        "Game Catalog (install games)",
         "Save & Exit",
         "Cancel"
     };
-    const int item_count = 7;
+    const int item_count = 8;
 
     for (int i = 0; i < item_count; i++) {
         const char *cursor = (i == selected) ? ">" : " ";
@@ -491,7 +500,7 @@ int ui_show_config_editor(AppConfig *config) {
     int selected = 0;
     int result = CONFIG_RESULT_UNCHANGED;
     bool changed = false;
-    const int item_count = 7;
+    const int item_count = 8;
     bool redraw = true;
 
     while (aptMainLoop()) {
@@ -537,13 +546,20 @@ int ui_show_config_editor(AppConfig *config) {
                 }
                 break;
             } else if (selected == 5) {
+                result = CONFIG_RESULT_CATALOG;
+                if (changed) {
+                    memcpy(config, &working, sizeof(AppConfig));
+                    config_save(config);
+                }
+                break;
+            } else if (selected == 6) {
                 if (changed) {
                     memcpy(config, &working, sizeof(AppConfig));
                     config_save(config);
                     result = CONFIG_RESULT_SAVED;
                 }
                 break;
-            } else if (selected == 6) {
+            } else if (selected == 7) {
                 break;
             }
         }
