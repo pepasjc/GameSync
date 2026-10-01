@@ -1,6 +1,7 @@
 """ROM catalog endpoints.
 
-GET  /api/v1/roms              — List all ROMs in catalog (with optional filters)
+GET  /api/v1/roms              — List all ROMs in catalog (with optional filters:
+                                  system, search, has_save, has_ra, limit/offset)
 GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                   ?extract=cue  — CHD → CUE/BIN ZIP (PS1, Saturn, etc.)
                                   ?extract=psio — PS1 CHD/CUE → PSIO BIN/CU2 ZIP
@@ -12,6 +13,9 @@ GET  /api/v1/roms/{title_id}   — Download a ROM file (with HTTP Range support)
                                                  (installable on CFW 3DS AND usable in emulators)
                                   ?extract=decrypted_cci
                                                  3DS cart image → decrypted CCI for emulators
+                                  ?extract=nds  — DS ROM zipped as a single .nds → the raw
+                                                 .nds, inflated on the fly (DS homebrew
+                                                 client; a loose .nds streams as-is)
                                   PS3 .iso files: streamed raw (RPCS3 mounts ISO directly).
                                   PS3 bundle (subfolder containing .pkg files): streamed as
                                   ZIP_STORED archive of every file in the subfolder.  Loose
@@ -35,6 +39,7 @@ GET  /api/v1/roms/systems      — List systems with ROMs and counts
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
 import shlex
@@ -258,6 +263,7 @@ from app.services import ctr_rom, ra_index, rom_scanner
 from shared import wiiu_meta
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # ── System classification ────────────────────────────────────────────────────
 
@@ -308,6 +314,12 @@ _XBOX_DISC_EXTENSIONS = frozenset({'.cci', '.iso'})
 # 3DS cartridge images can be converted to CIA variants
 _3DS_SYSTEMS = frozenset({'3DS'})
 _3DS_CART_EXTENSIONS = frozenset({'.3ds', '.cci'})
+
+# Nintendo DS: libraries keep carts zipped (No-Intro style, one .nds per zip).
+# The DS itself has no room or CPU to spare for unzipping a 100+ MB ROM, so
+# ``?extract=nds`` inflates the single ROM member while streaming it.
+_NDS_SYSTEMS = frozenset({'NDS', 'DSI'})
+_NDS_ROM_EXTENSIONS = frozenset({'.nds', '.dsi', '.srl'})
 # Output filenames preserve the original ROM stem — only the extension changes.
 # Two formats only: a decrypted CIA (which is also installable on CFW 3DS
 # hardware, so one button covers both use-cases) and a decrypted CCI for
@@ -452,12 +464,20 @@ async def list_roms(
     system: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     has_save: Optional[bool] = Query(None),
+    has_ra: Optional[bool] = Query(
+        None,
+        description=(
+            "true: only ROMs with a RetroAchievements set (at least one "
+            "achievement, hash or title match); false: only the others"
+        ),
+    ),
     limit: Optional[int] = Query(None, ge=1, le=20000),
     offset: int = Query(0, ge=0),
 ):
     catalog = rom_scanner.get()
     if not catalog:
-        return {"roms": [], "total": 0, "offset": 0, "limit": limit, "has_more": False}
+        return {"roms": [], "total": 0, "offset": 0, "limit": limit,
+                "has_more": False, "has_ra": has_ra}
 
     entries = catalog.list_all()
 
@@ -474,6 +494,12 @@ async def list_roms(
             entries = [e for e in entries if storage.title_exists(e.title_id)]
         else:
             entries = [e for e in entries if not storage.title_exists(e.title_id)]
+
+    if has_ra is not None:
+        # Filtered here rather than by the client so a small device can page
+        # through only the games it asked for.
+        with_set = _paths_with_achievements(entries)
+        entries = [e for e in entries if (e.path in with_set) == has_ra]
 
     # `total` is always the full filtered count — essential for the client to
     # know whether to page further or show a "showing X of Y" hint.
@@ -519,6 +545,27 @@ async def list_roms(
         "offset": offset,
         "limit": limit,
         "has_more": has_more,
+        # Echoed so a client can tell the filter was applied (older servers
+        # ignore the parameter and omit this key).
+        "has_ra": has_ra,
+    }
+
+
+def _paths_with_achievements(entries) -> set[str]:
+    """Catalog paths whose RetroAchievements set has at least one achievement.
+
+    Same rule as the clients' RA badge: a registered hash with no set (0)
+    or an unreadable count (-1) earns nothing.  Title-only matches count,
+    like the MiSTer's RA-only view, since that is all disc systems get.
+    """
+    try:
+        found = ra_index.lookup([e.path for e in entries if e.path])
+    except Exception:  # noqa: BLE001 - a broken index must not break /roms
+        logger.exception("[roms] RA lookup for has_ra failed")
+        return set()
+    return {
+        path for path, data in found.items()
+        if (data.get("ra_achievements") or 0) > 0
     }
 
 
@@ -1275,6 +1322,9 @@ async def download_rom(
 
     if extract:
         fmt = extract.lower()
+        if fmt == 'nds' and sys_up in _NDS_SYSTEMS:
+            return _serve_nds_rom(file_path, range_header,
+                                  head_only=request.method == 'HEAD')
         if sys_up in _XBOX_SYSTEMS and fmt in _XBOX_EXTRACT_SPECS:
             # Xbox CCI/ISO conversions go through the templated command
             # runner or a no-op direct stream when the source already
@@ -1313,6 +1363,91 @@ async def download_rom(
     if range_header:
         return _serve_range(file_path, file_size, content_type, range_header)
     return _serve_full(file_path, file_size, content_type)
+
+
+# ── Nintendo DS: the .nds out of a single-ROM zip ───────────────────────────
+
+def _attachment_header(name: str) -> str:
+    """Content-Disposition for ``name``; header values must be latin-1."""
+    ascii_name = name.encode('ascii', 'replace').decode('ascii').replace('"', "'")
+    if ascii_name == name:
+        return f'attachment; filename="{name}"'
+    from urllib.parse import quote
+    return (f'attachment; filename="{ascii_name}"; '
+            f"filename*=UTF-8''{quote(name)}")
+
+
+def _serve_nds_rom(file_path: Path, range_header: Optional[str],
+                   head_only: bool = False) -> Response:
+    """Serve a playable .nds for ``?extract=nds``.
+
+    A loose .nds/.dsi goes out as-is (Range included).  A zip must hold
+    exactly one DS ROM, which is inflated while it streams, so the server
+    never writes a temp copy and the client gets the exact ROM size up
+    front.  No Range on that path: a deflated offset can't be seeked to.
+    """
+    suffix = file_path.suffix.lower()
+    if suffix in _NDS_ROM_EXTENSIONS:
+        file_size = file_path.stat().st_size
+        if range_header:
+            return _serve_range(file_path, file_size,
+                                'application/octet-stream', range_header)
+        return _serve_full(file_path, file_size, 'application/octet-stream')
+    if suffix != '.zip':
+        return Response(
+            status_code=415,
+            content=f"Can't extract a DS ROM from a {suffix or 'extensionless'} "
+                    "file; only .zip is supported",
+        )
+
+    try:
+        zf = zipfile.ZipFile(file_path)
+    except (OSError, zipfile.BadZipFile):
+        return Response(status_code=422, content="ZIP archive unreadable")
+    members = [
+        info for info in zf.infolist()
+        if not info.is_dir()
+        and Path(info.filename).suffix.lower() in _NDS_ROM_EXTENSIONS
+        and not Path(info.filename).name.startswith('._')
+    ]
+    if len(members) != 1:
+        zf.close()
+        return Response(
+            status_code=422,
+            content=f"ZIP archive must contain exactly one .nds ROM "
+                    f"(found {len(members)})",
+        )
+    info = members[0]
+    headers = {
+        'Content-Length': str(info.file_size),
+        'Content-Disposition': _attachment_header(Path(info.filename).name),
+    }
+    if head_only:
+        zf.close()
+        return Response(status_code=200, headers=headers,
+                        media_type='application/octet-stream')
+    try:
+        # Opened here so an encrypted member or an unsupported compression
+        # method is a clean error instead of a truncated 200.
+        fh = zf.open(info)
+    except (NotImplementedError, RuntimeError, zipfile.BadZipFile) as exc:
+        zf.close()
+        return Response(status_code=422,
+                        content=f"Can't extract {info.filename}: {exc}")
+
+    def _iter():
+        try:
+            while True:
+                buf = fh.read(_STREAM_CHUNK)
+                if not buf:
+                    break
+                yield buf
+        finally:
+            fh.close()
+            zf.close()
+
+    return StreamingResponse(_iter(), media_type='application/octet-stream',
+                             headers=headers)
 
 
 # ── Extract helpers — common cleanup + streaming ────────────────────────────
@@ -3220,6 +3355,10 @@ def _extract_formats_for_entry(entry) -> tuple[str | None, list[str]]:
         return '3ds', list(_3DS_EXTRACT_FORMATS)
     elif sys_up in _XBOX_SYSTEMS and suffix in _XBOX_DISC_EXTENSIONS:
         return 'xbox', list(_XBOX_EXTRACT_FORMATS)
+    elif sys_up in _NDS_SYSTEMS and suffix == '.zip':
+        # Only listed, never preferred: every other client unzips DS ROMs
+        # itself and must keep getting the zip by default.
+        return None, ['nds']
 
     return None, []
 

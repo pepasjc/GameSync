@@ -212,7 +212,7 @@ bool config_save(const SyncState *state) {
 }
 
 // Characters available in the D-pad text editor
-static const char charset[] = "abcdefghijklmnopqrstuvwxyz0123456789.:/-_ABCDEFGHIJKLMNOPQRSTUVWXYZ@?=&#%+!";
+static const char charset[] = "abcdefghijklmnopqrstuvwxyz0123456789.:/-_ABCDEFGHIJKLMNOPQRSTUVWXYZ@?=&#%+! ";
 static const int charset_len = sizeof(charset) - 1;
 
 // Find character index in charset, or 0 if not found
@@ -242,12 +242,12 @@ bool config_edit_field(const char *hint, char *buffer, int max_len) {
         iprintf(" ");
         for (int i = 0; i < len; i++) {
             if (i == cursor)
-                iprintf("\x1b[7m%c\x1b[0m", temp[i]);
+                iprintf(CON_YELLOW "%c" CON_RESET, temp[i]);
             else
                 iprintf("%c", temp[i]);
         }
         if (cursor == len)
-            iprintf("\x1b[7m \x1b[0m");
+            iprintf(CON_YELLOW "_" CON_RESET);  // end-of-text cursor
         iprintf("\n\n");
 
         iprintf("D-Pad L/R: move cursor\n");

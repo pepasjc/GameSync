@@ -3033,3 +3033,189 @@ class TestSatellaviewCatalog:
         assert catalog.scan(rom_dir, use_crc32=False) == 2
         names = {e.filename for e in catalog.list_by_system("SNES")}
         assert "BS F-Zero Grand Prix 2 - Practice (Japan) (12-6).bs" in names
+
+
+# ── Nintendo DS catalog: RA-only filter and ?extract=nds ────────────────────
+
+_NDS_ROM = bytes(range(256)) * 1024  # 256 KB, compresses so DEFLATE is real
+
+
+@pytest.fixture()
+def nds_client(rom_dir, client, auth_headers):
+    from app.services import rom_db, rom_scanner
+
+    original = settings.rom_dir
+    original_interval = settings.rom_scan_interval
+    settings.rom_dir = rom_dir
+    settings.rom_scan_interval = 0
+    rom_db.init_db(settings.save_dir)
+
+    nds = rom_dir / "nds"
+    nds.mkdir()
+    with zipfile.ZipFile(nds / "Alpha Quest (USA).zip", "w",
+                         zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("Alpha Quest (USA).nds", _NDS_ROM)
+    with zipfile.ZipFile(nds / "Beta Racer (Europe).zip", "w") as zf:
+        zf.writestr("Beta Racer (Europe).nds", b"B" * 1000)
+        zf.writestr("Beta Racer (Europe) (Rev 1).nds", b"C" * 1000)
+    with zipfile.ZipFile(nds / "Gamma Puzzle (Japan).zip", "w") as zf:
+        zf.writestr("readme.txt", b"no rom here")
+    (nds / "Delta Loose (USA).nds").write_bytes(b"D" * 4096)
+
+    rom_scanner.init(rom_dir)
+    yield client
+
+    settings.rom_dir = original
+    settings.rom_scan_interval = original_interval
+    rom_scanner._catalog = None
+
+
+def _nds_rom_id(client, headers, prefix):
+    roms = client.get("/api/v1/roms?system=NDS", headers=headers).json()["roms"]
+    return next(r for r in roms if r["name"].startswith(prefix))["rom_id"]
+
+
+class TestNdsCatalog:
+    def test_zipped_ds_roms_advertise_nds_without_preferring_it(
+        self, nds_client, auth_headers
+    ):
+        roms = nds_client.get("/api/v1/roms?system=NDS",
+                              headers=auth_headers).json()["roms"]
+        by_name = {r["filename"]: r for r in roms}
+        zipped = by_name["Alpha Quest (USA).zip"]
+        assert zipped["extract_formats"] == ["nds"]
+        assert "extract_format" not in zipped
+        assert "extract_formats" not in by_name["Delta Loose (USA).nds"]
+
+    def test_extract_nds_inflates_the_rom_out_of_the_zip(
+        self, nds_client, auth_headers
+    ):
+        rom_id = _nds_rom_id(nds_client, auth_headers, "Alpha")
+        resp = nds_client.get(f"/api/v1/roms/{rom_id}?extract=nds",
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.content == _NDS_ROM
+        assert resp.headers["content-length"] == str(len(_NDS_ROM))
+        assert "Alpha Quest (USA).nds" in resp.headers["content-disposition"]
+
+    def test_extract_nds_head_reports_the_rom_size(self, nds_client, auth_headers):
+        rom_id = _nds_rom_id(nds_client, auth_headers, "Alpha")
+        resp = nds_client.head(f"/api/v1/roms/{rom_id}?extract=nds",
+                               headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.headers["content-length"] == str(len(_NDS_ROM))
+
+    def test_default_download_is_still_the_zip(self, nds_client, auth_headers):
+        rom_id = _nds_rom_id(nds_client, auth_headers, "Alpha")
+        resp = nds_client.get(f"/api/v1/roms/{rom_id}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.content[:2] == b"PK"
+
+    def test_extract_nds_on_a_loose_rom_streams_it_as_is(
+        self, nds_client, auth_headers
+    ):
+        rom_id = _nds_rom_id(nds_client, auth_headers, "Delta")
+        resp = nds_client.get(f"/api/v1/roms/{rom_id}?extract=nds",
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.content == b"D" * 4096
+
+    @pytest.mark.parametrize("prefix,found", [("Beta", 2), ("Gamma", 0)])
+    def test_extract_nds_needs_exactly_one_rom_in_the_zip(
+        self, nds_client, auth_headers, prefix, found
+    ):
+        rom_id = _nds_rom_id(nds_client, auth_headers, prefix)
+        resp = nds_client.get(f"/api/v1/roms/{rom_id}?extract=nds",
+                              headers=auth_headers)
+        assert resp.status_code == 422
+        assert f"found {found}" in resp.text
+
+    def test_attachment_header_survives_non_latin1_names(self):
+        from app.routes import roms
+
+        assert roms._attachment_header("Game (USA).nds") == \
+            'attachment; filename="Game (USA).nds"'
+        header = roms._attachment_header("ポケモン.nds")
+        header.encode("latin-1")  # must not raise
+        assert "filename*=UTF-8''" in header
+
+
+class TestHasRaFilter:
+    def _fake_index(self, monkeypatch, counts):
+        """RA index stub: ``counts`` maps a filename prefix to ra_achievements."""
+        from app.services import ra_index
+
+        def fake_lookup(paths):
+            out = {}
+            for path in paths:
+                name = Path(path).name
+                for prefix, count in counts.items():
+                    if name.startswith(prefix):
+                        out[path] = {"ra_game_id": 1, "ra_achievements": count,
+                                     "ra_title": name, "ra_match": "hash"}
+            return out
+
+        monkeypatch.setattr(ra_index, "lookup", fake_lookup)
+
+    def test_has_ra_keeps_only_games_with_achievements(
+        self, nds_client, auth_headers, monkeypatch
+    ):
+        # Beta is known to RA but has no achievements: no badge, filtered out.
+        self._fake_index(monkeypatch, {"Alpha": 12, "Beta": 0, "Delta": -1})
+        body = nds_client.get("/api/v1/roms?system=NDS&has_ra=true",
+                              headers=auth_headers).json()
+        assert body["has_ra"] is True
+        assert body["total"] == 1
+        assert [r["name"] for r in body["roms"]] == ["Alpha Quest (USA)"]
+        assert body["roms"][0]["ra_achievements"] == 12
+
+    def test_has_ra_false_is_the_complement(
+        self, nds_client, auth_headers, monkeypatch
+    ):
+        self._fake_index(monkeypatch, {"Alpha": 12})
+        body = nds_client.get("/api/v1/roms?system=NDS&has_ra=false",
+                              headers=auth_headers).json()
+        assert body["total"] == 3
+        assert all(not r["name"].startswith("Alpha") for r in body["roms"])
+
+    def test_has_ra_pages_after_filtering(
+        self, nds_client, auth_headers, monkeypatch
+    ):
+        self._fake_index(monkeypatch, {"Alpha": 5, "Delta": 3})
+        body = nds_client.get(
+            "/api/v1/roms?system=NDS&has_ra=true&limit=1&offset=1",
+            headers=auth_headers,
+        ).json()
+        assert body["total"] == 2
+        assert body["has_more"] is False
+        assert [r["name"] for r in body["roms"]] == ["Delta Loose (USA)"]
+
+    def test_has_ra_stacks_with_search(self, nds_client, auth_headers, monkeypatch):
+        self._fake_index(monkeypatch, {"Alpha": 5, "Delta": 3})
+        body = nds_client.get(
+            "/api/v1/roms?system=NDS&has_ra=true&search=delta",
+            headers=auth_headers,
+        ).json()
+        assert [r["name"] for r in body["roms"]] == ["Delta Loose (USA)"]
+
+    def test_broken_index_yields_an_empty_ra_list_not_an_error(
+        self, nds_client, auth_headers, monkeypatch
+    ):
+        from app.services import ra_index
+
+        def boom(paths):
+            raise RuntimeError("db gone")
+
+        monkeypatch.setattr(ra_index, "lookup", boom)
+        resp = nds_client.get("/api/v1/roms?system=NDS&has_ra=true",
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 0
+
+    def test_without_the_parameter_nothing_is_filtered(
+        self, nds_client, auth_headers
+    ):
+        body = nds_client.get("/api/v1/roms?system=NDS",
+                              headers=auth_headers).json()
+        assert body["total"] == 4
+        assert body["has_ra"] is None

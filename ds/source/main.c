@@ -8,6 +8,8 @@
 #include "sync.h"
 #include "ui.h"
 #include "update.h"
+#include "ra.h"
+#include "catalog.h"
 
 #define LIST_VISIBLE 20  // Visible titles on screen
 
@@ -116,18 +118,7 @@ int main(int argc, char *argv[]) {
     consoleInit(&topScreen, 3, BgType_Text4bpp, BgSize_T_256x256, 31, 0, true, true);
     consoleInit(&bottomScreen, 3, BgType_Text4bpp, BgSize_T_256x256, 31, 0, false, true);
     
-    if (state.num_titles == 0) {
-        consoleSelect(&bottomScreen);
-        iprintf("No saves found!\n\n");
-        iprintf("Press START to exit\n");
-        
-        while(pmMainLoop()) {
-            swiWaitForVBlank();
-            scanKeys();
-            if(keysDown() & KEY_START) break;
-        }
-        return 0;
-    }
+    // No saves is fine: the game catalog can still install games
     
     // Main loop
     bool redraw = true;
@@ -148,7 +139,7 @@ int main(int argc, char *argv[]) {
         
         if (pressed & KEY_DOWN) {
             if (focus_on_config) {
-                config_selected = (config_selected + 1) % 7;
+                config_selected = (config_selected + 1) % UI_CONFIG_ITEMS;
                 redraw = true;
             } else if (state.num_titles > 0) {
                 selected = (selected + 1) % state.num_titles;
@@ -159,7 +150,7 @@ int main(int argc, char *argv[]) {
         
         if (pressed & KEY_UP) {
             if (focus_on_config) {
-                config_selected = (config_selected - 1 + 7) % 7;
+                config_selected = (config_selected - 1 + UI_CONFIG_ITEMS) % UI_CONFIG_ITEMS;
                 redraw = true;
             } else if (state.num_titles > 0) {
                 selected = (selected - 1 + state.num_titles) % state.num_titles;
@@ -320,11 +311,26 @@ int main(int argc, char *argv[]) {
                         }
                     }
                     redraw = true;
+                } else if (config_selected == 7) {
+                    // RetroAchievements (nds-bootstrap-ra)
+                    consoleSelect(&bottomScreen);
+                    ra_menu(&state, has_wifi);
+                    redraw = true;
+                } else if (config_selected == 8) {
+                    catalog_screen(&state, has_wifi, &topScreen, &bottomScreen);
+                    redraw = true;
                 }
                 continue;
             }
         }
         
+        // SELECT - game catalog
+        if (pressed & KEY_SELECT) {
+            catalog_screen(&state, has_wifi, &topScreen, &bottomScreen);
+            redraw = true;
+            continue;
+        }
+
         // Y button - show save details (only when focused on saves)
         if (pressed & KEY_Y && !focus_on_config && state.num_titles > 0) {
             consoleSelect(&bottomScreen);
@@ -507,6 +513,11 @@ int main(int argc, char *argv[]) {
             consoleSelect(&bottomScreen);
             iprintf("=== NDS Save Sync v%s ===\n", APP_VERSION);
             iprintf("Found %d saves\n\n", state.num_titles);
+            if (state.num_titles == 0) {
+                iprintf("No saves found.\n\n");
+                iprintf("SELECT: Game Catalog\n");
+                iprintf("L: Config  START: Exit\n");
+            }
             
             // Display visible titles
             int start = scroll_offset;
@@ -517,7 +528,7 @@ int main(int argc, char *argv[]) {
                 // Apply color based on scan status
                 if (state.titles[i].scanned) {
                     if (state.titles[i].scan_result != SYNC_UP_TO_DATE) {
-                        iprintf("\x1b[31m");  // Red for out-of-sync
+                        iprintf(CON_RED);  // Red for out-of-sync
                     }
                 }
 
@@ -538,7 +549,7 @@ int main(int argc, char *argv[]) {
 
                 // Reset color
                 if (state.titles[i].scanned) {
-                    iprintf("\x1b[0m");
+                    iprintf(CON_RESET);
                 }
                 iprintf("\n");
             }

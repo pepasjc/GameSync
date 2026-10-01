@@ -76,6 +76,25 @@ dsi: $(TARGET_DSI).nds
 
 both: all dsi
 
+#---------------- RA Sync (rasync.nds): ndssync's code with its own main,
+# booted by nds-bootstrap-ra when a game with achievements is quit
+RASYNC_OFILES := $(filter-out $(BUILD)/main.o,$(OFILES)) $(BUILD)/rasync_main.o
+
+rasync: rasync.nds
+
+rasync.nds: GAME_TITLE := RA Sync
+rasync.nds: GAME_SUBTITLE1 := RetroAchievements
+rasync.nds: GAME_SUBTITLE2 := upload after playing
+rasync.nds: rasync.elf
+
+rasync.elf: $(BUILD) $(RASYNC_OFILES)
+	@echo "linking $(notdir $@)"
+	@$(LD) -L$(CALICO)/lib -L$(LIBNDS)/lib $(LIBPATHS) -specs=$(CALICO)/share/ds9.specs -g $(ARCH) 		-Wl,-Map,$(BUILD)/rasync.map $(RASYNC_OFILES) $(LIBS) -lcalico_ds9 -o $@
+
+$(BUILD)/rasync_main.o: rasync/main.c | $(BUILD)
+	@echo "rasync/$(notdir $<)"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
 $(TARGET).nds: $(TARGET).elf
 
 $(TARGET).elf: $(BUILD) $(OFILES)
@@ -102,7 +121,7 @@ $(BUILD_DSI)/%.o: $(SOURCES)/%.c
 
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(BUILD_DSI) $(TARGET).elf $(TARGET).nds $(TARGET_DSI).elf $(TARGET_DSI).nds
+	@rm -fr $(BUILD) $(BUILD_DSI) $(TARGET).elf $(TARGET).nds $(TARGET_DSI).elf $(TARGET_DSI).nds rasync.elf rasync.nds
 
 -include $(OFILES:.o=.d)
 -include $(OFILES_DSI:.o=.d)
