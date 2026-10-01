@@ -785,3 +785,393 @@ void cat_cia_map_free(CatCiaMap *map) {
     free(map->tids);
     memset(map, 0, sizeof(*map));
 }
+
+// ---------------------------------------------------------------------------
+// Catalog cache
+// ---------------------------------------------------------------------------
+
+#define CACHE_MAGIC "GSCAT "
+#define CACHE_FIELDS 8
+
+static void write_escaped(FILE *f, const char *s) {
+    for (; *s; s++) {
+        switch (*s) {
+            case '\\': fputs("\\\\", f); break;
+            case '\t': fputs("\\t", f); break;
+            case '\n': fputs("\\n", f); break;
+            case '\r': fputs("\\r", f); break;
+            default: fputc(*s, f); break;
+        }
+    }
+}
+
+// Undo write_escaped() in place
+static void unescape(char *s) {
+    char *out = s;
+    for (; *s; s++) {
+        if (*s != '\\' || !s[1]) {
+            *out++ = *s;
+            continue;
+        }
+        s++;
+        switch (*s) {
+            case 't': *out++ = '\t'; break;
+            case 'n': *out++ = '\n'; break;
+            case 'r': *out++ = '\r'; break;
+            default: *out++ = *s; break;
+        }
+    }
+    *out = '\0';
+}
+
+// "GSCAT <version>\t<fingerprint>" (the newline may follow)
+static bool parse_header(const char *line, char *fp, size_t size) {
+    size_t magic = strlen(CACHE_MAGIC);
+    if (strncmp(line, CACHE_MAGIC, magic) != 0) return false;
+    char *end;
+    long version = strtol(line + magic, &end, 10);
+    if (end == line + magic || version != CAT_CACHE_VERSION || *end != '\t') return false;
+    const char *f = end + 1;
+    size_t len = strcspn(f, "\r\n");
+    if (len == 0 || len >= size) return false;
+    memcpy(fp, f, len);
+    fp[len] = '\0';
+    return true;
+}
+
+bool cat_cache_fingerprint(const char *path, char *out, size_t size) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return false;
+    char line[CAT_FP_LEN + 32];
+    bool ok = fgets(line, sizeof(line), f) && parse_header(line, out, size);
+    // The header alone doesn't prove the file is complete: look for the
+    // END line at the tail
+    if (ok) {
+        char tail[48] = "";
+        ok = false;
+        if (fseek(f, 0, SEEK_END) == 0) {
+            long end = ftell(f);
+            long back = end < (long)sizeof(tail) - 1 ? end : (long)sizeof(tail) - 1;
+            if (end > 0 && fseek(f, end - back, SEEK_SET) == 0) {
+                size_t n = fread(tail, 1, (size_t)back, f);
+                tail[n] = '\0';
+                ok = strstr(tail, "\nEND\t") != NULL;
+            }
+        }
+    }
+    fclose(f);
+    return ok;
+}
+
+void cat_list_free(CatList *list) {
+    free(list->text);
+    free(list->rows);
+    memset(list, 0, sizeof(*list));
+}
+
+static bool parse_row(char *line, CatRow *row) {
+    char *field[CACHE_FIELDS];
+    int n = 0;
+    char *p = line;
+    while (n < CACHE_FIELDS) {
+        field[n++] = p;
+        char *tab = strchr(p, '\t');
+        if (!tab) break;
+        *tab = '\0';
+        p = tab + 1;
+    }
+    if (n != CACHE_FIELDS || strchr(field[CACHE_FIELDS - 1], '\t')) return false;
+    char *end;
+    unsigned long flags = strtoul(field[0], &end, 16);
+    if (end == field[0] || *end) return false;
+    unsigned long long size = strtoull(field[1], &end, 10);
+    if (end == field[1] || *end) return false;
+    long ra_id = strtol(field[2], &end, 10);
+    if (end == field[2] || *end) return false;
+    long ra_ach = strtol(field[3], &end, 10);
+    if (end == field[3] || *end) return false;
+    for (int i = 4; i < CACHE_FIELDS; i++) unescape(field[i]);
+    if (!field[4][0]) return false;  // no rom_id: can't be installed or shown
+    row->flags = (uint8_t)flags;
+    row->size = size;
+    row->ra_game_id = (int32_t)ra_id;
+    row->ra_achievements = (int32_t)ra_ach;
+    row->rom_id = field[4];
+    row->title_id = field[5];
+    row->filename = field[6];
+    row->name = field[7];
+    return true;
+}
+
+bool cat_list_load(CatList *list, const char *path) {
+    memset(list, 0, sizeof(*list));
+    FILE *f = fopen(path, "rb");
+    if (!f) return false;
+    long size = -1;
+    if (fseek(f, 0, SEEK_END) == 0) size = ftell(f);
+    if (size <= 0 || fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return false;
+    }
+    char *text = malloc((size_t)size + 1);
+    if (!text) {
+        fclose(f);
+        return false;
+    }
+    size_t got = fread(text, 1, (size_t)size, f);
+    fclose(f);
+    if (got != (size_t)size) {
+        free(text);
+        return false;
+    }
+    text[size] = '\0';
+
+    int lines = 0;
+    for (char *p = text; *p; p++)
+        if (*p == '\n') lines++;
+
+    list->text = text;
+    list->rows = malloc((size_t)(lines > 0 ? lines : 1) * sizeof(CatRow));
+    if (!list->rows) {
+        cat_list_free(list);
+        return false;
+    }
+
+    char *line = text;
+    char *nl = strchr(line, '\n');
+    if (!nl) {
+        cat_list_free(list);
+        return false;
+    }
+    *nl = '\0';
+    if (!parse_header(line, list->fingerprint, sizeof(list->fingerprint))) {
+        cat_list_free(list);
+        return false;
+    }
+    bool complete = false;
+    for (line = nl + 1; *line; line = nl + 1) {
+        nl = strchr(line, '\n');
+        if (!nl) break;  // last line without a newline: cut short
+        *nl = '\0';
+        if (nl > line && nl[-1] == '\r') nl[-1] = '\0';
+        if (strncmp(line, "END\t", 4) == 0) {
+            char *end;
+            long n = strtol(line + 4, &end, 10);
+            complete = (end != line + 4 && n == list->count);
+            break;
+        }
+        if (!parse_row(line, &list->rows[list->count])) break;
+        list->count++;
+    }
+    if (!complete) {
+        cat_list_free(list);
+        return false;
+    }
+    return true;
+}
+
+static void copy_str(char *dst, size_t size, const char *src, bool *truncated) {
+    size_t len = strlen(src);
+    if (len >= size) {
+        len = size - 1;
+        if (truncated) *truncated = true;
+    }
+    memcpy(dst, src, len);
+    dst[len] = '\0';
+}
+
+void cat_row_to_entry(const CatRow *row, CatEntry *e) {
+    memset(e, 0, sizeof(*e));
+    bool trunc = false;
+    copy_str(e->rom_id, sizeof(e->rom_id), row->rom_id, &trunc);
+    copy_str(e->filename, sizeof(e->filename), row->filename, &trunc);
+    copy_str(e->name, sizeof(e->name), row->name, NULL);
+    if (strlen(row->title_id) < sizeof(e->title_id))
+        copy_str(e->title_id, sizeof(e->title_id), row->title_id, NULL);
+    e->size = row->size;
+    e->ra_game_id = row->ra_game_id;
+    e->ra_achievements = row->ra_achievements;
+    e->ra_title_only = (row->flags & CAT_ROW_RA_TITLE_ONLY) != 0;
+    e->can_extract_nds = (row->flags & CAT_ROW_EXTRACT_NDS) != 0;
+    e->can_extract_cia = (row->flags & CAT_ROW_EXTRACT_CIA) != 0;
+    e->is_bundle = (row->flags & CAT_ROW_BUNDLE) != 0;
+    e->truncated = trunc || (row->flags & CAT_ROW_TRUNCATED) != 0;
+}
+
+bool cat_icontains(const char *haystack, const char *needle) {
+    if (!*needle) return true;
+    for (; *haystack; haystack++) {
+        const char *h = haystack, *n = needle;
+        while (*h && *n && tolower((unsigned char)*h) == tolower((unsigned char)*n)) {
+            h++;
+            n++;
+        }
+        if (!*n) return true;
+    }
+    return false;
+}
+
+int cat_list_filter(const CatList *list, const char *search, bool ra_only, int *out) {
+    int n = 0;
+    for (int i = 0; i < list->count; i++) {
+        const CatRow *r = &list->rows[i];
+        if (ra_only && r->ra_achievements <= 0) continue;
+        if (search && search[0] && !cat_icontains(r->name, search) && !cat_icontains(r->filename, search))
+            continue;
+        out[n++] = i;
+    }
+    return n;
+}
+
+bool cat_cache_begin(CatCacheWriter *w, const char *path, const char *fingerprint) {
+    memset(w, 0, sizeof(*w));
+    if (strlen(path) >= sizeof(w->path) || !fingerprint[0] || strpbrk(fingerprint, "\t\r\n"))
+        return false;
+    snprintf(w->path, sizeof(w->path), "%s", path);
+    char part[sizeof(w->path) + 8];
+    snprintf(part, sizeof(part), "%s.part", w->path);
+    w->f = fopen(part, "wb");
+    if (!w->f) return false;
+    setvbuf(w->f, NULL, _IOFBF, 32 * 1024);
+    if (fprintf(w->f, CACHE_MAGIC "%d\t%s\n", CAT_CACHE_VERSION, fingerprint) < 0) w->failed = true;
+    return true;
+}
+
+void cat_cache_add(CatCacheWriter *w, const CatEntry *e) {
+    if (!w->f || w->failed || !e->rom_id[0]) return;
+    unsigned flags = (e->ra_title_only ? CAT_ROW_RA_TITLE_ONLY : 0) |
+                     (e->can_extract_nds ? CAT_ROW_EXTRACT_NDS : 0) |
+                     (e->can_extract_cia ? CAT_ROW_EXTRACT_CIA : 0) |
+                     (e->is_bundle ? CAT_ROW_BUNDLE : 0) |
+                     (e->truncated ? CAT_ROW_TRUNCATED : 0);
+    fprintf(w->f, "%x\t%llu\t%d\t%d\t", flags, (unsigned long long)e->size, e->ra_game_id,
+            e->ra_achievements);
+    write_escaped(w->f, e->rom_id);
+    fputc('\t', w->f);
+    write_escaped(w->f, e->title_id);
+    fputc('\t', w->f);
+    write_escaped(w->f, e->filename);
+    fputc('\t', w->f);
+    write_escaped(w->f, e->name);
+    if (fputc('\n', w->f) == EOF) w->failed = true;
+    w->count++;
+}
+
+void cat_cache_abort(CatCacheWriter *w) {
+    if (w->f) fclose(w->f);
+    w->f = NULL;
+    char part[sizeof(w->path) + 8];
+    snprintf(part, sizeof(part), "%s.part", w->path);
+    remove(part);
+}
+
+bool cat_cache_end(CatCacheWriter *w) {
+    if (!w->f) return false;
+    if (fprintf(w->f, "END\t%d\n", w->count) < 0) w->failed = true;
+    bool closed = fclose(w->f) == 0;
+    w->f = NULL;
+    char part[sizeof(w->path) + 8];
+    snprintf(part, sizeof(part), "%s.part", w->path);
+    if (w->failed || !closed) {
+        remove(part);
+        return false;
+    }
+    remove(w->path);  // FAT rename doesn't replace an existing file
+    if (rename(part, w->path) != 0) {
+        remove(part);
+        return false;
+    }
+    return true;
+}
+
+int cat_parse_fingerprints(const char *json, size_t len, const char *const *wanted,
+                           char systems[][8], char fingerprints[][CAT_FP_LEN], int *counts, int max) {
+    JCur c = { json, json + len };
+    int nwanted = 0;
+    while (wanted[nwanted] && nwanted < 16) nwanted++;
+    bool present[16] = { false };
+    char fp[16][CAT_FP_LEN];
+    int cnt[16] = { 0 };
+    bool saw_systems = false;
+
+    if (!expect(&c, '{')) return -1;
+    char key[32];
+    bool first = true;
+    int r;
+    while ((r = next_member(&c, &first, key, sizeof(key))) == 1) {
+        if (strcmp(key, "systems") != 0) {
+            if (!skip_value(&c)) return -1;
+            continue;
+        }
+        if (!expect(&c, '{')) return -1;
+        saw_systems = true;
+        bool sfirst = true;
+        int sr;
+        char sys[16];
+        while ((sr = next_member(&c, &sfirst, sys, sizeof(sys))) == 1) {
+            int slot = -1;
+            for (int i = 0; i < nwanted; i++)
+                if (strcasecmp(sys, wanted[i]) == 0) slot = i;
+            skip_ws(&c);
+            if (slot < 0 || c.p >= c.end || *c.p != '{') {
+                if (!skip_value(&c)) return -1;
+                continue;
+            }
+            c.p++;
+            char value_fp[CAT_FP_LEN] = "";
+            int value_count = 0;
+            bool ffirst = true;
+            int fr;
+            char fkey[32];
+            while ((fr = next_member(&c, &ffirst, fkey, sizeof(fkey))) == 1) {
+                bool ok;
+                skip_ws(&c);
+                if (strcmp(fkey, "fingerprint") == 0 && c.p < c.end && *c.p == '"') {
+                    bool trunc;
+                    ok = parse_string(&c, value_fp, sizeof(value_fp), &trunc);
+                    if (trunc) value_fp[0] = '\0';
+                } else if (strcmp(fkey, "count") == 0 && c.p < c.end && *c.p != '"') {
+                    ok = parse_int_field(&c, &value_count);
+                } else {
+                    ok = skip_value(&c);
+                }
+                if (!ok) return -1;
+            }
+            if (fr != 0) return -1;
+            // A fingerprint the cache file can't hold is kept empty: that
+            // system is then fetched every time, never cached wrongly
+            present[slot] = true;
+            snprintf(fp[slot], CAT_FP_LEN, "%s", strpbrk(value_fp, "\t\r\n") ? "" : value_fp);
+            cnt[slot] = value_count;
+        }
+        if (sr != 0) return -1;
+    }
+    if (r != 0 || !saw_systems) return -1;
+
+    int n = 0;
+    for (int i = 0; i < nwanted && n < max; i++) {
+        if (!present[i]) continue;
+        snprintf(systems[n], 8, "%s", wanted[i]);
+        snprintf(fingerprints[n], CAT_FP_LEN, "%s", fp[i]);
+        if (counts) counts[n] = cnt[i];
+        n++;
+    }
+    return n;
+}
+
+int cat_parse_scan_count(const char *json, size_t len) {
+    JCur c = { json, json + len };
+    if (!expect(&c, '{')) return -1;
+    char key[32];
+    bool first = true;
+    int r, count = -1;
+    while ((r = next_member(&c, &first, key, sizeof(key))) == 1) {
+        skip_ws(&c);
+        if (strcmp(key, "count") == 0 && c.p < c.end && *c.p != '"') {
+            if (!parse_int_field(&c, &count)) return -1;
+        } else if (!skip_value(&c)) {
+            return -1;
+        }
+    }
+    return r == 0 ? count : -1;
+}

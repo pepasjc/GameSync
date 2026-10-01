@@ -18,6 +18,12 @@ int network_server_state(void);
 u8 *network_get(const AppConfig *config, const char *path,
                 u32 *out_size, u32 *out_status);
 
+// Same, waiting up to `response_timeout_s` for the server to start answering
+// (0 = the default 15 s), for requests the server is slow to answer
+// (e.g. a ROM folder rescan).
+u8 *network_get_timeout(const AppConfig *config, const char *path,
+                        u32 *out_size, u32 *out_status, u32 response_timeout_s);
+
 // HTTP POST with binary body - returns malloc'd response body.
 // Returns NULL on failure. Caller must free.
 u8 *network_post(const AppConfig *config, const char *path,

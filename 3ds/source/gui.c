@@ -458,6 +458,21 @@ void gui_header(const char *section) {
     }
 }
 
+void gui_header_tabs(const char *const *labels, int count, int active) {
+    gui_header_bar();
+    gui_rrect(8, 6, 14, 14, 4, gui_rgb(HEX_ACCENT));
+    gui_rrect(12, 10, 6, 6, 2, gui_rgb(HEX_BG2));
+    float cy = GUI_HEADER_H / 2.0f;
+    float x = 30;
+    x += gui_button(x, cy, "L") + 4;
+    x = gui_tabs(x, 4, 18, labels, count, active) + 4;
+    gui_button(x, cy, "R");
+    if (screen_id == GUI_TOP) {
+        float left = gui_status_icons(screen_w - 8, cy);
+        gui_text_mid(left - 8, 0, GUI_HEADER_H, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_RIGHT, 0, "v" APP_VERSION);
+    }
+}
+
 void gui_footer(const GuiHint *hints, int count) {
     float y = GUI_FOOTER_Y;
     gui_rect(0, y, screen_w, GUI_FOOTER_H, gui_rgb(HEX_BG2));

@@ -867,6 +867,10 @@ SyncResult sync_download_history(const AppConfig *config, const TitleInfo *title
     else
         ok = archive_write(title->title_id, title->media_type, files, file_count);
 
+    // Hash before freeing: the file entries point into the response buffers
+    char hash[65];
+    if (ok) bundle_compute_save_hash(files, file_count, hash);
+
     free(files);
     if (decompressed) free(decompressed);
     free(resp);
@@ -874,8 +878,6 @@ SyncResult sync_download_history(const AppConfig *config, const TitleInfo *title
     if (!ok) return SYNC_ERR_ARCHIVE;
 
     // Update last synced hash with the downloaded version
-    char hash[65];
-    bundle_compute_save_hash(files, file_count, hash);
     save_last_synced_hash(title->title_id_hex, hash);
 
     return SYNC_OK;

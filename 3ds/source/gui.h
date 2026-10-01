@@ -154,6 +154,10 @@ void gui_dim(void);
 void gui_header(const char *section);
 // Header bar background only (for custom headers, e.g. tabs)
 void gui_header_bar(void);
+// Header of a top-level screen: logo, then the L / R shoulder glyphs around
+// the segmented tab strip (the active tab highlighted); WiFi, server dot and
+// version on the right of the top screen.
+void gui_header_tabs(const char *const *labels, int count, int active);
 // WiFi bars + server dot ending at x_right; returns the left edge
 float gui_status_icons(float x_right, float cy);
 

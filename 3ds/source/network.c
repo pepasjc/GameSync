@@ -98,6 +98,12 @@ static u8 *read_response(httpcContext *context, u32 *out_size) {
 
 u8 *network_get(const AppConfig *config, const char *path,
                 u32 *out_size, u32 *out_status) {
+    return network_get_timeout(config, path, out_size, out_status, 0);
+}
+
+u8 *network_get_timeout(const AppConfig *config, const char *path,
+                        u32 *out_size, u32 *out_status, u32 response_timeout_s) {
+    u64 response_timeout = response_timeout_s ? response_timeout_s * 1000000000ULL : TIMEOUT_RESPONSE;
     request_delay(); // Let previous request fully clean up
 
     char url[MAX_URL_LEN + 128];
@@ -122,7 +128,7 @@ u8 *network_get(const AppConfig *config, const char *path,
         return NULL;
     }
 
-    res = httpcGetResponseStatusCodeTimeout(&context, out_status, TIMEOUT_RESPONSE);
+    res = httpcGetResponseStatusCodeTimeout(&context, out_status, response_timeout);
     note_server(R_SUCCEEDED(res));
     if (R_FAILED(res)) {
         httpcCancelConnection(&context);

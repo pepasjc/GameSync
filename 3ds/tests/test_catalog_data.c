@@ -487,8 +487,216 @@ static void test_cia_map(const char *scratch) {
     cat_cia_map_free(&map);
 }
 
+// ---------------------------------------------------------------------------
+// Catalog cache
+// ---------------------------------------------------------------------------
+
+static void write_file(const char *path, const char *text) {
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+    fputs(text, f);
+    fclose(f);
+}
+
+static void test_cache_roundtrip(const char *scratch) {
+    char path[512];
+    snprintf(path, sizeof(path), "%s/catalog_NDS.txt", scratch);
+    remove(path);
+
+    CatEntry in[3];
+    int n = cat_parse_page(page_json, strlen(page_json), in, 3, NULL);
+    CHECK(n == 3);
+    // Characters the format escapes, in every string field
+    snprintf(in[2].name, sizeof(in[2].name), "Tab\there\\back\nnew\rline");
+    snprintf(in[2].title_id, sizeof(in[2].title_id), "00048000\t41");
+    in[2].can_extract_cia = true;
+    in[1].truncated = true;
+
+    CatCacheWriter w;
+    CHECK(cat_cache_begin(&w, path, "abc123"));
+    for (int i = 0; i < n; i++) cat_cache_add(&w, &in[i]);
+    CHECK(cat_cache_end(&w));
+
+    char fp[CAT_FP_LEN];
+    CHECK(cat_cache_fingerprint(path, fp, sizeof(fp)));
+    CHECK_STR(fp, "abc123");
+
+    CatList list;
+    CHECK(cat_list_load(&list, path));
+    CHECK(list.count == 3);
+    CHECK_STR(list.fingerprint, "abc123");
+    for (int i = 0; i < list.count && i < n; i++) {
+        CatEntry e;
+        cat_row_to_entry(&list.rows[i], &e);
+        CHECK_STR(e.rom_id, in[i].rom_id);
+        CHECK_STR(e.title_id, in[i].title_id);
+        CHECK_STR(e.name, in[i].name);
+        CHECK_STR(e.filename, in[i].filename);
+        CHECK(e.size == in[i].size);
+        CHECK(e.ra_game_id == in[i].ra_game_id);
+        CHECK(e.ra_achievements == in[i].ra_achievements);
+        CHECK(e.ra_title_only == in[i].ra_title_only);
+        CHECK(e.can_extract_nds == in[i].can_extract_nds);
+        CHECK(e.can_extract_cia == in[i].can_extract_cia);
+        CHECK(e.is_bundle == in[i].is_bundle);
+        CHECK(e.truncated == in[i].truncated);
+    }
+
+    // Filters: the server's search (name or file name, any case) and has_ra
+    int idx[3];
+    CHECK(cat_list_filter(&list, "", false, idx) == 3);
+    CHECK(cat_list_filter(&list, NULL, true, idx) == 1 && idx[0] == 1);
+    CHECK(cat_list_filter(&list, "KOWAI", false, idx) == 1 && idx[0] == 0);
+    CHECK(cat_list_filter(&list, "(usa).zip", false, idx) == 1 && idx[0] == 2);
+    CHECK(cat_list_filter(&list, "pok", true, idx) == 1);
+    CHECK(cat_list_filter(&list, "plain", true, idx) == 0);
+    CHECK(cat_list_filter(&list, "zzz", false, idx) == 0);
+    cat_list_free(&list);
+    CHECK(list.rows == NULL && list.count == 0);
+
+    // Rewriting replaces the old file (FAT rename doesn't overwrite)
+    CHECK(cat_cache_begin(&w, path, "def456"));
+    cat_cache_add(&w, &in[0]);
+    CHECK(cat_cache_end(&w));
+    CHECK(cat_list_load(&list, path));
+    CHECK(list.count == 1);
+    CHECK_STR(list.fingerprint, "def456");
+    cat_list_free(&list);
+
+    // An aborted write leaves the previous copy alone
+    CHECK(cat_cache_begin(&w, path, "zzz"));
+    cat_cache_add(&w, &in[1]);
+    cat_cache_abort(&w);
+    CHECK(cat_cache_fingerprint(path, fp, sizeof(fp)));
+    CHECK_STR(fp, "def456");
+
+    // Bad fingerprints are refused before anything is written
+    CHECK(!cat_cache_begin(&w, path, ""));
+    CHECK(!cat_cache_begin(&w, path, "a\tb"));
+
+    // Empty system: header and END only
+    CHECK(cat_cache_begin(&w, path, "empty"));
+    CHECK(cat_cache_end(&w));
+    CHECK(cat_list_load(&list, path));
+    CHECK(list.count == 0);
+    cat_list_free(&list);
+    remove(path);
+}
+
+static void test_cache_rejects(const char *scratch) {
+    char path[512];
+    snprintf(path, sizeof(path), "%s/catalog_bad.txt", scratch);
+    CatList list;
+    char fp[CAT_FP_LEN];
+    static const char row[] = "6\t42\t7\t-1\tNDS_x\t\tX (USA).nds\tX\n";
+    char text[256];
+
+    CHECK(!cat_list_load(&list, "/nonexistent/catalog.txt"));
+    CHECK(!cat_cache_fingerprint("/nonexistent/catalog.txt", fp, sizeof(fp)));
+
+    // Good
+    snprintf(text, sizeof(text), "GSCAT %d\tfp1\n%sEND\t1\n", CAT_CACHE_VERSION, row);
+    write_file(path, text);
+    CHECK(cat_list_load(&list, path));
+    CHECK(list.count == 1);
+    if (list.count == 1) {
+        CHECK(list.rows[0].size == 42);
+        CHECK(list.rows[0].ra_achievements == -1);
+        CHECK(list.rows[0].flags == (CAT_ROW_EXTRACT_NDS | CAT_ROW_EXTRACT_CIA));
+        CHECK_STR(list.rows[0].title_id, "");
+    }
+    cat_list_free(&list);
+
+    // CRLF line ends (copied around on a PC) still load
+    snprintf(text, sizeof(text), "GSCAT %d\tfp1\r\n6\t42\t7\t-1\tNDS_x\t\tX (USA).nds\tX\r\nEND\t1\r\n",
+             CAT_CACHE_VERSION);
+    write_file(path, text);
+    CHECK(cat_list_load(&list, path));
+    if (list.count == 1) CHECK_STR(list.rows[0].name, "X");
+    cat_list_free(&list);
+
+    // Another cache version
+    snprintf(text, sizeof(text), "GSCAT %d\tfp1\n%sEND\t1\n", CAT_CACHE_VERSION + 1, row);
+    write_file(path, text);
+    CHECK(!cat_list_load(&list, path));
+    CHECK(!cat_cache_fingerprint(path, fp, sizeof(fp)));
+
+    // Cut short: no END, or END with the wrong count, or a half row
+    snprintf(text, sizeof(text), "GSCAT %d\tfp1\n%s", CAT_CACHE_VERSION, row);
+    write_file(path, text);
+    CHECK(!cat_list_load(&list, path));
+    CHECK(!cat_cache_fingerprint(path, fp, sizeof(fp)));
+    snprintf(text, sizeof(text), "GSCAT %d\tfp1\n%sEND\t2\n", CAT_CACHE_VERSION, row);
+    write_file(path, text);
+    CHECK(!cat_list_load(&list, path));
+    snprintf(text, sizeof(text), "GSCAT %d\tfp1\n6\t42\tNDS_x\nEND\t1\n", CAT_CACHE_VERSION);
+    write_file(path, text);
+    CHECK(!cat_list_load(&list, path));
+
+    // Not a cache at all / empty file
+    write_file(path, "{\"roms\": []}\n");
+    CHECK(!cat_list_load(&list, path));
+    write_file(path, "");
+    CHECK(!cat_list_load(&list, path));
+    CHECK(list.rows == NULL && list.text == NULL);
+    remove(path);
+}
+
+static void test_fingerprints(void) {
+    static const char *const wanted[] = { "3DS", "NDS", "DSI", NULL };
+    static const char json[] =
+        "{\"systems\": {\"GBA\": {\"fingerprint\": \"aaa\", \"count\": 10},"
+        " \"NDS\": {\"count\": 6800, \"fingerprint\": \"0123456789abcdef0123456789abcdef01234567\"},"
+        " \"3DS\": {\"fingerprint\": \"f3\", \"count\": 12, \"extra\": [1, {\"x\": null}]}},"
+        " \"other\": true}";
+    char sys[3][8], fp[3][CAT_FP_LEN];
+    int counts[3];
+    int n = cat_parse_fingerprints(json, strlen(json), wanted, sys, fp, counts, 3);
+    CHECK(n == 2);
+    CHECK_STR(sys[0], "3DS");
+    CHECK_STR(fp[0], "f3");
+    CHECK(counts[0] == 12);
+    CHECK_STR(sys[1], "NDS");
+    CHECK_STR(fp[1], "0123456789abcdef0123456789abcdef01234567");
+    CHECK(counts[1] == 6800);
+
+    // Lower-case system keys match too
+    static const char lower[] = "{\"systems\": {\"dsi\": {\"fingerprint\": \"d\", \"count\": 1}}}";
+    n = cat_parse_fingerprints(lower, strlen(lower), wanted, sys, fp, counts, 3);
+    CHECK(n == 1);
+    CHECK_STR(sys[0], "DSI");
+
+    static const char empty[] = "{\"systems\": {}}";
+    CHECK(cat_parse_fingerprints(empty, strlen(empty), wanted, sys, fp, counts, 3) == 0);
+    static const char none[] = "{\"detail\": \"Not Found\"}";
+    CHECK(cat_parse_fingerprints(none, strlen(none), wanted, sys, fp, counts, 3) == -1);
+    static const char bad[] = "{\"systems\": {\"NDS\": {\"fingerprint\": ";
+    CHECK(cat_parse_fingerprints(bad, strlen(bad), wanted, sys, fp, counts, 3) == -1);
+
+    static const char scan[] = "{\"status\": \"ok\", \"count\": 31415}";
+    CHECK(cat_parse_scan_count(scan, strlen(scan)) == 31415);
+    static const char no_dir[] = "{\"status\": \"no_rom_dir\", \"count\": 0}";
+    CHECK(cat_parse_scan_count(no_dir, strlen(no_dir)) == 0);
+    static const char denied[] = "{\"detail\": \"Admin access required\"}";
+    CHECK(cat_parse_scan_count(denied, strlen(denied)) == -1);
+    CHECK(cat_parse_scan_count("oops", 4) == -1);
+}
+
+static void test_icontains(void) {
+    CHECK(cat_icontains("Pokemon Black", ""));
+    CHECK(cat_icontains("Pokemon Black", "MON b"));
+    CHECK(cat_icontains("Pokemon Black", "pokemon black"));
+    CHECK(!cat_icontains("Pokemon Black", "pokemon black 2"));
+    CHECK(!cat_icontains("", "a"));
+    CHECK(cat_icontains("aab", "ab"));
+}
+
 int main(int argc, char **argv) {
     const char *scratch = argc > 1 ? argv[1] : "/tmp";
+    test_cache_roundtrip(scratch);
+    test_cache_rejects(scratch);
+    test_fingerprints();
+    test_icontains();
     test_parse_page();
     test_parse_systems();
     test_strings();
