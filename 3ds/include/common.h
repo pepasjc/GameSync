@@ -29,8 +29,23 @@ typedef struct {
     bool in_conflict;      // Set after sync if this title has a conflict
     bool is_nds;           // NDS game (via nds-bootstrap on SD) vs 3DS title
     bool marked;           // User-selected for batch operations
+    u8 sync_state;         // TitleSyncState: what this session last learned
     char sav_path[MAX_PATH_LEN]; // NDS only: path to .sav file on SD card
 } TitleInfo;
+
+// Per-title sync state shown in the save list (not persisted: it reflects
+// what this session last learned about the title)
+typedef enum {
+    TSTATE_UNKNOWN = 0,
+    TSTATE_SYNCED,          // hashes match
+    TSTATE_UPLOADED,        // uploaded this session
+    TSTATE_DOWNLOADED,      // downloaded this session
+    TSTATE_NEEDS_UPLOAD,    // compared: only this console changed
+    TSTATE_NEEDS_DOWNLOAD,  // compared: only the server changed
+    TSTATE_CONFLICT,        // both changed
+    TSTATE_FAILED,          // last transfer failed
+    TSTATE_SKIPPED,         // game card: left out of Sync All
+} TitleSyncState;
 
 // Console ID file location
 #define CONSOLE_ID_PATH  "sdmc:/3ds/3dssync/console_id.txt"
