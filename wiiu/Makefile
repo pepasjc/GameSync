@@ -33,7 +33,7 @@ TARGET		:=	wiiusync
 BUILD		:=	build
 SOURCES		:=	source
 DATA		:=	data
-INCLUDES	:=	include
+INCLUDES	:=	include third_party/stb
 
 #---------------------------------------------------------------------------------
 # .wuhb metadata (consumed by wuhbtool via wut_rules)
