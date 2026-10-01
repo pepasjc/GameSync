@@ -36,8 +36,20 @@ static SDL_GameController *g_pad = NULL;
 static UiKey               g_pending = UI_KEY_NONE;
 static int                 g_axis_x_zone = 0;
 static int                 g_axis_y_zone = 0;
+static int                 g_trig_l = 0;
+static int                 g_trig_r = 0;
+
+// Held-direction auto-repeat.
+static UiKey               g_hold_key = UI_KEY_NONE;
+static uint32_t            g_hold_since = 0;
+static uint32_t            g_hold_last = 0;
 
 #define AXIS_DEADZONE 18000
+// Triggers report 0..32767; press above ON, release below OFF.
+#define TRIGGER_ON    16000
+#define TRIGGER_OFF   8000
+#define REPEAT_DELAY_MS  380
+#define REPEAT_RATE_MS   75
 
 static TTF_Font *font_for(int size)
 {
@@ -222,6 +234,18 @@ static void handle_axis(int axis, int value)
         neg = UI_KEY_UP;
         pos = UI_KEY_DOWN;
         break;
+    case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
+    case SDL_CONTROLLER_AXIS_TRIGGERRIGHT: {
+        int *held = axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? &g_trig_l : &g_trig_r;
+        if (!*held && value > TRIGGER_ON) {
+            *held = 1;
+            queue_key(axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? UI_KEY_LT
+                                                              : UI_KEY_RT);
+        } else if (*held && value < TRIGGER_OFF) {
+            *held = 0;
+        }
+        return;
+    }
     default:
         return;
     }
@@ -234,6 +258,42 @@ static void handle_axis(int axis, int value)
         queue_key(z < 0 ? neg : pos);
     }
     *state = z;
+}
+
+// Direction currently held on the D-pad or left stick, if any.
+static UiKey held_direction(void)
+{
+    if (g_pad) {
+        if (SDL_GameControllerGetButton(g_pad, SDL_CONTROLLER_BUTTON_DPAD_UP))
+            return UI_KEY_UP;
+        if (SDL_GameControllerGetButton(g_pad, SDL_CONTROLLER_BUTTON_DPAD_DOWN))
+            return UI_KEY_DOWN;
+        if (SDL_GameControllerGetButton(g_pad, SDL_CONTROLLER_BUTTON_DPAD_LEFT))
+            return UI_KEY_LEFT;
+        if (SDL_GameControllerGetButton(g_pad, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))
+            return UI_KEY_RIGHT;
+    }
+    if (g_axis_y_zone) return g_axis_y_zone < 0 ? UI_KEY_UP : UI_KEY_DOWN;
+    if (g_axis_x_zone) return g_axis_x_zone < 0 ? UI_KEY_LEFT : UI_KEY_RIGHT;
+    return UI_KEY_NONE;
+}
+
+// The press itself arrives as an event; this only adds the repeats.
+static void hold_repeat(void)
+{
+    UiKey k = held_direction();
+    uint32_t now = (uint32_t)GetTickCount();
+    if (k != g_hold_key) {
+        g_hold_key = k;
+        g_hold_since = now;
+        g_hold_last = now;
+        return;
+    }
+    if (k == UI_KEY_NONE) return;
+    if ((uint32_t)(now - g_hold_since) < REPEAT_DELAY_MS) return;
+    if ((uint32_t)(now - g_hold_last) < REPEAT_RATE_MS) return;
+    g_hold_last = now;
+    queue_key(k);
 }
 
 void ui_pump(void)
@@ -253,6 +313,9 @@ void ui_pump(void)
             if (gone) SDL_GameControllerClose(gone);
             g_axis_x_zone = 0;
             g_axis_y_zone = 0;
+            g_trig_l = 0;
+            g_trig_r = 0;
+            g_hold_key = UI_KEY_NONE;
             break;
         }
         case SDL_CONTROLLERBUTTONDOWN: {
@@ -269,6 +332,7 @@ void ui_pump(void)
         }
     }
     SDL_GameControllerUpdate();
+    hold_repeat();
 }
 
 UiKey ui_poll_key(void)
@@ -674,6 +738,7 @@ int ui_button_w(const char *b)
     if (is_face(b)) return (int)(BTN_R * 2);
     if (!strcmp(b, "WHITE") || !strcmp(b, "BLACK")) return (int)(BTN_R * 2);
     if (is_dpad(b)) return 18;
+    if (!strcmp(b, "L/R")) return ui_button_w("L") + 3 + ui_button_w("R");
     return ui_text_w(UI_FONT_TINY, b) + 12;
 }
 
@@ -711,6 +776,10 @@ int ui_button(int x, int cy, const char *b)
             ui_rect(x + 12, cy - 3, 6, 6, base);
         }
         return 18;
+    }
+    if (!strcmp(b, "L/R")) {
+        int lw = ui_button(x, cy, "L");
+        return lw + 3 + ui_button(x + lw + 3, cy, "R");
     }
     // Triggers get a tab shape, START / BACK a pill.
     int w = ui_button_w(b);

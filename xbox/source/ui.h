@@ -26,8 +26,10 @@ typedef enum {
     UI_KEY_B,
     UI_KEY_X,
     UI_KEY_Y,
-    UI_KEY_LB,      // WHITE button on an original Xbox pad
-    UI_KEY_RB,      // BLACK button on an original Xbox pad
+    UI_KEY_LB,      // WHITE button on an original Xbox pad (unbound)
+    UI_KEY_RB,      // BLACK button on an original Xbox pad (unbound)
+    UI_KEY_LT,      // left trigger: previous tab
+    UI_KEY_RT,      // right trigger: next tab
     UI_KEY_START,
     UI_KEY_BACK,
 } UiKey;
@@ -95,7 +97,9 @@ typedef enum {
 int  ui_init(char *err, int err_len);
 void ui_shutdown(void);
 
-// Input: pump events + drain edge-triggered button.
+// Input: pump events + drain edge-triggered button. Holding a D-pad
+// direction (or the left stick) repeats it after a short delay; the
+// triggers are edge-triggered with hysteresis.
 void  ui_pump(void);
 UiKey ui_poll_key(void);
 void  ui_sleep(int ms);
@@ -152,8 +156,8 @@ int  ui_pill_w(int font, const char *label);
 int  ui_pill(int x, int y, int h, int font, uint32_t bg, uint32_t fg,
              const char *label);
 
-// Controller glyph: "A" "B" "X" "Y" "WHITE" "BLACK" "L" "R" "START" "BACK"
-// "DPAD" "UD" "LR". (x, cy) = left edge and vertical centre. Returns width.
+// Controller glyph: "A" "B" "X" "Y" "WHITE" "BLACK" "L" "R" "L/R" (both
+// triggers) "START" "BACK" "DPAD" "UD" "LR". (x, cy) = left edge and vertical centre. Returns width.
 int  ui_button(int x, int cy, const char *button);
 int  ui_button_w(const char *button);
 

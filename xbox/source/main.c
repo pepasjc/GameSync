@@ -32,7 +32,12 @@
 #endif
 
 #define LIST_VISIBLE   9   // rows the list panel shows at once
-#define CONFIG_ROWS    11
+
+// Settings rows: 0..10 are config.txt fields, the rest are actions.
+#define CFG_ROW_REFRESH_CATALOG 11
+#define CFG_ROW_CLEAR_HASHES    12
+#define CFG_ROW_RELOAD_CONFIG   13
+#define CONFIG_ROWS             14
 
 static XboxSaveList g_list;
 static XboxRomList  g_roms;
@@ -41,7 +46,7 @@ static XboxDriveSpace g_f_space;
 static XboxConfig   g_cfg;
 static SyncPlan     g_plan;
 static int          g_plan_loaded = 0;
-static char         g_status[200] = "Press WHITE to compare saves with the server.";
+static char         g_status[200] = "Comparing saves with the server...";
 typedef enum {
     UI_STATUS_INFO_KIND,
     UI_STATUS_BUSY_KIND,
@@ -57,9 +62,11 @@ typedef enum {
     TAB_GAMES = 1,
     TAB_INSTALLED = 2,
     TAB_CONFIG = 3,
+    TAB_COUNT = 4,
 } UiTab;
 static UiTab g_tab = TAB_SAVES;
 static int   g_roms_loaded = 0;
+static CatalogSource g_catalog_source = CATALOG_FROM_SERVER;
 static int   g_installed_loaded = 0;
 static int   g_f_space_loaded = 0;
 
@@ -212,11 +219,11 @@ static const char *status_hint(TitleStatus s)
     case TITLE_STATUS_NEEDS_DOWNLOAD:
         return "The server has a newer save. A downloads it.";
     case TITLE_STATUS_CONFLICT:
-        return "Both sides changed. X uploads, Y downloads.";
+        return "Both sides changed. A or Y lets you pick upload or download.";
     case TITLE_STATUS_SERVER_ONLY:
         return "Not on this Xbox yet. A downloads it.";
     default:
-        return "WHITE compares every save with the server.";
+        return "Not compared yet. A compares every save with the server.";
     }
 }
 
@@ -287,10 +294,11 @@ static int pill_left(int right, int y, int h, uint32_t bg, uint32_t fg,
 static void draw_tab_row(void)
 {
     static const char *const labels[] = { "Saves", "Catalog", "Installed", "Settings" };
-    int x = ui_tabs(UI_MARGIN_X, TABS_Y, TABS_H, labels, 4, (int)g_tab);
-    int bw = ui_button(x + 8, TABS_Y + TABS_H / 2, "BACK");
-    ui_text_mid(x + 8 + bw + 5, TABS_Y, TABS_H, UI_FONT_TINY, UI_HEX_MUTED,
-                UI_LEFT, 0, "next");
+    // The triggers flank the strip: L = previous tab, R = next (wrapping).
+    int lw = ui_button(UI_MARGIN_X, TABS_Y + TABS_H / 2, "L");
+    int x = ui_tabs(UI_MARGIN_X + lw + 6, TABS_Y, TABS_H, labels, TAB_COUNT,
+                    (int)g_tab);
+    ui_button(x + 6, TABS_Y + TABS_H / 2, "R");
 
     // Context on the right of the strip.
     int right = UI_W - UI_MARGIN_X;
@@ -321,6 +329,11 @@ static void draw_tab_row(void)
         snprintf(buf, sizeof(buf), "as %s",
                  games_format_name(games_config_format(&g_cfg)));
         right = pill_left(right, py, ph, UI_HEX_PANEL_HI, UI_HEX_DIM, buf);
+        if (g_roms_loaded && g_catalog_source == CATALOG_FROM_CACHE_OFFLINE) {
+            pill_left(right, py, ph, UI_HEX_WARN, UI_HEX_INK, "cached / offline");
+        } else if (g_roms_loaded && g_catalog_source == CATALOG_FROM_CACHE) {
+            pill_left(right, py, ph, UI_HEX_PANEL_HI, UI_HEX_DIM, "cached");
+        }
     } else if (g_tab == TAB_INSTALLED) {
         if (g_f_space_loaded) {
             char free_sz[24];
@@ -456,8 +469,16 @@ static const char *config_label(int row)
     case 7: return "Netmask";
     case 8: return "Gateway";
     case 9: return "DNS 1";
-    default:return "DNS 2";
+    case 10:return "DNS 2";
+    case CFG_ROW_REFRESH_CATALOG: return "Refresh catalog";
+    case CFG_ROW_CLEAR_HASHES:    return "Clear save hash cache";
+    default:                      return "Reload config.txt";
     }
+}
+
+static int config_is_action(int row)
+{
+    return row >= CFG_ROW_REFRESH_CATALOG;
 }
 
 static const char *config_key(int row)
@@ -473,7 +494,8 @@ static const char *config_key(int row)
     case 7: return "static_netmask";
     case 8: return "static_gateway";
     case 9: return "static_dns1";
-    default:return "static_dns2";
+    case 10:return "static_dns2";
+    default:return "action";
     }
 }
 
@@ -490,7 +512,8 @@ static const char *config_value(int row)
     case 7: return g_cfg.static_netmask;
     case 8: return g_cfg.static_gateway;
     case 9: return g_cfg.static_dns1;
-    default:return g_cfg.static_dns2;
+    case 10:return g_cfg.static_dns2;
+    default:return "";
     }
 }
 
@@ -505,6 +528,14 @@ static const char *config_help(int row)
     case 4: return "cci keeps games as compressed CCI images; folder extracts the "
                    "game files. A cycles, X saves.";
     case 5: return "Where downloaded games are installed.";
+    case CFG_ROW_REFRESH_CATALOG:
+        return "A asks the server to rescan its ROM folder, drops the cached "
+               "catalog and downloads the Xbox game list again.";
+    case CFG_ROW_CLEAR_HASHES:
+        return "A forgets the cached save hashes, so the next compare hashes "
+               "every save again. Use it if a save shows the wrong status.";
+    case CFG_ROW_RELOAD_CONFIG:
+        return "A re-reads config.txt from the disk, dropping unsaved changes.";
     default:return "Used when the network mode is static.";
     }
 }
@@ -518,6 +549,13 @@ static void draw_config_row(int row_idx, int cursor, int y)
 {
     int selected = (row_idx == cursor);
     uint32_t fg = row_bg(selected, y);
+    if (config_is_action(row_idx)) {
+        uint32_t ac = selected ? UI_HEX_INK : UI_HEX_ACCENT;
+        ui_icon_arrow(LIST_X + 20, y + 12, 9, 1, ac);
+        ui_text_mid(LIST_X + 32, y, ROW_H - 2, UI_FONT_BODY, ac, UI_LEFT,
+                    LIST_W - 60, config_label(row_idx));
+        return;
+    }
     ui_text_mid(LIST_X + 16, y, ROW_H - 2, UI_FONT_SMALL,
                 selected ? UI_HEX_INK : UI_HEX_DIM, UI_LEFT, 0,
                 config_label(row_idx));
@@ -568,11 +606,12 @@ static const char *empty_message(void)
 {
     if (g_tab == TAB_GAMES) {
         return g_roms_loaded ? "No Xbox games in the server catalog."
-                             : "Press WHITE to load the game catalog.";
+                             : "The catalog could not be loaded. Try "
+                               "Settings > Refresh catalog.";
     }
     if (g_tab == TAB_INSTALLED) {
         return g_installed_loaded ? "No installed games in F:\\Games."
-                                  : "Press WHITE to scan installed games.";
+                                  : "Press X to scan installed games.";
     }
     return "No saves on this Xbox or the server.";
 }
@@ -686,7 +725,8 @@ static void draw_game_detail(int cursor)
 {
     if (!g_roms_loaded || cursor < 0 || cursor >= g_roms.count) {
         detail_caption("GAME", "Game catalog");
-        detail_hint("Xbox games the server has in its ROM folder. WHITE loads the list.");
+        detail_hint("Xbox games the server has in its ROM folder. Settings > "
+                    "Refresh catalog reloads the list.");
         return;
     }
     const XboxRomEntry *r = &g_roms.roms[cursor];
@@ -749,7 +789,7 @@ static void draw_installed_detail(int cursor)
     }
     ui_text(DX, PANEL_Y + PANEL_H - 10 - ui_line_h(UI_FONT_TINY), UI_FONT_TINY,
             UI_HEX_MUTED, UI_LEFT,
-            g_installed_loaded ? "Y deletes the game folder." : "WHITE scans F:\\Games.");
+            g_installed_loaded ? "A uninstalls, X rescans." : "X scans F:\\Games.");
 }
 
 static void draw_config_detail(int cursor)
@@ -759,7 +799,10 @@ static void draw_config_detail(int cursor)
     ui_pill(DX, y, 20, UI_FONT_TINY, UI_HEX_PANEL_HI, UI_HEX_DIM, config_key(cursor));
     y = detail_rule(y + 28);
     ui_text_wrap(DX, y, UI_FONT_SMALL, UI_HEX_TEXT, DW, 5, config_help(cursor));
-    detail_hint("Edit text values in E:\\UDATA\\TDSV0000\\config.txt.");
+    detail_hint(config_is_action(cursor)
+                    ? "Runs right away."
+                    : "Edit text values in E:\\UDATA\\TDSV0000\\config.txt. "
+                      "X saves changes.");
 }
 
 static void draw_detail(int cursor)
@@ -777,30 +820,36 @@ static void draw_detail(int cursor)
 // Whole screen
 // ---------------------------------------------------------------------------
 
-static void draw_footer(void)
+static void draw_footer(int cursor)
 {
+    int config_action_row = (g_tab == TAB_CONFIG) && config_is_action(cursor);
     static const UiHint saves[] = {
-        { "A", "Sync" }, { "X", "Upload" }, { "Y", "Download" },
-        { "WHITE", "Compare" }, { "BLACK", "Sync all" },
-        { "B", "Clear hashes" }, { "START", "Exit" },
+        { "A", "Sync" }, { "X", "Sync all" }, { "Y", "Details" },
+        { "LR", "Page" }, { "L/R", "Tabs" }, { "START", "Exit" },
     };
     static const UiHint games[] = {
-        { "A", "Download" }, { "WHITE", "Reload" }, { "UD", "Move" },
-        { "LR", "Page" }, { "START", "Exit" },
+        { "A", "Download" }, { "Y", "Details" },
+        { "LR", "Page" }, { "L/R", "Tabs" }, { "START", "Exit" },
     };
     static const UiHint installed[] = {
-        { "Y", "Uninstall" }, { "WHITE", "Rescan" }, { "UD", "Move" },
-        { "LR", "Page" }, { "START", "Exit" },
+        { "A", "Uninstall" }, { "X", "Rescan" }, { "Y", "Details" },
+        { "LR", "Page" }, { "L/R", "Tabs" }, { "START", "Exit" },
     };
     static const UiHint config[] = {
-        { "A", "Change" }, { "X", "Save" }, { "WHITE", "Reload" },
-        { "UD", "Move" }, { "START", "Exit" },
+        { "A", "Change" }, { "X", "Save" },
+        { "LR", "Page" }, { "L/R", "Tabs" }, { "START", "Exit" },
+    };
+    static const UiHint config_action[] = {
+        { "A", "Run" }, { "X", "Save" },
+        { "LR", "Page" }, { "L/R", "Tabs" }, { "START", "Exit" },
     };
     switch (g_tab) {
     case TAB_GAMES:     ui_footer(games, 5); break;
-    case TAB_INSTALLED: ui_footer(installed, 5); break;
-    case TAB_CONFIG:    ui_footer(config, 5); break;
-    default:            ui_footer(saves, 7); break;
+    case TAB_INSTALLED: ui_footer(installed, 6); break;
+    case TAB_CONFIG:
+        ui_footer(config_action_row ? config_action : config, 5);
+        break;
+    default:            ui_footer(saves, 6); break;
     }
 }
 
@@ -813,7 +862,7 @@ static void draw_screen(int cursor, int scroll)
     draw_detail(cursor);
     ui_banner(UI_MARGIN_X, BANNER_Y, UI_W - 2 * UI_MARGIN_X, BANNER_H,
               status_tone(), g_status);
-    draw_footer();
+    draw_footer(cursor);
 }
 
 static void redraw(int cursor, int scroll)
@@ -990,7 +1039,7 @@ static void rescan_local_preserve_plan(void)
 
 #define COMPARE_KEY_W 64
 
-// One side of the upload/download comparison in the confirm dialog.
+// One side of the upload/download comparison.
 static void draw_compare_box(int x, int y, int w, int h, const char *caption,
                              int present, const char *size_line,
                              const char *hash, const char *when,
@@ -1021,127 +1070,311 @@ static void draw_compare_box(int x, int y, int w, int h, const char *caption,
     }
 }
 
-static void draw_confirm_dialog(int cursor, int scroll,
-                                UiKey op,
-                                const char *tid,
-                                const XboxSaveTitle *local,
-                                const char *local_hash,
-                                const NetworkSaveMeta *server)
+// Modal wait: A confirms (1), B cancels (0). Nothing else closes a dialog.
+static int wait_confirm(void)
 {
-    draw_screen(cursor, scroll);
-    ui_dim();
+    while (1) {
+        ui_pump();
+        UiKey k = ui_poll_key();
+        if (k == UI_KEY_A) return 1;
+        if (k == UI_KEY_B) return 0;
+        ui_sleep(20);
+    }
+}
 
-    int upload = (op == UI_KEY_X);
-    // Downloading over an existing local save is the destructive case.
-    uint32_t tone = upload ? UI_HEX_WARN : (local ? UI_HEX_ERR : UI_HEX_INFO);
-    const int w = 540, h = 300;
-    const int x = (UI_W - w) / 2, y = 88;
-    ui_card(x, y, w, h, upload ? "Upload to server?" : "Download to this Xbox?",
-            tone);
+// Local + server facts about one save, shared by the Details card and the
+// upload / download confirmation.
+typedef struct {
+    char           tid[XBOX_TITLE_ID_LEN + 1];
+    const char    *name;
+    XboxSaveTitle *local;
+    char           local_hash[XBOX_SAVE_HASH_HEX_LEN + 1];
+    int            server_ok;      // metadata request succeeded
+    NetworkSaveMeta server;
+} SaveCompare;
 
-    const char *name = (local && local->name[0]) ? local->name : tid;
-    int cy = y + UI_CARD_TITLE_H + 12;
-    ui_text_fit(x + 20, cy, UI_FONT_BODY, UI_HEX_TEXT, UI_LEFT, w - 40, name);
-    char line[160];
-    snprintf(line, sizeof(line), "Title ID %s", tid);
-    ui_text(x + 20, cy + 24, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, line);
+// Hash the local save (cached) and fetch the server's metadata. Returns 0
+// when the local side is known; server_ok says whether the server answered.
+static int fetch_save_compare(int cursor, int scroll, const char *tid,
+                              XboxSaveTitle *local, SaveCompare *c)
+{
+    memset(c, 0, sizeof(*c));
+    snprintf(c->tid, sizeof(c->tid), "%s", tid);
+    c->local = local;
+    c->name = (local && local->name[0]) ? local->name : c->tid;
 
+    if (local && !state_get_cached_save_hash(local, c->local_hash)) {
+        uint8_t raw[32];
+        set_status_kind(UI_STATUS_BUSY_KIND, "Computing local hash: %s", tid);
+        show_busy(cursor, scroll, "Hashing save");
+        if (bundle_compute_save_hash(local, raw, c->local_hash) != 0) {
+            set_status_kind(UI_STATUS_ERROR_KIND,
+                            "Could not hash local save: %s", tid);
+            return -1;
+        }
+        state_set_cached_save_hash(local, c->local_hash);
+    }
+
+    set_status_kind(UI_STATUS_BUSY_KIND, "Fetching server metadata: %s", tid);
+    show_busy(cursor, scroll, "Contacting server");
+    if (network_get_save_meta(&g_cfg, tid, &c->server) != 0) {
+        const char *ne = network_last_error();
+        set_status_kind(UI_STATUS_ERROR_KIND, "%s",
+                        (ne && ne[0]) ? ne : "Server metadata fetch failed");
+        memset(&c->server, 0, sizeof(c->server));
+        c->server_ok = 0;
+    } else {
+        c->server_ok = 1;
+    }
+    return 0;
+}
+
+// The THIS XBOX | SERVER boxes side by side.
+static void draw_compare_pair(int x, int y, int w, int h, const SaveCompare *c)
+{
     char local_hash_short[40], server_hash_short[40];
     char local_ts[24], server_ts[24], server_up[24];
-    short_hash(local_hash, local_hash_short, sizeof(local_hash_short));
-    short_hash(server && server->exists ? server->save_hash : "",
+    const NetworkSaveMeta *server = &c->server;
+    int server_has = c->server_ok && server->exists;
+    short_hash(c->local_hash, local_hash_short, sizeof(local_hash_short));
+    short_hash(server_has ? server->save_hash : "",
                server_hash_short, sizeof(server_hash_short));
-    fmt_timestamp(local ? local->latest_mtime : 0, local_ts, sizeof(local_ts));
-    fmt_timestamp(server && server->exists ? server->client_timestamp : 0,
+    fmt_timestamp(c->local ? c->local->latest_mtime : 0, local_ts, sizeof(local_ts));
+    fmt_timestamp(server_has ? server->client_timestamp : 0,
                   server_ts, sizeof(server_ts));
-    fmt_server_time(server && server->exists ? server->server_timestamp : "",
+    fmt_server_time(server_has ? server->server_timestamp : "",
                     server_up, sizeof(server_up));
 
-    int bx = x + 20, by = cy + 48;
-    int bw = (w - 40 - 12) / 2, bh = 112;
+    int bw = (w - 12) / 2;
     char kb[24], local_line[64], server_line[64];
-    if (local) {
+    if (c->local) {
         snprintf(local_line, sizeof(local_line), "%s, %d file(s)",
-                 fmt_kb(local->total_size, kb, sizeof(kb)), local->file_count);
+                 fmt_kb(c->local->total_size, kb, sizeof(kb)),
+                 c->local->file_count);
     } else {
         snprintf(local_line, sizeof(local_line), "Not on this Xbox");
     }
-    if (server && server->exists) {
+    if (!c->server_ok) {
+        snprintf(server_line, sizeof(server_line), "Server unreachable");
+    } else if (server->exists) {
         snprintf(server_line, sizeof(server_line), "%s, %d file(s)",
                  fmt_kb(server->save_size, kb, sizeof(kb)), server->file_count);
     } else {
         snprintf(server_line, sizeof(server_line), "No save on the server");
     }
-    draw_compare_box(bx, by, bw, bh, "THIS XBOX", local != NULL, local_line,
+    draw_compare_box(x, y, bw, h, "THIS XBOX", c->local != NULL, local_line,
                      local_hash_short, local_ts, NULL);
-    draw_compare_box(bx + bw + 12, by, bw, bh, "SERVER",
-                     server && server->exists, server_line,
+    draw_compare_box(x + bw + 12, y, bw, h, "SERVER", server_has, server_line,
                      server_hash_short, server_ts, server_up);
+}
+
+static void draw_confirm_dialog(int cursor, int scroll, int upload,
+                                const SaveCompare *c)
+{
+    draw_screen(cursor, scroll);
+    ui_dim();
+
+    // Downloading over an existing local save is the destructive case.
+    uint32_t tone = upload ? UI_HEX_WARN : (c->local ? UI_HEX_ERR : UI_HEX_INFO);
+    const int w = 540, h = 300;
+    const int x = (UI_W - w) / 2, y = 88;
+    ui_card(x, y, w, h, upload ? "Upload to server?" : "Download to this Xbox?",
+            tone);
+
+    int cy = y + UI_CARD_TITLE_H + 12;
+    ui_text_fit(x + 20, cy, UI_FONT_BODY, UI_HEX_TEXT, UI_LEFT, w - 40, c->name);
+    char line[160];
+    snprintf(line, sizeof(line), "Title ID %s", c->tid);
+    ui_text(x + 20, cy + 24, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, line);
+
+    int by = cy + 48, bh = 112;
+    draw_compare_pair(x + 20, by, w - 40, bh, c);
 
     const char *warn = upload
         ? "Replaces the server copy. The old one stays in the server history."
-        : (local ? "Overwrites the save on this Xbox."
-                 : "Copies the server save onto this Xbox.");
+        : (c->local ? "Overwrites the save on this Xbox."
+                    : "Copies the server save onto this Xbox.");
     ui_text_fit(x + 20, by + bh + 10, UI_FONT_SMALL,
-                (!upload && local) ? UI_HEX_ERR : UI_HEX_DIM, UI_LEFT, w - 40, warn);
+                (!upload && c->local) ? UI_HEX_ERR : UI_HEX_DIM, UI_LEFT, w - 40,
+                warn);
 
     static const UiHint actions[] = { { "B", "Cancel" }, { "A", "Confirm" } };
     card_actions(x, y, w, h, actions, 2);
     ui_present();
 }
 
-static int confirm_manual_transfer(int cursor, int scroll,
-                                   UiKey op,
-                                   const char *tid,
-                                   XboxSaveTitle *local)
+static int confirm_transfer(int cursor, int scroll, int upload,
+                            const SaveCompare *c)
 {
-    char local_hash[XBOX_SAVE_HASH_HEX_LEN + 1] = "";
-
-    if (local) {
-        uint8_t raw[32];
-        if (!state_get_cached_save_hash(local, local_hash)) {
-            set_status_kind(UI_STATUS_BUSY_KIND, "Computing local hash: %s", tid);
-            show_busy(cursor, scroll, "Hashing save");
-            if (bundle_compute_save_hash(local, raw, local_hash) != 0) {
-                set_status_kind(UI_STATUS_ERROR_KIND,
-                                "Could not hash local save: %s", tid);
-                return 0;
-            }
-            state_set_cached_save_hash(local, local_hash);
-        }
-    }
-
-    NetworkSaveMeta server;
-    set_status_kind(UI_STATUS_BUSY_KIND, "Fetching server metadata: %s", tid);
-    show_busy(cursor, scroll, "Contacting server");
-    if (network_get_save_meta(&g_cfg, tid, &server) != 0) {
-        const char *ne = network_last_error();
-        set_status_kind(UI_STATUS_ERROR_KIND, "%s",
-                        (ne && ne[0]) ? ne : "Server metadata fetch failed");
-        return 0;
-    }
-    if (op == UI_KEY_Y && !server.exists) {
-        set_status_kind(UI_STATUS_ERROR_KIND,
-                        "No server save to download: %s", tid);
-        return 0;
-    }
-
     set_status_kind(UI_STATUS_INFO_KIND, "Confirm %s: %s",
-                    op == UI_KEY_X ? "upload" : "download", tid);
-    draw_confirm_dialog(cursor, scroll, op, tid, local, local_hash, &server);
+                    upload ? "upload" : "download", c->tid);
+    draw_confirm_dialog(cursor, scroll, upload, c);
+    if (wait_confirm()) return 1;
+    set_status_kind(UI_STATUS_INFO_KIND, "%s cancelled: %s",
+                    upload ? "Upload" : "Download", c->tid);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Save details card (Y): the comparison plus the per-save actions that used
+// to live on their own buttons.
+// ---------------------------------------------------------------------------
+
+typedef enum {
+    SAVE_ACT_NONE = -1,
+    SAVE_ACT_UPLOAD = 0,
+    SAVE_ACT_DOWNLOAD,
+    SAVE_ACT_COMPARE,
+} SaveAct;
+
+static void draw_save_details(int cursor, int scroll, const SaveCompare *c,
+                              TitleStatus st, const SaveAct *acts, int n_acts,
+                              int sel)
+{
+    draw_screen(cursor, scroll);
+    ui_dim();
+    const int w = 540, h = 356;
+    const int x = (UI_W - w) / 2, y = (UI_H - h) / 2;
+    ui_card(x, y, w, h, "Save details", status_color(st));
+
+    int cy = y + UI_CARD_TITLE_H + 10;
+    ui_text_fit(x + 20, cy, UI_FONT_BODY, UI_HEX_TEXT, UI_LEFT, w - 40, c->name);
+    int px = x + 20;
+    px += ui_pill(px, cy + 26, 18, UI_FONT_TINY, status_color(st), UI_HEX_INK,
+                  status_label(st)) + 8;
+    char line[64];
+    snprintf(line, sizeof(line), "Title ID %s", c->tid);
+    ui_text_mid(px, cy + 26, 18, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, 0, line);
+
+    int by = cy + 52, bh = 112;
+    draw_compare_pair(x + 20, by, w - 40, bh, c);
+
+    int ry = by + bh + 10;
+    for (int i = 0; i < n_acts; i++) {
+        const char *label =
+            acts[i] == SAVE_ACT_UPLOAD   ? "Upload this save to the server" :
+            acts[i] == SAVE_ACT_DOWNLOAD ? "Download the server copy" :
+                                           "Compare all saves again";
+        int on = (i == sel);
+        if (on) ui_rrect(x + 16, ry, w - 32, 24, 6, UI_HEX_ACCENT);
+        uint32_t fg = on ? UI_HEX_INK : UI_HEX_TEXT;
+        ui_icon_arrow(x + 30, ry + 12, 9, 1, on ? UI_HEX_INK : UI_HEX_ACCENT);
+        ui_text_mid(x + 42, ry, 24, UI_FONT_SMALL, fg, UI_LEFT, w - 80, label);
+        ry += 26;
+    }
+
+    static const UiHint hints[] = { { "B", "Close" }, { "A", "Select" } };
+    card_actions(x, y, w, h, hints, 2);
+    ui_present();
+}
+
+static SaveAct save_details_dialog(int cursor, int scroll, const SaveCompare *c,
+                                   TitleStatus st)
+{
+    SaveAct acts[3];
+    int n = 0;
+    if (c->local) acts[n++] = SAVE_ACT_UPLOAD;
+    if (c->server_ok && c->server.exists) acts[n++] = SAVE_ACT_DOWNLOAD;
+    acts[n++] = SAVE_ACT_COMPARE;
+
+    int sel = 0;
+    draw_save_details(cursor, scroll, c, st, acts, n, sel);
     while (1) {
         ui_pump();
         UiKey k = ui_poll_key();
-        if (k == UI_KEY_A) {
-            return 1;
-        }
-        if (k == UI_KEY_B || k == UI_KEY_BACK || k == UI_KEY_START) {
-            set_status_kind(UI_STATUS_INFO_KIND, "%s cancelled: %s",
-                            op == UI_KEY_X ? "Upload" : "Download", tid);
-            return 0;
-        }
+        int moved = 0;
+        if (k == UI_KEY_UP && sel > 0) { sel--; moved = 1; }
+        if (k == UI_KEY_DOWN && sel + 1 < n) { sel++; moved = 1; }
+        if (k == UI_KEY_A) return acts[sel];
+        if (k == UI_KEY_B) return SAVE_ACT_NONE;
+        if (moved) draw_save_details(cursor, scroll, c, st, acts, n, sel);
         ui_sleep(20);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Generic info card (Y on Catalog / Installed)
+// ---------------------------------------------------------------------------
+
+typedef struct {
+    const char *key;
+    const char *value;
+} InfoRow;
+
+static void info_card(int cursor, int scroll, const char *title,
+                      const char *name, const InfoRow *rows, int n)
+{
+    draw_screen(cursor, scroll);
+    ui_dim();
+    const int w = 540, h = 96 + 22 * n + 56;
+    const int x = (UI_W - w) / 2, y = (UI_H - h) / 2;
+    ui_card(x, y, w, h, title, UI_HEX_ACCENT);
+    int cy = y + UI_CARD_TITLE_H + 12;
+    int lines = ui_text_wrap(x + 20, cy, UI_FONT_BODY, UI_HEX_TEXT, w - 40, 2, name);
+    cy += (lines > 0 ? lines : 1) * ui_line_h(UI_FONT_BODY) + 10;
+    for (int i = 0; i < n; i++) {
+        ui_text(x + 20, cy + 2, UI_FONT_TINY, UI_HEX_DIM, UI_LEFT, rows[i].key);
+        ui_text_fit(x + 110, cy, UI_FONT_SMALL, UI_HEX_TEXT, UI_LEFT, w - 130,
+                    rows[i].value && rows[i].value[0] ? rows[i].value : "-");
+        cy += 22;
+    }
+    static const UiHint hints[] = { { "B", "Close" } };
+    card_actions(x, y, w, h, hints, 1);
+    ui_present();
+    while (1) {
+        ui_pump();
+        UiKey k = ui_poll_key();
+        if (k == UI_KEY_B || k == UI_KEY_A || k == UI_KEY_Y) return;
+        ui_sleep(20);
+    }
+}
+
+static void show_game_details(int cursor, int scroll)
+{
+    if (!g_roms_loaded || cursor < 0 || cursor >= g_roms.count) return;
+    const XboxRomEntry *r = &g_roms.roms[cursor];
+    char sz[24], into[XBOX_CFG_PATH_LEN + 16];
+    snprintf(into, sizeof(into), "%s\\<game>", g_cfg.game_install_dir);
+    InfoRow rows[] = {
+        { "File", r->filename },
+        { "Size", fmt_size(r->size, sz, sizeof(sz)) },
+        { "Type", r->is_bundle ? "CCI bundle" : "ISO" },
+        { "ROM ID", r->rom_id },
+        { "Install as", games_format_name(games_config_format(&g_cfg)) },
+        { "Into", into },
+    };
+    info_card(cursor, scroll, "Game details", r->name, rows, 6);
+}
+
+static void show_installed_details(int cursor, int scroll)
+{
+    if (!g_installed_loaded || cursor < 0 || cursor >= g_installed.count) return;
+    const XboxInstalledGame *g = &g_installed.games[cursor];
+    char sz[24], files[16], dirs[16];
+    snprintf(files, sizeof(files), "%u", (unsigned)g->file_count);
+    snprintf(dirs, sizeof(dirs), "%u", (unsigned)g->dir_count);
+    InfoRow rows[] = {
+        { "Size", fmt_size(g->size, sz, sizeof(sz)) },
+        { "Files", files },
+        { "Folders", dirs },
+        { "Path", g->path },
+    };
+    info_card(cursor, scroll, "Installed game", g->name, rows, 4);
+}
+
+static int confirm_exit(int cursor, int scroll)
+{
+    draw_screen(cursor, scroll);
+    ui_dim();
+    const int w = 420, h = 150;
+    const int x = (UI_W - w) / 2, y = (UI_H - h) / 2;
+    ui_card(x, y, w, h, "Exit GameSync?", UI_HEX_WARN);
+    ui_text_wrap(x + 20, y + UI_CARD_TITLE_H + 14, UI_FONT_SMALL, UI_HEX_TEXT,
+                 w - 40, 2, "Returns to the dashboard.");
+    static const UiHint hints[] = { { "B", "Cancel" }, { "A", "Exit" } };
+    card_actions(x, y, w, h, hints, 2);
+    ui_present();
+    return wait_confirm();
 }
 
 static void resolve_local_names(void)
@@ -1198,6 +1431,24 @@ static void rescan(void)
                     g_list.title_count);
 }
 
+// Rescan E:\UDATA (catches saves made since the last scan), then ask the
+// server for a plan. Runs on its own at startup, after Sync all and after
+// the hash cache is cleared - there is no separate Compare button.
+static int g_compare_pending = 1;
+
+static void compare_all(int *cursor, int *scroll)
+{
+    g_compare_pending = 0;
+    *cursor = 0;
+    *scroll = 0;
+    set_status_kind(UI_STATUS_BUSY_KIND, "Rescanning E:\\UDATA...");
+    show_busy(*cursor, *scroll, "Scanning saves");
+    rescan();
+    set_status_kind(UI_STATUS_BUSY_KIND, "Fetching sync plan...");
+    show_busy(*cursor, *scroll, "Comparing with server");
+    refresh_plan();
+}
+
 static void clear_hash_cache(void)
 {
     if (state_clear_hash_cache() != 0) {
@@ -1205,22 +1456,87 @@ static void clear_hash_cache(void)
         return;
     }
     if (g_plan_loaded) { sync_plan_free(&g_plan); g_plan_loaded = 0; }
+    g_compare_pending = 1;
     set_status_kind(UI_STATUS_SUCCESS_KIND,
-                    "Hash cache cleared; press WHITE to compare again");
+                    "Hash cache cleared; Saves compares again when you open it");
 }
 
-static void load_rom_catalog(void)
+typedef struct {
+    int cursor;
+    int scroll;
+    int force;
+} CatalogBusyCtx;
+
+static void catalog_progress_cb(int loaded, int total, void *user)
+{
+    CatalogBusyCtx *ctx = (CatalogBusyCtx *)user;
+    if (total > 0) {
+        set_status_kind(UI_STATUS_BUSY_KIND, "Loading Xbox ROM catalog... %d/%d",
+                        loaded, total);
+    } else {
+        set_status_kind(UI_STATUS_BUSY_KIND, "Loading Xbox ROM catalog... %d",
+                        loaded);
+    }
+    show_busy(ctx->cursor, ctx->scroll,
+              ctx->force ? "Refreshing catalog" : "Loading catalog");
+    ui_pump();
+}
+
+// Load the catalog through the on-disk cache. ``force`` is Settings >
+// Refresh catalog (server rescan + cache wipe + full refetch).
+static void load_rom_catalog(int force, int cursor, int scroll)
 {
     char err[180] = "";
-    set_status_kind(UI_STATUS_BUSY_KIND, "Loading Xbox ROM catalog...");
-    if (games_fetch_catalog(&g_cfg, &g_roms, err, sizeof(err)) != 0) {
-        g_roms_loaded = 0;
-        set_status_kind(UI_STATUS_ERROR_KIND, "%s",
+    CatalogBusyCtx ctx = { cursor, scroll, force };
+    set_status_kind(UI_STATUS_BUSY_KIND, force
+                        ? "Asking the server to rescan its ROMs..."
+                        : "Loading Xbox ROM catalog...");
+    show_busy(cursor, scroll, force ? "Refreshing catalog" : "Loading catalog");
+
+    CatalogLoadInfo info;
+    int rc = games_load_catalog(&g_cfg, &g_roms, force, catalog_progress_cb,
+                                &ctx, &info, err, sizeof(err));
+    char prefix[80] = "";
+    if (force) {
+        if (info.rescan > 0) {
+            snprintf(prefix, sizeof(prefix), "Server rescanned (%d ROMs). ",
+                     info.rescan_count);
+        } else if (info.rescan == 0) {
+            snprintf(prefix, sizeof(prefix), "Server did not allow a rescan. ");
+        } else {
+            snprintf(prefix, sizeof(prefix), "Server rescan failed. ");
+        }
+    }
+    if (rc != 0) {
+        // games_load_catalog leaves the list untouched on failure, so an
+        // earlier copy stays on screen.
+        set_status_kind(UI_STATUS_ERROR_KIND, "%s%s", prefix,
                         err[0] ? err : "ROM catalog failed");
         return;
     }
     g_roms_loaded = 1;
-    set_status_kind(UI_STATUS_SUCCESS_KIND, "Catalog: %d Xbox game(s)", g_roms.count);
+    g_catalog_source = info.source;
+    switch (info.source) {
+    case CATALOG_FROM_CACHE:
+        set_status_kind(UI_STATUS_SUCCESS_KIND,
+                        "%sCatalog: %d Xbox game(s), unchanged (cached)",
+                        prefix, g_roms.count);
+        break;
+    case CATALOG_FROM_CACHE_OFFLINE:
+        set_status_kind(UI_STATUS_ERROR_KIND,
+                        "%sServer unreachable - cached catalog, %d game(s)",
+                        prefix, g_roms.count);
+        break;
+    case CATALOG_UNCACHED:
+        set_status_kind(UI_STATUS_SUCCESS_KIND,
+                        "%sCatalog: %d Xbox game(s) (server has no cache support)",
+                        prefix, g_roms.count);
+        break;
+    default:
+        set_status_kind(UI_STATUS_SUCCESS_KIND, "%sCatalog: %d Xbox game(s)",
+                        prefix, g_roms.count);
+        break;
+    }
 }
 
 static void load_installed_games(void)
@@ -1319,11 +1635,33 @@ static void draw_download_card(const GameRedrawCtx *ctx, const char *msg,
     ui_rect(x, y + h - 36, w, 1, UI_HEX_LINE);
     ui_text_mid(cx, y + h - 36, 36, UI_FONT_TINY, UI_HEX_MUTED, UI_LEFT, 0,
                 "Keep the console on until the install finishes.");
+    int lw = ui_text_w(UI_FONT_SMALL, "Stop");
+    ui_text_mid(x + w - 16 - lw, y + h - 36, 36, UI_FONT_SMALL, UI_HEX_TEXT,
+                UI_LEFT, 0, "Stop");
+    ui_button(x + w - 16 - lw - 6 - ui_button_w("B"), y + h - 18, "B");
     ui_present();
 }
 
-static void game_progress_cb(const char *msg, uint64_t done, uint64_t total,
-                             void *user)
+// B on the progress card asks before throwing a multi-GB transfer away.
+static int confirm_stop_download(const GameRedrawCtx *ctx)
+{
+    draw_screen(ctx->cursor, ctx->scroll);
+    ui_dim();
+    const int w = 440, h = 160;
+    const int x = (UI_W - w) / 2, y = (UI_H - h) / 2;
+    ui_card(x, y, w, h, "Stop the download?", UI_HEX_WARN);
+    ui_text_wrap(x + 20, y + UI_CARD_TITLE_H + 14, UI_FONT_SMALL, UI_HEX_TEXT,
+                 w - 40, 3,
+                 "The partly installed game is removed (an earlier install "
+                 "of it is kept).");
+    static const UiHint hints[] = { { "B", "Keep going" }, { "A", "Stop" } };
+    card_actions(x, y, w, h, hints, 2);
+    ui_present();
+    return wait_confirm();
+}
+
+static int game_progress_cb(const char *msg, uint64_t done, uint64_t total,
+                            void *user)
 {
     GameRedrawCtx *ctx = (GameRedrawCtx *)user;
     if (total > 0) {
@@ -1335,16 +1673,23 @@ static void game_progress_cb(const char *msg, uint64_t done, uint64_t total,
         set_status_kind(UI_STATUS_BUSY_KIND, "%s", msg);
     }
 
+    // Input first, so B is noticed even between repaints.
+    ui_pump();
+    if (ui_poll_key() == UI_KEY_B) {
+        if (confirm_stop_download(ctx)) return 1;
+        ctx->drawn = 0;   // repaint the progress card right away
+    }
+
     uint32_t now = ui_ms();
     int final = (total > 0 && done >= total);
     if (ctx->drawn && !final &&
         (uint32_t)(now - ctx->last_draw_ms) < PROGRESS_REDRAW_MS) {
-        return;
+        return 0;
     }
     ctx->drawn = 1;
     ctx->last_draw_ms = now;
     draw_download_card(ctx, msg, done, total);
-    ui_pump();
+    return 0;
 }
 
 static int confirm_game_download(int cursor, int scroll,
@@ -1379,22 +1724,16 @@ static int confirm_game_download(int cursor, int scroll,
     card_actions(x, y, w, h, actions, 2);
     ui_present();
 
-    while (1) {
-        ui_pump();
-        UiKey k = ui_poll_key();
-        if (k == UI_KEY_A) return 1;
-        if (k == UI_KEY_B || k == UI_KEY_BACK || k == UI_KEY_START) {
-            set_status_kind(UI_STATUS_INFO_KIND, "Game download cancelled");
-            return 0;
-        }
-        ui_sleep(20);
-    }
+    if (wait_confirm()) return 1;
+    set_status_kind(UI_STATUS_INFO_KIND, "Game download cancelled");
+    return 0;
 }
 
 static void run_game_download(int cursor, int scroll)
 {
     if (!g_roms_loaded || g_roms.count <= 0) {
-        set_status_kind(UI_STATUS_ERROR_KIND, "Load the game catalog first (WHITE)");
+        set_status_kind(UI_STATUS_ERROR_KIND,
+                        "No catalog loaded (Settings > Refresh catalog)");
         return;
     }
     if (cursor < 0 || cursor >= g_roms.count) return;
@@ -1414,6 +1753,9 @@ static void run_game_download(int cursor, int scroll)
         g_f_space_loaded =
             games_get_f_drive_space(&g_f_space, NULL, 0) == 0;
         set_status_kind(UI_STATUS_SUCCESS_KIND, "Game installed: %s", rom->name);
+    } else if (rc == GAMES_DOWNLOAD_CANCELLED) {
+        g_installed_loaded = 0;
+        set_status_kind(UI_STATUS_INFO_KIND, "Download stopped: %s", rom->name);
     } else {
         set_status_kind(UI_STATUS_ERROR_KIND, "%s",
                         err[0] ? err : "Game download failed");
@@ -1448,22 +1790,15 @@ static int confirm_game_uninstall(int cursor, int scroll,
     card_actions(x, y, w, h, actions, 2);
     ui_present();
 
-    while (1) {
-        ui_pump();
-        UiKey k = ui_poll_key();
-        if (k == UI_KEY_A) return 1;
-        if (k == UI_KEY_B || k == UI_KEY_BACK || k == UI_KEY_START) {
-            set_status_kind(UI_STATUS_INFO_KIND, "Uninstall cancelled");
-            return 0;
-        }
-        ui_sleep(20);
-    }
+    if (wait_confirm()) return 1;
+    set_status_kind(UI_STATUS_INFO_KIND, "Uninstall cancelled");
+    return 0;
 }
 
 static void run_game_uninstall(int cursor, int scroll)
 {
     if (!g_installed_loaded || g_installed.count <= 0) {
-        set_status_kind(UI_STATUS_ERROR_KIND, "Scan installed games first (WHITE)");
+        set_status_kind(UI_STATUS_ERROR_KIND, "Scan installed games first (X)");
         return;
     }
     if (cursor < 0 || cursor >= g_installed.count) return;
@@ -1542,83 +1877,135 @@ static void config_save_now(void)
     }
 }
 
-static void run_sync_one(int cursor, int scroll, UiKey op)
-{
-    const char *tid = NULL;
-    XboxSaveTitle *local = NULL;
-    if (row_to_title(cursor, &tid, &local) != 0) {
-        set_status_kind(UI_STATUS_ERROR_KIND, "No row selected");
-        return;
-    }
-    char tid_copy[XBOX_TITLE_ID_LEN + 1];
-    snprintf(tid_copy, sizeof(tid_copy), "%s", tid);
-    tid = tid_copy;
+// ---------------------------------------------------------------------------
+// Save transfers
+// ---------------------------------------------------------------------------
 
+typedef enum {
+    XFER_SMART = 0,
+    XFER_UPLOAD,
+    XFER_DOWNLOAD,
+} XferKind;
+
+static const char *xfer_name(XferKind kind)
+{
+    return kind == XFER_SMART ? "Smart sync" :
+           kind == XFER_UPLOAD ? "Upload" : "Download";
+}
+
+// Run one transfer for ``tid`` and update the plan / status line.
+static void run_transfer(int cursor, int scroll, XferKind kind,
+                         const char *tid_in, XboxSaveTitle *local)
+{
+    char tid[XBOX_TITLE_ID_LEN + 1];
+    snprintf(tid, sizeof(tid), "%s", tid_in);
     TitleStatus prior_status = g_plan_loaded
                                    ? sync_plan_status(&g_plan, tid)
                                    : TITLE_STATUS_UNKNOWN;
-    int rc = -1;
-    switch (op) {
-    case UI_KEY_A:
-        if (!g_plan_loaded) {
-            set_status_kind(UI_STATUS_ERROR_KIND,
-                            "Compare with the server first (WHITE)");
-            return;
-        }
-        if (prior_status == TITLE_STATUS_CONFLICT) {
-            set_status_kind(UI_STATUS_ERROR_KIND,
-                            "Conflict: use X upload or Y download for %s",
-                            tid);
-            return;
-        }
+    int rc;
+    switch (kind) {
+    case XFER_SMART:
         set_status_kind(UI_STATUS_BUSY_KIND, "Smart sync in progress: %s", tid);
         show_busy(cursor, scroll, "Syncing");
         rc = sync_one_smart(&g_cfg, &g_list, tid, &g_plan);
         break;
-    case UI_KEY_X:
-        if (!local) {
-            set_status_kind(UI_STATUS_ERROR_KIND, "No local copy to upload");
-            return;
-        }
-        if (!confirm_manual_transfer(cursor, scroll, op, tid, local)) {
-            return;
-        }
+    case XFER_UPLOAD:
         set_status_kind(UI_STATUS_BUSY_KIND, "Uploading %s...", tid);
         show_busy(cursor, scroll, "Uploading");
         rc = sync_one_upload_force(&g_cfg, local);
         break;
-    case UI_KEY_Y:
-        if (!confirm_manual_transfer(cursor, scroll, op, tid, local)) {
-            return;
-        }
+    default:
         set_status_kind(UI_STATUS_BUSY_KIND, "Downloading %s...", tid);
         show_busy(cursor, scroll, "Downloading");
         rc = sync_one_download(&g_cfg, &g_list, tid);
         break;
-    default: return;
     }
     if (rc == 0) {
-        if (op == UI_KEY_Y ||
+        if (kind == XFER_DOWNLOAD ||
             prior_status == TITLE_STATUS_NEEDS_DOWNLOAD ||
             prior_status == TITLE_STATUS_SERVER_ONLY) {
             rescan_local_preserve_plan();
         }
         plan_mark_title_ok(tid);
         set_status_kind(UI_STATUS_SUCCESS_KIND, "%s complete: %s",
-                        op == UI_KEY_A ? "Smart sync" :
-                        op == UI_KEY_X ? "Upload" : "Download",
-                        tid);
+                        xfer_name(kind), tid);
     } else {
         const char *ne = network_last_error();
         if (ne && ne[0]) {
             set_status_kind(UI_STATUS_ERROR_KIND, "%s", ne);
         } else {
             set_status_kind(UI_STATUS_ERROR_KIND, "%s failed: %s",
-                            op == UI_KEY_A ? "Smart sync" :
-                            op == UI_KEY_X ? "Upload" : "Download",
-                            tid);
+                            xfer_name(kind), tid);
         }
     }
+}
+
+// Y on a save (and A on a conflict): details card with upload / download /
+// compare-again choices; upload and download still get the confirmation.
+static void run_save_details(int *cursor, int *scroll)
+{
+    const char *tid = NULL;
+    XboxSaveTitle *local = NULL;
+    if (row_to_title(*cursor, &tid, &local) != 0) {
+        set_status_kind(UI_STATUS_ERROR_KIND, "No row selected");
+        return;
+    }
+    SaveCompare c;
+    if (fetch_save_compare(*cursor, *scroll, tid, local, &c) != 0) return;
+    if (!local) {
+        // Server-only rows have their names in the plan.
+        int idx = *cursor - g_list.title_count;
+        if (g_plan_loaded && idx >= 0 && idx < g_plan.server_only_count &&
+            g_plan.server_only_names[idx][0]) {
+            c.name = g_plan.server_only_names[idx];
+        }
+    }
+    TitleStatus st = g_plan_loaded ? sync_plan_status(&g_plan, c.tid)
+                                   : TITLE_STATUS_UNKNOWN;
+    if (!local && g_plan_loaded) st = TITLE_STATUS_SERVER_ONLY;
+    if (c.server_ok) {
+        set_status_kind(UI_STATUS_INFO_KIND, "Details: %s", c.tid);
+    }
+
+    SaveAct act = save_details_dialog(*cursor, *scroll, &c, st);
+    switch (act) {
+    case SAVE_ACT_UPLOAD:
+        if (confirm_transfer(*cursor, *scroll, 1, &c)) {
+            run_transfer(*cursor, *scroll, XFER_UPLOAD, c.tid, local);
+        }
+        break;
+    case SAVE_ACT_DOWNLOAD:
+        if (confirm_transfer(*cursor, *scroll, 0, &c)) {
+            run_transfer(*cursor, *scroll, XFER_DOWNLOAD, c.tid, local);
+        }
+        break;
+    case SAVE_ACT_COMPARE:
+        compare_all(cursor, scroll);
+        break;
+    default:
+        set_status_kind(UI_STATUS_INFO_KIND, "Ready.");
+        break;
+    }
+}
+
+// A on a save row: the smart sync the plan suggests.
+static void run_save_primary(int *cursor, int *scroll)
+{
+    if (!g_plan_loaded) {
+        compare_all(cursor, scroll);
+        return;
+    }
+    const char *tid = NULL;
+    XboxSaveTitle *local = NULL;
+    if (row_to_title(*cursor, &tid, &local) != 0) {
+        set_status_kind(UI_STATUS_ERROR_KIND, "No row selected");
+        return;
+    }
+    if (sync_plan_status(&g_plan, tid) == TITLE_STATUS_CONFLICT) {
+        run_save_details(cursor, scroll);
+        return;
+    }
+    run_transfer(*cursor, *scroll, XFER_SMART, tid, local);
 }
 
 // Cursor + scroll forwarded via the user pointer so the progress callback
@@ -1645,7 +2032,7 @@ static void draw_sync_all_card(int cursor, int scroll, const char *msg,
     snprintf(line, sizeof(line), "%d%%", (int)(frac * 100.0f));
     ui_text(cx + cw, cy + 52, UI_FONT_SMALL, UI_HEX_ACCENT2, UI_RIGHT, line);
     ui_text(cx, y + h - 28, UI_FONT_TINY, UI_HEX_MUTED, UI_LEFT,
-            "Conflicts are skipped; resolve them one by one with X or Y.");
+            "Conflicts are skipped; open one with Y to pick a side.");
     ui_present();
 }
 
@@ -1660,29 +2047,33 @@ static void sync_progress_cb(const char *msg, int done, int total,
     ui_pump();
 }
 
-static void run_sync_all(int cursor, int scroll)
+static void run_sync_all(int *cursor, int *scroll)
 {
     if (!g_plan_loaded) {
-        set_status_kind(UI_STATUS_ERROR_KIND,
-                        "Compare with the server first (WHITE)");
-        return;
+        compare_all(cursor, scroll);
+        if (!g_plan_loaded) return;
     }
     set_status_kind(UI_STATUS_BUSY_KIND, "Sync all: starting...");
-    draw_sync_all_card(cursor, scroll, "Starting...", 0,
+    draw_sync_all_card(*cursor, *scroll, "Starting...", 0,
                        g_plan.upload_count + g_plan.download_count +
                        g_plan.server_only_count);
 
-    RedrawCtx rc = { cursor, scroll };
+    RedrawCtx rc = { *cursor, *scroll };
     SyncSummary s;
     sync_run_all(&g_cfg, &g_list, &g_plan, sync_progress_cb, &rc, &s);
-
-    int failures = s.upload_failed + s.download_failed;
-    set_status_kind(failures ? UI_STATUS_ERROR_KIND : UI_STATUS_SUCCESS_KIND,
-                    "Sync all done: up %d, down %d, skipped %d, conflicts %d, failed %d",
-                    s.uploaded, s.downloaded, s.up_to_date,
-                    s.conflicts, failures);
     sync_plan_free(&g_plan);
     g_plan_loaded = 0;
+
+    // Compare again so the list shows the new state, then put the summary
+    // back on the status line.
+    int failures = s.upload_failed + s.download_failed;
+    char summary[160];
+    snprintf(summary, sizeof(summary),
+             "Sync all done: up %d, down %d, skipped %d, conflicts %d, failed %d",
+             s.uploaded, s.downloaded, s.up_to_date, s.conflicts, failures);
+    compare_all(cursor, scroll);
+    set_status_kind(failures ? UI_STATUS_ERROR_KIND : UI_STATUS_SUCCESS_KIND,
+                    "%s", summary);
 }
 
 // ---------------------------------------------------------------------------
@@ -1728,6 +2119,22 @@ static void boot_fail(const char *msg)
     }
 }
 
+// Work a tab does when it is opened: compare saves, load the catalog
+// (cache first), scan installed games.
+static void enter_tab(int *cursor, int *scroll)
+{
+    if (g_tab == TAB_SAVES && g_compare_pending) {
+        compare_all(cursor, scroll);
+    } else if (g_tab == TAB_GAMES && !g_roms_loaded) {
+        load_rom_catalog(0, *cursor, *scroll);
+    } else if (g_tab == TAB_INSTALLED && !g_installed_loaded) {
+        set_status_kind(UI_STATUS_BUSY_KIND, "Scanning F:\\Games...");
+        show_busy(*cursor, *scroll, "Scanning");
+        load_installed_games();
+    }
+    clamp_cursor_scroll(cursor, scroll);
+}
+
 int main(void)
 {
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
@@ -1768,18 +2175,17 @@ int main(void)
         }
     }
 
+    // Each tab remembers its own position.
+    int tab_cursor[TAB_COUNT] = { 0 };
+    int tab_scroll[TAB_COUNT] = { 0 };
     int cursor = 0;
     int scroll = 0;
+    enter_tab(&cursor, &scroll);   // compares the saves once at startup
     redraw(cursor, scroll);
 
     while (1) {
         ui_pump();
         UiKey k = ui_poll_key();
-
-        if (k == UI_KEY_START) {
-            ui_shutdown();
-            HalReturnToFirmware(HalQuickRebootRoutine);
-        }
 
         int redraw_needed = 0;
         switch (k) {
@@ -1801,86 +2207,72 @@ int main(void)
         case UI_KEY_RIGHT:
             if (page_rows(1, &cursor, &scroll)) redraw_needed = 1;
             break;
-        case UI_KEY_LB:
-            if (g_tab == TAB_GAMES) {
-                set_status_kind(UI_STATUS_BUSY_KIND, "Loading Xbox ROM catalog...");
-                show_busy(cursor, scroll, "Loading catalog");
-                load_rom_catalog();
-                clamp_cursor_scroll(&cursor, &scroll);
-            } else if (g_tab == TAB_INSTALLED) {
-                set_status_kind(UI_STATUS_BUSY_KIND, "Scanning F:\\Games...");
-                show_busy(cursor, scroll, "Scanning");
-                load_installed_games();
-                clamp_cursor_scroll(&cursor, &scroll);
-            } else if (g_tab == TAB_CONFIG) {
-                config_reload();
-            } else {
-                // Refresh plan: rescan local UDATA first (catches new saves
-                // from games run in this session), then ask the server.
-                cursor = 0; scroll = 0;
-                set_status_kind(UI_STATUS_BUSY_KIND, "Rescanning E:\\UDATA...");
-                show_busy(cursor, scroll, "Scanning saves");
-                rescan();
-                set_status_kind(UI_STATUS_BUSY_KIND, "Fetching sync plan...");
-                show_busy(cursor, scroll, "Comparing with server");
-                refresh_plan();
-            }
+        case UI_KEY_LT:
+        case UI_KEY_RT: {
+            tab_cursor[g_tab] = cursor;
+            tab_scroll[g_tab] = scroll;
+            int step = (k == UI_KEY_RT) ? 1 : TAB_COUNT - 1;
+            g_tab = (UiTab)(((int)g_tab + step) % TAB_COUNT);
+            cursor = tab_cursor[g_tab];
+            scroll = tab_scroll[g_tab];
+            clamp_cursor_scroll(&cursor, &scroll);
+            redraw(cursor, scroll);   // show the new tab before any loading
+            enter_tab(&cursor, &scroll);
             redraw_needed = 1; break;
-        case UI_KEY_RB:
-            if (g_tab == TAB_SAVES) {
-                run_sync_all(cursor, scroll);
-                clamp_cursor_scroll(&cursor, &scroll);
-            }
-            redraw_needed = 1; break;
-        case UI_KEY_B:
-            if (g_tab == TAB_SAVES) clear_hash_cache();
-            redraw_needed = 1; break;
-        case UI_KEY_BACK:
-            g_tab = (UiTab)(((int)g_tab + 1) % 4);
-            cursor = 0;
-            scroll = 0;
-            if (g_tab == TAB_GAMES && !g_roms_loaded) {
-                set_status_kind(UI_STATUS_BUSY_KIND, "Loading Xbox ROM catalog...");
-                show_busy(cursor, scroll, "Loading catalog");
-                load_rom_catalog();
-            } else if (g_tab == TAB_INSTALLED && !g_installed_loaded) {
-                set_status_kind(UI_STATUS_BUSY_KIND, "Scanning F:\\Games...");
-                show_busy(cursor, scroll, "Scanning");
-                load_installed_games();
+        }
+        case UI_KEY_START:
+            if (confirm_exit(cursor, scroll)) {
+                ui_shutdown();
+                HalReturnToFirmware(HalQuickRebootRoutine);
             }
             redraw_needed = 1; break;
         case UI_KEY_A:
             if (g_tab == TAB_GAMES) {
                 run_game_download(cursor, scroll);
-                redraw_needed = 1; break;
+            } else if (g_tab == TAB_INSTALLED) {
+                run_game_uninstall(cursor, scroll);
+            } else if (g_tab == TAB_CONFIG) {
+                if (cursor == CFG_ROW_REFRESH_CATALOG) {
+                    load_rom_catalog(1, cursor, scroll);
+                    // The Catalog tab starts at the top of the new list.
+                    tab_cursor[TAB_GAMES] = 0;
+                    tab_scroll[TAB_GAMES] = 0;
+                } else if (cursor == CFG_ROW_CLEAR_HASHES) {
+                    clear_hash_cache();
+                } else if (cursor == CFG_ROW_RELOAD_CONFIG) {
+                    config_reload();
+                } else {
+                    config_cycle_selected(cursor);
+                }
+            } else {
+                run_save_primary(&cursor, &scroll);
             }
-            if (g_tab == TAB_INSTALLED) { redraw_needed = 1; break; }
-            if (g_tab == TAB_CONFIG) {
-                config_cycle_selected(cursor);
-                redraw_needed = 1; break;
-            }
-            run_sync_one(cursor, scroll, k);
             clamp_cursor_scroll(&cursor, &scroll);
             redraw_needed = 1; break;
         case UI_KEY_X:
-            if (g_tab == TAB_CONFIG) {
+            if (g_tab == TAB_SAVES) {
+                run_sync_all(&cursor, &scroll);
+            } else if (g_tab == TAB_INSTALLED) {
+                set_status_kind(UI_STATUS_BUSY_KIND, "Scanning F:\\Games...");
+                show_busy(cursor, scroll, "Scanning");
+                load_installed_games();
+            } else if (g_tab == TAB_CONFIG) {
                 config_save_now();
-                redraw_needed = 1; break;
             }
-            if (g_tab != TAB_SAVES) { redraw_needed = 1; break; }
-            run_sync_one(cursor, scroll, k);
             clamp_cursor_scroll(&cursor, &scroll);
             redraw_needed = 1; break;
         case UI_KEY_Y:
-            if (g_tab == TAB_INSTALLED) {
-                run_game_uninstall(cursor, scroll);
-                clamp_cursor_scroll(&cursor, &scroll);
-                redraw_needed = 1; break;
+            if (g_tab == TAB_SAVES) {
+                run_save_details(&cursor, &scroll);
+            } else if (g_tab == TAB_GAMES) {
+                show_game_details(cursor, scroll);
+            } else if (g_tab == TAB_INSTALLED) {
+                show_installed_details(cursor, scroll);
             }
-            if (g_tab != TAB_SAVES) { redraw_needed = 1; break; }
-            run_sync_one(cursor, scroll, k);
             clamp_cursor_scroll(&cursor, &scroll);
             redraw_needed = 1; break;
+        // B has nothing to cancel on a main screen; BACK has no sub-tabs to
+        // cycle (the catalog only lists Xbox games); WHITE / BLACK are free.
         default: break;
         }
 
