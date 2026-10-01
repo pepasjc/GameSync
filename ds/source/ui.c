@@ -1,290 +1,255 @@
 #include "ui.h"
+#include "ui_log.h"
+#include "views.h"
 #include "saves.h"
-#include "config.h"
-#include "sync.h"
 #include <stdio.h>
 #include <string.h>
+#include <sys/iosupport.h>
 
-void ui_show_save_details(Title *title) {
-    consoleClear();
-    iprintf("=== Save Details ===\n\n");
-    
-    iprintf("Game: %s\n", title->game_name);
-    iprintf("Size: %lu KB\n", (unsigned long)(title->save_size / 1024));
-    iprintf("Path: %s\n\n", title->save_path);
-    
-    // Show hash if calculated
-    if (title->hash_calculated) {
-        iprintf("Hash:\n");
-        for (int i = 0; i < 32; i++) {
-            iprintf("%02x", title->hash[i]);
-            if (i % 16 == 15) iprintf("\n");
-        }
-    } else {
-        iprintf("Hash: Not calculated\n");
+// ---------------------------------------------------------------------------
+// Video: one 256x192 16-bit bitmap per screen, drawn in RAM and copied over
+// ---------------------------------------------------------------------------
+
+Surface ui_top, ui_bottom;
+
+// 96 KB each; VRAM bank A (main/top) and C (sub/bottom) hold the bitmaps
+alignas(32) static Color top_buffer[SCREEN_W * SCREEN_H];
+alignas(32) static Color bottom_buffer[SCREEN_W * SCREEN_H];
+static u16 *vram_top, *vram_bottom;
+
+const Hint HINTS_ANY[] = { { "A", "Continue" }, { NULL, NULL } };
+const Hint HINTS_BACK_B[] = { { "B", "Back" }, { NULL, NULL } };
+const Hint HINTS_EXIT[] = { { "START", "Exit" }, { NULL, NULL } };
+
+static void copy_rows(u16 *dst, const Color *src, int y, int h) {
+    if (y < 0) {
+        h += y;
+        y = 0;
     }
-    
-    iprintf("\nPress any button\n");
-    
-    while(pmMainLoop()) {
+    if (y + h > SCREEN_H) h = SCREEN_H - y;
+    if (h <= 0) return;
+    // 32-bit copies: VRAM ignores 8-bit writes
+    const u32 *s = (const u32 *)(src + y * SCREEN_W);
+    u32 *d = (u32 *)(dst + y * SCREEN_W);
+    for (int n = h * SCREEN_W / 2; n > 0; n--) *d++ = *s++;
+}
+
+void ui_present_rows(const Surface *s, int y, int h) {
+    copy_rows(s == &ui_top ? vram_top : vram_bottom, s->px, y, h);
+}
+
+void ui_present(const Surface *s) {
+    ui_present_rows(s, 0, SCREEN_H);
+}
+
+// ---------------------------------------------------------------------------
+// stdout -> activity log
+// ---------------------------------------------------------------------------
+
+static TaskView task;
+static char task_status[96], task_detail[96];
+static bool task_live;
+static u64 task_last_draw;
+
+static ssize_t log_write(struct _reent *r, void *fd, const char *ptr, size_t len) {
+    ui_log_write(ptr, len);
+    if (task_live) {
+        view_task_log(&ui_bottom);
+        ui_present_rows(&ui_bottom, TASK_LOG_Y, TASK_LOG_H);
+    }
+    return (ssize_t)len;
+}
+
+static const devoptab_t log_devoptab = {
+    .name = "con",
+    .write_r = log_write,
+};
+
+void ui_init(void) {
+    videoSetMode(MODE_5_2D);
+    videoSetModeSub(MODE_5_2D);
+    vramSetBankA(VRAM_A_MAIN_BG);
+    vramSetBankC(VRAM_C_SUB_BG);
+    lcdMainOnTop();
+    int top_bg = bgInit(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
+    int bottom_bg = bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
+    vram_top = bgGetGfxPtr(top_bg);
+    vram_bottom = bgGetGfxPtr(bottom_bg);
+
+    gfx_surface_init(&ui_top, top_buffer, SCREEN_W, SCREEN_H);
+    gfx_surface_init(&ui_bottom, bottom_buffer, SCREEN_W, SCREEN_H);
+    theme_background(&ui_top);
+    theme_background(&ui_bottom);
+    ui_present(&ui_top);
+    ui_present(&ui_bottom);
+
+    ui_log_clear();
+    devoptab_list[STD_OUT] = &log_devoptab;
+    devoptab_list[STD_ERR] = &log_devoptab;
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+}
+
+int ui_wait(int keys) {
+    while (pmMainLoop()) {
         swiWaitForVBlank();
         scanKeys();
-        if(keysDown()) break;
+        int k = keysDown();
+        if (keys ? (k & keys) : k) return k;
     }
+    return 0;
+}
+
+int ui_message(const char *toolbar, const char *title, const char *body, UiKind kind,
+               const Hint *hints, int keys) {
+    task_live = false;
+    theme_message(&ui_bottom, toolbar, title, body, kind, hints);
+    ui_present(&ui_bottom);
+    return ui_wait(keys);
+}
+
+// ---------------------------------------------------------------------------
+// Task screen
+// ---------------------------------------------------------------------------
+
+static void task_draw(void) {
+    view_task(&ui_bottom, &task);
+    ui_present(&ui_bottom);
+    task_last_draw = tickGetCount();
+}
+
+void ui_task_begin(const char *title, const char *status) {
+    ui_log_clear();
+    memset(&task, 0, sizeof(task));
+    task.title = title;
+    snprintf(task_status, sizeof(task_status), "%.95s", status ? status : "");
+    task_detail[0] = '\0';
+    task.status = task_status;
+    task.detail = task_detail;
+    task.kind = KIND_INFO;
+    task_live = true;
+    task_draw();
+}
+
+void ui_task_status(const char *status, const char *detail) {
+    snprintf(task_status, sizeof(task_status), "%.95s", status ? status : "");
+    snprintf(task_detail, sizeof(task_detail), "%.95s", detail ? detail : "");
+    task.done = task.total = 0;
+    task_live = true;
+    task_draw();
+}
+
+void ui_task_progress(const char *status, const char *detail, uint32_t done, uint32_t total) {
+    if (status) snprintf(task_status, sizeof(task_status), "%.95s", status);
+    snprintf(task_detail, sizeof(task_detail), "%.95s", detail ? detail : "");
+    bool first = (task.total != total);
+    task.done = done;
+    task.total = total;
+    task_live = true;
+    if (first || done >= total || tickGetCount() - task_last_draw >= TICK_FREQ / 10) task_draw();
+}
+
+void ui_task_hints(const Hint *hints) {
+    task.hints = hints;
+    task_draw();
+}
+
+int ui_task_end(UiKind kind, const char *result, const char *detail, const Hint *hints, int keys) {
+    snprintf(task_status, sizeof(task_status), "%.95s", result ? result : "");
+    snprintf(task_detail, sizeof(task_detail), "%.95s", detail ? detail : "");
+    task.kind = kind;
+    task.finished = true;
+    task.hints = hints;
+    task_draw();
+    task_live = false;
+    return ui_wait(keys);
+}
+
+// ---------------------------------------------------------------------------
+// Save dialogs
+// ---------------------------------------------------------------------------
+
+void ui_show_save_details(Title *title) {
+    task_live = false;
+    view_save_details(&ui_bottom, title);
+    ui_present(&ui_bottom);
+    ui_wait(0);
+}
+
+static void hash_prefix(const uint8_t *hash, char out[17]) {
+    for (int i = 0; i < 8; i++) snprintf(out + i * 2, 3, "%02x", hash[i]);
 }
 
 bool ui_confirm_sync(Title *title, const char *server_hash, size_t server_size, bool is_upload) {
-    consoleClear();
-    
     // Ensure local hash is calculated
     if (!title->hash_calculated) {
-        iprintf("Calculating hash...\n");
+        ui_task_status("Calculating hash", title->game_name);
         if (saves_ensure_hash(title) != 0) {
-            iprintf("Failed to calculate hash!\n");
-            iprintf("\nPress any button\n");
-            while(pmMainLoop()) {
-                swiWaitForVBlank();
-                scanKeys();
-                if(keysDown()) break;
-            }
+            ui_task_end(KIND_ERROR, "Failed to calculate hash", title->game_name, HINTS_ANY, 0);
             return false;
         }
     }
-    
-    // Show confirmation dialog
-    iprintf("=== %s Confirmation ===\n\n", is_upload ? "Upload" : "Download");
-    iprintf("Game: %.25s\n\n", title->game_name);
-    
-    // Local save info
-    iprintf("Local Save:\n");
-    iprintf("  Size: %lu bytes\n", (unsigned long)title->save_size);
-    iprintf("  Hash: ");
-    for (int i = 0; i < 8; i++) iprintf("%02x", title->hash[i]);
-    iprintf("...\n\n");
-    
-    // Server save info
-    if (server_hash && server_hash[0] != '\0') {
-        iprintf("Server Save:\n");
-        iprintf("  Size: %lu bytes\n", (unsigned long)server_size);
-        iprintf("  Hash: %.16s...\n\n", server_hash);
-        
-        // Check if they match - convert local hash to hex string
-        char local_hash_str[65];
-        for (int i = 0; i < 32; i++) {
-            sprintf(&local_hash_str[i*2], "%02x", title->hash[i]);
-        }
-        local_hash_str[64] = '\0';
-        
-        if (strncmp(local_hash_str, server_hash, 64) == 0) {
-            iprintf("Status: Match (up to date)\n\n");
-        } else {
-            iprintf("Status: Different\n\n");
-        }
-    } else {
-        iprintf("Server Save: Not found\n\n");
-    }
-    
-    if (is_upload) {
-        iprintf("Upload local save to server?\n\n");
-    } else {
-        iprintf("Download server save to local?\n\n");
-    }
-    
-    iprintf("A = Confirm, B = Cancel\n");
-    
-    // Wait for input
-    while(pmMainLoop()) {
-        swiWaitForVBlank();
-        scanKeys();
-        int pressed = keysDown();
-        
-        if (pressed & KEY_A) return true;
-        if (pressed & KEY_B) return false;
-    }
-    
-    return false;
+    task_live = false;
+
+    bool has_server = server_hash && server_hash[0] != '\0';
+    char local_hex[65];
+    for (int i = 0; i < 32; i++) snprintf(&local_hex[i * 2], 3, "%02x", title->hash[i]);
+    bool match = has_server && strncmp(local_hex, server_hash, 64) == 0;
+
+    CompareView v;
+    memset(&v, 0, sizeof(v));
+    v.heading = is_upload ? "Upload" : "Download";
+    v.game = title->game_name;
+    v.has_local = true;
+    v.local_size = title->save_size;
+    hash_prefix(title->hash, v.local_hash);
+    v.has_server = has_server;
+    v.server_size = server_size;
+    if (has_server) snprintf(v.server_hash, sizeof(v.server_hash), "%.16s", server_hash);
+    v.action = match ? SYNC_UP_TO_DATE : (is_upload ? SYNC_UPLOAD : SYNC_DOWNLOAD);
+    view_sync_compare(&ui_top, &v);
+    ui_present(&ui_top);
+    view_transfer_confirm(&ui_bottom, title->game_name, is_upload, has_server, match);
+    ui_present(&ui_bottom);
+
+    return (ui_wait(KEY_A | KEY_B) & KEY_A) != 0;
 }
 
 SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision) {
-    consoleClear();
+    task_live = false;
 
-    iprintf("=== Smart Sync ===\n\n");
-    iprintf("Game: %.25s\n\n", title->game_name);
+    CompareView v;
+    memset(&v, 0, sizeof(v));
+    v.heading = "Smart Sync";
+    v.game = title->game_name;
+    v.has_local = title->save_size > 0;
+    v.local_size = title->save_size;
+    if (title->hash_calculated) hash_prefix(title->hash, v.local_hash);
+    v.has_server = decision->server_hash[0] != '\0';
+    v.server_size = decision->server_size;
+    snprintf(v.server_hash, sizeof(v.server_hash), "%.16s", decision->server_hash);
+    if (decision->has_last_synced)
+        snprintf(v.last_hash, sizeof(v.last_hash), "%.16s", decision->last_synced_hash);
+    v.action = decision->action;
+    view_sync_compare(&ui_top, &v);
+    ui_present(&ui_top);
+    view_sync_action(&ui_bottom, title->game_name, decision->action, decision->has_last_synced);
+    ui_present(&ui_bottom);
 
-    // Show local info
-    iprintf("-- Local --\n");
-    if (title->save_size > 0) {
-        iprintf("Size: %lu bytes\n", (unsigned long)title->save_size);
-        if (title->hash_calculated) {
-            iprintf("Hash: ");
-            for (int i = 0; i < 8; i++) iprintf("%02x", title->hash[i]);
-            iprintf("...\n");
-        } else {
-            iprintf("Hash: (not calculated)\n");
-        }
-    } else {
-        iprintf("No local save\n");
-    }
-    iprintf("\n");
-
-    // Show server info
-    iprintf("-- Server --\n");
-    if (decision->server_hash[0]) {
-        iprintf("Size: %lu bytes\n", (unsigned long)decision->server_size);
-        iprintf("Hash: %.16s...\n", decision->server_hash);
-    } else {
-        iprintf("No server save\n");
-    }
-    iprintf("\n");
-
-    // Show last synced
-    if (decision->has_last_synced) {
-        iprintf("-- Last Synced --\n");
-        iprintf("Hash: %.16s...\n", decision->last_synced_hash);
-        iprintf("\n");
-    }
-
-    // Show suggested action
     switch (decision->action) {
         case SYNC_UP_TO_DATE:
-            iprintf("-- Suggested --\n");
-            iprintf(CON_GREEN " Already in sync!" CON_RESET "\n");
-            iprintf("\nPress any button\n");
-            while (pmMainLoop()) {
-                swiWaitForVBlank();
-                scanKeys();
-                if (keysDown()) break;
-            }
-            iprintf(CON_RESET);
+            ui_wait(0);
             return SYNC_UP_TO_DATE;
-
         case SYNC_UPLOAD:
-            iprintf("-- Suggested --\n");
-            if (decision->has_last_synced)
-                iprintf(CON_GREEN ">> UPLOAD (local changed)" CON_RESET "\n");
-            else
-                iprintf(CON_GREEN ">> UPLOAD" CON_RESET "\n");
-
-            iprintf("\nA=Upload  B=Cancel\n");
-
-            while (pmMainLoop()) {
-                swiWaitForVBlank();
-                scanKeys();
-                int pressed = keysDown();
-                if (pressed & KEY_A) { iprintf(CON_RESET); return SYNC_UPLOAD; }
-                if (pressed & KEY_B) { iprintf(CON_RESET); return SYNC_UP_TO_DATE; }
-            }
-            iprintf(CON_RESET);
-            return SYNC_UP_TO_DATE;
-
+            return (ui_wait(KEY_A | KEY_B) & KEY_A) ? SYNC_UPLOAD : SYNC_UP_TO_DATE;
         case SYNC_DOWNLOAD:
-            iprintf("-- Suggested --\n");
-            if (decision->has_last_synced)
-                iprintf(CON_GREEN ">> DOWNLOAD (server changed)" CON_RESET "\n");
-            else
-                iprintf(CON_GREEN ">> DOWNLOAD" CON_RESET "\n");
-
-            iprintf("\nA=Download  B=Cancel\n");
-
-            while (pmMainLoop()) {
-                swiWaitForVBlank();
-                scanKeys();
-                int pressed = keysDown();
-                if (pressed & KEY_A) { iprintf(CON_RESET); return SYNC_DOWNLOAD; }
-                if (pressed & KEY_B) { iprintf(CON_RESET); return SYNC_UP_TO_DATE; }
-            }
-            iprintf(CON_RESET);
+            return (ui_wait(KEY_A | KEY_B) & KEY_A) ? SYNC_DOWNLOAD : SYNC_UP_TO_DATE;
+        case SYNC_CONFLICT: {
+            int k = ui_wait(KEY_R | KEY_L | KEY_B);
+            if (k & KEY_R) return SYNC_UPLOAD;
+            if (k & KEY_L) return SYNC_DOWNLOAD;
             return SYNC_UP_TO_DATE;
-
-        case SYNC_CONFLICT:
-            iprintf("-- Suggested --\n");
-            iprintf(CON_RED "!! CONFLICT !!" CON_RESET "\n");
-            iprintf("Both changed.\n");
-
-            iprintf("\nR=Force Upload\n");
-            iprintf("L=Force Download\n");
-            iprintf("B=Cancel\n");
-
-            while (pmMainLoop()) {
-                swiWaitForVBlank();
-                scanKeys();
-                int pressed = keysDown();
-                if (pressed & KEY_R) { iprintf(CON_RESET); return SYNC_UPLOAD; }
-                if (pressed & KEY_L) { iprintf(CON_RESET); return SYNC_DOWNLOAD; }
-                if (pressed & KEY_B) { iprintf(CON_RESET); return SYNC_UP_TO_DATE; }
-            }
-            iprintf(CON_RESET);
-            return SYNC_UP_TO_DATE;
-    }
-
-    iprintf(CON_RESET);
-    return SYNC_UP_TO_DATE;
-}
-
-// Draw config menu on current console
-void ui_draw_config(const SyncState *state, int selected, bool focused, bool has_wifi) {
-    const char *focus_indicator = focused ? "[ACTIVE]" : "[Press L]";
-    iprintf("=== Configuration %s ===\n\n", focus_indicator);
-
-    const char *items[] = {
-        "Server URL",
-        "API Key",
-        "WiFi SSID",
-        "WiFi WEP Key",
-        "Rescan Saves",
-        "Connect WiFi",
-        "Check Updates",
-        "Achievements",
-        "Game Catalog"
-    };
-    const int item_count = UI_CONFIG_ITEMS;
-
-    for (int i = 0; i < item_count; i++) {
-        char cursor = (focused && i == selected) ? '>' : ' ';
-        iprintf("%c %s\n", cursor, items[i]);
-
-        if (i == 0) {
-            char val[30];
-            if (state->server_url[0]) {
-                snprintf(val, sizeof(val), "%.28s", state->server_url);
-            } else {
-                snprintf(val, sizeof(val), "(not set)");
-            }
-            iprintf("   %s\n", val);
-        } else if (i == 1) {
-            int len = strlen(state->api_key);
-            if (len > 4) {
-                iprintf("   %.4s****\n", state->api_key);
-            } else {
-                iprintf("   (not set)\n");
-            }
-        } else if (i == 2) {
-            char val[30];
-            if (state->wifi_ssid[0]) {
-                snprintf(val, sizeof(val), "%.28s", state->wifi_ssid);
-            } else {
-                snprintf(val, sizeof(val), "(not set)");
-            }
-            iprintf("   %s\n", val);
-        } else if (i == 3) {
-            int len = strlen(state->wifi_wep_key);
-            if (len > 0) {
-                iprintf("   (%d chars)\n", len);
-            } else {
-                iprintf("   (not set)\n");
-            }
         }
     }
-
-    // Draw button hints at bottom
-    iprintf("\n");
-    if (focused) {
-        iprintf("A:Edit/Action L:Back START:Exit\n");
-    } else if (has_wifi) {
-        iprintf("A:Smart Sync X:Scan R:UL\n");
-        iprintf("Y:Info SELECT:Game Catalog\n");
-        iprintf("L:Config START:Exit\n");
-    } else {
-        iprintf("Y:Info L:Config START:Exit\n");
-    }
+    return SYNC_UP_TO_DATE;
 }

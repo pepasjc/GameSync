@@ -362,12 +362,14 @@ int sync_execute(SyncState *state, int title_idx, SyncAction action) {
     return result;
 }
 
-int sync_scan_all(SyncState *state, SyncSummary *summary) {
+int sync_scan_all(SyncState *state, SyncSummary *summary,
+                  void (*progress)(int done, int total, const char *name)) {
     memset(summary, 0, sizeof(SyncSummary));
 
     for (int i = 0; i < state->num_titles; i++) {
         Title *title = &state->titles[i];
 
+        if (progress) progress(i, state->num_titles, title->game_name);
         iprintf("  [%d/%d] %.20s\n", i + 1, state->num_titles, title->game_name);
 
         SyncDecision decision;
@@ -381,6 +383,7 @@ int sync_scan_all(SyncState *state, SyncSummary *summary) {
 
         title->scanned = true;
         title->scan_result = decision.action;
+        title->on_server = decision.server_hash[0] != '\0';
 
         switch (decision.action) {
             case SYNC_UP_TO_DATE:

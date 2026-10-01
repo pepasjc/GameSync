@@ -1,4 +1,6 @@
 #include "config.h"
+#include "ui.h"
+#include "views.h"
 #include <stdio.h>
 #include <string.h>
 #include <fat.h>
@@ -240,25 +242,8 @@ bool config_edit_field(const char *hint, char *buffer, int max_len) {
 
     while (running && pmMainLoop()) {
         // Draw editor screen
-        consoleClear();
-        iprintf("--- Edit Field ---\n\n");
-        iprintf("%s\n\n", hint);
-
-        iprintf(" ");
-        for (int i = 0; i < len; i++) {
-            if (i == cursor)
-                iprintf(CON_YELLOW "%c" CON_RESET, temp[i]);
-            else
-                iprintf("%c", temp[i]);
-        }
-        if (cursor == len)
-            iprintf(CON_YELLOW "_" CON_RESET);  // end-of-text cursor
-        iprintf("\n\n");
-
-        iprintf("D-Pad L/R: move cursor\n");
-        iprintf("D-Pad U/D: change character\n");
-        iprintf("A: insert | B: delete\n");
-        iprintf("Y: confirm | X: cancel\n");
+        view_editor(&ui_bottom, hint, temp, len, cursor, charset, charset_len);
+        ui_present(&ui_bottom);
 
         // Wait for input
         while (pmMainLoop()) {

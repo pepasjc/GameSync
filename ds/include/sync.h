@@ -45,7 +45,9 @@ int sync_all(SyncState *state, SyncSummary *summary);
 
 // Scan all titles: decide sync status for each, store in title->scan_result
 // Does NOT upload/download — only checks status
-int sync_scan_all(SyncState *state, SyncSummary *summary);
+// progress (may be NULL) is called before each title with its index.
+int sync_scan_all(SyncState *state, SyncSummary *summary,
+                  void (*progress)(int done, int total, const char *name));
 
 // History version info
 #define MAX_HISTORY_VERSIONS 20

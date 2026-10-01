@@ -2,6 +2,8 @@
 #include "ra_hash.h"
 #include "ra_sets.h"
 #include "http.h"
+#include "ui.h"
+#include "views.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,15 +56,6 @@ static void ra_ensure_dirs(void) {
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
-
-static void wait_any_button(void) {
-    iprintf("\nPress any button\n");
-    while (pmMainLoop()) {
-        swiWaitForVBlank();
-        scanKeys();
-        if (keysDown()) break;
-    }
-}
 
 static bool cancel_requested(void) {
     scanKeys();
@@ -346,17 +339,17 @@ static void set_run_item(RaBatchKind kind, const char *md5, const char *data, si
             run->unknown++;
         } else if (kind == RA_BATCH_ERROR) {
             run->errors++;
-            if (run->verbose) iprintf("%.24s\n  " CON_RED "%.28s" CON_RESET "\n", name, data);
+            if (run->verbose) iprintf("%.40s\n  " CON_RED "%.28s" CON_RESET "\n", name, data);
         } else if (!valid) {
             run->errors++;
-            if (run->verbose) iprintf("%.24s\n  " CON_RED "bad set file" CON_RESET "\n", name);
+            if (run->verbose) iprintf("%.40s\n  " CON_RED "bad set file" CON_RESET "\n", name);
         } else if (write_set(name, (const uint8_t *)data, len)) {
             run->with_set++;
             run->last_achievements = achievements;
-            if (run->verbose) iprintf("%.24s\n  " CON_GREEN "%d achievements" CON_RESET "\n", name, achievements);
+            if (run->verbose) iprintf("%.40s\n  " CON_GREEN "%d achievements" CON_RESET "\n", name, achievements);
         } else {
             run->errors++;
-            if (run->verbose) iprintf("%.24s\n  " CON_RED "SD write failed" CON_RESET "\n", name);
+            if (run->verbose) iprintf("%.40s\n  " CON_RED "SD write failed" CON_RESET "\n", name);
         }
     }
 }
@@ -436,22 +429,21 @@ static void hash_cache_merge_save(HashCache *fresh, const HashCache *old) {
     hash_cache_save(fresh);
 }
 
+static const Hint hints_stop[] = { { "B", "Hold to stop" }, { NULL, NULL } };
+
 static void ra_update_sets(SyncState *state) {
-    consoleClear();
-    iprintf("=== Update Achievement Sets ===\n\n");
+    ui_task_begin("RetroAchievements", "Scanning ROMs");
 
     char rom_dir[64];
     RomList roms = {0};
-    iprintf("Scanning ROMs...\n");
     find_roms(&roms, rom_dir, sizeof(rom_dir));
     iprintf("%s: %d ROMs%s\n", rom_dir, roms.count, roms.truncated ? " (limit)" : "");
     if (roms.count == 0) {
-        iprintf("\nNo .nds files found\n");
         rom_list_free(&roms);
-        wait_any_button();
+        ui_task_end(KIND_WARN, "No .nds files found", rom_dir, HINTS_ANY, 0);
         return;
     }
-    iprintf("Hold B to stop\n\n");
+    ui_task_hints(hints_stop);
 
     ra_ensure_dirs();
 
@@ -461,8 +453,7 @@ static void ra_update_sets(SyncState *state) {
         free(md5s);
         free(uniq);
         rom_list_free(&roms);
-        iprintf(CON_RED "Out of memory" CON_RESET "\n");
-        wait_any_button();
+        ui_task_end(KIND_ERROR, "Out of memory", "", HINTS_ANY, 0);
         return;
     }
 
@@ -476,9 +467,11 @@ static void ra_update_sets(SyncState *state) {
             stopped = true;
             break;
         }
-        iprintf("\rHashing %d/%d", i + 1, roms.count);
+        char detail[24];
+        snprintf(detail, sizeof(detail), "%d / %d", i + 1, roms.count);
+        ui_task_progress("Hashing ROMs", detail, (uint32_t)i, (uint32_t)roms.count);
         if (!hash_rom(roms.paths[i], &old_cache, &new_cache, md5s[i])) {
-            iprintf("\n%.24s\n  " CON_RED "not a DS ROM" CON_RESET "\n", base_name(roms.paths[i]));
+            iprintf("%.40s\n  " CON_RED "not a DS ROM" CON_RESET "\n", base_name(roms.paths[i]));
             md5s[i][0] = '\0';
             hash_failed++;
             continue;
@@ -488,7 +481,6 @@ static void ra_update_sets(SyncState *state) {
         for (int u = 0; u < nuniq && !dup; u++) dup = (strcmp(uniq[u], md5s[i]) == 0);
         if (!dup) strcpy(uniq[nuniq++], md5s[i]);
     }
-    iprintf("\n");
     hash_cache_merge_save(&new_cache, &old_cache);
     hash_cache_free(&old_cache);
     hash_cache_free(&new_cache);
@@ -507,6 +499,9 @@ static void ra_update_sets(SyncState *state) {
                 break;
             }
             int n = nuniq - b < batch ? nuniq - b : batch;
+            char detail[32];
+            snprintf(detail, sizeof(detail), "%d-%d of %d", b + 1, b + n, nuniq);
+            ui_task_progress("Getting achievement sets", detail, (uint32_t)b, (uint32_t)nuniq);
             iprintf("Getting sets %d-%d...\n", b + 1, b + n);
             requested += n;
             if (!fetch_set_batch(state, &run, (const char (*)[33])uniq + b, n)) {
@@ -522,17 +517,36 @@ static void ra_update_sets(SyncState *state) {
     free(uniq);
     rom_list_free(&roms);
 
-    iprintf("\n");
-    if (aborted) iprintf(CON_RED "Stopped on error" CON_RESET "\n");
-    else if (stopped) iprintf("Stopped\n");
-    iprintf("Hashed %d of %d ROMs\n", hashed, total);
-    iprintf(" With achievements: %d\n", run.with_set);
-    iprintf(" Not on RA:         %d\n", run.unknown);
-    if (hash_failed) iprintf(" Unreadable:        %d\n", hash_failed);
-    if (run.errors) iprintf(" Errors:            %d\n", run.errors);
-    if (requested < nuniq && !stopped && !aborted) iprintf(" Not asked:         %d\n", nuniq - requested);
-    if (run.with_set) iprintf("Sets in %s/_nds/ra/sets\n", ra_get_root());
-    wait_any_button();
+    char hashed_s[24], with_s[12], unknown_s[12], failed_s[12], errors_s[12], asked_s[12];
+    snprintf(hashed_s, sizeof(hashed_s), "%d of %d", hashed, total);
+    snprintf(with_s, sizeof(with_s), "%d", run.with_set);
+    snprintf(unknown_s, sizeof(unknown_s), "%d", run.unknown);
+    snprintf(failed_s, sizeof(failed_s), "%d", hash_failed);
+    snprintf(errors_s, sizeof(errors_s), "%d", run.errors);
+    snprintf(asked_s, sizeof(asked_s), "%d", nuniq - requested);
+
+    if (aborted) {
+        // Keep the log on screen: it says what went wrong
+        char detail[64];
+        snprintf(detail, sizeof(detail), "%d sets saved, %d not on RA", run.with_set, run.unknown);
+        ui_task_end(KIND_ERROR, "Stopped on error", detail, HINTS_ANY, 0);
+        return;
+    }
+
+    SummaryRow rows[6];
+    int n = 0;
+    rows[n++] = (SummaryRow){ "ROMs hashed", hashed_s, C_TEXT_DIM };
+    rows[n++] = (SummaryRow){ "With achievements", with_s, C_GOLD };
+    rows[n++] = (SummaryRow){ "Not on RA", unknown_s, C_TEXT_FAINT };
+    if (hash_failed) rows[n++] = (SummaryRow){ "Unreadable", failed_s, C_WARN };
+    if (run.errors) rows[n++] = (SummaryRow){ "Errors", errors_s, C_ERR };
+    if (requested < nuniq && !stopped) rows[n++] = (SummaryRow){ "Not asked", asked_s, C_TEXT_FAINT };
+    char note[64] = "";
+    if (run.with_set) snprintf(note, sizeof(note), "Sets in %s/_nds/ra/sets", ra_get_root());
+    view_summary(&ui_bottom, "RetroAchievements", stopped ? "Stopped" : "Sets updated",
+                 stopped ? KIND_WARN : KIND_RA, rows, n, note, HINTS_ANY);
+    ui_present(&ui_bottom);
+    ui_wait(0);
 }
 
 // ---------------------------------------------------------------------------
@@ -581,14 +595,8 @@ void ra_menu(SyncState *state, bool has_wifi) {
 
     while (pmMainLoop()) {
         if (redraw) {
-            consoleClear();
-            iprintf("=== RetroAchievements ===\n\n");
-            iprintf("Data: %s/_nds/ra\n\n", ra_get_root());
-            iprintf("Saves the achievement set of\n");
-            iprintf("every ROM in the ROM folder\n");
-            iprintf("for nds-bootstrap-ra\n\n");
-            if (!has_wifi) iprintf(CON_RED "WiFi not connected" CON_RESET "\n\n");
-            iprintf("A:Update sets  B:Back\n");
+            view_ra_menu(&ui_bottom, ra_get_root(), has_wifi);
+            ui_present(&ui_bottom);
             redraw = false;
         }
 
@@ -599,10 +607,8 @@ void ra_menu(SyncState *state, bool has_wifi) {
         if (pressed & KEY_B) break;
         if (pressed & KEY_A) {
             if (!has_wifi) {
-                consoleClear();
-                iprintf("WiFi required\n");
-                iprintf("Use Connect WiFi in the\nconfig menu first\n");
-                wait_any_button();
+                ui_message("RetroAchievements", "WiFi required",
+                           "Use Connect WiFi in the menu first.", KIND_ERROR, HINTS_ANY, 0);
             } else {
                 ra_update_sets(state);
             }

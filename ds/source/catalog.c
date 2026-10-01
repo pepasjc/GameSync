@@ -3,6 +3,8 @@
 #include "config.h"
 #include "http.h"
 #include "ra.h"
+#include "ui.h"
+#include "views.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,10 +17,9 @@
 // server (filtered there too) and only a window of it is held here. Each
 // page is one connection, and the DSi stack only manages a few dozen of
 // those before it needs a rest, so the window is large.
+// CAT_ROWS (list rows on the bottom screen) is in views.h.
 #define CAT_WINDOW 128
-#define CAT_ROWS 21          // list rows on the bottom screen (rows 2..22)
 #define CAT_JUMP 100         // L/R
-#define CAT_COLS 31          // printable width without triggering a wrap
 #define CAT_SCAN_DEPTH 4     // ROM folder levels searched for installed games
 
 // Systems the DS can run, in the order SELECT cycles through them, and the
@@ -28,7 +29,6 @@ static const char *const cat_system_dirs[] = { "roms/nds", "roms/dsi" };
 
 typedef struct {
     SyncState *state;
-    PrintConsole *top, *bottom;
     char base_url[256];
 
     char systems[2][8];
@@ -51,51 +51,11 @@ typedef struct {
     CatNameSet installed;
 } Catalog;
 
+static const char *const TOOLBAR = "Game Catalog";
+
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
-
-static void wait_any_button(void) {
-    iprintf("\nPress any button\n");
-    while (pmMainLoop()) {
-        swiWaitForVBlank();
-        scanKeys();
-        if (keysDown()) break;
-    }
-}
-
-// Move the cursor (0-based row/column)
-static void at(int row, int col) {
-    iprintf("\x1b[%d;%dH", row, col);
-}
-
-// Print text cut or padded to exactly `width` columns
-static void print_fixed(const char *text, int width) {
-    char buf[64];
-    if (width > (int)sizeof(buf) - 1) width = sizeof(buf) - 1;
-    cat_ascii(text, buf, (size_t)width + 1);
-    iprintf("%-*s", width, buf);
-}
-
-// Text over several rows of `width`; returns the rows used
-static int print_wrapped(int row, const char *text, int max_rows) {
-    char buf[CAT_NAME_LEN + CAT_FILE_LEN];
-    cat_ascii(text, buf, sizeof(buf));
-    int len = (int)strlen(buf), used = 0;
-    for (int pos = 0; pos < len && used < max_rows; pos += CAT_COLS, used++) {
-        at(row + used, 0);
-        iprintf("%.*s", CAT_COLS, buf + pos);
-    }
-    return used ? used : 1;
-}
-
-static void format_time(unsigned seconds, char *out, size_t size) {
-    if (seconds > 99 * 3600 + 3599) seconds = 99 * 3600 + 3599;
-    if (seconds >= 3600)
-        snprintf(out, size, "%u:%02u:%02u", seconds / 3600, (seconds / 60) % 60, seconds % 60);
-    else
-        snprintf(out, size, "%u:%02u", seconds / 60, seconds % 60);
-}
 
 static void mkdir_parents(const char *path) {
     char buf[128];
@@ -156,12 +116,39 @@ static bool load_systems(Catalog *cat) {
     return ok;
 }
 
+static const CatEntry *entry_at(const Catalog *cat, int index);
+static bool is_installed(const Catalog *cat, const CatEntry *e);
+
+static void build_view(const Catalog *cat, CatalogView *v) {
+    memset(v, 0, sizeof(*v));
+    v->system = cat->nsystems > 0 ? cat->systems[cat->sys] : "NDS";
+    v->nsystems = cat->nsystems;
+    v->ra_only = cat->ra_only;
+    v->search = cat->search;
+    v->error = cat->error;
+    v->filter_ignored = cat->filter_ignored;
+    v->total = cat->total;
+    v->selected = cat->selected;
+    v->scroll = cat->scroll;
+    v->rom_dir = cat->rom_dir;
+    for (int r = 0; r < CAT_ROWS; r++) {
+        int index = cat->scroll + r;
+        if (cat->total < 0 || index >= cat->total) break;
+        const CatEntry *e = entry_at(cat, index);
+        v->rows[r].entry = e;
+        v->rows[r].installed = e && is_installed(cat, e);
+        v->nrows = r + 1;
+    }
+    v->current = cat->total > 0 ? entry_at(cat, cat->selected) : NULL;
+    v->current_installed = v->current && is_installed(cat, v->current);
+}
+
 static void show_loading(Catalog *cat) {
-    consoleSelect(cat->bottom);
-    at(1, 0);
-    iprintf(CON_YELLOW);
-    print_fixed("Loading...", CAT_COLS);
-    iprintf(CON_RESET);
+    CatalogView v;
+    build_view(cat, &v);
+    v.loading = true;
+    view_catalog_strip(&ui_bottom, &v);
+    ui_present_rows(&ui_bottom, CONTENT_Y + CAT_ROWS * ROW_H + 1, 15);
 }
 
 // Load the page starting at `offset` into the window
@@ -247,145 +234,13 @@ static bool is_installed(const Catalog *cat, const CatEntry *e) {
 // Drawing
 // ---------------------------------------------------------------------------
 
-static void ra_tag(const CatEntry *e, char *out, size_t size) {
-    if (!cat_entry_has_ra(e)) out[0] = '\0';
-    else if (e->ra_title_only) snprintf(out, size, "RA?");
-    else if (e->ra_achievements > 999) snprintf(out, size, "RA999");
-    else snprintf(out, size, "RA%3d", e->ra_achievements);
-}
-
-static void draw_list(Catalog *cat) {
-    consoleSelect(cat->bottom);
-    consoleClear();
-
-    // Row 0: system, filter, position
-    at(0, 0);
-    iprintf("%s ", cat->systems[cat->sys]);
-    if (cat->ra_only) iprintf(CON_YELLOW "RA only" CON_RESET);
-    else iprintf("All games");
-    if (cat->total > 0) {
-        char pos[24];
-        snprintf(pos, sizeof(pos), "%d/%d", cat->selected + 1, cat->total);
-        at(0, CAT_COLS - (int)strlen(pos));
-        iprintf("%s", pos);
-    }
-
-    // Row 1: search or problem
-    at(1, 0);
-    if (cat->error[0]) {
-        iprintf(CON_RED);
-        print_fixed(cat->error, CAT_COLS);
-        iprintf(CON_RESET);
-    } else if (cat->filter_ignored) {
-        iprintf(CON_RED);
-        print_fixed("Server can't filter RA: update", CAT_COLS);
-        iprintf(CON_RESET);
-    } else if (cat->search[0]) {
-        char line[64];
-        snprintf(line, sizeof(line), "Search: %s", cat->search);
-        iprintf(CON_CYAN);
-        print_fixed(line, CAT_COLS);
-        iprintf(CON_RESET);
-    }
-
-    if (cat->error[0] && cat->win_count == 0) {
-        at(3, 0);
-        iprintf("A: try again  B: back");
-        return;
-    }
-
-    if (cat->total == 0 && !cat->error[0]) {
-        at(3, 0);
-        if (cat->search[0]) iprintf("No games match the search.\nX: new search  START: clear");
-        else if (cat->ra_only) iprintf("No games with achievements.\nY: show all games");
-        else iprintf("No games on the server.");
-        return;
-    }
-
-    for (int r = 0; r < CAT_ROWS; r++) {
-        int index = cat->scroll + r;
-        if (cat->total >= 0 && index >= cat->total) break;
-        const CatEntry *e = entry_at(cat, index);
-        at(2 + r, 0);
-        if (!e) {
-            iprintf("  ...");
-            continue;
-        }
-        bool sel = (index == cat->selected);
-        bool inst = is_installed(cat, e);
-        char tag[8];
-        ra_tag(e, tag, sizeof(tag));
-
-        iprintf("%c", sel ? '>' : ' ');
-        iprintf(inst ? CON_GREEN "*" : " ");
-        iprintf(sel ? CON_CYAN : (inst ? CON_GREEN : CON_RESET));
-        print_fixed(e->name[0] ? e->name : e->filename, 23);
-        iprintf(CON_YELLOW " %5s" CON_RESET, tag);
-    }
-}
-
-static void draw_details(Catalog *cat) {
-    consoleSelect(cat->top);
-    consoleClear();
-    at(0, 0);
-    iprintf("======== Game Catalog ========");
-
-    const CatEntry *e = (cat->total > 0) ? entry_at(cat, cat->selected) : NULL;
-    int row = 2;
-    if (e) {
-        iprintf(CON_CYAN);
-        row += print_wrapped(row, e->name[0] ? e->name : e->filename, 4);
-        iprintf(CON_RESET);
-        row++;
-
-        char size[16];
-        cat_format_size(e->size, size, sizeof(size));
-        const char *ext = strrchr(e->filename, '.');
-        at(row++, 0);
-        iprintf("Size: %s%s", size, (ext && strcasecmp(ext, ".zip") == 0) ? " (zipped)" : "");
-
-        at(row++, 0);
-        if (cat_entry_has_ra(e) && e->ra_title_only)
-            iprintf(CON_YELLOW "RA: %d achievements?" CON_RESET, e->ra_achievements);
-        else if (cat_entry_has_ra(e))
-            iprintf(CON_YELLOW "RA: %d achievements" CON_RESET, e->ra_achievements);
-        else if (e->ra_game_id)
-            iprintf("RA: known, no achievements");
-        else
-            iprintf("RA: none");
-        if (cat_entry_has_ra(e) && e->ra_title_only) {
-            at(row++, 0);
-            iprintf(" (matched by name only)");
-        }
-
-        at(row++, 0);
-        if (is_installed(cat, e)) iprintf(CON_GREEN "On SD: yes" CON_RESET);
-        else iprintf("On SD: no");
-    }
-
-    at(13, 0);
-    iprintf("To: %.27s", cat->rom_dir);
-    at(15, 0);
-    iprintf("A:Install        B:Back");
-    at(16, 0);
-    iprintf("Y:%s", cat->ra_only ? "Show all games" : "Only games with RA");
-    at(17, 0);
-    iprintf("X:Search         START:Clear");
-    at(18, 0);
-    iprintf("Up/Dn:Move  Lt/Rt:Page");
-    at(19, 0);
-    iprintf("L/R:Jump %d", CAT_JUMP);
-    if (cat->nsystems > 1) {
-        at(20, 0);
-        iprintf("SELECT:System (%s)", cat->systems[cat->sys]);
-    }
-    at(22, 0);
-    iprintf(CON_GREEN "*" CON_RESET " on SD  " CON_YELLOW "RA" CON_RESET " achievements");
-}
-
 static void draw(Catalog *cat) {
-    draw_details(cat);
-    draw_list(cat);
+    CatalogView v;
+    build_view(cat, &v);
+    view_catalog_details(&ui_top, &v);
+    view_catalog_list(&ui_bottom, &v);
+    ui_present(&ui_top);
+    ui_present(&ui_bottom);
 }
 
 // ---------------------------------------------------------------------------
@@ -401,6 +256,7 @@ typedef struct {
     uint32_t speed;          // bytes/s over the last ~second
     bool checked;            // first-chunk checks done
     bool no_space, bad_data;
+    InstallView view;
 } Download;
 
 static uint32_t bytes_per_second(uint32_t bytes, uint64_t ticks) {
@@ -410,43 +266,17 @@ static uint32_t bytes_per_second(uint32_t bytes, uint64_t ticks) {
 
 static void draw_progress(Download *dl, uint32_t done, uint32_t total) {
     uint64_t now = tickGetCount();
-    unsigned elapsed = (unsigned)((now - dl->start) / TICK_FREQ);
     uint32_t avg = bytes_per_second(done, now - dl->start);
-    char buf[48], a[16], b[16], t1[16], t2[16];
-
-    cat_format_size(done, a, sizeof(a));
-    at(4, 0);
-    if (total) {
-        cat_format_size(total, b, sizeof(b));
-        snprintf(buf, sizeof(buf), "%s / %s  %lu%%", a, b,
-                 (unsigned long)((uint64_t)done * 100 / total));
-    } else {
-        snprintf(buf, sizeof(buf), "%s", a);
-    }
-    print_fixed(buf, CAT_COLS);
-
-    at(5, 0);
-    char bar[CAT_COLS + 1];
-    int width = CAT_COLS - 2;
-    int filled = total ? (int)((uint64_t)done * width / total) : 0;
-    for (int i = 0; i < width; i++) bar[i] = i < filled ? '#' : '.';
-    bar[width] = '\0';
-    iprintf("[%s]", bar);
-
-    at(7, 0);
-    snprintf(buf, sizeof(buf), "Speed: %lu KB/s (avg %lu)",
-             (unsigned long)((dl->speed ? dl->speed : avg) / 1024), (unsigned long)(avg / 1024));
-    print_fixed(buf, CAT_COLS);
-
-    at(8, 0);
-    format_time(elapsed, t1, sizeof(t1));
-    if (total && avg > 0 && done < total) {
-        format_time((unsigned)((total - done) / avg), t2, sizeof(t2));
-        snprintf(buf, sizeof(buf), "Time: %s  Left: %s", t1, t2);
-    } else {
-        snprintf(buf, sizeof(buf), "Time: %s", t1);
-    }
-    print_fixed(buf, CAT_COLS);
+    InstallView *v = &dl->view;
+    v->started = true;
+    v->done = done;
+    v->total = total;
+    v->speed = dl->speed;
+    v->avg = avg;
+    v->elapsed = (unsigned)((now - dl->start) / TICK_FREQ);
+    v->left = (total && avg > 0 && done < total) ? (unsigned)((total - done) / avg) : ~0u;
+    view_install(&ui_bottom, v);
+    ui_present(&ui_bottom);
 }
 
 static int download_sink(const uint8_t *data, size_t size, uint32_t done, uint32_t total, void *user) {
@@ -491,41 +321,29 @@ static int download_sink(const uint8_t *data, size_t size, uint32_t done, uint32
 }
 
 static bool confirm_install(const Catalog *cat, const CatEntry *e, const char *target, bool exists) {
-    consoleSelect(cat->bottom);
-    consoleClear();
-    at(0, 0);
-    iprintf("=== Install ===");
-    int row = 2;
-    iprintf(CON_CYAN);
-    row += print_wrapped(row, e->name[0] ? e->name : e->filename, 4);
-    iprintf(CON_RESET);
-    row++;
-    char size[16];
-    cat_format_size(e->size, size, sizeof(size));
-    at(row++, 0);
-    iprintf("Server file: %s", size);
-    at(row++, 0);
-    iprintf("To %.28s/", cat->rom_dir);
-    row += print_wrapped(row, target, 3);
-    if (cat_entry_has_ra(e)) {
-        at(++row, 0);
-        iprintf(CON_YELLOW "Achievement set is saved too" CON_RESET);
-    }
-    if (exists) {
-        at(++row, 0);
-        iprintf(CON_RED "Already on the SD: replace it?" CON_RESET);
-    }
-    at(21, 0);
-    iprintf("A:Install  B:Cancel");
+    view_install_confirm(&ui_bottom, e, cat->rom_dir, target, exists);
+    ui_present(&ui_bottom);
+    return (ui_wait(KEY_A | KEY_B) & KEY_A) != 0;
+}
 
-    while (pmMainLoop()) {
-        swiWaitForVBlank();
-        scanKeys();
-        int k = keysDown();
-        if (k & KEY_A) return true;
-        if (k & KEY_B) return false;
+// Show the result under the progress card and wait for a button
+static void finish(Download *dl, UiKind kind, const char *result) {
+    dl->view.finished = true;
+    dl->view.kind = kind;
+    dl->view.result = result;
+    view_install(&ui_bottom, &dl->view);
+    ui_present(&ui_bottom);
+    ui_wait(0);
+}
+
+static void add_line(InstallView *v, Color c, const char *text) {
+    for (int i = 0; i < 3; i++) {
+        if (!v->lines[i]) {
+            v->lines[i] = text;
+            v->line_colors[i] = c;
+            return;
+        }
     }
-    return false;
 }
 
 static void install(Catalog *cat, const CatEntry *entry) {
@@ -541,20 +359,18 @@ static void install(Catalog *cat, const CatEntry *entry) {
     const char *ext = strrchr(e.filename, '.');
     bool zipped = ext && strcasecmp(ext, ".zip") == 0;
     bool raw = ext && (strcasecmp(ext, ".nds") == 0 || strcasecmp(ext, ".dsi") == 0);
+    const char *name = e.name[0] ? e.name : e.filename;
 
-    consoleSelect(cat->bottom);
     if (e.truncated) {
-        consoleClear();
-        iprintf(CON_RED "Name too long to download" CON_RESET "\n");
-        wait_any_button();
+        ui_message("Install", "Can't install", "Name too long to download.", KIND_ERROR, HINTS_ANY, 0);
         return;
     }
     if (!raw && !(zipped && e.can_extract_nds)) {
-        consoleClear();
-        iprintf(CON_RED "Can't install this file" CON_RESET "\n\n%.60s\n\n", e.filename);
-        if (zipped) iprintf("The server can't unzip DS ROMs\nyet: update the server.\n");
-        else iprintf("Only .nds or single-ROM .zip\nfiles can be installed.\n");
-        wait_any_button();
+        char text[200];
+        snprintf(text, sizeof(text), "%.90s\n\n%s", e.filename,
+                 zipped ? "The server can't unzip DS ROMs yet: update the server."
+                        : "Only .nds or single-ROM .zip files can be installed.");
+        ui_message("Install", "Can't install this file", text, KIND_ERROR, HINTS_ANY, 0);
         return;
     }
 
@@ -562,23 +378,19 @@ static void install(Catalog *cat, const CatEntry *entry) {
     bool exists = (stat(path, &st) == 0);
     if (!confirm_install(cat, &e, target, exists)) return;
 
-    consoleClear();
-    at(0, 0);
-    iprintf("=== Installing ===");
-    at(1, 0);
-    print_fixed(e.name[0] ? e.name : e.filename, CAT_COLS);
-    at(10, 0);
-    iprintf("Hold B to cancel");
-    at(4, 0);
-    iprintf("Connecting...");
+    Download dl;
+    memset(&dl, 0, sizeof(dl));
+    dl.view.name = name;
+    dl.view.left = ~0u;
+    view_install(&ui_bottom, &dl.view);
+    ui_present(&ui_bottom);
 
     mkdir_parents(cat->rom_dir);
     remove(part);
     FILE *f = fopen(part, "wb");
     if (!f) {
-        at(12, 0);
-        iprintf(CON_RED "Can't create the file on SD" CON_RESET "\n%.60s\n", part);
-        wait_any_button();
+        add_line(&dl.view, C_TEXT_DIM, part);
+        finish(&dl, KIND_ERROR, "Can't create the file on SD");
         return;
     }
 
@@ -587,7 +399,9 @@ static void install(Catalog *cat, const CatEntry *entry) {
     char url[CAT_ID_LEN * 3 + 320];
     snprintf(url, sizeof(url), "%s/api/v1/roms/%s%s", cat->base_url, id, zipped ? "?extract=nds" : "");
 
-    Download dl = { .f = f, .dir = cat->rom_dir, .replaced = exists ? (uint32_t)st.st_size : 0 };
+    dl.f = f;
+    dl.dir = cat->rom_dir;
+    dl.replaced = exists ? (uint32_t)st.st_size : 0;
     dl.start = dl.last_draw = dl.sample_tick = tickGetCount();
 
     // Longer timeout: the server may take a moment to open a big zip
@@ -600,72 +414,96 @@ static void install(Catalog *cat, const CatEntry *entry) {
     uint64_t ticks = tickGetCount() - dl.start;
     if (rc == HTTP_DL_OK && !closed_ok) rc = HTTP_DL_WRITE;
 
-    at(12, 0);
+    char line1[96], line2[96];
     if (rc != HTTP_DL_OK) {
         remove(part);
         char a[16], b[16];
         switch (rc) {
             case HTTP_DL_CANCELLED:
-                iprintf("Cancelled\n");
+                finish(&dl, KIND_WARN, "Cancelled");
                 break;
             case HTTP_DL_CONNECT:
-                iprintf(CON_RED "No response from server" CON_RESET "\n");
+                finish(&dl, KIND_ERROR, "No response from server");
                 break;
             case HTTP_DL_STATUS: {
-                iprintf(CON_RED "Server error (HTTP %d)" CON_RESET "\n", info.status_code);
-                char msg[96];
-                cat_ascii(info.error, msg, sizeof(msg));
-                iprintf("%.90s\n", msg);
+                snprintf(line1, sizeof(line1), "Server error (HTTP %d)", info.status_code);
+                cat_ascii(info.error, line2, sizeof(line2));
+                if (line2[0]) add_line(&dl.view, C_TEXT_DIM, line2);
+                finish(&dl, KIND_ERROR, line1);
                 break;
             }
             case HTTP_DL_WRITE:
-                if (dl.bad_data) iprintf(CON_RED "Server sent a zip, not a ROM:" CON_RESET "\nupdate the server\n");
-                else if (dl.no_space) iprintf(CON_RED "Not enough space on the SD" CON_RESET "\n");
-                else iprintf(CON_RED "SD write failed (card full?)" CON_RESET "\n");
+                if (dl.bad_data) {
+                    add_line(&dl.view, C_TEXT_DIM, "Update the server");
+                    finish(&dl, KIND_ERROR, "Server sent a zip, not a ROM");
+                } else if (dl.no_space) {
+                    finish(&dl, KIND_ERROR, "Not enough space on the SD");
+                } else {
+                    finish(&dl, KIND_ERROR, "SD write failed (card full?)");
+                }
                 break;
             case HTTP_DL_SHORT:
                 cat_format_size(info.received, a, sizeof(a));
                 cat_format_size(info.total, b, sizeof(b));
-                iprintf(CON_RED "Connection lost" CON_RESET "\nat %s of %s\n", a, b);
+                snprintf(line1, sizeof(line1), "at %s of %s", a, b);
+                add_line(&dl.view, C_TEXT_DIM, line1);
+                finish(&dl, KIND_ERROR, "Connection lost");
                 break;
             default:
-                iprintf(CON_RED "Download failed" CON_RESET "\n");
+                finish(&dl, KIND_ERROR, "Download failed");
                 break;
         }
-        wait_any_button();
         return;
     }
 
     if (exists) remove(path);
     if (rename(part, path) != 0) {
         remove(part);
-        iprintf(CON_RED "Couldn't rename the download" CON_RESET "\n");
-        wait_any_button();
+        finish(&dl, KIND_ERROR, "Couldn't rename the download");
         return;
     }
     cat_names_add(&cat->installed, target);
     cat_names_sort(&cat->installed);
 
-    char size[16], secs[16];
+    // Final numbers on the progress card
+    dl.speed = 0;
+    draw_progress(&dl, info.received, info.received);
+    dl.view.elapsed = (unsigned)(ticks / TICK_FREQ);
+
+    char size[16], secs[16], ra_line[64];
     cat_format_size(info.received, size, sizeof(size));
-    format_time((unsigned)(ticks / TICK_FREQ), secs, sizeof(secs));
-    iprintf(CON_GREEN "Installed" CON_RESET " %s in %s\n", size, secs);
-    iprintf("Average: %lu KB/s\n", (unsigned long)(bytes_per_second(info.received, ticks) / 1024));
+    view_format_time((unsigned)(ticks / TICK_FREQ), secs, sizeof(secs));
+    snprintf(line1, sizeof(line1), "%s in %s", size, secs);
+    snprintf(line2, sizeof(line2), "Average: %lu KB/s", (unsigned long)(bytes_per_second(info.received, ticks) / 1024));
+    add_line(&dl.view, C_TEXT, line1);
+    add_line(&dl.view, C_TEXT_DIM, line2);
 
     if (cat_entry_has_ra(&e)) {
-        iprintf("\nGetting achievement set...\n");
+        dl.view.finished = true;
+        dl.view.kind = KIND_OK;
+        dl.view.result = "Installed";
+        snprintf(ra_line, sizeof(ra_line), "Getting achievement set...");
+        add_line(&dl.view, C_TEXT_DIM, ra_line);
+        view_install(&ui_bottom, &dl.view);
+        ui_present(&ui_bottom);
+
         int count = 0;
         int r = ra_install_set(state, path, &count);
-        if (r == RA_SET_OK)
-            iprintf(CON_YELLOW "%d achievements ready" CON_RESET "\n", count);
-        else if (r == RA_SET_UNKNOWN)
-            iprintf("RA doesn't know this dump\n");
-        else if (r == RA_SET_NOT_DS_ROM)
-            iprintf(CON_RED "Not a DS ROM?" CON_RESET "\n");
-        else
-            iprintf(CON_RED "Set not saved; use Update\nachievement sets later" CON_RESET "\n");
+        Color c = C_ERR;
+        if (r == RA_SET_OK) {
+            snprintf(ra_line, sizeof(ra_line), "%d achievements ready", count);
+            c = C_GOLD;
+        } else if (r == RA_SET_UNKNOWN) {
+            snprintf(ra_line, sizeof(ra_line), "RA doesn't know this dump");
+            c = C_TEXT_DIM;
+        } else if (r == RA_SET_NOT_DS_ROM) {
+            snprintf(ra_line, sizeof(ra_line), "Not a DS ROM?");
+        } else {
+            snprintf(ra_line, sizeof(ra_line), "Set not saved: use Update achievement sets");
+        }
+        dl.view.line_colors[2] = c;
     }
-    wait_any_button();
+    finish(&dl, KIND_OK, "Installed");
 }
 
 // ---------------------------------------------------------------------------
@@ -685,23 +523,9 @@ static void move_to(Catalog *cat, int index, bool wrap) {
     ensure_loaded(cat);
 }
 
-static void message(PrintConsole *console, const char *title, const char *text) {
-    consoleSelect(console);
-    consoleClear();
-    iprintf("=== %s ===\n\n%s\n", title, text);
-    wait_any_button();
-}
-
-void catalog_screen(SyncState *state, bool has_wifi, PrintConsole *top, PrintConsole *bottom) {
-    // Fresh consoles so no colour or cursor state carries over
-    consoleInit(top, 3, BgType_Text4bpp, BgSize_T_256x256, 31, 0, true, true);
-    consoleInit(bottom, 3, BgType_Text4bpp, BgSize_T_256x256, 31, 0, false, true);
-    consoleSelect(top);
-    consoleClear();
-    iprintf("=== Game Catalog ===\n");
-
+void catalog_screen(SyncState *state, bool has_wifi) {
     if (!has_wifi) {
-        message(bottom, "Game Catalog", "WiFi required.\nUse Connect WiFi in the\nconfig menu first.");
+        ui_message(TOOLBAR, "WiFi required", "Use Connect WiFi in the menu first.", KIND_ERROR, HINTS_ANY, 0);
         return;
     }
 
@@ -709,34 +533,32 @@ void catalog_screen(SyncState *state, bool has_wifi, PrintConsole *top, PrintCon
     CatEntry *win = cat ? malloc(CAT_WINDOW * sizeof(CatEntry)) : NULL;
     if (!win) {
         free(cat);
-        message(bottom, "Game Catalog", "Out of memory");
+        ui_message(TOOLBAR, "Out of memory", "", KIND_ERROR, HINTS_ANY, 0);
         return;
     }
     cat->state = state;
-    cat->top = top;
-    cat->bottom = bottom;
     cat->win = win;
     cat->total = -1;
     snprintf(cat->base_url, sizeof(cat->base_url), "%s", state->server_url);
     size_t len = strlen(cat->base_url);
     while (len > 0 && cat->base_url[len - 1] == '/') cat->base_url[--len] = '\0';
 
-    consoleSelect(bottom);
-    consoleClear();
-    iprintf("Contacting server...\n");
+    ui_task_begin(TOOLBAR, "Contacting server");
     if (!load_systems(cat)) {
         char text[128];
         snprintf(text, sizeof(text), "%s\n\nCheck WiFi and server_url.", cat->error);
-        message(bottom, "Game Catalog", text);
+        ui_message(TOOLBAR, "Can't open the catalog", text, KIND_ERROR, HINTS_ANY, 0);
         goto done;
     }
     if (cat->nsystems == 0) {
-        message(bottom, "Game Catalog", "The server has no DS games.");
+        ui_message(TOOLBAR, "No games", "The server has no DS games.", KIND_WARN, HINTS_ANY, 0);
         goto done;
     }
 
-    iprintf("Looking for games on the SD...\n");
+    ui_task_status("Looking for games on the SD", "");
     scan_installed(cat);
+    // First page: draw the (empty) list so "Loading..." has a screen to sit on
+    draw(cat);
     reset_list(cat);
     keysSetRepeat(20, 4);
 
@@ -768,11 +590,11 @@ void catalog_screen(SyncState *state, bool has_wifi, PrintConsole *top, PrintCon
             redraw = true;
         }
         if (down & KEY_X) {
-            consoleSelect(bottom);
             char text[sizeof(cat->search)];
             snprintf(text, sizeof(text), "%s", cat->search);
             if (config_edit_field("Search game names (empty = all)", text, sizeof(text))) {
                 snprintf(cat->search, sizeof(cat->search), "%s", text);
+                draw(cat);
                 reset_list(cat);
             }
             redraw = true;
@@ -797,9 +619,6 @@ void catalog_screen(SyncState *state, bool has_wifi, PrintConsole *top, PrintCon
             } else {
                 const CatEntry *e = cat->total > 0 ? entry_at(cat, cat->selected) : NULL;
                 if (e) install(cat, e);
-                // Consoles were used for other screens; start clean
-                consoleInit(top, 3, BgType_Text4bpp, BgSize_T_256x256, 31, 0, true, true);
-                consoleInit(bottom, 3, BgType_Text4bpp, BgSize_T_256x256, 31, 0, false, true);
             }
             redraw = true;
         }
