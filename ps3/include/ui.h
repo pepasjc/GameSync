@@ -6,8 +6,15 @@
 #include "roms.h"
 #include "sync.h"
 
+/* Rows visible in every list view (Saves, ROM Catalog, Downloads); main.c
+ * uses it for scrolling and Left/Right paging. */
+#define UI_LIST_ROWS 14
+
 bool ui_init(char *error_buf, size_t error_buf_size);
 void ui_shutdown(void);
+
+/* Server reachability, shown in the header of every screen. */
+void ui_set_online(bool online);
 
 /* Called from the sysutil callback in main.c */
 void ui_notify_exit(void);
@@ -29,7 +36,8 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
                 const char *server_hash, uint32_t server_size,
                 const char *server_last_sync);
 
-/* Legacy draw helpers (keep for error path before ioPadInit) */
+/* Full-screen views.  ui_draw_message is the fatal-error screen used before
+ * the main loop runs. */
 void ui_draw_message(const char *title, const char *message, const char *footer);
 void ui_draw_list(const SyncState *state,
                   const int *visible, int visible_count,
@@ -50,6 +58,8 @@ void ui_draw_text_editor(const char *label, const char *value, int cursor_pos);
 /* ----- ROM catalog + download views ----- */
 void ui_draw_rom_catalog(const RomCatalog *catalog,
                          const DownloadList *downloads,
+                         const char *const *systems, int system_count,
+                         int system_index,
                          int selected, int scroll_offset,
                          const char *status_line);
 

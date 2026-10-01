@@ -1,10 +1,25 @@
+/*
+ * GameSync PS3 — screens.
+ *
+ * Every view shares one layout on a logical 1280x720 canvas (see gui.h):
+ *
+ *   header   logo, "GameSync • <view>", view tabs, version, server status
+ *   list     rounded panel with a toolbar, selection bar and scrollbar
+ *   detail   panel describing the selected row
+ *   banner   last status message
+ *   footer   PlayStation button hints
+ *
+ * Dialogs (messages, confirmations, progress) are cards drawn over a dimmed
+ * copy of the last full screen.
+ */
+
 #include "ui.h"
+#include "gui.h"
 #include "sync.h"
 #include "roms.h"
 #include "downloads.h"
 
 #include <SDL/SDL.h>
-#include <SDL/SDL_gfxPrimitives.h>
 #include <io/pad.h>
 #include <sysutil/sysutil.h>
 
@@ -17,71 +32,219 @@
 static char g_status_line[256];
 static volatile int g_ui_exit = 0;   /* set by sysutil EXIT_GAME */
 static volatile int g_xmb_open = 0;  /* set by sysutil MENU_OPEN/CLOSE */
+static bool g_online = false;
+static bool g_ready = false;
 
 void ui_notify_exit(void)       { g_ui_exit  = 1; }
 void ui_notify_menu_open(void)  { g_xmb_open = 1; }
 void ui_notify_menu_close(void) { g_xmb_open = 0; }
 int  ui_exit_requested(void)    { return g_ui_exit; }
 int  ui_menu_open(void)         { return g_xmb_open; }
+void ui_set_online(bool online) { g_online = online; }
 
 #define MAX_PADS_UI 7
 
-#define SCREEN_WIDTH  1920
-#define SCREEN_HEIGHT 1080
-#define LINE_HEIGHT   22
-#define LIST_START_Y  95
-#define LIST_VISIBLE_ROWS 35
+/* ---- Layout (logical 1280x720) ---- */
+#define LIST_X      GUI_MARGIN_X
+#define LIST_W      752
+#define PANEL_Y     GUI_CONTENT_Y
+#define PANEL_H     512
+#define DETAIL_X    (LIST_X + LIST_W + 12)
+#define DETAIL_W    (GUI_W - GUI_MARGIN_X - DETAIL_X)
+#define BANNER_Y    (PANEL_Y + PANEL_H + 10)
+#define BANNER_H    38
+#define TOOLBAR_Y   (PANEL_Y + 12)
+#define TOOLBAR_H   30
+#define ROWS_Y      (PANEL_Y + 54)
+#define ROW_H       32
+#define TAG_H       22
+#define STATUS_TAG_W 112
+#define DL_TAG_W     132
 
-static SDL_Surface *g_screen = NULL;
+static const char *const k_view_names[APP_VIEW_COUNT] = {
+    "Saves", "ROM Catalog", "Downloads"
+};
 
-typedef struct {
-    Uint8 r;
-    Uint8 g;
-    Uint8 b;
-} UiColor;
+/* ------------------------------------------------------------------ */
+/* Small helpers                                                       */
+/* ------------------------------------------------------------------ */
 
-static void draw_text(int x, int y, UiColor color, const char *text) {
-    if (!g_screen || !text) {
+static void format_size(uint64_t bytes, char *out, size_t out_size) {
+    if (bytes >= (1ULL << 30)) {
+        snprintf(out, out_size, "%.2f GiB", (double)bytes / (double)(1ULL << 30));
+    } else if (bytes >= (1ULL << 20)) {
+        snprintf(out, out_size, "%.1f MiB", (double)bytes / (double)(1ULL << 20));
+    } else if (bytes >= (1ULL << 10)) {
+        snprintf(out, out_size, "%.0f KiB", (double)bytes / (double)(1ULL << 10));
+    } else {
+        snprintf(out, out_size, "%llu B", (unsigned long long)bytes);
+    }
+}
+
+/* ETA: bytes remaining / bytes-per-second, as "12m34s", "1h05m" or "--". */
+static void format_eta(uint64_t remaining, uint64_t bps, char *out, size_t out_size) {
+    if (bps == 0 || remaining == 0) {
+        snprintf(out, out_size, "--");
         return;
     }
-    stringRGBA(g_screen, (Sint16)x, (Sint16)y, text, color.r, color.g, color.b, 255);
+    uint64_t secs = remaining / bps;
+    if (secs >= 3600) {
+        snprintf(out, out_size, "%lluh%02llum",
+                 (unsigned long long)(secs / 3600), (unsigned long long)((secs % 3600) / 60));
+    } else if (secs >= 60) {
+        snprintf(out, out_size, "%llum%02llus",
+                 (unsigned long long)(secs / 60), (unsigned long long)(secs % 60));
+    } else {
+        snprintf(out, out_size, "%llus", (unsigned long long)secs);
+    }
 }
 
-static void draw_textf(int x, int y, UiColor color, const char *fmt, ...) {
-    char buffer[512];
-    va_list args;
-
-    va_start(args, fmt);
-    vsnprintf(buffer, sizeof(buffer), fmt, args);
-    va_end(args);
-    draw_text(x, y, color, buffer);
+static void format_bps(uint64_t bps, char *out, size_t out_size) {
+    if (bps == 0) { snprintf(out, out_size, "--"); return; }
+    if (bps >= (1ULL << 20)) {
+        snprintf(out, out_size, "%.2f MiB/s", (double)bps / (double)(1ULL << 20));
+    } else if (bps >= (1ULL << 10)) {
+        snprintf(out, out_size, "%.1f KiB/s", (double)bps / (double)(1ULL << 10));
+    } else {
+        snprintf(out, out_size, "%llu B/s", (unsigned long long)bps);
+    }
 }
+
+static int percent_of(uint64_t off, uint64_t tot) {
+    if (tot == 0) return 0;
+    uint64_t p = (off * 100ULL) / tot;
+    return p > 100 ? 100 : (int)p;
+}
+
+static void hash_hex(const uint8_t hash[32], char out[65]) {
+    static const char hex_chars[] = "0123456789abcdef";
+    for (int j = 0; j < 32; j++) {
+        out[j * 2]     = hex_chars[(hash[j] >> 4) & 0x0F];
+        out[j * 2 + 1] = hex_chars[hash[j] & 0x0F];
+    }
+    out[64] = '\0';
+}
+
+static const char *basename_of(const char *path) {
+    const char *slash = path ? strrchr(path, '/') : NULL;
+    return slash ? slash + 1 : (path ? path : "");
+}
+
+/* Pill of fixed width with its label centred. */
+static void tag_fixed(int x, int y, int w, uint32_t color, const char *label) {
+    gui_rrect(x, y, w, TAG_H, TAG_H / 2, gui_mix(color, HEX_BG, 0.72f));
+    gui_text_mid(x + w / 2, y, TAG_H, GUI_F_SMALL, color, GUI_CENTER, w - 8, label);
+}
+
+/* Label / value line in a detail panel; returns the next y. */
+static int kv_row(int x, int y, int w, const char *label, const char *value, uint32_t value_color) {
+    gui_text(x, y + 2, GUI_F_SMALL, HEX_DIM, GUI_LEFT, label);
+    gui_text_fit(x + 112, y, GUI_F_BODY, value_color, GUI_LEFT, w - 112, value);
+    return y + 28;
+}
+
+/* Wrapped (up to `lines`) value in the small font; returns the next y. */
+static int kv_wrap(int x, int y, int w, const char *label, const char *value,
+                   uint32_t value_color, int lines) {
+    gui_text(x, y + 2, GUI_F_SMALL, HEX_DIM, GUI_LEFT, label);
+    int n = gui_text_wrap(x + 112, y + 2, GUI_F_SMALL, value_color, w - 112, lines, value);
+    if (n < 1) n = 1;
+    int lh = gui_line_h(GUI_F_SMALL);
+    return y + 6 + n * lh + 4;
+}
+
+static void begin_view(AppView view) {
+    gui_clear();
+    int x = gui_header(k_view_names[view]);
+    int tabs_x = x + 48;
+    if (tabs_x < 470) tabs_x = 470;
+    int bw = gui_button(tabs_x, GUI_HEADER_Y + GUI_HEADER_H / 2, "SELECT");
+    gui_tabs(tabs_x + bw + 8, GUI_HEADER_Y + 8, GUI_HEADER_H - 16,
+             k_view_names, APP_VIEW_COUNT, (int)view);
+    gui_header_status(g_online);
+}
+
+static void begin_screen(const char *section) {
+    gui_clear();
+    gui_header(section);
+    gui_header_status(g_online);
+}
+
+static uint32_t banner_tone(const char *s) {
+    if (!s) return HEX_ACCENT;
+    if (strstr(s, "fail") || strstr(s, "Fail") || strstr(s, "error") || strstr(s, "Error"))
+        return HEX_ERR;
+    if (strstr(s, "Offline") || strstr(s, "offline") || strstr(s, "conflict"))
+        return HEX_WARN;
+    return HEX_ACCENT;
+}
+
+static void draw_banner(const char *text, const char *right) {
+    const char *t = (text && text[0]) ? text : "Ready.";
+    int right_w = 0;
+    gui_banner(LIST_X, BANNER_Y, GUI_W - 2 * GUI_MARGIN_X, BANNER_H, banner_tone(t), NULL);
+    if (right && right[0]) {
+        right_w = gui_text_w(GUI_F_SMALL, right);
+        if (right_w > 420) right_w = 420;
+        gui_text_mid(GUI_W - GUI_MARGIN_X - 16 - right_w, BANNER_Y, BANNER_H, GUI_F_SMALL,
+                     HEX_DIM, GUI_LEFT, 420, right);
+    }
+    gui_text_mid(LIST_X + 20, BANNER_Y, BANNER_H, GUI_F_BODY, HEX_TEXT, GUI_LEFT,
+                 GUI_W - 2 * GUI_MARGIN_X - 56 - right_w, t);
+}
+
+/* Selection bar for list row `row` (0-based on screen). */
+static int row_y(int row) { return ROWS_Y + row * ROW_H; }
+
+static void draw_row_bar(int row) {
+    gui_rrect(LIST_X + 10, row_y(row), LIST_W - 30, ROW_H - 2, 8, HEX_ACCENT);
+}
+
+static void draw_empty(const char *title, const char *hint) {
+    int cx = LIST_X + LIST_W / 2;
+    int cy = PANEL_Y + PANEL_H / 2 - 30;
+    gui_circle(cx, cy - 28, 18, HEX_PANEL_HI);
+    gui_rrect(cx - 7, cy - 35, 14, 14, 3, HEX_MUTED);
+    gui_text(cx, cy, GUI_F_TITLE, HEX_TEXT, GUI_CENTER, title);
+    if (hint) {
+        char lines[3][GUI_WRAP_LINE];
+        int n = gui_wrap(hint, GUI_F_SMALL, LIST_W - 120, lines, 3);
+        for (int i = 0; i < n; i++)
+            gui_text(cx, cy + 36 + i * gui_line_h(GUI_F_SMALL), GUI_F_SMALL, HEX_DIM,
+                     GUI_CENTER, lines[i]);
+    }
+}
+
+static void finish_view(void) {
+    gui_present(true);
+}
+
+/* ------------------------------------------------------------------ */
+/* Init / shutdown                                                     */
+/* ------------------------------------------------------------------ */
 
 bool ui_init(char *error_buf, size_t error_buf_size) {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) != 0) {
-        snprintf(error_buf, error_buf_size, "SDL_Init failed: %s", SDL_GetError());
-        return false;
-    }
-
-    g_screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32, SDL_HWSURFACE | SDL_DOUBLEBUF);
-    if (!g_screen) {
-        /* Fall back to software surface */
-        g_screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32, SDL_SWSURFACE);
-        if (!g_screen) {
-            snprintf(error_buf, error_buf_size, "SDL_SetVideoMode failed: %s", SDL_GetError());
-            SDL_Quit();
-            return false;
-        }
-    }
-
-    SDL_ShowCursor(SDL_DISABLE);
+    if (!gui_init(error_buf, error_buf_size)) return false;
+    g_ready = true;
+    /* Boot backdrop so early progress cards have something behind them. */
+    begin_screen("Starting");
+    gui_present(true);
     return true;
 }
 
 void ui_shutdown(void) {
-    g_screen = NULL;
-    SDL_Quit();
+    g_ready = false;
+    gui_shutdown();
 }
+
+void ui_clear(void) {
+    if (!g_ready) return;
+    gui_clear();
+}
+
+/* ------------------------------------------------------------------ */
+/* Saves view                                                          */
+/* ------------------------------------------------------------------ */
 
 static const char *kind_label(const TitleInfo *title) {
     switch (title->kind) {
@@ -92,94 +255,116 @@ static const char *kind_label(const TitleInfo *title) {
     }
 }
 
-/* Tab strip — drawn in the right half of every view's header bar so the
- * user always sees which view they're in, what comes next, and how to
- * get there.  Active tab is bright yellow; others sit in muted accent. */
-static void draw_tab_strip(AppView current) {
-    if (!g_screen) return;
-    static const char *names[APP_VIEW_COUNT] = {
-        "Saves", "ROM Catalog", "Downloads"
-    };
-    UiColor active   = {255, 222, 89};   /* hilite yellow */
-    UiColor inactive = {120, 145, 180};  /* muted accent */
-    UiColor sep      = {88, 100, 132};
-
-    /* Right-anchor the strip so it never overlaps the version string on
-     * the left.  We draw a fixed width: "Saves | ROM Catalog | Downloads
-     * (SELECT → next)" is ~78 chars at 8 px/char ≈ 620 px.  Plenty of
-     * room on a 1920-pixel header. */
-    int x = SCREEN_WIDTH - 700;
-    int y = 18;
-
-    for (int i = 0; i < APP_VIEW_COUNT; i++) {
-        UiColor color = (i == (int)current) ? active : inactive;
-        char buf[48];
-        snprintf(buf, sizeof(buf), "[%d] %s", i + 1, names[i]);
-        draw_text(x, y, color, buf);
-        x += 9 * (int)strlen(buf) + 16;
-        if (i + 1 < APP_VIEW_COUNT) {
-            draw_text(x, y, sep, "|");
-            x += 16;
-        }
-    }
-    /* Hint immediately to the right of the strip — same line so the
-     * user's eye can sweep header → strip → hint in one read. */
-    int next = ((int)current + 1) % APP_VIEW_COUNT;
-    char hint[64];
-    /* Plain ASCII arrow — SDL_gfx's bitmap font on PS3 doesn't render
-     * non-ASCII glyphs reliably. */
-    snprintf(hint, sizeof(hint), "(SELECT -> %s)", names[next]);
-    draw_text(x, y, active, hint);
+static uint32_t kind_color(const TitleInfo *title) {
+    return title->kind == SAVE_KIND_PS3 ? HEX_PS3 : HEX_PS1;
 }
 
-void ui_clear(void) {
-    if (!g_screen) {
-        return;
+static void title_status_style(TitleStatus st, const char **label, uint32_t *color,
+                               const char **long_label) {
+    switch (st) {
+        case TITLE_STATUS_LOCAL_ONLY:
+            *label = "LOCAL";    *color = HEX_WARN; *long_label = "Only on this PS3"; break;
+        case TITLE_STATUS_SERVER_ONLY:
+            *label = "SERVER";   *color = HEX_INFO; *long_label = "Only on the server"; break;
+        case TITLE_STATUS_SYNCED:
+            *label = "SYNCED";   *color = HEX_OK;   *long_label = "Up to date"; break;
+        case TITLE_STATUS_UPLOAD:
+            *label = "UPLOAD";   *color = HEX_WARN; *long_label = "Changed here - upload"; break;
+        case TITLE_STATUS_DOWNLOAD:
+            *label = "DOWNLOAD"; *color = HEX_INFO; *long_label = "Newer on server - download"; break;
+        case TITLE_STATUS_CONFLICT:
+            *label = "CONFLICT"; *color = HEX_ERR;  *long_label = "Both sides changed"; break;
+        default:
+            *label = "UNCHECKED"; *color = HEX_DIM; *long_label = "Not compared yet"; break;
     }
-    SDL_FillRect(g_screen, NULL, SDL_MapRGB(g_screen->format, 8, 10, 18));
 }
 
-void ui_draw_message(const char *title, const char *message, const char *footer) {
-    const char *cursor;
-    char line[256];
-    int y = 40;
+static void draw_save_detail(const TitleInfo *title) {
+    int x = DETAIL_X + 22;
+    int w = DETAIL_W - 44;
+    int y = PANEL_Y + 18;
+    const char *label, *long_label;
+    uint32_t color;
+    char buf[160];
 
-    if (!g_screen) {
-        return;
+    gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+
+    int n = gui_text_wrap(x, y, GUI_F_HUGE, HEX_TEXT, w, 2,
+                          title->name[0] ? title->name : title->game_code);
+    y += n * gui_line_h(GUI_F_HUGE) + 8;
+
+    title_status_style(title->status, &label, &color, &long_label);
+    int tx = x;
+    tx += gui_tag(tx, y, TAG_H, kind_color(title), kind_label(title)) + 6;
+    tx += gui_tag(tx, y, TAG_H, color, label) + 6;
+    if (title->ps1_shared_card) {
+        snprintf(buf, sizeof(buf), "Card slot %d", title->ps1_slot_index + 1);
+        gui_tag(tx, y, TAG_H, HEX_DIM, buf);
     }
-    if (g_xmb_open) {
-        return;
+    y += TAG_H + 14;
+
+    y = kv_row(x, y, w, "Code", title->game_code, HEX_TEXT);
+    y = kv_row(x, y, w, "Status", long_label, color);
+    if (title->server_only) {
+        y = kv_row(x, y, w, "Local", "Not on this PS3", HEX_DIM);
+    } else {
+        char size_buf[32];
+        format_size(title->total_size, size_buf, sizeof(size_buf));
+        snprintf(buf, sizeof(buf), "%s  -  %d file%s", size_buf, title->file_count,
+                 title->file_count == 1 ? "" : "s");
+        y = kv_row(x, y, w, "Size", buf, HEX_TEXT);
+    }
+    y = kv_wrap(x, y, w, "Location",
+                title->server_only ? "(not on device)" : title->local_path,
+                title->server_only ? HEX_DIM : HEX_TEXT, 2);
+
+    gui_rect(x, y + 2, w, 1, HEX_LINE);
+    y += 12;
+
+    /* Hashes: a label line (with the match verdict on the right), then the
+     * 64 hex digits as two lines of 32. */
+    int slh = gui_line_h(GUI_F_SMALL) + 3;
+    char local_hex[65];
+    bool have_server = title->on_server && title->server_meta_loaded && title->server_hash[0];
+    if (title->hash_calculated) hash_hex(title->hash, local_hex);
+
+    gui_text(x, y, GUI_F_SMALL, HEX_DIM, GUI_LEFT, "Local hash");
+    if (title->hash_calculated) {
+        gui_textf(x, y + slh, GUI_F_SMALL, HEX_TEXT, GUI_LEFT, "%.32s", local_hex);
+        gui_textf(x, y + 2 * slh, GUI_F_SMALL, HEX_TEXT, GUI_LEFT, "%.32s", local_hex + 32);
+    } else {
+        gui_text(x, y + slh, GUI_F_SMALL, HEX_MUTED, GUI_LEFT,
+                 title->server_only ? "No local save" : "Not computed yet - press L3");
+    }
+    y += 3 * slh + 12;
+
+    gui_text(x, y, GUI_F_SMALL, HEX_DIM, GUI_LEFT, "Server hash");
+    if (title->hash_calculated && have_server) {
+        bool same = strcmp(local_hex, title->server_hash) == 0;
+        const char *verdict = same ? "Hashes match" : "Hashes differ";
+        gui_tag(x + w - gui_pill_w(TAG_H, GUI_F_SMALL, verdict), y - 2, TAG_H,
+                same ? HEX_OK : HEX_WARN, verdict);
+    }
+    if (!title->on_server) {
+        gui_text(x, y + slh, GUI_F_SMALL, HEX_MUTED, GUI_LEFT, "Not on server");
+    } else if (!title->server_meta_loaded) {
+        gui_text(x, y + slh, GUI_F_SMALL, HEX_MUTED, GUI_LEFT, "Loading...");
+    } else if (title->server_hash[0]) {
+        gui_textf(x, y + slh, GUI_F_SMALL, HEX_TEXT, GUI_LEFT, "%.32s", title->server_hash);
+        if (strlen(title->server_hash) > 32)
+            gui_textf(x, y + 2 * slh, GUI_F_SMALL, HEX_TEXT, GUI_LEFT, "%.32s",
+                      title->server_hash + 32);
+    } else {
+        gui_text(x, y + slh, GUI_F_SMALL, HEX_MUTED, GUI_LEFT, "Unavailable");
     }
 
-    ui_clear();
-    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1, 8, 10, 18, 255);
-    draw_text(24, y, (UiColor){88, 208, 255}, title ? title : "GameSync PS3");
-    y += 36;
-
-    if (message) {
-        cursor = message;
-        while (*cursor != '\0') {
-            size_t len = strcspn(cursor, "\n");
-            if (len >= sizeof(line)) {
-                len = sizeof(line) - 1;
-            }
-            memcpy(line, cursor, len);
-            line[len] = '\0';
-            draw_text(24, y, (UiColor){240, 240, 240}, line);
-            y += LINE_HEIGHT;
-            cursor += len;
-            if (*cursor == '\n') {
-                cursor++;
-            }
-        }
-    }
-
-    if (footer && footer[0] != '\0') {
-        draw_text(24, SCREEN_HEIGHT - 28, (UiColor){160, 168, 184}, footer);
-    }
-
-    SDL_PumpEvents();
-    SDL_Flip(g_screen);
+    /* Secondary actions pinned to the bottom of the panel. */
+    static const GuiHint more1[] = { { "R1", "Compare files" }, { "L3", "Rehash" } };
+    static const GuiHint more2[] = { { "R3", "Sync all" } };
+    int by = PANEL_Y + PANEL_H - 70;
+    gui_rect(x, by - 8, w, 1, HEX_LINE);
+    gui_hints(x, by + 12, more1, 2, 22);
+    gui_hints(x, by + 42, more2, 1, 22);
 }
 
 void ui_draw_list(
@@ -192,140 +377,101 @@ void ui_draw_list(
     bool config_created,
     bool show_server_only
 ) {
-    int i;
-    int end;
-    int y = 18;
-    UiColor dim = {160, 168, 184};
-    UiColor white = {240, 240, 240};
-    UiColor accent = {88, 208, 255};
-    UiColor hilite = {255, 222, 89};
-    UiColor border = {44, 58, 82};
-    if (g_xmb_open) {
-        return;
-    }
+    char buf[300];
+    if (!g_ready || g_xmb_open) return;
 
-    ui_clear();
-    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
-    rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48, border.r, border.g, border.b, 255);
-    draw_textf(24, y, accent, "GameSync PS3 v%s", APP_VERSION);
-    draw_tab_strip(APP_VIEW_SAVES);
-    y += 22;
-    draw_textf(24, y, white, "Server: %s", state->server_url);
-    y += 18;
-    draw_textf(
-        24,
-        y,
-        dim,
-        "User: %08d | Showing: %d of %d%s",
-        state->selected_user,
-        visible_count,
-        state->num_titles,
-        config_created ? " | debug config auto-created" : ""
-    );
-    draw_text(24, SCREEN_HEIGHT - 28, dim, status_line ? status_line : "Ready.");
-    draw_textf(24, SCREEN_HEIGHT - 46, dim,
-        "Up/Dn: nav   X: sync   R3: sync all   Sq: upload   Tri: download   L3: hash   R1: compare   O: rescan   L1: filter[%s]   L2/R2: user   Start: config   Select: views   PS/Home: exit",
-        show_server_only ? "ON" : "OFF");
+    begin_view(APP_VIEW_SAVES);
+    gui_panel(LIST_X, PANEL_Y, LIST_W, PANEL_H);
+
+    /* Toolbar: user, filter, count */
+    int tx = LIST_X + 16;
+    int cy = TOOLBAR_Y + TOOLBAR_H / 2;
+    tx += gui_button(tx, cy, "L2") + 4;
+    tx += gui_button(tx, cy, "R2") + 8;
+    if (state->selected_user > 0) snprintf(buf, sizeof(buf), "User %08d", state->selected_user);
+    else                          snprintf(buf, sizeof(buf), "User auto");
+    tx += gui_text_mid(tx, TOOLBAR_Y, TOOLBAR_H, GUI_F_SMALL, HEX_TEXT, GUI_LEFT, 0, buf) + 22;
+    tx += gui_button(tx, cy, "L1") + 8;
+    tx += gui_tag(tx, cy - TAG_H / 2, TAG_H, show_server_only ? HEX_INFO : HEX_DIM,
+                  show_server_only ? "Server-only shown" : "Server-only hidden") + 10;
+    if (config_created)
+        gui_tag(tx, cy - TAG_H / 2, TAG_H, HEX_WARN, "New config");
+    snprintf(buf, sizeof(buf), "%d of %d saves", visible_count, state->num_titles);
+    gui_text_mid(LIST_X + LIST_W - 22, TOOLBAR_Y, TOOLBAR_H, GUI_F_SMALL, HEX_DIM,
+                 GUI_RIGHT, 0, buf);
+    gui_rect(LIST_X + 12, ROWS_Y - 10, LIST_W - 24, 1, HEX_LINE);
 
     if (visible_count == 0) {
-        draw_text(28, LIST_START_Y, white, "No saves found.");
+        draw_empty("No saves found",
+                   "Press Circle to rescan, START to check the settings, or L1 to show "
+                   "saves that only exist on the server.");
+        gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+        gui_text_wrap(DETAIL_X + 22, PANEL_Y + 22, GUI_F_BODY, HEX_DIM, DETAIL_W - 44, 4,
+                      "PS3 saves are read from the selected user's savedata folder; "
+                      "PS1 cards from the memory card images.");
     } else {
-        end = scroll_offset + LIST_VISIBLE_ROWS;
-        if (end > visible_count) {
-            end = visible_count;
-        }
-
-        for (i = scroll_offset; i < end; i++) {
+        int end = scroll_offset + UI_LIST_ROWS;
+        if (end > visible_count) end = visible_count;
+        for (int i = scroll_offset; i < end; i++) {
             const TitleInfo *title = &state->titles[visible[i]];
-            char line[256];
-            bool is_selected = (i == selected);
+            int r = i - scroll_offset;
+            int y = row_y(r);
+            bool sel = (i == selected);
+            const char *label, *long_label;
+            uint32_t color;
 
-            /* Status label and base color */
-            const char *status_label;
-            UiColor status_color;
-            switch (title->status) {
-                case TITLE_STATUS_LOCAL_ONLY:
-                    status_label = "LOC "; status_color = (UiColor){255, 200,  80}; break;
-                case TITLE_STATUS_SERVER_ONLY:
-                    status_label = "SVR "; status_color = (UiColor){ 80, 180, 255}; break;
-                case TITLE_STATUS_SYNCED:
-                    status_label = "SYNC"; status_color = (UiColor){ 80, 220, 120}; break;
-                case TITLE_STATUS_UPLOAD:
-                    status_label = "UP  "; status_color = (UiColor){140, 180, 255}; break;
-                case TITLE_STATUS_DOWNLOAD:
-                    status_label = "DL  "; status_color = (UiColor){ 80, 220, 220}; break;
-                case TITLE_STATUS_CONFLICT:
-                    status_label = "CONF"; status_color = (UiColor){255,  80,  80}; break;
-                default:
-                    status_label = "?   "; status_color = (UiColor){160, 168, 184}; break;
-            }
+            if (sel) draw_row_bar(r);
+            title_status_style(title->status, &label, &color, &long_label);
+            int ty = y + (ROW_H - 2 - TAG_H) / 2;
+            tag_fixed(LIST_X + 20, ty, STATUS_TAG_W, color, label);
+            tag_fixed(LIST_X + 20 + STATUS_TAG_W + 8, ty, 46, kind_color(title), kind_label(title));
 
-            UiColor color = is_selected ? hilite : status_color;
-            char marker = is_selected ? '>' : ' ';
-            const char *display_name = title->name[0] ? title->name : "";
-            snprintf(
-                line,
-                sizeof(line),
-                "%c [%s] %-3s  %-10.10s  %-40.40s  %u",
-                marker,
-                status_label,
-                kind_label(title),
-                title->game_code,
-                display_name,
-                (unsigned int)title->total_size
-            );
-            draw_text(28, LIST_START_Y + ((i - scroll_offset) * LINE_HEIGHT), color, line);
+            int name_x = LIST_X + 20 + STATUS_TAG_W + 8 + 46 + 12;
+            int code_w = gui_text_w(GUI_F_SMALL, title->game_code);
+            gui_text_mid(LIST_X + LIST_W - 34, y, ROW_H - 2, GUI_F_SMALL,
+                         sel ? HEX_INK : HEX_DIM, GUI_RIGHT, 0, title->game_code);
+            gui_text_mid(name_x, y, ROW_H - 2, GUI_F_BODY,
+                         sel ? HEX_INK : (title->server_only ? HEX_DIM : HEX_TEXT),
+                         GUI_LEFT, LIST_X + LIST_W - 46 - code_w - name_x,
+                         title->name[0] ? title->name : title->game_code);
         }
+        gui_scrollbar(LIST_X + LIST_W - 14, ROWS_Y, UI_LIST_ROWS * ROW_H - 2,
+                      scroll_offset, UI_LIST_ROWS, visible_count);
 
-        if (selected >= 0 && selected < visible_count) {
-            const TitleInfo *title = &state->titles[visible[selected]];
-            char hash_hex[65];
-
-            if (title->hash_calculated) {
-                static const char hex_chars[] = "0123456789abcdef";
-                size_t j;
-                for (j = 0; j < 32; j++) {
-                    hash_hex[j * 2] = hex_chars[(title->hash[j] >> 4) & 0x0F];
-                    hash_hex[j * 2 + 1] = hex_chars[title->hash[j] & 0x0F];
-                }
-                hash_hex[64] = '\0';
-            } else {
-                snprintf(hash_hex, sizeof(hash_hex), "not computed");
-            }
-
-            boxRGBA(g_screen, 1020, 88, SCREEN_WIDTH - 24, 430, 12, 18, 30, 255);
-            rectangleRGBA(g_screen, 1020, 88, SCREEN_WIDTH - 24, 430, border.r, border.g, border.b, 255);
-            static const char *status_names[] = {
-                "Unknown", "Local only", "Server only",
-                "Synced", "Need upload", "Need download", "Conflict"
-            };
-            int sidx = (int)title->status;
-            if (sidx < 0 || sidx > 6) sidx = 0;
-            draw_textf(1036, 104, accent, "Selected: %s", title->game_code);
-            draw_textf(1036, 128, white, "Status: %s", status_names[sidx]);
-            draw_textf(1036, 152, white, "Name: %.46s", title->name[0] ? title->name : "(unknown)");
-            draw_textf(1036, 174, white, "Kind: %s", kind_label(title));
-            draw_textf(1036, 196, white, "Files: %d", title->file_count);
-            draw_textf(1036, 218, white, "Size: %u", (unsigned int)title->total_size);
-            draw_text(1036, 244, dim, "Path:");
-            draw_text(1036, 266, white, title->server_only ? "(not on device)" : title->local_path);
-            draw_text(1036, 296, dim, "Local Hash:");
-            draw_text(1036, 318, white, hash_hex);
-            draw_text(1036, 348, dim, "Server Hash:");
-            if (!title->on_server) {
-                draw_text(1036, 370, dim, "(not on server)");
-            } else if (!title->server_meta_loaded) {
-                draw_text(1036, 370, dim, "(loading...)");
-            } else if (title->server_hash[0]) {
-                draw_text(1036, 370, white, title->server_hash);
-            } else {
-                draw_text(1036, 370, dim, "(unavailable)");
-            }
-        }
+        if (selected >= 0 && selected < visible_count)
+            draw_save_detail(&state->titles[visible[selected]]);
+        else
+            gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
     }
 
-    SDL_PumpEvents();
-    SDL_Flip(g_screen);
+    snprintf(buf, sizeof(buf), "Server: %s", state->server_url);
+    draw_banner(status_line, buf);
+
+    static const GuiHint hints[] = {
+        { "CROSS", "Sync" }, { "SQUARE", "Upload" }, { "TRIANGLE", "Download" },
+        { "CIRCLE", "Rescan" }, { "LR", "Page" }, { "START", "Settings" },
+        { "SELECT", "Next view" },
+    };
+    gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
+    finish_view();
+}
+
+/* ------------------------------------------------------------------ */
+/* Settings                                                            */
+/* ------------------------------------------------------------------ */
+
+static void mask_key(const char *key, char *out, size_t out_size) {
+    size_t len = key ? strlen(key) : 0;
+    if (len == 0) { snprintf(out, out_size, "(not set)"); return; }
+    if (len <= 4) { snprintf(out, out_size, "****"); return; }
+    snprintf(out, out_size, "%.4s********", key);
+}
+
+static void draw_switch(int x_right, int cy, bool on) {
+    int w = 48, h = 24;
+    int x = x_right - w;
+    gui_rrect(x, cy - h / 2, w, h, h / 2, on ? HEX_ACCENT : HEX_LINE);
+    gui_circle(on ? x + w - h / 2 : x + h / 2, cy, h / 2 - 4, on ? HEX_INK : HEX_DIM);
 }
 
 void ui_draw_config_editor(
@@ -337,106 +483,173 @@ void ui_draw_config_editor(
     int selected_field,
     bool dirty
 ) {
-    UiColor dim = {160, 168, 184};
-    UiColor white = {240, 240, 240};
-    UiColor accent = {88, 208, 255};
-    UiColor hilite = {255, 222, 89};
-    UiColor border = {44, 58, 82};
-    const char *markers[] = {" ", " ", " ", " ", " ", " ", " "};
-    char user_buf[32];
-    char line[512];
+    static const char *labels[7] = {
+        "Server URL", "API key", "PS3 user", "Scan PS3 saves", "Scan PS1 cards",
+        "Save and apply", "Cancel"
+    };
+    static const char *help[7] = {
+        "Address of your GameSync server, e.g. http://192.168.1.100:8000",
+        "The server's SYNC_API_KEY. Sent as the X-API-Key header on every request.",
+        "Which PS3 user's saves to scan. Auto picks the first user that has save data. "
+        "L2 / R2 also switch users from the Saves view.",
+        "Include PS3 HDD save folders (dev_hdd0/home/<user>/savedata).",
+        "Include PS1 memory card images (.VM1) and the saves inside them.",
+        "Write config.txt, rescan the saves and reconnect to the server.",
+        "Leave without saving. Changes made here are discarded.",
+    };
+    char user_buf[32], key_buf[64];
+    if (!g_ready || g_xmb_open) return;
 
-    if (!g_screen || g_xmb_open) {
-        return;
+    /* The editor loop calls this ~20 times a second; only repaint when a
+     * value changed or something else (a dialog, the text editor) drew. */
+    static unsigned last_frame = 0;
+    static char last_sig[512];
+    char sig[512];
+    snprintf(sig, sizeof(sig), "%s|%s|%d|%d|%d|%d|%d|%d", server_url, api_key, selected_user,
+             scan_ps3, scan_ps1, selected_field, dirty, g_online);
+    if (last_frame != 0 && last_frame == gui_frame_id() && strcmp(sig, last_sig) == 0) return;
+
+    if (selected_user <= 0) snprintf(user_buf, sizeof(user_buf), "Auto");
+    else                    snprintf(user_buf, sizeof(user_buf), "%08d", selected_user);
+    mask_key(api_key, key_buf, sizeof(key_buf));
+
+    begin_screen("Settings");
+    gui_panel(LIST_X, PANEL_Y, LIST_W, PANEL_H);
+    gui_text_mid(LIST_X + 22, TOOLBAR_Y, TOOLBAR_H, GUI_F_BOLD, HEX_TEXT, GUI_LEFT, 0,
+                 "Settings");
+    gui_tag(LIST_X + LIST_W - 22 - gui_pill_w(TAG_H, GUI_F_SMALL,
+                                               dirty ? "Unsaved changes" : "Saved"),
+            TOOLBAR_Y + (TOOLBAR_H - TAG_H) / 2, TAG_H, dirty ? HEX_WARN : HEX_OK,
+            dirty ? "Unsaved changes" : "Saved");
+    gui_rect(LIST_X + 12, ROWS_Y - 10, LIST_W - 24, 1, HEX_LINE);
+
+    const int rh = 46;
+    for (int i = 0; i < 7; i++) {
+        int y = ROWS_Y + i * rh + (i >= 5 ? 18 : 0);
+        bool sel = (i == selected_field);
+        if (i == 5) gui_rect(LIST_X + 20, y - 12, LIST_W - 40, 1, HEX_LINE);
+        if (sel) gui_rrect(LIST_X + 10, y, LIST_W - 20, rh - 6, 9, HEX_ACCENT);
+
+        uint32_t fg = sel ? HEX_INK : (i >= 5 ? HEX_ACCENT2 : HEX_TEXT);
+        gui_text_mid(LIST_X + 28, y, rh - 6, GUI_F_BODY, fg, GUI_LEFT, 300, labels[i]);
+
+        int vx = LIST_X + LIST_W - 30;
+        int cy = y + (rh - 6) / 2;
+        uint32_t vc = sel ? HEX_INK : HEX_DIM;
+        switch (i) {
+            case 0: gui_text_mid(vx, y, rh - 6, GUI_F_BODY, vc, GUI_RIGHT, 400, server_url); break;
+            case 1: gui_text_mid(vx, y, rh - 6, GUI_F_BODY, vc, GUI_RIGHT, 0, key_buf); break;
+            case 2: {
+                int bw = gui_text_w(GUI_F_BODY, user_buf);
+                gui_text_mid(vx, y, rh - 6, GUI_F_BODY, vc, GUI_RIGHT, 0, user_buf);
+                if (sel) {
+                    gui_line(vx - bw - 22, cy, vx - bw - 14, cy - 6, 2, HEX_INK);
+                    gui_line(vx - bw - 22, cy, vx - bw - 14, cy + 6, 2, HEX_INK);
+                }
+                break;
+            }
+            case 3: draw_switch(vx, cy, scan_ps3); break;
+            case 4: draw_switch(vx, cy, scan_ps1); break;
+            default:
+                gui_line(vx - 8, cy - 6, vx, cy, 2, vc);
+                gui_line(vx - 8, cy + 6, vx, cy, 2, vc);
+                break;
+        }
     }
 
-    ui_clear();
-    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
-    rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48,
-                  border.r, border.g, border.b, 255);
-    draw_text(24, 18, accent, "GameSync PS3 -- Config");
-    draw_text(24, 44, dim, dirty ? "Unsaved changes" : "Saved values");
+    /* Help panel */
+    int sel = (selected_field >= 0 && selected_field < 7) ? selected_field : 0;
+    gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+    int x = DETAIL_X + 22, w = DETAIL_W - 44, y = PANEL_Y + 18;
+    gui_rrect(x, y + 4, 5, 22, 2, HEX_ACCENT);
+    gui_text(x + 14, y, GUI_F_TITLE, HEX_TEXT, GUI_LEFT, labels[sel]);
+    y += 44;
+    int n = gui_text_wrap(x, y, GUI_F_BODY, HEX_DIM, w, 6, help[sel]);
+    y += n * gui_line_h(GUI_F_BODY) + 20;
+    gui_rect(x, y, w, 1, HEX_LINE);
+    y += 14;
+    y = kv_wrap(x, y, w, "Config file", CONFIG_PATH, HEX_TEXT, 3);
+    y = kv_wrap(x, y, w, "Debug log", DEBUG_LOG_FILE, HEX_TEXT, 3);
 
-    if (selected_user <= 0) {
-        snprintf(user_buf, sizeof(user_buf), "Auto");
-    } else {
-        snprintf(user_buf, sizeof(user_buf), "%08d", selected_user);
-    }
+    draw_banner(dirty ? "Unsaved changes - choose Save and apply to keep them."
+                      : "Settings are stored in config.txt on the PS3 HDD.", NULL);
 
-    if (selected_field >= 0 && selected_field < 7) {
-        markers[selected_field] = ">";
-    }
-
-    snprintf(line, sizeof(line), "%s Server URL: %s", markers[0], server_url);
-    draw_text(28, 104, selected_field == 0 ? hilite : white, line);
-    snprintf(line, sizeof(line), "%s API Key:    %s", markers[1], api_key);
-    draw_text(28, 132, selected_field == 1 ? hilite : white, line);
-    snprintf(line, sizeof(line), "%s User:       %s", markers[2], user_buf);
-    draw_text(28, 160, selected_field == 2 ? hilite : white, line);
-    snprintf(line, sizeof(line), "%s Scan PS3:   %s", markers[3], scan_ps3 ? "ON" : "OFF");
-    draw_text(28, 188, selected_field == 3 ? hilite : white, line);
-    snprintf(line, sizeof(line), "%s Scan PS1:   %s", markers[4], scan_ps1 ? "ON" : "OFF");
-    draw_text(28, 216, selected_field == 4 ? hilite : white, line);
-    snprintf(line, sizeof(line), "%s Save and Apply", markers[5]);
-    draw_text(28, 272, selected_field == 5 ? hilite : accent, line);
-    snprintf(line, sizeof(line), "%s Cancel", markers[6]);
-    draw_text(28, 300, selected_field == 6 ? hilite : accent, line);
-
-    draw_text(28, 372, dim, "Up/Down: select field");
-    draw_text(28, 394, dim, "Cross: edit/toggle/confirm");
-    draw_text(28, 416, dim, "Left/Right: change user or toggle switch");
-    draw_text(28, 438, dim, "Circle: cancel editor");
-
-    draw_text(24, SCREEN_HEIGHT - 28, dim,
-              "Start: config   Cross: select   Circle: cancel   PS/Home: exit");
-
-    SDL_PumpEvents();
-    SDL_Flip(g_screen);
+    static const GuiHint hints[] = {
+        { "UD", "Select" }, { "LR", "Change" }, { "CROSS", "Edit / toggle" },
+        { "CIRCLE", "Back" },
+    };
+    gui_footer(hints, 4);
+    finish_view();
+    last_frame = gui_frame_id();
+    snprintf(last_sig, sizeof(last_sig), "%s", sig);
 }
 
 void ui_draw_text_editor(const char *label, const char *value, int cursor_pos) {
-    UiColor dim = {160, 168, 184};
-    UiColor white = {240, 240, 240};
-    UiColor accent = {88, 208, 255};
-    UiColor hilite = {255, 222, 89};
-    char caret[512];
-    int caret_x;
-    int value_len;
+    if (!g_ready || g_xmb_open) return;
+    if (!value) value = "";
 
-    if (!g_screen || g_xmb_open) {
-        return;
-    }
+    /* Same repaint-only-on-change rule as the settings screen. */
+    static unsigned last_frame = 0;
+    static char last_sig[600];
+    char sig[600];
+    snprintf(sig, sizeof(sig), "%d|%s|%s", cursor_pos, label ? label : "", value);
+    if (last_frame != 0 && last_frame == gui_frame_id() && strcmp(sig, last_sig) == 0) return;
 
-    ui_clear();
-    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
-    draw_text(24, 18, accent, "GameSync PS3 -- Text Editor");
-    draw_textf(24, 76, accent, "%s", label ? label : "Value");
-    draw_text(24, 120, white, value ? value : "");
+    gui_backdrop();
+    int cw = 920, ch = 300;
+    int cx = (GUI_W - cw) / 2, cy = (GUI_H - ch) / 2 - 20;
+    gui_card(cx, cy, cw, ch, label ? label : "Edit value", HEX_ACCENT);
 
-    memset(caret, ' ', sizeof(caret));
-    caret[sizeof(caret) - 1] = '\0';
-    value_len = value ? (int)strlen(value) : 0;
+    int len = (int)strlen(value);
     if (cursor_pos < 0) cursor_pos = 0;
-    if (cursor_pos > value_len) cursor_pos = value_len;
-    if (cursor_pos >= (int)sizeof(caret) - 2) cursor_pos = (int)sizeof(caret) - 3;
-    caret[cursor_pos] = '^';
-    caret[cursor_pos + 1] = '\0';
-    caret_x = 24;
-    draw_text(caret_x, 142, hilite, caret);
+    if (cursor_pos > len) cursor_pos = len;
 
-    draw_text(24, 220, dim, "Left/Right: move cursor");
-    draw_text(24, 242, dim, "Up/Down: change current character");
-    draw_text(24, 264, dim, "Square: insert space   Triangle: delete");
-    draw_text(24, 286, dim, "Cross: accept   Circle: cancel");
+    /* Input box, scrolled so the cursor stays visible. */
+    int bx = cx + 24, by = cy + 76, bw = cw - 48, bh = 54;
+    gui_rrect(bx - 1, by - 1, bw + 2, bh + 2, 10, HEX_ACCENT);
+    gui_rrect(bx, by, bw, bh, 10, HEX_BG);
 
-    draw_text(24, SCREEN_HEIGHT - 28, dim,
-              "Up/Dn: char   Left/Right: cursor   Sq/Tri: insert/delete   Cross: save   Circle: cancel");
+    int inner = bw - 40;
+    int start = 0;
+    char tmp[512];
+    for (;;) {
+        int n = cursor_pos + 1 - start;
+        if (n > len - start) n = len - start;
+        if (n < 0) n = 0;
+        snprintf(tmp, sizeof(tmp), "%.*s", n, value + start);
+        if (gui_text_w(GUI_F_TITLE, tmp) + 20 <= inner || start >= cursor_pos) break;
+        start++;
+    }
+    snprintf(tmp, sizeof(tmp), "%.*s", cursor_pos - start, value + start);
+    int caret_x = bx + 20 + gui_text_w(GUI_F_TITLE, tmp);
+    char cur[2] = { cursor_pos < len ? value[cursor_pos] : ' ', '\0' };
+    int cur_w = gui_text_w(GUI_F_TITLE, cur[0] == ' ' ? "n" : cur);
+    int ty = by + (bh - gui_line_h(GUI_F_TITLE)) / 2;
+    gui_rrect(caret_x - 1, by + 9, cur_w + 2, bh - 18, 4, HEX_ACCENT);
+    gui_text_fit(bx + 20, ty, GUI_F_TITLE, HEX_TEXT, GUI_LEFT, inner, value + start);
+    /* Re-draw the character under the caret in ink so it reads on teal. */
+    if (cur[0] != ' ') gui_text(caret_x, ty, GUI_F_TITLE, HEX_INK, GUI_LEFT, cur);
 
-    SDL_PumpEvents();
-    SDL_Flip(g_screen);
+    gui_textf(bx, by + bh + 14, GUI_F_SMALL, HEX_DIM, GUI_LEFT,
+              "Position %d of %d   -   characters: a-z A-Z 0-9 : / . _ - ? & = %% + [ ] ( ) @ ,",
+              cursor_pos + 1, len + (cursor_pos >= len ? 1 : 0));
+
+    static const GuiHint hints1[] = {
+        { "UD", "Change character" }, { "LR", "Move cursor" },
+        { "SQUARE", "Insert space" }, { "TRIANGLE", "Delete" },
+    };
+    static const GuiHint hints2[] = { { "CROSS", "Accept" }, { "CIRCLE", "Cancel" } };
+    gui_rect(cx + 18, cy + ch - 84, cw - 36, 1, HEX_LINE);
+    gui_hints(bx, cy + ch - 60, hints1, 4, 26);
+    gui_hints(bx, cy + ch - 28, hints2, 2, 26);
+    gui_present(false);
+    last_frame = gui_frame_id();
+    snprintf(last_sig, sizeof(last_sig), "%s", sig);
 }
 
-/* ---- Helper: read pad until all buttons released ---- */
+/* ------------------------------------------------------------------ */
+/* Dialogs                                                             */
+/* ------------------------------------------------------------------ */
 
 static void drain_buttons(void) {
     padInfo padinfo;
@@ -461,60 +674,68 @@ static void drain_buttons(void) {
     }
 }
 
-/* ---- ui_status: show a progress message immediately ---- */
-
 void ui_status(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     vsnprintf(g_status_line, sizeof(g_status_line), fmt, args);
     va_end(args);
 
-    if (!g_screen) return;
-    if (g_xmb_open) return;
+    if (!g_ready || g_xmb_open) return;
 
-    ui_clear();
-    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
-    draw_text(24, 18, (UiColor){88, 208, 255}, "GameSync PS3");
-    draw_text(24, SCREEN_HEIGHT / 2 - 10, (UiColor){240, 240, 240}, g_status_line);
+    gui_backdrop();
+    int cw = 640, ch = 132;
+    int cx = (GUI_W - cw) / 2, cy = (GUI_H - ch) / 2;
+    gui_rrect(cx - 1, cy - 1, cw + 2, ch + 2, 14, HEX_LINE);
+    gui_rrect(cx, cy, cw, ch, 14, HEX_PANEL);
 
-    SDL_PumpEvents();
-    SDL_Flip(g_screen);
+    /* Static "busy" mark: three dots in the accent colour. */
+    for (int i = 0; i < 3; i++)
+        gui_circle(cx + 36 + i * 16, cy + 40, 5, i == 1 ? HEX_ACCENT2 : HEX_ACCENT);
+    gui_text(cx + 90, cy + 26, GUI_F_TITLE, HEX_TEXT, GUI_LEFT, "Working");
+    gui_text_wrap(cx + 28, cy + 66, GUI_F_BODY, HEX_DIM, cw - 56, 2, g_status_line);
+    gui_present(false);
 }
 
-/* ---- ui_message: blocking full-screen message, Cross to continue ---- */
-
-void ui_message(const char *fmt, ...) {
-    char buf[1024];
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, args);
-    va_end(args);
-
-    if (!g_screen) return;
-
-    ui_clear();
-    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
-    draw_text(24, 18, (UiColor){88, 208, 255}, "GameSync PS3");
-
-    int y = 80;
-    const char *cursor = buf;
-    while (*cursor && y < SCREEN_HEIGHT - 60) {
-        char line[128];
-        size_t len = strcspn(cursor, "\n");
-        if (len >= sizeof(line)) len = sizeof(line) - 1;
-        memcpy(line, cursor, len);
-        line[len] = '\0';
-        draw_text(24, y, (UiColor){240, 240, 240}, line);
-        y += LINE_HEIGHT;
-        cursor += len;
-        if (*cursor == '\n') cursor++;
+static bool contains_ci(const char *hay, const char *needle) {
+    size_t nl = strlen(needle);
+    for (; *hay; hay++) {
+        size_t i = 0;
+        while (i < nl && hay[i] &&
+               (hay[i] | 0x20) == (needle[i] | 0x20)) i++;
+        if (i == nl) return true;
     }
+    return false;
+}
 
-    draw_text(24, SCREEN_HEIGHT - 28, (UiColor){160, 168, 184}, "Cross: continue   PS/Home: exit");
+/* Pick a card title + tone for a free-form message: the first line becomes
+ * the title when it is short, the rest is the body. */
+static void message_split(const char *msg, char *title, size_t title_size,
+                          const char **body, uint32_t *tone) {
+    size_t first = strcspn(msg, "\n");
+    if (first > 0 && first < 64) {
+        snprintf(title, title_size, "%.*s", (int)first, msg);
+        size_t tl = strlen(title);
+        while (tl > 0 && title[tl - 1] == ':') title[--tl] = '\0';
+        *body = msg + first;
+        while (**body == '\n') (*body)++;
+    } else {
+        snprintf(title, title_size, "GameSync");
+        *body = msg;
+    }
+    if (contains_ci(msg, "fail") || contains_ci(msg, "cannot") || contains_ci(msg, "error") ||
+        contains_ci(msg, "not enough"))
+        *tone = HEX_ERR;
+    else if (contains_ci(title, "done") || contains_ci(title, " ok") || contains_ci(title, "complete") ||
+             contains_ci(title, "finished") || contains_ci(title, "staged") ||
+             contains_ci(title, "downloaded") || contains_ci(title, "refreshed"))
+        *tone = HEX_OK;
+    else if (contains_ci(msg, "offline") || contains_ci(msg, "only exists"))
+        *tone = HEX_WARN;
+    else
+        *tone = HEX_ACCENT;
+}
 
-    SDL_PumpEvents();
-    SDL_Flip(g_screen);
-
+static void wait_for_cross(void) {
     padInfo padinfo;
     padData paddata;
     int prev_cross = 1;
@@ -538,97 +759,152 @@ void ui_message(const char *fmt, ...) {
     }
 }
 
-/* ---- ui_confirm: show sync confirmation dialog ---- */
+/* Draws the message card; footer_hint NULL = "Cross: continue". */
+static void draw_message_card(const char *msg, const char *footer_text) {
+    char title[96];
+    const char *body;
+    uint32_t tone;
+    char lines[18][GUI_WRAP_LINE];
+
+    message_split(msg, title, sizeof(title), &body, &tone);
+    int cw = 880;
+    int n = gui_wrap(body, GUI_F_BODY, cw - 56, lines, 18);
+    int lh = gui_line_h(GUI_F_BODY);
+    int ch = 76 + (n > 0 ? n * lh + 16 : 0) + 58;
+    if (ch > GUI_FOOTER_Y - GUI_CONTENT_Y) ch = GUI_FOOTER_Y - GUI_CONTENT_Y;
+    int cx = (GUI_W - cw) / 2;
+    int cy = GUI_CONTENT_Y + (GUI_FOOTER_Y - GUI_CONTENT_Y - ch) / 2;
+
+    gui_card(cx, cy, cw, ch, title, tone);
+    for (int i = 0; i < n; i++) {
+        if (cy + 70 + (i + 1) * lh > cy + ch - 58) break;
+        gui_text(cx + 28, cy + 70 + i * lh, GUI_F_BODY, HEX_TEXT, GUI_LEFT, lines[i]);
+    }
+    gui_rect(cx + 18, cy + ch - 50, cw - 36, 1, HEX_LINE);
+    if (footer_text) {
+        gui_text_mid(cx + 28, cy + ch - 48, 44, GUI_F_SMALL, HEX_DIM, GUI_LEFT, cw - 56,
+                     footer_text);
+    } else {
+        static const GuiHint h[] = { { "CROSS", "Continue" } };
+        gui_hints(cx + 28, cy + ch - 26, h, 1, 0);
+    }
+}
+
+void ui_message(const char *fmt, ...) {
+    char buf[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+
+    if (!g_ready) return;
+
+    gui_backdrop();
+    draw_message_card(buf, NULL);
+    gui_present(false);
+    wait_for_cross();
+}
+
+void ui_draw_message(const char *title, const char *message, const char *footer) {
+    char full[1100];
+    if (!g_ready || g_xmb_open) return;
+    begin_screen(title && strcmp(title, "GameSync PS3") ? title : "Error");
+    /* Fixed card title so the whole message is shown as the body. */
+    snprintf(full, sizeof(full), "Something went wrong\n%s", message ? message : "");
+    draw_message_card(full, footer);
+    gui_present(true);
+}
 
 bool ui_confirm(const TitleInfo *title, SyncAction action,
                 const char *server_hash, uint32_t server_size,
                 const char *server_last_sync) {
-    if (!g_screen) return false;
+    if (!g_ready) return false;
 
     drain_buttons();
 
-    const char *action_str =
-        action == SYNC_UPLOAD     ? "UPLOAD to server" :
-        action == SYNC_DOWNLOAD   ? "DOWNLOAD from server" :
-        action == SYNC_CONFLICT   ? "CONFLICT (both changed)" :
-        action == SYNC_UP_TO_DATE ? "Already up to date" :
-                                    "Failed / unknown";
-    const char *kind_str = title->kind == SAVE_KIND_PS3 ? "PS3" : "PS1";
-
-    ui_clear();
-    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, 55, 14, 20, 34, 255);
-    draw_text(24, 18, (UiColor){88, 208, 255}, "GameSync PS3 -- Confirm");
-
-    int y = 80;
-    UiColor white = {240, 240, 240};
-    UiColor accent = {88, 208, 255};
-    UiColor yellow = {255, 222, 89};
-    UiColor dim    = {160, 168, 184};
-
-    draw_textf(24, y, accent, "Game:    %s",
-               title->name[0] ? title->name : title->game_code);
-    y += LINE_HEIGHT + 4;
-    draw_textf(24, y, white,  "Code:    %s  [%s]", title->game_code, kind_str);
-    y += LINE_HEIGHT + 4;
-    draw_textf(24, y, yellow, "Action:  %s", action_str);
-    y += LINE_HEIGHT + 8;
-
-    if (title->server_only) {
-        draw_text(24, y, dim, "Local:   (not on device)");
-    } else {
-        draw_textf(24, y, white, "Local:   %u bytes  (%d files)",
-                   (unsigned)title->total_size, title->file_count);
+    const char *heading;
+    uint32_t tone;
+    switch (action) {
+        case SYNC_UPLOAD:     heading = "Upload to server?";        tone = HEX_WARN; break;
+        case SYNC_DOWNLOAD:   heading = "Download from server?";    tone = HEX_INFO; break;
+        case SYNC_CONFLICT:   heading = "Conflict - both changed";  tone = HEX_ERR;  break;
+        case SYNC_UP_TO_DATE: heading = "Already up to date";       tone = HEX_OK;   break;
+        default:              heading = "Cannot decide what to do"; tone = HEX_ERR;  break;
     }
-    y += LINE_HEIGHT + 4;
 
+    gui_backdrop();
+    int cw = 820, ch = 352;
+    int cx = (GUI_W - cw) / 2;
+    int cy = GUI_CONTENT_Y + (GUI_FOOTER_Y - GUI_CONTENT_Y - ch) / 2;
+    gui_card(cx, cy, cw, ch, heading, tone);
+
+    int x = cx + 28, y = cy + 70;
+    int n = gui_text_wrap(x, y, GUI_F_TITLE, HEX_TEXT, cw - 56, 2,
+                          title->name[0] ? title->name : title->game_code);
+    y += n * gui_line_h(GUI_F_TITLE) + 8;
+    int tx = x;
+    tx += gui_tag(tx, y, TAG_H, kind_color(title), kind_label(title)) + 6;
+    gui_tag(tx, y, TAG_H, HEX_DIM, title->game_code);
+    y += TAG_H + 18;
+
+    /* Two columns: this PS3 vs. the server. */
+    int colw = (cw - 56 - 16) / 2;
+    int lx = x, rx = x + colw + 16;
+    int bh = 128;
+    gui_rrect(lx, y, colw, bh, 10, HEX_BG2);
+    gui_rrect(rx, y, colw, bh, 10, HEX_BG2);
+    gui_text(lx + 16, y + 12, GUI_F_BOLD, action == SYNC_UPLOAD ? HEX_WARN : HEX_TEXT,
+             GUI_LEFT, "This PS3");
+    gui_text(rx + 16, y + 12, GUI_F_BOLD, action == SYNC_DOWNLOAD ? HEX_INFO : HEX_TEXT,
+             GUI_LEFT, "Server");
+
+    char size_buf[32], line[96];
+    if (title->server_only) {
+        gui_text(lx + 16, y + 48, GUI_F_BODY, HEX_DIM, GUI_LEFT, "Not on this PS3");
+    } else {
+        format_size(title->total_size, size_buf, sizeof(size_buf));
+        gui_text(lx + 16, y + 48, GUI_F_BODY, HEX_TEXT, GUI_LEFT, size_buf);
+        snprintf(line, sizeof(line), "%d file%s", title->file_count,
+                 title->file_count == 1 ? "" : "s");
+        gui_text(lx + 16, y + 78, GUI_F_SMALL, HEX_DIM, GUI_LEFT, line);
+    }
     if (server_hash && server_hash[0]) {
-        draw_textf(24, y, white, "Server:  %u bytes", (unsigned)server_size);
-        y += LINE_HEIGHT + 4;
+        format_size(server_size, size_buf, sizeof(size_buf));
+        gui_text(rx + 16, y + 48, GUI_F_BODY, HEX_TEXT, GUI_LEFT, size_buf);
         if (server_last_sync && server_last_sync[0]) {
-            char date[20] = "";
+            char date[24];
             if (strlen(server_last_sync) >= 16 && server_last_sync[10] == 'T')
-                snprintf(date, sizeof(date), "%.10s %.5s",
-                         server_last_sync, server_last_sync + 11);
+                snprintf(date, sizeof(date), "%.10s %.5s", server_last_sync, server_last_sync + 11);
             else
                 snprintf(date, sizeof(date), "%.16s", server_last_sync);
-            draw_textf(24, y, white, "Date:    %s", date);
+            snprintf(line, sizeof(line), "Synced %s", date);
+            gui_text(rx + 16, y + 78, GUI_F_SMALL, HEX_DIM, GUI_LEFT, line);
         }
     } else {
-        draw_text(24, y, dim, "Server:  (no save)");
+        gui_text(rx + 16, y + 48, GUI_F_BODY, HEX_DIM, GUI_LEFT, "No save on server");
     }
-
-    if (action == SYNC_UP_TO_DATE) {
-        draw_text(24, SCREEN_HEIGHT - 28, dim, "Cross: OK   PS/Home: exit");
-        SDL_PumpEvents();
-        SDL_Flip(g_screen);
-
-        padInfo padinfo2;
-        padData paddata2;
-        int prev2 = 1;
-        while (1) {
-            sysUtilCheckCallback();
-            if (g_ui_exit) return false;
-            if (g_xmb_open) {
-                SDL_PumpEvents();
-                usleep(50000);
-                continue;
-            }
-            SDL_PumpEvents();
-            ioPadGetInfo(&padinfo2);
-            for (int i = 0; i < MAX_PADS_UI; i++) {
-                if (!padinfo2.status[i]) continue;
-                ioPadGetData(i, &paddata2);
-                if (!prev2 && (paddata2.BTN_CROSS || paddata2.BTN_CIRCLE)) return false;
-                prev2 = paddata2.BTN_CROSS | paddata2.BTN_CIRCLE;
-            }
-            usleep(50000);
+    /* Direction arrow between the columns */
+    if (action == SYNC_UPLOAD || action == SYNC_DOWNLOAD) {
+        int ax = lx + colw + 8, ay = y + bh / 2;
+        gui_circle(ax, ay, 16, tone);
+        if (action == SYNC_UPLOAD) {          /* this PS3 -> server */
+            gui_rect(ax - 8, ay - 2, 9, 5, HEX_INK);
+            gui_tri(ax + 9, ay, ax + 1, ay - 7, ax + 1, ay + 7, HEX_INK);
+        } else {                              /* server -> this PS3 */
+            gui_rect(ax - 1, ay - 2, 9, 5, HEX_INK);
+            gui_tri(ax - 9, ay, ax - 1, ay - 7, ax - 1, ay + 7, HEX_INK);
         }
     }
 
-    draw_text(24, SCREEN_HEIGHT - 28, dim, "Cross: Confirm   Circle: Cancel   PS/Home: exit");
-
-    SDL_PumpEvents();
-    SDL_Flip(g_screen);
+    gui_rect(cx + 18, cy + ch - 50, cw - 36, 1, HEX_LINE);
+    if (action == SYNC_UP_TO_DATE) {
+        static const GuiHint h[] = { { "CROSS", "OK" } };
+        gui_hints(cx + 28, cy + ch - 26, h, 1, 0);
+    } else {
+        static const GuiHint h[] = { { "CROSS", "Confirm" }, { "CIRCLE", "Cancel" } };
+        gui_hints(cx + 28, cy + ch - 26, h, 2, 28);
+    }
+    gui_present(false);
 
     padInfo padinfo;
     padData paddata;
@@ -646,8 +922,13 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
         for (int i = 0; i < MAX_PADS_UI; i++) {
             if (!padinfo.status[i]) continue;
             ioPadGetData(i, &paddata);
-            if (!prev_cross  && paddata.BTN_CROSS)  return true;
-            if (!prev_circle && paddata.BTN_CIRCLE) return false;
+            if (action == SYNC_UP_TO_DATE) {
+                if ((!prev_cross && paddata.BTN_CROSS) || (!prev_circle && paddata.BTN_CIRCLE))
+                    return false;
+            } else {
+                if (!prev_cross  && paddata.BTN_CROSS)  return true;
+                if (!prev_circle && paddata.BTN_CIRCLE) return false;
+            }
             prev_cross  = paddata.BTN_CROSS;
             prev_circle = paddata.BTN_CIRCLE;
         }
@@ -655,39 +936,12 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     }
 }
 
-/* ============================================================
- * ROM catalog + downloads views
- * ============================================================
- *
- * Both render in the same shape as ui_draw_list — header bar at top,
- * scrollable list of rows below, footer hint at bottom — so muscle memory
- * carries over from the saves view.  No detail panel: the full info we'd
- * normally surface there (target path, server hash) doesn't gain much for
- * ROMs and would require a wider list column to stay readable. */
+/* ------------------------------------------------------------------ */
+/* ROM catalog                                                         */
+/* ------------------------------------------------------------------ */
 
-#define HEADER_BAR_BOTTOM 55
-
-static void format_size(uint64_t bytes, char *out, size_t out_size) {
-    if (bytes >= (1ULL << 30)) {
-        double gib = (double)bytes / (double)(1ULL << 30);
-        snprintf(out, out_size, "%.2f GiB", gib);
-    } else if (bytes >= (1ULL << 20)) {
-        double mib = (double)bytes / (double)(1ULL << 20);
-        snprintf(out, out_size, "%.1f MiB", mib);
-    } else if (bytes >= (1ULL << 10)) {
-        double kib = (double)bytes / (double)(1ULL << 10);
-        snprintf(out, out_size, "%.0f KiB", kib);
-    } else {
-        snprintf(out, out_size, "%llu B", (unsigned long long)bytes);
-    }
-}
-
-/* Find a download entry whose rom_id matches *rom_id*.  Defined locally so
- * the UI doesn't need to mutate the list (downloads.c's own
- * downloads_find takes a non-const pointer). */
-static const DownloadEntry *find_download_const(
-    const DownloadList *list, const char *rom_id
-) {
+/* Local const lookup — downloads_find() takes a non-const list. */
+static const DownloadEntry *find_download_const(const DownloadList *list, const char *rom_id) {
     if (!list || !rom_id) return NULL;
     for (int i = 0; i < list->count; i++) {
         if (strcmp(list->items[i].rom_id, rom_id) == 0)
@@ -696,137 +950,258 @@ static const DownloadEntry *find_download_const(
     return NULL;
 }
 
-void ui_draw_rom_catalog(const RomCatalog *catalog,
-                         const DownloadList *downloads,
-                         int selected, int scroll_offset,
-                         const char *status_line) {
-    if (!g_screen) return;
-    if (g_xmb_open) return;
+static void dl_status_style(DownloadStatus st, const char **label, uint32_t *color) {
+    switch (st) {
+        case DL_STATUS_QUEUED:    *label = "QUEUED";      *color = HEX_ACCENT2; break;
+        case DL_STATUS_ACTIVE:    *label = "DOWNLOADING"; *color = HEX_INFO;    break;
+        case DL_STATUS_PAUSED:    *label = "PAUSED";      *color = HEX_WARN;    break;
+        case DL_STATUS_COMPLETED: *label = "INSTALLED";   *color = HEX_OK;      break;
+        case DL_STATUS_ERROR:     *label = "ERROR";       *color = HEX_ERR;     break;
+        default:                  *label = "?";           *color = HEX_DIM;     break;
+    }
+}
 
-    UiColor accent = {88, 208, 255};
-    UiColor white  = {240, 240, 240};
-    UiColor dim    = {160, 168, 184};
-    UiColor border = {44, 58, 82};
-    UiColor hilite = {255, 222, 89};
-    UiColor done   = {80, 220, 120};
-    UiColor pause  = {255, 200, 80};
-    UiColor err    = {255, 80, 80};
-
-    ui_clear();
-
-    /* Header bar (mirrors ui_draw_list). */
-    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, HEADER_BAR_BOTTOM, 14, 20, 34, 255);
-    draw_text(24, 18, accent, "GameSync PS3 -- ROM Catalog");
-    draw_tab_strip(APP_VIEW_ROMS);
-    if (status_line && status_line[0])
-        draw_text(24, 38, dim, status_line);
-
-    /* List border. */
-    rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48,
-                  border.r, border.g, border.b, 255);
-
-    int total = catalog ? catalog->count : 0;
-    if (total == 0) {
-        draw_text(28, LIST_START_Y, dim,
-                  "No PS3 ROMs in the server catalog yet.");
-        if (catalog && catalog->last_error[0]) {
-            draw_text(28, LIST_START_Y + 28, err, catalog->last_error);
-        }
-        draw_text(24, SCREEN_HEIGHT - 28, dim,
-                  "Cross: download   Square: pause   Triangle: resume   "
-                  "Select: next view   PS/Home: exit");
-        SDL_PumpEvents();
-        SDL_Flip(g_screen);
+static void rom_target_text(const RomEntry *r, char *out, size_t out_size) {
+    if (r->is_bundle) {
+        if (strcmp(r->system, "PS1") == 0)
+            snprintf(out, out_size, "%s/<game>/", ROM_TARGET_PSXISO_DIR);
+        else
+            snprintf(out, out_size, "%s + %s", ROM_TARGET_PKG_DIR, ROM_TARGET_EXDATA_DIR);
         return;
     }
+    if (!roms_resolve_target_path(r, out, out_size))
+        snprintf(out, out_size, "%s", ROM_TARGET_FALLBACK_DIR);
+}
 
-    int end = scroll_offset + LIST_VISIBLE_ROWS;
-    if (end > total) end = total;
+static void draw_rom_detail(const RomEntry *r, const DownloadEntry *dl) {
+    int x = DETAIL_X + 22, w = DETAIL_W - 44, y = PANEL_Y + 18;
+    char buf[PATH_LEN];
 
-    for (int i = scroll_offset; i < end; i++) {
-        const RomEntry *r = &catalog->items[i];
-        bool is_selected = (i == selected);
-        UiColor base_color = white;
-        const char *status_label = "    ";
+    gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+    int n = gui_text_wrap(x, y, GUI_F_HUGE, HEX_TEXT, w, 3, r->name[0] ? r->name : r->filename);
+    y += n * gui_line_h(GUI_F_HUGE) + 8;
 
-        const DownloadEntry *dl = find_download_const(downloads, r->rom_id);
-        if (dl) {
-            switch (dl->status) {
-                case DL_STATUS_QUEUED:
-                    status_label = "Q   "; base_color = accent; break;
-                case DL_STATUS_ACTIVE:
-                    status_label = "ACT "; base_color = accent; break;
-                case DL_STATUS_PAUSED:
-                    status_label = "PAUS"; base_color = pause;  break;
-                case DL_STATUS_COMPLETED:
-                    status_label = "DONE"; base_color = done;   break;
-                case DL_STATUS_ERROR:
-                    status_label = "ERR "; base_color = err;    break;
-            }
+    int tx = x;
+    tx += gui_tag(tx, y, TAG_H, strcmp(r->system, "PS1") == 0 ? HEX_PS1 : HEX_PS3,
+                  r->system[0] ? r->system : "?") + 6;
+    format_size(r->size, buf, sizeof(buf));
+    tx += gui_tag(tx, y, TAG_H, HEX_DIM, buf) + 6;
+    if (r->is_bundle) {
+        snprintf(buf, sizeof(buf), "Bundle - %d files", r->file_count);
+        gui_tag(tx, y, TAG_H, HEX_ACCENT2, buf);
+    } else if (r->extract_format[0]) {
+        snprintf(buf, sizeof(buf), "Unpacks to %s", r->extract_format);
+        gui_tag(tx, y, TAG_H, HEX_ACCENT2, buf);
+    }
+    y += TAG_H + 16;
+
+    y = kv_wrap(x, y, w, "File", r->filename, HEX_TEXT, 2);
+    rom_target_text(r, buf, sizeof(buf));
+    y = kv_wrap(x, y, w, "Installs to", buf, HEX_TEXT, 3);
+
+    gui_rect(x, y + 2, w, 1, HEX_LINE);
+    y += 14;
+    if (!dl) {
+        y = kv_row(x, y, w, "Download", "Not downloaded", HEX_DIM);
+    } else {
+        const char *label;
+        uint32_t color;
+        dl_status_style(dl->status, &label, &color);
+        gui_text(x, y + 2, GUI_F_SMALL, HEX_DIM, GUI_LEFT, "Download");
+        gui_tag(x + 112, y, TAG_H, color, label);
+        y += 34;
+        if (dl->status != DL_STATUS_COMPLETED && dl->total > 0) {
+            int pct = percent_of(dl->offset, dl->total);
+            gui_bar(x, y, w, 10, (float)pct / 100.0f, color);
+            char off_buf[24], tot_buf[24];
+            format_size(dl->offset, off_buf, sizeof(off_buf));
+            format_size(dl->total, tot_buf, sizeof(tot_buf));
+            gui_textf(x, y + 18, GUI_F_SMALL, HEX_DIM, GUI_LEFT, "%s / %s", off_buf, tot_buf);
+            gui_textf(x + w, y + 18, GUI_F_SMALL, HEX_TEXT, GUI_RIGHT, "%d%%", pct);
         }
-
-        UiColor color = is_selected ? hilite : base_color;
-        char marker = is_selected ? '>' : ' ';
-
-        char size_buf[24];
-        format_size(r->size, size_buf, sizeof(size_buf));
-
-        char line[512];
-        snprintf(line, sizeof(line),
-                 "%c [%s] %-46.46s  %-10s",
-                 marker, status_label,
-                 r->name[0] ? r->name : r->filename,
-                 size_buf);
-        draw_text(28, LIST_START_Y + ((i - scroll_offset) * LINE_HEIGHT),
-                  color, line);
     }
-
-    /* Footer with control hints. */
-    char footer[256];
-    snprintf(footer, sizeof(footer),
-             "Selected %d/%d   Cross: queue/start   Triangle: resume   "
-             "Circle: refresh (server rescan + reload)   Select: next view",
-             selected + 1, total);
-    draw_text(24, SCREEN_HEIGHT - 28, dim, footer);
-
-    SDL_PumpEvents();
-    SDL_Flip(g_screen);
 }
 
-/* ETA: bytes remaining / bytes-per-second.  ``out`` is filled with a
- * human string ("12m34s", "<1s", "??:??") so callers don't have to
- * format inline.  Returns false when ETA is unknown (no speed data
- * yet) so the caller can fall back to a placeholder. */
-static bool format_eta(uint64_t remaining, uint64_t bps,
-                       char *out, size_t out_size) {
-    if (bps == 0 || remaining == 0) {
-        snprintf(out, out_size, "--");
-        return false;
-    }
-    uint64_t secs = remaining / bps;
-    if (secs >= 3600) {
-        unsigned long long h = secs / 3600;
-        unsigned long long m = (secs % 3600) / 60;
-        snprintf(out, out_size, "%lluh%02llum", h, m);
-    } else if (secs >= 60) {
-        unsigned long long m = secs / 60;
-        unsigned long long s = secs % 60;
-        snprintf(out, out_size, "%llum%02llus", m, s);
+void ui_draw_rom_catalog(const RomCatalog *catalog,
+                         const DownloadList *downloads,
+                         const char *const *systems, int system_count,
+                         int system_index,
+                         int selected, int scroll_offset,
+                         const char *status_line) {
+    char buf[128];
+    if (!g_ready || g_xmb_open) return;
+
+    begin_view(APP_VIEW_ROMS);
+    gui_panel(LIST_X, PANEL_Y, LIST_W, PANEL_H);
+
+    int total = catalog ? catalog->count : 0;
+    int cy = TOOLBAR_Y + TOOLBAR_H / 2;
+    int tx = LIST_X + 16;
+    tx += gui_button(tx, cy, "L1") + 8;
+    tx = gui_tabs(tx, TOOLBAR_Y + 1, TOOLBAR_H - 2, systems, system_count, system_index) + 8;
+    gui_button(tx, cy, "R1");
+    snprintf(buf, sizeof(buf), "%d title%s  -  %d in queue", total, total == 1 ? "" : "s",
+             downloads ? downloads->count : 0);
+    gui_text_mid(LIST_X + LIST_W - 22, TOOLBAR_Y, TOOLBAR_H, GUI_F_SMALL, HEX_DIM, GUI_RIGHT, 0, buf);
+    gui_rect(LIST_X + 12, ROWS_Y - 10, LIST_W - 24, 1, HEX_LINE);
+
+    const char *sys = (systems && system_index >= 0 && system_index < system_count)
+                      ? systems[system_index] : "";
+
+    if (total == 0) {
+        char title[96];
+        snprintf(title, sizeof(title), "No %s games in the catalog", sys);
+        draw_empty(title, catalog && catalog->last_error[0]
+                          ? catalog->last_error
+                          : "Add games to the server's ROM folder, then press Circle to rescan.");
+        gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+        gui_text_wrap(DETAIL_X + 22, PANEL_Y + 22, GUI_F_BODY, HEX_DIM, DETAIL_W - 44, 8,
+                      "PS3 ISOs go to /dev_hdd0/PS3ISO and packages to /dev_hdd0/packages. "
+                      "PS1 games are unpacked to /dev_hdd0/PSXISO/<game>/ for webMAN.");
     } else {
-        snprintf(out, out_size, "%llus", (unsigned long long)secs);
+        int end = scroll_offset + UI_LIST_ROWS;
+        if (end > total) end = total;
+        for (int i = scroll_offset; i < end; i++) {
+            const RomEntry *r = &catalog->items[i];
+            int row = i - scroll_offset;
+            int y = row_y(row);
+            bool sel = (i == selected);
+            const DownloadEntry *dl = find_download_const(downloads, r->rom_id);
+
+            if (sel) draw_row_bar(row);
+            int name_x = LIST_X + 24;
+            if (dl) {
+                const char *label;
+                uint32_t color;
+                dl_status_style(dl->status, &label, &color);
+                tag_fixed(LIST_X + 20, y + (ROW_H - 2 - TAG_H) / 2, DL_TAG_W, color, label);
+                name_x = LIST_X + 20 + DL_TAG_W + 12;
+            }
+            format_size(r->size, buf, sizeof(buf));
+            int size_w = gui_text_w(GUI_F_SMALL, buf);
+            gui_text_mid(LIST_X + LIST_W - 34, y, ROW_H - 2, GUI_F_SMALL,
+                         sel ? HEX_INK : HEX_DIM, GUI_RIGHT, 0, buf);
+            gui_text_mid(name_x, y, ROW_H - 2, GUI_F_BODY, sel ? HEX_INK : HEX_TEXT, GUI_LEFT,
+                         LIST_X + LIST_W - 50 - size_w - name_x,
+                         r->name[0] ? r->name : r->filename);
+        }
+        gui_scrollbar(LIST_X + LIST_W - 14, ROWS_Y, UI_LIST_ROWS * ROW_H - 2,
+                      scroll_offset, UI_LIST_ROWS, total);
+
+        if (selected >= 0 && selected < total) {
+            const RomEntry *r = &catalog->items[selected];
+            draw_rom_detail(r, find_download_const(downloads, r->rom_id));
+        } else {
+            gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+        }
     }
-    return true;
+
+    draw_banner(catalog && catalog->last_error[0] ? catalog->last_error : status_line, NULL);
+
+    static const GuiHint hints[] = {
+        { "CROSS", "Download" }, { "TRIANGLE", "Resume" }, { "CIRCLE", "Rescan server" },
+        { "LR", "Page" }, { "SELECT", "Next view" },
+    };
+    gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
+    finish_view();
 }
 
-static void format_bps(uint64_t bps, char *out, size_t out_size) {
-    if (bps == 0) { snprintf(out, out_size, "--"); return; }
-    if (bps >= (1ULL << 20)) {
-        snprintf(out, out_size, "%.2f MiB/s", (double)bps / (double)(1ULL << 20));
-    } else if (bps >= (1ULL << 10)) {
-        snprintf(out, out_size, "%.1f KiB/s", (double)bps / (double)(1ULL << 10));
+/* ------------------------------------------------------------------ */
+/* Downloads                                                           */
+/* ------------------------------------------------------------------ */
+
+static void draw_active_download(const DownloadEntry *active,
+                                 uint64_t downloaded, uint64_t total, uint64_t bps) {
+    int x = DETAIL_X + 22, w = DETAIL_W - 44, y = PANEL_Y + 18;
+    char off_buf[24], tot_buf[24], bps_buf[24], eta_buf[24];
+
+    gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+    gui_rrect(x, y + 4, 5, 22, 2, HEX_ACCENT);
+    gui_text(x + 14, y, GUI_F_TITLE, HEX_TEXT, GUI_LEFT, "Downloading");
+    y += 44;
+
+    const char *name = active && active->name[0] ? active->name
+                     : (active && active->filename[0] ? active->filename : "(unknown)");
+    int n = gui_text_wrap(x, y, GUI_F_BOLD, HEX_TEXT, w, 2, name);
+    y += n * gui_line_h(GUI_F_BOLD) + 6;
+
+    const char *file = active ? basename_of(active->target_path) : "";
+    if (active && active->is_bundle && active->bundle_count > 0) {
+        char line[GUI_WRAP_LINE];
+        snprintf(line, sizeof(line), "File %d of %d: %s",
+                 active->bundle_index + 1, active->bundle_count, file);
+        n = gui_text_wrap(x, y, GUI_F_SMALL, HEX_DIM, w, 2, line);
     } else {
-        snprintf(out, out_size, "%llu B/s", (unsigned long long)bps);
+        n = gui_text_wrap(x, y, GUI_F_SMALL, HEX_DIM, w, 2, file);
     }
+    y += n * gui_line_h(GUI_F_SMALL) + 18;
+
+    uint64_t tot = total > 0 ? total : (active ? active->total : 0);
+    int pct = percent_of(downloaded, tot);
+    gui_bar(x, y, w, 16, (float)pct / 100.0f, HEX_ACCENT);
+    y += 26;
+    format_size(downloaded, off_buf, sizeof(off_buf));
+    format_size(tot, tot_buf, sizeof(tot_buf));
+    gui_textf(x, y, GUI_F_BODY, HEX_TEXT, GUI_LEFT, "%s / %s", off_buf, tot_buf);
+    gui_textf(x + w, y - 4, GUI_F_HUGE, HEX_ACCENT2, GUI_RIGHT, "%d%%", pct);
+    y += 46;
+
+    format_bps(bps, bps_buf, sizeof(bps_buf));
+    format_eta(tot > downloaded ? tot - downloaded : 0, bps, eta_buf, sizeof(eta_buf));
+    y = kv_row(x, y, w, "Speed", bps_buf, HEX_TEXT);
+    y = kv_row(x, y, w, "Remaining", eta_buf, HEX_TEXT);
+
+    int by = PANEL_Y + PANEL_H - 56;
+    gui_rect(x, by - 8, w, 1, HEX_LINE);
+    static const GuiHint h[] = { { "SQUARE", "Pause (keeps progress)" } };
+    gui_hints(x, by + 18, h, 1, 0);
+}
+
+static void draw_download_detail(const DownloadEntry *e) {
+    int x = DETAIL_X + 22, w = DETAIL_W - 44, y = PANEL_Y + 18;
+    const char *label;
+    uint32_t color;
+    char buf[64];
+
+    gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+    int n = gui_text_wrap(x, y, GUI_F_HUGE, HEX_TEXT, w, 3, e->name[0] ? e->name : e->filename);
+    y += n * gui_line_h(GUI_F_HUGE) + 8;
+
+    dl_status_style(e->status, &label, &color);
+    int tx = x;
+    tx += gui_tag(tx, y, TAG_H, strcmp(e->system, "PS1") == 0 ? HEX_PS1 : HEX_PS3,
+                  e->system[0] ? e->system : "?") + 6;
+    tx += gui_tag(tx, y, TAG_H, color, label) + 6;
+    if (e->is_bundle && e->bundle_count > 0) {
+        snprintf(buf, sizeof(buf), "File %d/%d", e->bundle_index + 1, e->bundle_count);
+        gui_tag(tx, y, TAG_H, HEX_ACCENT2, buf);
+    }
+    y += TAG_H + 16;
+
+    y = kv_wrap(x, y, w, "File", e->filename, HEX_TEXT, 2);
+    y = kv_wrap(x, y, w, "Target", e->target_path[0] ? e->target_path : "(not resolved yet)",
+                HEX_TEXT, 3);
+    y += 6;
+
+    int pct = e->status == DL_STATUS_COMPLETED ? 100 : percent_of(e->offset, e->total);
+    gui_bar(x, y, w, 12, (float)pct / 100.0f, color);
+    y += 22;
+    char off_buf[24], tot_buf[24];
+    format_size(e->status == DL_STATUS_COMPLETED ? e->total : e->offset, off_buf, sizeof(off_buf));
+    format_size(e->total, tot_buf, sizeof(tot_buf));
+    gui_textf(x, y, GUI_F_SMALL, HEX_DIM, GUI_LEFT, "%s / %s", off_buf, tot_buf);
+    gui_textf(x + w, y, GUI_F_SMALL, HEX_TEXT, GUI_RIGHT, "%d%%", pct);
+    y += 34;
+
+    const char *advice = NULL;
+    switch (e->status) {
+        case DL_STATUS_QUEUED:    advice = "Press Cross to start."; break;
+        case DL_STATUS_PAUSED:    advice = "Press Cross to resume from where it stopped."; break;
+        case DL_STATUS_ERROR:     advice = "Press Cross to retry, or Circle to remove it."; break;
+        case DL_STATUS_COMPLETED: advice = "Installed. Triangle clears finished entries."; break;
+        default: break;
+    }
+    if (advice) gui_text_wrap(x, y, GUI_F_SMALL, HEX_DIM, w, 3, advice);
 }
 
 void ui_draw_downloads(const DownloadList *downloads,
@@ -836,186 +1211,107 @@ void ui_draw_downloads(const DownloadList *downloads,
                        uint64_t active_downloaded,
                        uint64_t active_total,
                        uint64_t active_bps) {
-    if (!g_screen) return;
-    if (g_xmb_open) return;
+    char buf[128];
+    if (!g_ready || g_xmb_open) return;
 
-    UiColor accent = {88, 208, 255};
-    UiColor white  = {240, 240, 240};
-    UiColor dim    = {160, 168, 184};
-    UiColor border = {44, 58, 82};
-    UiColor hilite = {255, 222, 89};
-    UiColor done   = {80, 220, 120};
-    UiColor pause  = {255, 200, 80};
-    UiColor err    = {255, 80, 80};
-
-    ui_clear();
-
-    boxRGBA(g_screen, 0, 0, SCREEN_WIDTH - 1, HEADER_BAR_BOTTOM, 14, 20, 34, 255);
-    draw_text(24, 18, accent, "GameSync PS3 -- Downloads");
-    draw_tab_strip(APP_VIEW_DOWNLOADS);
-    if (status_line && status_line[0])
-        draw_text(440, 36, dim, status_line);
-
-    rectangleRGBA(g_screen, 12, 64, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 48,
-                  border.r, border.g, border.b, 255);
+    begin_view(APP_VIEW_DOWNLOADS);
+    gui_panel(LIST_X, PANEL_Y, LIST_W, PANEL_H);
 
     int total = downloads ? downloads->count : 0;
-
-    /* When a download is in flight, render a fat info panel at the top
-     * of the list area so the user gets a clear at-a-glance status:
-     * file name + index, percent, bytes, speed, ETA, and the pause
-     * hint.  This is the panel the user said felt missing — without it
-     * the bundle download looked frozen because the list only showed a
-     * single "Bundle 1/2: foo.pkg" line. */
-    int list_start_y = LIST_START_Y;
-    if (active_in_progress) {
-        const DownloadEntry *active = NULL;
-        for (int i = 0; i < total; i++) {
-            if (downloads->items[i].status == DL_STATUS_ACTIVE) {
-                active = &downloads->items[i];
-                break;
-            }
-        }
-
-        const char *display_name =
-            active && active->name[0] ? active->name :
-            (active && active->filename[0] ? active->filename : "(unknown)");
-        const char *current_file =
-            active && active->target_path[0] ? active->target_path : "";
-        /* Show only the basename of target_path so the panel doesn't
-         * wrap on a 1080p screen. */
-        const char *base_slash = current_file ? strrchr(current_file, '/') : NULL;
-        const char *current_basename = base_slash ? base_slash + 1 : current_file;
-
-        uint64_t off = active_downloaded;
-        uint64_t tot = (active_total > 0) ? active_total
-                       : (active ? active->total : 0);
-        int pct = 0;
-        if (tot > 0) {
-            pct = (int)((off * 100ULL) / tot);
-            if (pct > 100) pct = 100;
-        }
-
-        char off_buf[24], tot_buf[24], bps_buf[24], eta_buf[24];
-        format_size(off, off_buf, sizeof(off_buf));
-        format_size(tot, tot_buf, sizeof(tot_buf));
-        format_bps(active_bps, bps_buf, sizeof(bps_buf));
-        uint64_t remaining = (tot > off) ? (tot - off) : 0;
-        format_eta(remaining, active_bps, eta_buf, sizeof(eta_buf));
-
-        /* Background for the panel so it visually separates from the
-         * queue list below. */
-        boxRGBA(g_screen, 18, 70, SCREEN_WIDTH - 18, 70 + 130,
-                18, 26, 42, 255);
-        rectangleRGBA(g_screen, 18, 70, SCREEN_WIDTH - 18, 70 + 130,
-                      border.r, border.g, border.b, 255);
-
-        int y = 78;
-        draw_textf(28, y, accent, "Now downloading: %.80s", display_name);
-        y += 22;
-        if (active && active->is_bundle && active->bundle_count > 0) {
-            draw_textf(28, y, white,
-                       "Bundle file %d / %d:  %.80s",
-                       active->bundle_index + 1,
-                       active->bundle_count,
-                       current_basename);
-        } else {
-            draw_textf(28, y, white, "File: %.80s", current_basename);
-        }
-        y += 22;
-        draw_textf(28, y, white,
-                   "%3d%%   %s / %s   Speed: %s   ETA: %s",
-                   pct, off_buf, tot_buf, bps_buf, eta_buf);
-        y += 22;
-        draw_text(28, y, dim,
-                  "Square: pause (saves progress)   "
-                  "Circle: cancel (after pause)");
-
-        list_start_y = 70 + 130 + 12;  /* shift list down past the panel */
+    int counts[5] = { 0, 0, 0, 0, 0 };
+    const DownloadEntry *active = NULL;
+    for (int i = 0; i < total; i++) {
+        int s = (int)downloads->items[i].status;
+        if (s >= 0 && s < 5) counts[s]++;
+        if (downloads->items[i].status == DL_STATUS_ACTIVE && !active)
+            active = &downloads->items[i];
     }
+
+    gui_text_mid(LIST_X + 22, TOOLBAR_Y, TOOLBAR_H, GUI_F_BOLD, HEX_TEXT, GUI_LEFT, 0, "Queue");
+    int tx = LIST_X + 22 + gui_text_w(GUI_F_BOLD, "Queue") + 16;
+    int ty = TOOLBAR_Y + (TOOLBAR_H - TAG_H) / 2;
+    if (counts[DL_STATUS_ACTIVE]) tx += gui_tag(tx, ty, TAG_H, HEX_INFO, "1 active") + 6;
+    if (counts[DL_STATUS_QUEUED]) {
+        snprintf(buf, sizeof(buf), "%d queued", counts[DL_STATUS_QUEUED]);
+        tx += gui_tag(tx, ty, TAG_H, HEX_ACCENT2, buf) + 6;
+    }
+    if (counts[DL_STATUS_PAUSED]) {
+        snprintf(buf, sizeof(buf), "%d paused", counts[DL_STATUS_PAUSED]);
+        tx += gui_tag(tx, ty, TAG_H, HEX_WARN, buf) + 6;
+    }
+    if (counts[DL_STATUS_COMPLETED]) {
+        snprintf(buf, sizeof(buf), "%d done", counts[DL_STATUS_COMPLETED]);
+        tx += gui_tag(tx, ty, TAG_H, HEX_OK, buf) + 6;
+    }
+    if (counts[DL_STATUS_ERROR]) {
+        snprintf(buf, sizeof(buf), "%d failed", counts[DL_STATUS_ERROR]);
+        gui_tag(tx, ty, TAG_H, HEX_ERR, buf);
+    }
+    snprintf(buf, sizeof(buf), "%d entr%s", total, total == 1 ? "y" : "ies");
+    gui_text_mid(LIST_X + LIST_W - 22, TOOLBAR_Y, TOOLBAR_H, GUI_F_SMALL, HEX_DIM, GUI_RIGHT, 0, buf);
+    gui_rect(LIST_X + 12, ROWS_Y - 10, LIST_W - 24, 1, HEX_LINE);
 
     if (total == 0) {
-        draw_text(28, list_start_y, dim,
-                  "No downloads queued.  Switch to the ROM Catalog view "
-                  "and press Cross on a title.");
-        draw_text(24, SCREEN_HEIGHT - 28, dim,
-                  "Select: next view   PS/Home: exit");
-        SDL_PumpEvents();
-        SDL_Flip(g_screen);
-        return;
+        draw_empty("No downloads yet",
+                   "Open the ROM Catalog (SELECT) and press Cross on a game to download it.");
+    } else {
+        int end = scroll_offset + UI_LIST_ROWS;
+        if (end > total) end = total;
+        for (int i = scroll_offset; i < end; i++) {
+            const DownloadEntry *e = &downloads->items[i];
+            int row = i - scroll_offset;
+            int y = row_y(row);
+            bool sel = (i == selected);
+            const char *label;
+            uint32_t color;
+
+            uint64_t off = e->offset, tot = e->total;
+            if (e->status == DL_STATUS_ACTIVE && active_in_progress) {
+                off = active_downloaded;
+                if (active_total > 0) tot = active_total;
+            }
+            int pct = e->status == DL_STATUS_COMPLETED ? 100 : percent_of(off, tot);
+
+            if (sel) draw_row_bar(row);
+            dl_status_style(e->status, &label, &color);
+            tag_fixed(LIST_X + 20, y + (ROW_H - 2 - TAG_H) / 2, DL_TAG_W, color, label);
+
+            int bar_w = 120;
+            int pct_x = LIST_X + LIST_W - 34;
+            int bar_x = pct_x - 48 - bar_w;
+            snprintf(buf, sizeof(buf), "%d%%", pct);
+            gui_text_mid(pct_x, y, ROW_H - 2, GUI_F_SMALL, sel ? HEX_INK : HEX_TEXT,
+                         GUI_RIGHT, 0, buf);
+            if (sel)
+                gui_bar_ex(bar_x, y + (ROW_H - 2) / 2 - 4, bar_w, 8, (float)pct / 100.0f,
+                           gui_mix(HEX_ACCENT, HEX_INK, 0.35f), HEX_INK);
+            else
+                gui_bar(bar_x, y + (ROW_H - 2) / 2 - 4, bar_w, 8, (float)pct / 100.0f, color);
+
+            int name_x = LIST_X + 20 + DL_TAG_W + 12;
+            gui_text_mid(name_x, y, ROW_H - 2, GUI_F_BODY, sel ? HEX_INK : HEX_TEXT, GUI_LEFT,
+                         bar_x - 14 - name_x, e->name[0] ? e->name : e->filename);
+        }
+        gui_scrollbar(LIST_X + LIST_W - 14, ROWS_Y, UI_LIST_ROWS * ROW_H - 2,
+                      scroll_offset, UI_LIST_ROWS, total);
     }
 
-    /* Compute how many rows fit when the panel is visible. */
-    int rows_avail = (SCREEN_HEIGHT - 48 - list_start_y) / LINE_HEIGHT;
-    if (rows_avail > LIST_VISIBLE_ROWS) rows_avail = LIST_VISIBLE_ROWS;
-    if (rows_avail < 1) rows_avail = 1;
-    int end = scroll_offset + rows_avail;
-    if (end > total) end = total;
-
-    for (int i = scroll_offset; i < end; i++) {
-        const DownloadEntry *e = &downloads->items[i];
-        bool is_selected = (i == selected);
-
-        UiColor base_color = white;
-        const char *status_label = "    ";
-        switch (e->status) {
-            case DL_STATUS_QUEUED:
-                status_label = "Q   "; base_color = accent; break;
-            case DL_STATUS_ACTIVE:
-                status_label = "ACT "; base_color = accent; break;
-            case DL_STATUS_PAUSED:
-                status_label = "PAUS"; base_color = pause;  break;
-            case DL_STATUS_COMPLETED:
-                status_label = "DONE"; base_color = done;   break;
-            case DL_STATUS_ERROR:
-                status_label = "ERR "; base_color = err;    break;
-        }
-
-        UiColor color = is_selected ? hilite : base_color;
-        char marker = is_selected ? '>' : ' ';
-
-        /* Active row: live offset + bundle index in the row text. */
-        uint64_t off  = e->offset;
-        uint64_t tot  = e->total;
-        if (e->status == DL_STATUS_ACTIVE && active_in_progress) {
-            off = active_downloaded;
-            if (active_total > 0) tot = active_total;
-        }
-
-        char off_buf[24], tot_buf[24];
-        format_size(off, off_buf, sizeof(off_buf));
-        format_size(tot, tot_buf, sizeof(tot_buf));
-
-        int pct = 0;
-        if (tot > 0) {
-            pct = (int)((off * 100ULL) / tot);
-            if (pct > 100) pct = 100;
-        }
-
-        char bundle_tag[16] = {0};
-        if (e->is_bundle && e->bundle_count > 0) {
-            snprintf(bundle_tag, sizeof(bundle_tag),
-                     " [%d/%d]", e->bundle_index + 1, e->bundle_count);
-        }
-
-        char line[512];
-        snprintf(line, sizeof(line),
-                 "%c [%s] %-36.36s%s  %3d%%  %10s / %-10s",
-                 marker, status_label,
-                 e->name[0] ? e->name : e->filename,
-                 bundle_tag,
-                 pct, off_buf, tot_buf);
-        draw_text(28, list_start_y + ((i - scroll_offset) * LINE_HEIGHT),
-                  color, line);
+    if (active_in_progress)
+        draw_active_download(active, active_downloaded, active_total, active_bps);
+    else if (selected >= 0 && selected < total)
+        draw_download_detail(&downloads->items[selected]);
+    else {
+        gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
+        gui_text_wrap(DETAIL_X + 22, PANEL_Y + 22, GUI_F_BODY, HEX_DIM, DETAIL_W - 44, 8,
+                      "Downloads resume where they stopped, even after the app is closed.");
     }
 
-    char footer[320];
-    snprintf(footer, sizeof(footer),
-             "Selected %d/%d   Cross: start/resume   Square: pause   "
-             "Circle: cancel   Triangle: clear completed   Select: next view",
-             selected + 1, total);
-    draw_text(24, SCREEN_HEIGHT - 28, dim, footer);
+    draw_banner(status_line, NULL);
 
-    SDL_PumpEvents();
-    SDL_Flip(g_screen);
+    static const GuiHint hints[] = {
+        { "CROSS", "Start / resume" }, { "SQUARE", "Pause" }, { "CIRCLE", "Remove" },
+        { "TRIANGLE", "Clear finished" }, { "UD", "Move" }, { "SELECT", "Next view" },
+    };
+    gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
+    finish_view();
 }

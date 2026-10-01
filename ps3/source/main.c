@@ -87,7 +87,7 @@
 
 /* MAX_PADS is already defined in <io/pad.h> as 127; we use a smaller cap */
 #define PAD_COUNT    7
-#define LIST_VISIBLE 35
+#define LIST_VISIBLE UI_LIST_ROWS
 
 static unsigned int read_buttons(void) {
     unsigned int btns = 0;
@@ -518,6 +518,7 @@ static bool run_config_editor(SyncState *state, bool *has_net, char *status_line
                     network_fetch_names(state);
                     sync_refresh_statuses(state, sync_progress_cb);
                 }
+                ui_set_online(*has_net);
                 snprintf(status_line, status_line_sz,
                          "Config applied. %d save(s). %s",
                          state->num_titles,
@@ -771,13 +772,13 @@ static void sync_progress_cb(const char *msg) {
 
 static const char *title_status_label(TitleStatus status) {
     switch (status) {
-        case TITLE_STATUS_LOCAL_ONLY:  return "LOC";
-        case TITLE_STATUS_SERVER_ONLY: return "SVR";
-        case TITLE_STATUS_SYNCED:      return "SYNC";
-        case TITLE_STATUS_UPLOAD:      return "UP";
-        case TITLE_STATUS_DOWNLOAD:    return "DL";
-        case TITLE_STATUS_CONFLICT:    return "CONF";
-        default:                       return "?";
+        case TITLE_STATUS_LOCAL_ONLY:  return "only on this PS3";
+        case TITLE_STATUS_SERVER_ONLY: return "only on the server";
+        case TITLE_STATUS_SYNCED:      return "up to date";
+        case TITLE_STATUS_UPLOAD:      return "changed here - upload";
+        case TITLE_STATUS_DOWNLOAD:    return "newer on the server - download";
+        case TITLE_STATUS_CONFLICT:    return "conflict - both changed";
+        default:                       return "not compared yet";
     }
 }
 
@@ -848,10 +849,11 @@ static time_t   g_dl_speed_anchor_time  = 0;
 static unsigned int g_dl_prev_buttons = 0;
 
 /* Throttled redraw of the downloads view from inside the progress
- * callback.  Without throttling SDL_Flip @ 60fps eats half the network
- * thread; on the slow PS3 link a redraw every 3 chunks (~192 KB) is
- * frequent enough for the user to see numbers move. */
-static int g_progress_redraw_counter = 0;
+ * callback.  A full-screen redraw costs a few milliseconds of PPU time, so
+ * it is bounded by wall-clock time (~4 per second) rather than by chunk
+ * count — fast links would otherwise spend their time repainting. */
+#define PROGRESS_REDRAW_MS 250
+static Uint32 g_progress_last_redraw = 0;
 
 static int rom_progress64_cb(uint64_t downloaded, uint64_t total) {
     sysUtilCheckCallback();
@@ -893,11 +895,11 @@ static int rom_progress64_cb(uint64_t downloaded, uint64_t total) {
      * Other views don't update during a download — switching back is fine,
      * the live counters are visible the moment they re-enter Downloads. */
     if (g_app_view == APP_VIEW_DOWNLOADS) {
-        g_progress_redraw_counter++;
-        if (g_progress_redraw_counter >= 3) {
-            g_progress_redraw_counter = 0;
+        Uint32 now_ms = SDL_GetTicks();
+        if (now_ms - g_progress_last_redraw >= PROGRESS_REDRAW_MS) {
+            g_progress_last_redraw = now_ms;
             ui_draw_downloads(&g_downloads, g_dl_selected, g_dl_scroll,
-                              "Downloading...  (Square = pause)",
+                              "Downloading... press Square to pause.",
                               true, g_active_downloaded, g_active_total,
                               g_active_bps);
         }
@@ -968,7 +970,7 @@ static void run_download(const SyncState *state, DownloadEntry *e) {
     g_dl_speed_anchor_time  = 0;
     g_active_bps            = 0;
     g_dl_prev_buttons       = read_buttons();
-    g_progress_redraw_counter = 0;
+    g_progress_last_redraw = 0;
 
     /* Free-space precheck — bail before opening a socket so the user sees
      * an actionable error rather than a half-downloaded .part. */
@@ -1217,14 +1219,6 @@ static void cycle_view(AppView *view) {
     *view = (AppView)(((int)*view + 1) % APP_VIEW_COUNT);
 }
 
-static const char *view_name(AppView v) {
-    switch (v) {
-        case APP_VIEW_SAVES:     return "Saves";
-        case APP_VIEW_ROMS:      return "ROM Catalog";
-        case APP_VIEW_DOWNLOADS: return "Downloads";
-        default:                 return "?";
-    }
-}
 
 int main(void) {
     SyncState *state = &g_state;
@@ -1333,6 +1327,7 @@ int main(void) {
         if (network_check_server(state)) {
             state->network_connected = true;
             has_net = true;
+            ui_set_online(true);
             debug_log("server reachable");
         } else {
             debug_log("server unreachable");
@@ -1398,6 +1393,8 @@ int main(void) {
             continue;
         }
 
+        ui_set_online(has_net);
+
         unsigned int btns = read_buttons();
         unsigned int just = btns & ~prev_buttons;
         prev_buttons = btns;
@@ -1407,7 +1404,6 @@ int main(void) {
          * always escape into the next view regardless of where they are. */
         if (just & MASK_SELECT) {
             cycle_view(&g_app_view);
-            ui_status("View: %s", view_name(g_app_view));
             redraw = true;
         }
 
@@ -1788,8 +1784,10 @@ int main(void) {
                      * line — flip a one-shot draw so the user sees
                      * what's happening before the blocking call. */
                     ui_draw_rom_catalog(&g_rom_catalog, &g_downloads,
+                                        G_ROM_SYSTEMS, G_ROM_SYSTEM_COUNT,
+                                        g_rom_system_index,
                                         g_rom_selected, g_rom_scroll,
-                                        "Server rescan...");
+                                        "Asking the server to rescan its ROM folder...");
                     int count = -1;
                     int rc = network_trigger_rom_scan(state, &count);
                     if (rc != 0) {
@@ -1854,11 +1852,12 @@ int main(void) {
             if (redraw) {
                 char roms_status[160];
                 snprintf(roms_status, sizeof(roms_status),
-                         "[%s]  %d catalog entries, %d in queue   "
-                         "(L1/R1: switch system)",
-                         current_system,
-                         g_rom_catalog.count, g_downloads.count);
+                         has_net ? "%s catalog: %d game(s). L1 / R1 switch system."
+                                 : "Offline - %s catalog unavailable (%d cached).",
+                         current_system, g_rom_catalog.count);
                 ui_draw_rom_catalog(&g_rom_catalog, &g_downloads,
+                                    G_ROM_SYSTEMS, G_ROM_SYSTEM_COUNT,
+                                    g_rom_system_index,
                                     g_rom_selected, g_rom_scroll,
                                     roms_status);
                 redraw = false;
@@ -1969,7 +1968,7 @@ int main(void) {
             if (redraw) {
                 char dl_status[128];
                 snprintf(dl_status, sizeof(dl_status),
-                         "%d entries  (%s)",
+                         "%d download(s) - %s",
                          g_downloads.count,
                          g_active_in_progress ? "downloading"
                                               : (has_net ? "idle" : "offline"));
