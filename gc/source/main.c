@@ -3,10 +3,21 @@
  *
  * Boot: ui_init -> mount SD -> config -> CARD scans -> BBA net -> menu loop.
  *
- * Eight views, cycled with L / R: game catalog, installed games, download
- * queue, card images on SD (VMC), memory card slot A / B, server saves and
- * settings.  Every view is a list on the left plus a detail panel for the
- * selected item on the right (see ui.h for the layout).
+ * Seven views, cycled with L / R: game catalog, installed games, download
+ * queue, card images on SD (VMC), memory cards (slot A / B), server saves
+ * and settings.  Every view is a list on the left plus a detail panel for
+ * the selected item on the right (see ui.h for the layout).
+ *
+ * Controls, the same on every view (shared GameSync scheme):
+ *   D-pad Up/Down  move one row      D-pad Left/Right  page up / down
+ *   L / R          previous / next view (wraps)
+ *   Z              sub-tab (VMC: next card image, Cards: slot A / B)
+ *   A              act on the focused row (action menu where a row has
+ *                  several actions)       B  cancel / back / stop download
+ *   X              secondary action of the view (rescan / refresh / run queue)
+ *   Y              details of the focused row
+ *   START          exit (asks first)
+ * Held D-pad directions repeat.
  */
 
 #include "common.h"
@@ -17,6 +28,7 @@
 #include "downloads.h"
 #include "saves.h"
 #include "http.h"
+#include "catcache.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -52,12 +64,22 @@ static int g_cfg_sel    = 0, g_cfg_scroll   = 0;
 static int g_rom_sel    = 0, g_rom_scroll   = 0;
 static int g_local_sel  = 0, g_local_scroll = 0;
 static int g_dl_sel     = 0, g_dl_scroll    = 0;
-static int g_ca_sel     = 0, g_ca_scroll    = 0;
-static int g_cb_sel     = 0, g_cb_scroll    = 0;
+static int g_card_sel[2] = {0, 0}, g_card_scroll[2] = {0, 0};
+static int g_card_port   = 0;               /* Cards view sub-tab: 0 = A, 1 = B */
 static int g_sv_sel     = 0, g_sv_scroll    = 0;
 static int g_vmc_sel    = 0, g_vmc_scroll   = 0;
 
 static char g_scratch[256 * 1024];   /* catalog JSON page buffer */
+
+/* Where the catalog rows on screen came from (shown in the list title). */
+typedef enum {
+    CAT_SRC_NONE = 0,   /* nothing loaded */
+    CAT_SRC_LIVE,       /* fetched from the server just now (cache updated) */
+    CAT_SRC_CACHED,     /* server fingerprint unchanged - read from SD */
+    CAT_SRC_OFFLINE,    /* server unreachable - last copy from SD */
+    CAT_SRC_NOCACHE,    /* server has no fingerprints route - not cached */
+} CatalogSource;
+static CatalogSource g_cat_src = CAT_SRC_NONE;
 
 /* Live download progress (updated from progress_cb). */
 static volatile uint64_t g_active_done  = 0;
@@ -77,6 +99,7 @@ static uint64_t          g_spd_bytes    = 0;
 #define PROGRESS_REDRAW_MS 500
 
 static void redraw(void);   /* forward decl: long ops flush mid-run */
+static void load_catalog(bool force);
 static void scan_local(void);
 static void scan_vmc_view(void);
 static void fill_vmccard_names(void);
@@ -85,6 +108,45 @@ static void fill_vmccard_names(void);
 
 static uint64_t now_ms(void) {
     return ticks_to_millisecs(gettime());
+}
+
+/* ---- Input: newly pressed buttons plus D-pad auto-repeat ---- */
+
+#define REPEAT_DELAY_MS 350
+#define REPEAT_RATE_MS  80
+#define PAD_DIRS (PAD_BUTTON_UP | PAD_BUTTON_DOWN | PAD_BUTTON_LEFT | PAD_BUTTON_RIGHT)
+
+static u32      g_rep_btn = 0;
+static uint64_t g_rep_next = 0;
+
+/* Scan the pad once (call at vsync).  Returns buttons pressed this frame;
+ * a D-pad direction held past REPEAT_DELAY_MS re-fires every REPEAT_RATE_MS. */
+static u32 pad_read(void) {
+    PAD_ScanPads();
+    u32 down = PAD_ButtonsDown(0);
+    u32 held = PAD_ButtonsHeld(0);
+    uint64_t now = now_ms();
+    if (down & PAD_DIRS) {
+        g_rep_btn = down & PAD_DIRS;
+        g_rep_next = now + REPEAT_DELAY_MS;
+    } else if (g_rep_btn && (held & g_rep_btn) == g_rep_btn) {
+        if (now >= g_rep_next) {
+            g_rep_next = now + REPEAT_RATE_MS;
+            down |= g_rep_btn;
+        }
+    } else {
+        g_rep_btn = 0;
+    }
+    return down;
+}
+
+/* Up/Down = one row, Left/Right = one page.  Returns true if it moved. */
+static bool list_nav(u32 d, int *sel, int page) {
+    if (d & PAD_BUTTON_UP)    { (*sel)--;     return true; }
+    if (d & PAD_BUTTON_DOWN)  { (*sel)++;     return true; }
+    if (d & PAD_BUTTON_LEFT)  { *sel -= page; return true; }
+    if (d & PAD_BUTTON_RIGHT) { *sel += page; return true; }
+    return false;
 }
 
 static void clamp_scroll_rows(int *sel, int *scroll, int count, int vis) {
@@ -175,23 +237,26 @@ static void show_boot(const char *msg) {
 /* ---- Footer hints per view ---- */
 
 #define HINTS(...) { __VA_ARGS__ }
-static const GuiHint k_hints_roms[]   = HINTS({"A", "Fetch"}, {"X", "Queue"}, {"Y", "Download"},
-                                              {"LR", "Page"}, {"START", "+L+R Quit"});
-static const GuiHint k_hints_local[]  = HINTS({"A", "Rescan"}, {"X", "Delete"}, {"LR", "Page"},
-                                              {"START", "+L+R Quit"});
-static const GuiHint k_hints_dl[]     = HINTS({"A", "Start"}, {"Y", "Run all"}, {"X", "Remove"},
-                                              {"B", "Pause"}, {"START", "+L+R Quit"});
-static const GuiHint k_hints_dl_run[] = HINTS({"B", "Pause download"});
-static const GuiHint k_hints_vmc[]    = HINTS({"A", "Upload"}, {"Y", "Restore"}, {"Z", "Next card"},
-                                              {"X", "Rescan"}, {"START", "Import all"});
-static const GuiHint k_hints_card[]   = HINTS({"A", "Upload"}, {"Y", "Restore"}, {"Z", "GameID"},
-                                              {"X", "Rescan"}, {"START", "+L+R Quit"});
-static const GuiHint k_hints_server[] = HINTS({"A", "To slot A"}, {"Y", "To slot B"}, {"Z", "GameID"},
-                                              {"X", "Refresh"}, {"START", "+L+R Quit"});
-static const GuiHint k_hints_config[] = HINTS({"UD", "Select"}, {"LR", "Change"}, {"A", "Edit / run"},
-                                              {"START", "+L+R Quit"});
+static const GuiHint k_hints_roms[]   = HINTS({"A", "Download"}, {"Y", "Details"}, {"LR", "Page"},
+                                              {"START", "Exit"});
+static const GuiHint k_hints_local[]  = HINTS({"A", "Delete"}, {"X", "Rescan"}, {"Y", "Details"},
+                                              {"LR", "Page"}, {"START", "Exit"});
+static const GuiHint k_hints_dl[]     = HINTS({"A", "Actions"}, {"X", "Run all"}, {"Y", "Details"},
+                                              {"LR", "Page"}, {"START", "Exit"});
+static const GuiHint k_hints_dl_run[] = HINTS({"B", "Stop (pause) download"});
+static const GuiHint k_hints_vmc[]    = HINTS({"A", "Actions"}, {"X", "Rescan"}, {"Y", "Details"},
+                                              {"Z", "Next card"}, {"LR", "Page"}, {"START", "Exit"});
+static const GuiHint k_hints_card[]   = HINTS({"A", "Actions"}, {"X", "Rescan"}, {"Y", "Details"},
+                                              {"Z", "Slot A/B"}, {"LR", "Page"}, {"START", "Exit"});
+static const GuiHint k_hints_server[] = HINTS({"A", "Actions"}, {"X", "Refresh"}, {"Y", "Details"},
+                                              {"LR", "Page"}, {"START", "Exit"});
+static const GuiHint k_hints_config[] = HINTS({"UD", "Move"}, {"LR", "Page"}, {"A", "Edit / run"},
+                                              {"START", "Exit"});
 static const GuiHint k_hints_edit[]   = HINTS({"UD", "Letter"}, {"LR", "Move"}, {"Z", "Insert"},
                                               {"X", "Delete"}, {"A", "OK"}, {"B", "Cancel"});
+static const GuiHint k_hints_modal[]  = HINTS({"UD", "Move"}, {"A", "Select"}, {"B", "Cancel"});
+static const GuiHint k_hints_yesno[]  = HINTS({"A", "Yes"}, {"B", "No"});
+static const GuiHint k_hints_close[]  = HINTS({"B", "Close"});
 #define NHINTS(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
 static void view_hints(AppView v, const GuiHint **h, int *n) {
@@ -200,8 +265,7 @@ static void view_hints(AppView v, const GuiHint **h, int *n) {
         case APP_VIEW_LOCAL:     *h = k_hints_local;  *n = NHINTS(k_hints_local); break;
         case APP_VIEW_DOWNLOADS: *h = k_hints_dl;     *n = NHINTS(k_hints_dl); break;
         case APP_VIEW_SAVES:     *h = k_hints_vmc;    *n = NHINTS(k_hints_vmc); break;
-        case APP_VIEW_CARDA:
-        case APP_VIEW_CARDB:     *h = k_hints_card;   *n = NHINTS(k_hints_card); break;
+        case APP_VIEW_CARDS:     *h = k_hints_card;   *n = NHINTS(k_hints_card); break;
         case APP_VIEW_SERVER:    *h = k_hints_server; *n = NHINTS(k_hints_server); break;
         default:                 *h = k_hints_config; *n = NHINTS(k_hints_config); break;
     }
@@ -297,11 +361,10 @@ static bool edit_text(char *out, size_t cap, const char *label) {
     draw_edit(label, buf, cur);
     for (;;) {
         VIDEO_WaitVSync();
-        PAD_ScanPads();
-        u32 d = PAD_ButtonsDown(0);
+        u32 d = pad_read();
         if (d == 0) continue;   /* redraw only on input */
 
-        if (d & (PAD_BUTTON_A | PAD_BUTTON_START)) {
+        if (d & PAD_BUTTON_A) {
             snprintf(out, cap, "%s", buf); return true;
         }
         if (d & PAD_BUTTON_B) return false;
@@ -337,13 +400,47 @@ static bool confirm(u32 tone, const char *title, const char *fmt, ...) {
     gui_begin();
     draw_view();
     ui_draw_confirm(title, msg, tone);
+    gui_footer(k_hints_yesno, NHINTS(k_hints_yesno));
     gui_end(true);
     for (;;) {
         VIDEO_WaitVSync();
-        PAD_ScanPads();
-        u32 d = PAD_ButtonsDown(0);
+        u32 d = pad_read();
         if (d & PAD_BUTTON_A) return true;
         if (d & PAD_BUTTON_B) return false;
+    }
+}
+
+/* ---- Action menu: Up/Down pick, A runs, B cancels.  Returns -1 on B. ---- */
+
+static int choose(const char *title, const char *subtitle, const char *const *items, int n) {
+    int sel = 0;
+    for (;;) {
+        gui_begin();
+        draw_view();
+        ui_draw_menu(title, subtitle, items, n, sel);
+        gui_footer(k_hints_modal, NHINTS(k_hints_modal));
+        gui_end(true);
+        u32 d;
+        do { VIDEO_WaitVSync(); d = pad_read(); } while (d == 0);
+        if (d & PAD_BUTTON_A) return sel;
+        if (d & PAD_BUTTON_B) return -1;
+        if (d & PAD_BUTTON_UP)   sel = (sel - 1 + n) % n;
+        if (d & PAD_BUTTON_DOWN) sel = (sel + 1) % n;
+    }
+}
+
+/* ---- Details card (Y): label / value pairs; B (or A / Y again) closes. ---- */
+
+static void show_info(const char *title, const char *const *labels,
+                      const char *const *values, int n) {
+    gui_begin();
+    draw_view();
+    ui_draw_info(title, labels, values, n);
+    gui_footer(k_hints_close, NHINTS(k_hints_close));
+    gui_end(true);
+    for (;;) {
+        VIDEO_WaitVSync();
+        if (pad_read() & (PAD_BUTTON_B | PAD_BUTTON_A | PAD_BUTTON_Y)) return;
     }
 }
 
@@ -351,13 +448,13 @@ static bool confirm(u32 tone, const char *title, const char *fmt, ...) {
 
 typedef enum {
     CF_SERVER = 0, CF_APIKEY, CF_NETMODE, CF_IP, CF_NM, CF_GW,
-    CF_SDDEV, CF_GAMES, CF_GIDA, CF_GIDB, CF_TESTSD, CF_SAVE, CF_COUNT
+    CF_SDDEV, CF_GAMES, CF_GIDA, CF_GIDB, CF_REFRESH, CF_TESTSD, CF_SAVE, CF_COUNT
 } CfgField;
 
 static const char *const k_cfg_label[CF_COUNT] = {
     "Server URL", "API key", "Network", "Static IP", "Netmask", "Gateway",
     "SD device", "Games folder", "GameID slot A", "GameID slot B",
-    "Test SD read / write", "Save settings to SD",
+    "Refresh catalog", "Test SD read / write", "Save settings to SD",
 };
 
 static const char *const k_cfg_help[CF_COUNT] = {
@@ -369,8 +466,9 @@ static const char *const k_cfg_help[CF_COUNT] = {
     "Only used when Network is set to static.",
     "Where ROMs, card images and settings live. A remounts now. notFAT32 = card seen but no FAT volume (exFAT is not supported).",
     "Folder for installed ISOs. \"/\" = card root (GC Loader style).",
-    "Send the game ID to a MemCard Pro GC / GCMCE in slot A (Z on card and server views) so it switches to that game's card.",
+    "Send the game ID to a MemCard Pro GC / GCMCE in slot A (A > Send GameID on the Cards and Server views) so it switches to that game's card.",
     "Send the game ID to a MemCard Pro GC / GCMCE in slot B.",
+    "Asks the server to rescan its ROM folder, wipes the catalog cache on the SD card and downloads the GameCube list again.",
     "Lists the card root, writes a probe file and reads it back; reports the first step that fails.",
     "Writes sd:/3dssync/config.txt.",
 };
@@ -431,7 +529,7 @@ static void cfg_value(int f, char *out, size_t n) {
 }
 
 static void row_config(int idx, float x, float y, float w, float h, bool sel) {
-    bool action = idx >= CF_TESTSD;
+    bool action = idx >= CF_REFRESH;
     u32 lab = action ? (idx == CF_SAVE ? HEX_OK : HEX_ACCENT2) : HEX_TEXT;
     if (action) gui_rect(x + 6, y - 1, w - 12, 1, gui_rgb(sel ? HEX_ACCENT : HEX_LINE));
     float lw = gui_text_mid(x + 10, y, h, GUI_S_SMALL, gui_rgb(sel ? HEX_INK : lab), GUI_LEFT, 0,
@@ -460,7 +558,13 @@ static void draw_config(void) {
     int n = gui_text_wrap(x, y, GUI_S_TINY, gui_rgb(HEX_DIM), w, 6, k_cfg_help[g_cfg_sel]);
     y += n * gui_line_h(GUI_S_TINY) + 10;
 
-    if (g_cfg_sel == CF_SERVER || g_cfg_sel == CF_APIKEY) {
+    if (g_cfg_sel == CF_REFRESH) {
+        char path[128] = "-", fpr[CATCACHE_FP_LEN] = "";
+        if (g_state.sd_ready) catcache_path(g_state.sd_root, "GC", path, sizeof(path));
+        bool have = g_state.sd_ready && catcache_read_fingerprint(path, "GC", fpr, sizeof(fpr));
+        y = ui_detail_field(y, "Cache file", path, HEX_TEXT);
+        y = ui_detail_field(y, "Cache", have ? "Saved on SD" : "None yet", have ? HEX_OK : HEX_DIM);
+    } else if (g_cfg_sel == CF_SERVER || g_cfg_sel == CF_APIKEY) {
         y = ui_detail_field(y, "Console ID", g_state.console_id, HEX_TEXT);
         y = ui_detail_field(y, "Config file", CONFIG_PATH, HEX_TEXT);
     } else if (g_cfg_sel <= CF_GW) {
@@ -525,6 +629,7 @@ static void config_activate(void) {
         case CF_GAMES:  edit_text(g_state.games_folder, sizeof(g_state.games_folder), "Games folder");
                         roms_set_target(g_state.sd_root, g_state.games_folder); break;
         case CF_SDDEV:  config_change(+1); apply_sd_device(); break;
+        case CF_REFRESH: load_catalog(true); break;
         case CF_TESTSD: sd_self_test(); break;
         case CF_NETMODE: case CF_GIDA: case CF_GIDB: config_change(+1); break;
         case CF_SAVE:
@@ -536,25 +641,121 @@ static void config_activate(void) {
     }
 }
 
+/* Settings is a list like the others: Up/Down move, Left/Right page, A
+ * edits a text field, flips a toggle (SD device cycles and remounts) or runs
+ * an action. */
 static void config_input(u32 d) {
-    if (d & PAD_BUTTON_UP)    g_cfg_sel = (g_cfg_sel - 1 + CF_COUNT) % CF_COUNT;
-    if (d & PAD_BUTTON_DOWN)  g_cfg_sel = (g_cfg_sel + 1) % CF_COUNT;
-    if (d & PAD_BUTTON_LEFT)  config_change(-1);
-    if (d & PAD_BUTTON_RIGHT) config_change(+1);
-    if (d & PAD_BUTTON_A)     config_activate();
+    if (list_nav(d, &g_cfg_sel, ui_list_visible())) {}
+    else if (d & PAD_BUTTON_A) config_activate();
     clamp_scroll(&g_cfg_sel, &g_cfg_scroll, CF_COUNT);
 }
 
 /* ---- Catalog / local / downloads ---- */
 
-static void fetch_catalog(void) {
-    if (!network_is_ready(&g_state)) { ui_error("Network not ready (%s)", g_state.ip); return; }
+/* The GameCube catalog, kept on SD between runs (catcache.h) — the MiSTer
+ * client's strategy: GET /roms/fingerprints, and refetch the GC list only
+ * when its fingerprint moved.  Unreachable server -> the cached copy (marked
+ * "offline"); a server without the fingerprints route -> today's full fetch,
+ * nothing cached.  `force` is Settings > Refresh catalog: ask the server to
+ * rescan its ROM folder (carry on if refused), wipe the cache, refetch. */
+static bool catalog_cache_path(char *out, size_t n) {
+    return g_state.sd_ready && catcache_path(g_state.sd_root, "GC", out, n);
+}
+
+static bool catalog_from_cache(void) {
+    char path[128], fpr[CATCACHE_FP_LEN];
+    if (!catalog_cache_path(path, sizeof(path))) return false;
+    return catcache_load(path, "GC", fpr, sizeof(fpr), &g_catalog);
+}
+
+/* Server unreachable: fall back to the SD copy, or report the error. */
+static void catalog_offline(const char *why) {
+    if (catalog_from_cache()) {
+        g_cat_src = CAT_SRC_OFFLINE;
+        ui_error("%s - showing the cached catalog (%d games)", why, g_catalog.count);
+    } else {
+        g_cat_src = CAT_SRC_NONE;
+        g_catalog.count = 0;
+        snprintf(g_catalog.last_error, sizeof(g_catalog.last_error), "%s", why);
+        ui_error("%s - no cached catalog", why);
+    }
+}
+
+static void load_catalog(bool force) {
+    char path[128];
+    bool can_cache = catalog_cache_path(path, sizeof(path));
+    bool net = network_is_ready(&g_state);
+    char note[64] = "";
+    g_rom_sel = 0; g_rom_scroll = 0;
+
+    if (force) {
+        if (net) {
+            ui_status("Asking the server to rescan its ROMs...");
+            redraw();
+            int n = 0;
+            int rc = roms_rescan_server(&g_state, g_scratch, sizeof(g_scratch), &n);
+            if (rc == ROMS_RESCAN_OK) snprintf(note, sizeof(note), " - server rescan ok");
+            else if (rc == ROMS_RESCAN_REFUSED) snprintf(note, sizeof(note), " - server rescan not allowed");
+            else snprintf(note, sizeof(note), " - server rescan failed");
+        }
+        if (can_cache) catcache_wipe(path);
+    }
+
+    if (!net) {
+        char why[64];
+        snprintf(why, sizeof(why), "Network not ready (%s)", g_state.ip);
+        catalog_offline(why);
+        redraw();
+        return;
+    }
+
+    ui_status("Checking the catalog...");
+    redraw();
+    char fpr[CATCACHE_FP_LEN] = "";
+    int fcount = 0;
+    int fr = roms_fetch_fingerprint(&g_state, "GC", g_scratch, sizeof(g_scratch),
+                                    fpr, sizeof(fpr), &fcount);
+    if (fr == ROMS_FP_ERROR) { catalog_offline("Server unreachable"); redraw(); return; }
+    if (fr == ROMS_FP_ABSENT) {
+        if (can_cache) catcache_wipe(path);
+        g_catalog.count = 0;
+        snprintf(g_catalog.last_error, sizeof(g_catalog.last_error),
+                 "The server has no GameCube games.");
+        g_cat_src = CAT_SRC_LIVE;
+        ui_status("The server has no GameCube games%s", note);
+        redraw();
+        return;
+    }
+
+    if (fr == ROMS_FP_OK && can_cache) {
+        char have[CATCACHE_FP_LEN];
+        if (catcache_read_fingerprint(path, "GC", have, sizeof(have)) && !strcmp(have, fpr) &&
+            catalog_from_cache()) {
+            g_cat_src = CAT_SRC_CACHED;
+            ui_status("Catalog: %d GC games (cached, unchanged)%s", g_catalog.count, note);
+            redraw();
+            return;
+        }
+    }
+
     ui_status("Fetching GC catalog...");
     redraw();
-    bool ok = roms_fetch_catalog(&g_state, "GC", g_scratch, sizeof(g_scratch), &g_catalog);
-    if (!ok) ui_error("%s", g_catalog.last_error);
-    else     ui_status("Catalog: %d GC ROM(s)", g_catalog.count);
-    g_rom_sel = 0; g_rom_scroll = 0;
+    if (!roms_fetch_catalog(&g_state, "GC", g_scratch, sizeof(g_scratch), &g_catalog)) {
+        char why[128];
+        snprintf(why, sizeof(why), "%s", g_catalog.last_error);
+        catalog_offline(why);
+        redraw();
+        return;
+    }
+    if (fr == ROMS_FP_NO_ROUTE) {
+        g_cat_src = CAT_SRC_NOCACHE;
+        ui_status("Catalog: %d GC games (server too old to cache)%s", g_catalog.count, note);
+    } else {
+        g_cat_src = CAT_SRC_LIVE;
+        bool saved = can_cache && catcache_save(path, "GC", fpr, &g_catalog);
+        ui_status("Catalog: %d GC games (updated%s)%s", g_catalog.count,
+                  saved ? "" : can_cache ? ", cache not written" : ", no SD to cache", note);
+    }
     redraw();
 }
 
@@ -771,13 +972,33 @@ static void row_rom(int idx, float x, float y, float w, float h, bool sel) {
     ui_row_text(x + 20, y, w - 20, h, sel, HEX_TEXT, r->name, sz);
 }
 
+/* Install state of a catalog row, for the detail panel and the Y card. */
+static void rom_status(const RomEntry *r, char *st, size_t n, u32 *hex,
+                       char *target, size_t tn, bool *have_target) {
+    *have_target = roms_resolve_target_path(r, target, tn);
+    const DownloadEntry *e = downloads_find(&g_downloads, r->rom_id);
+    *hex = HEX_DIM;
+    if (*have_target && local_has_path(target)) { snprintf(st, n, "Installed"); *hex = HEX_OK; }
+    else if (e) {
+        uint64_t done, tot;
+        dl_progress(e, &done, &tot);
+        if (e->status == DL_STATUS_PAUSED && tot)
+            snprintf(st, n, "Paused at %d%%", (int)(done * 100 / tot));
+        else snprintf(st, n, "%s", dl_status_label(e->status));
+        *hex = dl_status_hex(e->status);
+    } else snprintf(st, n, "Not installed");
+}
+
 static void draw_roms(void) {
-    ui_list("GameCube games", g_catalog.count, g_rom_sel, g_rom_scroll, row_rom,
+    const char *title = "GameCube games";
+    if (g_cat_src == CAT_SRC_CACHED)  title = "GameCube games - cached";
+    if (g_cat_src == CAT_SRC_OFFLINE) title = "GameCube games - offline (cached)";
+    ui_list(title, g_catalog.count, g_rom_sel, g_rom_scroll, row_rom,
             g_catalog.last_error[0] ? g_catalog.last_error
-                                    : "No GameCube games loaded. Press A to fetch the catalog.");
+                                    : "No GameCube games loaded. Settings > Refresh catalog reloads it.");
     if (g_catalog.count == 0 || g_rom_sel >= g_catalog.count) {
         ui_detail_empty("GC", network_is_ready(&g_state)
-                        ? "Press A to fetch the server's game catalog."
+                        ? "Settings > Refresh catalog asks the server to rescan and reloads the list."
                         : "The network is offline - check the BBA and Settings.");
         return;
     }
@@ -792,20 +1013,10 @@ static void draw_roms(void) {
         ui_detail_pill(&px, y, gui_rgb(HEX_PANEL_HI), gui_rgb(HEX_ACCENT2), "RVZ > ISO");
     y += 30;
 
-    char target[260];
-    bool have_target = roms_resolve_target_path(r, target, sizeof(target));
-    const DownloadEntry *e = downloads_find(&g_downloads, r->rom_id);
-    char st[48];
-    u32 st_hex = HEX_DIM;
-    if (have_target && local_has_path(target)) { snprintf(st, sizeof(st), "Installed"); st_hex = HEX_OK; }
-    else if (e) {
-        uint64_t done, tot;
-        dl_progress(e, &done, &tot);
-        if (e->status == DL_STATUS_PAUSED && tot)
-            snprintf(st, sizeof(st), "Paused at %d%%", (int)(done * 100 / tot));
-        else snprintf(st, sizeof(st), "%s", dl_status_label(e->status));
-        st_hex = dl_status_hex(e->status);
-    } else snprintf(st, sizeof(st), "Not installed");
+    char target[260], st[48];
+    bool have_target;
+    u32 st_hex;
+    rom_status(r, st, sizeof(st), &st_hex, target, sizeof(target), &have_target);
 
     y = ui_detail_field(y, "STATUS", st, st_hex);
     y = ui_detail_field(y, "FILE", r->filename, HEX_TEXT);
@@ -865,9 +1076,9 @@ static void row_download(int idx, float x, float y, float w, float h, bool sel) 
 
 static void draw_downloads(void) {
     ui_list("Download queue", g_downloads.count, g_dl_sel, g_dl_scroll, row_download,
-            "Queue empty. Queue games from the Catalog with X, or download right away with Y.");
+            "Queue empty. Press A on a Catalog game to download it or add it to the queue.");
     if (g_downloads.count == 0 || g_dl_sel >= g_downloads.count) {
-        ui_detail_empty("DL", "Downloads resume where they stopped - B pauses, A resumes.");
+        ui_detail_empty("DL", "Downloads resume where they stopped - B stops (pauses), A resumes.");
         return;
     }
     const DownloadEntry *e = &g_downloads.items[g_dl_sel];
@@ -944,7 +1155,7 @@ static void draw_download_card(void) {
     float bx = gui_text_mid(ix, by, 22, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_LEFT, 0, "Press");
     bx = ix + bx + 6;
     bx += gui_button(bx, by + 11, "B") + 6;
-    gui_text_mid(bx, by, 22, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_LEFT, 0, "to pause - A resumes later");
+    gui_text_mid(bx, by, 22, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_LEFT, 0, "to stop - A resumes later");
 }
 
 /* ---- Memory-card / server save sync ---- */
@@ -998,10 +1209,7 @@ static void fetch_server(void) {
 static void upload_card_at(GcSaveList *list, int sel) {
     if (!network_is_ready(&g_state)) { ui_error("Network not ready"); return; }
     if (list->count == 0 || sel >= list->count) return;
-    const GcSave *s = &list->items[sel];
-    if (!confirm(HEX_WARN, "Upload save",
-                 "Upload %s from slot %c to the server?\n%s",
-                 s->title_id, 'A' + list->port, s->name[0] ? s->name : s->filename)) return;
+    const GcSave *s = &list->items[sel];   /* chosen from the A menu: no second ask */
     ui_status("Uploading %s...", s->title_id);
     redraw();
     char msg[128];
@@ -1086,15 +1294,45 @@ static void row_card(int idx, float x, float y, float w, float h, bool sel) {
              s->blocks, server_find(s->title_id) != NULL);
 }
 
+/* Sub-tab strip across the top of a list (Cards: slot A / B; VMC uses its
+ * own file strip).  Takes one row. */
+#define SUBTAB_H 30.0f
+static int subtab_rows(void) {
+    return ui_list_visible() - 1;
+}
+
+static GcSaveList *card_list(int port) {
+    return port ? &g_cardb : &g_carda;
+}
+
+static void draw_card_subtabs(void) {
+    float x = UI_LIST_X + 6, y = UI_LIST_Y + UI_LIST_HEAD + 5, w = UI_LIST_W - 12;
+    float h = SUBTAB_H - 6;
+    gui_rrect(x, y, w, h, 6, gui_rgb(HEX_PANEL_HI));
+    float bx = x + 6 + gui_button(x + 6, y + h / 2, "Z") + 8;
+    float segw = (x + w - 4 - bx) / 2;
+    for (int p = 0; p < 2; p++) {
+        bool on = p == g_card_port;
+        float sx = bx + p * segw;
+        if (on) gui_rrect(sx, y + 3, segw - 4, h - 6, (h - 6) / 2, gui_rgb(HEX_ACCENT));
+        char lab[24];
+        snprintf(lab, sizeof(lab), "Slot %c (%d)", 'A' + p, card_list(p)->count);
+        gui_text_mid(sx + (segw - 4) / 2, y, h, GUI_S_TINY, gui_rgb(on ? HEX_INK : HEX_DIM),
+                     GUI_CENTER, 0, lab);
+    }
+}
+
 static void draw_card(const GcSaveList *list, int sel, int scroll) {
     char title[48];
     snprintf(title, sizeof(title), "Slot %c - %d save%s", 'A' + list->port, list->count,
              list->count == 1 ? "" : "s");
     g_row_card = list;
-    ui_list(title, list->count, sel, scroll, row_card,
-            list->last_error[0] ? list->last_error : "No saves on this card.");
+    ui_list_ex(title, list->count, sel, scroll, subtab_rows(), SUBTAB_H, row_card,
+               list->last_error[0] ? list->last_error : "No saves on this card.");
+    draw_card_subtabs();
     if (list->count == 0 || sel >= list->count) {
-        ui_detail_empty(list->port ? "B" : "A", "Insert a memory card and press X to rescan.");
+        ui_detail_empty(list->port ? "B" : "A",
+                        "Insert a memory card and press X to rescan. Z switches slot A / B.");
         return;
     }
     const GcSave *s = &list->items[sel];
@@ -1195,10 +1433,7 @@ static void cycle_vmc_card(void) {
 static void upload_vmc_save_at(int sel) {
     if (!network_is_ready(&g_state)) { ui_error("Network not ready"); return; }
     if (g_vmccard.count == 0 || sel >= g_vmccard.count) return;
-    const VmcfsSave *s = &g_vmccard.saves[sel];
-    if (!confirm(HEX_WARN, "Upload save", "Upload %s from %s to the server?",
-                 s->title_id, g_vmccard.filename))
-        return;
+    const VmcfsSave *s = &g_vmccard.saves[sel];   /* chosen from the A menu: no second ask */
     ui_status("Uploading %s...", s->title_id);
     redraw();
     char msg[128];
@@ -1313,8 +1548,8 @@ static void draw_view(void) {
         case APP_VIEW_LOCAL:     draw_local(); break;
         case APP_VIEW_DOWNLOADS: draw_downloads(); break;
         case APP_VIEW_SAVES:     draw_vmc(); break;
-        case APP_VIEW_CARDA:     draw_card(&g_carda, g_ca_sel, g_ca_scroll); break;
-        case APP_VIEW_CARDB:     draw_card(&g_cardb, g_cb_sel, g_cb_scroll); break;
+        case APP_VIEW_CARDS:     draw_card(card_list(g_card_port), g_card_sel[g_card_port],
+                                           g_card_scroll[g_card_port]); break;
         case APP_VIEW_SERVER:    draw_server(g_sv_sel, g_sv_scroll); break;
         case APP_VIEW_CONFIG:    draw_config(); break;
         default: break;
@@ -1340,6 +1575,213 @@ static void redraw(void) {
 static void cycle_view(int delta) {
     int n = (int)APP_VIEW_COUNT;
     g_view = (AppView)((((int)g_view + delta) % n + n) % n);
+}
+
+/* ---- A: act on the focused row (action menu when there are several) ---- */
+
+static void act_catalog(void) {
+    if (g_catalog.count == 0 || g_rom_sel >= g_catalog.count) return;
+    static const char *const items[] = { "Download now", "Add to download queue" };
+    int c = choose("Download", g_catalog.items[g_rom_sel].name, items, 2);
+    if (c == 0) queue_selected_rom(true);
+    else if (c == 1) queue_selected_rom(false);
+}
+
+static void act_local(void) {
+    int c = g_local.count;
+    if (c == 0 || g_local_sel >= c) return;
+    if (!confirm(HEX_ERR, "Delete game", "Delete %s from the SD card?",
+                 g_local.items[g_local_sel].filename))
+        return;
+    if (unlink(g_local.items[g_local_sel].path) == 0) {
+        ui_status("Deleted: %s", g_local.items[g_local_sel].filename);
+        scan_local();
+    } else ui_error("Delete failed");
+}
+
+static void act_download(void) {
+    if (g_downloads.count == 0 || g_dl_sel >= g_downloads.count) return;
+    DownloadEntry *e = &g_downloads.items[g_dl_sel];
+    const char *items[2];
+    int acts[2], n = 0;
+    if (e->status != DL_STATUS_COMPLETED) {
+        items[n] = e->offset > 0 ? "Resume download" : "Start download";
+        acts[n++] = 0;
+    }
+    items[n] = "Remove from queue";
+    acts[n++] = 1;
+    int c = choose("Download", e->name, items, n);
+    if (c < 0) return;
+    if (acts[c] == 0) run_active_download(e);
+    else {
+        downloads_remove(&g_downloads, e->rom_id);
+        downloads_save(&g_downloads);
+        ui_status("Removed from the queue");
+    }
+}
+
+static void act_vmc(void) {
+    if (g_vmc.count == 0) return;
+    bool row = g_vmccard.count > 0 && g_vmc_sel < g_vmccard.count;
+    const char *items[3];
+    int acts[3], n = 0;
+    if (row) {
+        items[n] = "Upload save to server";       acts[n++] = 0;
+        items[n] = "Restore save from server";    acts[n++] = 1;
+    }
+    items[n] = "Import whole card image";         acts[n++] = 2;
+    int c = choose(row ? "Save" : "Card image",
+                   row ? (g_vmccard.saves[g_vmc_sel].name[0] ? g_vmccard.saves[g_vmc_sel].name
+                                                             : g_vmccard.saves[g_vmc_sel].title_id)
+                       : g_vmccard.filename,
+                   items, n);
+    if (c < 0) return;
+    switch (acts[c]) {
+        case 0: upload_vmc_save_at(g_vmc_sel); break;
+        case 1: restore_vmc_save_at(g_vmc_sel); break;
+        default: import_whole_vmc(); break;
+    }
+}
+
+static void act_card(void) {
+    int port = g_card_port;
+    GcSaveList *list = card_list(port);
+    int sel = g_card_sel[port];
+    if (list->count == 0 || sel >= list->count) return;
+    const GcSave *s = &list->items[sel];
+    char gid[32];
+    snprintf(gid, sizeof(gid), "Send GameID to slot %c", 'A' + port);
+    const char *items[3] = { "Upload save to server", "Restore save from server", gid };
+    int n = g_state.mmce_mode[port] ? 3 : 2;
+    int c = choose("Save", s->name[0] ? s->name : s->title_id, items, n);
+    if (c == 0) upload_card_at(list, sel);
+    else if (c == 1) restore_card_at(list, sel);
+    else if (c == 2) mcp_gameid(port, s->gamecode, s->company, s->name[0] ? s->name : s->title_id);
+}
+
+static void server_gameid(const ServerSave *s) {
+    const char *gc = strncasecmp(s->title_id, "GC_", 3) == 0 ? s->title_id + 3 : s->title_id;
+    /* Use the real maker code when the game is on a scanned card — MMCE
+     * devices key channels on the full 6-char ID. */
+    const char *company = "";
+    for (int i = 0; i < g_carda.count && !company[0]; i++)
+        if (!strcasecmp(g_carda.items[i].title_id, s->title_id)) company = g_carda.items[i].company;
+    for (int i = 0; i < g_cardb.count && !company[0]; i++)
+        if (!strcasecmp(g_cardb.items[i].title_id, s->title_id)) company = g_cardb.items[i].company;
+    int port = g_state.mmce_mode[0] ? 0 : (g_state.mmce_mode[1] ? 1 : 0);
+    mcp_gameid(port, gc, company, s->name[0] ? s->name : s->title_id);
+}
+
+static void act_server(void) {
+    if (g_server.count == 0 || g_sv_sel >= g_server.count) return;
+    const ServerSave *s = &g_server.items[g_sv_sel];
+    const char *items[3] = { "Restore to memory card slot A", "Restore to memory card slot B",
+                             "Send GameID" };
+    int n = (g_state.mmce_mode[0] || g_state.mmce_mode[1]) ? 3 : 2;
+    int c = choose("Server save", s->name[0] ? s->name : s->title_id, items, n);
+    if (c == 0) server_restore_to(0);
+    else if (c == 1) server_restore_to(1);
+    else if (c == 2) server_gameid(s);
+}
+
+/* ---- Y: details of the focused row ---- */
+
+static void fmt_when(uint32_t ts, char *out, size_t n) {
+    snprintf(out, n, "-");
+    if (!ts) return;
+    time_t t = (time_t)ts;
+    struct tm *tm = gmtime(&t);
+    if (tm) strftime(out, n, "%Y-%m-%d %H:%M UTC", tm);
+}
+
+static void info_catalog(void) {
+    if (g_catalog.count == 0 || g_rom_sel >= g_catalog.count) return;
+    const RomEntry *r = &g_catalog.items[g_rom_sel];
+    char sz[16], target[260], st[48];
+    bool have_target;
+    u32 hex;
+    ui_human_size(r->size, sz, sizeof(sz));
+    rom_status(r, st, sizeof(st), &hex, target, sizeof(target), &have_target);
+    const char *lab[] = { "STATUS", "SIZE", "FILE", "INSTALLS TO", "CONVERSION", "ROM ID" };
+    const char *val[] = { st, sz, r->filename, have_target ? target : "-",
+                          !strcasecmp(r->extract_format, "rvz") ? "Server converts RVZ to ISO" : "None",
+                          r->rom_id };
+    show_info(r->name, lab, val, 6);
+}
+
+static void info_local(void) {
+    if (g_local.count == 0 || g_local_sel >= g_local.count) return;
+    const LocalRom *r = &g_local.items[g_local_sel];
+    char sz[16];
+    ui_human_size(r->size, sz, sizeof(sz));
+    const char *lab[] = { "SIZE", "FILE", "PATH" };
+    const char *val[] = { sz, r->filename, r->path };
+    show_info(r->name, lab, val, 3);
+}
+
+static void info_download(void) {
+    if (g_downloads.count == 0 || g_dl_sel >= g_downloads.count) return;
+    const DownloadEntry *e = &g_downloads.items[g_dl_sel];
+    uint64_t done, tot;
+    dl_progress(e, &done, &tot);
+    char a[24], b[24], prog[64];
+    ui_human_size(done, a, sizeof(a));
+    ui_human_size(tot, b, sizeof(b));
+    if (tot) snprintf(prog, sizeof(prog), "%s / %s  (%d%%)", a, b, (int)(done * 100 / tot));
+    else snprintf(prog, sizeof(prog), "%s", done ? a : "Not started");
+    const char *lab[] = { "STATUS", "PROGRESS", "SAVES TO", "ROM ID" };
+    const char *val[] = { dl_status_label(e->status), prog, e->target_path, e->rom_id };
+    show_info(e->name, lab, val, 4);
+}
+
+static void info_save(const char *name, const char *gamecode, const char *company,
+                      const char *title_id, const char *filename, int blocks,
+                      const char *where) {
+    char id[12], blk[24], when[40], srv[96];
+    snprintf(id, sizeof(id), "%s%s", gamecode, company);
+    snprintf(blk, sizeof(blk), "%d block%s", blocks, blocks == 1 ? "" : "s");
+    const ServerSave *sv = server_find(title_id);
+    fmt_when(sv ? sv->timestamp : 0, when, sizeof(when));
+    if (sv) snprintf(srv, sizeof(srv), "Saved on server, last upload %s", when);
+    else snprintf(srv, sizeof(srv), "%s", g_server.count ? "Not on server" : "Unknown");
+    const char *lab[] = { "GAME ID", "TITLE ID", "SIZE", "FILE ON CARD", "SERVER", "LOCATION" };
+    const char *val[] = { id, title_id, blk, filename, srv, where };
+    show_info(name, lab, val, 6);
+}
+
+static void info_vmc(void) {
+    if (g_vmccard.count == 0 || g_vmc_sel >= g_vmccard.count) return;
+    const VmcfsSave *s = &g_vmccard.saves[g_vmc_sel];
+    info_save(s->name[0] ? s->name : s->filename, s->gamecode, s->company, s->title_id,
+              s->filename, s->blocks, g_vmc.items[g_vmc_active].path);
+}
+
+static void info_card(void) {
+    const GcSaveList *list = card_list(g_card_port);
+    int sel = g_card_sel[g_card_port];
+    if (list->count == 0 || sel >= list->count) return;
+    const GcSave *s = &list->items[sel];
+    char where[48];
+    snprintf(where, sizeof(where), "Memory card slot %c%s", 'A' + list->port,
+             g_state.mmce_mode[list->port] ? "  (GameID on)" : "");
+    info_save(s->name[0] ? s->name : s->filename, s->gamecode, s->company, s->title_id,
+              s->filename, s->blocks, where);
+}
+
+static void info_server(void) {
+    if (g_server.count == 0 || g_sv_sel >= g_server.count) return;
+    const ServerSave *s = &g_server.items[g_sv_sel];
+    char when[40];
+    fmt_when(s->timestamp, when, sizeof(when));
+    const char *where = "Not on a memory card";
+    for (int i = 0; i < g_carda.count; i++)
+        if (!strcasecmp(g_carda.items[i].title_id, s->title_id)) { where = "Memory card slot A"; break; }
+    if (where[0] == 'N')
+        for (int i = 0; i < g_cardb.count; i++)
+            if (!strcasecmp(g_cardb.items[i].title_id, s->title_id)) { where = "Memory card slot B"; break; }
+    const char *lab[] = { "TITLE ID", "LAST UPLOAD", "LOCAL COPY" };
+    const char *val[] = { s->title_id, when, where };
+    show_info(s->name[0] ? s->name : s->title_id, lab, val, 3);
 }
 
 /* ---- main ---- */
@@ -1408,7 +1850,8 @@ int main(int argc, char **argv) {
         ui_status("SD ready (%s); network not up", sd_device_to_str(g_state.sd_device));
 
     if (g_state.sd_ready) { scan_local(); saves_scan_vmc(&g_vmc); open_vmc_card(0); }
-    if (network_is_ready(&g_state)) { fetch_catalog(); fetch_server(); }
+    if (g_state.sd_ready || network_is_ready(&g_state)) load_catalog(false);
+    if (network_is_ready(&g_state)) fetch_server();
 
     redraw();
 
@@ -1416,134 +1859,60 @@ int main(int argc, char **argv) {
     while (running) {
         /* Pace the loop at vsync and only redraw on input. */
         VIDEO_WaitVSync();
-        PAD_ScanPads();
-        u32 down = PAD_ButtonsDown(0);
-        u32 held = PAD_ButtonsHeld(0);
+        u32 down = pad_read();
+        if (down == 0) continue;   /* nothing pressed - keep last frame */
 
-        const u32 quit_combo = PAD_TRIGGER_L | PAD_TRIGGER_R | PAD_BUTTON_START;
-        if ((held & quit_combo) == quit_combo) { running = false; }
-
-        else if (down == 0) continue;   /* nothing pressed - keep last frame */
-
-        else if (down & PAD_TRIGGER_L) cycle_view(-1);
+        if (down & PAD_TRIGGER_L) cycle_view(-1);
         else if (down & PAD_TRIGGER_R) cycle_view(+1);
-
+        else if (down & PAD_BUTTON_START) {
+            if (confirm(HEX_WARN, "Exit GameSync", "Leave GameSync and return to the loader?"))
+                running = false;
+        }
         else if (g_view == APP_VIEW_ROMS) {
-            int c = g_catalog.count;
-            if      (down & PAD_BUTTON_UP)    g_rom_sel--;
-            else if (down & PAD_BUTTON_DOWN)  g_rom_sel++;
-            else if (down & PAD_BUTTON_LEFT)  g_rom_sel -= ui_list_visible();
-            else if (down & PAD_BUTTON_RIGHT) g_rom_sel += ui_list_visible();
-            else if (down & PAD_BUTTON_A)     fetch_catalog();
-            else if (down & PAD_BUTTON_X)     queue_selected_rom(false);
-            else if (down & PAD_BUTTON_Y)     queue_selected_rom(true);
-            clamp_scroll(&g_rom_sel, &g_rom_scroll, c);
+            if (list_nav(down, &g_rom_sel, ui_list_visible())) {}
+            else if (down & PAD_BUTTON_A) act_catalog();
+            else if (down & PAD_BUTTON_Y) info_catalog();
+            clamp_scroll(&g_rom_sel, &g_rom_scroll, g_catalog.count);
         }
         else if (g_view == APP_VIEW_LOCAL) {
-            int c = g_local.count;
-            if      (down & PAD_BUTTON_UP)    g_local_sel--;
-            else if (down & PAD_BUTTON_DOWN)  g_local_sel++;
-            else if (down & PAD_BUTTON_LEFT)  g_local_sel -= ui_list_visible();
-            else if (down & PAD_BUTTON_RIGHT) g_local_sel += ui_list_visible();
-            else if (down & PAD_BUTTON_A)     scan_local();
-            else if (down & PAD_BUTTON_X) {
-                if (c > 0 && g_local_sel < c &&
-                    confirm(HEX_ERR, "Delete game", "Delete %s from the SD card?",
-                            g_local.items[g_local_sel].filename)) {
-                    if (unlink(g_local.items[g_local_sel].path) == 0) {
-                        ui_status("Deleted: %s", g_local.items[g_local_sel].filename);
-                        scan_local();
-                    } else ui_error("Delete failed");
-                }
-            }
+            if (list_nav(down, &g_local_sel, ui_list_visible())) {}
+            else if (down & PAD_BUTTON_A) act_local();
+            else if (down & PAD_BUTTON_X) scan_local();
+            else if (down & PAD_BUTTON_Y) info_local();
             clamp_scroll(&g_local_sel, &g_local_scroll, g_local.count);
         }
         else if (g_view == APP_VIEW_DOWNLOADS) {
-            int c = g_downloads.count;
-            if      (down & PAD_BUTTON_UP)    g_dl_sel--;
-            else if (down & PAD_BUTTON_DOWN)  g_dl_sel++;
-            else if (down & PAD_BUTTON_A) {
-                if (c > 0 && g_dl_sel < c) run_active_download(&g_downloads.items[g_dl_sel]);
-            }
-            else if (down & PAD_BUTTON_Y) run_download_queue();
-            else if (down & PAD_BUTTON_X) {
-                if (c > 0 && g_dl_sel < c) {
-                    downloads_remove(&g_downloads, g_downloads.items[g_dl_sel].rom_id);
-                    downloads_save(&g_downloads);
-                }
-            }
+            if (list_nav(down, &g_dl_sel, ui_list_visible())) {}
+            else if (down & PAD_BUTTON_A) act_download();
+            else if (down & PAD_BUTTON_X) run_download_queue();
+            else if (down & PAD_BUTTON_Y) info_download();
             clamp_scroll(&g_dl_sel, &g_dl_scroll, g_downloads.count);
         }
         else if (g_view == APP_VIEW_SAVES) {
             int vis = vmc_rows();
-            if      (down & PAD_BUTTON_UP)    g_vmc_sel--;
-            else if (down & PAD_BUTTON_DOWN)  g_vmc_sel++;
-            else if (down & PAD_BUTTON_LEFT)  g_vmc_sel -= vis;
-            else if (down & PAD_BUTTON_RIGHT) g_vmc_sel += vis;
-            else if (down & PAD_TRIGGER_Z)    cycle_vmc_card();
-            else if (down & PAD_BUTTON_X)     scan_vmc_view();
-            else if (down & PAD_BUTTON_A)     upload_vmc_save_at(g_vmc_sel);
-            else if (down & PAD_BUTTON_Y)     restore_vmc_save_at(g_vmc_sel);
-            else if (down & PAD_BUTTON_START) import_whole_vmc();
+            if (list_nav(down, &g_vmc_sel, vis)) {}
+            else if (down & PAD_TRIGGER_Z) cycle_vmc_card();
+            else if (down & PAD_BUTTON_A)  act_vmc();
+            else if (down & PAD_BUTTON_X)  scan_vmc_view();
+            else if (down & PAD_BUTTON_Y)  info_vmc();
             clamp_scroll_rows(&g_vmc_sel, &g_vmc_scroll, g_vmccard.count, vis);
         }
-        else if (g_view == APP_VIEW_CARDA) {
-            if      (down & PAD_BUTTON_UP)    g_ca_sel--;
-            else if (down & PAD_BUTTON_DOWN)  g_ca_sel++;
-            else if (down & PAD_BUTTON_LEFT)  g_ca_sel -= ui_list_visible();
-            else if (down & PAD_BUTTON_RIGHT) g_ca_sel += ui_list_visible();
-            else if (down & PAD_BUTTON_X)     scan_card_view(0, &g_carda);
-            else if (down & PAD_BUTTON_A)     upload_card_at(&g_carda, g_ca_sel);
-            else if (down & PAD_BUTTON_Y)     restore_card_at(&g_carda, g_ca_sel);
-            else if (down & PAD_TRIGGER_Z) {
-                if (g_carda.count > 0 && g_ca_sel < g_carda.count) {
-                    const GcSave *s = &g_carda.items[g_ca_sel];
-                    mcp_gameid(0, s->gamecode, s->company, s->name[0] ? s->name : s->title_id);
-                }
-            }
-            clamp_scroll(&g_ca_sel, &g_ca_scroll, g_carda.count);
-        }
-        else if (g_view == APP_VIEW_CARDB) {
-            if      (down & PAD_BUTTON_UP)    g_cb_sel--;
-            else if (down & PAD_BUTTON_DOWN)  g_cb_sel++;
-            else if (down & PAD_BUTTON_LEFT)  g_cb_sel -= ui_list_visible();
-            else if (down & PAD_BUTTON_RIGHT) g_cb_sel += ui_list_visible();
-            else if (down & PAD_BUTTON_X)     scan_card_view(1, &g_cardb);
-            else if (down & PAD_BUTTON_A)     upload_card_at(&g_cardb, g_cb_sel);
-            else if (down & PAD_BUTTON_Y)     restore_card_at(&g_cardb, g_cb_sel);
-            else if (down & PAD_TRIGGER_Z) {
-                if (g_cardb.count > 0 && g_cb_sel < g_cardb.count) {
-                    const GcSave *s = &g_cardb.items[g_cb_sel];
-                    mcp_gameid(1, s->gamecode, s->company, s->name[0] ? s->name : s->title_id);
-                }
-            }
-            clamp_scroll(&g_cb_sel, &g_cb_scroll, g_cardb.count);
+        else if (g_view == APP_VIEW_CARDS) {
+            int p = g_card_port;
+            if (list_nav(down, &g_card_sel[p], subtab_rows())) {}
+            else if (down & PAD_TRIGGER_Z) g_card_port = !g_card_port;
+            else if (down & PAD_BUTTON_A)  act_card();
+            else if (down & PAD_BUTTON_X)  { scan_card_view(p, card_list(p)); mark_server_local(); }
+            else if (down & PAD_BUTTON_Y)  info_card();
+            for (int q = 0; q < 2; q++)
+                clamp_scroll_rows(&g_card_sel[q], &g_card_scroll[q], card_list(q)->count,
+                                  subtab_rows());
         }
         else if (g_view == APP_VIEW_SERVER) {
-            if      (down & PAD_BUTTON_UP)    g_sv_sel--;
-            else if (down & PAD_BUTTON_DOWN)  g_sv_sel++;
-            else if (down & PAD_BUTTON_LEFT)  g_sv_sel -= ui_list_visible();
-            else if (down & PAD_BUTTON_RIGHT) g_sv_sel += ui_list_visible();
-            else if (down & PAD_BUTTON_X)     fetch_server();
-            else if (down & PAD_BUTTON_A)     server_restore_to(0);
-            else if (down & PAD_BUTTON_Y)     server_restore_to(1);
-            else if (down & PAD_TRIGGER_Z) {
-                if (g_server.count > 0 && g_sv_sel < g_server.count) {
-                    const ServerSave *s = &g_server.items[g_sv_sel];
-                    const char *gc = strncasecmp(s->title_id, "GC_", 3) == 0 ? s->title_id + 3 : s->title_id;
-                    /* Use the real maker code when the game is on a scanned
-                     * card — MMCE devices key channels on the full 6-char ID. */
-                    const char *company = "";
-                    for (int i = 0; i < g_carda.count && !company[0]; i++)
-                        if (!strcasecmp(g_carda.items[i].title_id, s->title_id))
-                            company = g_carda.items[i].company;
-                    for (int i = 0; i < g_cardb.count && !company[0]; i++)
-                        if (!strcasecmp(g_cardb.items[i].title_id, s->title_id))
-                            company = g_cardb.items[i].company;
-                    int port = g_state.mmce_mode[0] ? 0 : (g_state.mmce_mode[1] ? 1 : 0);
-                    mcp_gameid(port, gc, company, s->name[0] ? s->name : s->title_id);
-                }
-            }
+            if (list_nav(down, &g_sv_sel, ui_list_visible())) {}
+            else if (down & PAD_BUTTON_A) act_server();
+            else if (down & PAD_BUTTON_X) fetch_server();
+            else if (down & PAD_BUTTON_Y) info_server();
             clamp_scroll(&g_sv_sel, &g_sv_scroll, g_server.count);
         }
         else if (g_view == APP_VIEW_CONFIG) config_input(down);

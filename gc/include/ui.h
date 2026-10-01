@@ -12,7 +12,7 @@
  *
  * Screen layout (logical 640x480):
  *   header bar   | logo  GameSync • <view>          v0.x  ● ip  [SD sp2] |
- *   tab strip    | L  Catalog Installed Queue VMC Slot A Slot B ... R      |
+ *   tab strip    | L  Catalog Installed Queue VMC Cards Server Settings R |
  *   body         | list panel (rows + selection bar)  | detail panel      |
  *   banner       | status / error line                                    |
  *   footer       | button hints                                           |
@@ -79,6 +79,14 @@ float ui_detail_pill(float *x, float y, u32 bg, u32 fg, const char *label);
 void ui_draw_boot(const char *message);
 /* Confirm card over whatever is already drawn this frame */
 void ui_draw_confirm(const char *title, const char *message, u32 tone);
+
+/* Choice card (action menu): items stacked, `sel` highlighted, with an
+ * "A Select / B Cancel" strip.  `subtitle` may be NULL. */
+void ui_draw_menu(const char *title, const char *subtitle,
+                  const char *const *items, int n, int sel);
+/* Read-only details card: label / value pairs and a "B Close" strip */
+void ui_draw_info(const char *title, const char *const *labels,
+                  const char *const *values, int n);
 
 /* Helpers */
 void ui_human_size(uint64_t b, char *out, size_t n);

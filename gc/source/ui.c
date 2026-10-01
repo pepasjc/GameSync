@@ -48,8 +48,7 @@ const char *ui_view_name(AppView view) {
         case APP_VIEW_LOCAL:     return "Installed Games";
         case APP_VIEW_DOWNLOADS: return "Downloads";
         case APP_VIEW_SAVES:     return "Card Images (SD)";
-        case APP_VIEW_CARDA:     return "Memory Card A";
-        case APP_VIEW_CARDB:     return "Memory Card B";
+        case APP_VIEW_CARDS:     return "Memory Cards";
         case APP_VIEW_SERVER:    return "Server Saves";
         case APP_VIEW_CONFIG:    return "Settings";
         default:                 return "?";
@@ -57,7 +56,7 @@ const char *ui_view_name(AppView view) {
 }
 
 static const char *const k_tabs[APP_VIEW_COUNT] = {
-    "Catalog", "Installed", "Queue", "VMC", "Slot A", "Slot B", "Server", "Settings",
+    "Catalog", "Installed", "Queue", "VMC", "Cards", "Server", "Settings",
 };
 
 void ui_draw_chrome(const SyncState *state, AppView view, const GuiHint *hints, int nhints) {
@@ -204,6 +203,68 @@ void ui_draw_confirm(const char *title, const char *message, u32 tone) {
     gui_text_mid(bx - lw, by, 20, GUI_S_SMALL, gui_rgb(HEX_TEXT), GUI_LEFT, 0, "Yes");
     bx -= lw + 6 + gui_button_w("A");
     gui_button(bx, by + 10, "A");
+}
+
+/* Button strip at the bottom of a modal card, laid out right to left. */
+static void card_strip(float x, float w, float by, const char *const *btn,
+                       const char *const *lab, int n) {
+    gui_rect(x + 12, by - 8, w - 24, 2, gui_rgb(HEX_LINE));
+    float bx = x + w - 20;
+    for (int i = n - 1; i >= 0; i--) {
+        float lw = gui_text_w(GUI_S_SMALL, lab[i]);
+        gui_text_mid(bx - lw, by, 20, GUI_S_SMALL, gui_rgb(i == 0 ? HEX_TEXT : HEX_DIM),
+                     GUI_LEFT, 0, lab[i]);
+        bx -= lw + 6 + gui_button_w(btn[i]);
+        gui_button(bx, by + 10, btn[i]);
+        bx -= 22;
+    }
+}
+
+void ui_draw_menu(const char *title, const char *subtitle,
+                  const char *const *items, int n, int sel) {
+    gui_dim();
+    float w = 400, x = (GUI_W - w) / 2, rh = 28;
+    float sh = subtitle && *subtitle ? gui_line_h(GUI_S_TINY) + 6 : 0;
+    float h = 34 + 12 + sh + n * rh + 14 + 36;
+    float y = (GUI_H - h) / 2;
+    gui_card(x, y, w, h, title, HEX_ACCENT);
+    float cy = y + 34 + 10;
+    if (sh > 0) {
+        gui_text_fit(x + 20, cy, GUI_S_TINY, gui_rgb(HEX_DIM), GUI_LEFT, w - 40, subtitle);
+        cy += sh;
+    }
+    for (int i = 0; i < n; i++) {
+        bool on = i == sel;
+        if (on) gui_rrect(x + 14, cy, w - 28, rh - 4, 7, gui_rgb(HEX_ACCENT));
+        gui_text_mid(x + 26, cy, rh - 4, GUI_S_SMALL, gui_rgb(on ? HEX_INK : HEX_TEXT),
+                     GUI_LEFT, w - 52, items[i]);
+        cy += rh;
+    }
+    static const char *const btn[] = { "A", "B" };
+    static const char *const lab[] = { "Select", "Cancel" };
+    card_strip(x, w, y + h - 30, btn, lab, 2);
+}
+
+void ui_draw_info(const char *title, const char *const *labels,
+                  const char *const *values, int n) {
+    gui_dim();
+    float w = 460, x = (GUI_W - w) / 2;
+    float lt = gui_line_h(GUI_S_TINY), ls = gui_line_h(GUI_S_SMALL);
+    float h = 34 + 12 + n * (lt + ls + 4) + 10 + 36;
+    float y = (GUI_H - h) / 2;
+    if (y < GUI_SAFE_Y) y = GUI_SAFE_Y;
+    gui_card(x, y, w, h, title, HEX_INFO);
+    float cy = y + 34 + 10;
+    for (int i = 0; i < n; i++) {
+        gui_text(x + 20, cy, GUI_S_TINY, gui_rgb(HEX_MUTED), GUI_LEFT, labels[i]);
+        cy += lt - 2;
+        gui_text_fit(x + 20, cy, GUI_S_SMALL, gui_rgb(HEX_TEXT), GUI_LEFT, w - 40,
+                     values[i] && *values[i] ? values[i] : "-");
+        cy += ls + 6;
+    }
+    static const char *const btn[] = { "B" };
+    static const char *const lab[] = { "Close" };
+    card_strip(x, w, y + h - 30, btn, lab, 1);
 }
 
 void ui_human_size(uint64_t b, char *o, size_t n) {

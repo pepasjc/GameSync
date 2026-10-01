@@ -28,33 +28,58 @@ SD device, games folder, and GameID per memory card slot.
 ## Screens and controls
 
 The screen is a header (current view, version, network address and SD status),
-a tab strip of the eight views, a list on the left with a detail panel for the
+a tab strip of the seven views, a list on the left with a detail panel for the
 selected item on the right, a status banner and a footer with the buttons that
-apply. **L / R** switch views; **L + R + START** quits. On every list, the
-D-pad **Up / Down** moves and **Left / Right** pages.
+apply. The controls are the shared GameSync scheme, the same on every view:
 
-| View | A | X | Y | Z | START |
-|---|---|---|---|---|---|
-| **Catalog** — server's GameCube games | Fetch catalog | Queue download | Download now | | |
-| **Installed** — ISOs on the SD card | Rescan | Delete (asks first) | | | |
-| **Queue** — downloads (resumable) | Start / resume selected | Remove | Run whole queue | | |
-| **VMC** — saves inside card images on SD | Upload save | Rescan images | Restore save into image | Next card image | Import whole image |
-| **Slot A / Slot B** — physical memory cards | Upload save | Rescan card | Restore from server | Send GameID | |
-| **Server** — GameCube saves on the server | Restore to slot A | Refresh | Restore to slot B | Send GameID | |
-| **Settings** | Edit / toggle / run | | | | |
+| Button | Does |
+|---|---|
+| D-pad **Up / Down** | Move one row (hold to repeat) |
+| D-pad **Left / Right** | Page up / page down in the list (hold to repeat) |
+| **L / R** triggers | Previous / next view: Catalog, Installed, Queue, VMC, Cards, Server, Settings (wraps around) |
+| **Z** | Sub-tab: next card image (VMC), slot A / slot B (Cards) |
+| **A** | Act on the focused row; rows with several actions open a menu |
+| **B** | Cancel: closes menus and dialogs, stops (pauses) a running download |
+| **X** | The view's secondary action (see below) |
+| **Y** | Details of the focused row |
+| **START** | Exit GameSync (asks first) |
 
-In **Settings**, Left / Right also change toggles (network mode, SD device,
-GameID). Text fields open an on-screen editor: **Up / Down** pick the letter
-under the cursor (the strip shows what comes next), **Left / Right** move,
-**Z** inserts a space, **X** deletes, **A** (or START) accepts, **B** cancels.
+| View | A | X | Z |
+|---|---|---|---|
+| **Catalog**: the server's GameCube games | Menu: Download now / Add to download queue | | |
+| **Installed**: ISOs on the SD card | Delete (asks first) | Rescan | |
+| **Queue**: downloads (resumable) | Menu: Start or resume / Remove from queue | Run the whole queue | |
+| **VMC**: saves inside card images on SD | Menu: Upload save / Restore save (asks) / Import whole image (asks) | Rescan images | Next card image |
+| **Cards**: physical memory cards in slot A / B | Menu: Upload save / Restore from server (asks) / Send GameID (when on for the slot) | Rescan the slot | Slot A / slot B |
+| **Server**: GameCube saves on the server | Menu: Restore to slot A / Restore to slot B (both ask) / Send GameID (when on) | Refresh | |
+| **Settings** | Edit a text field, flip a toggle (SD device cycles and remounts), or run an action | | |
+
+In menus, **Up / Down** pick, **A** runs, **B** cancels. Confirmations are
+**A** yes, **B** no. Text fields in Settings open an on-screen editor:
+**Up / Down** pick the letter under the cursor (the strip shows what comes
+next), **Left / Right** move, **Z** inserts a space, **X** deletes, **A**
+accepts, **B** cancels.
 
 While a download runs, a progress card shows the bar, size done / total,
 percentage, speed, elapsed and remaining time; while the server is still
-converting an RVZ to ISO it shows how long it has been waiting. **B** pauses
-(the download resumes from the same offset with A later).
+converting an RVZ to ISO it shows how long it has been waiting. **B** stops
+it (paused: the download resumes from the same offset with A later).
 
-Uploads, restores, deletes and whole-image imports ask for confirmation
-(**A** yes, **B** no).
+### Catalog cache
+
+The catalog is kept on the SD card in `sd:/3dssync/cache/catalog_GC.tsv`
+(a small tab-separated file: a version line, `GC <fingerprint> <count>`, one
+line per game with only the fields the client uses, and an `END` line). On
+start the client asks the server for its per-system fingerprints
+(`/api/v1/roms/fingerprints`) and downloads the GameCube list again only when
+the fingerprint changed; otherwise the list is read from the SD card. With the
+server unreachable the cached list is shown, marked *offline (cached)*. A
+server too old to publish fingerprints gets the full fetch every time, with
+nothing cached.
+
+**Settings > Refresh catalog** asks the server to rescan its ROM folder
+(`/api/v1/roms/scan`; if that is refused, the refresh carries on), deletes
+the cache and downloads the list again.
 
 Notes:
 
