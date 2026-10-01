@@ -111,6 +111,21 @@ int network_fetch_rom_catalog(const SyncState *state,
     return http_get_buf(&req, (uint8_t *)out, out_size, status_out);
 }
 
+int network_api_get(const SyncState *state, const char *path,
+                    char *out, uint32_t out_size, int *status_out)
+{
+    if (!network_is_ready(state)) {
+        if (status_out) *status_out = 0;
+        return -100;
+    }
+    HttpRequest req = {0};
+    req.server_url = state->server_url;
+    req.api_key    = state->api_key;
+    req.path       = path;
+    req.method     = "GET";
+    return http_get_buf(&req, (uint8_t *)out, out_size, status_out);
+}
+
 static void build_rom_download_path(char *path, size_t path_size,
                                     const char *rom_id, const char *extract_fmt)
 {

@@ -24,6 +24,7 @@
  *   sd:/3dssync/config.txt
  *   sd:/3dssync/consoleid.txt
  *   sd:/3dssync/downloads.dat
+ *   sd:/3dssync/cache/catalog_GC.tsv   (ROM catalog cache, see catcache.h)
  *
  * ROM ISOs are written to a configurable folder (default /games) in the flat
  * layout Swiss / GC Loader / FlippyDrive read:
@@ -37,17 +38,17 @@
 #define DOWNLOADS_FILE      SD_ROOT APP_DATA_SUBDIR "/downloads.dat"
 #define DEFAULT_GAMES_DIR   "/games"
 
-/* Top-level views.  L/R triggers cycle in order. */
+/* Top-level views.  L/R triggers cycle in order (wrapping); Z switches the
+ * sub-tab inside a view (card image on VMC, slot A / B on Cards). */
 typedef enum {
     APP_VIEW_ROMS      = 0,   /* server catalog (HTTP) */
     APP_VIEW_LOCAL     = 1,   /* installed ISOs on SD */
     APP_VIEW_DOWNLOADS = 2,   /* download queue */
     APP_VIEW_SAVES     = 3,   /* VMC / full-card images on SD */
-    APP_VIEW_CARDA     = 4,   /* physical memory card slot A (EXI0) */
-    APP_VIEW_CARDB     = 5,   /* physical memory card slot B (EXI1) */
-    APP_VIEW_SERVER    = 6,   /* all GC saves on the server */
-    APP_VIEW_CONFIG    = 7,
-    APP_VIEW_COUNT     = 8,
+    APP_VIEW_CARDS     = 4,   /* physical memory cards, slot A (EXI0) / B (EXI1) */
+    APP_VIEW_SERVER    = 5,   /* all GC saves on the server */
+    APP_VIEW_CONFIG    = 6,
+    APP_VIEW_COUNT     = 7,
 } AppView;
 
 /*

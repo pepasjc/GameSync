@@ -29,6 +29,12 @@ int network_fetch_rom_catalog(const SyncState *state,
                               char *out, uint32_t out_size,
                               int *status_out);
 
+/* Plain GET of an API path (e.g. "/api/v1/roms/fingerprints") into out.
+ * Returns the body length (>= 0) or < 0 on a network error; *status_out
+ * gets the HTTP status (0 when no response arrived). */
+int network_api_get(const SyncState *state, const char *path,
+                    char *out, uint32_t out_size, int *status_out);
+
 /* Resumable streaming download to target_path (.part + atomic rename).
  *    0 ok / 1 paused / -1 net error / -2 fs error / -3 HTTP non-2xx */
 int network_download_rom_resumable(const SyncState *state,

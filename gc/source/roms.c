@@ -221,6 +221,57 @@ bool roms_fetch_catalog(const SyncState *state, const char *system_code,
     return true;
 }
 
+/* --- Catalog fingerprints / server rescan (catalog cache, see catcache.h) --- */
+
+int roms_fetch_fingerprint(const SyncState *state, const char *system,
+                           char *scratch_buf, uint32_t scratch_buf_size,
+                           char *fp_out, size_t fp_size, int *count_out) {
+    if (fp_out && fp_size) fp_out[0] = '\0';
+    if (count_out) *count_out = 0;
+    int status = 0;
+    int n = network_api_get(state, "/api/v1/roms/fingerprints",
+                            scratch_buf, scratch_buf_size, &status);
+    if (status == 404 || status == 405) return ROMS_FP_NO_ROUTE;
+    if (n < 0 || status != 200) return ROMS_FP_ERROR;
+
+    const char *end = scratch_buf + n;
+    const char *body = skip_ws(scratch_buf);
+    if (body >= end || *body != '{') return ROMS_FP_ERROR;
+    const char *sys = find_key(body + 1, end, "systems");
+    if (!sys || *sys != '{') return ROMS_FP_ERROR;
+    const char *sys_end = NULL;
+    if (!object_bounds(sys, end, &sys_end)) return ROMS_FP_ERROR;
+    const char *ent = find_key(sys + 1, sys_end, system);
+    if (!ent) return ROMS_FP_ABSENT;
+    const char *ent_end = NULL;
+    if (*ent != '{' || !object_bounds(ent, sys_end, &ent_end)) return ROMS_FP_ERROR;
+
+    const char *v = find_key(ent + 1, ent_end, "fingerprint");
+    if (!v || !extract_str(v, ent_end, fp_out, fp_size)) return ROMS_FP_ERROR;
+    uint64_t c = 0;
+    v = find_key(ent + 1, ent_end, "count");
+    if (v && extract_u64(v, ent_end, &c) && count_out) *count_out = (int)c;
+    return ROMS_FP_OK;
+}
+
+int roms_rescan_server(const SyncState *state, char *scratch_buf,
+                       uint32_t scratch_buf_size, int *count_out) {
+    if (count_out) *count_out = 0;
+    int status = 0;
+    int n = network_api_get(state, "/api/v1/roms/scan", scratch_buf,
+                            scratch_buf_size, &status);
+    if (status == 403 || status == 404 || status == 405) return ROMS_RESCAN_REFUSED;
+    if (n < 0 || status != 200) return ROMS_RESCAN_FAILED;
+    const char *end = scratch_buf + n;
+    const char *body = skip_ws(scratch_buf);
+    if (body < end && *body == '{') {
+        uint64_t c = 0;
+        const char *v = find_key(body + 1, end, "count");
+        if (v && extract_u64(v, end, &c) && count_out) *count_out = (int)c;
+    }
+    return ROMS_RESCAN_OK;
+}
+
 const char *roms_preferred_extract_format(const RomEntry *rom) {
     if (!rom) return "";
     return rom->extract_format;

@@ -38,6 +38,23 @@ bool roms_fetch_catalog(const SyncState *state,
                         char *scratch_buf, uint32_t scratch_buf_size,
                         RomCatalog *catalog);
 
+/* GET /api/v1/roms/fingerprints and pick out `system`.
+ *   ROMS_FP_OK       fingerprint (and row count) filled in
+ *   ROMS_FP_ABSENT   the server lists no ROMs for that system
+ *   ROMS_FP_NO_ROUTE server predates the route (404/405) - don't cache
+ *   ROMS_FP_ERROR    unreachable / bad answer - use the cached copy */
+enum { ROMS_FP_OK = 0, ROMS_FP_ABSENT = 1, ROMS_FP_NO_ROUTE = -2, ROMS_FP_ERROR = -1 };
+int roms_fetch_fingerprint(const SyncState *state, const char *system,
+                           char *scratch_buf, uint32_t scratch_buf_size,
+                           char *fp_out, size_t fp_size, int *count_out);
+
+/* GET /api/v1/roms/scan — ask the server to walk its ROM folder again
+ * (MiSTer's rescan_roms).  REFUSED = 403/404/405 (not an admin / old
+ * server); the caller carries on either way. */
+enum { ROMS_RESCAN_OK = 0, ROMS_RESCAN_REFUSED = 1, ROMS_RESCAN_FAILED = -1 };
+int roms_rescan_server(const SyncState *state, char *scratch_buf,
+                       uint32_t scratch_buf_size, int *count_out);
+
 /* ?extract= value for this entry (whatever the server advertised). */
 const char *roms_preferred_extract_format(const RomEntry *rom);
 
