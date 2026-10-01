@@ -58,11 +58,64 @@ wifi_ap=0
 
 `wifi_ap` selects which saved WiFi access point to use (0–2, matching the PSP's network settings).
 
+## Screens
+
+The UI is drawn with the GE (sceGu): a dark theme with a header (GameSync,
+current view, view pager, version, WiFi bars and a server status dot), a list
+on the left, a detail panel for the selected row on the right, and a footer
+with the PlayStation button hints. Dialogs are cards over the dimmed view.
+
+- **Saves** - every PSP/PS1 save on the Memory Stick plus saves that only exist
+  on the server (tagged `SERVER`). The detail panel shows the game ID, size,
+  file count and folder, plus the server URL, console ID and access point.
+- **Catalog** - the server's ROM library for PSP or PS1 (switch with L/R). Rows
+  show the download state (queued, paused, done, error) and size; the detail
+  panel shows the file, how it installs (CSO / EBOOT.PBP) and where it goes.
+- **Downloads** - the resumable download queue. While a transfer runs the
+  detail panel shows a progress bar, size, speed and ETA.
+
+Sync actions open a compare dialog (this PSP vs. server: size, files, date)
+with an arrow for the direction; a conflict asks you to pick a side with
+Square or Triangle. Sync all ends with a summary of uploads, downloads,
+up-to-date saves, conflicts and failures.
+
+The text is the Vegur typeface (public domain), pre-rendered into
+`source/font_data.c` by `tools/make_font.py` (needs Pillow and fontTools) -
+rerun it after changing sizes or the glyph set.
+
 ## Controls
+
+START cycles **Saves -> Catalog -> Downloads** from any view.
+
+**Saves**
 
 | Button | Action |
 |---|---|
-| A (Cross) | Upload selected save |
-| B (Circle) | Download selected save |
-| Up / Down | Navigate save list |
-| START | Exit |
+| Up / Down | Select a save |
+| Left / Right | Page up / down |
+| Cross | Sync: compare with the server and confirm the suggested action |
+| Square | Upload the selected save |
+| Triangle | Download the selected save |
+| SELECT | Sync all saves |
+
+**Catalog**
+
+| Button | Action |
+|---|---|
+| Up / Down, Left / Right | Select / page |
+| L / R | Switch system (PSP, PS1) |
+| Cross | Download the selected game |
+| Triangle | Resume a paused or failed download |
+| Circle | Ask the server to rescan its ROMs and reload |
+
+**Downloads**
+
+| Button | Action |
+|---|---|
+| Up / Down | Select an entry |
+| Cross | Start or resume the selected download |
+| Square | Pause the running download (resume later) |
+| Circle | Remove the selected entry (pause it first if running) |
+| Triangle | Clear finished downloads |
+
+In dialogs Cross confirms and Circle cancels. HOME exits.

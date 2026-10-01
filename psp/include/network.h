@@ -8,6 +8,9 @@
  * Returns 0 on success. */
 int network_init(void);
 
+/* After a failed network_init(): which call failed and its code. */
+const char *network_init_error(void);
+
 /* Connect to WiFi using one of the PSP's saved access points (index 0-2).
  * Returns 0 on success. This can take several seconds. */
 int network_connect_ap(int ap_index);

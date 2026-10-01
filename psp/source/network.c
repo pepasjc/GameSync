@@ -11,7 +11,6 @@
 #include <stdlib.h>
 
 #include <pspkernel.h>
-#include <pspdebug.h>
 #include <pspmoduleinfo.h>
 #include <pspnet.h>
 #include <pspnet_inet.h>
@@ -71,28 +70,19 @@ static void *find_export(const char *module_name, uint32_t nid) {
         uint32_t libent_top = *(uint32_t *)(base + 36);
         uint32_t libent_btm = *(uint32_t *)(base + 40);
 
-        pspDebugScreenPrintf("  %s seg=%08X ent=%08X..%08X\n",
-            module_name, info.segmentaddr[0], libent_top, libent_btm);
-
         /* Walk export entries */
         uint8_t *ep = (uint8_t *)libent_top;
         while ((uint32_t)ep < libent_btm) {
             uint8_t len_words = ep[8];
             if (len_words == 0) break;
 
-            const char *libname = *(const char **)ep;
             uint16_t funccount  = *(uint16_t *)(ep + 10);
             uint32_t *nids      = *(uint32_t **)(ep + 12);
             uint32_t *funcs     = *(uint32_t **)(ep + 16);
 
-            pspDebugScreenPrintf("    lib='%s' funcs=%d\n",
-                libname ? libname : "(null)", funccount);
-
             for (int j = 0; j < (int)funccount; j++) {
-                if (nids[j] == nid) {
-                    pspDebugScreenPrintf("    NID %08X -> fn %08X\n", nid, funcs[j]);
+                if (nids[j] == nid)
                     return (void *)funcs[j];
-                }
             }
             ep += len_words * 4;
         }
@@ -101,51 +91,57 @@ static void *find_export(const char *module_name, uint32_t nid) {
     return NULL;
 }
 
+/* Short description of the step that failed, for the startup message */
+static char g_init_error[64] = "";
+
+const char *network_init_error(void) { return g_init_error; }
+
 int network_init(void) {
     int ret;
 
-    ret = sceUtilityLoadNetModule(PSP_NET_MODULE_COMMON);
-    pspDebugScreenPrintf("LoadNetModule(COMMON): 0x%08X\n", ret);
-    ret = sceUtilityLoadNetModule(PSP_NET_MODULE_INET);
-    pspDebugScreenPrintf("LoadNetModule(INET):   0x%08X\n", ret);
+    sceUtilityLoadNetModule(PSP_NET_MODULE_COMMON);
+    sceUtilityLoadNetModule(PSP_NET_MODULE_INET);
 
     /* Try calling sceNetInit via stub (works on PPSSPP / OFW). */
     ret = sceNetInit(0x20000, 0x20, 0x1000, 0x20, 0x1000);
-    pspDebugScreenPrintf("sceNetInit (stub):  0x%08X\n", ret);
 
     if (ret == (int)0x8002013A) {
         /* Stub couldn't resolve "sceNet" library — on PRO-C the module may
          * export under a different name. Scan the export table directly and
          * call sceNetInit by function pointer, bypassing stub resolution. */
-        pspDebugScreenPrintf("Trying direct export scan...\n");
         typedef int (*NetInitFn)(int, int, int, int, int);
         NetInitFn fn = (NetInitFn)find_export("sceNet_Library", 0x39AF39A6);
-        if (fn) {
+        if (fn)
             ret = fn(0x20000, 0x20, 0x1000, 0x20, 0x1000);
-            pspDebugScreenPrintf("sceNetInit (direct): 0x%08X\n", ret);
-        } else {
-            pspDebugScreenPrintf("sceNetInit not found in export table\n");
-        }
     }
 
     if (ret != 0) {
-        pspDebugScreenPrintf("Network init failed at sceNetInit: 0x%08X\n", ret);
+        snprintf(g_init_error, sizeof(g_init_error), "sceNetInit: 0x%08X", ret);
         return ret;
     }
 
     ret = sceNetInetInit();
-    pspDebugScreenPrintf("sceNetInetInit:     0x%08X\n", ret);
-    if (ret != 0) { sceNetTerm(); return ret; }
+    if (ret != 0) {
+        snprintf(g_init_error, sizeof(g_init_error), "sceNetInetInit: 0x%08X", ret);
+        sceNetTerm();
+        return ret;
+    }
 
     ret = sceNetResolverInit();
-    pspDebugScreenPrintf("sceNetResolverInit: 0x%08X\n", ret);
-    if (ret != 0) { network_term_partial(); return ret; }
+    if (ret != 0) {
+        snprintf(g_init_error, sizeof(g_init_error), "sceNetResolverInit: 0x%08X", ret);
+        network_term_partial();
+        return ret;
+    }
 
     ret = sceNetApctlInit(0x1600, 0x42);
-    pspDebugScreenPrintf("sceNetApctlInit:    0x%08X\n", ret);
-    if (ret != 0) { network_term_partial(); return ret; }
+    if (ret != 0) {
+        snprintf(g_init_error, sizeof(g_init_error), "sceNetApctlInit: 0x%08X", ret);
+        network_term_partial();
+        return ret;
+    }
 
-    pspDebugScreenPrintf("Network init OK\n");
+    g_init_error[0] = '\0';
     g_net_initialized = true;
     return 0;
 }
