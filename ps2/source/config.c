@@ -299,6 +299,78 @@ static bool mc_write_text(const char *path, const char *text) {
     return false;
 }
 
+/* ---- Binary files on mc0: (catalog cache) ----
+ *
+ * newlib stdio cannot reach mc0: (rom0:MCMAN is not an iomanX device), so
+ * anything kept on the memory card goes through libmc, in aligned chunks. */
+
+#define MC_CHUNK 8192
+static char g_mc_chunk[MC_CHUNK] __attribute__((aligned(64)));
+
+static int mc_open_file(const char *path, int flags) {
+    int rc = mcOpen(MC_PORT, MC_SLOT, path, flags);
+    int fd = rc < 0 ? rc : mc_wait_result();
+    if (fd < 0 && path[0] == '/') {
+        rc = mcOpen(MC_PORT, MC_SLOT, path + 1, flags);
+        fd = rc < 0 ? rc : mc_wait_result();
+    }
+    return fd;
+}
+
+void config_mc_delete_file(const char *path) {
+    if (!path || !mc_ensure_ready(NULL, 0)) return;
+    if (mcDelete(MC_PORT, MC_SLOT, path) >= 0) mc_wait_result();
+}
+
+bool config_mc_write_file(const char *path, const void *data, size_t len) {
+    if (!path || !data || !mc_ensure_ready(NULL, 0)) return false;
+    mc_ensure_config_dir();
+    config_mc_delete_file(path);
+
+    int fd = mc_open_file(path, IOP_O_WRONLY | IOP_O_CREAT | IOP_O_TRUNC);
+    if (fd < 0) return false;
+
+    const char *src = (const char *)data;
+    size_t done = 0;
+    bool ok = true;
+    while (ok && done < len) {
+        int n = (int)((len - done) > MC_CHUNK ? MC_CHUNK : (len - done));
+        memcpy(g_mc_chunk, src + done, (size_t)n);
+        int rc = mcWrite(fd, g_mc_chunk, n);
+        int w = rc < 0 ? rc : mc_wait_result();
+        ok = (w == n);
+        done += (size_t)n;
+    }
+    if (ok && mcFlush(fd) >= 0) mc_wait_result();
+    mcClose(fd);
+    mc_wait_result();
+    if (!ok) config_mc_delete_file(path);
+    return ok;
+}
+
+int config_mc_read_file(const char *path, void *buf, size_t size) {
+    if (!path || !buf || !mc_ensure_ready(NULL, 0)) return -1;
+    int fd = mc_open_file(path, IOP_O_RDONLY);
+    if (fd < 0) return -1;
+
+    char *dst = (char *)buf;
+    size_t total = 0;
+    int result = 0;
+    for (;;) {
+        int rc = mcRead(fd, g_mc_chunk, MC_CHUNK);
+        int n = rc < 0 ? rc : mc_wait_result();
+        if (n < 0) { result = -1; break; }
+        if (n == 0) break;
+        if (total + (size_t)n > size) { result = -1; break; }   /* too big */
+        memcpy(dst + total, g_mc_chunk, (size_t)n);
+        total += (size_t)n;
+        if (n < MC_CHUNK) break;
+    }
+    mcClose(fd);
+    mc_wait_result();
+    return result < 0 ? -1 : (int)total;
+}
+
 static bool write_template(void) {
     const char *text =
         "# Save Sync PS2 client\n"

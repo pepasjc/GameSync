@@ -43,18 +43,34 @@
 #define USB_DEFAULT_ROOT        STORAGE_DEFAULT_ROOT
 #define USB_DATA_SUBDIR         STORAGE_DATA_SUBDIR
 
-/* Top-level views.  START cycles in order. */
+/* Catalog cache (see catcache.h).  On mass storage it sits next to the
+ * download queue; in APA/HDLoader mode it goes to the memory card, and
+ * only while it stays small (CATCACHE_MC_MAX_BYTES). */
+#define CATALOG_CACHE_LEAF  "/catalog.dat"
+#define CATALOG_CACHE_MC    APP_MC_DIR "/CATALOG.DAT"   /* shown to the user */
+#define CATALOG_CACHE_MC_REL "/3DSSYNC/CATALOG.DAT"     /* libmc path */
+
+/* Top-level views, cycled with L1 / R1 (wrapping). */
 typedef enum {
     APP_VIEW_ROMS      = 0,   /* server catalog (HTTP) */
     APP_VIEW_LOCAL     = 1,   /* installed ISOs or HDL partitions */
     APP_VIEW_DOWNLOADS = 2,   /* download queue */
     APP_VIEW_SAVES     = 3,   /* VMC / MemCard Pro card-image sync */
-    APP_VIEW_MCARD     = 4,   /* physical memory card slot 1 (mc0:) */
-    APP_VIEW_MCARD2    = 5,   /* physical memory card slot 2 (mc1:) */
-    APP_VIEW_SERVER    = 6,   /* all PS1/PS2 saves on the server */
-    APP_VIEW_CONFIG    = 7,
-    APP_VIEW_COUNT     = 8,
+    APP_VIEW_MCARD     = 4,   /* physical memory card; SELECT: slot 1 / 2 */
+    APP_VIEW_SERVER    = 5,   /* all PS1/PS2 saves on the server */
+    APP_VIEW_CONFIG    = 6,
+    APP_VIEW_COUNT     = 7,
 } AppView;
+
+/* Rows of the Settings screen (Up/Down focus, Left/Right or CROSS edit). */
+typedef enum {
+    CFG_ROW_STORAGE = 0,      /* install target: auto / usb / hdd */
+    CFG_ROW_GAMEID1,          /* GameID device, slot 1 */
+    CFG_ROW_GAMEID2,          /* GameID device, slot 2 */
+    CFG_ROW_REFRESH,          /* Refresh catalog */
+    CFG_ROW_FORMAT,           /* Format internal HDD (APA) */
+    CFG_ROW_COUNT,
+} ConfigRow;
 
 typedef enum {
     STORAGE_PREF_AUTO = 0,
