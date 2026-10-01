@@ -62,6 +62,9 @@ typedef struct {
     RomEntry items[ROM_CATALOG_MAX];
     int      count;
     char     last_error[128];
+    /* Set when a later page failed: the rows are usable but incomplete,
+     * so they must not be cached under the server's fingerprint. */
+    bool     partial;
 } RomCatalog;
 
 /* Fetch + parse a system catalog.  Pages 500 entries at a time until

@@ -1,11 +1,12 @@
 /*
  * Vita Save Sync - UI
  *
- * The three views (Saves, ROM Catalog, Downloads) and the modal cards,
+ * The four views (Saves, ROM Catalog, Downloads, Settings) and the modal
+ * cards,
  * drawn with the vita2d kit in gui.c.  Layout on the 960x544 screen:
  *
  *   header   GameSync . <view>                 vX.Y.Z  (o) Online
- *   tabs     [Saves | ROM Catalog | Downloads]  START next
+ *   tabs     L [Saves | ROM Catalog | Downloads | Settings] R
  *   content  list panel (left)                 detail panel (right)
  *   footer   button hints
  *
@@ -58,6 +59,7 @@ typedef enum {
     BACK_SAVES,
     BACK_ROMS,
     BACK_DOWNLOADS,
+    BACK_SETTINGS,
 } Backdrop;
 
 /* Smoothed list cursor per view */
@@ -92,7 +94,13 @@ static struct {
     uint64_t done, total, bps;
 } g_dl_args;
 
-static ListAnim g_anim[3];
+static struct {
+    const SyncState *state;
+    int selected, scroll;
+    char cache[160];
+} g_set_args;
+
+static ListAnim g_anim[APP_VIEW_COUNT];
 
 static char     g_toast[160];
 static UiTone   g_toast_tone;
@@ -284,19 +292,22 @@ void ui_invalidate_sync_state(void) {
 /* Shared chrome                                                       */
 /* ------------------------------------------------------------------ */
 
-static const char *const VIEW_NAMES[APP_VIEW_COUNT] = { "Saves", "ROM Catalog", "Downloads" };
+static const char *const VIEW_NAMES[APP_VIEW_COUNT] = {
+    "Saves", "ROM Catalog", "Downloads", "Settings",
+};
 
 static void draw_view_tabs(AppView view, const char *info) {
-    float right = gui_tabs(LIST_X, TAB_Y, TAB_H, GUI_S_SMALL, VIEW_NAMES, APP_VIEW_COUNT,
-                           (int)view);
+    /* L [tab | tab | ...] R: the shoulder buttons step through the tabs */
     float cy = TAB_Y + TAB_H / 2.0f;
-    float x = right + 14;
-    x += gui_button(x, cy, "START") + 7;
-    gui_text_mid(x, TAB_Y, TAB_H, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_LEFT, 0,
-                 VIEW_NAMES[(view + 1) % APP_VIEW_COUNT]);
+    float x = LIST_X;
+    x += gui_button(x, cy, "L") + 8;
+    float right = gui_tabs(x, TAB_Y, TAB_H, GUI_S_SMALL, VIEW_NAMES, APP_VIEW_COUNT,
+                           (int)view);
+    right += 8;
+    right += gui_button(right, cy, "R");
     if (info && info[0])
         gui_text_mid(GUI_W - 16, TAB_Y, TAB_H, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_RIGHT,
-                     300, info);
+                     GUI_W - 16 - right - 24, info);
 }
 
 /* Ease the cursor animation of a view and return it */
@@ -509,7 +520,7 @@ static void draw_saves_body(const SyncState *state, int selected, int scroll) {
     if (state->num_titles == 0)
         draw_empty("No saves found",
                    "Nothing in ux0:user/00/savedata or the PSP save folder, and nothing "
-                   "on the server. Press START for the ROM Catalog.", HEX_MUTED);
+                   "on the server. Press R for the ROM Catalog.", HEX_MUTED);
     else
         draw_rows(APP_VIEW_SAVES, state->num_titles, selected, scroll, saves_row,
                   (void *)state);
@@ -520,8 +531,8 @@ static void draw_saves_body(const SyncState *state, int selected, int scroll) {
 
 static void saves_footer(void) {
     static const GuiHint hints[] = {
-        { "CROSS", "Sync" }, { "SQUARE", "Upload" }, { "TRIANGLE", "Download" },
-        { "SELECT", "Sync all" }, { "CIRCLE", "Settings" }, { "LR", "Page" },
+        { "CROSS", "Sync" }, { "SQUARE", "Sync all" }, { "TRIANGLE", "Details" },
+        { "L", "" }, { "R", "Tabs" }, { "LR", "Page" }, { "START", "Exit" },
     };
     gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
 }
@@ -643,7 +654,7 @@ static void roms_detail(const RomCatalog *catalog, const DownloadList *downloads
         if (roms_entry_unsupported(r))
             press_hint(by, "CROSS", "for why it can't install");
         else if (dl && (dl->status == DL_STATUS_PAUSED || dl->status == DL_STATUS_ERROR))
-            press_hint(by, "TRIANGLE", "to resume the download");
+            press_hint(by, "CROSS", "to resume the download");
         else if (dl && dl->status == DL_STATUS_COMPLETED)
             press_hint(by, "CROSS", "to see where it went");
         else
@@ -660,14 +671,13 @@ static void draw_roms_body(const RomCatalog *catalog, const DownloadList *downlo
     draw_view_tabs(APP_VIEW_ROMS, "Installs into Adrenaline");
 
     gui_panel(LIST_X, LIST_Y, LIST_W, LIST_H);
-    /* System switcher: L [PSP | PS1] R */
+    /* System switcher: SELECT [PSP | PS1] */
     static const char *const systems[] = { "PSP", "PS1" };
     int active = (system && strcmp(system, "PS1") == 0) ? 1 : 0;
     float cy = LIST_Y + LIST_HEAD / 2.0f - 1;
     float x = LIST_X + 14;
-    x += gui_button(x, cy, "L") + 8;
-    x = gui_tabs(x, cy - 15, 30, GUI_S_SMALL, systems, 2, active) + 8;
-    gui_button(x, cy, "R");
+    x += gui_button(x, cy, "SELECT") + 8;
+    gui_tabs(x, cy - 15, 30, GUI_S_SMALL, systems, 2, active);
 
     int total = catalog ? catalog->count : 0;
     char count[48];
@@ -683,7 +693,7 @@ static void draw_roms_body(const RomCatalog *catalog, const DownloadList *downlo
             draw_empty("Offline", "The ROM catalog needs the server.", HEX_ERR);
         else
             draw_empty("No games here yet",
-                       "Add games to the server's ROM folder, then press Circle to rescan.",
+                       "Add games to the server's ROM folder, then use Settings > Refresh catalog.",
                        HEX_MUTED);
     } else {
         RomsCtx ctx = { catalog, downloads };
@@ -696,8 +706,8 @@ static void draw_roms_body(const RomCatalog *catalog, const DownloadList *downlo
 
 static void roms_footer(void) {
     static const GuiHint hints[] = {
-        { "CROSS", "Install" }, { "TRIANGLE", "Resume" }, { "CIRCLE", "Rescan" },
-        { "L", "" }, { "R", "System" }, { "LR", "Page" },
+        { "CROSS", "Install" }, { "TRIANGLE", "Details" }, { "SELECT", "PSP / PS1" },
+        { "L", "" }, { "R", "Tabs" }, { "LR", "Page" }, { "START", "Exit" },
     };
     gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
 }
@@ -822,7 +832,7 @@ static void dl_detail(const DownloadList *downloads, int selected, const char *s
         active_card(active, ctx->done, ctx->total > 0 ? ctx->total : active->total, bps);
         float by = DET_Y + DET_H - 90;
         gui_rect(DET_X + DET_PAD, by - 10, DET_W - DET_PAD * 2, 1, gui_rgb(HEX_LINE));
-        press_hint(by, "SQUARE", "to pause (resume later)");
+        press_hint(by, "CIRCLE", "to pause (resume later)");
     } else if (count > 0 && selected >= 0 && selected < count) {
         const DownloadEntry *e = &downloads->items[selected];
         float y = detail_title(e->name[0] ? e->name : e->filename);
@@ -853,7 +863,7 @@ static void dl_detail(const DownloadList *downloads, int selected, const char *s
         float by = DET_Y + DET_H - 90;
         gui_rect(DET_X + DET_PAD, by - 10, DET_W - DET_PAD * 2, 1, gui_rgb(HEX_LINE));
         if (e->status == DL_STATUS_COMPLETED)
-            press_hint(by, "TRIANGLE", "to clear finished items");
+            press_hint(by, "SQUARE", "to clear finished items");
         else
             press_hint(by, "CROSS", e->status == DL_STATUS_ERROR ? "to retry" :
                                     e->offset > 0 ? "to resume" : "to start");
@@ -896,11 +906,11 @@ static void draw_downloads_body(void) {
 
 static void downloads_footer(void) {
     static const GuiHint idle[] = {
-        { "CROSS", "Start / resume" }, { "SQUARE", "Pause" }, { "CIRCLE", "Cancel" },
-        { "TRIANGLE", "Clear finished" }, { "UD", "Move" },
+        { "CROSS", "Start / resume" }, { "CIRCLE", "Cancel" }, { "SQUARE", "Clear finished" },
+        { "L", "" }, { "R", "Tabs" }, { "LR", "Page" }, { "START", "Exit" },
     };
     static const GuiHint busy[] = {
-        { "SQUARE", "Pause" },
+        { "CIRCLE", "Pause" },
     };
     if (g_dl_args.active) gui_footer(busy, 1);
     else gui_footer(idle, (int)(sizeof(idle) / sizeof(idle[0])));
@@ -949,6 +959,124 @@ void ui_draw_progress_partial(const DownloadList *downloads,
 }
 
 /* ------------------------------------------------------------------ */
+/* Settings view                                                       */
+/* ------------------------------------------------------------------ */
+
+static const char *const SETTING_KEYS[UI_SETTINGS_ROWS] = {
+    "Refresh catalog", "Server", "API key", "Console ID", "Connection", "Vita saves",
+    "PSP saves", "Adrenaline", "Config file", "Catalog cache", "Version",
+};
+
+/* Value shown for a settings row (the refresh row has none) */
+static const char *setting_value(int i, char *buf, size_t size) {
+    const SyncState *s = g_set_args.state;
+    if (!s) return "";
+    switch (i) {
+        case 1: return s->server_url;
+        case 2: {
+            size_t klen = strlen(s->api_key);
+            if (klen == 0) snprintf(buf, size, "(not set)");
+            else snprintf(buf, size, "%.4s%s", s->api_key, klen > 4 ? "********" : "");
+            return buf;
+        }
+        case 3: return s->console_id;
+        case 4: return g_online > 0 ? "Server reachable" : "Offline";
+        case 5: return s->scan_vita_saves ? "Scanned" : "Skipped";
+        case 6: return s->scan_psp_emu_saves ? "Scanned" : "Skipped";
+        case 7: return s->pspemu_root;
+        case 8: return CONFIG_PATH;
+        case 9: return g_set_args.cache;
+        case 10: return "v" APP_VERSION;
+    }
+    return "";
+}
+
+static void settings_row(int i, float y, bool sel, void *ctx) {
+    (void)ctx;
+    float x = LIST_X + 22;
+    float right = LIST_X + LIST_W - 30;
+    if (i == UI_SETTINGS_REFRESH) {
+        gui_circle(x - 6, y + ROW_H / 2.0f, 3, gui_rgb(sel ? HEX_INK : HEX_ACCENT));
+        gui_text_mid(x + 6, y, ROW_H, GUI_S_BODY, gui_rgb(sel ? HEX_INK : HEX_ACCENT2),
+                     GUI_LEFT, 0, SETTING_KEYS[i]);
+        gui_text_mid(right, y, ROW_H, GUI_S_SMALL, gui_rgb(sel ? HEX_INK : HEX_DIM),
+                     GUI_RIGHT, 0, "Rescan + refetch");
+        return;
+    }
+    char buf[64];
+    const char *v = setting_value(i, buf, sizeof(buf));
+    uint32_t vhex = HEX_TEXT;
+    if (i == 4) vhex = g_online > 0 ? HEX_OK : HEX_ERR;
+    gui_text_mid(x + 6, y, ROW_H, GUI_S_SMALL, gui_rgb(sel ? HEX_INK : HEX_DIM), GUI_LEFT, 0,
+                 SETTING_KEYS[i]);
+    gui_text_mid(LIST_X + 200, y, ROW_H, GUI_S_SMALL, gui_rgb(sel ? HEX_INK : vhex), GUI_LEFT,
+                 right - LIST_X - 200, v);
+}
+
+static void settings_detail(int selected) {
+    gui_panel(DET_X, DET_Y, DET_W, DET_H);
+    if (selected < 0 || selected >= UI_SETTINGS_ROWS) return;
+    float y = detail_title(SETTING_KEYS[selected]);
+    float by = DET_Y + DET_H - 90;
+    if (selected == UI_SETTINGS_REFRESH) {
+        gui_text_wrap(DET_X + DET_PAD, y, GUI_S_SMALL, gui_rgb(HEX_TEXT), DET_W - DET_PAD * 2, 8,
+                      "Rescans the server's ROM folder, drops the catalog kept on this "
+                      "Vita and fetches the PSP and PS1 lists again.\n\n"
+                      "Changed systems are refetched on their own; use this after "
+                      "adding games to the server.");
+        gui_rect(DET_X + DET_PAD, by - 10, DET_W - DET_PAD * 2, 1, gui_rgb(HEX_LINE));
+        press_hint(by, "CROSS", "to refresh the catalog");
+    } else {
+        char buf[64];
+        gui_text_wrap(DET_X + DET_PAD, y, GUI_S_BODY, gui_rgb(HEX_TEXT), DET_W - DET_PAD * 2, 5,
+                      setting_value(selected, buf, sizeof(buf)));
+        gui_rect(DET_X + DET_PAD, by - 10, DET_W - DET_PAD * 2, 1, gui_rgb(HEX_LINE));
+        gui_text_wrap(DET_X + DET_PAD, by, GUI_S_SMALL, gui_rgb(HEX_DIM), DET_W - DET_PAD * 2, 2,
+                      "Read-only. Edit config.txt and restart to change.");
+    }
+    char srv[300];
+    snprintf(srv, sizeof(srv), "Server: %s", g_set_args.state ? g_set_args.state->server_url : "");
+    gui_banner(DET_X + 12, DET_Y + DET_H - 52, DET_W - 24, 40,
+               g_online > 0 ? HEX_ACCENT : HEX_ERR, srv);
+}
+
+static void draw_settings_body(void) {
+    gui_header("Settings", g_online);
+    draw_view_tabs(APP_VIEW_SETTINGS, CONFIG_PATH);
+
+    gui_panel(LIST_X, LIST_Y, LIST_W, LIST_H);
+    gui_text_mid(LIST_X + 18, LIST_Y, LIST_HEAD, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_LEFT, 0,
+                 "Setting");
+    gui_rect(LIST_X + 12, LIST_Y + LIST_HEAD - 3, LIST_W - 24, 1, gui_rgb(HEX_LINE));
+    draw_rows(APP_VIEW_SETTINGS, UI_SETTINGS_ROWS, g_set_args.selected, g_set_args.scroll,
+              settings_row, NULL);
+    settings_detail(g_set_args.selected);
+    draw_toast();
+}
+
+static void settings_footer(void) {
+    static const GuiHint hints[] = {
+        { "CROSS", "Select" }, { "UD", "Move" }, { "L", "" }, { "R", "Tabs" },
+        { "START", "Exit" },
+    };
+    gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
+}
+
+void ui_draw_settings(const SyncState *state, int selected, int scroll,
+                      const char *cache_info) {
+    g_back = BACK_SETTINGS;
+    g_set_args.state = state;
+    g_set_args.selected = selected;
+    g_set_args.scroll = scroll;
+    snprintf(g_set_args.cache, sizeof(g_set_args.cache), "%s", cache_info ? cache_info : "");
+
+    gui_begin(true);
+    draw_settings_body();
+    settings_footer();
+    gui_end();
+}
+
+/* ------------------------------------------------------------------ */
 /* Backdrop, busy and toasts                                           */
 /* ------------------------------------------------------------------ */
 
@@ -974,6 +1102,9 @@ static void draw_backdrop(void) {
             break;
         case BACK_DOWNLOADS:
             draw_downloads_body();
+            break;
+        case BACK_SETTINGS:
+            draw_settings_body();
             break;
         default:
             draw_splash();
@@ -1062,7 +1193,8 @@ static void card_buttons(float x, float y, float w, float h, const GuiHint *hint
     gui_hints(x + w - 20, by + 23, hints, count, true);
 }
 
-static void draw_notice(UiTone tone, const char *title, char lines[][GUI_WRAP_LINE], int n) {
+static void draw_notice(UiTone tone, const char *title, char lines[][GUI_WRAP_LINE], int n,
+                        const GuiHint *hints, int hint_count) {
     float lh = gui_line_h(GUI_S_BODY) * 1.18f;
     float body_h = n * lh;
     if (body_h < 44) body_h = 44;
@@ -1074,8 +1206,7 @@ static void draw_notice(UiTone tone, const char *title, char lines[][GUI_WRAP_LI
     tone_badge(x + 42, y + 40 + 22 + 20, tone);
     for (int i = 0; i < n; i++)
         gui_text(x + 80, y + 40 + 22 + i * lh, GUI_S_BODY, gui_rgb(HEX_TEXT), GUI_LEFT, lines[i]);
-    static const GuiHint ok[] = { { "CROSS", "OK" } };
-    card_buttons(x, y, DLG_W, h, ok, 1);
+    card_buttons(x, y, DLG_W, h, hints, hint_count);
 }
 
 /* Wrap a multi-paragraph body into card lines */
@@ -1101,10 +1232,39 @@ void ui_notice(UiTone tone, const char *title, const char *fmt, ...) {
         gui_begin(true);
         draw_backdrop();
         gui_footer(NULL, 0);
-        draw_notice(tone, title, lines, n);
+        static const GuiHint ok[] = { { "CROSS", "OK" } };
+        draw_notice(tone, title, lines, n, ok, 1);
         gui_end();
     }
     drain_buttons();
+}
+
+bool ui_ask(UiTone tone, const char *title, const char *confirm_label, const char *fmt, ...) {
+    char body[768];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(body, sizeof(body), fmt, args);
+    va_end(args);
+
+    static char lines[DLG_MAX_LINES][GUI_WRAP_LINE];
+    int n = layout_body(body, DLG_W - 110, lines, DLG_MAX_LINES);
+    GuiHint hints[2] = { { "CROSS", confirm_label }, { "CIRCLE", "Cancel" } };
+
+    drain_buttons();
+    uint32_t prev = 0;
+    bool yes = false;
+    while (1) {
+        uint32_t just = pressed(&prev);
+        if (just & SCE_CTRL_CROSS) { yes = true; break; }
+        if (just & SCE_CTRL_CIRCLE) break;
+        gui_begin(true);
+        draw_backdrop();
+        gui_footer(NULL, 0);
+        draw_notice(tone, title, lines, n, hints, 2);
+        gui_end();
+    }
+    drain_buttons();
+    return yes;
 }
 
 /* One side of the compare card */
@@ -1209,20 +1369,27 @@ static void draw_confirm(const ConfirmCtx *c) {
     gui_text(x + 96, cy + 8, GUI_S_BODY, gui_rgb(hex), GUI_LEFT, banner);
     gui_text_fit(x + 96, cy + 34, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_LEFT, w - 140, detail);
 
-    if (c->action == SYNC_CONFLICT) {
-        static const GuiHint h3[] = {
-            { "SQUARE", "Keep this Vita's" }, { "TRIANGLE", "Keep server's" },
-            { "CIRCLE", "Cancel" },
-        };
-        card_buttons(x, y, w, h, h3, 3);
-    } else if (c->action == SYNC_UPLOAD || c->action == SYNC_DOWNLOAD) {
-        static const GuiHint up[] = { { "CROSS", "Upload" }, { "CIRCLE", "Cancel" } };
-        static const GuiHint dn[] = { { "CROSS", "Download" }, { "CIRCLE", "Cancel" } };
-        card_buttons(x, y, w, h, c->action == SYNC_UPLOAD ? up : dn, 2);
+    /* Cross = the recommended action; Square / Triangle force a side */
+    GuiHint hints[4];
+    int n = 0;
+    bool can_up = !t->server_only;
+    bool can_down = c->server_hash && c->server_hash[0];
+    if (c->action == SYNC_UPLOAD) {
+        hints[n++] = (GuiHint){ "CROSS", "Upload" };
+        if (can_down) hints[n++] = (GuiHint){ "TRIANGLE", "Download instead" };
+    } else if (c->action == SYNC_DOWNLOAD) {
+        hints[n++] = (GuiHint){ "CROSS", "Download" };
+        if (can_up) hints[n++] = (GuiHint){ "SQUARE", "Upload instead" };
+    } else if (c->action == SYNC_CONFLICT) {
+        if (can_up) hints[n++] = (GuiHint){ "SQUARE", "Keep this Vita's" };
+        if (can_down) hints[n++] = (GuiHint){ "TRIANGLE", "Keep server's" };
     } else {
-        static const GuiHint ok[] = { { "CROSS", "OK" } };
-        card_buttons(x, y, w, h, ok, 1);
+        hints[n++] = (GuiHint){ "CROSS", "OK" };
+        if (can_up) hints[n++] = (GuiHint){ "SQUARE", "Upload" };
+        if (can_down) hints[n++] = (GuiHint){ "TRIANGLE", "Download" };
     }
+    hints[n++] = (GuiHint){ "CIRCLE", "Cancel" };
+    card_buttons(x, y, w, h, hints, n);
 }
 
 int ui_confirm(const TitleInfo *title, SyncAction action,
@@ -1234,22 +1401,21 @@ int ui_confirm(const TitleInfo *title, SyncAction action,
     c.server_hash = server_hash;
     c.server_size = server_size;
     format_date(server_last_sync, c.date, sizeof(c.date));
+    bool can_up = !title->server_only;
+    bool can_down = server_hash && server_hash[0];
 
     drain_buttons();
     uint32_t prev = 0;
     int result = -1;
     while (1) {
         uint32_t just = pressed(&prev);
-        if (action == SYNC_UPLOAD || action == SYNC_DOWNLOAD) {
-            if (just & SCE_CTRL_CROSS)  { result = (int)action; break; }
-            if (just & SCE_CTRL_CIRCLE) break;
-        } else if (action == SYNC_CONFLICT) {
-            if (just & SCE_CTRL_SQUARE)   { result = SYNC_UPLOAD; break; }
-            if (just & SCE_CTRL_TRIANGLE) { result = SYNC_DOWNLOAD; break; }
-            if (just & SCE_CTRL_CIRCLE)   break;
-        } else if (just & (SCE_CTRL_CROSS | SCE_CTRL_CIRCLE)) {
-            break;
+        if (just & SCE_CTRL_CIRCLE) break;
+        if (just & SCE_CTRL_CROSS) {
+            if (action == SYNC_UPLOAD || action == SYNC_DOWNLOAD) result = (int)action;
+            if (action != SYNC_CONFLICT) break;   /* a conflict needs a side */
         }
+        if ((just & SCE_CTRL_SQUARE) && can_up)     { result = SYNC_UPLOAD; break; }
+        if ((just & SCE_CTRL_TRIANGLE) && can_down) { result = SYNC_DOWNLOAD; break; }
         gui_begin(true);
         draw_backdrop();
         gui_footer(NULL, 0);
@@ -1301,57 +1467,6 @@ void ui_sync_summary(const SyncSummary *s) {
         tone_badge(x + 44, by + 20, bad ? tone : UI_TONE_OK);
         gui_text_mid(x + 76, by, 40, GUI_S_BODY, gui_rgb(HEX_TEXT), GUI_LEFT, w - 100, verdict);
         static const GuiHint ok[] = { { "CROSS", "OK" } };
-        card_buttons(x, y, w, h, ok, 1);
-        gui_end();
-    }
-    drain_buttons();
-}
-
-void ui_show_settings(const SyncState *state) {
-    char key[40];
-    size_t klen = strlen(state->api_key);
-    if (klen == 0)
-        snprintf(key, sizeof(key), "(not set)");
-    else
-        snprintf(key, sizeof(key), "%.4s%s", state->api_key, klen > 4 ? "********" : "");
-
-    drain_buttons();
-    uint32_t prev = 0;
-    while (1) {
-        uint32_t just = pressed(&prev);
-        if (just & (SCE_CTRL_CROSS | SCE_CTRL_CIRCLE)) break;
-        gui_begin(true);
-        draw_backdrop();
-        gui_footer(NULL, 0);
-
-        float w = 700, h = 412, x = (GUI_W - w) / 2, y = (GUI_H - h) / 2 - 4;
-        gui_dim();
-        gui_card(x, y, w, h, "Settings", HEX_ACCENT);
-        const char *keys[] = {
-            "Server", "API key", "Console ID", "Connection", "Vita saves", "PSP saves",
-            "Adrenaline", "Config file",
-        };
-        const char *vals[] = {
-            state->server_url, key, state->console_id,
-            g_online > 0 ? "Server reachable" : "Offline",
-            state->scan_vita_saves ? "Scanned" : "Skipped",
-            state->scan_psp_emu_saves ? "Scanned" : "Skipped",
-            state->pspemu_root, CONFIG_PATH,
-        };
-        float ry = y + 56, rh = 33;
-        for (int i = 0; i < 8; i++) {
-            if (i % 2 == 0)
-                gui_rrect(x + 16, ry - 3, w - 32, rh, 6, gui_rgb(gui_mix(HEX_PANEL, HEX_BG2, 0.5f)));
-            gui_text_mid(x + 32, ry - 3, rh, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_LEFT, 0, keys[i]);
-            uint32_t vhex = HEX_TEXT;
-            if (i == 3) vhex = g_online > 0 ? HEX_OK : HEX_ERR;
-            gui_text_mid(x + 200, ry - 3, rh, GUI_S_SMALL, gui_rgb(vhex), GUI_LEFT, w - 232,
-                         vals[i]);
-            ry += rh;
-        }
-        gui_text_fit(x + 32, ry + 8, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_LEFT, w - 64,
-                     "Edit config.txt (e.g. over VitaShell FTP) and restart to change these.");
-        static const GuiHint ok[] = { { "CIRCLE", "Close" } };
         card_buttons(x, y, w, h, ok, 1);
         gui_end();
     }

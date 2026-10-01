@@ -44,12 +44,18 @@ void ui_toast(UiTone tone, const char *fmt, ...) __attribute__((format(printf, 2
 void ui_notice(UiTone tone, const char *title, const char *fmt, ...)
     __attribute__((format(printf, 3, 4)));
 
+/* Yes / no card: Cross runs `confirm_label`, Circle cancels.  Returns
+ * true on Cross. */
+bool ui_ask(UiTone tone, const char *title, const char *confirm_label,
+            const char *fmt, ...) __attribute__((format(printf, 4, 5)));
+
 /* Compare-and-confirm card for a sync action.  Returns the action to run
  * (SYNC_UPLOAD / SYNC_DOWNLOAD), or -1 when cancelled or there is nothing
- * to do.  Upload / download confirm with Cross; a conflict picks a side
- * with Square (keep this Vita's) or Triangle (keep the server's); Circle
- * cancels.  server_last_sync: ISO 8601 string (or NULL/empty) for the
- * server save date. */
+ * to do.  Cross runs the recommended action (upload / download; OK when
+ * already in sync), Square forces an upload (keep this Vita's) and
+ * Triangle forces a download (keep the server's) - the only way to pick
+ * a side on a conflict - and Circle cancels.  server_last_sync: ISO 8601
+ * string (or NULL/empty) for the server save date. */
 int ui_confirm(const TitleInfo *title, SyncAction action,
                 const char *server_hash, uint32_t server_size,
                 const char *server_last_sync);
@@ -57,8 +63,10 @@ int ui_confirm(const TitleInfo *title, SyncAction action,
 /* Result card for "Sync all"; waits for Cross. */
 void ui_sync_summary(const SyncSummary *summary);
 
-/* Read-only settings / about card; waits for Circle or Cross. */
-void ui_show_settings(const SyncState *state);
+/* Settings tab rows; the first one is the "Refresh catalog" action, the
+ * rest are read-only values from config.txt. */
+#define UI_SETTINGS_ROWS    11
+#define UI_SETTINGS_REFRESH 0
 
 /* Forget the cached "last synced" state of each save (call after any sync). */
 void ui_invalidate_sync_state(void);
@@ -66,6 +74,10 @@ void ui_invalidate_sync_state(void);
 /* ----- Views ----- */
 
 void ui_draw_list(const SyncState *state, int selected, int scroll);
+
+/* Settings tab.  cache_info: one line describing the catalog cache. */
+void ui_draw_settings(const SyncState *state, int selected, int scroll,
+                      const char *cache_info);
 
 void ui_draw_rom_catalog(const RomCatalog *catalog,
                          const DownloadList *downloads,

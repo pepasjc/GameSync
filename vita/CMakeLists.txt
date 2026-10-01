@@ -30,6 +30,7 @@ set(SOURCES
     source/bundle.c
     source/roms.c
     source/downloads.c
+    source/catcache.c
     source/sha256.c
     source/ui.c
     source/gui.c

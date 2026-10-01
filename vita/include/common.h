@@ -26,6 +26,7 @@
 #define HASH_CACHE_FILE     "ux0:data/vitasync/hash_cache.dat"
 #define CONSOLE_ID_FILE     "ux0:data/vitasync/console_id.txt"
 #define DOWNLOADS_FILE      "ux0:data/vitasync/downloads.dat"
+#define CATALOG_CACHE_FILE  "ux0:data/vitasync/catalog_cache.bin"
 
 /* ROM download targets.  The PSP emulator on a Vita (Adrenaline) reads
  * its ISO/CSO images and PS1 EBOOTs from the same tree the PSP itself
@@ -38,13 +39,14 @@
 #define PSPEMU_ROOT_DEFAULT     "ux0:pspemu"
 #define ROM_TARGET_FALLBACK_DIR "ux0:data/vitasync/downloads"
 
-/* Top-level views the user cycles through with START.  Each view has
- * its own input-dispatch block in main.c. */
+/* Top-level views (tabs) the user cycles through with L / R, wrapping.
+ * Each view has its own input-dispatch block in main.c. */
 typedef enum {
     APP_VIEW_SAVES     = 0,
     APP_VIEW_ROMS      = 1,
     APP_VIEW_DOWNLOADS = 2,
-    APP_VIEW_COUNT     = 3,
+    APP_VIEW_SETTINGS  = 3,
+    APP_VIEW_COUNT     = 4,
 } AppView;
 
 typedef enum {
