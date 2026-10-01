@@ -173,6 +173,8 @@ static bool parse_catalog_page(const char *scratch_buf, int n,
         if (v) extract_str(v, obj_end, e->name, sizeof(e->name));
         v = find_key(p + 1, obj_end, "system");
         if (v) extract_str(v, obj_end, e->system, sizeof(e->system));
+        v = find_key(p + 1, obj_end, "title_id");
+        if (v) extract_str(v, obj_end, e->title_id, sizeof(e->title_id));
         v = find_key(p + 1, obj_end, "size");
         if (v) extract_u64(v, obj_end, &e->size);
         v = find_key(p + 1, obj_end, "extract_format");
@@ -235,6 +237,7 @@ bool roms_fetch_catalog(const SyncState *state,
     if (!state || !catalog || !scratch_buf) return false;
     catalog->count = 0;
     catalog->last_error[0] = '\0';
+    catalog->partial = false;
 
     const int page_size = 500;
     int offset = 0;
@@ -253,13 +256,16 @@ bool roms_fetch_catalog(const SyncState *state,
                          "Catalog fetch failed (HTTP %d, n=%d)", status, n);
                 return false;
             }
+            /* Usable but incomplete: shown, never cached. */
+            catalog->partial = true;
             break;
         }
 
         bool has_more = false;
         int before = catalog->count;
         if (!parse_catalog_page(scratch_buf, n, catalog, &has_more)) {
-            return false;
+            catalog->partial = catalog->count > 0;
+            return catalog->count > 0;
         }
         int parsed = catalog->count - before;
         pages++;

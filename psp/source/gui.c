@@ -695,7 +695,7 @@ static void status_icons(float x_right, float cy) {
     }
 }
 
-void gui_header(const char *section, int page, int pages) {
+void gui_header(const char *const *tabs, int count, int active) {
     gui_vgrad(0, 0, GUI_W, GUI_HEADER_H, gui_rgb(0x223041), gui_rgb(HEX_BG2));
     gui_rect(0, GUI_HEADER_H - 1, GUI_W, 1, gui_rgb(HEX_LINE));
 
@@ -704,26 +704,36 @@ void gui_header(const char *section, int page, int pages) {
     gui_rrect(12, 9, 6, 6, 2, gui_rgb(HEX_BG2));
     float x = 28;
     x += gui_text_mid(x, 0, GUI_HEADER_H, F_BOLD, gui_rgb(HEX_TEXT), GUI_LEFT, 0, "GameSync");
-    if (section && *section) {
-        gui_circle(x + 7, GUI_HEADER_H / 2.0f, 1.6f, gui_rgb(HEX_MUTED));
-        x += 14;
-        x += gui_text_mid(x, 0, GUI_HEADER_H, F_BOLD, gui_rgb(HEX_ACCENT2), GUI_LEFT, 200, section);
-    }
 
     float right = GUI_W - 8;
     status_icons(right, GUI_HEADER_H / 2.0f);
     right -= 34;
     right -= gui_text_mid(right, 0, GUI_HEADER_H, F_SMALL, gui_rgb(HEX_DIM), GUI_RIGHT, 0, "v" APP_VERSION);
 
-    /* Pager dots for the START view cycle */
-    if (pages > 0) {
-        float px = right - 12 - (pages - 1) * 10;
-        for (int i = 0; i < pages; i++) {
-            if (i == page)
-                gui_rrect(px + i * 10 - 5, GUI_HEADER_H / 2.0f - 2.5f, 10, 5, 2.5f, gui_rgb(HEX_ACCENT));
-            else
-                gui_circle(px + i * 10, GUI_HEADER_H / 2.0f, 2.2f, gui_rgb(HEX_MUTED));
+    /* Top-level views between the L and R glyphs, centred in the space
+     * left between the title and the version */
+    if (tabs && count > 0) {
+        float cy = GUI_HEADER_H / 2.0f;
+        float tw = gui_button_w("L") + 4 + 4 + gui_button_w("R");
+        for (int i = 0; i < count; i++) tw += gui_text_w(F_SMALL, tabs[i]) + 14;
+        tw += 4;
+        float tx = x + 10;
+        float room = (right - 8) - tx;
+        if (room > tw) tx += (room - tw) / 2;
+        tx += gui_button(tx, cy, "L") + 4;
+        float pad = 7, h = 16, y = cy - h / 2;
+        float total = 0;
+        for (int i = 0; i < count; i++) total += gui_text_w(F_SMALL, tabs[i]) + pad * 2;
+        gui_rrect(tx, y, total + 4, h, h / 2, gui_rgb(HEX_BG));
+        float cx = tx + 2;
+        for (int i = 0; i < count; i++) {
+            float w = gui_text_w(F_SMALL, tabs[i]) + pad * 2;
+            bool on = (i == active);
+            if (on) gui_rrect(cx, y + 2, w, h - 4, (h - 4) / 2, gui_rgb(HEX_ACCENT));
+            gui_text_mid(cx + w / 2, y, h, F_SMALL, gui_rgb(on ? HEX_INK : HEX_DIM), GUI_CENTER, 0, tabs[i]);
+            cx += w;
         }
+        gui_button(tx + total + 8, cy, "R");
     }
 }
 

@@ -2,7 +2,8 @@ TARGET = pspsync
 OBJS = source/main.o source/config.o source/saves.o \
        source/network.o source/sync.o source/bundle.o \
        source/sha256.o source/ui.o source/gui.o source/font_data.o \
-       source/roms.o source/downloads.o source/zip_extract.o
+       source/roms.o source/downloads.o source/zip_extract.o \
+       source/catcache.o
 
 INCDIR   := include
 CFLAGS   := -O2 -G0 -Wall -I$(INCDIR)

@@ -161,9 +161,9 @@ void gui_dim(void);
  * >0 online.  WiFi strength is read from apctl while online. */
 void gui_set_server_state(int state);
 
-/* Header bar: logo + "GameSync" + "• section", pager dots for the
- * START view cycle (pages <= 0: none), version and status icons. */
-void gui_header(const char *section, int page, int pages);
+/* Header bar: logo + "GameSync", the top-level views as a tab strip
+ * between L and R glyphs (count <= 0: none), version and status icons. */
+void gui_header(const char *const *tabs, int count, int active);
 
 typedef struct {
     const char *button;   /* glyph name, see gui_button */
