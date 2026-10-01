@@ -72,22 +72,35 @@ pspemu_root=ux0:pspemu
 
 The GUI is drawn with [vita2d](https://github.com/xerpi/libvita2d) using the console's own system font, in the same dark theme as the other GameSync clients. Every view has the same frame: a header (GameSync, the current view, the version and an Online / Offline server chip), a tab strip, a list on the left with the selected item's details on the right, and a footer showing the buttons for that view.
 
-START cycles **Saves → ROM Catalog → Downloads**. The PS button exits (close from LiveArea).
+### Controls
+
+Every GameSync console client uses the same scheme. Cross / Circle are read as physical buttons, so a Japanese-region Vita set to "Circle = enter" still confirms with Cross here.
+
+| Button | Everywhere |
+|---|---|
+| Up / Down | Move one row (hold to repeat) |
+| Left / Right | Page up / page down (hold to repeat) |
+| L / R | Previous / next tab: **Saves → ROM Catalog → Downloads → Settings**, wrapping |
+| SELECT | Switch the sub-tab (PSP / PS1 in the ROM Catalog) |
+| Cross | Confirm / the primary action of the selected row |
+| Circle | Cancel: closes cards, pauses a running download |
+| Square | Secondary action of the view |
+| Triangle | Details of the selected row |
+| START | Exit (asks first) |
+
+Touch input is not used.
 
 ### Saves
 
 Each row has a platform tag (VITA / PSP / PS1) and a sync marker: **Synced** (local save matches the last sync), **Changed**, **Synced before** (local hash not checked yet), **Local** (never synced) or **On server** (server-only, not on this Vita yet). The detail panel shows the game ID, platform, size, file count and save folder.
 
-Cross / Square / Triangle open a compare card with this Vita's copy and the server's copy (size, file count, server save date) side by side, plus the action that will run. On a **conflict** the card lets you pick a side: Square keeps this Vita's save (upload), Triangle keeps the server's (download), Circle cancels. Sync all ends with a summary card (uploaded / downloaded / up to date / conflicts / failed).
+Cross compares the save with the server and opens a compare card with this Vita's copy and the server's copy (size, file count, server save date) side by side, plus the action the three-way hash recommends. On that card Cross runs the recommendation, Square forces an upload (keep this Vita's save) and Triangle forces a download (keep the server's) — on a **conflict** those two are how you pick a side — and Circle cancels. Sync all asks first, then ends with a summary card (uploaded / downloaded / up to date / conflicts / failed).
 
 | Button | Action |
 |---|---|
-| Cross | Smart sync selected save (three-way hash) |
-| Square | Upload selected save |
-| Triangle | Download selected save |
-| SELECT | Auto sync all saves |
-| Circle | Settings card (server, API key, console ID, scan options, Adrenaline root; read-only — edit `config.txt`) |
-| Up / Down, Left / Right | Navigate / page |
+| Cross | Sync selected save (compare card: Cross recommended, Square upload, Triangle download, Circle cancel) |
+| Square | Sync all saves |
+| Triangle | Details: game ID, platform, local size / folder, the server's copy and whether it was synced before |
 
 ### ROM Catalog
 
@@ -103,14 +116,21 @@ Multi-disc PS1 games show as one row (`… (3 discs)`); the server packs every d
 
 Rows carry a status tag once a game is queued (Queued, Downloading, Paused, Failed, Installed). The detail panel shows the file, what it installs as (raw, CSO or EBOOT.PBP), the exact target path and the queue state.
 
-Downloads stream to `<target>.part` and resume with an HTTP Range request, so a large game can be paused (Square) and picked up later. The Vita is kept awake while a transfer runs.
+Downloads stream to `<target>.part` and resume with an HTTP Range request, so a large game can be paused (Circle) and picked up later. The Vita is kept awake while a transfer runs.
 
 | Button | Action |
 |---|---|
-| Cross | Queue and start download |
-| Triangle | Resume a paused / failed download |
-| Circle | Rescan the server's ROM folder and refetch |
-| L / R | Switch system (PSP ↔ PS1) |
+| Cross | Install: queue and start, or resume a paused / failed download |
+| Triangle | Details: file, size, serial, install format, target path, status |
+| SELECT | Switch system (PSP ↔ PS1) |
+
+The catalog has no search or RetroAchievements filter on the Vita, so Square is unused here.
+
+#### Catalog cache
+
+The catalog is kept on the memory card in `ux0:data/vitasync/catalog_cache.bin`, together with the per-system fingerprint the server publishes at `GET /api/v1/roms/fingerprints` (the same scheme as the MiSTer client). The first visit to the ROM Catalog in a session fetches the fingerprints and refetches only the systems whose fingerprint changed or that aren't cached yet; the rest come from the file, and switching PSP ↔ PS1 just reads the file. When the server can't be reached the cached copy is shown with a "Cached copy - server offline" notice. A server too old to have the fingerprints route (404) is handled the old way: each system is fetched live and nothing is cached.
+
+The file holds only the fields the client uses (rom id, file name, name, system, serial, size, bundle flag / file count, server conversion hint, disc index / total) as length-prefixed binary records, one section per system, and is rewritten through a temp file. A format version in its header is bumped whenever a row field changes, so an old file is simply refetched.
 
 ### Downloads
 
@@ -119,6 +139,21 @@ Starting a download switches here. While it runs, the detail panel shows a large
 | Button | Action |
 |---|---|
 | Cross | Start / resume selected |
-| Square | Pause active download |
-| Circle | Cancel selected (pause first if active) |
-| Triangle | Clear completed entries |
+| Circle | While downloading: pause (resume later with Cross). Otherwise: cancel the selected download (asks first when a partial file would be deleted) |
+| Square | Clear finished entries |
+
+### Settings
+
+Shows the configuration read from `config.txt` (server, API key, console ID, connection, scan options, Adrenaline root, config path), what the catalog cache holds, and the version. The values are read-only — edit `config.txt` (e.g. over VitaShell FTP) and restart to change them.
+
+| Button | Action |
+|---|---|
+| Cross on **Refresh catalog** | Asks the server to rescan its ROM folder (`GET /api/v1/roms/scan`; a refusal or failure is reported and the refresh carries on), wipes the catalog cache, refetches every system and reports the result. If the server can't be reached the cached copy is kept. |
+
+## Tests
+
+The catalog cache is plain C and has host tests:
+
+```bash
+sh vita/tests/run_host_tests.sh          # host gcc; SAN=none for MinGW
+```
