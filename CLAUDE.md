@@ -12,7 +12,7 @@ self-hosted local server. One Python FastAPI server plus these clients:
 | `server/` | Python 3.11+, FastAPI, uv | — |
 | `3ds/` | C, devkitARM + libctru | `3dssync.3dsx`, `.cia` |
 | `ds/` | C, devkitARM + libnds/dswifi/libfat | `ndssync.nds` |
-| `gc/` | C, devkitPPC + libogc/libfat/gxflux/libbba | `gcsync.dol` |
+| `gc/` | C, devkitPPC + libogc/libfat/libbba (GX UI) | `gcsync.dol` |
 | `wiiu/` | C, devkitPPC + wut + libmocha | `wiiusync.rpx`, `.wuhb` |
 | `ps2/` | C, PS2SDK (WSL) | `ps2sync.elf` |
 | `ps3/` | C, PSL1GHT/ps3dev (WSL) | `ps3sync.pkg` |
