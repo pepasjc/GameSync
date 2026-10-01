@@ -18,6 +18,7 @@
 #include "sync.h"
 #include "roms.h"
 #include "downloads.h"
+#include "catalog_cache.h"
 
 #include <SDL/SDL.h>
 #include <io/pad.h>
@@ -34,6 +35,11 @@ static volatile int g_ui_exit = 0;   /* set by sysutil EXIT_GAME */
 static volatile int g_xmb_open = 0;  /* set by sysutil MENU_OPEN/CLOSE */
 static bool g_online = false;
 static bool g_ready = false;
+/* Bumped every time a dialog takes input, so the main loop can ignore the
+ * button that closed it (see ui_dialog_serial). */
+static unsigned g_dialog_serial = 0;
+
+unsigned ui_dialog_serial(void) { return g_dialog_serial; }
 
 void ui_notify_exit(void)       { g_ui_exit  = 1; }
 void ui_notify_menu_open(void)  { g_xmb_open = 1; }
@@ -62,7 +68,7 @@ void ui_set_online(bool online) { g_online = online; }
 #define DL_TAG_W     132
 
 static const char *const k_view_names[APP_VIEW_COUNT] = {
-    "Saves", "ROM Catalog", "Downloads"
+    "Saves", "ROM Catalog", "Downloads", "Settings"
 };
 
 /* ------------------------------------------------------------------ */
@@ -156,11 +162,14 @@ static int kv_wrap(int x, int y, int w, const char *label, const char *value,
 static void begin_view(AppView view) {
     gui_clear();
     int x = gui_header(k_view_names[view]);
-    int tabs_x = x + 48;
-    if (tabs_x < 470) tabs_x = 470;
-    int bw = gui_button(tabs_x, GUI_HEADER_Y + GUI_HEADER_H / 2, "SELECT");
-    gui_tabs(tabs_x + bw + 8, GUI_HEADER_Y + 8, GUI_HEADER_H - 16,
-             k_view_names, APP_VIEW_COUNT, (int)view);
+    int tabs_x = x + 40;
+    if (tabs_x < 430) tabs_x = 430;
+    int cy = GUI_HEADER_Y + GUI_HEADER_H / 2;
+    /* L1 / R1 cycle these tabs (wrapping). */
+    int bw = gui_button(tabs_x, cy, "L1");
+    int end = gui_tabs(tabs_x + bw + 8, GUI_HEADER_Y + 8, GUI_HEADER_H - 16,
+                       k_view_names, APP_VIEW_COUNT, (int)view);
+    gui_button(end + 8, cy, "R1");
     gui_header_status(g_online);
 }
 
@@ -168,6 +177,14 @@ static void begin_screen(const char *section) {
     gui_clear();
     gui_header(section);
     gui_header_status(g_online);
+}
+
+/* SELECT + segmented chips for a view's internal sub-tabs, drawn in the
+ * list toolbar.  Returns the right edge. */
+static int draw_subtabs(int x, const char *const *labels, int count, int active) {
+    int cy = TOOLBAR_Y + TOOLBAR_H / 2;
+    x += gui_button(x, cy, "SELECT") + 8;
+    return gui_tabs(x, TOOLBAR_Y + 1, TOOLBAR_H - 2, labels, count, active);
 }
 
 static uint32_t banner_tone(const char *s) {
@@ -334,7 +351,7 @@ static void draw_save_detail(const TitleInfo *title) {
         gui_textf(x, y + 2 * slh, GUI_F_SMALL, HEX_TEXT, GUI_LEFT, "%.32s", local_hex + 32);
     } else {
         gui_text(x, y + slh, GUI_F_SMALL, HEX_MUTED, GUI_LEFT,
-                 title->server_only ? "No local save" : "Not computed yet - press L3");
+                 title->server_only ? "No local save" : "Not computed yet - Triangle > Refresh hash");
     }
     y += 3 * slh + 12;
 
@@ -359,11 +376,11 @@ static void draw_save_detail(const TitleInfo *title) {
     }
 
     /* Secondary actions pinned to the bottom of the panel. */
-    static const GuiHint more1[] = { { "R1", "Compare files" }, { "L3", "Rehash" } };
-    static const GuiHint more2[] = { { "R3", "Sync all" } };
+    static const GuiHint more1[] = { { "TRIANGLE", "Upload, download, compare, rehash" } };
+    static const GuiHint more2[] = { { "SQUARE", "Sync all saves" } };
     int by = PANEL_Y + PANEL_H - 70;
     gui_rect(x, by - 8, w, 1, HEX_LINE);
-    gui_hints(x, by + 12, more1, 2, 22);
+    gui_hints(x, by + 12, more1, 1, 22);
     gui_hints(x, by + 42, more2, 1, 22);
 }
 
@@ -375,7 +392,10 @@ void ui_draw_list(
     int scroll_offset,
     const char *status_line,
     bool config_created,
-    bool show_server_only
+    bool show_server_only,
+    const char *const *filters,
+    int filter_count,
+    int filter_index
 ) {
     char buf[300];
     if (!g_ready || g_xmb_open) return;
@@ -386,25 +406,23 @@ void ui_draw_list(
     /* Toolbar: user, filter, count */
     int tx = LIST_X + 16;
     int cy = TOOLBAR_Y + TOOLBAR_H / 2;
-    tx += gui_button(tx, cy, "L2") + 4;
-    tx += gui_button(tx, cy, "R2") + 8;
+    tx = draw_subtabs(tx, filters, filter_count, filter_index) + 16;
     if (state->selected_user > 0) snprintf(buf, sizeof(buf), "User %08d", state->selected_user);
     else                          snprintf(buf, sizeof(buf), "User auto");
-    tx += gui_text_mid(tx, TOOLBAR_Y, TOOLBAR_H, GUI_F_SMALL, HEX_TEXT, GUI_LEFT, 0, buf) + 22;
-    tx += gui_button(tx, cy, "L1") + 8;
-    tx += gui_tag(tx, cy - TAG_H / 2, TAG_H, show_server_only ? HEX_INFO : HEX_DIM,
-                  show_server_only ? "Server-only shown" : "Server-only hidden") + 10;
+    tx += gui_text_mid(tx, TOOLBAR_Y, TOOLBAR_H, GUI_F_SMALL, HEX_TEXT, GUI_LEFT, 0, buf) + 12;
+    if (!show_server_only)
+        tx += gui_tag(tx, cy - TAG_H / 2, TAG_H, HEX_DIM, "Server-only hidden") + 8;
     if (config_created)
         gui_tag(tx, cy - TAG_H / 2, TAG_H, HEX_WARN, "New config");
-    snprintf(buf, sizeof(buf), "%d of %d saves", visible_count, state->num_titles);
+    snprintf(buf, sizeof(buf), "%d of %d", visible_count, state->num_titles);
     gui_text_mid(LIST_X + LIST_W - 22, TOOLBAR_Y, TOOLBAR_H, GUI_F_SMALL, HEX_DIM,
                  GUI_RIGHT, 0, buf);
     gui_rect(LIST_X + 12, ROWS_Y - 10, LIST_W - 24, 1, HEX_LINE);
 
     if (visible_count == 0) {
         draw_empty("No saves found",
-                   "Press Circle to rescan, START to check the settings, or L1 to show "
-                   "saves that only exist on the server.");
+                   "Press SELECT to change the PS3 / PS1 filter, check the Settings tab "
+                   "(L1 / R1), or rescan from the Triangle menu.");
         gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
         gui_text_wrap(DETAIL_X + 22, PANEL_Y + 22, GUI_F_BODY, HEX_DIM, DETAIL_W - 44, 4,
                       "PS3 saves are read from the selected user's savedata folder; "
@@ -448,9 +466,8 @@ void ui_draw_list(
     draw_banner(status_line, buf);
 
     static const GuiHint hints[] = {
-        { "CROSS", "Sync" }, { "SQUARE", "Upload" }, { "TRIANGLE", "Download" },
-        { "CIRCLE", "Rescan" }, { "LR", "Page" }, { "START", "Settings" },
-        { "SELECT", "Next view" },
+        { "CROSS", "Sync" }, { "SQUARE", "Sync all" }, { "TRIANGLE", "Details / actions" },
+        { "SELECT", "Filter" }, { "LR", "Page" }, { "L1/R1", "Tabs" }, { "START", "Exit" },
     };
     gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
     finish_view();
@@ -480,22 +497,27 @@ void ui_draw_config_editor(
     int selected_user,
     bool scan_ps3,
     bool scan_ps1,
+    bool show_server_only,
     int selected_field,
-    bool dirty
+    bool dirty,
+    const char *status_line
 ) {
-    static const char *labels[7] = {
+    static const char *labels[UI_SETTINGS_FIELDS] = {
         "Server URL", "API key", "PS3 user", "Scan PS3 saves", "Scan PS1 cards",
-        "Save and apply", "Cancel"
+        "Show server-only saves", "Refresh catalog", "Save and apply", "Discard changes"
     };
-    static const char *help[7] = {
+    static const char *help[UI_SETTINGS_FIELDS] = {
         "Address of your GameSync server, e.g. http://192.168.1.100:8000",
         "The server's SYNC_API_KEY. Sent as the X-API-Key header on every request.",
         "Which PS3 user's saves to scan. Auto picks the first user that has save data. "
-        "L2 / R2 also switch users from the Saves view.",
+        "Left / Right change it.",
         "Include PS3 HDD save folders (dev_hdd0/home/<user>/savedata).",
         "Include PS1 memory card images (.VM1) and the saves inside them.",
+        "List saves that exist only on the server, so they can be downloaded here.",
+        "Ask the server to rescan its ROM folder, throw away the catalog cached on "
+        "this PS3 and download every system again. Runs immediately.",
         "Write config.txt, rescan the saves and reconnect to the server.",
-        "Leave without saving. Changes made here are discarded.",
+        "Throw away the changes made here and reload the saved settings.",
     };
     char user_buf[32], key_buf[64];
     if (!g_ready || g_xmb_open) return;
@@ -505,15 +527,16 @@ void ui_draw_config_editor(
     static unsigned last_frame = 0;
     static char last_sig[512];
     char sig[512];
-    snprintf(sig, sizeof(sig), "%s|%s|%d|%d|%d|%d|%d|%d", server_url, api_key, selected_user,
-             scan_ps3, scan_ps1, selected_field, dirty, g_online);
+    snprintf(sig, sizeof(sig), "%s|%s|%d|%d|%d|%d|%d|%d|%d|%.120s", server_url, api_key,
+             selected_user, scan_ps3, scan_ps1, show_server_only, selected_field, dirty,
+             g_online, status_line ? status_line : "");
     if (last_frame != 0 && last_frame == gui_frame_id() && strcmp(sig, last_sig) == 0) return;
 
     if (selected_user <= 0) snprintf(user_buf, sizeof(user_buf), "Auto");
     else                    snprintf(user_buf, sizeof(user_buf), "%08d", selected_user);
     mask_key(api_key, key_buf, sizeof(key_buf));
 
-    begin_screen("Settings");
+    begin_view(APP_VIEW_SETTINGS);
     gui_panel(LIST_X, PANEL_Y, LIST_W, PANEL_H);
     gui_text_mid(LIST_X + 22, TOOLBAR_Y, TOOLBAR_H, GUI_F_BOLD, HEX_TEXT, GUI_LEFT, 0,
                  "Settings");
@@ -524,13 +547,13 @@ void ui_draw_config_editor(
     gui_rect(LIST_X + 12, ROWS_Y - 10, LIST_W - 24, 1, HEX_LINE);
 
     const int rh = 46;
-    for (int i = 0; i < 7; i++) {
-        int y = ROWS_Y + i * rh + (i >= 5 ? 18 : 0);
+    for (int i = 0; i < UI_SETTINGS_FIELDS; i++) {
+        int y = ROWS_Y + i * rh + (i >= UI_SETTINGS_FIRST_ACTION ? 18 : 0);
         bool sel = (i == selected_field);
-        if (i == 5) gui_rect(LIST_X + 20, y - 12, LIST_W - 40, 1, HEX_LINE);
+        if (i == UI_SETTINGS_FIRST_ACTION) gui_rect(LIST_X + 20, y - 12, LIST_W - 40, 1, HEX_LINE);
         if (sel) gui_rrect(LIST_X + 10, y, LIST_W - 20, rh - 6, 9, HEX_ACCENT);
 
-        uint32_t fg = sel ? HEX_INK : (i >= 5 ? HEX_ACCENT2 : HEX_TEXT);
+        uint32_t fg = sel ? HEX_INK : (i >= UI_SETTINGS_FIRST_ACTION ? HEX_ACCENT2 : HEX_TEXT);
         gui_text_mid(LIST_X + 28, y, rh - 6, GUI_F_BODY, fg, GUI_LEFT, 300, labels[i]);
 
         int vx = LIST_X + LIST_W - 30;
@@ -550,6 +573,7 @@ void ui_draw_config_editor(
             }
             case 3: draw_switch(vx, cy, scan_ps3); break;
             case 4: draw_switch(vx, cy, scan_ps1); break;
+            case 5: draw_switch(vx, cy, show_server_only); break;
             default:
                 gui_line(vx - 8, cy - 6, vx, cy, 2, vc);
                 gui_line(vx - 8, cy + 6, vx, cy, 2, vc);
@@ -558,7 +582,7 @@ void ui_draw_config_editor(
     }
 
     /* Help panel */
-    int sel = (selected_field >= 0 && selected_field < 7) ? selected_field : 0;
+    int sel = (selected_field >= 0 && selected_field < UI_SETTINGS_FIELDS) ? selected_field : 0;
     gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
     int x = DETAIL_X + 22, w = DETAIL_W - 44, y = PANEL_Y + 18;
     gui_rrect(x, y + 4, 5, 22, 2, HEX_ACCENT);
@@ -570,15 +594,19 @@ void ui_draw_config_editor(
     y += 14;
     y = kv_wrap(x, y, w, "Config file", CONFIG_PATH, HEX_TEXT, 3);
     y = kv_wrap(x, y, w, "Debug log", DEBUG_LOG_FILE, HEX_TEXT, 3);
+    y = kv_wrap(x, y, w, "Catalog cache", CATALOG_CACHE_DIR "/catalog_<system>.dat", HEX_TEXT, 3);
 
-    draw_banner(dirty ? "Unsaved changes - choose Save and apply to keep them."
-                      : "Settings are stored in config.txt on the PS3 HDD.", NULL);
+    if (status_line && status_line[0])
+        draw_banner(status_line, NULL);
+    else
+        draw_banner(dirty ? "Unsaved changes - choose Save and apply to keep them."
+                          : "Settings are stored in config.txt on the PS3 HDD.", NULL);
 
     static const GuiHint hints[] = {
-        { "UD", "Select" }, { "LR", "Change" }, { "CROSS", "Edit / toggle" },
-        { "CIRCLE", "Back" },
+        { "UD", "Select" }, { "LR", "Change" }, { "CROSS", "Edit / toggle / run" },
+        { "CIRCLE", "Discard and back" }, { "L1/R1", "Tabs" }, { "START", "Exit" },
     };
-    gui_footer(hints, 4);
+    gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
     finish_view();
     last_frame = gui_frame_id();
     snprintf(last_sig, sizeof(last_sig), "%s", sig);
@@ -735,28 +763,65 @@ static void message_split(const char *msg, char *title, size_t title_size,
         *tone = HEX_ACCENT;
 }
 
-static void wait_for_cross(void) {
+/* Dialog-local button bits (main.c has its own set for the views). */
+#define DLG_CROSS    (1U << 0)
+#define DLG_CIRCLE   (1U << 1)
+#define DLG_UP       (1U << 2)
+#define DLG_DOWN     (1U << 3)
+#define DLG_LEFT     (1U << 4)
+#define DLG_RIGHT    (1U << 5)
+#define DLG_TRIANGLE (1U << 6)
+#define DLG_START    (1U << 7)
+
+/* Physical buttons of the first connected pad.  libpad reports the
+ * physical Cross / Circle regardless of the console's Japanese / Western
+ * "enter button" setting, so Cross is always confirm here. */
+static unsigned dlg_buttons(void) {
     padInfo padinfo;
     padData paddata;
-    int prev_cross = 1;
+    unsigned b = 0;
+    ioPadGetInfo(&padinfo);
+    for (int i = 0; i < MAX_PADS_UI; i++) {
+        if (!padinfo.status[i]) continue;
+        ioPadGetData(i, &paddata);
+        if (paddata.BTN_CROSS)    b |= DLG_CROSS;
+        if (paddata.BTN_CIRCLE)   b |= DLG_CIRCLE;
+        if (paddata.BTN_UP)       b |= DLG_UP;
+        if (paddata.BTN_DOWN)     b |= DLG_DOWN;
+        if (paddata.BTN_LEFT)     b |= DLG_LEFT;
+        if (paddata.BTN_RIGHT)    b |= DLG_RIGHT;
+        if (paddata.BTN_TRIANGLE) b |= DLG_TRIANGLE;
+        if (paddata.BTN_START)    b |= DLG_START;
+        break;
+    }
+    return b;
+}
+
+/* Block until one of `mask` is newly pressed (buttons already held when the
+ * dialog opens are ignored until released).  Returns the pressed bits, or 0
+ * when the app is asked to exit. */
+static unsigned wait_for_press(unsigned mask) {
+    unsigned prev = dlg_buttons();
+    g_dialog_serial++;
     while (1) {
         sysUtilCheckCallback();
-        if (g_ui_exit) return;
+        if (g_ui_exit) return 0;
+        SDL_PumpEvents();
         if (g_xmb_open) {
-            SDL_PumpEvents();
             usleep(50000);
             continue;
         }
-        SDL_PumpEvents();
-        ioPadGetInfo(&padinfo);
-        for (int i = 0; i < MAX_PADS_UI; i++) {
-            if (!padinfo.status[i]) continue;
-            ioPadGetData(i, &paddata);
-            if (!prev_cross && paddata.BTN_CROSS) return;
-            prev_cross = paddata.BTN_CROSS;
-        }
-        usleep(50000);
+        unsigned b = dlg_buttons();
+        unsigned just = b & ~prev & mask;
+        prev = b;
+        if (just) return just;
+        usleep(30000);
     }
+}
+
+/* Message cards close with Cross or Circle. */
+static void wait_for_cross(void) {
+    wait_for_press(DLG_CROSS | DLG_CIRCLE);
 }
 
 /* Draws the message card; footer_hint NULL = "Cross: continue". */
@@ -821,6 +886,7 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     if (!g_ready) return false;
 
     drain_buttons();
+    g_dialog_serial++;
 
     const char *heading;
     uint32_t tone;
@@ -936,6 +1002,86 @@ bool ui_confirm(const TitleInfo *title, SyncAction action,
     }
 }
 
+bool ui_ask(const char *title, const char *body, const char *confirm_label) {
+    if (!g_ready) return false;
+
+    char lines[8][GUI_WRAP_LINE];
+    int cw = 760;
+    int n = gui_wrap(body ? body : "", GUI_F_BODY, cw - 56, lines, 8);
+    int lh = gui_line_h(GUI_F_BODY);
+    int ch = 76 + (n > 0 ? n * lh + 16 : 0) + 58;
+    int cx = (GUI_W - cw) / 2;
+    int cy = GUI_CONTENT_Y + (GUI_FOOTER_Y - GUI_CONTENT_Y - ch) / 2;
+
+    gui_backdrop();
+    gui_card(cx, cy, cw, ch, title ? title : "GameSync", HEX_ACCENT);
+    for (int i = 0; i < n; i++)
+        gui_text(cx + 28, cy + 70 + i * lh, GUI_F_BODY, HEX_TEXT, GUI_LEFT, lines[i]);
+    gui_rect(cx + 18, cy + ch - 50, cw - 36, 1, HEX_LINE);
+    GuiHint h[2] = { { "CROSS", confirm_label ? confirm_label : "Confirm" },
+                     { "CIRCLE", "Cancel" } };
+    gui_hints(cx + 28, cy + ch - 26, h, 2, 28);
+    gui_present(false);
+
+    return (wait_for_press(DLG_CROSS | DLG_CIRCLE) & DLG_CROSS) != 0;
+}
+
+int ui_choose(const char *title, const char *body,
+              const char *const *options, int count, int initial) {
+    if (!g_ready || !options || count <= 0) return -1;
+
+    char lines[6][GUI_WRAP_LINE];
+    int cw = 760;
+    int n = gui_wrap(body ? body : "", GUI_F_BODY, cw - 56, lines, 6);
+    int lh = gui_line_h(GUI_F_BODY);
+    int oh = 40;
+    int body_h = n > 0 ? n * lh + 14 : 0;
+    int ch = 70 + body_h + count * oh + 12 + 58;
+    if (ch > GUI_FOOTER_Y - GUI_CONTENT_Y) ch = GUI_FOOTER_Y - GUI_CONTENT_Y;
+    int cx = (GUI_W - cw) / 2;
+    int cy = GUI_CONTENT_Y + (GUI_FOOTER_Y - GUI_CONTENT_Y - ch) / 2;
+    int sel = (initial >= 0 && initial < count) ? initial : 0;
+    unsigned prev = dlg_buttons();
+    g_dialog_serial++;
+
+    while (1) {
+        gui_backdrop();
+        gui_card(cx, cy, cw, ch, title ? title : "GameSync", HEX_ACCENT);
+        for (int i = 0; i < n; i++)
+            gui_text(cx + 28, cy + 66 + i * lh, GUI_F_BODY, HEX_DIM, GUI_LEFT, lines[i]);
+        int oy = cy + 66 + body_h;
+        for (int i = 0; i < count; i++) {
+            int y = oy + i * oh;
+            bool on = (i == sel);
+            if (on) gui_rrect(cx + 18, y, cw - 36, oh - 6, 9, HEX_ACCENT);
+            gui_text_mid(cx + 36, y, oh - 6, GUI_F_BODY, on ? HEX_INK : HEX_TEXT, GUI_LEFT,
+                         cw - 72, options[i]);
+        }
+        gui_rect(cx + 18, cy + ch - 50, cw - 36, 1, HEX_LINE);
+        static const GuiHint h[] = { { "UD", "Choose" }, { "CROSS", "Select" },
+                                     { "CIRCLE", "Close" } };
+        gui_hints(cx + 28, cy + ch - 26, h, 3, 28);
+        gui_present(false);
+
+        /* Wait for a fresh press, then act on it. */
+        unsigned just = 0;
+        while (!just) {
+            sysUtilCheckCallback();
+            if (g_ui_exit) return -1;
+            SDL_PumpEvents();
+            if (g_xmb_open) { usleep(50000); continue; }
+            unsigned b = dlg_buttons();
+            just = b & ~prev;
+            prev = b;
+            if (!just) usleep(30000);
+        }
+        if (just & DLG_CIRCLE) return -1;
+        if (just & DLG_CROSS) return sel;
+        if (just & DLG_UP)   sel = (sel - 1 + count) % count;
+        if (just & DLG_DOWN) sel = (sel + 1) % count;
+    }
+}
+
 /* ------------------------------------------------------------------ */
 /* ROM catalog                                                         */
 /* ------------------------------------------------------------------ */
@@ -1027,7 +1173,8 @@ void ui_draw_rom_catalog(const RomCatalog *catalog,
                          const char *const *systems, int system_count,
                          int system_index,
                          int selected, int scroll_offset,
-                         const char *status_line) {
+                         const char *status_line,
+                         const char *source_note) {
     char buf[128];
     if (!g_ready || g_xmb_open) return;
 
@@ -1037,9 +1184,11 @@ void ui_draw_rom_catalog(const RomCatalog *catalog,
     int total = catalog ? catalog->count : 0;
     int cy = TOOLBAR_Y + TOOLBAR_H / 2;
     int tx = LIST_X + 16;
-    tx += gui_button(tx, cy, "L1") + 8;
-    tx = gui_tabs(tx, TOOLBAR_Y + 1, TOOLBAR_H - 2, systems, system_count, system_index) + 8;
-    gui_button(tx, cy, "R1");
+    (void)cy;
+    tx = draw_subtabs(tx, systems, system_count, system_index) + 12;
+    if (source_note && source_note[0])
+        gui_tag(tx, TOOLBAR_Y + (TOOLBAR_H - TAG_H) / 2, TAG_H,
+                strstr(source_note, "ffline") ? HEX_WARN : HEX_DIM, source_note);
     snprintf(buf, sizeof(buf), "%d title%s  -  %d in queue", total, total == 1 ? "" : "s",
              downloads ? downloads->count : 0);
     gui_text_mid(LIST_X + LIST_W - 22, TOOLBAR_Y, TOOLBAR_H, GUI_F_SMALL, HEX_DIM, GUI_RIGHT, 0, buf);
@@ -1053,7 +1202,8 @@ void ui_draw_rom_catalog(const RomCatalog *catalog,
         snprintf(title, sizeof(title), "No %s games in the catalog", sys);
         draw_empty(title, catalog && catalog->last_error[0]
                           ? catalog->last_error
-                          : "Add games to the server's ROM folder, then press Circle to rescan.");
+                          : "Add games to the server's ROM folder, then run Settings > "
+                            "Refresh catalog.");
         gui_panel(DETAIL_X, PANEL_Y, DETAIL_W, PANEL_H);
         gui_text_wrap(DETAIL_X + 22, PANEL_Y + 22, GUI_F_BODY, HEX_DIM, DETAIL_W - 44, 8,
                       "PS3 ISOs go to /dev_hdd0/PS3ISO and packages to /dev_hdd0/packages. "
@@ -1099,8 +1249,8 @@ void ui_draw_rom_catalog(const RomCatalog *catalog,
     draw_banner(catalog && catalog->last_error[0] ? catalog->last_error : status_line, NULL);
 
     static const GuiHint hints[] = {
-        { "CROSS", "Download" }, { "TRIANGLE", "Resume" }, { "CIRCLE", "Rescan server" },
-        { "LR", "Page" }, { "SELECT", "Next view" },
+        { "CROSS", "Download / resume" }, { "TRIANGLE", "Details" }, { "SELECT", "PS3 / PS1" },
+        { "LR", "Page" }, { "L1/R1", "Tabs" }, { "START", "Exit" },
     };
     gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
     finish_view();
@@ -1153,7 +1303,7 @@ static void draw_active_download(const DownloadEntry *active,
 
     int by = PANEL_Y + PANEL_H - 56;
     gui_rect(x, by - 8, w, 1, HEX_LINE);
-    static const GuiHint h[] = { { "SQUARE", "Pause (keeps progress)" } };
+    static const GuiHint h[] = { { "CIRCLE", "Pause (keeps progress)" } };
     gui_hints(x, by + 18, h, 1, 0);
 }
 
@@ -1197,8 +1347,8 @@ static void draw_download_detail(const DownloadEntry *e) {
     switch (e->status) {
         case DL_STATUS_QUEUED:    advice = "Press Cross to start."; break;
         case DL_STATUS_PAUSED:    advice = "Press Cross to resume from where it stopped."; break;
-        case DL_STATUS_ERROR:     advice = "Press Cross to retry, or Circle to remove it."; break;
-        case DL_STATUS_COMPLETED: advice = "Installed. Triangle clears finished entries."; break;
+        case DL_STATUS_ERROR:     advice = "Press Cross to retry, or Triangle to remove it."; break;
+        case DL_STATUS_COMPLETED: advice = "Installed. Square clears finished entries."; break;
         default: break;
     }
     if (advice) gui_text_wrap(x, y, GUI_F_SMALL, HEX_DIM, w, 3, advice);
@@ -1253,7 +1403,7 @@ void ui_draw_downloads(const DownloadList *downloads,
 
     if (total == 0) {
         draw_empty("No downloads yet",
-                   "Open the ROM Catalog (SELECT) and press Cross on a game to download it.");
+                   "Open the ROM Catalog (L1 / R1) and press Cross on a game to download it.");
     } else {
         int end = scroll_offset + UI_LIST_ROWS;
         if (end > total) end = total;
@@ -1309,8 +1459,8 @@ void ui_draw_downloads(const DownloadList *downloads,
     draw_banner(status_line, NULL);
 
     static const GuiHint hints[] = {
-        { "CROSS", "Start / resume" }, { "SQUARE", "Pause" }, { "CIRCLE", "Remove" },
-        { "TRIANGLE", "Clear finished" }, { "UD", "Move" }, { "SELECT", "Next view" },
+        { "CROSS", "Start / resume" }, { "CIRCLE", "Pause" }, { "SQUARE", "Clear finished" },
+        { "TRIANGLE", "Options" }, { "LR", "Page" }, { "L1/R1", "Tabs" }, { "START", "Exit" },
     };
     gui_footer(hints, (int)(sizeof(hints) / sizeof(hints[0])));
     finish_view();

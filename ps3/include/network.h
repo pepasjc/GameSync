@@ -79,6 +79,14 @@ int network_fetch_rom_catalog(const SyncState *state,
                               char *out, uint32_t out_size,
                               int *status_out);
 
+/* Fetch GET /api/v1/roms/fingerprints (per-system catalog fingerprints,
+ * used by the on-disk catalog cache).  Returns body length on success,
+ * <=0 on error; status_out receives the HTTP status (404/405 = the server
+ * predates the route, 0 = unreachable). */
+int network_fetch_rom_fingerprints(const SyncState *state,
+                                   char *out, uint32_t out_size,
+                                   int *status_out);
+
 /* Ask the server to rescan its ROM directory and rebuild the catalog
  * cache.  Used by the ROM Catalog view's refresh action so the user can
  * pick up newly-added games without restarting the server.  Returns 0 on

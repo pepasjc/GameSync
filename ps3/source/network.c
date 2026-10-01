@@ -1048,6 +1048,26 @@ int network_trigger_rom_scan(const SyncState *state, int *count_out) {
     return 0;
 }
 
+int network_fetch_rom_fingerprints(const SyncState *state,
+                                   char *out, uint32_t out_size,
+                                   int *status_out) {
+    if (status_out) *status_out = 0;
+    if (!state || !out || out_size < 2) return -1;
+    out[0] = '\0';
+
+    int status = 0;
+    int n = http_request(state, "GET", "/api/v1/roms/fingerprints",
+                         NULL, NULL, 0,
+                         (uint8_t *)out, out_size, &status);
+    if (status_out) *status_out = status;
+    if (n < 0 || status != 200) {
+        debug_log("net: fetch_rom_fingerprints failed status=%d n=%d", status, n);
+        return n < 0 ? n : -1;
+    }
+    debug_log("net: fetch_rom_fingerprints OK n=%d", n);
+    return n;
+}
+
 int network_fetch_rom_catalog(const SyncState *state,
                               const char *system_code,
                               int offset, int limit,

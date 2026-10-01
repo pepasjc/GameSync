@@ -36,15 +36,16 @@
 /* Fallback for any other ROM kind we cannot place automatically */
 #define ROM_TARGET_FALLBACK_DIR "/dev_hdd0/game/3DSSYNC00/USRDIR/downloads"
 
-/* Top-level views the user can cycle between with SELECT.  Each view runs
- * its own input-dispatch block in main.c.  Adding a new view = add an enum
- * entry + a render branch + an input branch.  No scene framework — keep it
- * small. */
+/* Top-level views (tabs) the user cycles between with L1 / R1.  Each view
+ * runs its own input-dispatch block in main.c.  Adding a new view = add an
+ * enum entry + a render branch + an input branch.  No scene framework —
+ * keep it small. */
 typedef enum {
     APP_VIEW_SAVES     = 0,
     APP_VIEW_ROMS      = 1,
     APP_VIEW_DOWNLOADS = 2,
-    APP_VIEW_COUNT     = 3,
+    APP_VIEW_SETTINGS  = 3,
+    APP_VIEW_COUNT     = 4,
 } AppView;
 
 typedef enum {
@@ -102,6 +103,7 @@ typedef struct {
 
     bool scan_ps3;
     bool scan_ps1;
+    bool show_server_only;         /* list saves that only exist on the server */
     bool network_connected;
 } SyncState;
 
