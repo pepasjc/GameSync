@@ -9,8 +9,17 @@ Sync server, and installs GameCube / Wii games onto the SD card.
 | **vWii** | SLC NAND `/title/00010000/<tidlo>/data/` | whole-tree 3DSS v5 bundle + three-way-hash `/sync` |
 | **Wii U** | MLC `/usr/save/00050000/<tidlo>/user/` | same as vWii |
 
-ROM downloads cover **GC** (Nintendont layout) and **Wii** (split WBFS for
-USB Loader GX / WiiFlow). Wii U installables are out of scope.
+ROM downloads cover **GC** (Nintendont layout), **Wii** (split WBFS for
+USB Loader GX / WiiFlow) and **Wii U** (WUP folders, installed to NAND or the
+console's USB drive through MCP from the Installed view).
+
+The UI is drawn on both the TV (1280x720) and the GamePad (854x480, the same
+frame scaled to two thirds) in GameSync's shared dark theme: a header with the
+current view, the console IP and SD / NAND status; a tab strip of the eight
+views; a list on the left with a detail card for the selection on the right; a
+status banner; and a footer of button hints. Questions open as dialog cards,
+long jobs (downloads, installs, sync runs) as progress cards with a bar,
+percentage, speed and time left.
 
 ## Building
 
@@ -98,8 +107,8 @@ entirely — use that on emulators, or if boot stops at the "Opening NAND" step.
 
 ## If it hangs on boot
 
-Boot is eight numbered steps, each drawn *before* the work it names, so the
-last number on screen is the stage that stalled:
+Boot is a checklist of eight steps, each drawn *before* the work it names, so
+the highlighted step is the stage that stalled:
 
 | Stuck at | Likely cause |
 |---|---|
@@ -115,20 +124,25 @@ Nothing at boot fetches the catalog or the save list; those load from their
 own views on demand, so an unreachable server can never wedge startup. Any
 HTTP wait can be aborted with `B`.
 
-## Controls
+## Screens and controls
 
-`ZL` / `ZR` cycle views (in the GC-cards view `ZR` cycles card images instead).
-`HOME` exits.
+`ZL` / `ZR` cycle the views (the tab strip under the header shows where you
+are). `+` asks to quit; `HOME` quits. In every list `Up` / `Down` move and
+`Left` / `Right` page.
 
-| View | Buttons |
-|---|---|
-| CATALOG | `A` fetch · `MINUS` GC/WII · `X` queue · `Y` download now |
-| LOCAL | `A` rescan · `X` delete |
-| DOWNLOADS | `A` start one · `Y` run all · `X` remove · `B` pause |
-| GC CARDS | `A` upload save · `Y` restore save · `ZR` next card · `X` rescan · `PLUS` import whole card |
-| SERVER | `A` restore into the open card · `X` refresh · `Y` pull every save as .gci |
-| VWII / WII U | `A` smart sync · `X` force upload · `Y` force download · `MINUS` rescan + plan · `PLUS` run the whole plan |
-| CONFIG | `Up`/`Down` select · `Left`/`Right` toggle · `A` edit / save |
+| View | Shows | Buttons |
+|---|---|---|
+| **Catalog** | server games for the GC / Wii / Wii U tab, queue state per row; detail: file, install format and target folder, related update / DLC | `A` download now · `X` add to queue · `Y` refresh · `-` switch GC / Wii / Wii U |
+| **Installed** | games on SD / USB tagged GC / Wii / Wii U; detail: path, title id | `A` install (Wii U, with its update / DLC, base game first) · `X` delete · `Y` rescan |
+| **Downloads** | one row per title with status pill and progress bar; detail: bytes, files, speed | `A` start / resume title · `Y` run the whole queue · `X` remove · `B` pause a running transfer |
+| **GC Cards** | saves inside the open Nintendont card; detail: title id, blocks, whether the server has it | `A` upload save · `Y` restore from server · `R` next card · `L` import the whole card · `X` rescan |
+| **GC Server** | every GC save on the server, marked when it is on the open card | `A` restore into the open card · `Y` pull every save as `.gci` · `X` refresh |
+| **vWii** / **Wii U** | console saves plus server-only titles with a sync status (synced / upload / download / conflict / server only); detail: status card and the plan totals | `A` smart sync · `X` force upload · `Y` force download · `-` rescan and plan · `L` run the whole plan |
+| **Settings** | server, API key, download and install targets, folders, sync toggles; detail: what the setting does | `A` edit / toggle / save · `Left` / `Right` change a toggle |
+
+Text settings open an editor card: `Up` / `Down` change the character under
+the cursor (the card shows the next and previous ones), `Left` / `Right` move,
+`ZR` inserts, `X` deletes, `A` keeps, `B` cancels.
 
 ## Server prerequisite for Wii downloads
 
@@ -166,6 +180,12 @@ and the wiiu-env contributors), which is **LGPL-3.0-or-later**. It is statically
 linked into the distributed `wiiusync.rpx` / `wiiusync.wuhb` and used unmodified;
 LGPL-3.0 code may be conveyed as part of a GPL-3.0 work. License text:
 [`licenses/LGPL-3.0.txt`](../licenses/LGPL-3.0.txt).
+
+The UI rasterises text with **[stb_truetype](https://github.com/nothings/stb)**
+(Sean Barrett, public domain or MIT), vendored unmodified in
+[`third_party/stb/`](third_party/stb/) with its license. The font itself is the
+console's own shared system font, read from memory at runtime — none is
+bundled.
 
 Building also links devkitPPC and `wut`, covered by the GPLv3 §7 console-SDK
 linking exception described in the root [README](../README.md#license). Details:
