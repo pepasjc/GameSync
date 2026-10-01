@@ -20,6 +20,14 @@ static const char *config_paths[] = {
     NULL
 };
 
+// Folder of the config file in use, e.g. "sd:/dssync" (the catalog cache
+// lives beside it)
+static char loaded_dir[64] = "";
+
+const char *config_dir(void) {
+    return loaded_dir[0] ? loaded_dir : "sd:/dssync";
+}
+
 // Create default config file
 static bool create_default_config(const char *path) {
     // Extract directory from path
@@ -151,6 +159,11 @@ bool config_load(SyncState *state, char *error, size_t error_size) {
     }
     
     fclose(f);
+
+    snprintf(loaded_dir, sizeof(loaded_dir), "%s", loaded_path);
+    char *dir_end = strrchr(loaded_dir, '/');
+    if (dir_end && dir_end > loaded_dir) *dir_end = '\0';
+    else loaded_dir[0] = '\0';
     
     if (!has_url || !has_key) {
         snprintf(error, error_size, "Config missing server_url or api_key");
@@ -249,8 +262,9 @@ bool config_edit_field(const char *hint, char *buffer, int max_len) {
         while (pmMainLoop()) {
             swiWaitForVBlank();
             scanKeys();
-            int kDown = keysDown();
-            
+            // D-pad and Delete repeat while held
+            int kDown = keysDown() | (keysDownRepeat() & (KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT | KEY_X));
+
             if (!kDown) continue;
 
             if (kDown & KEY_LEFT) {
@@ -283,7 +297,8 @@ bool config_edit_field(const char *hint, char *buffer, int max_len) {
                 }
                 break;
             }
-            if (kDown & KEY_A) {
+            // Y inserts a letter at the cursor, X deletes the one before it
+            if (kDown & KEY_Y) {
                 if (len < max_len - 1) {
                     memmove(&temp[cursor + 1], &temp[cursor], len - cursor + 1);
                     temp[cursor] = 'a';
@@ -292,7 +307,7 @@ bool config_edit_field(const char *hint, char *buffer, int max_len) {
                 }
                 break;
             }
-            if (kDown & KEY_B) {
+            if (kDown & KEY_X) {
                 if (cursor > 0) {
                     memmove(&temp[cursor - 1], &temp[cursor], len - cursor + 1);
                     cursor--;
@@ -300,12 +315,13 @@ bool config_edit_field(const char *hint, char *buffer, int max_len) {
                 }
                 break;
             }
-            if (kDown & KEY_Y) {
+            // A saves, B cancels
+            if (kDown & KEY_A) {
                 confirmed = true;
                 running = false;
                 break;
             }
-            if (kDown & KEY_X) {
+            if (kDown & KEY_B) {
                 running = false;
                 break;
             }

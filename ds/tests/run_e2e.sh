@@ -46,5 +46,5 @@ done
 cd "$root/ds"
 gcc -std=gnu11 -Wall -Wextra -Wno-unused-parameter -O1 -g -Iinclude \
     -Diprintf=printf -Dclosesocket=close \
-    -o "$work/e2e" tests/e2e_catalog.c source/http.c source/catalog_data.c
+    -o "$work/e2e" tests/e2e_catalog.c source/http.c source/catalog_data.c source/catalog_cache.c
 timeout 300 "$work/e2e" http://127.0.0.1:8765 "$key" "$work/expected.nds" "$work/out"

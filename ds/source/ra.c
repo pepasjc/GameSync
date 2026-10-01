@@ -587,32 +587,14 @@ int ra_install_set(SyncState *state, const char *rom_path, int *achievements) {
 }
 
 // ---------------------------------------------------------------------------
-// Menu
+// Settings entry
 // ---------------------------------------------------------------------------
 
-void ra_menu(SyncState *state, bool has_wifi) {
-    bool redraw = true;
-
-    while (pmMainLoop()) {
-        if (redraw) {
-            view_ra_menu(&ui_bottom, ra_get_root(), has_wifi);
-            ui_present(&ui_bottom);
-            redraw = false;
-        }
-
-        swiWaitForVBlank();
-        scanKeys();
-        int pressed = keysDown();
-
-        if (pressed & KEY_B) break;
-        if (pressed & KEY_A) {
-            if (!has_wifi) {
-                ui_message("RetroAchievements", "WiFi required",
-                           "Use Connect WiFi in the menu first.", KIND_ERROR, HINTS_ANY, 0);
-            } else {
-                ra_update_sets(state);
-            }
-            redraw = true;
-        }
+void ra_update_sets_ui(SyncState *state, bool has_wifi) {
+    if (!has_wifi) {
+        ui_message("Achievement sets", "WiFi required", "Use Connect WiFi in Settings first.", KIND_ERROR,
+                   HINTS_ANY, 0);
+        return;
     }
+    ra_update_sets(state);
 }

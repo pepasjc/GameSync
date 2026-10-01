@@ -95,6 +95,8 @@ static void mock_state(bool scanned) {
 }
 
 static CatEntry cat_entries[CAT_ROWS];
+static const char *const mock_systems[] = { "NDS", "DSI" };
+static const SettingsInfo settings_info = { "sd:", "3702 games cached", "sd:/dssync/cache" };
 
 static void mock_catalog(CatalogView *v) {
     static const struct { const char *name; uint32_t size; int ra; bool title_only; } games[CAT_ROWS] = {
@@ -124,7 +126,9 @@ static void mock_catalog(CatalogView *v) {
         v->rows[i].installed = (i == 1 || i == 4);
     }
     v->system = "NDS";
+    v->systems = mock_systems;
     v->nsystems = 2;
+    v->notice = "";
     v->search = "";
     v->error = "";
     v->total = 1873;
@@ -135,6 +139,8 @@ static void mock_catalog(CatalogView *v) {
     v->current_installed = true;
     v->rom_dir = "sd:/roms/nds";
 }
+
+static const Hint any_hint[] = { { "A", "Continue" }, { NULL, NULL } };
 
 int main(int argc, char **argv) {
     if (argc > 1) out_dir = argv[1];
@@ -150,37 +156,40 @@ int main(int argc, char **argv) {
     view_task(&bot, &boot);
     write_scene("01_boot");
 
-    // Main screen, list focused
+    // Saves tab
     theme_wifi = true;
     mock_state(true);
-    view_main_top(&top, &state, 0, false, 0, true);
-    view_save_list(&bot, &state, 0, 0, true, true);
+    view_saves_top(&top, &state, 0, true);
+    view_save_list(&bot, &state, 0, 0, true);
     write_scene("02_main");
 
     // Not scanned yet, another selection
     mock_state(false);
-    view_main_top(&top, &state, 4, false, 0, true);
-    view_save_list(&bot, &state, 4, 0, true, true);
+    view_saves_top(&top, &state, 4, true);
+    view_save_list(&bot, &state, 4, 0, true);
     write_scene("03_main_unscanned");
 
-    // Settings menu focused
+    // Settings tab
     mock_state(true);
-    view_main_top(&top, &state, 2, true, 5, true);
-    view_save_list(&bot, &state, 2, 0, false, true);
+    view_settings_top(&top, &state, SET_WIFI, true, &settings_info);
+    view_settings_list(&bot, &state, SET_WIFI, true, &settings_info);
     write_scene("04_menu");
+    view_settings_top(&top, &state, SET_CATALOG, true, &settings_info);
+    view_settings_list(&bot, &state, SET_CATALOG, true, &settings_info);
+    write_scene("04b_menu_catalog");
 
     // No saves, offline
     theme_wifi = false;
     SyncState empty;
     memset(&empty, 0, sizeof(empty));
     snprintf(empty.server_url, sizeof(empty.server_url), "http://192.168.1.201:8000");
-    view_main_top(&top, &empty, 0, false, 0, false);
-    view_save_list(&bot, &empty, 0, 0, true, false);
+    view_saves_top(&top, &empty, 0, false);
+    view_save_list(&bot, &empty, 0, 0, false);
     write_scene("05_empty_offline");
     theme_wifi = true;
 
     // Save details (Y)
-    view_main_top(&top, &state, 0, false, 0, true);
+    view_saves_top(&top, &state, 0, true);
     view_save_details(&bot, &state.titles[0]);
     write_scene("06_details");
 
@@ -207,12 +216,12 @@ int main(int argc, char **argv) {
     view_sync_action(&bot, cv.game, SYNC_UP_TO_DATE, true);
     write_scene("10_sync_ok");
 
-    // Manual upload (R)
-    CompareView up = { "Upload", state.titles[1].game_name, true, 8192, "0a1b2c3d4e5f6071",
-                       false, 0, "", "", SYNC_UPLOAD };
-    view_sync_compare(&top, &up);
-    view_transfer_confirm(&bot, up.game, true, false, false);
-    write_scene("11_upload_confirm");
+    // Exit confirmation (START)
+    static const Hint exit_hints[] = { { "A", "Exit" }, { "B", "Cancel" }, { NULL, NULL } };
+    view_saves_top(&top, &state, 0, true);
+    theme_message(&bot, "GameSync", "Exit GameSync?", "WiFi is switched off on the way out.", KIND_INFO,
+                  exit_hints);
+    write_scene("11_exit_confirm");
 
     // Task with a result
     ui_log_clear();
@@ -222,7 +231,7 @@ int main(int argc, char **argv) {
     TaskView done = { "Upload", "Upload successful", "Mario Kart DS", 0, 0, KIND_OK, true, NULL };
     static const Hint back[] = { { "B", "Back" }, { NULL, NULL } };
     done.hints = back;
-    view_main_top(&top, &state, 1, false, 0, true);
+    view_saves_top(&top, &state, 1, true);
     view_task(&bot, &done);
     write_scene("12_task_result");
 
@@ -245,16 +254,16 @@ int main(int argc, char **argv) {
     write_scene("14_scan_summary");
 
     // Editor
-    view_main_top(&top, &state, 0, true, 0, true);
+    view_settings_top(&top, &state, SET_SERVER_URL, true, &settings_info);
     const char *charset = "abcdefghijklmnopqrstuvwxyz0123456789.:/-_ABCDEFGHIJKLMNOPQRSTUVWXYZ@?=&#%+! ";
     view_editor(&bot, "Server URL", "http://192.168.1.201:8000", 25, 14, charset, (int)strlen(charset));
     write_scene("15_editor");
     view_editor(&bot, "Search game names (empty = all)", "zelda", 5, 5, charset, (int)strlen(charset));
     write_scene("16_editor_search");
 
-    // RetroAchievements
-    view_main_top(&top, &state, 0, true, 7, true);
-    view_ra_menu(&bot, "sd:", true);
+    // RetroAchievements (Settings > Achievement Sets)
+    view_settings_top(&top, &state, SET_RA, true, &settings_info);
+    view_settings_list(&bot, &state, SET_RA, true, &settings_info);
     write_scene("17_ra_menu");
     ui_log_clear();
     ui_log_puts("sd:/roms/nds: 212 ROMs\nHold B to stop\nHashing 212/212\n");
@@ -296,6 +305,30 @@ int main(int argc, char **argv) {
     view_catalog_details(&top, &cat);
     view_catalog_list(&bot, &cat);
     write_scene("21_catalog_error");
+
+    // Cached list without a server
+    mock_catalog(&cat);
+    theme_wifi = false;
+    cat.offline = true;
+    cat.notice = "Offline: showing the cached list";
+    view_catalog_details(&top, &cat);
+    view_catalog_list(&bot, &cat);
+    write_scene("21b_catalog_offline");
+    theme_wifi = true;
+
+    // Settings > Refresh Catalog: download progress and the result
+    ui_log_clear();
+    TaskView fill = { "Refresh catalog", "Downloading the game list", "NDS: 1500 / 3702 games", 1500, 3702,
+                      KIND_INFO, false, NULL };
+    view_settings_top(&top, &state, SET_CATALOG, true, &settings_info);
+    view_task(&bot, &fill);
+    write_scene("21c_catalog_download");
+    SummaryRow refresh[] = {
+        { "Server rescan", "48213 ROMs", C_OK }, { "NDS", "3702 games", C_TEXT }, { "DSI", "41 games", C_TEXT },
+        { "Cache", "Saved on the SD", C_OK },
+    };
+    view_summary(&bot, "Refresh catalog", "Catalog refreshed", KIND_OK, refresh, 4, NULL, any_hint);
+    write_scene("21d_catalog_refreshed");
 
     mock_catalog(&cat);
     view_catalog_details(&top, &cat);

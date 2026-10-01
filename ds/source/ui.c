@@ -173,46 +173,17 @@ void ui_show_save_details(Title *title) {
     task_live = false;
     view_save_details(&ui_bottom, title);
     ui_present(&ui_bottom);
-    ui_wait(0);
+    ui_wait(KEY_A | KEY_B | KEY_Y);
+}
+
+bool ui_confirm_exit(void) {
+    static const Hint hints[] = { { "A", "Exit" }, { "B", "Cancel" }, { NULL, NULL } };
+    return (ui_message("GameSync", "Exit GameSync?", "WiFi is switched off on the way out.", KIND_INFO,
+                       hints, KEY_A | KEY_B) & KEY_A) != 0;
 }
 
 static void hash_prefix(const uint8_t *hash, char out[17]) {
     for (int i = 0; i < 8; i++) snprintf(out + i * 2, 3, "%02x", hash[i]);
-}
-
-bool ui_confirm_sync(Title *title, const char *server_hash, size_t server_size, bool is_upload) {
-    // Ensure local hash is calculated
-    if (!title->hash_calculated) {
-        ui_task_status("Calculating hash", title->game_name);
-        if (saves_ensure_hash(title) != 0) {
-            ui_task_end(KIND_ERROR, "Failed to calculate hash", title->game_name, HINTS_ANY, 0);
-            return false;
-        }
-    }
-    task_live = false;
-
-    bool has_server = server_hash && server_hash[0] != '\0';
-    char local_hex[65];
-    for (int i = 0; i < 32; i++) snprintf(&local_hex[i * 2], 3, "%02x", title->hash[i]);
-    bool match = has_server && strncmp(local_hex, server_hash, 64) == 0;
-
-    CompareView v;
-    memset(&v, 0, sizeof(v));
-    v.heading = is_upload ? "Upload" : "Download";
-    v.game = title->game_name;
-    v.has_local = true;
-    v.local_size = title->save_size;
-    hash_prefix(title->hash, v.local_hash);
-    v.has_server = has_server;
-    v.server_size = server_size;
-    if (has_server) snprintf(v.server_hash, sizeof(v.server_hash), "%.16s", server_hash);
-    v.action = match ? SYNC_UP_TO_DATE : (is_upload ? SYNC_UPLOAD : SYNC_DOWNLOAD);
-    view_sync_compare(&ui_top, &v);
-    ui_present(&ui_top);
-    view_transfer_confirm(&ui_bottom, title->game_name, is_upload, has_server, match);
-    ui_present(&ui_bottom);
-
-    return (ui_wait(KEY_A | KEY_B) & KEY_A) != 0;
 }
 
 SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision) {
@@ -238,16 +209,21 @@ SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision) {
 
     switch (decision->action) {
         case SYNC_UP_TO_DATE:
-            ui_wait(0);
+            ui_wait(KEY_A | KEY_B);
             return SYNC_UP_TO_DATE;
         case SYNC_UPLOAD:
             return (ui_wait(KEY_A | KEY_B) & KEY_A) ? SYNC_UPLOAD : SYNC_UP_TO_DATE;
-        case SYNC_DOWNLOAD:
-            return (ui_wait(KEY_A | KEY_B) & KEY_A) ? SYNC_DOWNLOAD : SYNC_UP_TO_DATE;
+        case SYNC_DOWNLOAD: {
+            // X: send this DS's save anyway (the old manual upload)
+            int k = ui_wait(KEY_A | KEY_X | KEY_B);
+            if (k & KEY_A) return SYNC_DOWNLOAD;
+            if (k & KEY_X) return SYNC_UPLOAD;
+            return SYNC_UP_TO_DATE;
+        }
         case SYNC_CONFLICT: {
-            int k = ui_wait(KEY_R | KEY_L | KEY_B);
-            if (k & KEY_R) return SYNC_UPLOAD;
-            if (k & KEY_L) return SYNC_DOWNLOAD;
+            int k = ui_wait(KEY_X | KEY_Y | KEY_B);
+            if (k & KEY_X) return SYNC_UPLOAD;
+            if (k & KEY_Y) return SYNC_DOWNLOAD;
             return SYNC_UP_TO_DATE;
         }
     }

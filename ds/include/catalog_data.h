@@ -38,6 +38,26 @@ static inline bool cat_entry_has_ra(const CatEntry *e) { return e->ra_achievemen
 // Returns the number of entries stored, or -1 if the JSON is malformed.
 int cat_parse_page(const char *json, size_t len, CatEntry *out, int max, CatPageInfo *info);
 
+// Same, one entry at a time: each entry is parsed into `scratch` and handed
+// to `fn` (return false to skip the rest). Returns the number of entries
+// handed over, or -1 if the JSON is malformed. Holds no more than one entry,
+// so a page of hundreds of rows needs no array.
+typedef bool (*CatEntryFn)(const CatEntry *e, void *user);
+int cat_parse_page_cb(const char *json, size_t len, CatEntry *scratch, CatEntryFn fn, void *user,
+                      CatPageInfo *info);
+
+// Parse /api/v1/roms/fingerprints: {"systems":{"NDS":{"fingerprint":"..",
+// "count":N},...}}. Stores the systems that appear in `wanted`, in `wanted`
+// order, with fingerprint and count. Returns how many, -1 on bad JSON
+// (including a reply with no "systems" object).
+#define CAT_FP_LEN 64
+int cat_parse_fingerprints(const char *json, size_t len, const char *const *wanted,
+                           char out[][8], char fps[][CAT_FP_LEN], int *counts, int max);
+
+// Local search, like the server's: the text (ASCII case-insensitive) in the
+// name or the file name. Empty/NULL matches everything.
+bool cat_entry_matches(const CatEntry *e, const char *search);
+
 // Parse /api/v1/roms/systems: {"systems":[...],"stats":{"NDS":123,...}}.
 // Stores systems that appear in `wanted` (NULL-terminated), in `wanted`
 // order, with their counts. Returns how many were found, -1 on bad JSON.

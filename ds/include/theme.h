@@ -62,6 +62,10 @@ extern bool theme_wifi;
 void theme_background(Surface *s);
 // App header: logo, "GameSync", screen title, WiFi state and version
 void theme_header(Surface *s, const char *title);
+// App header with the top-level tabs (L/R switch them), WiFi and version
+void theme_tabs(Surface *s, const char *const *names, int n, int active);
+// Segmented control for sub-tabs (SELECT): returns its width
+int theme_segments(Surface *s, int x, int y, const char *const *names, int n, int active);
 // Bottom-screen toolbar: title on the left, optional text on the right
 void theme_toolbar(Surface *s, const char *title, const char *right);
 // Footer with button hints, NULL-terminated

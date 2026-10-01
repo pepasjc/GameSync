@@ -16,15 +16,44 @@
 // ---------------------------------------------------------------------------
 
 #define SAVE_ROWS 11          // save list rows on the bottom screen
-#define MENU_ITEMS 9          // settings / tools entries
 
-// Top screen: details of the selected save, or the settings/tools menu when
-// it has the focus (L)
-void view_main_top(Surface *s, const SyncState *state, int selected, bool menu_focused,
-                   int menu_selected, bool has_wifi);
+// Top-level tabs, switched with L/R (wrapping)
+enum { TAB_SAVES, TAB_CATALOG, TAB_SETTINGS, TAB_COUNT };
+extern const char *const view_tab_names[TAB_COUNT];
+// App header on the top screen with the tab strip
+void view_tab_header(Surface *s, int active);
+
+// Saves tab. Top screen: details of the selected save
+void view_saves_top(Surface *s, const SyncState *state, int selected, bool has_wifi);
 // Bottom screen: the save list
-void view_save_list(Surface *s, const SyncState *state, int selected, int scroll,
-                    bool focused, bool has_wifi);
+void view_save_list(Surface *s, const SyncState *state, int selected, int scroll, bool has_wifi);
+
+// Settings tab entries
+enum {
+    SET_SERVER_URL,
+    SET_API_KEY,
+    SET_WIFI_SSID,
+    SET_WEP_KEY,
+    SET_RESCAN,
+    SET_WIFI,
+    SET_UPDATES,
+    SET_RA,
+    SET_CATALOG,
+    MENU_ITEMS
+};
+
+typedef struct {
+    const char *ra_root;          // "sd:" (achievement sets go to <root>/_nds/ra)
+    const char *catalog;          // catalog cache state, e.g. "3702 games cached"
+    const char *cache_dir;        // where the catalog cache lives
+} SettingsInfo;
+
+// Settings tab. Top screen: what the selected entry does; bottom: the list
+void view_settings_top(Surface *s, const SyncState *state, int selected, bool has_wifi,
+                       const SettingsInfo *info);
+void view_settings_list(Surface *s, const SyncState *state, int selected, bool has_wifi,
+                        const SettingsInfo *info);
+
 // Y: everything about one save
 void view_save_details(Surface *s, const Title *title);
 
@@ -50,9 +79,6 @@ void view_sync_compare(Surface *s, const CompareView *v);
 
 // Bottom screen: the suggested action and its buttons
 void view_sync_action(Surface *s, const char *game, SyncAction action, bool has_last_synced);
-// Bottom screen: R (manual upload) / confirm-before-transfer
-void view_transfer_confirm(Surface *s, const char *game, bool is_upload, bool has_server,
-                           bool hashes_match);
 
 // Summary card with coloured count rows (scan all, RA update, ...)
 typedef struct {
@@ -99,12 +125,6 @@ void view_editor(Surface *s, const char *hint, const char *text, int len, int cu
                  const char *charset, int charset_len);
 
 // ---------------------------------------------------------------------------
-// RetroAchievements
-// ---------------------------------------------------------------------------
-
-void view_ra_menu(Surface *s, const char *root, bool has_wifi);
-
-// ---------------------------------------------------------------------------
 // Game catalog
 // ---------------------------------------------------------------------------
 
@@ -117,7 +137,11 @@ typedef struct {
 
 typedef struct {
     const char *system;
-    int nsystems;
+    const char *const *systems;  // all systems, for the SELECT chips (NULL = just `system`)
+    int nsystems, sys;
+    const char *notice;          // "" = none: shown in the strip ("Offline: cached catalog")
+    bool offline;                // browsing the cached copy without the server
+    bool searching;              // filtering the cache (strip says "Searching...")
     bool ra_only;
     const char *search;
     const char *error;           // "" = none

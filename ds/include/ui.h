@@ -45,12 +45,13 @@ extern const Hint HINTS_EXIT[];      // "START Exit"
 // Show save details screen
 void ui_show_save_details(Title *title);
 
-// Confirmation before upload/download with local vs server info
-// Returns: true if user confirms (A), false if cancelled (B)
-bool ui_confirm_sync(Title *title, const char *server_hash, size_t server_size, bool is_upload);
+// START: "Exit GameSync?" A = yes, B = no
+bool ui_confirm_exit(void);
 
-// Show smart sync decision and get user confirmation
-// Returns the action to execute (may differ from decision->action for conflicts)
+// Show smart sync decision and get user confirmation: A does the suggested
+// action; on a download X uploads instead; on a conflict X uploads and Y
+// downloads; B cancels.
+// Returns the action to execute (may differ from decision->action)
 // Returns SYNC_UP_TO_DATE if user cancels
 SyncAction ui_confirm_smart_sync(Title *title, SyncDecision *decision);
 
