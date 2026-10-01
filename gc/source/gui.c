@@ -141,6 +141,15 @@ static void font_from_console(void) {
 void gui_init(void) {
     VIDEO_Init();
     g_rmode = VIDEO_GetPreferredMode(NULL);
+    // Default to 480i: the IPL picks 480p whenever a component cable is
+    // plugged in and progressive is enabled, but most setups (CRTs,
+    // scalers) want the interlaced signal. Keep the same timing family.
+    if (g_rmode == &TVNtsc480Prog || g_rmode == &TVNtsc480ProgSoft || g_rmode == &TVNtsc480ProgAa)
+        g_rmode = &TVNtsc480IntDf;
+    else if (g_rmode == &TVMpal480Prog || g_rmode == &TVMpal480ProgSoft || g_rmode == &TVMpal480ProgAa)
+        g_rmode = &TVMpal480IntDf;
+    else if (g_rmode == &TVEurgb60Hz480Prog || g_rmode == &TVEurgb60Hz480ProgSoft || g_rmode == &TVEurgb60Hz480ProgAa)
+        g_rmode = &TVEurgb60Hz480IntDf;
     g_xfb[0] = MEM_K0_TO_K1(SYS_AllocateFramebuffer(g_rmode));
     g_xfb[1] = MEM_K0_TO_K1(SYS_AllocateFramebuffer(g_rmode));
     VIDEO_Configure(g_rmode);
