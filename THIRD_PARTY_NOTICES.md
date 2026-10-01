@@ -101,6 +101,7 @@ are in [README.md](README.md).
 | `mmceman.irx` ([ps2-mmce/mmceman](https://github.com/ps2-mmce/mmceman)) | MIT — [`licenses/MIT-mmceman.txt`](licenses/MIT-mmceman.txt) | `ps2/` |
 | PSPSDK debug font (**M. R. Brown**, **J. Forshaw**, **J. Kelley**) | BSD | `vita/` |
 | Vegur typeface (**Sora Sagano**) | Public domain | `xbox/assets/font.ttf`, `psp/source/font_data.c` |
+| Vegur typeface (**Sora Sagano**) | Public domain | `xbox/assets/font.ttf`, `ps2/source/font_data.c` (baked glyph atlas) |
 | Apktool (**Connor Tumbleson**) | Apache-2.0 — [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt) | `tools/apktool.jar` |
 | zlib (**Gailly**, **Adler**) | zlib | several clients |
 | PolarSSL / mbed TLS | Apache-2.0 | `ps3/` via PSL1GHT |
@@ -112,8 +113,9 @@ are in [README.md](README.md).
 
 ## Console SDKs — GPLv3 §7 linking exception
 
-The console toolchains are permissively licensed, with one wrinkle: **PS2SDK is
-under the Academic Free License 2.0**, which the FSF classifies as
+The console toolchains are permissively licensed, with one wrinkle: **PS2SDK (and
+gsKit, which the PS2 client uses to draw its UI) is under the Academic Free
+License 2.0**, which the FSF classifies as
 GPL-incompatible despite being permissive. The others (`libctru`, `libnds`,
 `dswifi`, `libfat`, `libogc`, `gxflux`, `wut`, PSPSDK, VitaSDK, PSL1GHT, nxdk)
 are zlib/BSD/MIT-style and compose with the GPL without difficulty.

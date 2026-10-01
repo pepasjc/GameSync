@@ -1,69 +1,69 @@
 /*
- * ui.c — colored text UI rendered via scr_putchar() at 8-pixel column
- * pitch.
+ * ui.c — GameSync screens for the PS2 client.
  *
- * Why we don't just use scr_printf:
+ * Layout on the 640x448 canvas (see gui.h; PAL is centred):
  *
- *   libdebug's scr_printf hardcodes a 7-pixel character cell, so 80
- *   columns × 7 px = 560 px = 87.5 % of a 640 px frame buffer.  After
- *   CRT overscan that's only ~80 % of the visible screen — content
- *   appears squashed against the left edge.  scr_putchar(x, y, ...)
- *   takes raw pixel coordinates, so calling it at col*8 spacing gives
- *   80 cols × 8 px = 640 px = full-width output without patching
- *   ps2sdk's libdebug.
+ *     0..44    header: logo, "GameSync • <screen>", version, network dot
+ *    50..74    view tabs, flanked by the L2 / R2 glyphs that cycle them
+ *    82..370   content: list card (left) + detail card (right), or the
+ *              settings cards
+ *   376..404   status banner (info / working / error)
+ *   414..448   footer: button glyph pills for the current view
  *
- * Layout (80 cols × 28 rows, 8x8 char cells, NTSC 640x224 single field):
- *
- *   row 0..1   header (app + view + net/storage/server line)
- *   row 2      blue separator
- *   row 3..24  scrolling list (22 rows visible)
- *   row 25     per-view button hints (always shown)
- *   row 26     blue separator
- *   row 27     status / error line
+ * Long-running work (downloads) draws a modal card over whatever view is
+ * active; confirmations do the same with a dimmed backdrop.
  */
 
 #include "ui.h"
+#include "gui.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
-#include <debug.h>
+/* ---- Geometry ---- */
 
-/* PS2 PSMCT32 stores pixels as 0xAABBGGRR.  Alpha is ignored when
- * scr_putchar paints to the frame buffer directly. */
-#define RGB(r, g, b)    ((u32)((b) << 16) | (u32)((g) << 8) | (u32)(r))
+#define TABS_Y      50
+#define TABS_H      24
 
-#define COLS         80
-#define HEADER_ROWS   2
-#define SEP1_ROW      2
-#define LIST_TOP      3
-#define LIST_BOTTOM  25    /* exclusive */
-#define HINT_ROW     25    /* persistent per-view button hints */
-#define SEP2_ROW     26
-#define STATUS_ROW   27
-#define ROWS         28
+#define CONTENT_Y   82
+#define CONTENT_H   288
 
-#define LIST_VISIBLE (LIST_BOTTOM - LIST_TOP)
+#define LIST_X      GUI_MARGIN
+#define LIST_W      372
+#define LIST_HEAD_H 30
+#define ROW_H       24
+#define LIST_ROWS   ((CONTENT_H - LIST_HEAD_H - 8) / ROW_H)
 
-static const u32 C_BG          = RGB(0x10, 0x12, 0x18);
-static const u32 C_HEADER_BG   = RGB(0x1e, 0x3a, 0x5f);
-static const u32 C_HEADER_TEXT = RGB(0xff, 0xff, 0xff);
-static const u32 C_TEXT        = RGB(0xff, 0xff, 0xff);
-static const u32 C_TEXT_DIM    = RGB(0xa0, 0xa8, 0xb0);
-static const u32 C_SEL_BG      = RGB(0x32, 0x70, 0xb0);
-static const u32 C_SEL_TEXT    = RGB(0xff, 0xff, 0xff);
-static const u32 C_ACCENT      = RGB(0x80, 0xc0, 0xff);
-static const u32 C_STATUS_BG   = RGB(0xe6, 0xe6, 0xe6);
-static const u32 C_STATUS_TEXT = RGB(0x20, 0x20, 0x28);
-static const u32 C_ERROR_BG    = RGB(0x60, 0x10, 0x10);
-static const u32 C_ERROR_TEXT  = RGB(0xff, 0xff, 0xff);
-static const u32 C_SEP         = RGB(0x60, 0x80, 0xa0);
+#define DETAIL_X    (LIST_X + LIST_W + 10)
+#define DETAIL_W    (GUI_W - GUI_MARGIN - DETAIL_X)
 
-static char g_status[256];
-static AppView g_view_for_hints = APP_VIEW_ROMS;
-static char g_server_source_label[8] = "VMC";
-static int  g_mmce_mode_disp[2] = {1, 1};   /* per slot: 0 off,1 auto,2 gen1,3 gen2 */
+#define BANNER_Y    376
+#define BANNER_H    28
+
+#define KV_LABEL_W  66
+#define KV_ROW_H    22
+
+/* ---- State ---- */
+
+enum { STATUS_NONE, STATUS_INFO, STATUS_ERROR };
+
+static char    g_status[256];
+static int     g_status_kind = STATUS_NONE;
+static char    g_server_source_label[8] = "VMC";
+static int     g_mmce_mode_disp[2] = {1, 1};   /* per slot: 0 off,1 auto,2 gen1,3 gen2 */
+static const LocalRomList *g_ctx_local;
+static const DownloadList *g_ctx_downloads;
+
+static const char *const g_mmce_names[4] = {"off", "auto", "gen1", "gen2"};
+
+/* Boot log: last lines shown on the splash. */
+#define BOOT_LINES     11
+#define BOOT_LINE_LEN  96
+static char  g_boot_log[BOOT_LINES][BOOT_LINE_LEN];
+static int   g_boot_count;
+static bool  g_booting;
 
 void ui_set_server_source(const char *src) {
     snprintf(g_server_source_label, sizeof(g_server_source_label), "%s", src);
@@ -74,108 +74,103 @@ void ui_set_mmce(int port, int mode) {
     g_mmce_mode_disp[port] = mode;
 }
 
-/* ---- Pixel-precise putchar helpers ---- */
-
-/* scr_putchar takes (x_pixel, y_pixel, color, char).  color sets the
- * font (foreground); the bg colour comes from a global set via
- * scr_setbgcolor.  We thread bg through each helper so callers don't
- * have to remember to update the global. */
-static void put_char(int col, int row, u32 fg, u32 bg, int ch) {
-    scr_setbgcolor(bg);
-    scr_putchar(col * 8, row * 8, fg, ch);
+void ui_set_context(const LocalRomList *local, const DownloadList *downloads) {
+    g_ctx_local = local;
+    g_ctx_downloads = downloads;
 }
 
-static void put_string(int col, int row, u32 fg, u32 bg,
-                       const char *s, int max_chars)
-{
-    scr_setbgcolor(bg);
-    int x = col * 8;
-    int y = row * 8;
-    int written = 0;
-    for (; *s; s++) {
-        if (max_chars >= 0 && written >= max_chars) break;
-        if (col + written >= COLS) break;
-        unsigned char c = (unsigned char)*s;
-        if (c < 0x20 || c > 0x7e) c = '?';
-        scr_putchar(x, y, fg, c);
-        x += 8;
-        written++;
+static const char *mmce_name(int port) {
+    int m = g_mmce_mode_disp[port];
+    return (m >= 0 && m < 4) ? g_mmce_names[m] : "auto";
+}
+
+/* ---- Small formatting helpers ---- */
+
+static void format_size(uint64_t bytes, char *out, size_t out_size) {
+    if (bytes >= 1024ULL * 1024ULL * 1024ULL) {
+        snprintf(out, out_size, "%llu.%llu GB",
+                 (unsigned long long)(bytes / (1024ULL * 1024ULL * 1024ULL)),
+                 (unsigned long long)((bytes / (1024ULL * 1024ULL * 1024ULL / 10)) % 10));
+    } else if (bytes >= 1024ULL * 1024ULL) {
+        snprintf(out, out_size, "%llu MB",
+                 (unsigned long long)(bytes / (1024ULL * 1024ULL)));
+    } else {
+        snprintf(out, out_size, "%llu KB",
+                 (unsigned long long)((bytes + 1023) / 1024ULL));
     }
 }
 
-static void put_printf(int col, int row, u32 fg, u32 bg,
-                       int max_chars, const char *fmt, ...)
-{
-    char buf[256];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
-    va_end(ap);
-    put_string(col, row, fg, bg, buf, max_chars);
-}
-
-static void fill_row(int row, u32 bg) {
-    scr_setbgcolor(bg);
-    int y = row * 8;
-    for (int c = 0; c < COLS; c++) {
-        scr_putchar(c * 8, y, bg, ' ');
+static void format_rate(uint64_t bps, char *out, size_t out_size) {
+    if (bps >= 1024ULL * 1024ULL) {
+        snprintf(out, out_size, "%llu.%llu MB/s",
+                 (unsigned long long)(bps / (1024ULL * 1024ULL)),
+                 (unsigned long long)((bps * 10 / (1024ULL * 1024ULL)) % 10));
+    } else {
+        snprintf(out, out_size, "%llu KB/s", (unsigned long long)(bps / 1024ULL));
     }
 }
 
-static void fill_screen(u32 bg) {
-    for (int r = 0; r < ROWS; r++) {
-        fill_row(r, bg);
+static void format_duration(uint32_t secs, char *out, size_t out_size) {
+    if (secs >= 3600)
+        snprintf(out, out_size, "%lu:%02lu:%02lu", (unsigned long)(secs / 3600),
+                 (unsigned long)((secs / 60) % 60), (unsigned long)(secs % 60));
+    else
+        snprintf(out, out_size, "%lu:%02lu", (unsigned long)(secs / 60),
+                 (unsigned long)(secs % 60));
+}
+
+/* Serials come as SLUS-21371, SLUS_213.71 or SLUS21371 depending on the
+ * source; compare them on letters and digits only. */
+static bool serial_eq(const char *a, const char *b) {
+    if (!a || !b || !*a || !*b) return false;
+    for (;;) {
+        while (*a && !((*a >= 'A' && *a <= 'Z') || (*a >= 'a' && *a <= 'z') ||
+                       (*a >= '0' && *a <= '9'))) a++;
+        while (*b && !((*b >= 'A' && *b <= 'Z') || (*b >= 'a' && *b <= 'z') ||
+                       (*b >= '0' && *b <= '9'))) b++;
+        if (!*a || !*b) return !*a && !*b;
+        char ca = (*a >= 'a' && *a <= 'z') ? (char)(*a - 32) : *a;
+        char cb = (*b >= 'a' && *b <= 'z') ? (char)(*b - 32) : *b;
+        if (ca != cb) return false;
+        a++;
+        b++;
     }
 }
 
-static void draw_separator(int row) {
-    scr_setbgcolor(C_BG);
-    int y = row * 8;
-    for (int c = 0; c < COLS; c++) {
-        scr_putchar(c * 8, y, C_SEP, '-');
+static bool rom_installed(const RomEntry *r) {
+    if (!g_ctx_local || !r->serial[0]) return false;
+    for (int i = 0; i < g_ctx_local->count; i++)
+        if (serial_eq(g_ctx_local->items[i].serial, r->serial)) return true;
+    return false;
+}
+
+static const DownloadEntry *rom_download(const RomEntry *r) {
+    if (!g_ctx_downloads) return NULL;
+    for (int i = 0; i < g_ctx_downloads->count; i++)
+        if (strcmp(g_ctx_downloads->items[i].rom_id, r->rom_id) == 0)
+            return &g_ctx_downloads->items[i];
+    return NULL;
+}
+
+static uint32_t dl_status_hex(DownloadStatus s) {
+    switch (s) {
+        case DL_STATUS_ACTIVE:    return HEX_INFO;
+        case DL_STATUS_PAUSED:    return HEX_WARN;
+        case DL_STATUS_COMPLETED: return HEX_OK;
+        case DL_STATUS_ERROR:     return HEX_ERR;
+        case DL_STATUS_QUEUED:
+        default:                  return HEX_MUTED;
     }
 }
 
-/* ---- Status line + hints ---- */
-
-static const char *view_label(AppView v) {
-    switch (v) {
-        case APP_VIEW_ROMS:      return "ROMs";
-        case APP_VIEW_LOCAL:     return "Local";
-        case APP_VIEW_DOWNLOADS: return "Downloads";
-        case APP_VIEW_SAVES:     return "VMC";
-        case APP_VIEW_MCARD:     return "MC Slot1";
-        case APP_VIEW_MCARD2:    return "MC Slot2";
-        case APP_VIEW_SERVER:    return "Server";
-        case APP_VIEW_CONFIG:    return "Config";
-        default:                 return "?";
-    }
-}
-
-static const char *view_hints(AppView v) {
-    switch (v) {
-        case APP_VIEW_ROMS:
-            return "X=fetch  []=queue  /\\=download  D-pad=move  L/R=page";
-        case APP_VIEW_LOCAL:
-            return "X=rescan  []=delete  D-pad=move  L/R=page";
-        case APP_VIEW_DOWNLOADS:
-            return "X=start/resume  []=remove  D-pad=move";
-        case APP_VIEW_SAVES:
-            return "X=upload card  /\\=pull all  []=rescan  D-pad=move";
-        case APP_VIEW_MCARD:
-        case APP_VIEW_MCARD2:
-            return "X=up /\\=restore []=scan R1=switch SELECT=device";
-        case APP_VIEW_SERVER: {
-            static char buf[80];
-            snprintf(buf, sizeof(buf),
-                     "START=src[%s] X=dl /\\=up L1=all R1=switch SEL=device",
-                     g_server_source_label);
-            return buf;
-        }
-        case APP_VIEW_CONFIG:
-            return "Left/Right=storage  /\\=format APA HDD  relaunch after storage change";
-        default:
-            return "";
+static const char *dl_status_label(DownloadStatus s) {
+    switch (s) {
+        case DL_STATUS_ACTIVE:    return "Active";
+        case DL_STATUS_PAUSED:    return "Paused";
+        case DL_STATUS_COMPLETED: return "Done";
+        case DL_STATUS_ERROR:     return "Error";
+        case DL_STATUS_QUEUED:
+        default:                  return "Queued";
     }
 }
 
@@ -189,59 +184,333 @@ static const char *storage_pref_label(StoragePreference pref) {
 }
 
 static const char *storage_backend_label(const SyncState *state) {
-    if (!state || !state->usb_ready) return "not-ready";
+    if (!state || !state->usb_ready) return "not ready";
     switch (state->storage_backend) {
-        case STORAGE_BACKEND_HDLOADER: return "hdd0:hdl";
+        case STORAGE_BACKEND_HDLOADER: return "hdd0: (HDLoader)";
         case STORAGE_BACKEND_MASS:     return state->usb_root;
         case STORAGE_BACKEND_NONE:
-        default:                       return "not-ready";
+        default:                       return "not ready";
     }
 }
 
-/* Persistent row showing the current view's button mappings. */
-static void draw_hint_line(void) {
-    fill_row(HINT_ROW, C_HEADER_BG);
-    put_string(0, HINT_ROW, C_ACCENT, C_HEADER_BG,
-               view_hints(g_view_for_hints), COLS);
+/* ---- Views: titles, tabs, hints ---- */
+
+static const char *const g_tab_labels[APP_VIEW_COUNT] = {
+    "Catalog", "Installed", "Downloads", "VMC", "Slot 1", "Slot 2", "Server", "Settings",
+};
+
+static const char *view_title(AppView v) {
+    switch (v) {
+        case APP_VIEW_ROMS:      return "Game Catalog";
+        case APP_VIEW_LOCAL:     return "Installed Games";
+        case APP_VIEW_DOWNLOADS: return "Downloads";
+        case APP_VIEW_SAVES:     return "Virtual Memory Cards";
+        case APP_VIEW_MCARD:     return "Memory Card 1";
+        case APP_VIEW_MCARD2:    return "Memory Card 2";
+        case APP_VIEW_SERVER:    return "Server Saves";
+        case APP_VIEW_CONFIG:    return "Settings";
+        default:                 return "";
+    }
 }
 
-static void draw_status_line(void) {
+static void draw_footer(AppView v) {
+    static const GuiHint roms[] = {
+        {"X", "Refresh"}, {"S", "Queue"}, {"T", "Download"},
+        {"UD", "Move"}, {"LR", "Page"}, {"O", "Exit"},
+    };
+    static const GuiHint local[] = {
+        {"X", "Rescan"}, {"S", "Delete"}, {"UD", "Move"}, {"LR", "Page"}, {"O", "Exit"},
+    };
+    static const GuiHint downloads[] = {
+        {"X", "Start / resume"}, {"S", "Remove"}, {"UD", "Move"}, {"O", "Exit"},
+    };
+    static const GuiHint vmc[] = {
+        {"X", "Upload card"}, {"T", "Pull all"}, {"S", "Rescan"}, {"UD", "Move"}, {"O", "Exit"},
+    };
+    static const GuiHint mcard[] = {
+        {"X", "Upload"}, {"T", "Restore"}, {"S", "Rescan"},
+        {"R1", "Switch card"}, {"SELECT", "Device"}, {"O", "Exit"},
+    };
+    static const GuiHint server[] = {
+        {"X", "Download"}, {"T", "Upload"}, {"S", "Refresh"}, {"L1", "Sync all"},
+        {"R1", "Switch"}, {"START", "Source"}, {"SELECT", "Device"},
+    };
+    static const GuiHint config[] = {
+        {"LR", "Storage"}, {"T", "Format HDD"}, {"O", "Exit"},
+    };
+#define HINTS(a) gui_footer(a, (int)(sizeof(a) / sizeof(a[0])))
+    switch (v) {
+        case APP_VIEW_ROMS:      HINTS(roms);      break;
+        case APP_VIEW_LOCAL:     HINTS(local);     break;
+        case APP_VIEW_DOWNLOADS: HINTS(downloads); break;
+        case APP_VIEW_SAVES:     HINTS(vmc);       break;
+        case APP_VIEW_MCARD:
+        case APP_VIEW_MCARD2:    HINTS(mcard);     break;
+        case APP_VIEW_SERVER:    HINTS(server);    break;
+        case APP_VIEW_CONFIG:    HINTS(config);    break;
+        default:                 gui_footer(NULL, 0); break;
+    }
+#undef HINTS
+}
+
+static void draw_status_banner(void) {
+    float x = GUI_MARGIN, y = BANNER_Y, w = GUI_W - 2 * GUI_MARGIN, h = BANNER_H;
     const char *line = g_status[0] ? g_status : "Ready";
-
-    u32 fg = C_STATUS_TEXT, bg = C_STATUS_BG;
-    if (g_status[0] && strncmp(g_status, "ERR:", 4) == 0) {
-        fg = C_ERROR_TEXT;
-        bg = C_ERROR_BG;
-    } else if (!g_status[0]) {
-        fg = C_TEXT_DIM;
+    uint32_t tone = HEX_ACCENT;
+    if (g_status_kind == STATUS_ERROR) tone = HEX_ERR;
+    else if (!g_status[0]) tone = HEX_MUTED;
+    else {
+        size_t n = strlen(g_status);
+        if (n >= 3 && strcmp(g_status + n - 3, "...") == 0) tone = HEX_INFO;   /* working */
     }
-    fill_row(STATUS_ROW, bg);
-    put_string(0, STATUS_ROW, fg, bg, line, COLS);
+
+    gui_rrect(x, y, w, h, 6, g_status_kind == STATUS_ERROR ? 0x3A1F25 : HEX_BG2);
+    gui_rrect(x, y, 4, h, 2, tone);
+    gui_circle(x + 18, y + h / 2, 4, tone);
+    gui_text_mid(x + 30, y, h, FONT_SMALL,
+                 g_status_kind == STATUS_ERROR ? 0xFFD7D5 : (g_status[0] ? HEX_TEXT : HEX_DIM),
+                 GUI_LEFT, w - 40, line);
 }
 
-/* ---- API ---- */
+/* ---- List card ---- */
 
-void ui_boot_init(void) {
-    init_scr();
-    scr_clear();
-    g_status[0] = '\0';
+static void list_frame(const char *title, const char *badge, uint32_t badge_hex,
+                       int count, int scroll)
+{
+    gui_panel(LIST_X, CONTENT_Y, LIST_W, CONTENT_H);
+    float x = LIST_X + 14;
+    x += gui_text_mid(x, CONTENT_Y + 2, LIST_HEAD_H, FONT_SMALL, HEX_DIM, GUI_LEFT, 200, title);
+    if (badge && *badge)
+        gui_pill(x + 8, CONTENT_Y + 8, 18, FONT_TINY, badge_hex, HEX_INK, badge);
+    if (count > 0) {
+        int last = scroll + LIST_ROWS;
+        if (last > count) last = count;
+        char buf[48];
+        snprintf(buf, sizeof(buf), "%d-%d of %d", scroll + 1, last, count);
+        gui_text_mid(LIST_X + LIST_W - 14, CONTENT_Y + 2, LIST_HEAD_H, FONT_TINY, HEX_MUTED,
+                     GUI_RIGHT, 0, buf);
+    }
+    gui_rect(LIST_X + 10, CONTENT_Y + LIST_HEAD_H, LIST_W - 20, 1, HEX_LINE);
+    gui_scrollbar(LIST_X + LIST_W - 8, CONTENT_Y + LIST_HEAD_H + 6,
+                  LIST_ROWS * ROW_H, scroll, LIST_ROWS, count);
+}
+
+static void list_empty(const char *message) {
+    float cy = CONTENT_Y + LIST_HEAD_H + 70;
+    gui_ring(LIST_X + LIST_W / 2, cy, 16, 3, HEX_LINE, HEX_PANEL);
+    gui_rect(LIST_X + LIST_W / 2 - 1.5f, cy - 7, 3, 9, HEX_MUTED);
+    gui_rect(LIST_X + LIST_W / 2 - 1.5f, cy + 4, 3, 3, HEX_MUTED);
+    char lines[3][GUI_WRAP_LINE];
+    int n = gui_wrap(message, FONT_SMALL, LIST_W - 60, lines, 3);
+    for (int i = 0; i < n; i++)
+        gui_text(LIST_X + LIST_W / 2, cy + 30 + i * gui_line_h(FONT_SMALL), FONT_SMALL,
+                 HEX_DIM, GUI_CENTER, lines[i]);
+}
+
+typedef struct {
+    float x, y, w;       /* text area inside the row */
+    uint32_t fg, sub;    /* main / secondary text colours for this row */
+    bool selected;
+} Row;
+
+/* Row slot i of the visible window; draws the selection bar. */
+static Row list_row(int i, bool selected) {
+    Row r;
+    float y = CONTENT_Y + LIST_HEAD_H + 6 + i * ROW_H;
+    if (selected) gui_rrect(LIST_X + 6, y, LIST_W - 20, ROW_H - 2, 6, HEX_ACCENT);
+    r.x = LIST_X + 14;
+    r.y = y;
+    r.w = LIST_W - 36;
+    r.fg = selected ? HEX_INK : HEX_TEXT;
+    r.sub = selected ? 0x14423E : HEX_DIM;
+    r.selected = selected;
+    return r;
+}
+
+/* Left-aligned system/type tag; returns width used (incl. gap). */
+static float row_tag(const Row *r, const char *label, uint32_t hex) {
+    float w = gui_pill(r->x, r->y + 3, ROW_H - 8, FONT_TINY,
+                       r->selected ? HEX_INK : hex, r->selected ? hex : HEX_INK, label);
+    return w + 8;
+}
+
+/* Right-aligned secondary text; returns its width (incl. gap). */
+static float row_right(const Row *r, const char *text) {
+    if (!text || !*text) return 0;
+    float w = gui_text_mid(r->x + r->w, r->y, ROW_H - 2, FONT_SMALL, r->sub, GUI_RIGHT, 0, text);
+    return w + 10;
+}
+
+/* ---- Detail card ---- */
+
+typedef struct {
+    float x, y, w;
+} Detail;
+
+/* Card with the item name wrapped over up to 2 lines; returns the cursor. */
+static Detail detail_begin(const char *heading, const char *name) {
+    Detail d;
+    gui_panel(DETAIL_X, CONTENT_Y, DETAIL_W, CONTENT_H);
+    d.x = DETAIL_X + 14;
+    d.w = DETAIL_W - 28;
+    d.y = CONTENT_Y + 10;
+    gui_text(d.x, d.y, FONT_TINY, HEX_MUTED, GUI_LEFT, heading);
+    d.y += gui_line_h(FONT_TINY) + 2;
+    if (name && *name) {
+        int n = gui_text_wrap(d.x, d.y, FONT_BODY, HEX_TEXT, d.w, 3, name);
+        d.y += n * gui_line_h(FONT_BODY) + 6;
+    }
+    return d;
+}
+
+static void detail_pills(Detail *d, const char *const *labels, const uint32_t *hexes, int n) {
+    float x = d->x;
+    for (int i = 0; i < n; i++) {
+        if (!labels[i] || !*labels[i]) continue;
+        float w = gui_pill_w(FONT_TINY, labels[i]);
+        if (x + w > d->x + d->w) break;
+        x += gui_pill(x, d->y, 20, FONT_TINY, hexes[i], HEX_INK, labels[i]) + 6;
+    }
+    d->y += 30;
+}
+
+static void detail_rule(Detail *d) {
+    gui_rect(d->x, d->y, d->w, 1, HEX_LINE);
+    d->y += 8;
+}
+
+static void detail_kv(Detail *d, const char *label, const char *value, uint32_t hex) {
+    gui_text_mid(d->x, d->y, KV_ROW_H, FONT_TINY, HEX_DIM, GUI_LEFT, KV_LABEL_W - 4, label);
+    gui_text_mid(d->x + KV_LABEL_W, d->y, KV_ROW_H, FONT_SMALL, hex, GUI_LEFT,
+                 d->w - KV_LABEL_W, value && *value ? value : "-");
+    d->y += KV_ROW_H;
+}
+
+/* Value that may need several lines (paths, URLs). */
+static void detail_kv_wrap(Detail *d, const char *label, const char *value) {
+    gui_text_mid(d->x, d->y, KV_ROW_H, FONT_TINY, HEX_DIM, GUI_LEFT, KV_LABEL_W - 4, label);
+    char lines[3][GUI_WRAP_LINE];
+    int n = gui_wrap(value && *value ? value : "-", FONT_SMALL, d->w - KV_LABEL_W, lines, 3);
+    for (int i = 0; i < n; i++)
+        gui_text_mid(d->x + KV_LABEL_W, d->y + i * 18, KV_ROW_H, FONT_SMALL, HEX_TEXT,
+                     GUI_LEFT, 0, lines[i]);
+    d->y += KV_ROW_H + (n > 1 ? (n - 1) * 18 : 0);
+}
+
+static void detail_note(Detail *d, const char *text, uint32_t hex) {
+    float bottom = CONTENT_Y + CONTENT_H - 12;
+    char lines[3][GUI_WRAP_LINE];
+    int n = gui_wrap(text, FONT_TINY, d->w, lines, 3);
+    int lh = gui_line_h(FONT_TINY);
+    float y = bottom - n * lh;
+    if (y < d->y) y = d->y;
+    for (int i = 0; i < n; i++) gui_text(d->x, y + i * lh, FONT_TINY, hex, GUI_LEFT, lines[i]);
+}
+
+static void detail_empty(const char *heading) {
+    Detail d = detail_begin(heading, NULL);
+    gui_text_wrap(d.x, d.y + 6, FONT_SMALL, HEX_MUTED, d.w, 3, "Nothing selected.");
+}
+
+/* ---- Boot splash ---- */
+
+static void draw_logo(float cx, float y) {
+    float tw = gui_text_w(FONT_HERO, "GameSync");
+    float mark = 40, gap = 14;
+    float x = cx - (mark + gap + tw) / 2;
+    gui_rrect(x, y, mark, mark, 11, HEX_ACCENT);
+    gui_rrect(x + 11, y + 11, 18, 18, 5, HEX_BG);
+    gui_text_mid(x + mark + gap, y - 4, mark + 8, FONT_HERO, HEX_TEXT, GUI_LEFT, 0, "GameSync");
+}
+
+static uint32_t log_line_hex(const char *s) {
+    if (strstr(s, "fail") || strstr(s, "FAIL") || strstr(s, "error") || strstr(s, "ERR"))
+        return HEX_ERR;
+    if (strstr(s, "WARN") || strstr(s, "timed out") || strstr(s, "unavailable") ||
+        strstr(s, "not ready") || strstr(s, "no "))
+        return HEX_WARN;
+    if (strncmp(s, "BOOT:", 5) == 0) return HEX_TEXT;
+    return HEX_DIM;
+}
+
+static void draw_boot(void) {
+    gui_begin();
+    gui_vgrad(0, -32, GUI_W, GUI_H + 64, HEX_BG, 0x0B1118);
+    draw_logo(GUI_W / 2, 52);
+    gui_text(GUI_W / 2, 104, FONT_SMALL, HEX_DIM, GUI_CENTER,
+             "Save sync and game installer for PlayStation 2  -  v" APP_VERSION);
+
+    float cx = 72, cw = GUI_W - 144, cy = 146, ch = 262;
+    gui_card(cx, cy, cw, ch, "Starting up", HEX_ACCENT);
+    float y = cy + 38;
+    int lh = gui_line_h(FONT_TINY) + 1;
+    for (int i = 0; i < g_boot_count; i++) {
+        const char *s = g_boot_log[i];
+        bool sub = (s[0] == ' ');
+        while (*s == ' ') s++;
+        uint32_t hex = log_line_hex(s);
+        if (i == g_boot_count - 1) gui_circle(cx + 16, y + lh / 2, 3, HEX_ACCENT);
+        gui_text_fit(cx + (sub ? 36 : 26), y, FONT_TINY, hex, GUI_LEFT, cw - 52, s);
+        y += lh;
+    }
+    gui_end(true);
 }
 
 void ui_init(void) {
-    fill_screen(C_BG);
+    gui_init();
+    g_status[0] = '\0';
+    g_status_kind = STATUS_NONE;
+    g_booting = true;
+    g_boot_count = 0;
+    draw_boot();
+}
+
+void ui_log(const char *fmt, ...) {
+    char buf[BOOT_LINE_LEN];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    size_t n = strlen(buf);
+    while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) buf[--n] = '\0';
+    if (n == 0) return;
+
+    if (g_boot_count == BOOT_LINES) {
+        memmove(g_boot_log[0], g_boot_log[1], sizeof(g_boot_log[0]) * (BOOT_LINES - 1));
+        g_boot_count--;
+    }
+    snprintf(g_boot_log[g_boot_count++], BOOT_LINE_LEN, "%s", buf);
+
+    /* After boot the log is only kept (e.g. config_save's memory card
+     * probe) — repainting the splash would cover the running UI. */
+    if (g_booting) draw_boot();
+}
+
+void ui_boot_done(void) {
+    g_booting = false;
+}
+
+/* ---- Frame API ---- */
+
+uint32_t ui_ms(void) {
+    return gui_ms();
 }
 
 int ui_list_visible(void) {
-    return LIST_VISIBLE;
+    return LIST_ROWS;
 }
 
-void ui_clear(void) {
-    fill_screen(C_BG);
+void ui_begin(void) {
+    gui_begin();
+    gui_vgrad(0, GUI_HEADER_H, GUI_W, GUI_FOOTER_Y - GUI_HEADER_H, HEX_BG, 0x121C27);
 }
 
 void ui_flush(void) {
-    /* scr_putchar is synchronous (DMA-blocks until upload done), so
-     * no end-of-frame submit is needed. */
+    gui_end(true);
+}
+
+void ui_flush_nowait(void) {
+    gui_end(false);
 }
 
 void ui_status(const char *fmt, ...) {
@@ -249,390 +518,511 @@ void ui_status(const char *fmt, ...) {
     va_start(ap, fmt);
     vsnprintf(g_status, sizeof(g_status), fmt, ap);
     va_end(ap);
+    g_status_kind = STATUS_INFO;
 }
 
 void ui_error(const char *fmt, ...) {
-    char buf[240];
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    vsnprintf(g_status, sizeof(g_status), fmt, ap);
     va_end(ap);
-    snprintf(g_status, sizeof(g_status), "ERR: %s", buf);
+    g_status_kind = STATUS_ERROR;
 }
 
 /* ---- Header ---- */
 
 void ui_draw_header(const SyncState *state, AppView view) {
-    g_view_for_hints = view;
+    char right[48];
+    bool online = state->net_ready && state->dhcp_ok;
+    snprintf(right, sizeof(right), "%s", state->ip[0] ? state->ip : "offline");
+    gui_header(view_title(view), right, online ? HEX_OK : HEX_ERR);
 
-    fill_row(0, C_HEADER_BG);
-    put_printf(0, 0, C_HEADER_TEXT, C_HEADER_BG, COLS,
-               "PS2 Save Sync v%s   View: %-9s  L2/R2=screens  CIRCLE=exit",
-               APP_VERSION, view_label(view));
+    /* Tabs centred between the L2 / R2 glyphs. */
+    float tabs_w = 4;
+    for (int i = 0; i < APP_VIEW_COUNT; i++) tabs_w += gui_text_w(FONT_SMALL, g_tab_labels[i]) + 20;
+    float l2 = gui_button_w("L2"), r2 = gui_button_w("R2");
+    float total = l2 + 8 + tabs_w + 8 + r2;
+    float x = (GUI_W - total) / 2;
+    float cy = TABS_Y + TABS_H / 2.0f;
+    gui_button(x, cy, "L2");
+    gui_tabs(x + l2 + 8, TABS_Y, TABS_H, g_tab_labels, APP_VIEW_COUNT, (int)view);
+    gui_button(x + l2 + 8 + tabs_w + 8, cy, "R2");
 
-    fill_row(1, C_HEADER_BG);
-    put_printf(0, 1, C_TEXT_DIM, C_HEADER_BG, COLS,
-               "Net: %-15s  Store: %-7s  Server: %.38s",
-               state->ip[0]         ? state->ip         : "not-ready",
-               storage_backend_label(state),
-               state->server_url[0] ? state->server_url : "(unconfigured)");
-
-    draw_separator(SEP1_ROW);
-    draw_hint_line();
-    draw_separator(SEP2_ROW);
-    draw_status_line();
+    draw_status_banner();
+    draw_footer(view);
 }
 
-/* ---- ROM catalog list ---- */
-
-static void truncate_to(char *dst, size_t cap, const char *src) {
-    if (cap == 0) return;
-    size_t n = src ? strlen(src) : 0;
-    if (n >= cap) n = cap - 1;
-    if (src) memcpy(dst, src, n);
-    dst[n] = '\0';
-}
-
-static void clear_list_area(void) {
-    for (int r = LIST_TOP; r < LIST_BOTTOM; r++) {
-        fill_row(r, C_BG);
-    }
-}
+/* ---- Game catalog ---- */
 
 void ui_draw_roms(const RomCatalog *catalog, int selected, int scroll) {
-    clear_list_area();
+    list_frame("PS2 games on the server", NULL, 0, catalog->count, scroll);
 
     if (catalog->count == 0) {
-        put_printf(2, LIST_TOP, C_TEXT, C_BG, COLS, "%s",
-                   catalog->last_error[0]
-                       ? catalog->last_error
-                       : "No ROMs.  Press X to fetch catalog.");
+        list_empty(catalog->last_error[0] ? catalog->last_error
+                                          : "No games yet. Press X to fetch the catalog.");
+        detail_empty("GAME");
         return;
     }
 
-    for (int i = 0; i < LIST_VISIBLE; i++) {
+    for (int i = 0; i < LIST_ROWS; i++) {
         int idx = scroll + i;
         if (idx >= catalog->count) break;
-
         const RomEntry *r = &catalog->items[idx];
-        int row = LIST_TOP + i;
+        Row row = list_row(i, idx == selected);
 
-        bool is_sel = (idx == selected);
-        u32 bg = is_sel ? C_SEL_BG : C_BG;
-        u32 fg = is_sel ? C_SEL_TEXT : C_TEXT;
-        fill_row(row, bg);
+        float x = row.x;
+        bool installed = rom_installed(r);
+        const DownloadEntry *dl = rom_download(r);
+        if (installed)
+            gui_icon_check(x + 6, row.y + ROW_H / 2 - 1, 12, row.selected ? HEX_INK : HEX_OK);
+        else if (dl && dl->status != DL_STATUS_COMPLETED)
+            gui_circle(x + 6, row.y + ROW_H / 2 - 1, 3.5f,
+                       row.selected ? HEX_INK : dl_status_hex(dl->status));
+        else
+            gui_circle(x + 6, row.y + ROW_H / 2 - 1, 2, row.selected ? HEX_INK : HEX_MUTED);
+        x += 18;
 
-        char name[80];
-        truncate_to(name, sizeof(name),
-                    r->name[0] ? r->name : r->filename);
-
-        unsigned mb = (unsigned)(r->size / (1024ULL * 1024ULL));
-        const char *serial = r->serial[0] ? r->serial : "";
-
-        /* prefix(1) + serial(12) + sp(1) + name(57) + sp(1) + size(5) + " MB"(3) = 80 */
-        put_printf(0, row, fg, bg, COLS,
-                   "%s%-12.12s %-57.57s %5u MB",
-                   is_sel ? ">" : " ",
-                   serial, name, mb);
+        char size[24];
+        format_size(r->size, size, sizeof(size));
+        float rw = row_right(&row, size);
+        gui_text_mid(x, row.y, ROW_H - 2, FONT_BODY, row.fg, GUI_LEFT,
+                     row.x + row.w - rw - x, r->name[0] ? r->name : r->filename);
     }
+
+    if (selected < 0 || selected >= catalog->count) { detail_empty("GAME"); return; }
+    const RomEntry *r = &catalog->items[selected];
+    Detail d = detail_begin("GAME", r->name[0] ? r->name : r->filename);
+
+    char size[24];
+    format_size(r->size, size, sizeof(size));
+    bool installed = rom_installed(r);
+    const DownloadEntry *dl = rom_download(r);
+    const char *pills[4] = { "PS2", r->is_cd ? "CD" : "DVD", size,
+                             installed ? "Installed" : (dl ? dl_status_label(dl->status) : NULL) };
+    uint32_t hexes[4] = { HEX_PS2, HEX_ACCENT2, HEX_DIM,
+                          installed ? HEX_OK : (dl ? dl_status_hex(dl->status) : HEX_DIM) };
+    detail_pills(&d, pills, hexes, 4);
+    detail_rule(&d);
+    detail_kv(&d, "Serial", r->serial, HEX_TEXT);
+    detail_kv_wrap(&d, "File", r->filename);
+    detail_kv(&d, "Format", r->extract_format[0] ? r->extract_format : "iso", HEX_TEXT);
+    if (r->is_bundle) {
+        char files[16];
+        snprintf(files, sizeof(files), "%d", r->file_count);
+        detail_kv(&d, "Files", files, HEX_TEXT);
+    }
+    detail_note(&d, installed ? "Already on this console. Triangle downloads it again."
+                              : "Square adds it to the queue, Triangle installs it now.",
+                HEX_MUTED);
 }
 
-/* ---- Local ISO list ---- */
+/* ---- Installed games ---- */
 
 void ui_draw_local(const LocalRomList *list, int selected, int scroll) {
-    clear_list_area();
+    list_frame("Installed on this console", NULL, 0, list->count, scroll);
 
     if (list->count == 0) {
-        put_printf(2, LIST_TOP, C_TEXT, C_BG, COLS, "%s",
-                   list->last_error[0]
-                       ? list->last_error
-                       : "No ISOs installed.");
+        list_empty(list->last_error[0] ? list->last_error : "No games installed yet.");
+        detail_empty("INSTALLED GAME");
         return;
     }
 
-    for (int i = 0; i < LIST_VISIBLE; i++) {
+    for (int i = 0; i < LIST_ROWS; i++) {
         int idx = scroll + i;
         if (idx >= list->count) break;
-
         const LocalRom *r = &list->items[idx];
-        int row = LIST_TOP + i;
-
-        bool is_sel = (idx == selected);
-        u32 bg = is_sel ? C_SEL_BG : C_BG;
-        u32 fg = is_sel ? C_SEL_TEXT : C_TEXT;
-        fill_row(row, bg);
-
-        unsigned mb = (unsigned)(r->size / (1024ULL * 1024ULL));
-        /* prefix(1) + serial(12) + sp(1) + name(51) + sp(1) +
-         * "["(1) + tag(3) + "]"(1) + sp(1) + size(5) + " MB"(3) = 80 */
-        put_printf(0, row, fg, bg, COLS,
-                   "%s%-12.12s %-51.51s [%-3s] %5u MB",
-                   is_sel ? ">" : " ",
-                   r->serial, r->name,
-                   r->is_cd ? "CD" : "DVD",
-                   mb);
+        Row row = list_row(i, idx == selected);
+        float x = row.x + row_tag(&row, r->is_cd ? "CD" : "DVD", HEX_ACCENT2);
+        char size[24];
+        format_size(r->size, size, sizeof(size));
+        float rw = row_right(&row, size);
+        gui_text_mid(x, row.y, ROW_H - 2, FONT_BODY, row.fg, GUI_LEFT,
+                     row.x + row.w - rw - x, r->name[0] ? r->name : r->filename);
     }
+
+    if (selected < 0 || selected >= list->count) { detail_empty("INSTALLED GAME"); return; }
+    const LocalRom *r = &list->items[selected];
+    Detail d = detail_begin("INSTALLED GAME", r->name[0] ? r->name : r->filename);
+    char size[24];
+    format_size(r->size, size, sizeof(size));
+    const char *pills[3] = { "PS2", r->is_cd ? "CD" : "DVD", size };
+    uint32_t hexes[3] = { HEX_PS2, HEX_ACCENT2, HEX_DIM };
+    detail_pills(&d, pills, hexes, 3);
+    detail_rule(&d);
+    detail_kv(&d, "Serial", r->serial, HEX_TEXT);
+    detail_kv_wrap(&d, "Location", r->path);
+    detail_note(&d, "Square deletes this game from the console.", HEX_MUTED);
 }
 
-/* ---- Saves (VMC / MemCard Pro) list ---- */
+/* ---- Virtual memory cards ---- */
+
+static const char *vmc_tag(const SaveVmc *v) {
+    return v->is_ps1 ? "PS1" : (v->has_ecc ? "PS2" : "MC2");
+}
 
 void ui_draw_saves(const SaveVmcList *list, int selected, int scroll) {
-    clear_list_area();
+    list_frame("Card images in VMC/", NULL, 0, list->count, scroll);
 
     if (list->count == 0) {
-        put_printf(2, LIST_TOP, C_TEXT, C_BG, COLS, "%s",
-                   list->last_error[0]
-                       ? list->last_error
-                       : "No card images found.");
+        list_empty(list->last_error[0] ? list->last_error : "No card images found.");
+        detail_empty("CARD IMAGE");
         return;
     }
 
-    for (int i = 0; i < LIST_VISIBLE; i++) {
+    for (int i = 0; i < LIST_ROWS; i++) {
         int idx = scroll + i;
         if (idx >= list->count) break;
-
         const SaveVmc *v = &list->items[idx];
-        int row = LIST_TOP + i;
-
-        bool is_sel = (idx == selected);
-        u32 bg = is_sel ? C_SEL_BG : C_BG;
-        u32 fg = is_sel ? C_SEL_TEXT : C_TEXT;
-        fill_row(row, bg);
-
-        const char *tag = v->is_ps1 ? "ps1" : (v->has_ecc ? "ps2" : "mc2");
-        unsigned kb = (unsigned)(v->size / 1024ULL);
-        const char *label = v->name[0] ? v->name : v->filename;
-        /* prefix(1) + serial(10) + sp + title/file(53) + sp + tag(5) + sp + size = 80 */
-        put_printf(0, row, fg, bg, COLS,
-                   "%s%-10.10s %-53.53s [%-3s] %5u KB",
-                   is_sel ? ">" : " ",
-                   v->serial[0] ? v->serial : "-",
-                   label, tag, kb);
+        Row row = list_row(i, idx == selected);
+        float x = row.x + row_tag(&row, vmc_tag(v), v->is_ps1 ? HEX_PS1 : HEX_PS2);
+        char size[24];
+        format_size(v->size, size, sizeof(size));
+        float rw = row_right(&row, size);
+        gui_text_mid(x, row.y, ROW_H - 2, FONT_BODY, row.fg, GUI_LEFT,
+                     row.x + row.w - rw - x, v->name[0] ? v->name : v->filename);
     }
+
+    if (selected < 0 || selected >= list->count) { detail_empty("CARD IMAGE"); return; }
+    const SaveVmc *v = &list->items[selected];
+    Detail d = detail_begin("CARD IMAGE", v->name[0] ? v->name : v->filename);
+    char size[24];
+    format_size(v->size, size, sizeof(size));
+    const char *pills[2] = { vmc_tag(v), size };
+    uint32_t hexes[2] = { v->is_ps1 ? HEX_PS1 : HEX_PS2, HEX_DIM };
+    detail_pills(&d, pills, hexes, 2);
+    detail_rule(&d);
+    detail_kv(&d, "Serial", v->serial[0] ? v->serial : "unknown", HEX_TEXT);
+    detail_kv_wrap(&d, "File", v->filename);
+    detail_kv(&d, "Format", v->is_ps1 ? "PS1 card" : (v->has_ecc ? "PS2 card (ECC)" : "PS2 card"),
+              HEX_TEXT);
+    detail_note(&d, "X uploads every game on this card, split per game. Triangle pulls all "
+                    "server saves into VMC/.", HEX_MUTED);
 }
 
-/* ---- Memory card games list ---- */
+/* ---- Physical memory card ---- */
 
 void ui_draw_mcard(const McGameList *list, int selected, int scroll) {
-    clear_list_area();
+    int port = list->port == 1 ? 1 : 0;
+    char title[40];
+    snprintf(title, sizeof(title), "Saves on memory card %d", port + 1);
+    list_frame(title, list->count > 0 ? (list->is_ps1 ? "PS1 card" : "PS2 card") : NULL,
+               list->is_ps1 ? HEX_PS1 : HEX_PS2, list->count, scroll);
 
     if (list->count == 0) {
-        put_printf(2, LIST_TOP, C_TEXT, C_BG, COLS, "%s",
-                   list->last_error[0]
-                       ? list->last_error
-                       : "No game saves on memory card.");
-        return;
-    }
-
-    for (int i = 0; i < LIST_VISIBLE; i++) {
-        int idx = scroll + i;
-        if (idx >= list->count) break;
-
-        const McGame *g = &list->items[idx];
-        int row = LIST_TOP + i;
-
-        bool is_sel = (idx == selected);
-        u32 bg = is_sel ? C_SEL_BG : C_BG;
-        u32 fg = is_sel ? C_SEL_TEXT : C_TEXT;
-        fill_row(row, bg);
-
-        unsigned kb = (unsigned)(g->total_size / 1024U);
-        const char *label = g->name[0] ? g->name : g->dir;
-        /* prefix(1) + serial(12) + sp + name(50) + sp + files(3) + "f"(1) + sp + size = 80 */
-        put_printf(0, row, fg, bg, COLS,
-                   "%s%-12.12s %-50.50s %3df %5u KB",
-                   is_sel ? ">" : " ",
-                   g->serial, label, g->file_count, kb);
-    }
-}
-
-/* ---- Server saves list ---- */
-
-void ui_draw_server(const ServerSaveList *list, int selected, int scroll) {
-    clear_list_area();
-
-    if (list->count == 0) {
-        put_printf(2, LIST_TOP, C_TEXT, C_BG, COLS, "%s",
-                   list->last_error[0]
-                       ? list->last_error
-                       : "No saves on server.");
-        return;
-    }
-
-    for (int i = 0; i < LIST_VISIBLE; i++) {
-        int idx = scroll + i;
-        if (idx >= list->count) break;
-
-        const ServerSave *s = &list->items[idx];
-        int row = LIST_TOP + i;
-
-        bool is_sel = (idx == selected);
-        u32 bg = is_sel ? C_SEL_BG : C_BG;
-        u32 fg = is_sel ? C_SEL_TEXT : C_TEXT;
-        fill_row(row, bg);
-
-        /* prefix(1) + sys(3) + sp + L(1) + sp + serial(12) + sp + name(58) = 80 */
-        put_printf(0, row, fg, bg, COLS,
-                   "%s%-3s %c %-12.12s %-58.58s",
-                   is_sel ? ">" : " ",
-                   s->is_ps1 ? "ps1" : "ps2",
-                   s->local ? 'L' : ' ',
-                   s->serial, s->name);
-    }
-}
-
-/* ---- Downloads list ---- */
-
-static void format_size(uint64_t bytes, char *out, size_t out_size) {
-    if (bytes >= 1024ULL * 1024ULL * 1024ULL) {
-        snprintf(out, out_size, "%llu.%01llu GB",
-                 (unsigned long long)(bytes / (1024ULL * 1024ULL * 1024ULL)),
-                 (unsigned long long)((bytes / (1024ULL * 1024ULL * 1024ULL / 10)) % 10));
-    } else if (bytes >= 1024ULL * 1024ULL) {
-        snprintf(out, out_size, "%llu MB",
-                 (unsigned long long)(bytes / (1024ULL * 1024ULL)));
+        list_empty(list->last_error[0] ? list->last_error : "No game saves on this card.");
     } else {
-        snprintf(out, out_size, "%llu KB",
-                 (unsigned long long)(bytes / 1024ULL));
-    }
-}
-
-void ui_draw_downloads(const DownloadList *list, int selected, int scroll,
-                       uint64_t active_done, uint64_t active_total,
-                       uint64_t active_bps)
-{
-    clear_list_area();
-
-    if (list->count == 0) {
-        put_printf(2, LIST_TOP, C_TEXT, C_BG, COLS,
-                   "No downloads queued.");
-    } else {
-        int rows_for_list = LIST_VISIBLE - (active_total > 0 ? 1 : 0);
-        for (int i = 0; i < rows_for_list; i++) {
+        for (int i = 0; i < LIST_ROWS; i++) {
             int idx = scroll + i;
             if (idx >= list->count) break;
-
-            const DownloadEntry *e = &list->items[idx];
-            int row = LIST_TOP + i;
-
-            bool is_sel = (idx == selected);
-            u32 bg = is_sel ? C_SEL_BG : C_BG;
-            u32 fg = is_sel ? C_SEL_TEXT : C_TEXT;
-            fill_row(row, bg);
-
-            char name[80];
-            truncate_to(name, sizeof(name),
-                        e->name[0] ? e->name : e->filename);
-
-            unsigned pct = 0;
-            if (e->total > 0) pct = (unsigned)((e->offset * 100ULL) / e->total);
-
-            /* prefix(1) + name(62) + 2sp + pct(3) + "%"(1) + 2sp + status(9) = 80 */
-            put_printf(0, row, fg, bg, COLS,
-                       "%s%-62.62s  %3u%%  %-9s",
-                       is_sel ? ">" : " ",
-                       name, pct, downloads_status_to_str(e->status));
+            const McGame *g = &list->items[idx];
+            Row row = list_row(i, idx == selected);
+            char size[24];
+            format_size(g->total_size, size, sizeof(size));
+            float rw = row_right(&row, size);
+            float x = row.x;
+            const char *label = g->name[0] ? g->name : (g->serial[0] ? g->serial : g->dir);
+            gui_text_mid(x, row.y, ROW_H - 2, FONT_BODY, row.fg, GUI_LEFT,
+                         row.x + row.w - rw - x, label);
         }
     }
 
-    if (active_total > 0) {
-        char done_s[24], total_s[24];
-        format_size(active_done,  done_s,  sizeof(done_s));
-        format_size(active_total, total_s, sizeof(total_s));
-        unsigned pct = (unsigned)((active_done * 100ULL) / active_total);
-
-        int row = LIST_BOTTOM - 1;
-        fill_row(row, C_BG);
-        put_printf(0, row, C_ACCENT, C_BG, COLS,
-                   "Active: %s / %s (%u%%) @ %llu KB/s",
-                   done_s, total_s, pct,
-                   (unsigned long long)(active_bps / 1024));
+    Detail d;
+    if (list->count > 0 && selected >= 0 && selected < list->count) {
+        const McGame *g = &list->items[selected];
+        d = detail_begin("SAVE", g->name[0] ? g->name : (g->serial[0] ? g->serial : g->dir));
+        char size[24], files[16];
+        format_size(g->total_size, size, sizeof(size));
+        snprintf(files, sizeof(files), "%d", g->file_count);
+        const char *pills[2] = { list->is_ps1 ? "PS1" : "PS2", size };
+        uint32_t hexes[2] = { list->is_ps1 ? HEX_PS1 : HEX_PS2, HEX_DIM };
+        detail_pills(&d, pills, hexes, 2);
+        detail_rule(&d);
+        detail_kv(&d, "Serial", g->serial[0] ? g->serial : "unknown", HEX_TEXT);
+        detail_kv(&d, "Folder", g->dir, HEX_TEXT);
+        detail_kv(&d, "Files", files, HEX_TEXT);
+    } else {
+        d = detail_begin("SAVE", NULL);
     }
+    detail_kv(&d, "GameID", mmce_name(port),
+              g_mmce_mode_disp[port] == 0 ? HEX_MUTED : HEX_ACCENT2);
+    detail_note(&d, "R1 switches a MemCard Pro / SD2PSX to this game. "
+                    "Rescan with Square once it has.", HEX_MUTED);
 }
 
-/* ---- Config view ---- */
+/* ---- Server saves ---- */
 
-static void cfg_line(int *row, u32 fg, const char *fmt, ...) {
-    fill_row(*row, C_BG);
-    char buf[200];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
-    va_end(ap);
-    put_string(2, *row, fg, C_BG, buf, COLS - 2);
-    (*row)++;
+void ui_draw_server(const ServerSaveList *list, int selected, int scroll) {
+    char badge[24];
+    snprintf(badge, sizeof(badge), "Source: %s", g_server_source_label);
+    list_frame("Saves on the server", badge, HEX_ACCENT, list->count, scroll);
+
+    if (list->count == 0) {
+        list_empty(list->last_error[0] ? list->last_error
+                                       : "No saves on the server. Press Square to refresh.");
+        detail_empty("SERVER SAVE");
+        return;
+    }
+
+    for (int i = 0; i < LIST_ROWS; i++) {
+        int idx = scroll + i;
+        if (idx >= list->count) break;
+        const ServerSave *s = &list->items[idx];
+        Row row = list_row(i, idx == selected);
+        float x = row.x + row_tag(&row, s->is_ps1 ? "PS1" : "PS2", s->is_ps1 ? HEX_PS1 : HEX_PS2);
+        float rw = 0;
+        if (s->local) {
+            gui_icon_check(row.x + row.w - 6, row.y + ROW_H / 2 - 1, 12,
+                           row.selected ? HEX_INK : HEX_OK);
+            rw = 22;
+        }
+        gui_text_mid(x, row.y, ROW_H - 2, FONT_BODY, row.fg, GUI_LEFT,
+                     row.x + row.w - rw - x, s->name[0] ? s->name : s->serial);
+    }
+
+    if (selected < 0 || selected >= list->count) { detail_empty("SERVER SAVE"); return; }
+    const ServerSave *s = &list->items[selected];
+    Detail d = detail_begin("SERVER SAVE", s->name[0] ? s->name : s->serial);
+    const char *pills[2] = { s->is_ps1 ? "PS1" : "PS2", s->local ? "On a card" : "Server only" };
+    uint32_t hexes[2] = { s->is_ps1 ? HEX_PS1 : HEX_PS2, s->local ? HEX_OK : HEX_INFO };
+    detail_pills(&d, pills, hexes, 2);
+    detail_rule(&d);
+    detail_kv(&d, "Serial", s->serial, HEX_TEXT);
+    if (s->timestamp) {
+        time_t t = (time_t)s->timestamp;
+        struct tm *tm = gmtime(&t);
+        char when[32];
+        if (tm) strftime(when, sizeof(when), "%Y-%m-%d %H:%M", tm);
+        else snprintf(when, sizeof(when), "%lu", (unsigned long)s->timestamp);
+        detail_kv(&d, "Saved", when, HEX_TEXT);
+    }
+    detail_kv(&d, "Sync with", g_server_source_label, HEX_ACCENT2);
+    detail_note(&d, "X writes this save to the source, Triangle uploads the "
+                    "source's copy. START changes the source.", HEX_MUTED);
+}
+
+/* ---- Downloads ---- */
+
+void ui_draw_downloads(const DownloadList *list, int selected, int scroll) {
+    list_frame("Download queue", NULL, 0, list->count, scroll);
+
+    if (list->count == 0) {
+        list_empty("No downloads queued. Queue games from the catalog with Square.");
+        detail_empty("DOWNLOAD");
+        return;
+    }
+
+    for (int i = 0; i < LIST_ROWS; i++) {
+        int idx = scroll + i;
+        if (idx >= list->count) break;
+        const DownloadEntry *e = &list->items[idx];
+        Row row = list_row(i, idx == selected);
+
+        const char *st = dl_status_label(e->status);
+        float pw = gui_pill_w(FONT_TINY, st);
+        float col_w = gui_pill_w(FONT_TINY, "Queued");
+        gui_pill(row.x + row.w - pw, row.y + 3, ROW_H - 8, FONT_TINY,
+                 row.selected ? HEX_INK : dl_status_hex(e->status),
+                 row.selected ? dl_status_hex(e->status) : HEX_INK, st);
+
+        float frac = e->total > 0 ? (float)((double)e->offset / (double)e->total) : 0;
+        float bx = row.x + row.w - col_w - 70;
+        gui_bar(bx, row.y + ROW_H / 2 - 4, 58, 6, frac,
+                row.selected ? HEX_INK : (e->status == DL_STATUS_COMPLETED ? HEX_OK : HEX_ACCENT));
+        gui_text_mid(row.x, row.y, ROW_H - 2, FONT_BODY, row.fg, GUI_LEFT, bx - row.x - 10,
+                     e->name[0] ? e->name : e->filename);
+    }
+
+    if (selected < 0 || selected >= list->count) { detail_empty("DOWNLOAD"); return; }
+    const DownloadEntry *e = &list->items[selected];
+    Detail d = detail_begin("DOWNLOAD", e->name[0] ? e->name : e->filename);
+    const char *pills[2] = { dl_status_label(e->status), e->is_cd ? "CD" : "DVD" };
+    uint32_t hexes[2] = { dl_status_hex(e->status), HEX_ACCENT2 };
+    detail_pills(&d, pills, hexes, 2);
+
+    float frac = e->total > 0 ? (float)((double)e->offset / (double)e->total) : 0;
+    gui_bar(d.x, d.y, d.w, 10, frac, e->status == DL_STATUS_COMPLETED ? HEX_OK : HEX_ACCENT);
+    d.y += 16;
+    char done_s[24], total_s[24], line[64];
+    format_size(e->offset, done_s, sizeof(done_s));
+    format_size(e->total, total_s, sizeof(total_s));
+    snprintf(line, sizeof(line), "%s / %s", done_s, total_s);
+    gui_text(d.x, d.y, FONT_SMALL, HEX_DIM, GUI_LEFT, line);
+    gui_textf(d.x + d.w, d.y, FONT_SMALL, HEX_ACCENT2, GUI_RIGHT, "%u%%",
+              (unsigned)(frac * 100.0f));
+    d.y += gui_line_h(FONT_SMALL) + 8;
+    detail_rule(&d);
+    detail_kv(&d, "Serial", e->serial, HEX_TEXT);
+    detail_kv_wrap(&d, "Target", e->target_path);
+}
+
+/* ---- Settings ---- */
+
+static void cfg_row(float x, float *y, float w, const char *label, const char *value, uint32_t hex) {
+    gui_text_mid(x, *y, KV_ROW_H, FONT_TINY, HEX_DIM, GUI_LEFT, 96, label);
+    gui_text_mid(x + 100, *y, KV_ROW_H, FONT_SMALL, hex, GUI_LEFT, w - 100,
+                 value && *value ? value : "-");
+    *y += KV_ROW_H;
 }
 
 void ui_draw_config(const SyncState *state) {
-    clear_list_area();
+    float gap = 10;
+    float w = (GUI_W - 2 * GUI_MARGIN - gap) / 2;
+    float lx = GUI_MARGIN, rx = GUI_MARGIN + w + gap;
+    float top = CONTENT_Y + 2, h = CONTENT_H - 4;
 
-    int row = LIST_TOP;
-    cfg_line(&row, C_TEXT_DIM, "Config file:  %s", CONFIG_PATH);
-    row++;
-
-    cfg_line(&row, C_TEXT, "server_url = %.60s",
-             state->server_url[0] ? state->server_url : "(unset)");
-    cfg_line(&row, C_TEXT, "api_key    = %s",
-             state->api_key[0] ? "(set)" : "(unset)");
-    cfg_line(&row, C_TEXT, "console_id = %s", state->console_id);
-    cfg_line(&row, C_TEXT, "net_mode   = %s",
-             state->use_static_ip ? "static" : "dhcp");
+    /* Left: server and network */
+    gui_card(lx, top, w, h, "Server & network", HEX_ACCENT);
+    float x = lx + 14, y = top + 40, iw = w - 28;
+    cfg_row(x, &y, iw, "Server", state->server_url[0] ? state->server_url : "(not set)",
+            state->server_url[0] ? HEX_TEXT : HEX_WARN);
+    cfg_row(x, &y, iw, "API key", state->api_key[0] ? "set" : "not set",
+            state->api_key[0] ? HEX_TEXT : HEX_WARN);
+    cfg_row(x, &y, iw, "Console ID", state->console_id, HEX_TEXT);
+    cfg_row(x, &y, iw, "Mode", state->use_static_ip ? "static IP" : "DHCP", HEX_TEXT);
     if (state->use_static_ip) {
-        cfg_line(&row, C_TEXT, "static_ip  = %s", state->static_ip);
-        cfg_line(&row, C_TEXT, "netmask    = %s", state->static_netmask);
-        cfg_line(&row, C_TEXT, "gateway    = %s", state->static_gateway);
+        cfg_row(x, &y, iw, "Static IP", state->static_ip, HEX_TEXT);
+        cfg_row(x, &y, iw, "Netmask", state->static_netmask, HEX_TEXT);
+        cfg_row(x, &y, iw, "Gateway", state->static_gateway, HEX_TEXT);
     }
-    row++;
-    cfg_line(&row, C_TEXT, "network    = %s (%s)",
-             (state->net_ready && state->dhcp_ok) ? "ready" : "not ready",
+    bool online = state->net_ready && state->dhcp_ok;
+    char net[48];
+    snprintf(net, sizeof(net), "%s (%s)", online ? "ready" : "not ready",
              state->ip[0] ? state->ip : "no ip");
-    cfg_line(&row, C_TEXT, "storage    = %s",
-             storage_pref_label(state->storage_pref));
-    cfg_line(&row, C_TEXT, "backend    = %s",
-             storage_backend_label(state));
-    cfg_line(&row, C_TEXT, "queue_file = %s",
-             state->storage_backend == STORAGE_BACKEND_HDLOADER
-                 ? HDL_DOWNLOADS_FILE
-                 : roms_downloads_file());
-    {
-        static const char *mn[] = {"off", "auto", "gen1", "gen2"};
-        int s1 = (g_mmce_mode_disp[0] >= 0 && g_mmce_mode_disp[0] < 4) ? g_mmce_mode_disp[0] : 1;
-        int s2 = (g_mmce_mode_disp[1] >= 0 && g_mmce_mode_disp[1] < 4) ? g_mmce_mode_disp[1] : 1;
-        cfg_line(&row, C_TEXT,
-                 "gameid_mode= Slot1:%s  Slot2:%s  (SELECT in a card view cycles)",
-                 mn[s1], mn[s2]);
+    cfg_row(x, &y, iw, "Network", net, online ? HEX_OK : HEX_ERR);
+    gui_text_wrap(x, top + h - 44, FONT_TINY, HEX_MUTED, iw, 2,
+                  "Edit " CONFIG_PATH " in uLaunchELF to change these.");
+
+    /* Right: storage and devices */
+    gui_card(rx, top, w, h, "Storage & devices", HEX_INFO);
+    x = rx + 14;
+    y = top + 40;
+    iw = w - 28;
+
+    /* Storage selector: < auto > */
+    gui_text_mid(x, y, 28, FONT_TINY, HEX_DIM, GUI_LEFT, 96, "Install to");
+    const char *pref = storage_pref_label(state->storage_pref);
+    float sw = 110, sx = x + 100;
+    gui_rrect(sx, y + 2, sw, 24, 12, HEX_BG2);
+    gui_icon_arrow(sx + 12, y + 14, 8, false, HEX_ACCENT2);
+    gui_icon_arrow(sx + sw - 12, y + 14, 8, true, HEX_ACCENT2);
+    gui_text_mid(sx + sw / 2, y + 2, 24, FONT_SMALL, HEX_TEXT, GUI_CENTER, 0, pref);
+    y += 32;
+
+    cfg_row(x, &y, iw, "Active", storage_backend_label(state),
+            state->usb_ready ? HEX_OK : HEX_WARN);
+    cfg_row(x, &y, iw, "Queue file",
+            state->storage_backend == STORAGE_BACKEND_HDLOADER ? HDL_DOWNLOADS_FILE
+                                                               : roms_downloads_file(),
+            HEX_TEXT);
+    cfg_row(x, &y, iw, "GameID slot 1", mmce_name(0),
+            g_mmce_mode_disp[0] == 0 ? HEX_MUTED : HEX_ACCENT2);
+    cfg_row(x, &y, iw, "GameID slot 2", mmce_name(1),
+            g_mmce_mode_disp[1] == 0 ? HEX_MUTED : HEX_ACCENT2);
+    y += 6;
+
+    /* HDD format: destructive, so it gets its own warning box. */
+    float bh = 56;
+    gui_rrect(x, y, iw, bh, 6, 0x3A2A16);
+    gui_rrect(x, y, 4, bh, 2, HEX_WARN);
+    gui_button(x + 12, y + 16, "T");
+    gui_text_mid(x + 38, y + 4, 24, FONT_SMALL, HEX_WARN, GUI_LEFT, iw - 44,
+                 "Format internal HDD (APA)");
+    gui_text_mid(x + 12, y + 28, 24, FONT_TINY, 0xE8D3A8, GUI_LEFT, iw - 20,
+                 "Press twice. Wipes the whole disk for OPL.");
+    gui_text_wrap(x, top + h - 62, FONT_TINY, HEX_MUTED, iw, 3,
+                  "Left/Right saves the install target (relaunch to apply). "
+                  "SELECT on a memory card screen picks the GameID device.");
+}
+
+/* ---- Modal cards ---- */
+
+void ui_draw_transfer(const char *name, const char *target,
+                      uint64_t done, uint64_t total, uint64_t bps,
+                      uint32_t elapsed_ms)
+{
+    gui_dim();
+    float w = 460, h = 206;
+    float x = (GUI_W - w) / 2, y = (GUI_H - h) / 2 - 6;
+    gui_card(x, y, w, h, "Downloading", HEX_ACCENT);
+
+    float ix = x + 20, iw = w - 40, iy = y + 42;
+    gui_text_fit(ix, iy, FONT_BODY, HEX_TEXT, GUI_LEFT, iw, name && *name ? name : "Game");
+    iy += gui_line_h(FONT_BODY) + 2;
+    if (target && *target) {
+        char where[96];
+        snprintf(where, sizeof(where), "Writing to %s", target);
+        gui_text_fit(ix, iy, FONT_SMALL, HEX_DIM, GUI_LEFT, iw, where);
     }
-    cfg_line(&row, C_TEXT, "hdd_format = TRIANGLE twice (PS2 APA, wipes disk)");
-    row++;
-    cfg_line(&row, C_TEXT_DIM,
-             "Left/Right=storage  []=MMCE on/off  or edit %s in uLaunchELF.",
-             CONFIG_PATH);
+    iy += gui_line_h(FONT_SMALL) + 10;
+
+    float frac = total > 0 ? (float)((double)done / (double)total) : 0;
+    gui_bar(ix, iy, iw, 14, frac, HEX_ACCENT);
+    iy += 22;
+
+    char done_s[24], total_s[24], line[96];
+    format_size(done, done_s, sizeof(done_s));
+    format_size(total, total_s, sizeof(total_s));
+    snprintf(line, sizeof(line), "%s / %s", done_s, total_s);
+    gui_text(ix, iy, FONT_SMALL, HEX_TEXT, GUI_LEFT, line);
+    gui_textf(ix + iw, iy, FONT_SMALL, HEX_ACCENT2, GUI_RIGHT, "%u%%", (unsigned)(frac * 100.0f));
+    iy += gui_line_h(FONT_SMALL) + 4;
+
+    char rate[24], elapsed[16], remain[16];
+    format_rate(bps, rate, sizeof(rate));
+    format_duration(elapsed_ms / 1000, elapsed, sizeof(elapsed));
+    if (bps > 0 && total > done)
+        format_duration((uint32_t)((total - done) / bps), remain, sizeof(remain));
+    else
+        snprintf(remain, sizeof(remain), "--:--");
+    snprintf(line, sizeof(line), "Speed %s    Elapsed %s    Remaining %s", rate, elapsed, remain);
+    gui_text(ix, iy, FONT_SMALL, HEX_DIM, GUI_LEFT, line);
+
+    float fy = y + h - 30;
+    gui_rect(x + 1, fy - 6, w - 2, 1, HEX_LINE);
+    float bx = ix;
+    bx += gui_text_mid(bx, fy - 4, 24, FONT_SMALL, HEX_DIM, GUI_LEFT, 0, "Hold ") ;
+    bx += gui_button(bx + 2, fy + 8, "O") + 6;
+    gui_text_mid(bx, fy - 4, 24, FONT_SMALL, HEX_DIM, GUI_LEFT, 0, "to pause");
+}
+
+static void draw_dialog(const char *title, const char *message, uint32_t tone,
+                        const GuiHint *hints, int nhints)
+{
+    char lines[8][GUI_WRAP_LINE];
+    float w = 440;
+    int n = gui_wrap(message, FONT_BODY, w - 48, lines, 8);
+    int lh = gui_line_h(FONT_BODY);
+    float h = 30 + 18 + n * lh + 18 + 36;
+    float x = (GUI_W - w) / 2, y = (GUI_H - h) / 2;
+    gui_card(x, y, w, h, title, tone);
+    for (int i = 0; i < n; i++)
+        gui_text(x + 24, y + 30 + 16 + i * lh, FONT_BODY, HEX_TEXT, GUI_LEFT, lines[i]);
+
+    float fy = y + h - 34;
+    gui_rect(x + 1, fy, w - 2, 1, HEX_LINE);
+    float total = 0;
+    for (int i = 0; i < nhints; i++)
+        total += gui_button_w(hints[i].button) + 6 + gui_text_w(FONT_SMALL, hints[i].label) +
+                 (i ? 24 : 0);
+    float bx = x + w - 20 - total, cy = fy + 17;
+    for (int i = 0; i < nhints; i++) {
+        if (i) bx += 24;
+        bx += gui_button(bx, cy, hints[i].button) + 6;
+        bx += gui_text_mid(bx, cy - 12, 24, FONT_SMALL, HEX_TEXT, GUI_LEFT, 0, hints[i].label);
+    }
+}
+
+void ui_draw_confirm(const char *title, const char *message) {
+    static const GuiHint hints[] = { {"O", "Cancel"}, {"X", "Confirm"} };
+    gui_dim();
+    draw_dialog(title, message, HEX_WARN, hints, 2);
 }
 
 void ui_draw_message(const char *title, const char *message) {
-    fill_screen(C_BG);
-    fill_row(0, C_HEADER_BG);
-    put_printf(0, 0, C_HEADER_TEXT, C_HEADER_BG, COLS, "== %s ==", title);
-
-    int row = LIST_TOP + 1;
-    const char *p = message;
-    while (p && *p && row < LIST_BOTTOM) {
-        const char *nl = strchr(p, '\n');
-        size_t len = nl ? (size_t)(nl - p) : strlen(p);
-        if (len > COLS - 2) len = COLS - 2;
-
-        char buf[128];
-        if (len >= sizeof(buf)) len = sizeof(buf) - 1;
-        memcpy(buf, p, len);
-        buf[len] = '\0';
-        fill_row(row, C_BG);
-        put_string(2, row, C_TEXT, C_BG, buf, COLS - 2);
-        row++;
-
-        if (!nl) break;
-        p = nl + 1;
-    }
-
-    snprintf(g_status, sizeof(g_status), "Press CIRCLE to dismiss");
-    draw_status_line();
+    static const GuiHint hints[] = { {"O", "Exit"} };
+    gui_begin();
+    gui_vgrad(0, -32, GUI_W, GUI_H + 64, HEX_BG, 0x0B1118);
+    draw_logo(GUI_W / 2, 40);
+    draw_dialog(title, message, HEX_ERR, hints, 1);
+    gui_end(true);
 }

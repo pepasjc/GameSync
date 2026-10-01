@@ -25,6 +25,8 @@ EE_OBJS    = source/main.o \
              source/sha256.o \
              source/saves.o \
              source/ui.o \
+             source/gui.o \
+             source/font_data.o \
              source/irx_mods.o
 
 # Default target — must come before any other rule so plain ``make``
@@ -38,7 +40,10 @@ ifeq ($(APP_VERSION_STR),)
 $(error Failed to read version from VERSION file)
 endif
 
-EE_INCS    = -I$(CURDIR)/include -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include -I$(PS2SDK)/ports/include
+# gsKit (installed by ps2dev next to the SDK) draws the UI.
+GSKIT      ?= $(PS2SDK)/../gsKit
+
+EE_INCS    = -I$(CURDIR)/include -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include -I$(PS2SDK)/ports/include -I$(GSKIT)/include
 EE_CFLAGS  = -O2 -Wall -Wno-unused-function -DAPP_VERSION=\"$(APP_VERSION_STR)\" $(EE_INCS)
 
 # IRX modules linked into the ELF as embedded blobs (bin2c-style).  This
@@ -67,7 +72,11 @@ EE_CFLAGS  = -O2 -Wall -Wno-unused-function -DAPP_VERSION=\"$(APP_VERSION_STR)\"
 # sio2man / mcman / mcserv / padman are loaded from rom0: at runtime — the
 # PS2SDK IRX equivalents have a different RPC ABI than what libmc expects,
 # so embedding them causes mcInit() to hang.
-EE_LIBS    = -lpatches \
+EE_LDFLAGS += -L$(GSKIT)/lib
+
+EE_LIBS    = -lgskit \
+             -ldmakit \
+             -lpatches \
              -lps2ip \
              -lps2ips \
              -lnetman \
@@ -78,7 +87,6 @@ EE_LIBS    = -lpatches \
              -lhdd \
              -lfileXio \
              -liopreboot \
-             -ldebug \
              -lm \
              -lc
 
