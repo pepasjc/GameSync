@@ -151,136 +151,231 @@ static void make_target_dir(const XboxConfig *cfg, const XboxRomEntry *rom,
     snprintf(out, out_len, "%.*s\\%s", blen, base, folder);
 }
 
-static const char *json_value_start(const char *body, const char *key)
-{
-    char needle[48];
-    snprintf(needle, sizeof(needle), "\"%s\"", key);
-    const char *p = strstr(body, needle);
-    if (!p) return NULL;
-    p = strchr(p, ':');
-    if (!p) return NULL;
-    p++;
-    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
-    return p;
-}
+// ---------------------------------------------------------------------------
+// ROM catalog, cached on disk (see catalog_cache.h)
+// ---------------------------------------------------------------------------
 
-static const char *json_object_end(const char *open)
+#define CATALOG_SYSTEM     "XBOX"
+#define CATALOG_PAGE_SIZE  500
+#define CATALOG_MAX_PAGES  100
+
+static int read_whole_file(const char *path, char **out, size_t *out_len)
 {
-    int depth = 0;
-    int in_string = 0;
-    int escaped = 0;
-    for (const char *p = open; p && *p; p++) {
-        char c = *p;
-        if (in_string) {
-            if (escaped) {
-                escaped = 0;
-            } else if (c == '\\') {
-                escaped = 1;
-            } else if (c == '"') {
-                in_string = 0;
-            }
-            continue;
-        }
-        if (c == '"') {
-            in_string = 1;
-        } else if (c == '{') {
-            depth++;
-        } else if (c == '}') {
-            depth--;
-            if (depth == 0) return p;
-            if (depth < 0) return NULL;
-        }
+    *out = NULL;
+    *out_len = 0;
+    HANDLE h = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    DWORD size = GetFileSize(h, NULL);
+    if (size == INVALID_FILE_SIZE || size == 0 || size > 64u * 1024u * 1024u) {
+        CloseHandle(h);
+        return -1;
     }
-    return NULL;
-}
-
-static int json_copy_string_obj(const char *obj, const char *key,
-                                char *out, int out_len)
-{
-    const char *p = json_value_start(obj, key);
-    if (!out || out_len <= 0) return -1;
-    out[0] = '\0';
-    if (!p || *p != '"') return -1;
-    p++;
-    int i = 0;
-    while (*p && *p != '"' && i < out_len - 1) {
-        if (*p == '\\' && p[1]) p++;
-        out[i++] = *p++;
+    char *buf = (char *)malloc((size_t)size + 1);
+    if (!buf) {
+        CloseHandle(h);
+        return -1;
     }
-    out[i] = '\0';
-    return i > 0 ? 0 : -1;
-}
-
-static int json_read_u64_obj(const char *obj, const char *key, uint64_t *out)
-{
-    const char *p = json_value_start(obj, key);
-    unsigned long long v = 0;
-    if (!p || sscanf(p, "%llu", &v) != 1) return -1;
-    if (out) *out = (uint64_t)v;
+    DWORD got = 0;
+    BOOL ok = ReadFile(h, buf, size, &got, NULL);
+    CloseHandle(h);
+    if (!ok || got != size) {
+        free(buf);
+        return -1;
+    }
+    buf[size] = '\0';
+    *out = buf;
+    *out_len = (size_t)size;
     return 0;
 }
 
-static int json_read_bool_obj(const char *obj, const char *key, int *out)
+static void catalog_cache_delete(void)
 {
-    const char *p = json_value_start(obj, key);
-    if (!p) return -1;
-    if (strncmp(p, "true", 4) == 0 || *p == '1') {
-        if (out) *out = 1;
-        return 0;
-    }
-    if (strncmp(p, "false", 5) == 0 || *p == '0') {
-        if (out) *out = 0;
-        return 0;
-    }
-    return -1;
+    DeleteFileA(XBOX_CATALOG_CACHE_PATH);
 }
 
-int games_fetch_catalog(const XboxConfig *cfg, XboxRomList *out,
-                        char *err, int err_len)
+// Written to a .part file and moved into place, so a power cut mid-write
+// leaves the previous copy (or nothing), never a torn cache.
+static void catalog_cache_save(const char *fingerprint, const XboxRomList *list)
+{
+    size_t len = 0;
+    char *buf = catcache_serialize(CATALOG_SYSTEM, fingerprint, list, &len);
+    if (!buf) return;
+
+    const char *part = XBOX_CATALOG_CACHE_PATH ".part";
+    HANDLE h = CreateFileA(part, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        free(buf);
+        return;
+    }
+    DWORD written = 0;
+    BOOL ok = WriteFile(h, buf, (DWORD)len, &written, NULL);
+    CloseHandle(h);
+    free(buf);
+    if (!ok || written != (DWORD)len) {
+        DeleteFileA(part);
+        return;
+    }
+    DeleteFileA(XBOX_CATALOG_CACHE_PATH);
+    if (!MoveFileA(part, XBOX_CATALOG_CACHE_PATH)) DeleteFileA(part);
+}
+
+static int catalog_cache_load(XboxRomList *out, char *fp, int fp_len)
+{
+    char *buf = NULL;
+    size_t len = 0;
+    if (read_whole_file(XBOX_CATALOG_CACHE_PATH, &buf, &len) != 0) return -1;
+    int rc = catcache_parse(buf, len, CATALOG_SYSTEM, fp, fp_len, out);
+    free(buf);
+    return rc;
+}
+
+// Every XBOX row, paged like the MiSTer client's list_roms().
+static int catalog_fetch_all(const XboxConfig *cfg, XboxRomList *out,
+                             int expected,
+                             CatalogProgressFn progress, void *progress_user,
+                             char *err, int err_len)
+{
+    rom_list_clear(out);
+    int offset = 0;
+    for (int page = 0; page < CATALOG_MAX_PAGES; page++) {
+        char path[128], url[512];
+        snprintf(path, sizeof(path),
+                 "/api/v1/roms?system=" CATALOG_SYSTEM "&limit=%d&offset=%d",
+                 CATALOG_PAGE_SIZE, offset);
+        join_url(cfg->server_url, path, url, sizeof(url));
+        HttpResponse rsp = http_request(url, HTTP_GET, cfg->api_key,
+                                        cfg->console_id, NULL, NULL, 0);
+        if (!rsp.success || !rsp.body) {
+            if (err) snprintf(err, err_len, "ROM catalog HTTP %d", rsp.status_code);
+            http_response_free(&rsp);
+            return -1;
+        }
+        int rows = 0, more = 0;
+        int rc = catcache_parse_roms_page((const char *)rsp.body, out,
+                                          &rows, &more);
+        http_response_free(&rsp);
+        if (rc == -1) {
+            if (err) snprintf(err, err_len, "Bad ROM catalog response");
+            return -1;
+        }
+        offset += rows;
+        if (progress) progress(out->count, expected, progress_user);
+        if (rc == -2) break;            // list full: keep what fits
+        if (!more || rows == 0) break;
+    }
+    return 0;
+}
+
+int games_load_catalog(const XboxConfig *cfg, XboxRomList *out, int force,
+                       CatalogProgressFn progress, void *progress_user,
+                       CatalogLoadInfo *info, char *err, int err_len)
 {
     if (!cfg || !out) return -1;
-    memset(out, 0, sizeof(*out));
+    CatalogLoadInfo local_info;
+    if (!info) info = &local_info;
+    memset(info, 0, sizeof(*info));
 
     char url[512];
-    join_url(cfg->server_url, "/api/v1/roms?system=XBOX&limit=20000",
-             url, sizeof(url));
-    HttpResponse rsp = http_request(url, HTTP_GET,
-                                    cfg->api_key, cfg->console_id,
-                                    NULL, NULL, 0);
-    if (!rsp.success || !rsp.body) {
-        if (err) snprintf(err, err_len, "ROM catalog HTTP %d", rsp.status_code);
-        http_response_free(&rsp);
-        return -1;
+    if (force) {
+        // The server's catalog lives in memory and only moves on a scan.
+        join_url(cfg->server_url, "/api/v1/roms/scan", url, sizeof(url));
+        HttpResponse scan = http_request(url, HTTP_GET, cfg->api_key,
+                                         cfg->console_id, NULL, NULL, 0);
+        if (scan.success) {
+            info->rescan = 1;
+            if (scan.body) {
+                const char *c = strstr((const char *)scan.body, "\"count\"");
+                if (c) c = strchr(c, ':');
+                if (c) info->rescan_count = atoi(c + 1);
+            }
+        } else if (scan.status_code == 403 || scan.status_code == 404 ||
+                   scan.status_code == 405) {
+            info->rescan = 0;
+        } else {
+            info->rescan = -1;
+        }
+        http_response_free(&scan);
+        catalog_cache_delete();
     }
 
-    const char *body = (const char *)rsp.body;
-    const char *p = strstr(body, "\"roms\"");
-    if (p) p = strchr(p, '[');
-    if (!p) {
-        if (err) snprintf(err, err_len, "Bad ROM catalog response");
-        http_response_free(&rsp);
-        return -1;
+    XboxRomList fresh = { 0, 0, NULL };
+    XboxRomList cached = { 0, 0, NULL };
+    char cached_fp[CATCACHE_FP_MAX] = "";
+
+    join_url(cfg->server_url, "/api/v1/roms/fingerprints", url, sizeof(url));
+    HttpResponse rsp = http_request(url, HTTP_GET, cfg->api_key,
+                                    cfg->console_id, NULL, NULL, 0);
+    int status = rsp.status_code;
+    int ok_response = rsp.success && rsp.body;
+    char server_fp[CATCACHE_FP_MAX] = "";
+    int expected = 0;
+    int found = -1;
+    if (ok_response) {
+        found = catcache_find_fingerprint((const char *)rsp.body, CATALOG_SYSTEM,
+                                          server_fp, sizeof(server_fp),
+                                          &expected);
     }
-    p++;
-
-    while (*p && out->count < XBOX_MAX_ROMS) {
-        while (*p && *p != '{' && *p != ']') p++;
-        if (*p == ']' || *p == '\0') break;
-        const char *open = p;
-        const char *close = json_object_end(open);
-        if (!close || close < open) break;
-
-        XboxRomEntry *r = &out->roms[out->count];
-        json_copy_string_obj(open, "rom_id", r->rom_id, sizeof(r->rom_id));
-        json_copy_string_obj(open, "name", r->name, sizeof(r->name));
-        json_copy_string_obj(open, "filename", r->filename, sizeof(r->filename));
-        json_read_u64_obj(open, "size", &r->size);
-        json_read_bool_obj(open, "is_bundle", &r->is_bundle);
-        if (r->rom_id[0] && r->name[0]) out->count++;
-        p = close + 1;
-    }
-
     http_response_free(&rsp);
+
+    if (status == 404 || status == 405 || (ok_response && found < 0)) {
+        // Server without fingerprints: fetch everything, cache nothing.
+        if (catalog_fetch_all(cfg, &fresh, 0, progress, progress_user,
+                              err, err_len) != 0) {
+            rom_list_free(&fresh);
+            return -1;
+        }
+        rom_list_take(out, &fresh);
+        info->source = CATALOG_UNCACHED;
+        return 0;
+    }
+
+    if (!ok_response) {
+        // Offline: the last copy beats an empty tab.
+        if (catalog_cache_load(&cached, cached_fp, sizeof(cached_fp)) == 0) {
+            rom_list_take(out, &cached);
+            info->source = CATALOG_FROM_CACHE_OFFLINE;
+            return 0;
+        }
+        rom_list_free(&cached);
+        if (err) snprintf(err, err_len, "Catalog: server unreachable (HTTP %d)",
+                          status);
+        return -1;
+    }
+
+    if (found == 0) {
+        // The server has no Xbox games at all.
+        catalog_cache_delete();
+        rom_list_clear(out);
+        info->source = CATALOG_FROM_SERVER;
+        return 0;
+    }
+
+    int have_cache = catalog_cache_load(&cached, cached_fp,
+                                        sizeof(cached_fp)) == 0;
+    if (have_cache && server_fp[0] && strcmp(cached_fp, server_fp) == 0) {
+        rom_list_take(out, &cached);
+        info->source = CATALOG_FROM_CACHE;
+        return 0;
+    }
+
+    if (catalog_fetch_all(cfg, &fresh, expected, progress, progress_user,
+                          err, err_len) != 0) {
+        rom_list_free(&fresh);
+        if (have_cache) {
+            // Stale beats nothing; the next load tries again.
+            rom_list_take(out, &cached);
+            info->source = CATALOG_FROM_CACHE_OFFLINE;
+            return 0;
+        }
+        rom_list_free(&cached);
+        return -1;
+    }
+    rom_list_free(&cached);
+    if (server_fp[0]) catalog_cache_save(server_fp, &fresh);
+    rom_list_take(out, &fresh);
+    info->source = CATALOG_FROM_SERVER;
     return 0;
 }
 
@@ -311,7 +406,22 @@ typedef struct {
     uint64_t http_total;
     GameProgressFn progress;
     void *progress_user;
+    int cancelled;
 } ZipCtx;
+
+// Report progress; a non-zero return from the UI cancels the download.
+static int delete_tree(const char *path, char *err, int err_len);
+
+static int zip_progress(ZipCtx *z, const char *msg)
+{
+    if (!z->progress) return 0;
+    if (z->progress(msg, z->http_done, z->http_total, z->progress_user) != 0) {
+        z->cancelled = 1;
+        snprintf(z->err, sizeof(z->err), "Download cancelled");
+        return -1;
+    }
+    return 0;
+}
 
 static int is_bad_zip_path(const char *name)
 {
@@ -373,7 +483,7 @@ static int zip_open_current(ZipCtx *z)
     if (z->progress && (z->files % 8) == 1) {
         char msg[96];
         snprintf(msg, sizeof(msg), "Installing %u file(s)...", (unsigned)z->files);
-        z->progress(msg, z->http_done, z->http_total, z->progress_user);
+        if (zip_progress(z, msg) != 0) return -1;
     }
     return 0;
 }
@@ -471,9 +581,9 @@ static int zip_http_write(void *ctx, const uint8_t *data, size_t size)
 {
     ZipCtx *z = (ZipCtx *)ctx;
     z->http_done += (uint64_t)size;
-    if (z->progress && (z->http_done & 0x000FFFFFULL) < (uint64_t)size) {
-        z->progress("Downloading game ZIP...", z->http_done, z->http_total,
-                    z->progress_user);
+    if ((z->http_done & 0x000FFFFFULL) < (uint64_t)size &&
+        zip_progress(z, "Downloading game ZIP...") != 0) {
+        return -1;
     }
     return zip_consume(z, data, size);
 }
@@ -496,6 +606,9 @@ int games_download_rom(const XboxConfig *cfg,
     z.progress = progress;
     z.progress_user = progress_user;
     make_target_dir(cfg, rom, z.target_dir, sizeof(z.target_dir));
+    // A cancelled download removes the folder only if it created it, so an
+    // earlier install of the same game is never wiped by a cancel.
+    int existed = GetFileAttributesA(z.target_dir) != INVALID_FILE_ATTRIBUTES;
     if (ensure_dir(z.target_dir) != 0) {
         if (err) snprintf(err, err_len, "Could not create game dir");
         return -1;
@@ -519,6 +632,11 @@ int games_download_rom(const XboxConfig *cfg,
     if (z.out != INVALID_HANDLE_VALUE) {
         CloseHandle(z.out);
         z.out = INVALID_HANDLE_VALUE;
+    }
+    if (z.cancelled) {
+        if (!existed) delete_tree(z.target_dir, NULL, 0);
+        if (err) snprintf(err, err_len, "Download cancelled");
+        return GAMES_DOWNLOAD_CANCELLED;
     }
     if (code < 0) {
         if (err) snprintf(err, err_len, "%s",
