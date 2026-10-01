@@ -83,6 +83,32 @@ void ui_progress(const UiProgress *p);
 // Indeterminate progress card with a message
 void ui_busy(const char *title, const char *message);
 
+// Pick one of `count` items from a list card (A picks, B cancels, D-pad /
+// touch moves). Returns the index, or -1 if cancelled.
+int ui_choose(UiTone tone, const char *title, const char *const *items, int count);
+
+// ---------------------------------------------------------------------------
+// Top-level tabs (L / R cycle them, wrapping)
+// ---------------------------------------------------------------------------
+
+#define UI_TAB_SAVES    0
+#define UI_TAB_CATALOG  1
+#define UI_TAB_SETTINGS 2
+#define UI_TAB_COUNT    3
+
+typedef enum {
+    UI_NAV_STAY = 0,
+    UI_NAV_PREV,    // L: previous tab
+    UI_NAV_NEXT,    // R: next tab
+    UI_NAV_EXIT,    // START, confirmed: leave the app
+} UiNav;
+
+// Top screen header of a top-level screen, showing the tab strip
+void ui_tab_header(int active);
+// The keys every top-level screen shares: L / R switch tabs, START asks
+// to exit (over the current backdrop). UI_NAV_STAY for anything else.
+UiNav ui_tab_nav(u32 down);
+
 // ---------------------------------------------------------------------------
 // Scrolling list with an animated selection bar
 // ---------------------------------------------------------------------------
@@ -114,6 +140,7 @@ int ui_list_touch(float y, int rows, float row_h, int count, int scroll);
 #define SAVES_ROWS 9
 #define SAVES_ROW_H 21
 #define SAVES_LIST_Y GUI_HEADER_H
+#define SAVES_MARK_W 26   // a tap left of this on a row toggles its mark
 
 typedef struct {
     const TitleInfo *titles;   // all titles
@@ -143,7 +170,8 @@ bool ui_confirm_sync(const TitleInfo *title, const SaveDetails *details, bool is
 // Smart sync dialog: shows the comparison and the suggested action.
 // Returns SYNC_ACTION_UPLOAD / SYNC_ACTION_DOWNLOAD to perform, or
 // SYNC_ACTION_UP_TO_DATE for "nothing to do / cancelled". For a conflict
-// R uploads, L downloads, B cancels.
+// A uploads (the server keeps the old copy in its history), X downloads,
+// B cancels.
 SyncAction ui_confirm_smart_sync(const TitleInfo *title, const SaveDetails *details, SyncAction suggested);
 
 // History versions; returns the chosen timestamp (caller frees) or NULL
@@ -153,14 +181,23 @@ char *ui_show_history(const TitleInfo *title, HistoryVersion *versions, int vers
 // Settings
 // ---------------------------------------------------------------------------
 
-#define CONFIG_RESULT_UNCHANGED 0
-#define CONFIG_RESULT_SAVED     1
-#define CONFIG_RESULT_RESCAN    2
-#define CONFIG_RESULT_UPDATE    3
-#define CONFIG_RESULT_CATALOG   4
+typedef enum {
+    SETTINGS_NAV_PREV = 0,      // L
+    SETTINGS_NAV_NEXT,          // R
+    SETTINGS_EXIT,              // START, confirmed
+    SETTINGS_RESCAN,            // "Rescan titles"
+    SETTINGS_REFRESH_CATALOG,   // "Refresh catalog"
+    SETTINGS_UPDATE,            // "Check for updates"
+} SettingsResult;
 
-// Settings menu (L). Returns a CONFIG_RESULT_* code.
-int ui_show_config_editor(AppConfig *config);
+// Runs a SETTINGS_RESCAN / _REFRESH_CATALOG / _UPDATE entry (over the
+// settings screen). Returns true if the app must close (update installed).
+typedef bool (*SettingsActionFn)(SettingsResult action);
+
+// Settings tab. Edited values are written to the config file as soon as
+// they are confirmed. Returns SETTINGS_NAV_PREV / _NEXT / _EXIT when the
+// user leaves the tab.
+SettingsResult ui_settings_tab(AppConfig *config, SettingsActionFn run_action);
 
 // Edit a text field: the system keyboard, or a D-pad editor if the keyboard
 // applet can't be started. Returns true if confirmed.

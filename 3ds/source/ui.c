@@ -306,6 +306,100 @@ void ui_busy(const char *title, const char *message) {
 }
 
 // ---------------------------------------------------------------------------
+// Choice list
+// ---------------------------------------------------------------------------
+
+#define CHOICE_ROWS 7
+#define CHOICE_ROW_H 22
+
+static void draw_choice(UiTone tone, const char *title, const char *const *items, int count,
+                        int selected, int scroll, float *list_y) {
+    int rows = count < CHOICE_ROWS ? count : CHOICE_ROWS;
+    float h = 24 + 6 + rows * CHOICE_ROW_H + 6 + 24;
+    float y = (GUI_H - h) / 2;
+    u32 hex = ui_tone_hex(tone);
+    gui_dim();
+    gui_card(DLG_X, y, DLG_W, h, title, hex);
+    float ly = y + 24 + 6;
+    *list_y = ly;
+    for (int i = 0; i < rows; i++) {
+        int index = scroll + i;
+        float ry = ly + i * CHOICE_ROW_H;
+        bool on = (index == selected);
+        if (on) gui_rrect(DLG_X + 6, ry + 1, DLG_W - 12, CHOICE_ROW_H - 2, 5, gui_rgb(HEX_ACCENT));
+        gui_text_mid(DLG_X + 16, ry, CHOICE_ROW_H, GUI_S_BODY, gui_rgb(on ? HEX_INK : HEX_TEXT), GUI_LEFT,
+                     DLG_W - 32, items[index]);
+    }
+    if (count > rows)
+        gui_scrollbar(DLG_X + DLG_W - 5, ly + 2, rows * CHOICE_ROW_H - 4, scroll, rows, count, (float)scroll);
+    static const UiButton b[] = { { KEY_B, "B", "Cancel" }, { KEY_A, "A", "Select" } };
+    float by = y + h - 24;
+    gui_rect(DLG_X + 8, by, DLG_W - 16, 1, gui_rgb(HEX_LINE));
+    float x = DLG_X + DLG_W - 12 - buttons_width(b, 2);
+    for (int i = 0; i < 2; i++) {
+        if (i) x += 12;
+        x += gui_button(x, by + 12.5f, b[i].button) + 4;
+        x += gui_text_mid(x, by, 24, GUI_S_SMALL, gui_rgb(HEX_TEXT), GUI_LEFT, 0, b[i].label);
+    }
+}
+
+int ui_choose(UiTone tone, const char *title, const char *const *items, int count) {
+    if (count <= 0) return -1;
+    int selected = 0, scroll = 0;
+    int rows = count < CHOICE_ROWS ? count : CHOICE_ROWS;
+    hidScanInput();
+    while (aptMainLoop()) {
+        float list_y = 0;
+        gui_begin(true);
+        gui_screen(GUI_TOP);
+        ui_draw_backdrop_top();
+        gui_screen(GUI_BOTTOM);
+        ui_draw_backdrop_bottom();
+        draw_choice(tone, title, items, count, selected, scroll, &list_y);
+        gui_end();
+
+        hidScanInput();
+        u32 down = hidKeysDown(), rep = hidKeysDownRepeat();
+        if (rep & KEY_UP) selected = (selected - 1 + count) % count;
+        if (rep & KEY_DOWN) selected = (selected + 1) % count;
+        if (rep & KEY_LEFT) selected = selected - rows < 0 ? 0 : selected - rows;
+        if (rep & KEY_RIGHT) selected = selected + rows >= count ? count - 1 : selected + rows;
+        if (selected < scroll) scroll = selected;
+        if (selected >= scroll + rows) scroll = selected - rows + 1;
+        if (down & KEY_TOUCH) {
+            // A tap picks the row right away
+            int i = ui_list_touch(list_y, rows, CHOICE_ROW_H, count, scroll);
+            if (i >= 0) return i;
+        }
+        if (down & KEY_B) return -1;
+        if (down & KEY_A) return selected;
+    }
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
+// Top-level tabs
+// ---------------------------------------------------------------------------
+
+static const char *const tab_labels[UI_TAB_COUNT] = { "Saves", "Catalog", "Settings" };
+
+void ui_tab_header(int active) {
+    gui_header_tabs(tab_labels, UI_TAB_COUNT, active);
+}
+
+UiNav ui_tab_nav(u32 down) {
+    if (down & KEY_L) return UI_NAV_PREV;
+    if (down & KEY_R) return UI_NAV_NEXT;
+    if (down & KEY_START) {
+        UiButton b[2] = { { KEY_B, "B", "Cancel" }, { KEY_A | KEY_START, "A", "Exit" } };
+        if (ui_dialog(UI_TONE_ACCENT, "Exit GameSync?", "Close the app? Press START again or A to exit.", b, 2) &
+            (KEY_A | KEY_START))
+            return UI_NAV_EXIT;
+    }
+    return UI_NAV_STAY;
+}
+
+// ---------------------------------------------------------------------------
 // List
 // ---------------------------------------------------------------------------
 
@@ -401,9 +495,9 @@ static void draw_status_toast(const char *status, UiTone tone) {
 }
 
 void ui_draw_saves_top(const SavesView *v) {
-    gui_header("Saves");
+    ui_tab_header(UI_TAB_SAVES);
     static const GuiHint hints[] = {
-        { "SELECT", "Mark" }, { "R", "View" }, { "L", "Settings" }, { "START", "Exit" },
+        { "SELECT", "All/3DS/NDS" }, { "LR", "Page" }, { "START", "Exit" },
     };
 
     if (v->count == 0 || v->selected < 0 || v->selected >= v->count) {
@@ -411,11 +505,11 @@ void ui_draw_saves_top(const SavesView *v) {
         gui_text(GUI_TOP_W / 2.0f, 74, GUI_S_TITLE, gui_rgb(HEX_TEXT), GUI_CENTER, "No saves here");
         gui_text(GUI_TOP_W / 2.0f, 102, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_CENTER,
                  v->view_mode == VIEW_ALL ? "No titles with save data were found."
-                                          : "Nothing in this view. Press R to switch.");
+                                          : "Nothing in this view. Press SELECT to switch.");
         gui_text(GUI_TOP_W / 2.0f, 120, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_CENTER,
-                 "B opens the game catalog.");
+                 "L / R switch to the game catalog and the settings.");
         draw_status_toast(v->status, v->status_tone);
-        gui_footer(hints, 4);
+        gui_footer(hints, 3);
         return;
     }
 
@@ -493,7 +587,7 @@ void ui_draw_saves_top(const SavesView *v) {
     }
 
     draw_status_toast(v->status, v->status_tone);
-    gui_footer(hints, 4);
+    gui_footer(hints, 3);
 }
 
 static void saves_row(void *ctx, int index, float x, float y, float w, float h, bool selected) {
@@ -539,7 +633,8 @@ void ui_draw_saves_bottom(const SavesView *v) {
 
     gui_header_bar();
     static const char *const tabs[] = { "All", "3DS", "NDS" };
-    gui_tabs(6, 4, 18, tabs, 3, v->view_mode);
+    float tx = 6 + gui_button(6, GUI_HEADER_H / 2.0f, "SELECT") + 4;
+    gui_tabs(tx, 4, 18, tabs, 3, v->view_mode);
     char count[32];
     snprintf(count, sizeof(count), "%d save%s", v->count, v->count == 1 ? "" : "s");
     float right = GUI_BOT_W - 8;
@@ -552,9 +647,9 @@ void ui_draw_saves_bottom(const SavesView *v) {
     }
 
     static const GuiHint hints[] = {
-        { "A", "Sync" }, { "X", "Sync all" }, { "Y", "History" }, { "B", "Catalog" },
+        { "A", "Sync" }, { "X", "Sync all" }, { "Y", "Details" }, { "B", "Unmark all" },
     };
-    gui_footer(hints, 4);
+    gui_footer(hints, v->marked > 0 ? 4 : 3);
 }
 
 // ---------------------------------------------------------------------------
@@ -705,16 +800,17 @@ bool ui_confirm_sync(const TitleInfo *title, const SaveDetails *details, bool is
 SyncAction ui_confirm_smart_sync(const TitleInfo *title, const SaveDetails *details, SyncAction suggested) {
     if (suggested == SYNC_ACTION_CONFLICT) {
         static const UiButton b[] = {
-            { KEY_B, "B", "Cancel" }, { KEY_L, "L", "Download" }, { KEY_R, "R", "Upload" },
+            { KEY_B, "B", "Cancel" }, { KEY_X, "X", "Download" }, { KEY_A, "A", "Upload" },
         };
         u32 key = run_compare(title, details, suggested, "Smart Sync", UI_TONE_ERR,
                               "Both copies changed",
                               "Pick the copy to keep:\n"
-                              UI_DIM "R uploads this console's save to the server.\n"
-                              UI_DIM "L downloads the server's save to this console.",
+                              UI_DIM "A uploads this console's save (the server\n"
+                              UI_DIM "keeps its old copy in the history).\n"
+                              UI_DIM "X downloads the server's save to this console.",
                               b, 3);
-        if (key & KEY_R) return SYNC_ACTION_UPLOAD;
-        if (key & KEY_L) return SYNC_ACTION_DOWNLOAD;
+        if (key & KEY_A) return SYNC_ACTION_UPLOAD;
+        if (key & KEY_X) return SYNC_ACTION_DOWNLOAD;
         return SYNC_ACTION_UP_TO_DATE;
     }
     if (suggested == SYNC_ACTION_UP_TO_DATE) {
@@ -844,12 +940,13 @@ char *ui_show_history(const TitleInfo *title, HistoryVersion *versions, int vers
 // Settings
 // ---------------------------------------------------------------------------
 
-#define CFG_ITEMS 8
+#define CFG_ITEMS 6
 #define CFG_ROW_H 23
+#define CFG_ACTIONS 3   // first entry that is an action, not a value
 
 static const char *const cfg_labels[CFG_ITEMS] = {
-    "Server URL", "API key", "NDS ROM folder", "Rescan titles",
-    "Check for updates", "Game catalog", "Save & exit", "Cancel",
+    "Server URL", "API key", "NDS ROM folder",
+    "Rescan titles", "Refresh catalog", "Check for updates",
 };
 
 static const char *const cfg_help[CFG_ITEMS] = {
@@ -857,16 +954,13 @@ static const char *const cfg_help[CFG_ITEMS] = {
     "The server's SYNC_API_KEY. Sent with every request.",
     "Where your DS ROMs and .sav files live (TWiLight Menu++ / nds-bootstrap).",
     "Look for installed titles and DS saves again.",
+    "Ask the server to rescan its ROM folder, then download the whole game catalog again.",
     "Download and install the latest GameSync CIA from your server.",
-    "Browse the server's 3DS and DS games and install them.",
-    "Write the settings to the SD card and go back.",
-    "Throw away changes and go back.",
 };
 
 typedef struct {
     const AppConfig *cfg;
     int selected;
-    bool changed;
 } ConfigView;
 
 static void mask_key(const char *key, char *out, size_t size) {
@@ -878,7 +972,7 @@ static void mask_key(const char *key, char *out, size_t size) {
 
 static void config_top(void *ctx) {
     const ConfigView *v = ctx;
-    gui_header("Settings");
+    ui_tab_header(UI_TAB_SETTINGS);
     gui_panel(8, 32, GUI_TOP_W - 16, 118);
     float lh = gui_line_h(GUI_S_BODY) + 3, y = 42;
     char key[48];
@@ -888,9 +982,6 @@ static void config_top(void *ctx) {
     kv(20, y + 2 * lh, 96, GUI_TOP_W - 40, "NDS ROMs", v->cfg->nds_dir[0] ? v->cfg->nds_dir : "(not set)", HEX_TEXT);
     kv(20, y + 3 * lh, 96, GUI_TOP_W - 40, "Console ID", v->cfg->console_id, HEX_DIM);
     kv(20, y + 4 * lh, 96, GUI_TOP_W - 40, "Config file", CONFIG_PATH, HEX_DIM);
-    if (v->changed)
-        gui_pill(GUI_TOP_W - 20 - gui_pill_w(15, GUI_S_TINY, "UNSAVED"), 38, 15, GUI_S_TINY,
-                 gui_rgb(HEX_WARN), gui_rgb(HEX_INK), "UNSAVED");
 
     // Help for the highlighted entry
     gui_rrect(8, 158, GUI_TOP_W - 16, 52, 7, gui_rgb(HEX_BG2));
@@ -898,13 +989,14 @@ static void config_top(void *ctx) {
     gui_text(20, 163, GUI_S_SMALL, gui_rgb(HEX_ACCENT2), GUI_LEFT, cfg_labels[v->selected]);
     gui_text_wrap(20, 163 + gui_line_h(GUI_S_SMALL), GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_TOP_W - 40, 2,
                   cfg_help[v->selected]);
-    gui_footer(NULL, 0);
+    static const GuiHint hints[] = { { "UD", "Move" }, { "START", "Exit" } };
+    gui_footer(hints, 2);
 }
 
 static void config_row(void *ctx, int index, float x, float y, float w, float h, bool selected) {
     const ConfigView *v = ctx;
-    u32 text = selected ? HEX_INK : (index >= 6 ? HEX_DIM : HEX_TEXT);
-    if (index == 3 || index == 6) gui_rect(x + 10, y, w - 20, 1, gui_rgb(HEX_LINE));
+    u32 text = selected ? HEX_INK : HEX_TEXT;
+    if (index == CFG_ACTIONS) gui_rect(x + 10, y, w - 20, 1, gui_rgb(HEX_LINE));
     gui_text_mid(x + 12, y, h, GUI_S_BODY, gui_rgb(text), GUI_LEFT, 0, cfg_labels[index]);
     char value[64] = "";
     if (index == 0) snprintf(value, sizeof(value), "%.63s", v->cfg->server_url);
@@ -912,7 +1004,7 @@ static void config_row(void *ctx, int index, float x, float y, float w, float h,
     else if (index == 2) snprintf(value, sizeof(value), "%.63s", v->cfg->nds_dir[0] ? v->cfg->nds_dir : "(not set)");
     if (value[0])
         gui_text_mid(x + w - 12, y, h, GUI_S_SMALL, gui_rgb(selected ? HEX_INK : HEX_DIM), GUI_RIGHT, 150, value);
-    else if (index < 6)
+    else
         gui_text_mid(x + w - 14, y, h, GUI_S_BODY, gui_rgb(selected ? HEX_INK : HEX_MUTED), GUI_RIGHT, 0, ">");
 }
 
@@ -923,20 +1015,23 @@ static void config_bottom(void *ctx) {
             config_row, v);
     gui_header_bar();
     gui_text_mid(10, 0, GUI_HEADER_H, GUI_S_BODY, gui_rgb(HEX_TEXT), GUI_LEFT, 0, "Settings");
-    static const GuiHint hints[] = { { "A", "Select" }, { "B", "Back" }, { "UD", "Move" } };
-    gui_footer(hints, 3);
+    static const GuiHint hints[] = { { "A", "Select" }, { "LR", "First / last" } };
+    gui_footer(hints, 2);
 }
 
-int ui_show_config_editor(AppConfig *config) {
-    AppConfig working;
-    memcpy(&working, config, sizeof(AppConfig));
-    ConfigView v = { &working, 0, false };
+static void save_settings(const AppConfig *config) {
+    if (!config_save(config))
+        ui_message(UI_TONE_ERR, "Settings", "Couldn't write the settings to the SD card:\n" UI_DIM CONFIG_PATH);
+}
+
+SettingsResult ui_settings_tab(AppConfig *config, SettingsActionFn run_action) {
+    static int selected = 0;   // kept while the user visits other tabs
+    ConfigView v = { config, selected };
     UiBackdrop prev = ui_set_backdrop(config_top, config_bottom, &v);
-    int result = CONFIG_RESULT_UNCHANGED;
-    bool done = false;
+    SettingsResult result = SETTINGS_EXIT;  // the app is closing
 
     hidScanInput();
-    while (!done && aptMainLoop()) {
+    while (aptMainLoop()) {
         gui_begin(true);
         gui_screen(GUI_TOP);
         config_top(&v);
@@ -948,50 +1043,44 @@ int ui_show_config_editor(AppConfig *config) {
         u32 down = hidKeysDown(), rep = hidKeysDownRepeat();
         if (rep & KEY_UP) v.selected = (v.selected - 1 + CFG_ITEMS) % CFG_ITEMS;
         if (rep & KEY_DOWN) v.selected = (v.selected + 1) % CFG_ITEMS;
+        // Page up / down: the whole list fits on one page
+        if (rep & KEY_LEFT) v.selected = 0;
+        if (rep & KEY_RIGHT) v.selected = CFG_ITEMS - 1;
         if (down & KEY_TOUCH) {
             int i = ui_list_touch(GUI_HEADER_H + 4, CFG_ITEMS, CFG_ROW_H, CFG_ITEMS, 0);
             if (i >= 0) v.selected = i;
         }
-        if (down & KEY_B) break;
+
+        UiNav nav = ui_tab_nav(down);
+        if (nav == UI_NAV_PREV) { result = SETTINGS_NAV_PREV; break; }
+        if (nav == UI_NAV_NEXT) { result = SETTINGS_NAV_NEXT; break; }
+        if (nav == UI_NAV_EXIT) { result = SETTINGS_EXIT; break; }
         if (!(down & KEY_A)) continue;
 
+        SettingsResult action = SETTINGS_EXIT;
         switch (v.selected) {
             case 0:
-                if (ui_edit_text("Server URL", "http://192.168.1.100:8000", working.server_url, MAX_URL_LEN))
-                    v.changed = true;
+                if (ui_edit_text("Server URL", "http://192.168.1.100:8000", config->server_url, MAX_URL_LEN))
+                    save_settings(config);
                 break;
             case 1:
-                if (ui_edit_text("API key", "your-api-key", working.api_key, MAX_API_KEY_LEN))
-                    v.changed = true;
+                if (ui_edit_text("API key", "your-api-key", config->api_key, MAX_API_KEY_LEN))
+                    save_settings(config);
                 break;
             case 2:
-                if (ui_edit_text("NDS ROM folder", "sdmc:/roms/nds", working.nds_dir, MAX_PATH_LEN))
-                    v.changed = true;
+                if (ui_edit_text("NDS ROM folder", "sdmc:/roms/nds", config->nds_dir, MAX_PATH_LEN))
+                    save_settings(config);
                 break;
-            case 3:
-            case 4:
-            case 5:
-                result = v.selected == 3 ? CONFIG_RESULT_RESCAN
-                       : v.selected == 4 ? CONFIG_RESULT_UPDATE : CONFIG_RESULT_CATALOG;
-                if (v.changed) {
-                    memcpy(config, &working, sizeof(AppConfig));
-                    config_save(config);
-                }
-                done = true;
-                break;
-            case 6:
-                if (v.changed) {
-                    memcpy(config, &working, sizeof(AppConfig));
-                    config_save(config);
-                    result = CONFIG_RESULT_SAVED;
-                }
-                done = true;
-                break;
-            default:
-                done = true;
-                break;
+            case 3: action = SETTINGS_RESCAN; break;
+            case 4: action = SETTINGS_REFRESH_CATALOG; break;
+            default: action = SETTINGS_UPDATE; break;
+        }
+        if (action != SETTINGS_EXIT && run_action && run_action(action)) {
+            result = SETTINGS_EXIT;
+            break;
         }
     }
+    selected = v.selected;
     ui_restore_backdrop(prev);
     return result;
 }
@@ -1055,8 +1144,8 @@ static void edit_bottom(void *ctx) {
     gui_header_bar();
     gui_text_mid(10, 0, GUI_HEADER_H, GUI_S_BODY, gui_rgb(HEX_TEXT), GUI_LEFT, 0, "D-pad editor");
     static const struct { const char *button, *label; } rows[] = {
-        { "LR", "Move the cursor" }, { "UD", "Change the character" }, { "A", "Insert a character" },
-        { "B", "Delete before the cursor" }, { "Y", "Confirm" }, { "X", "Cancel" },
+        { "LR", "Move the cursor" }, { "UD", "Change the character" }, { "Y", "Insert a character" },
+        { "X", "Delete before the cursor" }, { "A", "Confirm" }, { "B", "Cancel" },
     };
     for (int i = 0; i < 6; i++) {
         float y = 40 + i * 26;
@@ -1096,21 +1185,21 @@ static bool dpad_editor(const char *title, const char *hint, char *buffer, int m
                 temp[e.len] = '\0';
             }
         }
-        if ((down & KEY_A) && e.len < max_len - 1) {
+        if ((down & KEY_Y) && e.len < max_len - 1) {
             memmove(&temp[e.cursor + 1], &temp[e.cursor], e.len - e.cursor + 1);
             temp[e.cursor++] = 'a';
             e.len++;
         }
-        if ((rep & KEY_B) && e.cursor > 0) {
+        if ((rep & KEY_X) && e.cursor > 0) {
             memmove(&temp[e.cursor - 1], &temp[e.cursor], e.len - e.cursor + 1);
             e.cursor--;
             e.len--;
         }
-        if (down & KEY_Y) {
+        if (down & KEY_A) {
             confirmed = true;
             break;
         }
-        if (down & KEY_X) break;
+        if (down & KEY_B) break;
     }
     ui_restore_backdrop(prev);
     if (confirmed) snprintf(buffer, max_len, "%s", temp);

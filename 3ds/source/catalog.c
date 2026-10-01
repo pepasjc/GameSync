@@ -1,6 +1,15 @@
-// Game catalog screen for the 3DS client. The browsing UX (server-side
-// paging window, RA badges and filter, search, progress with speed/ETA,
-// hold-B cancel) is ported from the DS client's ds/source/catalog.c.
+// Game catalog tab for the 3DS client. The browsing UX (paging window, RA
+// badges and filter, search, progress with speed/ETA, hold-B cancel) is
+// ported from the DS client's ds/source/catalog.c.
+//
+// The list is kept on the SD card between runs (sdmc:/3ds/3dssync/cache/),
+// one file per system with the server's fingerprint for it, the same
+// strategy as the MiSTer client (mister/gamesync/catalogcache.py): on open
+// only the systems whose fingerprint moved are fetched again, a server that
+// can't be reached leaves the cached copy usable, and the search and the
+// RetroAchievements filter run locally over the cached rows. A server
+// without GET /roms/fingerprints (404) is browsed live like before: paged
+// from the server, which also does the search and the RA filter.
 //
 // 3DS games install as a CIA streamed straight into AM (the same path the
 // self-updater uses), chunk by chunk from the HTTP body, so a ROM is never
@@ -22,16 +31,20 @@
 #define CAT_ROWS 9           // list rows on the bottom screen
 #define CAT_ROW_H 21
 #define CAT_LIST_Y GUI_HEADER_H
-#define CAT_JUMP 100         // L/R
 #define CAT_SCAN_DEPTH 4     // ROM folder levels searched for installed games
+#define CAT_FETCH_PAGE 500   // rows per request when filling the cache
+#define CAT_FETCH_MAX_PAGES 200
+#define CAT_MAX_SYSTEMS 3
 
 #define CIA_MAP_PATH "sdmc:/3ds/3dssync/catalog_cia.txt"
+#define CACHE_DIR "sdmc:/3ds/3dssync/cache"
 #define ROMS_3DS_DIR "sdmc:/roms/3ds"
 #define ROMS_DSI_DIR "sdmc:/roms/dsi"
 #define ROMS_NDS_DIR "sdmc:/roms/nds"
 
 #define WAIT_CONVERT_S (45 * 60)   // a CIA conversion of a big cart is slow
 #define WAIT_PLAIN_S 60
+#define RESCAN_TIMEOUT_S 300       // GET /roms/scan answers when the scan is done
 
 static const char *const cat_systems[] = { "3DS", "NDS", "DSI", NULL };
 static const char *const nds_exts[] = { ".nds", ".dsi", NULL };
@@ -40,9 +53,18 @@ static const char *const cart_exts[] = { ".3ds", ".cci", NULL };
 typedef struct {
     const AppConfig *config;
 
-    char systems[3][8];
-    int system_counts[3];
+    bool ready;              // the system list is known (cached or live)
+    bool cached;             // rows come from the SD cache, filtered here
+    bool offline;            // the server didn't answer: cached copy shown
+    char notice[96];         // banner: offline / stale copy
+
+    char systems[CAT_MAX_SYSTEMS][8];
     int nsystems, sys;
+
+    CatList lists[CAT_MAX_SYSTEMS];   // cached rows, loaded on first visit
+    bool list_loaded[CAT_MAX_SYSTEMS];
+    int *filtered;                    // rows of lists[sys] passing the filters
+    int filtered_count;
 
     bool ra_only;
     char search[48];
@@ -58,6 +80,7 @@ typedef struct {
     bool loading;            // a page request is in flight (drawn as a spinner)
     UiListAnim anim;
 
+    bool installed_loaded;
     char rom_dir[MAX_PATH_LEN];  // where files of this system go
     CatNameSet files;            // ROM files already in rom_dir
     u64 *titles;                 // installed SD titles (sorted)
@@ -66,6 +89,17 @@ typedef struct {
 
     bool nds_installed;          // a DS game landed in the save scan folder
 } Catalog;
+
+// Kept for the whole session, so switching tabs doesn't reload anything
+static Catalog *g_cat;
+
+// What one load did, for the "Refresh catalog" report
+typedef struct {
+    int fetched;                 // systems downloaded again
+    int unchanged;               // systems kept from the cache
+    int failed;                  // systems that couldn't be fetched
+    int rows[CAT_MAX_SYSTEMS];   // rows per system, -1 unknown
+} LoadSummary;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,6 +142,10 @@ static const char *entry_name(const CatEntry *e) {
     return e->name[0] ? e->name : e->filename;
 }
 
+static void cache_path(const char *system, char *out, size_t size) {
+    snprintf(out, size, CACHE_DIR "/catalog_%s.txt", system);
+}
+
 static void draw_frame(Catalog *cat);
 
 // ---------------------------------------------------------------------------
@@ -122,6 +160,12 @@ static u8 *cat_get(const Catalog *cat, const char *path, u32 *size, u32 *status)
         svcSleepThread(1000000000LL);
         body = network_get(cat->config, path, size, status);
     }
+    // No real HTTP status (seen as -1 when nothing answered): no answer
+    if (*status < 100 || *status > 599) {
+        free(body);
+        body = NULL;
+        *status = 0;
+    }
     return body;
 }
 
@@ -134,13 +178,15 @@ static void describe_failure(u32 status, char *out, size_t size) {
         snprintf(out, size, "Server error (HTTP %lu)", (unsigned long)status);
 }
 
+// Live mode (no fingerprints on the server): the systems it has
 static bool load_systems(Catalog *cat) {
     u32 size = 0, status = 0;
     u8 *body = cat_get(cat, "/roms/systems", &size, &status);
     bool ok = false;
     if (body && status == 200) {
+        int counts[CAT_MAX_SYSTEMS];
         int n = cat_parse_systems((const char *)body, size, cat_systems,
-                                  cat->systems, cat->system_counts, 3);
+                                  cat->systems, counts, CAT_MAX_SYSTEMS);
         if (n < 0) {
             snprintf(cat->error, sizeof(cat->error), "Bad reply from server");
         } else {
@@ -154,6 +200,220 @@ static bool load_systems(Catalog *cat) {
     return ok;
 }
 
+// Download every row of `system` into its cache file
+static bool fetch_system(Catalog *cat, const char *system, const char *fingerprint, int *rows) {
+    CatEntry *page = malloc(CAT_FETCH_PAGE * sizeof(CatEntry));
+    if (!page) {
+        snprintf(cat->error, sizeof(cat->error), "Out of memory");
+        return false;
+    }
+    char path[MAX_PATH_LEN];
+    cache_path(system, path, sizeof(path));
+    CatCacheWriter w;
+    // A fingerprint the cache can't hold gets "-", which never matches:
+    // the system is then fetched every time rather than trusted wrongly
+    if (!cat_cache_begin(&w, path, fingerprint[0] ? fingerprint : "-")) {
+        free(page);
+        snprintf(cat->error, sizeof(cat->error), "Can't write the catalog cache on the SD card");
+        return false;
+    }
+
+    int offset = 0, total = -1;
+    bool ok = false;
+    for (int pages = 0; pages < CAT_FETCH_MAX_PAGES; pages++) {
+        char status_line[64], name[48];
+        snprintf(name, sizeof(name), "%s game list", system);
+        if (total > 0) snprintf(status_line, sizeof(status_line), "%d / %d games", offset, total);
+        else snprintf(status_line, sizeof(status_line), "Downloading...");
+        UiProgress p = { 0 };
+        p.title = "Game Catalog";
+        p.name = name;
+        p.status = status_line;
+        p.frac = total > 0 ? (float)offset / (float)total : -1;
+        ui_progress(&p);
+
+        char url[96];
+        snprintf(url, sizeof(url), "/roms?system=%s&limit=%d&offset=%d", system, CAT_FETCH_PAGE, offset);
+        u32 size = 0, status = 0;
+        u8 *body = cat_get(cat, url, &size, &status);
+        if (!body || status != 200) {
+            describe_failure(body ? status : 0, cat->error, sizeof(cat->error));
+            free(body);
+            break;
+        }
+        CatPageInfo info;
+        int n = cat_parse_page((const char *)body, size, page, CAT_FETCH_PAGE, &info);
+        free(body);
+        if (n < 0) {
+            snprintf(cat->error, sizeof(cat->error), "Bad catalog reply");
+            break;
+        }
+        for (int i = 0; i < n; i++) cat_cache_add(&w, &page[i]);
+        offset += n;
+        total = info.total;
+        if (!info.has_more || n == 0) {
+            ok = true;
+            break;
+        }
+    }
+    free(page);
+    if (!ok) {
+        cat_cache_abort(&w);
+        return false;
+    }
+    if (!cat_cache_end(&w)) {
+        snprintf(cat->error, sizeof(cat->error), "Can't write the catalog cache on the SD card");
+        return false;
+    }
+    if (rows) *rows = offset;
+    return true;
+}
+
+// Drop the loaded rows and the list position (not the installed sets)
+static void unload_lists(Catalog *cat) {
+    for (int i = 0; i < CAT_MAX_SYSTEMS; i++) {
+        cat_list_free(&cat->lists[i]);
+        cat->list_loaded[i] = false;
+    }
+    free(cat->filtered);
+    cat->filtered = NULL;
+    cat->filtered_count = 0;
+    cat->ready = cat->cached = cat->offline = false;
+    cat->notice[0] = cat->error[0] = '\0';
+    cat->nsystems = cat->sys = 0;
+    cat->total = -1;
+    cat->win_off = cat->win_count = 0;
+    cat->selected = cat->scroll = 0;
+    cat->anim.init = false;
+}
+
+// Systems that have a complete cache file, for offline use
+static int cached_systems(Catalog *cat) {
+    int n = 0;
+    for (int i = 0; cat_systems[i] && n < CAT_MAX_SYSTEMS; i++) {
+        char path[MAX_PATH_LEN], fp[CAT_FP_LEN];
+        cache_path(cat_systems[i], path, sizeof(path));
+        if (cat_cache_fingerprint(path, fp, sizeof(fp))) snprintf(cat->systems[n++], 8, "%s", cat_systems[i]);
+    }
+    return n;
+}
+
+// Find out what the server has and bring the cache up to date. False with
+// cat->error set if there is nothing to show.
+static bool load_catalog(Catalog *cat, LoadSummary *sum) {
+    LoadSummary dummy;
+    if (!sum) sum = &dummy;
+    memset(sum, 0, sizeof(*sum));
+    for (int i = 0; i < CAT_MAX_SYSTEMS; i++) sum->rows[i] = -1;
+    unload_lists(cat);
+
+    ui_busy("Game Catalog", "Contacting the server...");
+    u32 size = 0, status = 0;
+    u8 *body = cat_get(cat, "/roms/fingerprints", &size, &status);
+    char fps[CAT_MAX_SYSTEMS][CAT_FP_LEN];
+    int counts[CAT_MAX_SYSTEMS];
+    int n = -1;
+    if (!body) status = 0;
+    if (body && status == 200)
+        n = cat_parse_fingerprints((const char *)body, size, cat_systems, cat->systems, fps, counts,
+                                   CAT_MAX_SYSTEMS);
+    free(body);
+
+    if (n >= 0) {
+        // Cached mode
+        mkdir_parents(CACHE_DIR);
+        cat->cached = true;
+        cat->nsystems = n;
+        // Systems the server no longer has
+        for (int i = 0; cat_systems[i]; i++) {
+            bool listed = false;
+            for (int j = 0; j < n; j++) listed |= strcasecmp(cat->systems[j], cat_systems[i]) == 0;
+            if (!listed) {
+                char path[MAX_PATH_LEN];
+                cache_path(cat_systems[i], path, sizeof(path));
+                remove(path);
+            }
+        }
+        int kept = 0;
+        char failed_error[96] = "";
+        for (int i = 0; i < n; i++) {
+            char path[MAX_PATH_LEN], have[CAT_FP_LEN];
+            cache_path(cat->systems[i], path, sizeof(path));
+            bool have_file = cat_cache_fingerprint(path, have, sizeof(have));
+            if (have_file && fps[i][0] && strcmp(have, fps[i]) == 0) {
+                sum->unchanged++;
+            } else if (fetch_system(cat, cat->systems[i], fps[i], &sum->rows[i])) {
+                sum->fetched++;
+            } else {
+                sum->failed++;
+                snprintf(failed_error, sizeof(failed_error), "%s", cat->error);
+                if (!have_file) continue;  // nothing to show for this system
+                snprintf(cat->notice, sizeof(cat->notice), "%s: couldn't update, showing the cached list",
+                         cat->systems[i]);
+            }
+            if (kept != i) {
+                memcpy(cat->systems[kept], cat->systems[i], sizeof(cat->systems[i]));
+                sum->rows[kept] = sum->rows[i];
+                sum->rows[i] = -1;
+            }
+            kept++;
+        }
+        cat->nsystems = kept;
+        cat->error[0] = '\0';
+        if (kept == 0 && n > 0) {
+            snprintf(cat->error, sizeof(cat->error), "%s", failed_error);
+            return false;
+        }
+        cat->ready = true;
+        return true;
+    }
+
+    if (status == 404 || status == 405) {
+        // A server without fingerprints: browse it live, cache nothing
+        if (!load_systems(cat)) return false;
+        cat->ready = true;
+        return true;
+    }
+
+    // No answer, or an error: the cached copy beats an empty tab
+    describe_failure(status, cat->error, sizeof(cat->error));
+    if (status == 200) snprintf(cat->error, sizeof(cat->error), "Bad reply from server");
+    int cached = cached_systems(cat);
+    if (cached == 0) return false;
+    snprintf(cat->notice, sizeof(cat->notice), "%.60s: showing the cached catalog", cat->error);
+    cat->error[0] = '\0';
+    cat->nsystems = cached;
+    cat->cached = cat->offline = cat->ready = true;
+    return true;
+}
+
+// Cached mode: rows of the current system matching the filters
+static bool apply_filter(Catalog *cat) {
+    int s = cat->sys;
+    if (!cat->list_loaded[s]) {
+        char path[MAX_PATH_LEN];
+        cache_path(cat->systems[s], path, sizeof(path));
+        ui_busy("Game Catalog", "Reading the cached list...");
+        if (!cat_list_load(&cat->lists[s], path)) {
+            // Out of memory, or a damaged file: drop it so A fetches it again
+            if (!cat->offline) remove(path);
+            snprintf(cat->error, sizeof(cat->error), "Couldn't read the cached %s list: A fetches it again",
+                     cat->systems[s]);
+            return false;
+        }
+        cat->list_loaded[s] = true;
+    }
+    free(cat->filtered);
+    cat->filtered = malloc((size_t)(cat->lists[s].count > 0 ? cat->lists[s].count : 1) * sizeof(int));
+    if (!cat->filtered) {
+        cat->filtered_count = 0;
+        snprintf(cat->error, sizeof(cat->error), "Out of memory");
+        return false;
+    }
+    cat->filtered_count = cat_list_filter(&cat->lists[s], cat->search, cat->ra_only, cat->filtered);
+    return true;
+}
+
 static void show_loading(Catalog *cat) {
     cat->loading = true;
     draw_frame(cat);
@@ -162,6 +422,18 @@ static void show_loading(Catalog *cat) {
 
 // Load the page starting at `offset` into the window
 static void fetch_window(Catalog *cat, int offset) {
+    if (cat->cached) {
+        const CatList *list = &cat->lists[cat->sys];
+        int n = 0;
+        for (int i = offset; i < cat->filtered_count && n < CAT_WINDOW; i++, n++)
+            cat_row_to_entry(&list->rows[cat->filtered[i]], &cat->win[n]);
+        cat->win_off = offset;
+        cat->win_count = n;
+        cat->total = cat->filtered_count;
+        cat->filter_ignored = false;
+        return;
+    }
+
     char search[160] = "";
     if (cat->search[0]) {
         char enc[144];
@@ -226,6 +498,7 @@ static void reset_list(Catalog *cat) {
     cat->selected = cat->scroll = 0;
     cat->error[0] = '\0';
     cat->anim.init = false;
+    if (cat->cached && !apply_filter(cat)) return;
     ensure_loaded(cat);
 }
 
@@ -346,37 +619,50 @@ static float ra_badge(float x_right, float y, float h, const CatEntry *e, bool o
 
 static void draw_top(void *ctx) {
     Catalog *cat = ctx;
-    gui_header("Game Catalog");
+    ui_tab_header(UI_TAB_CATALOG);
     GuiHint hints[5];
     int nhints = 0;
     if (cat->nsystems > 1) hints[nhints++] = (GuiHint){ "SELECT", "System" };
-    hints[nhints++] = (GuiHint){ "Y", "RA only" };
-    hints[nhints++] = (GuiHint){ "X", "Search" };
-    hints[nhints++] = (GuiHint){ "L", "-100" };
-    hints[nhints++] = (GuiHint){ "R", "+100" };
+    hints[nhints++] = (GuiHint){ "X", "RA only" };
+    hints[nhints++] = (GuiHint){ "Y", "Search" };
+    hints[nhints++] = (GuiHint){ "LR", "Page" };
+    hints[nhints++] = (GuiHint){ "START", "Exit" };
 
     float px = 8, py = 32, pw = GUI_TOP_W - 16;
     float banner_y = 190;
     const char *banner = NULL;
-    u32 banner_hex = HEX_ERR;
-    if (cat->error[0]) banner = cat->error;
-    else if (cat->filter_ignored) banner = "This server can't filter by RetroAchievements: update it";
-    else if (cat->search[0]) banner_hex = HEX_ACCENT;
+    u32 banner_hex = HEX_ERR, banner_text = HEX_ERR;
+    if (cat->error[0]) {
+        banner = cat->error;
+    } else if (cat->filter_ignored) {
+        banner = "This server can't filter by RetroAchievements: update it";
+    } else if (cat->notice[0]) {
+        banner = cat->notice;
+        banner_hex = HEX_WARN;
+        banner_text = HEX_TEXT;
+    } else if (cat->search[0]) {
+        banner_hex = HEX_ACCENT;
+    }
 
-    const CatEntry *e = (cat->total > 0) ? entry_at(cat, cat->selected) : NULL;
+    const CatEntry *e = (cat->ready && cat->total > 0) ? entry_at(cat, cat->selected) : NULL;
     gui_panel(px, py, pw, 152);
     if (!e) {
-        const char *msg = cat->loading || cat->total < 0 ? "Loading the catalog..."
+        const char *msg = !cat->ready ? (cat->error[0] ? "Couldn't load the catalog" : "Loading the catalog...")
+                        : cat->nsystems == 0 ? "The server has no 3DS or DS games"
+                        : cat->loading || cat->total < 0 ? "Loading the catalog..."
                         : cat->total == 0 ? (cat->search[0] ? "No games match the search"
                                              : cat->ra_only ? "No games with achievements"
                                              : "No games for this system")
                         : "Loading...";
         gui_text(GUI_TOP_W / 2.0f, 92, GUI_S_TITLE, gui_rgb(HEX_DIM), GUI_CENTER, msg);
-        if (cat->total == 0 && cat->search[0])
+        if (!cat->ready && cat->error[0])
             gui_text(GUI_TOP_W / 2.0f, 120, GUI_S_SMALL, gui_rgb(HEX_MUTED), GUI_CENTER,
-                     "X: new search   START: clear the search");
-        else if (cat->total == 0 && cat->ra_only)
-            gui_text(GUI_TOP_W / 2.0f, 120, GUI_S_SMALL, gui_rgb(HEX_MUTED), GUI_CENTER, "Y: show all games");
+                     "A: try again   (check WiFi and the server URL in Settings)");
+        else if (cat->ready && cat->total == 0 && cat->search[0])
+            gui_text(GUI_TOP_W / 2.0f, 120, GUI_S_SMALL, gui_rgb(HEX_MUTED), GUI_CENTER,
+                     "Y: new search   B: clear the search");
+        else if (cat->ready && cat->total == 0 && cat->ra_only)
+            gui_text(GUI_TOP_W / 2.0f, 120, GUI_S_SMALL, gui_rgb(HEX_MUTED), GUI_CENTER, "X: show all games");
     } else {
         float x = px + 12, w = pw - 24;
         int lines = gui_text_wrap(x, py + 8, GUI_S_TITLE, gui_rgb(HEX_TEXT), w, 2, entry_name(e));
@@ -437,14 +723,14 @@ static void draw_top(void *ctx) {
         kv(x, y + 4 * lh, 66, w, "Installed", inst_line, (tid || inst) ? HEX_OK : HEX_DIM);
     }
 
-    // Banner: error, or the active search
+    // Banner: error, offline / stale notice, or the active search
     if (banner || cat->search[0]) {
         char text[128];
         if (banner) snprintf(text, sizeof(text), "%s", banner);
-        else snprintf(text, sizeof(text), "Search: \"%s\"   (START clears)", cat->search);
+        else snprintf(text, sizeof(text), "Search: \"%s\"   (B clears)", cat->search);
         gui_rrect(8, banner_y, GUI_TOP_W - 16, 22, 6, gui_rgb(HEX_BG2));
         gui_rrect(8, banner_y, 4, 22, 2, gui_rgb(banner_hex));
-        gui_text_mid(20, banner_y, 22, GUI_S_SMALL, gui_rgb(banner ? HEX_ERR : HEX_TEXT), GUI_LEFT,
+        gui_text_mid(20, banner_y, 22, GUI_S_SMALL, gui_rgb(banner ? banner_text : HEX_TEXT), GUI_LEFT,
                      GUI_TOP_W - 40, text);
     }
     gui_footer(hints, nhints);
@@ -474,14 +760,14 @@ static void cat_row(void *ctx, int index, float x, float y, float w, float h, bo
 
 static void draw_bottom(void *ctx) {
     Catalog *cat = ctx;
-    bool has_rows = cat->total > 0;
+    bool has_rows = cat->ready && cat->total > 0;
     if (has_rows) {
         ui_list(&cat->anim, 0, CAT_LIST_Y, GUI_BOT_W, CAT_ROWS, CAT_ROW_H, cat->total,
                 cat->selected, cat->scroll, cat_row, cat);
     } else {
-        const char *msg = cat->error[0] && cat->win_count == 0 ? "A: try again   B: back"
-                        : cat->total == 0 ? "Nothing to show" : "";
-        if (cat->total < 0 || cat->loading) {
+        const char *msg = cat->error[0] && cat->win_count == 0 ? "A: try again"
+                        : cat->total == 0 || cat->nsystems == 0 ? "Nothing to show" : "";
+        if (!cat->error[0] && (cat->total < 0 || cat->loading) && cat->nsystems > 0) {
             gui_spinner(GUI_BOT_W / 2.0f, 104, 10, gui_rgb(HEX_ACCENT));
         } else {
             gui_text(GUI_BOT_W / 2.0f, 100, GUI_S_BODY, gui_rgb(HEX_DIM), GUI_CENTER, msg);
@@ -489,24 +775,31 @@ static void draw_bottom(void *ctx) {
     }
 
     gui_header_bar();
-    const char *labels[3];
-    for (int i = 0; i < cat->nsystems && i < 3; i++) labels[i] = cat->systems[i];
+    const char *labels[CAT_MAX_SYSTEMS];
+    for (int i = 0; i < cat->nsystems && i < CAT_MAX_SYSTEMS; i++) labels[i] = cat->systems[i];
     float x = 6;
-    if (cat->nsystems > 0) x = gui_tabs(6, 4, 18, labels, cat->nsystems, cat->sys) + 6;
+    // SELECT cycles the systems: the glyph sits before the segmented control
+    if (cat->nsystems > 1) x += gui_button(x, GUI_HEADER_H / 2.0f, "SELECT") + 4;
+    if (cat->nsystems > 0) x = gui_tabs(x, 4, 18, labels, cat->nsystems, cat->sys) + 6;
     if (cat->ra_only) x += gui_pill(x, 5.5f, 15, GUI_S_TINY, gui_rgb(HEX_RA), gui_rgb(HEX_INK), "RA ONLY") + 4;
-    if (cat->search[0]) gui_pill(x, 5.5f, 15, GUI_S_TINY, gui_rgb(HEX_ACCENT), gui_rgb(HEX_INK), "SEARCH");
+    if (cat->search[0]) x += gui_pill(x, 5.5f, 15, GUI_S_TINY, gui_rgb(HEX_ACCENT), gui_rgb(HEX_INK), "SEARCH") + 4;
+    if (cat->offline) x += gui_pill(x, 5.5f, 15, GUI_S_TINY, gui_rgb(HEX_WARN), gui_rgb(HEX_INK), "OFFLINE") + 4;
     if (cat->loading) {
         gui_spinner(GUI_BOT_W - 14, GUI_HEADER_H / 2.0f, 6, gui_rgb(HEX_ACCENT));
-    } else if (cat->total > 0) {
+    } else if (has_rows) {
         char pos[24];
         snprintf(pos, sizeof(pos), "%d/%d", cat->selected + 1, cat->total);
-        gui_text_mid(GUI_BOT_W - 8, 0, GUI_HEADER_H, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_RIGHT, 0, pos);
+        // Only if it doesn't run into the tabs and pills
+        if (x + gui_text_w(GUI_S_SMALL, pos) < GUI_BOT_W - 8)
+            gui_text_mid(GUI_BOT_W - 8, 0, GUI_HEADER_H, GUI_S_SMALL, gui_rgb(HEX_DIM), GUI_RIGHT, 0, pos);
     }
 
-    static const GuiHint hints[] = {
-        { "A", "Install" }, { "B", "Back" }, { "LR", "Page" }, { "START", "Clear" },
-    };
-    gui_footer(hints, cat->search[0] ? 4 : 3);
+    GuiHint hints[2];
+    int n = 0;
+    if (has_rows) hints[n++] = (GuiHint){ "A", "Install" };
+    else if (cat->error[0]) hints[n++] = (GuiHint){ "A", "Try again" };
+    if (cat->search[0]) hints[n++] = (GuiHint){ "B", "Clear search" };
+    gui_footer(hints, n);
 }
 
 static void draw_frame(Catalog *cat) {
@@ -877,8 +1170,8 @@ static bool run_install(Catalog *cat, const CatEntry *e, const CatPlan *plan, In
                 break;
         }
         if (offer_file) {
-            static const UiButton buttons[] = { { KEY_B | KEY_A, "B", "Back" }, { KEY_X, "X", "Save .3ds" } };
-            return (ui_dialog(UI_TONE_WARN, "Can't convert to CIA", body, buttons, 2) & KEY_X) != 0;
+            static const UiButton buttons[] = { { KEY_B, "B", "Back" }, { KEY_A, "A", "Save .3ds" } };
+            return (ui_dialog(UI_TONE_WARN, "Can't convert to CIA", body, buttons, 2) & KEY_A) != 0;
         }
         ui_message(tone, title, body);
         return false;
@@ -971,66 +1264,89 @@ static bool edit_search(char *search, size_t size) {
     return true;
 }
 
-bool catalog_screen(const AppConfig *config) {
-    Catalog *cat = calloc(1, sizeof(Catalog));
-    CatEntry *win = cat ? malloc(CAT_WINDOW * sizeof(CatEntry)) : NULL;
-    if (!win) {
-        free(cat);
-        ui_message(UI_TONE_ERR, "Game Catalog", "Out of memory.");
-        return false;
+static Catalog *get_catalog(const AppConfig *config) {
+    if (!g_cat) {
+        Catalog *cat = calloc(1, sizeof(Catalog));
+        CatEntry *win = cat ? malloc(CAT_WINDOW * sizeof(CatEntry)) : NULL;
+        if (!win) {
+            free(cat);
+            return NULL;
+        }
+        cat->win = win;
+        cat->total = -1;
+        g_cat = cat;
     }
-    cat->config = config;
-    cat->win = win;
-    cat->total = -1;
+    g_cat->config = config;
+    return g_cat;
+}
+
+// Load (or reload) the catalog and the installed state, then the list
+static void open_catalog(Catalog *cat, LoadSummary *sum) {
+    char current[8] = "";
+    if (cat->nsystems > 0) snprintf(current, sizeof(current), "%s", cat->systems[cat->sys]);
+    if (load_catalog(cat, sum) && cat->nsystems > 0) {
+        // Stay on the system that was showing
+        for (int i = 0; i < cat->nsystems; i++)
+            if (strcmp(cat->systems[i], current) == 0) cat->sys = i;
+        if (!cat->installed_loaded) {
+            ui_busy("Game Catalog", "Looking for installed games...");
+            cat_cia_map_load(&cat->cia_map, CIA_MAP_PATH);
+            load_installed_titles(cat);
+            cat->installed_loaded = true;
+        }
+        scan_installed(cat);
+        reset_list(cat);
+    }
+}
+
+UiNav catalog_tab(const AppConfig *config, bool *saves_changed) {
+    if (saves_changed) *saves_changed = false;
+    Catalog *cat = get_catalog(config);
+    if (!cat) {
+        ui_message(UI_TONE_ERR, "Game Catalog", "Out of memory.");
+        return UI_NAV_NEXT;
+    }
 
     UiBackdrop prev = ui_set_backdrop(draw_top, draw_bottom, cat);
-    ui_busy("Game Catalog", "Contacting the server...");
-    if (!load_systems(cat)) {
-        char text[192];
-        snprintf(text, sizeof(text), "%s\n\n" UI_DIM "Check WiFi and the server URL.", cat->error);
-        cat->error[0] = '\0';
-        ui_message(UI_TONE_ERR, "Game Catalog", text);
-        goto done;
-    }
-    if (cat->nsystems == 0) {
-        ui_message(UI_TONE_INFO, "Game Catalog", "The server has no 3DS or DS games.");
-        goto done;
-    }
-
-    ui_busy("Game Catalog", "Looking for installed games...");
-    cat_cia_map_load(&cat->cia_map, CIA_MAP_PATH);
-    load_installed_titles(cat);
-    scan_installed(cat);
-    reset_list(cat);
+    if (!cat->ready) open_catalog(cat, NULL);
     hidSetRepeatParameters(20, 4);
 
+    UiNav nav = UI_NAV_EXIT;  // the app is closing unless a key says otherwise
+    hidScanInput();
     while (aptMainLoop()) {
         draw_frame(cat);
         hidScanInput();
         u32 down = hidKeysDown();
         u32 rep = hidKeysDownRepeat();
 
-        if (down & KEY_B) break;
+        UiNav n = ui_tab_nav(down);
+        if (n != UI_NAV_STAY) {
+            nav = n;
+            break;
+        }
+
+        if (!cat->ready || cat->nsystems == 0) {
+            if (down & KEY_A) open_catalog(cat, NULL);
+            continue;
+        }
 
         if (rep & KEY_DOWN) move_to(cat, cat->selected + 1, true);
         if (rep & KEY_UP) move_to(cat, cat->selected - 1, true);
         if (rep & KEY_RIGHT) move_to(cat, cat->selected + CAT_ROWS, false);
         if (rep & KEY_LEFT) move_to(cat, cat->selected - CAT_ROWS, false);
-        if (rep & KEY_R) move_to(cat, cat->selected + CAT_JUMP, false);
-        if (rep & KEY_L) move_to(cat, cat->selected - CAT_JUMP, false);
         if ((down & KEY_TOUCH) && cat->total > 0) {
             int i = ui_list_touch(CAT_LIST_Y, CAT_ROWS, CAT_ROW_H, cat->total, cat->scroll);
             if (i >= 0) move_to(cat, i, false);
         }
 
-        if (down & KEY_Y) {
+        if (down & KEY_X) {
             cat->ra_only = !cat->ra_only;
             reset_list(cat);
         }
-        if (down & KEY_X) {
+        if (down & KEY_Y) {
             if (edit_search(cat->search, sizeof(cat->search))) reset_list(cat);
         }
-        if ((down & KEY_START) && cat->search[0]) {
+        if ((down & KEY_B) && cat->search[0]) {
             cat->search[0] = '\0';
             reset_list(cat);
         }
@@ -1041,9 +1357,11 @@ bool catalog_screen(const AppConfig *config) {
         }
         if (down & KEY_A) {
             if (cat->error[0]) {
-                // Retry after a failed page
+                // Retry: a broken cache file was removed, so reopening
+                // fetches that system again; live mode refetches the page
                 cat->error[0] = '\0';
-                if (cat->total < 0) reset_list(cat);
+                if (cat->cached) open_catalog(cat, NULL);
+                else if (cat->total < 0) reset_list(cat);
                 else fetch_window(cat, cat_window_start(cat->scroll, CAT_ROWS, CAT_WINDOW, cat->total, cat->direction));
             } else {
                 const CatEntry *e = cat->total > 0 ? entry_at(cat, cat->selected) : NULL;
@@ -1052,13 +1370,91 @@ bool catalog_screen(const AppConfig *config) {
         }
     }
 
-done:;
     ui_restore_backdrop(prev);
-    bool rescan = cat->nds_installed;
-    cat_names_free(&cat->files);
-    cat_cia_map_free(&cat->cia_map);
-    free(cat->titles);
-    free(cat->win);
-    free(cat);
-    return rescan;
+    if (saves_changed) *saves_changed = cat->nds_installed;
+    cat->nds_installed = false;
+    return nav;
+}
+
+static void wipe_cache(void) {
+    for (int i = 0; cat_systems[i]; i++) {
+        char path[MAX_PATH_LEN], part[MAX_PATH_LEN + 8];
+        cache_path(cat_systems[i], path, sizeof(path));
+        snprintf(part, sizeof(part), "%s.part", path);
+        remove(path);
+        remove(part);
+    }
+}
+
+void catalog_refresh(const AppConfig *config, char *report, size_t size) {
+    Catalog *cat = get_catalog(config);
+    if (!cat) {
+        snprintf(report, size, "Out of memory.");
+        return;
+    }
+
+    // 1. Ask the server to walk its ROM folder again (it answers when done)
+    ui_busy("Refresh catalog", "Asking the server to rescan its ROMs...");
+    u32 len = 0, status = 0;
+    u8 *body = network_get_timeout(config, "/roms/scan", &len, &status, RESCAN_TIMEOUT_S);
+    char rescan[128];
+    if (!body || status < 100 || status > 599) status = 0;
+    int count = (body && status == 200) ? cat_parse_scan_count((const char *)body, len) : -1;
+    free(body);
+    if (status == 200 && count >= 0)
+        snprintf(rescan, sizeof(rescan), "Server rescan: %d ROMs.", count);
+    else if (status == 200)
+        snprintf(rescan, sizeof(rescan), "Server rescan: done.");
+    else if (status == 403)
+        snprintf(rescan, sizeof(rescan), "The server only lets admins rescan: fetched its current list.");
+    else if (status == 404 || status == 405)
+        snprintf(rescan, sizeof(rescan), "This server can't rescan on request: fetched its current list.");
+    else if (status == 0)
+        snprintf(rescan, sizeof(rescan), "Server rescan: no answer, continuing.");
+    else
+        snprintf(rescan, sizeof(rescan), "Server rescan failed (HTTP %lu), continuing.", (unsigned long)status);
+
+    // 2. Throw the cached copy away and fetch every system again
+    wipe_cache();
+    LoadSummary sum;
+    open_catalog(cat, &sum);
+
+    int pos = snprintf(report, size, "%s\n\n", rescan);
+    if (pos < 0 || (size_t)pos >= size) return;
+    if (!cat->ready) {
+        snprintf(report + pos, size - pos, UI_HI "Couldn't load the catalog:\n%s", cat->error);
+    } else if (!cat->cached) {
+        snprintf(report + pos, size - pos, UI_DIM "This server doesn't publish catalog fingerprints, "
+                 "so the catalog isn't cached: it is read live from the server.");
+    } else if (cat->nsystems == 0) {
+        snprintf(report + pos, size - pos, "The server has no 3DS or DS games.");
+    } else {
+        pos += snprintf(report + pos, size - pos, "Downloaded:");
+        for (int i = 0; i < cat->nsystems && pos < (int)size; i++)
+            pos += snprintf(report + pos, size - pos, "%s %s %d", i ? "," : "", cat->systems[i],
+                            sum.rows[i] >= 0 ? sum.rows[i] : 0);
+        if (pos < (int)size) pos += snprintf(report + pos, size - pos, " games.");
+        if (sum.failed && pos < (int)size)
+            snprintf(report + pos, size - pos, "\n" UI_HI "%d system%s failed: %s", sum.failed,
+                     sum.failed == 1 ? "" : "s", cat->notice[0] ? cat->notice : "see the catalog");
+    }
+}
+
+void catalog_reset(void) {
+    if (!g_cat) return;
+    unload_lists(g_cat);
+    cat_names_free(&g_cat->files);
+    cat_cia_map_free(&g_cat->cia_map);
+    free(g_cat->titles);
+    g_cat->titles = NULL;
+    g_cat->title_count = 0;
+    g_cat->installed_loaded = false;
+}
+
+void catalog_exit(void) {
+    if (!g_cat) return;
+    catalog_reset();
+    free(g_cat->win);
+    free(g_cat);
+    g_cat = NULL;
 }

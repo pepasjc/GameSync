@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define CAT_ID_LEN 224     // rom_id (slug of the name; ~200 max seen)
 #define CAT_NAME_LEN 176   // display name
@@ -155,5 +156,93 @@ void cat_names_free(CatNameSet *set);
 // e.g. {".nds", ".dsi", NULL}), recursive to `max_depth`, "saves" folders
 // and dot-files skipped. Returns the number of files added.
 int cat_names_scan(CatNameSet *set, const char *dir, int max_depth, const char *const *exts);
+
+// ---------------------------------------------------------------------------
+// Catalog cache: one file per system on the SD card, kept with the server's
+// fingerprint for that system (GET /api/v1/roms/fingerprints). Same strategy
+// as the MiSTer client (mister/gamesync/catalogcache.py): only systems whose
+// fingerprint moved are fetched again, and a server that can't be reached
+// leaves the last copy usable.
+//
+// File format (UTF-8 text, one row per line, fields tab-separated, with
+// '\\', tab, CR and LF escaped as \\ \t \r \n):
+//   GSCAT <CAT_CACHE_VERSION>\t<fingerprint>
+//   <flags hex>\t<size>\t<ra_game_id>\t<ra_achievements>\t<rom_id>\t<title_id>\t<filename>\t<name>
+//   ...
+//   END\t<row count>
+// A file without the END line (interrupted write) or with another version
+// is ignored. Rows keep the server's order.
+// ---------------------------------------------------------------------------
+
+// Bump when the stored row fields change, so an old cache is refetched
+#define CAT_CACHE_VERSION 1
+#define CAT_FP_LEN 72         // fingerprint (a 40-hex sha1 today)
+
+enum {
+    CAT_ROW_RA_TITLE_ONLY = 1 << 0,
+    CAT_ROW_EXTRACT_NDS = 1 << 1,
+    CAT_ROW_EXTRACT_CIA = 1 << 2,
+    CAT_ROW_BUNDLE = 1 << 3,
+    CAT_ROW_TRUNCATED = 1 << 4,
+};
+
+// One cached row; the strings point into the list's text buffer
+typedef struct {
+    const char *rom_id, *title_id, *filename, *name;
+    uint64_t size;
+    int32_t ra_game_id, ra_achievements;
+    uint8_t flags;
+} CatRow;
+
+typedef struct {
+    char *text;              // the file contents, unescaped in place
+    CatRow *rows;
+    int count;
+    char fingerprint[CAT_FP_LEN];
+} CatList;
+
+// Load a cache file. False (and an empty list) if it is missing, from
+// another cache version, cut short or malformed.
+bool cat_list_load(CatList *list, const char *path);
+void cat_list_free(CatList *list);
+// Fingerprint stored in a cache file's header, without loading the rows.
+// False if there is no usable header.
+bool cat_cache_fingerprint(const char *path, char *out, size_t size);
+
+void cat_row_to_entry(const CatRow *row, CatEntry *out);
+
+// Rows matching the filters, as indices into list->rows (in list order).
+// `search` is a case-insensitive substring of the name or the file name
+// (the server's ?search= rule); ra_only keeps rows with an achievement set
+// (the server's ?has_ra=true rule). `out` holds list->count ints.
+int cat_list_filter(const CatList *list, const char *search, bool ra_only, int *out);
+
+// Case-insensitive (ASCII) substring test; an empty needle matches
+bool cat_icontains(const char *haystack, const char *needle);
+
+// Writes <path>.part and renames it over <path> when finished
+typedef struct {
+    FILE *f;
+    char path[256];
+    int count;
+    bool failed;
+} CatCacheWriter;
+
+bool cat_cache_begin(CatCacheWriter *w, const char *path, const char *fingerprint);
+void cat_cache_add(CatCacheWriter *w, const CatEntry *e);
+// Finish: true if the file is complete and in place
+bool cat_cache_end(CatCacheWriter *w);
+// Throw the partial file away
+void cat_cache_abort(CatCacheWriter *w);
+
+// Parse /api/v1/roms/fingerprints: {"systems": {"NDS": {"fingerprint":
+// "...", "count": N}, ...}}. Stores the systems in `wanted` (NULL-terminated)
+// that the server lists, in `wanted` order. Returns how many, -1 on bad JSON.
+int cat_parse_fingerprints(const char *json, size_t len, const char *const *wanted,
+                           char systems[][8], char fingerprints[][CAT_FP_LEN], int *counts, int max);
+
+// Parse the /api/v1/roms/scan reply ({"status": "ok", "count": N}): the
+// ROM count, or -1 if it isn't one
+int cat_parse_scan_count(const char *json, size_t len);
 
 #endif

@@ -290,12 +290,11 @@ static void do_batch_upload(int marked) {
     set_status(fail_count ? UI_TONE_WARN : UI_TONE_OK, "Batch upload: %d OK, %d failed", ok_count, fail_count);
 }
 
-static void do_smart_sync(void) {
-    int idx = sel_title_idx();
-    if (idx < 0) return;
+// Fetch the server's view of title `idx` into last_details; false on failure
+static bool compare_title(int idx, const char *what) {
     TitleInfo *t = &titles[idx];
     UiProgress pr = { 0 };
-    pr.title = "Smart Sync";
+    pr.title = what;
     pr.name = t->name;
     pr.status = "Comparing with the server...";
     pr.frac = -1;
@@ -304,42 +303,127 @@ static void do_smart_sync(void) {
     if (!sync_get_save_details(&config, t, &last_details)) {
         last_details_idx = -1;
         set_status(UI_TONE_ERR, "Failed to load save details");
-        return;
+        return false;
     }
     last_details_idx = idx;
-    SyncAction suggested = sync_decide(&last_details);
-    switch (suggested) {
+    switch (sync_decide(&last_details)) {
         case SYNC_ACTION_UPLOAD:   t->sync_state = TSTATE_NEEDS_UPLOAD; break;
         case SYNC_ACTION_DOWNLOAD: t->sync_state = TSTATE_NEEDS_DOWNLOAD; break;
         case SYNC_ACTION_CONFLICT: t->sync_state = TSTATE_CONFLICT; break;
         default:                   t->sync_state = TSTATE_SYNCED; break;
     }
+    return true;
+}
+
+static void upload_title(TitleInfo *t) {
+    op_title = "Uploading";
+    SyncResult res = sync_title(&config, t, sync_progress);
+    if (res == SYNC_OK) {
+        set_status(UI_TONE_OK, "Uploaded: %.40s", t->name);
+        t->in_conflict = false;
+        t->sync_state = TSTATE_UPLOADED;
+    } else {
+        set_status(UI_TONE_ERR, "Upload failed: %s", sync_result_str(res));
+        t->sync_state = TSTATE_FAILED;
+    }
+    last_details_idx = -1;
+}
+
+static void download_title(TitleInfo *t) {
+    op_title = "Downloading";
+    SyncResult res = sync_download_title(&config, t, sync_progress);
+    if (res == SYNC_OK) {
+        set_status(UI_TONE_OK, "Downloaded: %.40s", t->name);
+        t->in_conflict = false;
+        t->sync_state = TSTATE_DOWNLOADED;
+    } else {
+        set_status(UI_TONE_ERR, "Download failed: %s", sync_result_str(res));
+        t->sync_state = TSTATE_FAILED;
+    }
+    last_details_idx = -1;
+}
+
+static void toggle_mark(int idx) {
+    titles[idx].marked = !titles[idx].marked;
+    int mc = count_marked();
+    if (mc > 0)
+        set_status(UI_TONE_ACCENT, "%d title%s marked: A uploads them", mc, mc == 1 ? "" : "s");
+    else
+        set_status(UI_TONE_ACCENT, "Marks cleared");
+}
+
+// Y: what can be done with the selected save, as a list
+static void do_save_menu(void) {
+    int idx = sel_title_idx();
+    if (idx < 0) return;
+    TitleInfo *t = &titles[idx];
+    enum { M_COMPARE, M_UPLOAD, M_DOWNLOAD, M_HISTORY, M_MARK, M_UNMARK_ALL };
+    const char *items[6];
+    int ids[6], n = 0;
+    char unmark_all[32];
+    items[n] = "Compare with the server"; ids[n++] = M_COMPARE;
+    items[n] = "Upload to the server"; ids[n++] = M_UPLOAD;
+    items[n] = "Download from the server"; ids[n++] = M_DOWNLOAD;
+    items[n] = "History: restore an older version"; ids[n++] = M_HISTORY;
+    items[n] = t->marked ? "Unmark" : "Mark for batch upload"; ids[n++] = M_MARK;
+    int marked = count_marked();
+    if (marked > 0) {
+        snprintf(unmark_all, sizeof(unmark_all), "Unmark all (%d)", marked);
+        items[n] = unmark_all;
+        ids[n++] = M_UNMARK_ALL;
+    }
+    int pick = ui_choose(UI_TONE_ACCENT, t->name, items, n);
+    if (pick < 0) return;
+
+    switch (ids[pick]) {
+        case M_COMPARE:
+            if (compare_title(idx, "Save details")) ui_show_save_details(t, &last_details);
+            break;
+        case M_UPLOAD:
+            if (!compare_title(idx, "Upload")) break;
+            if (!last_details.local_exists) {
+                ui_message(UI_TONE_INFO, "Upload", "This console has no save for this game yet.");
+            } else if (ui_confirm_sync(t, &last_details, true)) {
+                upload_title(t);
+            } else {
+                set_status(UI_TONE_ACCENT, "Upload cancelled");
+            }
+            break;
+        case M_DOWNLOAD:
+            if (!compare_title(idx, "Download")) break;
+            if (!last_details.server_exists) {
+                ui_message(UI_TONE_INFO, "Download", "The server has no save for this game yet.");
+            } else if (ui_confirm_sync(t, &last_details, false)) {
+                download_title(t);
+            } else {
+                set_status(UI_TONE_ACCENT, "Download cancelled");
+            }
+            break;
+        case M_HISTORY:
+            do_history();
+            break;
+        case M_MARK:
+            toggle_mark(idx);
+            break;
+        default:
+            clear_marks();
+            set_status(UI_TONE_ACCENT, "Marks cleared");
+            break;
+    }
+}
+
+static void do_smart_sync(void) {
+    int idx = sel_title_idx();
+    if (idx < 0) return;
+    TitleInfo *t = &titles[idx];
+    if (!compare_title(idx, "Smart Sync")) return;
+    SyncAction suggested = sync_decide(&last_details);
 
     SyncAction chosen = ui_confirm_smart_sync(t, &last_details, suggested);
     if (chosen == SYNC_ACTION_UPLOAD) {
-        op_title = "Uploading";
-        SyncResult res = sync_title(&config, t, sync_progress);
-        if (res == SYNC_OK) {
-            set_status(UI_TONE_OK, "Uploaded: %.40s", t->name);
-            t->in_conflict = false;
-            t->sync_state = TSTATE_UPLOADED;
-        } else {
-            set_status(UI_TONE_ERR, "Upload failed: %s", sync_result_str(res));
-            t->sync_state = TSTATE_FAILED;
-        }
-        last_details_idx = -1;
+        upload_title(t);
     } else if (chosen == SYNC_ACTION_DOWNLOAD) {
-        op_title = "Downloading";
-        SyncResult res = sync_download_title(&config, t, sync_progress);
-        if (res == SYNC_OK) {
-            set_status(UI_TONE_OK, "Downloaded: %.40s", t->name);
-            t->in_conflict = false;
-            t->sync_state = TSTATE_DOWNLOADED;
-        } else {
-            set_status(UI_TONE_ERR, "Download failed: %s", sync_result_str(res));
-            t->sync_state = TSTATE_FAILED;
-        }
-        last_details_idx = -1;
+        download_title(t);
     } else if (suggested == SYNC_ACTION_UP_TO_DATE) {
         set_status(UI_TONE_OK, "Up to date: %.40s", t->name);
     } else {
@@ -408,17 +492,20 @@ static void do_sync_all(void) {
     }
 }
 
-// Returns true if the app should exit (update installed, not relaunched)
+// Settings > Check for updates. Returns true if the app should exit
+// (update installed, not relaunched).
 static bool do_update(void) {
     ui_busy("Update", "Checking for updates...");
 
     UpdateInfo update_info;
     if (!update_check(&config, &update_info)) {
-        set_status(UI_TONE_ERR, "Update check failed");
+        ui_message(UI_TONE_ERR, "Update", "Update check failed.\n\n" UI_DIM "Check WiFi and the server URL.");
         return false;
     }
     if (!update_info.available) {
-        set_status(UI_TONE_OK, "You have the latest version (%s)", APP_VERSION);
+        char body[96];
+        snprintf(body, sizeof(body), "You have the latest version (%s).", APP_VERSION);
+        ui_message(UI_TONE_OK, "Up to date", body);
         return false;
     }
 
@@ -427,15 +514,13 @@ static bool do_update(void) {
              "Current  %s\n" UI_HI "Latest    %s\n" UI_DIM "Size       %lu KB\n\n"
              "Download and install it now?",
              APP_VERSION, update_info.latest_version, (unsigned long)(update_info.file_size / 1024));
-    if (!ui_confirm(UI_TONE_ACCENT, "Update available", body, "Install")) {
-        set_status(UI_TONE_ACCENT, "Update cancelled");
+    if (!ui_confirm(UI_TONE_ACCENT, "Update available", body, "Install"))
         return false;
-    }
 
     update_phase = "Downloading update";
     update_progress_cb(0);
     if (!update_download(&config, update_info.download_url, update_progress_cb)) {
-        set_status(UI_TONE_ERR, "Update download failed");
+        ui_message(UI_TONE_ERR, "Update", "Update download failed.");
         return false;
     }
     update_phase = "Installing update";
@@ -443,7 +528,6 @@ static bool do_update(void) {
     char install_error[128] = {0};
     if (!update_install(update_progress_cb, install_error, sizeof(install_error))) {
         ui_message(UI_TONE_ERR, "Install failed", install_error);
-        set_status(UI_TONE_ERR, "Install failed");
         return false;
     }
 
@@ -461,6 +545,135 @@ static bool do_update(void) {
     wait_for_start(UI_TONE_OK, "Update installed",
                    "Please restart the application to use the new version.");
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+
+static bool saves_need_rescan = false;
+
+// Saves tab: runs until the user switches tab or exits
+static UiNav saves_tab(void) {
+    ui_set_backdrop(saves_top, saves_bottom, NULL);
+    if (saves_need_rescan) {
+        saves_need_rescan = false;
+        scan_titles();
+        set_status(UI_TONE_OK, "Rescanned. %d title%s found.", title_count, title_count == 1 ? "" : "s");
+    }
+
+    hidScanInput();
+    while (aptMainLoop()) {
+        gui_begin(true);
+        gui_screen(GUI_TOP);
+        saves_top(NULL);
+        gui_screen(GUI_BOTTOM);
+        saves_bottom(NULL);
+        gui_end();
+
+        hidScanInput();
+        u32 kDown = hidKeysDown();
+        u32 kRep = hidKeysDownRepeat();
+
+        UiNav nav = ui_tab_nav(kDown);
+        if (nav != UI_NAV_STAY) return nav;
+
+        if (kRep & KEY_DOWN && filtered_count > 0) {
+            selected = (selected + 1) % filtered_count;
+            update_scroll();
+        }
+        if (kRep & KEY_UP && filtered_count > 0) {
+            selected = (selected - 1 + filtered_count) % filtered_count;
+            update_scroll();
+        }
+        // Page down
+        if (kRep & KEY_RIGHT && filtered_count > 0) {
+            selected += LIST_VISIBLE;
+            if (selected >= filtered_count) selected = filtered_count - 1;
+            update_scroll();
+        }
+        // Page up
+        if (kRep & KEY_LEFT && filtered_count > 0) {
+            selected -= LIST_VISIBLE;
+            if (selected < 0) selected = 0;
+            update_scroll();
+        }
+
+        // Tap a row to select it; a tap on its mark box toggles the mark
+        if (kDown & KEY_TOUCH && filtered_count > 0) {
+            int i = ui_list_touch(SAVES_LIST_Y, SAVES_ROWS, SAVES_ROW_H, filtered_count, scroll_offset);
+            if (i >= 0) {
+                touchPosition touch;
+                hidTouchRead(&touch);
+                selected = i;
+                if (touch.px < SAVES_MARK_W) toggle_mark(filtered[i]);
+            }
+        }
+
+        // SELECT: cycle the view (All -> 3DS -> NDS -> All)
+        if (kDown & KEY_SELECT) {
+            view_mode = (view_mode + 1) % 3;
+            rebuild_filter();
+            const char *names[] = {"All", "3DS", "NDS"};
+            set_status(UI_TONE_ACCENT, "View: %s (%d title%s)", names[view_mode], filtered_count,
+                       filtered_count == 1 ? "" : "s");
+        }
+
+        // Y: details and actions for the selected save
+        if (kDown & KEY_Y && filtered_count > 0)
+            do_save_menu();
+
+        if (kDown & KEY_A && filtered_count > 0) {
+            int marked = count_marked();
+            if (marked > 0)
+                do_batch_upload(marked);
+            else
+                do_smart_sync();
+        }
+
+        if (kDown & KEY_X && title_count > 0) {
+            int keep = selected, keep_scroll = scroll_offset;
+            do_sync_all();
+            // The list itself didn't change: stay where we were
+            if (keep < filtered_count) {
+                selected = keep;
+                scroll_offset = keep_scroll;
+            }
+        }
+
+        // B: cancel the batch selection
+        if (kDown & KEY_B && count_marked() > 0) {
+            clear_marks();
+            set_status(UI_TONE_ACCENT, "Marks cleared");
+        }
+    }
+    return UI_NAV_EXIT;
+}
+
+// Settings entries that run something (over the settings screen)
+static bool settings_action(SettingsResult action) {
+    switch (action) {
+        case SETTINGS_RESCAN: {
+            scan_titles();
+            saves_need_rescan = false;
+            char body[64];
+            snprintf(body, sizeof(body), "%d title%s with save data found.", title_count,
+                     title_count == 1 ? "" : "s");
+            set_status(UI_TONE_OK, "Rescanned. %s", body);
+            ui_message(UI_TONE_OK, "Rescan titles", body);
+            return false;
+        }
+        case SETTINGS_REFRESH_CATALOG: {
+            char report[512];
+            catalog_refresh(&config, report, sizeof(report));
+            ui_message(UI_TONE_ACCENT, "Refresh catalog", report);
+            return false;
+        }
+        case SETTINGS_UPDATE:
+            return do_update();
+        default:
+            return false;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -517,128 +730,33 @@ int main(int argc, char *argv[]) {
     ui_set_backdrop(saves_top, saves_bottom, NULL);
     hidSetRepeatParameters(20, 4);
 
-    // Main loop
-    while (aptMainLoop()) {
-        gui_begin(true);
-        gui_screen(GUI_TOP);
-        saves_top(NULL);
-        gui_screen(GUI_BOTTOM);
-        saves_bottom(NULL);
-        gui_end();
-
-        hidScanInput();
-        u32 kDown = hidKeysDown();
-        u32 kRep = hidKeysDownRepeat();
-
-        if (kDown & KEY_START)
-            break;
-
-        if (kRep & KEY_DOWN && filtered_count > 0) {
-            selected = (selected + 1) % filtered_count;
-            update_scroll();
-        }
-
-        if (kRep & KEY_UP && filtered_count > 0) {
-            selected = (selected - 1 + filtered_count) % filtered_count;
-            update_scroll();
-        }
-
-        // Page down
-        if (kRep & KEY_RIGHT && filtered_count > 0) {
-            selected += LIST_VISIBLE;
-            if (selected >= filtered_count) selected = filtered_count - 1;
-            update_scroll();
-        }
-
-        // Page up
-        if (kRep & KEY_LEFT && filtered_count > 0) {
-            selected -= LIST_VISIBLE;
-            if (selected < 0) selected = 0;
-            update_scroll();
-        }
-
-        // Tap a row to select it
-        if (kDown & KEY_TOUCH && filtered_count > 0) {
-            int i = ui_list_touch(SAVES_LIST_Y, SAVES_ROWS, SAVES_ROW_H, filtered_count, scroll_offset);
-            if (i >= 0) selected = i;
-        }
-
-        // R button - cycle view mode (All -> 3DS -> NDS -> All)
-        if (kDown & KEY_R) {
-            view_mode = (view_mode + 1) % 3;
-            rebuild_filter();
-            const char *names[] = {"All", "3DS", "NDS"};
-            set_status(UI_TONE_ACCENT, "View: %s (%d title%s)", names[view_mode], filtered_count,
-                       filtered_count == 1 ? "" : "s");
-        }
-
-        // Y button - show history
-        if (kDown & KEY_Y && filtered_count > 0)
-            do_history();
-
-        if (kDown & KEY_A && filtered_count > 0) {
-            int marked = count_marked();
-            if (marked > 0)
-                do_batch_upload(marked);
-            else
-                do_smart_sync();
-        }
-
-        if (kDown & KEY_X && title_count > 0) {
-            int keep = selected, keep_scroll = scroll_offset;
-            do_sync_all();
-            // The list itself didn't change: stay where we were
-            if (keep < filtered_count) {
-                selected = keep;
-                scroll_offset = keep_scroll;
+    // Top-level tabs: L / R cycle Saves -> Catalog -> Settings, wrapping
+    int tab = UI_TAB_SAVES;
+    for (;;) {
+        UiNav nav;
+        if (tab == UI_TAB_SAVES) {
+            nav = saves_tab();
+        } else if (tab == UI_TAB_CATALOG) {
+            bool saves_changed = false;
+            nav = catalog_tab(&config, &saves_changed);
+            if (saves_changed) saves_need_rescan = true;
+        } else {
+            AppConfig before = config;
+            SettingsResult r = ui_settings_tab(&config, settings_action);
+            if (strcmp(before.server_url, config.server_url) != 0 || strcmp(before.api_key, config.api_key) != 0)
+                catalog_reset();  // another server: load its catalog on the next visit
+            if (strcmp(before.nds_dir, config.nds_dir) != 0) {
+                saves_need_rescan = true;
+                catalog_reset();  // the installed DS games live elsewhere now
             }
+            nav = r == SETTINGS_NAV_PREV ? UI_NAV_PREV : r == SETTINGS_NAV_NEXT ? UI_NAV_NEXT : UI_NAV_EXIT;
         }
-
-        // SELECT button - toggle mark on current item
-        if (kDown & KEY_SELECT && filtered_count > 0) {
-            int idx = sel_title_idx();
-            if (idx >= 0) {
-                titles[idx].marked = !titles[idx].marked;
-                int mc = count_marked();
-                if (mc > 0)
-                    set_status(UI_TONE_ACCENT, "%d title%s marked", mc, mc == 1 ? "" : "s");
-                else
-                    set_status(UI_TONE_ACCENT, "Marks cleared");
-            }
-        }
-
-        // B button (or the config menu entry) - game catalog
-        bool open_catalog = (kDown & KEY_B) != 0;
-
-        // L button - config editor (includes rescan + update options)
-        if (kDown & KEY_L) {
-            int result = ui_show_config_editor(&config);
-            if (result == CONFIG_RESULT_CATALOG) {
-                open_catalog = true;
-            } else if (result == CONFIG_RESULT_RESCAN) {
-                scan_titles();
-                set_status(UI_TONE_OK, "Rescanned. %d title%s found.", title_count, title_count == 1 ? "" : "s");
-            } else if (result == CONFIG_RESULT_SAVED) {
-                set_status(UI_TONE_OK, "Settings saved. Server: %.30s", config.server_url);
-            } else if (result == CONFIG_RESULT_UPDATE) {
-                if (do_update()) goto cleanup;
-            } else {
-                set_status(UI_TONE_ACCENT, "Settings unchanged");
-            }
-        }
-
-        if (open_catalog) {
-            if (catalog_screen(&config)) {
-                scan_titles();
-                set_status(UI_TONE_OK, "Catalog closed. %d title%s found.", title_count, title_count == 1 ? "" : "s");
-            } else {
-                set_status(UI_TONE_ACCENT, "Catalog closed");
-            }
-        }
+        if (nav == UI_NAV_EXIT) break;
+        tab = (tab + (nav == UI_NAV_NEXT ? 1 : UI_TAB_COUNT - 1)) % UI_TAB_COUNT;
     }
 
-cleanup:
     // Cleanup
+    catalog_exit();
     network_exit();
     card_spi_exit();
     psExit();
