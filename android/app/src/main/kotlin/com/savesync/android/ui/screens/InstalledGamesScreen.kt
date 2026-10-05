@@ -26,6 +26,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -63,8 +64,16 @@ import com.savesync.android.installed.InstalledRom
 import com.savesync.android.installed.InstalledRomsScanner
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.SaveDetailState
+import com.savesync.android.ui.components.GsButton
+import com.savesync.android.ui.components.GsConfirmDialog
+import com.savesync.android.ui.components.GsDialog
+import com.savesync.android.ui.components.GsDialogChoice
+import com.savesync.android.ui.components.GsFooterHints
+import com.savesync.android.ui.components.GsHint
+import com.savesync.android.ui.components.GsListRow
+import com.savesync.android.ui.components.GsTopBar
 import com.savesync.android.ui.components.SystemFilterChip
-import com.savesync.android.ui.components.TabSwitchBar
+import com.savesync.android.ui.theme.GsColors
 import com.savesync.android.ui.components.firstLetter
 import com.savesync.android.ui.components.handleHorizontalHoldKeyEvent
 import com.savesync.android.ui.components.rememberHoldNavState
@@ -102,6 +111,8 @@ fun InstalledGamesScreen(
     var query by remember { mutableStateOf("") }
     var systemFilter by remember { mutableStateOf<String?>(null) }
     var confirmTarget by remember { mutableStateOf<InstalledRom?>(null) }
+    // Second step of Delete: "really delete?" (can't be undone).
+    var deleteTarget by remember { mutableStateOf<InstalledRom?>(null) }
     var searchVisible by remember { mutableStateOf(false) }
 
     // ── Gamepad navigation state ────────────────────────────────────────
@@ -189,9 +200,9 @@ fun InstalledGamesScreen(
         systemFilter = all[next]
     }
 
-    // L2/R2 (triggers) cycle the system filter globally — Activity emits the
-    // delta on systemCycleEvents and we apply it here so the toolbar chip
-    // stays in sync.
+    // SELECT cycles the system filter (the sub-tab chip) — the Activity
+    // emits on systemCycleEvents and we apply it here so the chip stays in
+    // sync.
     val activity = LocalContext.current.findComponentActivity() as? MainActivity
     LaunchedEffect(activity, systems, systemFilter) {
         activity?.systemCycleEvents?.collect { delta -> cycleSystem(delta) }
@@ -199,36 +210,50 @@ fun InstalledGamesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        TabSwitchBar(
-                            activeTabIndex = 2,
-                            onTabClick = onNavigateToTab,
-                        )
-                        SystemFilterChip(
-                            label = systemFilter ?: ALL_SYSTEMS_LABEL,
-                            options = listOf(ALL_SYSTEMS_LABEL) + systems,
-                            onSelect = { choice ->
-                                systemFilter = choice.takeIf { it != ALL_SYSTEMS_LABEL }
-                            },
+            GsTopBar(
+                activeTabIndex = 2,
+                onTabClick = onNavigateToTab,
+                actions = {
+                    if (loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = GsColors.Accent,
                         )
                     }
-                },
-                actions = {
                     IconButton(onClick = {
                         searchVisible = !searchVisible
                         if (!searchVisible) query = ""
                     }) {
-                        Icon(Icons.Filled.Search, contentDescription = "Search (Y)")
+                        Icon(Icons.Filled.Search, contentDescription = "Search (Y)", tint = GsColors.Text)
                     }
                     IconButton(onClick = { viewModel.scanInstalledRoms(force = true) }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Rescan")
+                        Icon(Icons.Filled.Refresh, contentDescription = "Rescan (X)", tint = GsColors.Text)
                     }
-                }
+                },
+                subTabs = {
+                    SystemFilterChip(
+                        label = systemFilter ?: ALL_SYSTEMS_LABEL,
+                        options = listOf(ALL_SYSTEMS_LABEL) + systems,
+                        onSelect = { choice ->
+                            systemFilter = choice.takeIf { it != ALL_SYSTEMS_LABEL }
+                        },
+                    )
+                },
+            )
+        },
+        bottomBar = {
+            GsFooterHints(
+                listOf(
+                    GsHint(GsButton.A, "Manage"),
+                    GsHint(GsButton.X, "Rescan"),
+                    GsHint(GsButton.Y, "Search"),
+                ) + (if (searchVisible || query.isNotEmpty()) listOf(GsHint(GsButton.B, "Clear search")) else emptyList()) +
+                    listOf(
+                        GsHint(GsButton.SELECT, "System"),
+                        GsHint(GsButton.L1, "Tabs"),
+                        GsHint(GsButton.START, "Exit"),
+                    )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -298,10 +323,17 @@ fun InstalledGamesScreen(
                             if (!searchVisible) query = ""
                             true
                         }
+                        // X → rescan the ROM folders
+                        Key.ButtonX -> {
+                            viewModel.scanInstalledRoms(force = true)
+                            true
+                        }
+                        // B → clear + close the search; never starts
+                        // anything (unclaimed it's swallowed by the Activity).
                         Key.ButtonB, Key.Escape, Key.Back -> {
                             when {
                                 confirmTarget != null -> { confirmTarget = null; true }
-                                searchVisible -> {
+                                searchVisible || query.isNotEmpty() -> {
                                     searchVisible = false
                                     query = ""
                                     runCatching { listFocusRequester.requestFocus() }
@@ -310,11 +342,7 @@ fun InstalledGamesScreen(
                                 else -> false
                             }
                         }
-                        Key.ButtonStart -> {
-                            viewModel.scanInstalledRoms(force = true)
-                            true
-                        }
-                        // L1/R1 (system cycle) and L2/R2 (tab cycle) are
+                        // L1/R1 (tabs), SELECT (system), START (exit) are
                         // intercepted at the Activity level — never reach here.
                         else -> false
                     }
@@ -361,8 +389,8 @@ fun InstalledGamesScreen(
                     else -> {
                         LazyColumn(
                             state = listState,
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             itemsIndexed(
                                 filtered,
@@ -388,84 +416,84 @@ fun InstalledGamesScreen(
 
     confirmTarget?.let { rom ->
         val wholeFolder = InstalledRomsScanner.wouldRemoveWholeFolder(rom)
-        AlertDialog(
-            onDismissRequest = { confirmTarget = null },
-            // Title shows the game name so the dialog reads as a per-rom
-            // action sheet instead of just "Delete ROM?" (which was
-            // misleading once we added the Sync Saves action below).
-            title = { Text(rom.displayName, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text("System: ${rom.system}")
-                    Spacer(Modifier.height(6.dp))
-                    if (wholeFolder) {
-                        Text(
-                            "Folder: ${rom.path.parentFile?.name ?: "?"}",
-                        )
-                        Text(
-                            rom.path.parentFile?.absolutePath ?: rom.path.absolutePath,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        val extra = if (rom.companionFiles.isNotEmpty()) {
-                            " + ${rom.companionFiles.size} companion file(s)"
-                        } else ""
-                        Text("File: ${rom.filename}$extra")
-                        Text(
-                            "Location: ${rom.path.parentFile?.absolutePath ?: "?"}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text("Size: ${formatBytes(rom.size)}")
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Sync Saves uploads / downloads this game's save against the server. Delete removes the ROM data permanently — this can't be undone.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            },
-            // confirmButton hosts the primary (non-destructive) Sync action.
-            // Material3 AlertDialog only exposes confirm + dismiss slots, so
-            // the destructive Delete moves into the dismiss slot beside
-            // Cancel as a Row — matches the visual convention "destructive
-            // buttons live on the left, primary on the right."
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.syncInstalledRomSaves(rom)
-                    confirmTarget = null
-                }) {
-                    Icon(
-                        Icons.Filled.CloudSync,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.size(6.dp))
-                    Text("Sync Saves")
-                }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = {
-                        viewModel.deleteInstalledRom(rom)
+        // Per-rom action sheet: A syncs this game's save, X deletes the ROM
+        // (after a second confirmation), B cancels.
+        GsDialog(
+            title = rom.displayName,
+            onDismiss = { confirmTarget = null },
+            choices = listOf(
+                GsDialogChoice(GsButton.B, "Cancel", { confirmTarget = null }),
+                GsDialogChoice(
+                    GsButton.X,
+                    "Delete…",
+                    {
                         confirmTarget = null
-                    }) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                        Spacer(Modifier.size(6.dp))
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
-                    }
-                    Spacer(Modifier.size(4.dp))
-                    TextButton(onClick = { confirmTarget = null }) { Text("Cancel") }
-                }
+                        deleteTarget = rom
+                    },
+                    textColor = GsColors.Err,
+                ),
+                GsDialogChoice(
+                    GsButton.A,
+                    "Sync Saves",
+                    {
+                        viewModel.syncInstalledRomSaves(rom)
+                        confirmTarget = null
+                    },
+                    color = GsColors.Accent,
+                    textColor = GsColors.Ink,
+                ),
+            ),
+        ) {
+            Text("System: ${rom.system}", color = GsColors.Dim)
+            Spacer(Modifier.height(6.dp))
+            if (wholeFolder) {
+                Text("Folder: ${rom.path.parentFile?.name ?: "?"}", color = GsColors.Dim)
+                Text(
+                    rom.path.parentFile?.absolutePath ?: rom.path.absolutePath,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = GsColors.Muted,
+                )
+            } else {
+                val extra = if (rom.companionFiles.isNotEmpty()) {
+                    " + ${rom.companionFiles.size} companion file(s)"
+                } else ""
+                Text("File: ${rom.filename}$extra", color = GsColors.Dim)
+                Text(
+                    "Location: ${rom.path.parentFile?.absolutePath ?: "?"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = GsColors.Muted,
+                )
             }
+            Spacer(Modifier.height(6.dp))
+            Text("Size: ${formatBytes(rom.size)}", color = GsColors.Dim)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Sync Saves uploads / downloads this game's save against the server. " +
+                    "Delete removes the ROM data permanently — this can't be undone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = GsColors.Muted,
+            )
+        }
+    }
+
+    deleteTarget?.let { rom ->
+        val wholeFolder = InstalledRomsScanner.wouldRemoveWholeFolder(rom)
+        GsConfirmDialog(
+            title = "Delete ${rom.displayName}?",
+            message = if (wholeFolder) {
+                "Removes the folder ${rom.path.parentFile?.name ?: "?"} and everything in it. This can't be undone."
+            } else {
+                "Removes ${rom.filename}" +
+                    (if (rom.companionFiles.isNotEmpty()) " and ${rom.companionFiles.size} companion file(s)" else "") +
+                    ". This can't be undone."
+            },
+            confirmLabel = "Delete",
+            destructive = true,
+            onConfirm = {
+                viewModel.deleteInstalledRom(rom)
+                deleteTarget = null
+            },
+            onDismiss = { deleteTarget = null },
         )
     }
 }
@@ -476,48 +504,24 @@ private fun InstalledRomCard(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val border = if (isSelected) {
-        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-    } else null
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isSelected) 6.dp else 2.dp
-        ),
-        border = border,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SystemBadge(rom.system)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    rom.displayName,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-                val companionNote = if (rom.companionFiles.isNotEmpty()) {
-                    "  ·  +${rom.companionFiles.size} file(s)"
-                } else ""
-                val sizeNote = if (rom.size > 0) "  ·  ${formatBytes(rom.size)}" else ""
-                Text(
-                    "${rom.filename}$companionNote$sizeNote",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
-            Icon(
-                Icons.Filled.Delete,
-                contentDescription = "Delete",
-                modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.error,
+    GsListRow(isSelected = isSelected, onClick = onClick) {
+        SystemBadge(rom.system)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                rom.displayName,
+                fontWeight = FontWeight.SemiBold,
+                color = GsColors.Text,
+                maxLines = 1,
+            )
+            val companionNote = if (rom.companionFiles.isNotEmpty()) {
+                "  ·  +${rom.companionFiles.size} file(s)"
+            } else ""
+            val sizeNote = if (rom.size > 0) "  ·  ${formatBytes(rom.size)}" else ""
+            Text(
+                "${rom.filename}$companionNote$sizeNote",
+                style = MaterialTheme.typography.bodySmall,
+                color = GsColors.Dim,
+                maxLines = 1,
             )
         }
     }
@@ -542,7 +546,7 @@ private fun InstalledFooter(total: Int, shown: Int, totalBytes: Long) {
             Text(
                 summary,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = GsColors.Muted,
             )
         }
     }

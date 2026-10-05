@@ -1,82 +1,104 @@
 package com.savesync.android.ui.theme
 
 import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Deep indigo / purple palette
-private val md_primary = Color(0xFF5C6BC0)          // Indigo 400
-private val md_on_primary = Color(0xFFFFFFFF)
-private val md_primary_container = Color(0xFF3949AB) // Indigo 600
-private val md_on_primary_container = Color(0xFFE8EAF6)
-private val md_secondary = Color(0xFF7E57C2)         // Deep Purple 400
-private val md_on_secondary = Color(0xFFFFFFFF)
-private val md_tertiary = Color(0xFF5E35B1)          // Deep Purple 600
-private val md_on_tertiary = Color(0xFFFFFFFF)
-private val md_background_dark = Color(0xFF121212)
-private val md_surface_dark = Color(0xFF1E1E2E)
-private val md_background_light = Color(0xFFF5F5FF)
-private val md_surface_light = Color(0xFFFFFFFF)
+/**
+ * The palette every GameSync console client draws with (3ds/source/gui.h,
+ * xbox/source/ui.h, ...), so the Android app reads as the same product.
+ * Keep the hex values in step with those headers.
+ */
+object GsColors {
+    val Bg = Color(0xFF0F1720)
+    val Bg2 = Color(0xFF1B2633)
+    val Panel = Color(0xFF243244)
+    val PanelHi = Color(0xFF2C3D52)
+    val Line = Color(0xFF33465C)
+    val Text = Color(0xFFE6EDF3)
+    val Dim = Color(0xFF8DA2B5)
+    val Muted = Color(0xFF5E7286)
+    val Accent = Color(0xFF2EC4B6)
+    val Accent2 = Color(0xFF3DDBD9)
+    val Ok = Color(0xFF3FB950)
+    val Warn = Color(0xFFF0B429)
+    val Info = Color(0xFF58A6FF)
+    val Err = Color(0xFFF85149)
+    val Ra = Color(0xFFE5B143)
+    /** Dark text on accent / status fills. */
+    val Ink = Color(0xFF0F1720)
 
-private val DarkColorScheme = darkColorScheme(
-    primary = md_primary,
-    onPrimary = md_on_primary,
-    primaryContainer = md_primary_container,
-    onPrimaryContainer = md_on_primary_container,
-    secondary = md_secondary,
-    onSecondary = md_on_secondary,
-    tertiary = md_tertiary,
-    onTertiary = md_on_tertiary,
-    background = md_background_dark,
-    surface = md_surface_dark,
-)
+    // Controller face-button glyph colours.
+    val BtnA = Color(0xFF5FBF3F)
+    val BtnB = Color(0xFFE5483F)
+    val BtnX = Color(0xFF3D8FE0)
+    val BtnY = Color(0xFFF2C230)
+}
 
-private val LightColorScheme = lightColorScheme(
-    primary = md_primary_container,
-    onPrimary = md_on_primary,
-    primaryContainer = Color(0xFFE8EAF6),
-    onPrimaryContainer = Color(0xFF1A237E),
-    secondary = md_secondary,
-    onSecondary = md_on_secondary,
-    tertiary = md_tertiary,
-    onTertiary = md_on_tertiary,
-    background = md_background_light,
-    surface = md_surface_light,
+/**
+ * Always dark, like every console client: no light scheme and no dynamic
+ * (wallpaper) colour, so the app looks the same on every device.
+ */
+private val GameSyncColorScheme = darkColorScheme(
+    primary = GsColors.Accent,
+    onPrimary = GsColors.Ink,
+    primaryContainer = GsColors.PanelHi,
+    onPrimaryContainer = GsColors.Accent2,
+    inversePrimary = GsColors.Accent2,
+    secondary = GsColors.Accent2,
+    onSecondary = GsColors.Ink,
+    secondaryContainer = GsColors.PanelHi,
+    onSecondaryContainer = GsColors.Text,
+    tertiary = GsColors.Info,
+    onTertiary = GsColors.Ink,
+    tertiaryContainer = GsColors.PanelHi,
+    onTertiaryContainer = GsColors.Info,
+    background = GsColors.Bg,
+    onBackground = GsColors.Text,
+    surface = GsColors.Bg2,
+    onSurface = GsColors.Text,
+    surfaceVariant = GsColors.Panel,
+    onSurfaceVariant = GsColors.Dim,
+    surfaceTint = GsColors.Accent,
+    inverseSurface = GsColors.Text,
+    inverseOnSurface = GsColors.Bg,
+    error = GsColors.Err,
+    onError = GsColors.Ink,
+    errorContainer = GsColors.Panel,
+    onErrorContainer = GsColors.Err,
+    outline = GsColors.Line,
+    outlineVariant = GsColors.Line,
+    scrim = Color(0xFF000000),
+    surfaceBright = GsColors.PanelHi,
+    surfaceDim = GsColors.Bg,
+    surfaceContainer = GsColors.Bg2,
+    surfaceContainerHigh = GsColors.Panel,
+    surfaceContainerHighest = GsColors.Panel,
+    surfaceContainerLow = GsColors.Bg2,
+    surfaceContainerLowest = GsColors.Bg,
 )
 
 @Composable
 fun SaveSyncTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    val colorScheme = GameSyncColorScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            window.statusBarColor = GsColors.Bg.toArgb()
+            window.navigationBarColor = GsColors.Bg.toArgb()
+            val insets = WindowCompat.getInsetsController(window, view)
+            insets.isAppearanceLightStatusBars = false
+            insets.isAppearanceLightNavigationBars = false
         }
     }
 

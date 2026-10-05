@@ -257,7 +257,20 @@ val RomEntry.extractFormatList: List<String>
 
 data class RomsResponse(
     val roms: List<RomEntry>,
-    val total: Int
+    val total: Int,
+    /** Only sent for a paged request (``limit`` set); nullable for Gson. */
+    @SerializedName("has_more")
+    val hasMore: Boolean? = null,
+)
+
+/** One system's entry in ``GET /roms/fingerprints``. */
+data class RomFingerprint(
+    val fingerprint: String? = null,
+    val count: Int? = null,
+)
+
+data class RomFingerprintsResponse(
+    val systems: Map<String, RomFingerprint>? = null,
 )
 
 data class RomsSystemsResponse(

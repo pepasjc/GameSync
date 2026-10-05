@@ -62,7 +62,17 @@ import com.savesync.android.sync.SaturnSyncFormat
 import com.savesync.android.sync.SegaCdSyncFormat
 import com.savesync.android.emulators.Ps2EmulatorChoice
 import com.savesync.android.ui.MainViewModel
+import com.savesync.android.ui.SyncState
 import com.savesync.android.ui.components.FolderPickerDialog
+import com.savesync.android.ui.components.GsButton
+import com.savesync.android.ui.components.GsFooterHints
+import com.savesync.android.ui.components.GsHint
+import com.savesync.android.ui.components.GsTopBar
+import com.savesync.android.ui.components.LocalShowButtonHints
+import com.savesync.android.ui.components.gsFocusRing
+import com.savesync.android.ui.theme.GsColors
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import kotlinx.coroutines.launch
 
 private val intervalOptions = listOf(5, 15, 30, 60)
@@ -71,7 +81,7 @@ private val intervalOptions = listOf(5, 15, 30, 60)
 @Composable
 fun SettingsScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit,
+    onNavigateToTab: (Int) -> Unit = {},
     onNavigateToEmulators: () -> Unit = {}
 ) {
     val settings by viewModel.settings.collectAsState()
@@ -122,26 +132,36 @@ fun SettingsScreen(
     var intervalDropdownExpanded by remember { mutableStateOf(false) }
     var savedConfirmation by remember { mutableStateOf(false) }
     val effectiveRomScanDir = EmudeckPaths.romsDir(emudeckDir)?.absolutePath ?: romScanDir
+    val syncState by viewModel.syncState.collectAsState()
+    val catalogLoading by viewModel.romCatalogLoading.collectAsState()
+    val catalogRefreshStatus by viewModel.catalogRefreshStatus.collectAsState()
+
+    // With a controller attached, land on the first entry so the D-pad has
+    // somewhere to start (Settings is plain Material controls: D-pad moves
+    // focus, A activates — see MainActivity.dispatchKeyEvent).
+    val firstEntryFocus = remember { FocusRequester() }
+    val gamepadHints = LocalShowButtonHints.current
+    LaunchedEffect(gamepadHints) {
+        if (gamepadHints) runCatching { firstEntryFocus.requestFocus() }
+    }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+            GsTopBar(
+                activeTabIndex = 4,
+                onTabClick = onNavigateToTab,
+            )
+        },
+        bottomBar = {
+            GsFooterHints(
+                listOf(
+                    GsHint(GsButton.DPAD, "Move"),
+                    GsHint(GsButton.A, "Select"),
+                    GsHint(GsButton.L1, "Tabs"),
+                    GsHint(GsButton.START, "Exit"),
                 )
             )
-        }
+        },
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -151,6 +171,43 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
+            // --- Library: the console clients' "Rescan titles" / "Refresh
+            // catalog" entries ---
+            Text("Library", style = MaterialTheme.typography.titleMedium, color = GsColors.Accent)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = { viewModel.scanSaves() },
+                    enabled = syncState !is SyncState.Syncing,
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(firstEntryFocus)
+                        .gsFocusRing()
+                ) {
+                    Text("Rescan saves")
+                }
+                Button(
+                    onClick = { viewModel.refreshCatalog() },
+                    enabled = !catalogLoading,
+                    modifier = Modifier
+                        .weight(1f)
+                        .gsFocusRing()
+                ) {
+                    Text(if (catalogLoading) "Refreshing…" else "Refresh catalog")
+                }
+            }
+            Text(
+                text = catalogRefreshStatus
+                    ?: ("Refresh catalog asks the server to rescan its ROM folder, " +
+                        "throws the cached catalog away and downloads it again."),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (catalogRefreshStatus != null) GsColors.Text else GsColors.Dim
+            )
+
+            HorizontalDivider()
 
             // --- Server settings ---
             Text("Server", style = MaterialTheme.typography.titleMedium)
@@ -204,7 +261,7 @@ fun SettingsScreen(
                             }
                         }
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).gsFocusRing()
                 ) {
                     Text("Test Connection")
                 }
@@ -226,7 +283,7 @@ fun SettingsScreen(
                         )
                         savedConfirmation = true
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).gsFocusRing(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -240,7 +297,7 @@ fun SettingsScreen(
                 Text(
                     text = "✓ Settings saved",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF4CAF50)
+                    color = GsColors.Ok
                 )
                 LaunchedEffect(Unit) {
                     kotlinx.coroutines.delay(3000)
@@ -252,7 +309,7 @@ fun SettingsScreen(
                 Text(
                     text = status,
                     color = when (connectionOk) {
-                        true -> Color(0xFF4CAF50)
+                        true -> GsColors.Ok
                         false -> MaterialTheme.colorScheme.error
                         null -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
@@ -293,7 +350,7 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(Modifier.width(8.dp))
-                Button(onClick = { showEmudeckFolderPicker = true }) {
+                Button(onClick = { showEmudeckFolderPicker = true }, modifier = Modifier.gsFocusRing()) {
                     Icon(
                         Icons.Default.FolderOpen,
                         contentDescription = null,
@@ -307,7 +364,7 @@ fun SettingsScreen(
             if (emudeckDir.isNotBlank()) {
                 OutlinedButton(
                     onClick = { emudeckDir = "" },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().gsFocusRing()
                 ) {
                     Text("Clear Emudeck Folder")
                 }
@@ -324,7 +381,11 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("Enable auto sync")
-                Switch(checked = autoSync, onCheckedChange = { autoSync = it })
+                Switch(
+                    checked = autoSync,
+                    onCheckedChange = { autoSync = it },
+                    modifier = Modifier.gsFocusRing(),
+                )
             }
 
             if (autoSync) {
@@ -363,13 +424,6 @@ fun SettingsScreen(
 
             // --- Scan ---
             Text("Saves", style = MaterialTheme.typography.titleMedium)
-
-            Button(
-                onClick = { viewModel.scanSaves() },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Scan for Save Files")
-            }
 
             var saturnFormatExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
@@ -493,7 +547,7 @@ fun SettingsScreen(
             // --- Emulator Configuration link ---
             OutlinedButton(
                 onClick = onNavigateToEmulators,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().gsFocusRing()
             ) {
                 Text("Emulator Configuration →")
             }
@@ -539,7 +593,7 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(Modifier.width(8.dp))
-                Button(onClick = { showFolderPicker = true }) {
+                Button(onClick = { showFolderPicker = true }, modifier = Modifier.gsFocusRing()) {
                     Icon(
                         Icons.Default.FolderOpen,
                         contentDescription = null,
@@ -553,7 +607,7 @@ fun SettingsScreen(
             if (romScanDir.isNotBlank() && emudeckDir.isBlank()) {
                 OutlinedButton(
                     onClick = { romScanDir = "" },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().gsFocusRing()
                 ) {
                     Text("Clear ROM Directory")
                 }
@@ -563,7 +617,7 @@ fun SettingsScreen(
             val romScanResults by viewModel.romScanResults.collectAsState()
             OutlinedButton(
                 onClick = { viewModel.runRomScanDiagnostic(romScanDir) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().gsFocusRing()
             ) {
                 Text("Test ROM Scan")
             }
@@ -574,7 +628,7 @@ fun SettingsScreen(
             val prepareMessage by viewModel.prepareFoldersMessage.collectAsState()
             OutlinedButton(
                 onClick = { viewModel.prepareRomFolders(romScanDir) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().gsFocusRing(),
                 enabled = effectiveRomScanDir.isNotBlank(),
             ) {
                 Text("Prepare ROM Folders")
@@ -590,7 +644,7 @@ fun SettingsScreen(
                 Text(
                     text = msg,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF4CAF50),
+                    color = GsColors.Ok,
                 )
             }
             if (romScanResults.isNotEmpty()) {
@@ -605,7 +659,7 @@ fun SettingsScreen(
                     Text(
                         text = "${if (ok) "✓" else "✗"}  $system  —  $count ROM${if (count != 1) "s" else ""}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (ok) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (ok) GsColors.Ok else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -769,13 +823,13 @@ fun SettingsScreen(
                     Text(
                         text = "${if (found) "✓" else "✗"}  $path",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (found) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (found) GsColors.Ok else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             OutlinedButton(
                 onClick = { viewModel.checkRetroArchPaths() },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().gsFocusRing()
             ) {
                 Text("Diagnose RetroArch Paths")
             }

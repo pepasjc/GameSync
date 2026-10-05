@@ -27,6 +27,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -74,8 +75,18 @@ import com.savesync.android.api.withRelated
 import com.savesync.android.catalog.RomCatalogFilter
 import com.savesync.android.findComponentActivity
 import com.savesync.android.ui.MainViewModel
+import com.savesync.android.ui.components.ButtonGlyph
+import com.savesync.android.ui.components.GsBanner
+import com.savesync.android.ui.components.GsButton
+import com.savesync.android.ui.components.GsDialog
+import com.savesync.android.ui.components.GsDialogChoice
+import com.savesync.android.ui.components.GsFooterHints
+import com.savesync.android.ui.components.GsHint
+import com.savesync.android.ui.components.GsListRow
+import com.savesync.android.ui.components.GsTopBar
+import com.savesync.android.ui.components.LocalShowButtonHints
 import com.savesync.android.ui.components.SystemFilterChip
-import com.savesync.android.ui.components.TabSwitchBar
+import com.savesync.android.ui.theme.GsColors
 import com.savesync.android.ui.components.firstLetter
 import com.savesync.android.ui.components.handleHorizontalHoldKeyEvent
 import com.savesync.android.ui.components.rememberHoldNavState
@@ -107,6 +118,8 @@ fun RomCatalogScreen(
     val loading by viewModel.romCatalogLoading.collectAsState()
     val loaded by viewModel.romCatalogLoaded.collectAsState()
     val error by viewModel.romCatalogError.collectAsState()
+    // "Offline — cached catalog" when the server could not be reached.
+    val notice by viewModel.romCatalogNotice.collectAsState()
     val downloadState by viewModel.romDownloadState.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -288,7 +301,7 @@ fun RomCatalogScreen(
     }
 
     // Helper that cycles the system filter (null = all systems), driven by
-    // L2/R2 (activity-level systemCycleEvents flow).
+    // SELECT (activity-level systemCycleEvents flow).
     fun cycleSystem(delta: Int) {
         if (systems.isEmpty()) return
         val all = listOf<String?>(null) + systems
@@ -297,9 +310,9 @@ fun RomCatalogScreen(
         systemFilter = all[next]
     }
 
-    // L2/R2 (triggers) cycle the system filter globally — Activity emits the
-    // delta on systemCycleEvents and we apply it here so the toolbar chip
-    // stays in sync.
+    // SELECT cycles the system filter (the sub-tab chip) — the Activity
+    // emits on systemCycleEvents and we apply it here so the chip stays in
+    // sync.
     val activity = LocalContext.current.findComponentActivity() as? MainActivity
     LaunchedEffect(activity, systems, systemFilter) {
         activity?.systemCycleEvents?.collect { delta -> cycleSystem(delta) }
@@ -307,42 +320,61 @@ fun RomCatalogScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        TabSwitchBar(
-                            activeTabIndex = 1,
-                            onTabClick = onNavigateToTab,
-                        )
-                        SystemFilterChip(
-                            label = activeSystem ?: ALL_SYSTEMS_LABEL,
-                            options = listOf(ALL_SYSTEMS_LABEL) + systems,
-                            onSelect = { choice ->
-                                systemFilter = choice.takeIf { it != ALL_SYSTEMS_LABEL }
-                            },
+            GsTopBar(
+                activeTabIndex = 1,
+                onTabClick = onNavigateToTab,
+                actions = {
+                    if (loading && catalog.isNotEmpty()) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = GsColors.Accent,
                         )
                     }
-                },
-                actions = {
-                    FilterChip(
-                        selected = raOnly,
-                        onClick = { toggleRaOnly() },
-                        label = { Text("RA") },
-                        modifier = Modifier.padding(end = 4.dp),
-                    )
                     IconButton(onClick = {
                         searchVisible = !searchVisible
                         if (!searchVisible) query = ""
                     }) {
-                        Icon(Icons.Filled.Search, contentDescription = "Search (Y)")
+                        Icon(Icons.Filled.Search, contentDescription = "Search (Y)", tint = GsColors.Text)
                     }
-                    IconButton(onClick = { viewModel.fetchRomCatalog(force = true) }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh catalog")
-                    }
-                }
+                },
+                subTabs = {
+                    SystemFilterChip(
+                        label = activeSystem ?: ALL_SYSTEMS_LABEL,
+                        options = listOf(ALL_SYSTEMS_LABEL) + systems,
+                        onSelect = { choice ->
+                            systemFilter = choice.takeIf { it != ALL_SYSTEMS_LABEL }
+                        },
+                    )
+                    FilterChip(
+                        selected = raOnly,
+                        onClick = { toggleRaOnly() },
+                        label = { Text("RetroAchievements") },
+                        leadingIcon = if (LocalShowButtonHints.current) {
+                            { ButtonGlyph(GsButton.X) }
+                        } else null,
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = GsColors.Panel,
+                            labelColor = GsColors.Dim,
+                            selectedContainerColor = GsColors.Ra,
+                            selectedLabelColor = GsColors.Ink,
+                        ),
+                    )
+                },
+            )
+        },
+        bottomBar = {
+            GsFooterHints(
+                listOf(
+                    GsHint(GsButton.A, "Install"),
+                    GsHint(GsButton.X, if (raOnly) "All games" else "RA only"),
+                    GsHint(GsButton.Y, "Search"),
+                ) + (if (searchVisible || query.isNotEmpty()) listOf(GsHint(GsButton.B, "Clear search")) else emptyList()) +
+                    listOf(
+                        GsHint(GsButton.SELECT, "System"),
+                        GsHint(GsButton.L1, "Tabs"),
+                        GsHint(GsButton.START, "Exit"),
+                    )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -419,11 +451,13 @@ fun RomCatalogScreen(
                             if (!searchVisible) query = ""
                             true
                         }
-                        // B / Escape / Back → dismiss dialog or close search
+                        // B / Escape / Back → clear + close the search.
+                        // Never starts anything; unclaimed it's swallowed
+                        // by the Activity (B never exits from a tab).
                         Key.ButtonB, Key.Escape, Key.Back -> {
                             when {
                                 confirmTarget != null -> { confirmTarget = null; true }
-                                searchVisible -> {
+                                searchVisible || query.isNotEmpty() -> {
                                     searchVisible = false
                                     query = ""
                                     runCatching { listFocusRequester.requestFocus() }
@@ -432,13 +466,9 @@ fun RomCatalogScreen(
                                 else -> false
                             }
                         }
-                        // Start → refresh catalog
-                        Key.ButtonStart -> {
-                            viewModel.fetchRomCatalog(force = true)
-                            true
-                        }
-                        // L1/R1 (system cycle) and L2/R2 (tab cycle) are
-                        // intercepted at the Activity level — never reach here.
+                        // L1/R1 (tabs), SELECT (system), START (exit) are
+                        // intercepted at the Activity level — never reach
+                        // here.  Refresh lives in Settings now.
                         else -> false
                     }
                 }
@@ -466,6 +496,8 @@ fun RomCatalogScreen(
                 }
             }
 
+            notice?.let { GsBanner(text = it, color = GsColors.Warn) }
+
             Spacer(Modifier.height(4.dp))
 
             // List / loading / empty
@@ -483,7 +515,7 @@ fun RomCatalogScreen(
                     filtered.isEmpty() && catalog.isEmpty() -> {
                         CenterMessage(
                             title = "The server's ROM catalog is empty.",
-                            detail = "Upload ROMs via the server and tap refresh.",
+                            detail = "Add ROMs on the server, then Settings → Refresh catalog.",
                         )
                     }
                     filtered.isEmpty() && raOnly && query.isBlank() -> {
@@ -502,8 +534,8 @@ fun RomCatalogScreen(
                     else -> {
                         LazyColumn(
                             state = listState,
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             itemsIndexed(
                                 filtered,
@@ -540,62 +572,64 @@ fun RomCatalogScreen(
         // A Wii U game's update and DLC are separate titles that are useless
         // apart, so one tap queues the whole set in install order.
         val group = rom.withRelated(catalog)
-        AlertDialog(
-            onDismissRequest = { confirmTarget = null },
-            title = { Text(if (group.size > 1) "Download ${group.size} titles?" else "Download ROM?") },
-            text = {
-                Column {
-                    Text(rom.name.ifEmpty { rom.filename }, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    Text("System: ${rom.system}")
-                    if (group.size > 1) {
-                        Spacer(Modifier.height(6.dp))
+        GsDialog(
+            title = if (group.size > 1) "Download ${group.size} titles?" else "Download ROM?",
+            onDismiss = { confirmTarget = null },
+            choices = listOf(
+                GsDialogChoice(GsButton.B, "Cancel", { confirmTarget = null }),
+                GsDialogChoice(
+                    GsButton.A,
+                    "Download",
+                    {
                         group.forEach { part ->
-                            val label = part.contentType?.replaceFirstChar { it.uppercase() }
-                                ?: "Game"
-                            Text("$label: ${formatBytes(part.size)}")
+                            val extract = part.preferredDownloadExtractFormat()
+                            viewModel.downloadRom(
+                                romId = part.rom_id ?: part.title_id,
+                                system = part.system,
+                                filename = part.preferredDownloadFilename(extract),
+                                extractFormat = extract,
+                                bundleKind = part.msuPackKind,
+                            )
                         }
-                        Text(
-                            "Total: ${formatBytes(group.sumOf { it.size })}",
-                            fontWeight = FontWeight.Bold,
-                        )
-                    } else if (rom.msuPackKind != null) {
-                        // Unpacked into its own folder: the ROM plus the
-                        // audio it streams from beside itself.
-                        Text("Type: ${MsuPack.label(rom.msuPackKind)}, unpacked into a folder")
-                        if (rom.size > 0) Text("Size: ${formatBytes(rom.size)}")
-                    } else {
-                        Text("File: ${rom.filename}")
-                        if (rom.size > 0) Text("Size: ${formatBytes(rom.size)}")
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Saves into the ROM folder configured in Settings " +
-                            "(or the system-specific override, if set).",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                        confirmTarget = null
+                    },
+                    color = GsColors.Accent,
+                    textColor = GsColors.Ink,
+                ),
+            ),
+        ) {
+            Text(rom.name.ifEmpty { rom.filename }, fontWeight = FontWeight.Bold, color = GsColors.Text)
+            Spacer(Modifier.height(4.dp))
+            Text("System: ${rom.system}", color = GsColors.Dim)
+            if (group.size > 1) {
+                Spacer(Modifier.height(6.dp))
+                group.forEach { part ->
+                    val label = part.contentType?.replaceFirstChar { it.uppercase() }
+                        ?: "Game"
+                    Text("$label: ${formatBytes(part.size)}", color = GsColors.Dim)
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    group.forEach { part ->
-                        val extract = part.preferredDownloadExtractFormat()
-                        viewModel.downloadRom(
-                            romId = part.rom_id ?: part.title_id,
-                            system = part.system,
-                            filename = part.preferredDownloadFilename(extract),
-                            extractFormat = extract,
-                            bundleKind = part.msuPackKind,
-                        )
-                    }
-                    confirmTarget = null
-                }) { Text("Download") }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmTarget = null }) { Text("Cancel") }
+                Text(
+                    "Total: ${formatBytes(group.sumOf { it.size })}",
+                    fontWeight = FontWeight.Bold,
+                    color = GsColors.Text,
+                )
+            } else if (rom.msuPackKind != null) {
+                // Unpacked into its own folder: the ROM plus the audio it
+                // streams from beside itself.
+                Text("Type: ${MsuPack.label(rom.msuPackKind)}, unpacked into a folder", color = GsColors.Dim)
+                if (rom.size > 0) Text("Size: ${formatBytes(rom.size)}", color = GsColors.Dim)
+            } else {
+                Text("File: ${rom.filename}", color = GsColors.Dim)
+                if (rom.size > 0) Text("Size: ${formatBytes(rom.size)}", color = GsColors.Dim)
             }
-        )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Saves into the ROM folder configured in Settings " +
+                    "(or the system-specific override, if set).",
+                style = MaterialTheme.typography.bodySmall,
+                color = GsColors.Muted,
+            )
+        }
     }
 }
 
@@ -605,58 +639,40 @@ private fun CatalogRomCard(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val border = if (isSelected) {
-        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-    } else null
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isSelected) 6.dp else 2.dp
-        ),
-        border = border,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SystemBadge(rom.system)
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        rom.name.ifEmpty { rom.filename },
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (rom.hasRa) RaBadge(rom.raIsTitleOnly)
-                }
-                val subtitle = buildString {
-                    append(rom.filename)
-                    if (rom.size > 0) append("  ·  ${formatBytes(rom.size)}")
-                    append("  ·  ${rom.title_id}")
-                }
+    GsListRow(isSelected = isSelected, onClick = onClick) {
+        SystemBadge(rom.system)
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    rom.name.ifEmpty { rom.filename },
+                    fontWeight = FontWeight.SemiBold,
+                    color = GsColors.Text,
                     maxLines = 1,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                if (rom.hasRa) RaBadge(rom.raIsTitleOnly)
             }
-            Icon(
-                Icons.Filled.Download,
-                contentDescription = "Download",
-                modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.primary,
+            val subtitle = buildString {
+                append(rom.filename)
+                if (rom.size > 0) append("  ·  ${formatBytes(rom.size)}")
+                append("  ·  ${rom.title_id}")
+            }
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = GsColors.Dim,
+                maxLines = 1,
             )
         }
+        Icon(
+            Icons.Filled.Download,
+            contentDescription = "Download",
+            modifier = Modifier.size(20.dp),
+            tint = if (isSelected) GsColors.Accent else GsColors.Muted,
+        )
     }
 }
 
@@ -669,7 +685,7 @@ private fun DownloadBanner(name: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        CircularProgressIndicator(modifier = Modifier.size(18.dp))
+        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = GsColors.Accent)
         // Now an enqueue confirmation — the actual transfer is running on
         // the Downloads tab via DownloadManager.
         Text("Queued $name — open Downloads tab", style = MaterialTheme.typography.bodyMedium)
@@ -688,7 +704,7 @@ private fun CatalogFooter(total: Int, shown: Int, raOnly: Boolean = false) {
             text = (if (shown == total) "$total ROMs" else "$shown / $total ROMs") +
                 if (raOnly) "  ·  RA only (X)" else "",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = GsColors.Muted,
         )
     }
 }

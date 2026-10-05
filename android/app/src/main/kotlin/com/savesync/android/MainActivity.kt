@@ -31,7 +31,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -54,6 +59,10 @@ import com.savesync.android.ui.screens.RomCatalogScreen
 import com.savesync.android.ui.screens.SaveDetailScreen
 import com.savesync.android.ui.screens.SavesScreen
 import com.savesync.android.ui.screens.SettingsScreen
+import com.savesync.android.ui.components.GsConfirmDialog
+import com.savesync.android.ui.components.LocalServerOnline
+import com.savesync.android.ui.components.LocalShowButtonHints
+import com.savesync.android.ui.components.rememberShowButtonHints
 import com.savesync.android.ui.theme.SaveSyncTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -70,15 +79,33 @@ class MainActivity : ComponentActivity() {
     val hasStoragePermission: StateFlow<Boolean> = _hasStoragePermission
 
     // ── Gamepad plumbing ─────────────────────────────────────────────────────
-    // L2/R2 (digital OR analog trigger) cycle the top-level tabs globally;
-    // MainApp observes this flow to drive navController.  L1/R1 (digital
-    // shoulders) cycle the system filter on whichever list is focused; each
-    // screen subscribes to systemCycleEvents and runs its own filter step.
+    // The unified GameSync controls (same on every console client):
+    //   L1 / R1   → previous / next top-level tab (wraps); MainApp drives
+    //               the navController from tabCycleEvents.
+    //   SELECT    → next sub-tab (the system filter chip on Saves / Catalog /
+    //               Installed); each screen subscribes to systemCycleEvents.
+    //   L2 / R2   → step the sync-status filter on Saves (statusCycleEvents);
+    //               digital buttons or analog triggers.  No longer tabs.
+    //   START     → exit, after a confirmation dialog (exitRequests).
+    //   B         → cancel / back only: a B nothing on screen claimed is
+    //               swallowed on a top-level tab so it never exits the app.
+    //   A         → screens handle it; where nothing does (Settings rows) it
+    //               activates the focused control like D-pad centre.
     private val _tabCycleEvents = MutableSharedFlow<Int>(extraBufferCapacity = 8)
     val tabCycleEvents: SharedFlow<Int> = _tabCycleEvents
 
     private val _systemCycleEvents = MutableSharedFlow<Int>(extraBufferCapacity = 8)
     val systemCycleEvents: SharedFlow<Int> = _systemCycleEvents
+
+    private val _statusCycleEvents = MutableSharedFlow<Int>(extraBufferCapacity = 8)
+    val statusCycleEvents: SharedFlow<Int> = _statusCycleEvents
+
+    private val _exitRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val exitRequests: SharedFlow<Unit> = _exitRequests
+
+    /** Kept current by MainApp: true while a top-level tab is showing. */
+    @Volatile
+    var onTopLevelTab: Boolean = true
 
     // Edge-detected state for analog triggers so we fire once per press,
     // not once per polled sample.
@@ -135,28 +162,69 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Intercept L1/R1 and L2/R2 globally BEFORE any Compose handler sees them.
-     *   * L1/R1 → cycle the system filter on the focused list
-     *   * L2/R2 → cycle the top-level tab (saves / catalog / installed / downloads)
+     * Intercept the global buttons (L1/R1, L2/R2, SELECT, START) BEFORE any
+     * Compose handler sees them, and post-process A/B that nothing claimed.
      * Analog-only triggers are handled in [dispatchGenericMotionEvent] below.
+     * Only this window's events arrive here — an open dialog gets its own
+     * keys, which is how its A/B/START work.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-            when (event.keyCode) {
-                KeyEvent.KEYCODE_BUTTON_L1 -> { _systemCycleEvents.tryEmit(-1); return true }
-                KeyEvent.KEYCODE_BUTTON_R1 -> { _systemCycleEvents.tryEmit(1); return true }
-                KeyEvent.KEYCODE_BUTTON_L2 -> { _tabCycleEvents.tryEmit(-1); return true }
-                KeyEvent.KEYCODE_BUTTON_R2 -> { _tabCycleEvents.tryEmit(1); return true }
-            }
+        val globalDelta: Pair<MutableSharedFlow<Int>, Int>? = when (event.keyCode) {
+            KeyEvent.KEYCODE_BUTTON_L1 -> _tabCycleEvents to -1
+            KeyEvent.KEYCODE_BUTTON_R1 -> _tabCycleEvents to 1
+            KeyEvent.KEYCODE_BUTTON_L2 -> _statusCycleEvents to -1
+            KeyEvent.KEYCODE_BUTTON_R2 -> _statusCycleEvents to 1
+            KeyEvent.KEYCODE_BUTTON_SELECT -> _systemCycleEvents to 1
+            else -> null
         }
-        return super.dispatchKeyEvent(event)
+        if (globalDelta != null) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                globalDelta.first.tryEmit(globalDelta.second)
+            }
+            return true   // consume DOWN and UP alike
+        }
+        if (event.keyCode == KeyEvent.KEYCODE_BUTTON_START) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                _exitRequests.tryEmit(Unit)
+            }
+            return true
+        }
+
+        if (super.dispatchKeyEvent(event)) return true
+
+        return when (event.keyCode) {
+            // B is cancel / back only.  Unclaimed, Android would turn it
+            // into BACK and leave the app from a top-level tab; on a pushed
+            // screen (save detail, emulator config) that BACK is exactly
+            // "back", so let it through there.
+            KeyEvent.KEYCODE_BUTTON_B -> onTopLevelTab
+            // A that no screen handler claimed (Settings, the emulator
+            // config screen) activates the focused control, the way D-pad
+            // centre does.  Explicit so it doesn't depend on the device's
+            // key-character-map fallback.
+            KeyEvent.KEYCODE_BUTTON_A -> super.dispatchKeyEvent(
+                KeyEvent(
+                    event.downTime,
+                    event.eventTime,
+                    event.action,
+                    KeyEvent.KEYCODE_DPAD_CENTER,
+                    event.repeatCount,
+                    event.metaState,
+                    event.deviceId,
+                    event.scanCode,
+                    event.flags,
+                    event.source,
+                )
+            )
+            else -> false
+        }
     }
 
     /**
      * Handle three things from joystick MotionEvents:
      *  1. Analog L2/R2 triggers (AXIS_LTRIGGER/RTRIGGER or AXIS_BRAKE/GAS) →
-     *     edge-detected tab cycling, as a fallback for controllers that don't
-     *     emit KEYCODE_BUTTON_L2/R2.
+     *     edge-detected status-filter stepping (Saves), as a fallback for
+     *     controllers that don't emit KEYCODE_BUTTON_L2/R2.
      *  2. Left-stick AXIS_X/AXIS_Y → synthesized DPAD_* key events with 0.4
      *     deadzone and 150 ms repeat (matching the Steam Deck app).
      *  3. HAT axes AXIS_HAT_X/AXIS_HAT_Y (physical D-pad on most pads) →
@@ -172,11 +240,11 @@ class MainActivity : ComponentActivity() {
             return super.dispatchGenericMotionEvent(event)
         }
 
-        // ── L2/R2 analog trigger fallback → tab cycle ────────────────────
+        // ── L2/R2 analog trigger fallback → status filter step ───────────
         // Some controllers (PS4/PS5 over Bluetooth, certain Xbox pads) only
         // emit analog AXIS_LTRIGGER/RTRIGGER values, never the digital
-        // KEYCODE_BUTTON_L2/R2. Mirror the digital path here so the tab
-        // cycles either way.
+        // KEYCODE_BUTTON_L2/R2. Mirror the digital path here so the filter
+        // steps either way.
         val lt = maxOf(
             event.getAxisValue(MotionEvent.AXIS_LTRIGGER),
             event.getAxisValue(MotionEvent.AXIS_BRAKE),
@@ -187,8 +255,8 @@ class MainActivity : ComponentActivity() {
         )
         val ltDown = lt > TRIGGER_THRESHOLD
         val rtDown = rt > TRIGGER_THRESHOLD
-        if (ltDown && !lastLeftTrigger) _tabCycleEvents.tryEmit(-1)
-        if (rtDown && !lastRightTrigger) _tabCycleEvents.tryEmit(1)
+        if (ltDown && !lastLeftTrigger) _statusCycleEvents.tryEmit(-1)
+        if (rtDown && !lastRightTrigger) _statusCycleEvents.tryEmit(1)
         lastLeftTrigger = ltDown
         lastRightTrigger = rtDown
 
@@ -295,7 +363,16 @@ class MainActivity : ComponentActivity() {
  * Ordered list of top-level tab routes. The index is what [TabSwitchBar]
  * binds to, so any reorder here automatically shifts the selected indicator.
  */
-internal val TAB_ROUTES: List<String> = listOf("saves", "catalog", "installed", "downloads")
+internal val TAB_ROUTES: List<String> = listOf("saves", "catalog", "installed", "downloads", "settings")
+
+/** The top-level tab a pushed route belongs to, for L1/R1 from inside it. */
+private fun parentTabIndex(route: String?): Int = when {
+    route == null -> 0
+    route in TAB_ROUTES -> TAB_ROUTES.indexOf(route)
+    route.startsWith("detail") -> 0
+    route == "emulators" -> TAB_ROUTES.indexOf("settings")
+    else -> -1
+}
 
 /** Unwrap a [Context] (possibly wrapped by a ContextWrapper chain) to the
  *  owning [ComponentActivity]. Returns null in previews. */
@@ -315,24 +392,35 @@ private fun MainApp() {
     // Collected from ViewModel (SharingStarted.Eagerly) so it's already populated
     // by the time the first frame renders — no "?" flash on startup.
     val syncStateEntities by viewModel.syncStateEntities.collectAsState()
+    val serverOnline by viewModel.serverOnline.collectAsState()
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    // Wire L2/R2 → cycle tabs. The Activity emits on a SharedFlow and we
-    // translate it into a navController.navigate() here so the NavHost is
-    // the single source of truth for which tab is visible. L1/R1 emits on
-    // a separate systemCycleEvents flow that each screen subscribes to.
     val activity = LocalContext.current.findComponentActivity() as? MainActivity
 
+    // Tell the Activity whether an unclaimed B must be swallowed (top-level
+    // tab) or may become BACK (pushed screen).
+    SideEffect {
+        activity?.onTopLevelTab = currentRoute == null || currentRoute in TAB_ROUTES
+    }
+
+    // L1/R1 → previous / next top-level tab, wrapping.  The Activity emits
+    // on a SharedFlow and we translate it into navController.navigate() so
+    // the NavHost stays the single source of truth for the visible tab.
     LaunchedEffect(activity, navController) {
         activity?.tabCycleEvents?.collect { delta ->
-            val route = navController.currentDestination?.route
-            val idx = TAB_ROUTES.indexOf(route)
-            if (idx < 0) return@collect   // on detail/settings — don't cycle
+            val idx = parentTabIndex(navController.currentDestination?.route)
+            if (idx < 0) return@collect
             val next = (idx + delta + TAB_ROUTES.size) % TAB_ROUTES.size
             navigateToTab(navController, TAB_ROUTES[next])
         }
+    }
+
+    // START → exit, after asking (A / START again exits, B stays).
+    var showExitDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(activity) {
+        activity?.exitRequests?.collect { showExitDialog = true }
     }
 
     // (Removed: previously we auto-jumped to the Downloads tab on
@@ -345,64 +433,85 @@ private fun MainApp() {
         navigateToTab(navController, TAB_ROUTES[idx])
     }
 
-    // NOTE: no Scaffold topBar/bottomBar here — the tab strip is now
-    // folded into each screen's own TopAppBar via TabSwitchBar, so the
-    // user sees a single merged toolbar instead of two stacked bars.
-    Scaffold { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = TAB_ROUTES[0],
-            modifier = Modifier.padding(padding),
-        ) {
-            composable(TAB_ROUTES[0]) {
-                SavesScreen(
-                    viewModel = viewModel,
-                    syncStateEntities = syncStateEntities,
-                    onNavigateToSettings = { navController.navigate("settings") },
-                    onNavigateToDetail = { titleId -> navController.navigate("detail/$titleId") },
-                    onNavigateToTab = onNavigateToTab,
-                )
+    val showHints = rememberShowButtonHints()
+
+    CompositionLocalProvider(
+        LocalServerOnline provides serverOnline,
+        LocalShowButtonHints provides showHints,
+    ) {
+        // No Scaffold bars here — each screen draws its own GsTopBar (header
+        // + tab strip + sub-tab chips) and GsFooterHints, so the hints can
+        // follow the screen's state.
+        Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
+            NavHost(
+                navController = navController,
+                startDestination = TAB_ROUTES[0],
+                modifier = Modifier.padding(padding),
+            ) {
+                composable(TAB_ROUTES[0]) {
+                    SavesScreen(
+                        viewModel = viewModel,
+                        syncStateEntities = syncStateEntities,
+                        onNavigateToDetail = { titleId -> navController.navigate("detail/$titleId") },
+                        onNavigateToTab = onNavigateToTab,
+                    )
+                }
+                composable(TAB_ROUTES[1]) {
+                    RomCatalogScreen(
+                        viewModel = viewModel,
+                        onNavigateToTab = onNavigateToTab,
+                    )
+                }
+                composable(TAB_ROUTES[2]) {
+                    InstalledGamesScreen(
+                        viewModel = viewModel,
+                        onNavigateToTab = onNavigateToTab,
+                    )
+                }
+                composable(TAB_ROUTES[3]) {
+                    DownloadsScreen(
+                        viewModel = viewModel,
+                        onNavigateToTab = onNavigateToTab,
+                    )
+                }
+                composable(TAB_ROUTES[4]) {
+                    SettingsScreen(
+                        viewModel = viewModel,
+                        onNavigateToTab = onNavigateToTab,
+                        onNavigateToEmulators = { navController.navigate("emulators") }
+                    )
+                }
+                composable("emulators") {
+                    EmulatorsScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+                composable("detail/{titleId}") { backStackEntry ->
+                    val titleId = backStackEntry.arguments?.getString("titleId") ?: return@composable
+                    SaveDetailScreen(
+                        titleId = titleId,
+                        viewModel = viewModel,
+                        syncStateEntities = syncStateEntities,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
             }
-            composable(TAB_ROUTES[1]) {
-                RomCatalogScreen(
-                    viewModel = viewModel,
-                    onNavigateToTab = onNavigateToTab,
-                )
-            }
-            composable(TAB_ROUTES[2]) {
-                InstalledGamesScreen(
-                    viewModel = viewModel,
-                    onNavigateToTab = onNavigateToTab,
-                )
-            }
-            composable(TAB_ROUTES[3]) {
-                DownloadsScreen(
-                    viewModel = viewModel,
-                    onNavigateToTab = onNavigateToTab,
-                )
-            }
-            composable("settings") {
-                SettingsScreen(
-                    viewModel = viewModel,
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateToEmulators = { navController.navigate("emulators") }
-                )
-            }
-            composable("emulators") {
-                EmulatorsScreen(
-                    viewModel = viewModel,
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
-            composable("detail/{titleId}") { backStackEntry ->
-                val titleId = backStackEntry.arguments?.getString("titleId") ?: return@composable
-                SaveDetailScreen(
-                    titleId = titleId,
-                    viewModel = viewModel,
-                    syncStateEntities = syncStateEntities,
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
+        }
+
+        if (showExitDialog) {
+            GsConfirmDialog(
+                title = "Exit GameSync?",
+                message = "Running downloads keep going in the background.",
+                confirmLabel = "Exit",
+                dismissLabel = "Stay",
+                startConfirms = true,
+                onConfirm = {
+                    showExitDialog = false
+                    activity?.finish()
+                },
+                onDismiss = { showExitDialog = false },
+            )
         }
     }
 }

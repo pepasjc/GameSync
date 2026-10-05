@@ -78,6 +78,11 @@ import com.savesync.android.api.preferredDownloadFilename
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.storage.SyncStateEntity
 import com.savesync.android.ui.MainViewModel
+import com.savesync.android.ui.components.GsButton
+import com.savesync.android.ui.components.GsFooterHints
+import com.savesync.android.ui.components.GsHint
+import com.savesync.android.ui.components.GsSubScreenBar
+import com.savesync.android.ui.theme.GsColors
 import com.savesync.android.ui.NormalizePickerState
 import com.savesync.android.ui.SaturnArchivePickerState
 import com.savesync.android.ui.SaveDetailState
@@ -283,17 +288,15 @@ fun SaveDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(entry?.displayName ?: titleId, maxLines = 1) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+            GsSubScreenBar(title = entry?.displayName ?: titleId, onBack = onNavigateBack)
+        },
+        bottomBar = {
+            GsFooterHints(
+                listOf(
+                    GsHint(GsButton.DPAD, "Move"),
+                    GsHint(GsButton.A, "Select"),
+                    GsHint(GsButton.B, "Back"),
+                    GsHint(GsButton.L1, "Tabs"),
                 )
             )
         },
@@ -359,7 +362,7 @@ fun SaveDetailScreen(
                 label = if (isBusy && detailState.isUpload) "Uploading…" else "Force Upload ↑",
                 icon = Icons.Default.CloudUpload,
                 enabled = !isBusy && canUploadSave,
-                containerColor = Color(0xFF1565C0),
+                containerColor = GsColors.Info,
                 isBusy = isBusy && detailState.isUpload,
                 onClick = { viewModel.uploadSave(entry) }
             ))
@@ -367,7 +370,7 @@ fun SaveDetailScreen(
                 label = if (isBusy && detailState.isDownload) "Downloading…" else "Force Download ↓",
                 icon = Icons.Default.CloudDownload,
                 enabled = !isBusy && canDownloadSave,
-                containerColor = Color(0xFF2E7D32),
+                containerColor = GsColors.Ok,
                 isBusy = isBusy && detailState.isDownload,
                 onClick = { viewModel.downloadSave(entry) }
             ))
@@ -382,7 +385,7 @@ fun SaveDetailScreen(
                         },
                         icon = Icons.Default.CloudDownload,
                         enabled = !isBusy && !romBusy && rom != null,
-                        containerColor = Color(0xFF6A1B9A),
+                        containerColor = GsColors.Accent2,
                         isBusy = romBusy,
                         onClick = {
                             if (rom != null) {
@@ -407,7 +410,7 @@ fun SaveDetailScreen(
                             },
                             icon = Icons.Default.CloudDownload,
                             enabled = !isBusy && !romBusy,
-                            containerColor = Color(0xFF6A1B9A),
+                            containerColor = GsColors.Accent2,
                             isBusy = romBusy,
                             headerAbove = if (index == 0) "Available ROMs" else null,
                             onClick = {
@@ -556,7 +559,7 @@ fun SaveDetailScreen(
                         text = if (matches) "  ✓ In sync" else "  ≠ Out of sync",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
-                        color = if (matches) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                        color = if (matches) GsColors.Ok else MaterialTheme.colorScheme.error
                     )
                 }
                 is ServerMetaState.Error ->
@@ -597,7 +600,7 @@ fun SaveDetailScreen(
                     Text(
                         "  ✓ Saved to ${s.file.absolutePath}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF4CAF50)
+                        color = GsColors.Ok
                     )
                 is MainViewModel.RomDownloadState.Error ->
                     Text(
@@ -631,7 +634,7 @@ private data class DetailAction(
     val icon: ImageVector,
     val enabled: Boolean,
     val containerColor: Color,
-    val contentColor: Color = Color.White,
+    val contentColor: Color = GsColors.Ink,
     val isBusy: Boolean,
     val dividerAbove: Boolean = false,
     val headerAbove: String? = null,
@@ -709,7 +712,7 @@ private fun ActionButton(
     containerColor: Color,
     isBusy: Boolean,
     onClick: () -> Unit,
-    contentColor: Color = Color.White,
+    contentColor: Color = GsColors.Ink,
     isSelected: Boolean = false,
     modifier: Modifier = Modifier,
 ) {

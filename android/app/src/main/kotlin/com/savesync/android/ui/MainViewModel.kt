@@ -16,7 +16,11 @@ import com.savesync.android.api.NameHintRequest
 import com.savesync.android.api.NormalizeRequest
 import com.savesync.android.api.NormalizeRomEntry
 import com.savesync.android.api.RomEntry
+import com.savesync.android.catalog.CatalogCache
+import com.savesync.android.catalog.CatalogLoadResult
+import com.savesync.android.catalog.CatalogSource
 import com.savesync.android.catalog.RomCatalogFilter
+import com.savesync.android.catalog.loadCatalog
 import com.savesync.android.installed.DeleteResult
 import com.savesync.android.installed.InstalledRom
 import com.savesync.android.installed.InstalledRomsScanner
@@ -48,6 +52,11 @@ import com.savesync.android.sync.SyncEngine
 import com.savesync.android.sync.SyncResult
 import com.savesync.android.workers.SyncWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -382,6 +391,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _romCatalogError = MutableStateFlow<String?>(null)
     val romCatalogError: StateFlow<String?> = _romCatalogError
 
+    /** Non-error note shown above the catalog, e.g. "Offline — cached catalog". */
+    private val _romCatalogNotice = MutableStateFlow<String?>(null)
+    val romCatalogNotice: StateFlow<String?> = _romCatalogNotice
+
+    /** Progress / outcome of Settings → Refresh catalog. */
+    private val _catalogRefreshStatus = MutableStateFlow<String?>(null)
+    val catalogRefreshStatus: StateFlow<String?> = _catalogRefreshStatus
+
+    /**
+     * The on-disk catalogue (MiSTer strategy, see [CatalogCache]).  Lazy so
+     * the file is first read on the IO dispatcher inside [catalogMutex],
+     * never on the main thread.
+     */
+    private val catalogCache: CatalogCache by lazy {
+        CatalogCache(File(getApplication<Application>().filesDir, CatalogCache.FILE_NAME))
+    }
+
+    /** Serialises catalogue loads: the Catalog tab and the save scan share the cache. */
+    private val catalogMutex = Mutex()
+
+    /**
+     * Header status dot: true once the server answered, false when it did
+     * not, null while unknown / no server configured.
+     */
+    private val _serverOnline = MutableStateFlow<Boolean?>(null)
+    val serverOnline: StateFlow<Boolean?> = _serverOnline
+
     // ── Installed Games tab ─────────────────────────────────────────
     private val _installedRoms = MutableStateFlow<List<InstalledRom>>(emptyList())
     val installedRoms: StateFlow<List<InstalledRom>> = _installedRoms
@@ -431,6 +467,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         scanSaves()
+        // Keep the header's server dot honest: a cheap GET /status now and
+        // every 30 s while the app is open.
+        viewModelScope.launch {
+            while (isActive) {
+                pingServer()
+                delay(SERVER_PING_INTERVAL_MS)
+            }
+        }
+    }
+
+    /** One GET /status for the header dot. */
+    fun pingServer() {
+        viewModelScope.launch {
+            val current = settingsStore.settingsFlow.first()
+            if (current.serverUrl.isBlank()) {
+                _serverOnline.value = null
+                return@launch
+            }
+            _serverOnline.value = try {
+                ApiClient.create(current.serverUrl, current.apiKey).getStatus()
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 
     fun setFilter(system: String) {
@@ -604,8 +667,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _allSaves.value = sortSaves(rawLocalSaves)
                         return@launch
                     }
+                    // Reuse the cached catalogue (one fingerprint request when
+                    // nothing changed) instead of re-downloading it; before the
+                    // cache is warm, fall back to the server's has_save subset.
                     val romCatalogByTitle: Map<String, List<RomEntry>> = try {
-                        api.getRoms(hasSave = true).roms.groupBy { it.title_id }
+                        catalogRowsOr(api) { api.getRoms(hasSave = true).roms }
+                            .groupBy { it.title_id }
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (_: Exception) {
                         emptyMap()
                     }
@@ -2771,8 +2840,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
                 val titles = _allSaves.value.map { it.titleId }.toSet()
                 if (titles.isEmpty()) return@launch
-                val response = api.getRoms()
-                val matchingRoms = response.roms
+                val matchingRoms = catalogRowsOr(api) { listRomsPaged(api, null) }
                     .filter { it.title_id in titles }
                 _romsByTitle.value = matchingRoms.groupBy { it.title_id }
                 _romAvailable.value = matchingRoms.map { it.title_id }.toSet()
@@ -2885,32 +2953,196 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ROM Catalog tab
     // ──────────────────────────────────────────────────────────────
 
-    /** Fetch the full server ROM catalog for the browse tab.  Called
-     *  lazily on first tab entry and again when the user hits refresh. */
+    /**
+     * Load the ROM catalog for the browse tab, through the on-disk cache:
+     * only systems whose server fingerprint moved are refetched, a server
+     * that can't be reached shows the cached copy ("Offline — cached
+     * catalog"), and a server too old for fingerprints is fetched whole.
+     * Called lazily on first tab entry.  [force] = Settings → Refresh
+     * catalog (see [refreshCatalog]).
+     */
     fun fetchRomCatalog(force: Boolean = false) {
         if (_romCatalogLoading.value) return
         if (_romCatalogLoaded.value && !force && _romCatalog.value.isNotEmpty()) return
+        // Claim the flag synchronously so a second call before the coroutine
+        // starts can't launch a duplicate load.
+        _romCatalogLoading.value = true
         viewModelScope.launch {
+            runCatalogLoad(force)
+        }
+    }
+
+    /**
+     * Settings → Refresh catalog: ask the server to rescan its ROM folder
+     * (GET /roms/scan; a 403/404/405 refusal is tolerated), throw the cached
+     * catalog away and fetch every system again.
+     */
+    fun refreshCatalog() {
+        if (_romCatalogLoading.value) return
+        _romCatalogLoading.value = true
+        _catalogRefreshStatus.value = "Asking the server to rescan its ROMs…"
+        viewModelScope.launch {
+            val result = runCatalogLoad(force = true)
+            val note = _catalogRefreshStatus.value
+            _catalogRefreshStatus.value = when {
+                result == null -> "Catalog refresh failed: ${_romCatalogError.value ?: "unknown error"}"
+                result.source == CatalogSource.OFFLINE -> "Server unreachable — showing the cached catalog"
+                note != null && note.startsWith("Server") ->
+                    "$note — catalog reloaded: ${result.rows.size} ROMs"
+                else -> "Catalog refreshed: ${result.rows.size} ROMs"
+            }
+        }
+    }
+
+    /**
+     * The shared body of [fetchRomCatalog] / [refreshCatalog].  The caller
+     * has already set [_romCatalogLoading]; this clears it.  Returns null on
+     * failure (the message is in [romCatalogError]).
+     */
+    private suspend fun runCatalogLoad(force: Boolean): CatalogLoadResult? {
+        try {
             val current = settingsStore.settingsFlow.first()
             if (current.serverUrl.isBlank()) {
                 _romCatalogError.value = "Server URL not configured."
                 _romCatalogLoaded.value = true
-                return@launch
+                return null
             }
-            _romCatalogLoading.value = true
             _romCatalogError.value = null
-            try {
-                val api = ApiClient.create(current.serverUrl, current.apiKey)
-                val response = api.getRoms()
-                _romCatalog.value = response.roms
-                _romCatalogLoaded.value = true
-            } catch (e: Exception) {
-                _romCatalogError.value = e.message ?: e.javaClass.simpleName
-                _romCatalogLoaded.value = true
-            } finally {
-                _romCatalogLoading.value = false
+            val api = ApiClient.create(current.serverUrl, current.apiKey)
+            val result = catalogMutex.withLock {
+                withContext(Dispatchers.IO) {
+                    val cache = catalogCache
+                    if (force) {
+                        _catalogRefreshStatus.value = requestServerRomRescan(api)
+                        // In memory only: the file is replaced once the
+                        // refetch succeeds, so an unreachable server keeps
+                        // the last copy (restored below).
+                        cache.clear()
+                    }
+                    try {
+                        loadCatalog(
+                            cache,
+                            fetchFingerprints = { fetchRomFingerprints(api) },
+                            fetchSystem = { system -> listRomsPaged(api, system) },
+                        )
+                    } catch (e: CancellationException) {
+                        if (force) cache.load()
+                        throw e
+                    } catch (e: Exception) {
+                        if (!force) throw e
+                        cache.load()
+                        if (cache.isEmpty()) throw e
+                        CatalogLoadResult(cache.allRows(), CatalogSource.OFFLINE)
+                    }
+                }
             }
+            publishCatalog(result)
+            return result
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _romCatalogError.value = e.message ?: e.javaClass.simpleName
+            _romCatalogLoaded.value = true
+            _serverOnline.value = false
+            return null
+        } finally {
+            _romCatalogLoading.value = false
         }
+    }
+
+    private fun publishCatalog(result: CatalogLoadResult) {
+        _romCatalog.value = result.rows
+        _romCatalogLoaded.value = true
+        _romCatalogNotice.value =
+            if (result.source == CatalogSource.OFFLINE) "Offline — cached catalog" else null
+        _serverOnline.value = result.source != CatalogSource.OFFLINE
+    }
+
+    /**
+     * Catalogue rows for code that needs the catalogue as a lookup table
+     * (save scan, ROM availability on the detail screen).  When the disk
+     * cache is warm this is one fingerprint request plus whatever moved;
+     * otherwise [fallback] runs (and nothing is cached — the Catalog tab
+     * warms the cache the first time it opens).
+     */
+    private suspend fun catalogRowsOr(
+        api: SaveSyncApi,
+        fallback: suspend () -> List<RomEntry>,
+    ): List<RomEntry> {
+        val result = catalogMutex.withLock {
+            withContext(Dispatchers.IO) {
+                if (catalogCache.isEmpty()) {
+                    null
+                } else {
+                    loadCatalog(
+                        catalogCache,
+                        fetchFingerprints = { fetchRomFingerprints(api) },
+                        fetchSystem = { system -> listRomsPaged(api, system) },
+                    )
+                }
+            }
+        } ?: return fallback()
+        if (!_romCatalogLoading.value) publishCatalog(result)
+        return result.rows
+    }
+
+    /**
+     * GET /roms/fingerprints as system → fingerprint; null for a server
+     * that predates the endpoint (404/405).  Throws when unreachable.
+     */
+    private suspend fun fetchRomFingerprints(api: SaveSyncApi): Map<String, String>? {
+        val response = api.getRomFingerprints()
+        if (response.code() == 404 || response.code() == 405) {
+            response.errorBody()?.close()
+            return null
+        }
+        if (!response.isSuccessful) {
+            response.errorBody()?.close()
+            throw java.io.IOException("GET /roms/fingerprints: HTTP ${response.code()}")
+        }
+        val systems = response.body()?.systems ?: return null
+        return systems.mapValues { (_, info) -> info?.fingerprint.orEmpty() }
+    }
+
+    /**
+     * Every catalogue row (of one [system], or all), following pagination
+     * like the MiSTer client: the catalogue is ordered by title id, so a
+     * single truncated page would silently lose whole systems.
+     */
+    private suspend fun listRomsPaged(api: SaveSyncApi, system: String?): List<RomEntry> {
+        val rows = ArrayList<RomEntry>()
+        var offset = 0
+        for (page in 0 until MAX_ROM_PAGES) {
+            val response = api.getRoms(system = system, limit = ROM_PAGE_SIZE, offset = offset)
+            // Gson can leave a non-null-typed list null when the key is absent.
+            @Suppress("USELESS_ELVIS")
+            val pageRows: List<RomEntry> = response.roms ?: emptyList()
+            rows.addAll(pageRows)
+            offset += pageRows.size
+            if (response.hasMore != true || pageRows.isEmpty()) break
+        }
+        return rows
+    }
+
+    /**
+     * GET /roms/scan before a forced refresh.  Returns a note for the
+     * Settings status line when the server refused or failed, null when it
+     * rescanned.  Never throws: the catalog is refetched either way.
+     */
+    private suspend fun requestServerRomRescan(api: SaveSyncApi): String? = try {
+        val response = api.rescanRoms()
+        response.body()?.close()
+        response.errorBody()?.close()
+        when {
+            response.isSuccessful -> null
+            response.code() in listOf(403, 404, 405) ->
+                "Server did not allow a rescan"
+            else -> "Server rescan failed (HTTP ${response.code()})"
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        "Server rescan failed: ${e.message ?: e.javaClass.simpleName}"
     }
 
     /** Smart-filtered view over [romCatalog]: every query token must
@@ -3082,3 +3314,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ?: requestedDir.ifBlank { settings.romScanDir }
     }
 }
+
+/** Header status-dot refresh cadence. */
+private const val SERVER_PING_INTERVAL_MS = 30_000L
+
+/**
+ * One page of GET /roms (the server allows up to 20000; smaller pages keep
+ * each JSON blob modest), same as the MiSTer client.
+ */
+private const val ROM_PAGE_SIZE = 2000
+
+/** Safety net for a runaway paging loop; far above any real catalogue. */
+private const val MAX_ROM_PAGES = 200

@@ -44,6 +44,10 @@ import com.savesync.android.emulators.EmulatorCatalog
 import com.savesync.android.emulators.EmulatorDescriptor
 import com.savesync.android.emulators.impl.RetroArchEmulator
 import com.savesync.android.ui.MainViewModel
+import com.savesync.android.ui.components.GsButton
+import com.savesync.android.ui.components.GsFooterHints
+import com.savesync.android.ui.components.GsHint
+import com.savesync.android.ui.components.GsSubScreenBar
 import com.savesync.android.ui.components.FolderPickerDialog
 
 /**
@@ -69,23 +73,17 @@ fun EmulatorsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Emulator Configuration") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+            GsSubScreenBar(title = "Emulator Configuration", onBack = onNavigateBack)
+        },
+        bottomBar = {
+            GsFooterHints(
+                listOf(
+                    GsHint(GsButton.DPAD, "Move"),
+                    GsHint(GsButton.A, "Select"),
+                    GsHint(GsButton.B, "Back"),
                 )
             )
-        }
+        },
     ) { paddingValues ->
         Column(
             modifier = Modifier

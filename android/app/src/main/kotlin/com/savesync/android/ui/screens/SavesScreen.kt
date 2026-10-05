@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -81,8 +82,18 @@ import com.savesync.android.storage.SyncStateEntity
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.SaveSyncStatus
 import com.savesync.android.ui.SyncState
+import com.savesync.android.ui.SaveDetailState
+import com.savesync.android.ui.components.ButtonGlyph
+import com.savesync.android.ui.components.GsButton
+import com.savesync.android.ui.components.GsConfirmDialog
+import com.savesync.android.ui.components.GsFooterHints
+import com.savesync.android.ui.components.GsHint
+import com.savesync.android.ui.components.GsListRow
+import com.savesync.android.ui.components.GsPill
+import com.savesync.android.ui.components.GsTopBar
+import com.savesync.android.ui.components.LocalShowButtonHints
 import com.savesync.android.ui.components.SystemFilterChip
-import com.savesync.android.ui.components.TabSwitchBar
+import com.savesync.android.ui.theme.GsColors
 import com.savesync.android.ui.components.firstLetter
 import com.savesync.android.ui.components.handleHorizontalHoldKeyEvent
 import com.savesync.android.ui.components.rememberHoldNavState
@@ -97,7 +108,6 @@ import java.util.Locale
 fun SavesScreen(
     viewModel: MainViewModel,
     syncStateEntities: List<SyncStateEntity>,
-    onNavigateToSettings: () -> Unit,
     onNavigateToDetail: (String) -> Unit = {},
     onNavigateToTab: (Int) -> Unit = {},
 ) {
@@ -110,10 +120,14 @@ fun SavesScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val statusFilter by viewModel.statusFilter.collectAsState()
     val availableStatusFilters by viewModel.availableStatusFilters.collectAsState()
+    // Shared with SaveDetailScreen: the outcome of an A-button smart sync.
+    val saveDetailState by viewModel.saveDetailState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    // Title id of the save A just smart-synced, so a conflict it reports
+    // can open that save's detail screen (where Force Upload / Download live).
+    var pendingSyncTitle by remember { mutableStateOf<String?>(null) }
 
     var searchVisible by remember { mutableStateOf(false) }
-    var filterMenuExpanded by remember { mutableStateOf(false) }
     var showSyncConfirmDialog by remember { mutableStateOf(false) }
 
     // ── Manual D-pad selection state ─────────────────────────────────────
@@ -153,9 +167,8 @@ fun SavesScreen(
         runCatching { listFocusRequester.requestFocus() }
     }
 
-    // L2/R2 (triggers) cycle the system filter globally — Activity emits the
-    // delta on systemCycleEvents and we apply it here so the binding stays in
-    // sync with the SystemFilterChip in the toolbar.
+    // SELECT steps the system filter (the sub-tab chip) — the Activity emits
+    // on systemCycleEvents and we apply it here so the chip stays in sync.
     val activity = context.findComponentActivity() as? MainActivity
     LaunchedEffect(activity, availableFilters, selectedFilter) {
         activity?.systemCycleEvents?.collect { delta ->
@@ -163,6 +176,38 @@ fun SavesScreen(
             val idx = availableFilters.indexOf(selectedFilter).let { if (it < 0) 0 else it }
             val next = (idx + delta + availableFilters.size) % availableFilters.size
             viewModel.setFilter(availableFilters[next])
+        }
+    }
+    // L2 / R2 step the sync-status filter (All → each status present → All).
+    LaunchedEffect(activity, availableStatusFilters, statusFilter) {
+        activity?.statusCycleEvents?.collect { delta ->
+            val all = listOf<SaveSyncStatus?>(null) + availableStatusFilters
+            val idx = all.indexOf(statusFilter).let { if (it < 0) 0 else it }
+            val next = (idx + delta + all.size) % all.size
+            viewModel.setStatusFilter(all[next])
+        }
+    }
+
+    // Outcome of an A-button smart sync.  A conflict can only be settled on
+    // the detail screen (Force Upload / Force Download), so go there.
+    LaunchedEffect(saveDetailState) {
+        when (val s = saveDetailState) {
+            is SaveDetailState.Success -> {
+                val conflictTitle = pendingSyncTitle
+                pendingSyncTitle = null
+                viewModel.resetDetailState()
+                if (conflictTitle != null && s.message.contains("Conflict")) {
+                    onNavigateToDetail(conflictTitle)
+                } else {
+                    snackbarHostState.showSnackbar(s.message)
+                }
+            }
+            is SaveDetailState.Error -> {
+                pendingSyncTitle = null
+                viewModel.resetDetailState()
+                snackbarHostState.showSnackbar("Error: ${s.message}")
+            }
+            else -> Unit
         }
     }
 
@@ -186,6 +231,23 @@ fun SavesScreen(
     }
 
     val isSyncing = syncState is SyncState.Syncing
+    val isSyncingOne = saveDetailState is SaveDetailState.Working
+
+    /**
+     * A: smart sync the highlighted save — upload or download per its
+     * status.  Saturn saves need the archive picker on the detail screen,
+     * so they open it instead; a conflict found by the sync does too.
+     */
+    fun smartSyncSelected() {
+        val entry = saves.getOrNull(selectedIndex) ?: return
+        if (isSyncing || isSyncingOne) return
+        if (entry.systemName == "SAT") {
+            onNavigateToDetail(entry.titleId)
+            return
+        }
+        pendingSyncTitle = entry.titleId
+        viewModel.syncSave(entry)
+    }
 
     val syncCountLabel = when {
         selectedFilter == "All" -> "Sync all ${saves.size} saves?"
@@ -194,110 +256,38 @@ fun SavesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        TabSwitchBar(
-                            activeTabIndex = 0,
-                            onTabClick = onNavigateToTab,
-                        )
-                        SystemFilterChip(
-                            label = selectedFilter,
-                            options = availableFilters,
-                            onSelect = { viewModel.setFilter(it) },
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                ),
+            GsTopBar(
+                activeTabIndex = 0,
+                onTabClick = onNavigateToTab,
                 actions = {
                     if (saves.isNotEmpty()) {
                         Text(
                             text = "${saves.size}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                            color = GsColors.Dim,
                             modifier = Modifier.padding(end = 4.dp)
                         )
                     }
-                    // Sync (X button)
-                    if (isSyncing) {
+                    // Sync all (X button); spins for a single A sync too
+                    if (isSyncing || isSyncingOne) {
                         Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
+                                color = GsColors.Accent
                             )
                         }
                     } else {
                         IconButton(onClick = { showSyncConfirmDialog = true }) {
-                            Icon(Icons.Default.Sync, contentDescription = "Sync (X)")
+                            Icon(Icons.Default.Sync, contentDescription = "Sync all (X)", tint = GsColors.Text)
                         }
                     }
-                    // Search (Y button)
+                    // Search (touch; Y opens details on a controller)
                     IconButton(onClick = {
                         searchVisible = !searchVisible
                         if (!searchVisible) viewModel.setSearchQuery("")
                     }) {
-                        Icon(Icons.Default.Search, contentDescription = "Search (Y)")
-                    }
-                    // Status filter dropdown. System is in the toolbar chip
-                    // now, so this button only filters by sync status.
-                    if (availableStatusFilters.isNotEmpty()) {
-                        Box {
-                            IconButton(onClick = { filterMenuExpanded = true }) {
-                                Icon(Icons.Default.FilterList, contentDescription = "Status filter")
-                            }
-                            DropdownMenu(
-                                expanded = filterMenuExpanded,
-                                onDismissRequest = { filterMenuExpanded = false }
-                            ) {
-                                Text(
-                                    "Status",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                                )
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = "All Status",
-                                            fontWeight = if (statusFilter == null) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    },
-                                    onClick = {
-                                        viewModel.setStatusFilter(null)
-                                        filterMenuExpanded = false
-                                    },
-                                    leadingIcon = if (statusFilter == null) {
-                                        { Text("✓", fontWeight = FontWeight.Bold) }
-                                    } else null
-                                )
-                                availableStatusFilters.forEach { status ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "${statusIcon(status)} ${status.label}",
-                                                fontWeight = if (status == statusFilter) FontWeight.Bold else FontWeight.Normal,
-                                                color = statusChipColor(status)
-                                            )
-                                        },
-                                        onClick = {
-                                            viewModel.setStatusFilter(if (status == statusFilter) null else status)
-                                            filterMenuExpanded = false
-                                        },
-                                        leadingIcon = if (status == statusFilter) {
-                                            { Text("✓", fontWeight = FontWeight.Bold) }
-                                        } else null
-                                    )
-                                }
-                            }
-                        }
+                        Icon(Icons.Default.Search, contentDescription = "Search", tint = GsColors.Text)
                     }
                     // Web ROM library (touch only)
                     IconButton(
@@ -308,23 +298,51 @@ fun SavesScreen(
                         },
                         enabled = webLibraryUrl != null
                     ) {
-                        Icon(Icons.Default.Language, contentDescription = "Web ROM Library")
+                        Icon(Icons.Default.Language, contentDescription = "Web ROM Library", tint = GsColors.Text)
                     }
-                    // Settings (Start button)
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings (Start)")
+                },
+                subTabs = {
+                    SystemFilterChip(
+                        label = selectedFilter,
+                        options = availableFilters,
+                        onSelect = { viewModel.setFilter(it) },
+                    )
+                    if (availableStatusFilters.isNotEmpty() || statusFilter != null) {
+                        StatusFilterChip(
+                            statusFilter = statusFilter,
+                            options = availableStatusFilters,
+                            onSelect = { viewModel.setStatusFilter(it) },
+                        )
                     }
-                }
+                },
+            )
+        },
+        bottomBar = {
+            GsFooterHints(
+                if (searchVisible) listOf(
+                    GsHint(GsButton.A, "Sync"),
+                    GsHint(GsButton.B, "Close search"),
+                    GsHint(GsButton.X, "Sync all"),
+                    GsHint(GsButton.Y, "Details"),
+                ) else listOf(
+                    GsHint(GsButton.A, "Sync"),
+                    GsHint(GsButton.X, "Sync all"),
+                    GsHint(GsButton.Y, "Details"),
+                    GsHint(GsButton.SELECT, "System"),
+                    GsHint(GsButton.L2R2, "Status"),
+                    GsHint(GsButton.L1, "Tabs"),
+                    GsHint(GsButton.START, "Exit"),
+                )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         // ── Master gamepad handler ───────────────────────────────────────
         // D-pad up/down steps the list, left/right page-scrolls with hold
-        // acceleration, L1/R1 cycles the system filter, and the face/start
-        // buttons mirror the TopAppBar actions. L2/R2 tab-switching is
-        // handled at the Activity level, not here, so we don't consume
-        // them below.
+        // acceleration (then letter jumps).  A smart-syncs the row, X syncs
+        // everything, Y opens details, B only closes search.  L1/R1 (tabs),
+        // L2/R2 (status filter), SELECT (system) and START (exit) are
+        // handled at the Activity level and never reach here.
         SwipeRefresh(
             state = rememberSwipeRefreshState(isRefreshing = isSyncing),
             onRefresh = { viewModel.scanSaves() },
@@ -392,40 +410,36 @@ fun SavesScreen(
                             }
                             true
                         }
-                        // A / Enter → open selected game
-                        Key.ButtonA, Key.Enter -> {
-                            if (saves.isNotEmpty()) {
-                                onNavigateToDetail(saves[selectedIndex].titleId)
-                            }
+                        // A → smart sync the selected save
+                        Key.ButtonA -> {
+                            smartSyncSelected()
                             true
                         }
-                        // B / Escape → close search if open
+                        // Enter (keyboard) keeps opening the detail screen
+                        Key.Enter -> {
+                            saves.getOrNull(selectedIndex)?.let { onNavigateToDetail(it.titleId) }
+                            true
+                        }
+                        // B / Escape → close search if open; otherwise
+                        // unclaimed (the Activity swallows it on a tab).
                         Key.ButtonB, Key.Escape, Key.Back -> {
                             if (searchVisible) {
                                 searchVisible = false
                                 viewModel.setSearchQuery("")
+                                runCatching { listFocusRequester.requestFocus() }
                                 true
                             } else false
                         }
-                        // Y → toggle search
+                        // Y → details of the selected save
                         Key.ButtonY -> {
-                            searchVisible = !searchVisible
-                            if (!searchVisible) viewModel.setSearchQuery("")
+                            saves.getOrNull(selectedIndex)?.let { onNavigateToDetail(it.titleId) }
                             true
                         }
-                        // X → sync (with confirmation)
+                        // X → sync all (with confirmation)
                         Key.ButtonX -> {
                             if (!isSyncing) showSyncConfirmDialog = true
                             true
                         }
-                        // Start → settings
-                        Key.ButtonStart -> {
-                            onNavigateToSettings()
-                            true
-                        }
-                        // L1/R1 (system cycle) and L2/R2 (tab cycle) are
-                        // intercepted at the Activity level — never reach
-                        // Compose here.
                         else -> false
                     }
                 }
@@ -467,23 +481,15 @@ fun SavesScreen(
 
     // ── Sync confirmation dialog ─────────────────────────────────────────
     if (showSyncConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showSyncConfirmDialog = false },
-            title = { Text("Confirm Sync") },
-            text = { Text(syncCountLabel) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showSyncConfirmDialog = false
-                    viewModel.syncNow()
-                }) {
-                    Text("Sync")
-                }
+        GsConfirmDialog(
+            title = "Sync all",
+            message = syncCountLabel,
+            confirmLabel = "Sync",
+            onConfirm = {
+                showSyncConfirmDialog = false
+                viewModel.syncNow()
             },
-            dismissButton = {
-                TextButton(onClick = { showSyncConfirmDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showSyncConfirmDialog = false },
         )
     }
 }
@@ -596,7 +602,7 @@ private fun SavesList(
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
         state = listState,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
     ) {
         itemsIndexed(saves, key = { _, entry -> entry.titleId }) { index, entry ->
@@ -629,75 +635,118 @@ private fun SaveCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardColors = when (syncStatus) {
-        SaveSyncStatus.CONFLICT -> CardDefaults.cardColors(
-            containerColor = Color(0x1AFF5252)
-        )
-        SaveSyncStatus.SERVER_ONLY -> CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-        else -> CardDefaults.cardColors()
-    }
-
-    val border = if (isSelected) {
-        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-    } else null
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isSelected) 6.dp else 2.dp
-        ),
-        colors = cardColors,
-        border = border
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left: game name + optional canonical subtitle
-            Column(modifier = Modifier.weight(1f)) {
+    GsListRow(isSelected = isSelected, onClick = onClick, modifier = modifier) {
+        // Left: game name + optional canonical subtitle
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = entry.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = GsColors.Text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            entry.canonicalName?.let { canonical ->
                 Text(
-                    text = entry.displayName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    text = canonical,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = GsColors.Dim,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                entry.canonicalName?.let { canonical ->
+            }
+        }
+
+        // Right: system, last-synced time, status pill
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SystemBadge(entry.systemName)
+            if (!entry.isServerOnly) {
+                syncState?.lastSyncedAt?.let { ts ->
                     Text(
-                        text = canonical,
+                        text = formatTimestamp(ts),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = GsColors.Muted
                     )
                 }
             }
+            SyncStatusBadge(syncStatus)
+        }
+    }
+}
 
-            Spacer(Modifier.width(8.dp))
-
-            // Right: system badge, sync badge, timestamp, status icon
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SystemBadge(entry.systemName)
-                SyncStatusBadge(syncStatus)
-                if (!entry.isServerOnly) {
-                    syncState?.lastSyncedAt?.let { ts ->
+/**
+ * Sub-tab chip for the sync-status filter (L2/R2 step it; tap for the list).
+ */
+@Composable
+private fun StatusFilterChip(
+    statusFilter: SaveSyncStatus?,
+    options: List<SaveSyncStatus>,
+    onSelect: (SaveSyncStatus?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(GsColors.Panel)
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (LocalShowButtonHints.current) ButtonGlyph(GsButton.L2R2)
+            Icon(
+                Icons.Default.FilterList,
+                contentDescription = "Status filter",
+                tint = if (statusFilter != null) statusChipColor(statusFilter) else GsColors.Dim,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = statusFilter?.label ?: "All status",
+                style = MaterialTheme.typography.labelLarge,
+                color = if (statusFilter != null) statusChipColor(statusFilter) else GsColors.Dim,
+                maxLines = 1,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "All status",
+                        fontWeight = if (statusFilter == null) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                onClick = {
+                    onSelect(null)
+                    expanded = false
+                },
+                leadingIcon = if (statusFilter == null) {
+                    { Text("✓", fontWeight = FontWeight.Bold) }
+                } else null
+            )
+            options.forEach { status ->
+                DropdownMenuItem(
+                    text = {
                         Text(
-                            text = formatTimestamp(ts),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "${statusIcon(status)} ${status.label}",
+                            fontWeight = if (status == statusFilter) FontWeight.Bold else FontWeight.Normal,
+                            color = statusChipColor(status)
                         )
-                    }
-                }
-                SyncStatusIcon(syncStatus)
+                    },
+                    onClick = {
+                        onSelect(if (status == statusFilter) null else status)
+                        expanded = false
+                    },
+                    leadingIcon = if (status == statusFilter) {
+                        { Text("✓", fontWeight = FontWeight.Bold) }
+                    } else null
+                )
             }
         }
     }
@@ -707,36 +756,24 @@ private fun SaveCard(
 
 @Composable
 fun SyncStatusBadge(status: SaveSyncStatus) {
-    val bgColor = statusChipColor(status)
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(bgColor)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = "${statusIcon(status)} ${status.label}",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = Color.White
-        )
-    }
+    GsPill(text = "${statusIcon(status)} ${status.label}", color = statusChipColor(status))
 }
 
+/** System code tag: a quiet outlined chip, so the status pill stays the loud one. */
 @Composable
 fun SystemBadge(systemName: String) {
-    val bgColor = systemChipColor(systemName)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(bgColor)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(GsColors.Bg2)
+            .border(1.dp, GsColors.Line, RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Text(
             text = systemName,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = GsColors.Accent2
         )
     }
 }
@@ -745,42 +782,24 @@ fun SystemBadge(systemName: String) {
 fun SystemChip(systemName: String) = SystemBadge(systemName)
 
 /**
- * RetroAchievements badge.  Gold, so it reads as a reward rather than as
- * another sync status.
+ * RetroAchievements badge in RA gold, so it reads as a reward rather than
+ * as another sync status.  A title-only match is outlined ("RA?").
  */
 @Composable
 fun RaBadge(titleOnly: Boolean = false) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (titleOnly) Color(0xFF8A712E) else Color(0xFFD8A72B))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = if (titleOnly) "RA?" else "RA",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF161206)
-        )
+    if (titleOnly) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .border(1.dp, GsColors.Ra, RoundedCornerShape(10.dp))
+                .padding(horizontal = 7.dp, vertical = 2.dp)
+        ) {
+            Text("RA?", style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold, color = GsColors.Ra)
+        }
+    } else {
+        GsPill(text = "RA", color = GsColors.Ra, filled = true)
     }
-}
-
-@Composable
-private fun SyncStatusIcon(syncStatus: SaveSyncStatus) {
-    val (icon, tint) = when (syncStatus) {
-        SaveSyncStatus.SYNCED -> "✓" to Color(0xFF4CAF50)
-        SaveSyncStatus.LOCAL_ONLY -> "●" to MaterialTheme.colorScheme.primary
-        SaveSyncStatus.SERVER_ONLY -> "↓" to Color(0xFF1976D2)
-        SaveSyncStatus.LOCAL_NEWER -> "↑" to Color(0xFFF57C00)
-        SaveSyncStatus.SERVER_NEWER -> "↓" to Color(0xFF1976D2)
-        SaveSyncStatus.CONFLICT -> "⚠" to Color(0xFFFF5252)
-        SaveSyncStatus.UNKNOWN -> "?" to MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Text(
-        text = icon,
-        style = MaterialTheme.typography.titleMedium,
-        color = tint
-    )
 }
 
 // ── Helper functions ─────────────────────────────────────────────────────────
@@ -795,14 +814,15 @@ private fun statusIcon(status: SaveSyncStatus): String = when (status) {
     SaveSyncStatus.UNKNOWN -> "?"
 }
 
-private fun statusChipColor(status: SaveSyncStatus): Color = when (status) {
-    SaveSyncStatus.SYNCED -> Color(0xFF4CAF50)
-    SaveSyncStatus.LOCAL_ONLY -> Color(0xFF1565C0)
-    SaveSyncStatus.SERVER_ONLY -> Color(0xFF546E7A)
-    SaveSyncStatus.LOCAL_NEWER -> Color(0xFFF57C00)
-    SaveSyncStatus.SERVER_NEWER -> Color(0xFF1976D2)
-    SaveSyncStatus.CONFLICT -> Color(0xFFFF5252)
-    SaveSyncStatus.UNKNOWN -> Color(0xFF78909C)
+/** Status pill colours, shared with every console client. */
+fun statusChipColor(status: SaveSyncStatus): Color = when (status) {
+    SaveSyncStatus.SYNCED -> GsColors.Ok
+    SaveSyncStatus.LOCAL_ONLY -> GsColors.Info
+    SaveSyncStatus.SERVER_ONLY -> GsColors.Warn
+    SaveSyncStatus.LOCAL_NEWER -> GsColors.Info
+    SaveSyncStatus.SERVER_NEWER -> GsColors.Info
+    SaveSyncStatus.CONFLICT -> GsColors.Err
+    SaveSyncStatus.UNKNOWN -> GsColors.Dim
 }
 
 fun systemChipColor(systemName: String): Color {

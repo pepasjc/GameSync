@@ -182,8 +182,23 @@ interface SaveSyncApi {
     suspend fun getRoms(
         @Query("system") system: String? = null,
         @Query("search") search: String? = null,
-        @Query("has_save") hasSave: Boolean? = null
+        @Query("has_save") hasSave: Boolean? = null,
+        // Paging (server: 1..20000 rows per page, ``has_more`` in the reply).
+        @Query("limit") limit: Int? = null,
+        @Query("offset") offset: Int? = null,
     ): RomsResponse
+
+    /**
+     * Per-system catalogue fingerprints for the on-disk catalog cache
+     * ([com.savesync.android.catalog.CatalogCache]).  Wrapped in [Response]
+     * so a pre-fingerprint server's 404/405 can be told from a network error.
+     */
+    @GET("api/v1/roms/fingerprints")
+    suspend fun getRomFingerprints(): Response<RomFingerprintsResponse>
+
+    /** Ask the server to rescan its ROM folder (admin only: 403 otherwise). */
+    @GET("api/v1/roms/scan")
+    suspend fun rescanRoms(): Response<ResponseBody>
 
     @GET("api/v1/roms/systems")
     suspend fun getRomsSystems(): RomsSystemsResponse
