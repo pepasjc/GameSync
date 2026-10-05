@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import posixpath
 import pkgutil
 import time
@@ -320,6 +321,7 @@ class App:
             #: _index_catalog(). Keyed by id(): DiscGroup has __slots__.
             self._group_facts = {}
             self._group_by_name = {}
+            self._ra_verified = {}
             self._catalog_rows = []
             self._catalog_keys = []
             self._installed_scanned = False
@@ -357,9 +359,6 @@ class App:
 
         if rescan:
             self.scan_installed()
-        installed = [Row(item.system, item.name, item.where, "installed",
-                         ra=self.has_achievements(item.system, item.name))
-                     for item in self.installed_entries]
         # Keyed with the pack flag: the name key folds "(MSU1)" away so a
         # pack and its plain ROM share a save, but they are not the same
         # install - ActRaiser on the card must not tick ActRaiser (MSU1).
@@ -371,6 +370,15 @@ class App:
         if (getattr(self, "_indexed_groups", None) is not self.catalog_groups
                 or len(self._catalog_rows) != len(self.catalog_groups)):
             self._index_catalog()
+        installed = []
+        for item in self.installed_entries:
+            detail = item.where
+            if self.ra_variants(item):
+                detail += "  RA version available"
+            installed.append(Row(item.system, item.name, detail, "installed",
+                                 ref=item,
+                                 ra=self.has_achievements(item.system,
+                                                          item.name)))
         # The rows are built once per catalogue; a refresh only has to say
         # which of them are on the card now.
         for row, key in zip(self._catalog_rows, self._catalog_keys):
@@ -862,7 +870,10 @@ class App:
             if self.search:
                 hints.insert(5, (self.input.label(gsinput.SEARCH), "Clear"))
         elif self.tab == 2:
-            hints = [(primary, "Move SD/USB"), (back, "Exit"), (sync, "Delete"),
+            item = self.selected_install()
+            label = ("Options" if item is not None and self.ra_variants(item)
+                     else "Move SD/USB")
+            hints = [(primary, label), (back, "Exit"), (sync, "Delete"),
                      (alt, "Refresh"), (systems, "System"), (tabs, "Tab")]
         elif self.tab == 3:
             rows = self.rows()
@@ -1049,7 +1060,7 @@ class App:
             if self.tab == 1:
                 self.do_install_selected()
             elif self.tab == 2:
-                self.do_move_installed()
+                self.do_installed_action()
             elif self.tab == 3:
                 self.do_download_action()
             elif self.tab == 4:
@@ -1491,7 +1502,7 @@ class App:
     CATALOG_FIELDS = ("rom_id", "system", "name", "filename", "size",
                       "disc_index", "disc_total", "primary_rom_id",
                       "title_id", "is_bundle", "bundle_kind",
-                      "ra_achievements", "ra_match")
+                      "ra_achievements", "ra_match", "ra_game_id", "ra_dump")
 
     def load_catalog(self, quiet: bool = False, force: bool = False) -> None:
         """The server's ROM list for the systems a MiSTer can run.
@@ -1638,6 +1649,7 @@ class App:
         facts = {}
         by_name = {}
         ra_games = {}
+        verified = {}
         rows = []
         keys = []
         for group in self.catalog_groups:
@@ -1646,6 +1658,10 @@ class App:
             name_key = installed_key[1]
             if has_ra:
                 ra_games[(group.system, name_key)] = has_ra
+                variant_key = (_ra_variant_key(group.system, group.name)
+                               if _ra_variant_candidate(group) else None)
+                if variant_key is not None:
+                    verified.setdefault(variant_key, []).append(group)
             by_name.setdefault((group.system, name_key), group)
             facts[id(group)] = fact
             rows.append(Row(group.system, group.name, detail,
@@ -1655,8 +1671,46 @@ class App:
         self._catalog_keys = keys
         self._group_facts = facts
         self._group_by_name = by_name
+        self._ra_verified = verified
         self._indexed_groups = self.catalog_groups
         self.ra_games = ra_games
+
+    def ra_variants(self, item) -> list:
+        """Catalogue versions of an installed game RA verifiably supports,
+        when the installed one is not among them. Best first.
+
+        "Verifiably" is an exact hash or a file name RA registered for the
+        set (``ra_dump``) - not a title match, which is just as true of the
+        USA Soulcalibur RA will not load as of the Europe one it will. The
+        installed game must itself be in the catalogue and known *not* to be
+        verified: a game the catalogue cannot see is never second-guessed.
+        Nothing is offered once a verified version is already on the card.
+        """
+        if (item.is_pack or not self._ra_verified
+                or not _is_plain_release(item.name)):
+            return []
+        name_key = _normalize(item.name)
+        group = self._group_by_name.get((item.system, name_key))
+        if group is None or _group_ra_verified(group):
+            return []
+        own_ids = _group_ra_ids(group)
+        found = []
+        for candidate in self._ra_verified.get(
+                _ra_variant_key(item.system, item.name), ()):
+            if _normalize(candidate.name) == name_key:
+                # Another catalogue entry under the installed one's own
+                # name, and RA does know that one: which of the two is on
+                # the card cannot be told apart, so it is not questioned.
+                return []
+            if own_ids and not own_ids & _group_ra_ids(candidate):
+                # RA filed them as different games ("1Xtreme" is not
+                # "ESPN Extreme Games", whatever a title alias says).
+                continue
+            found.append(candidate)
+        if any(self.game_installed(candidate) for candidate in found):
+            return []
+        found.sort(key=lambda g: (_region_rank(g.name), g.name.lower()))
+        return found
 
     def queue_group(self, group):
         """Queue every disc of a game and start downloading.
@@ -2066,6 +2120,8 @@ class App:
         if not rows or self.selected >= len(rows):
             return None
         row = rows[self.selected]
+        if isinstance(row.ref, InstalledGame):
+            return row.ref
         return next((item for item in self.installed_entries
                      if item.name == row.name and item.system == row.system
                      and item.where == row.detail), None)
@@ -2563,6 +2619,80 @@ class App:
         self.load_data()
         self.draw_all()
 
+    def do_installed_action(self) -> None:
+        """A on Installed: move, or - when RA supports another version of
+        the game and not this one - offer to swap it for that version."""
+        item = self.selected_install()
+        if item is None:
+            return
+        variants = self.ra_variants(item)
+        if not variants:
+            self.do_move_installed()
+            return
+        options = ["Replace with RA version: %s" % group.name
+                   for group in variants[:3]]
+        options.append("Move to %s" % item.target.upper())
+        choice = self.choose(
+            item.name, options,
+            detail=["RetroAchievements does not recognise this version."],
+            title="RetroAchievements")
+        if choice is None:
+            self.draw_all()
+        elif choice == len(options) - 1:
+            self.do_move_installed()
+        else:
+            self.do_replace_with_variant(item, variants[choice])
+
+    def do_replace_with_variant(self, item, group) -> None:
+        """Install ``group`` where ``item`` is, then delete ``item``.
+
+        In that order, so a failed download never leaves the player with
+        neither version. The save is left alone: it is filed under the old
+        version's name (and, for disc systems, its serial), and whether it
+        loads in another region is the game's business, not ours.
+        """
+        if not self.require_client():
+            return
+        what = "folder" if item.is_folder else "file"
+        detail = ["Installs %s on %s (%s)" % (group.name, item.where,
+                                               _human_size(group.size)),
+                  "then deletes the %s %s" % (what, item.path),
+                  "Its save file is kept."]
+        if not self.confirm("Replace %s?" % item.name, detail,
+                            title="Replace with RA version"):
+            self.draw_all()
+            return
+
+        # Beside the copy it replaces, whatever the ROM target says.
+        previous_target = self.queue.rom_target
+        self.queue.rom_target = "usb" if item.where == "USB" else "sd"
+        items = []
+        try:
+            items = self.queue_group(group)
+            if items:
+                self.wait_for_downloads(items)
+        finally:
+            self.queue.rom_target = previous_target
+        if not items or not self.game_installed(group):
+            # queue_group / wait_for_downloads already said why.
+            return
+        if not os.path.exists(item.path):
+            self.notice("Installed %s" % group.name, hold=1.4)
+            return
+        try:
+            if item.is_folder:
+                _remove_tree(item.path)
+            else:
+                os.remove(item.path)
+        except OSError as exc:
+            self.notice("Installed %s, but deleting %s failed: %s"
+                        % (group.name, item.name, exc), theme.DANGER)
+        else:
+            self.notice("Replaced %s with %s" % (item.name, group.name),
+                        hold=1.6)
+        self.load_data()
+        self.draw_all()
+
     def do_move_installed(self) -> None:
         """Move a game between the SD card and USB."""
         item = self.selected_install()
@@ -2907,6 +3037,79 @@ def _group_ra_kind(group) -> str:
         if kind == "title":
             best = "title"
     return best
+
+
+def _group_ra_verified(group) -> bool:
+    """RA will recognise this very dump, not merely a game of its name.
+
+    An exact hash says so; for systems matched by name, so does the file
+    name being one RA registered for the set (``ra_dump``).
+    """
+    for row in getattr(group, "rows", None) or ():
+        try:
+            if int(row.get("ra_achievements") or 0) <= 0:
+                continue
+        except (TypeError, ValueError):
+            continue
+        if (str(row.get("ra_match") or "hash").lower() == "hash"
+                or row.get("ra_dump")):
+            return True
+    return False
+
+
+#: Tags that make a release something other than the game itself: a bonus
+#: disc shares the game's name once tags are gone, and is not a version of
+#: it.
+_NOT_A_RELEASE_RE = re.compile(
+    r"\((?:[^)]*\b(?:bonus|demo|beta|proto|prototype|sample|kiosk|"
+    r"trial|preview|msu-?1?|msu-md|md\+)\b[^)]*)\)", re.IGNORECASE)
+
+
+def _is_plain_release(name: str) -> bool:
+    """A retail release, not a hack, translation, bonus disc or demo - a
+    ``[T-En ...]`` set traded for the badge would lose the player the
+    language they chose."""
+    return "[" not in name and not _NOT_A_RELEASE_RE.search(name)
+
+
+def _ra_variant_candidate(group) -> bool:
+    """A catalogue game worth offering in place of an unverified copy."""
+    return (_group_ra_verified(group) and not _group_pack_kind(group)
+            and _is_plain_release(group.name))
+
+
+def _ra_variant_key(system, name):
+    """What makes two catalogue games versions of one another: the name
+    with every tag, article and space gone, so "Soul Calibur (USA)" and
+    "Soulcalibur (Europe) (En,Fr,De,Es)" agree."""
+    from shared.ra_titles import normalize as ra_normalize
+
+    base = ra_normalize(name)
+    return (system, base) if base else None
+
+
+def _group_ra_ids(group) -> set:
+    ids = set()
+    for row in getattr(group, "rows", None) or ():
+        try:
+            game_id = int(row.get("ra_game_id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if game_id > 0:
+            ids.add(game_id)
+    return ids
+
+
+#: Which version to offer first when RA supports several.
+_REGION_ORDER = ("world", "usa", "europe")
+
+
+def _region_rank(name: str) -> int:
+    lowered = name.lower()
+    for rank, region in enumerate(_REGION_ORDER):
+        if "(" + region in lowered or ", " + region in lowered:
+            return rank
+    return len(_REGION_ORDER)
 
 
 #: Seconds to wait for the server's health check at startup. It is the one

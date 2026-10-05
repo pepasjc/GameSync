@@ -34,6 +34,8 @@ SHARED_MODULES = [
     "mister_install.py",
     "msu.py",
     "title_match.py",
+    # Version matching for "replace with the RA version" on Installed.
+    "ra_titles.py",
     "saturn_format.py",
     "rom_id/__init__.py",
     "rom_id/normalizer.py",

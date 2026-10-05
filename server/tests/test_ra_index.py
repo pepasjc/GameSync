@@ -503,3 +503,43 @@ def test_title_only_system_matches_ra_dump_names(db, tmp_path, monkeypatch):
     ra_index.refresh([entry], tmp_path / "cache")
     found = ra_index.lookup([str(rom)])[str(rom)]
     assert (found["ra_game_id"], found["ra_match"]) == (23831, ra_index.MATCH_TITLE)
+    assert found.get("ra_dump") is True
+
+
+def test_ra_dump_marks_only_the_registered_region(db, tmp_path, monkeypatch):
+    """Both regions title-match; only the dump RA registered is ``ra_dump``."""
+    europe = tmp_path / "Soulcalibur (Europe) (En,Fr,De,Es).chd"
+    usa = tmp_path / "Soulcalibur (USA).chd"
+    entries = []
+    for rom in (europe, usa):
+        rom.write_bytes(b"x")
+        entry = _Entry(rom, system="DC")
+        entry.name = rom.stem
+        entries.append(entry)
+    lib = RaLibrary(40, {"a1": 3395}, {3395: "Soulcalibur"}, achievements={3395: 88})
+    monkeypatch.setattr(ra_index, "fetch_library", lambda cid, **kw: lib)
+    names = {3395: ["Soulcalibur (Europe) (En,Fr,De,Es)"]}
+    monkeypatch.setattr(ra_index, "fetch_hash_names", lambda library, **kw: names)
+    ra_index.refresh(entries, tmp_path / "cache")
+    found = ra_index.lookup([str(europe), str(usa)])
+    assert found[str(europe)]["ra_game_id"] == found[str(usa)]["ra_game_id"] == 3395
+    assert found[str(europe)].get("ra_dump") is True
+    assert "ra_dump" not in found[str(usa)]
+
+    # RA registers the USA disc later: the cached row is re-matched, no reread.
+    names[3395] = names[3395] + ["Soulcalibur (USA)"]
+    assert ra_index.refresh(entries, tmp_path / "cache")["rematched"] == 1
+    assert ra_index.lookup([str(usa)])[str(usa)].get("ra_dump") is True
+
+
+def test_dump_column_is_added_to_an_old_table(db, tmp_path):
+    conn = rom_db.connection()
+    conn.execute("DROP TABLE IF EXISTS ra_roms")
+    conn.execute("CREATE TABLE ra_roms (path TEXT PRIMARY KEY, size INTEGER NOT NULL DEFAULT 0, "
+                 "mtime REAL NOT NULL DEFAULT 0, md5 TEXT NOT NULL DEFAULT '', "
+                 "game_id INTEGER NOT NULL DEFAULT 0, achievements INTEGER NOT NULL DEFAULT 0, "
+                 "title TEXT NOT NULL DEFAULT '', checked_at REAL NOT NULL DEFAULT 0, "
+                 "match_kind TEXT NOT NULL DEFAULT 'hash')")
+    conn.execute("INSERT INTO ra_roms (path, game_id) VALUES ('a.sfc', 5)")
+    conn.commit()
+    assert ra_index.lookup(["a.sfc"])["a.sfc"]["ra_game_id"] == 5

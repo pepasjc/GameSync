@@ -23,6 +23,13 @@ for this game", not "RA will recognise this dump".  The two are stored and
 reported separately as ``ra_match`` = ``hash`` or ``title`` so a client
 never presents the weaker one as a guarantee.
 
+Systems matched by name alone get one more fact: ``ra_dump`` is set when the
+file name *is* one of the dump names RA registered for the game (Redump
+names, so a well-named set compares exactly).  A title match says "RA has a
+set for Soulcalibur"; ``ra_dump`` says "and it was made against this Europe
+disc", which is what lets a client offer the registered variant in place of
+a USA copy RA will not recognise.
+
 The hash library comes from :mod:`shared.ra_api`.  With ``SYNC_RA_API_KEY``
 set it carries achievement counts, which is what ``achievements > 0`` — a
 game you can actually earn something in, as opposed to a hash RA merely
@@ -80,7 +87,8 @@ CREATE TABLE IF NOT EXISTS ra_roms (
     achievements INTEGER NOT NULL DEFAULT 0,
     title        TEXT    NOT NULL DEFAULT '',
     checked_at   REAL    NOT NULL DEFAULT 0,
-    match_kind   TEXT    NOT NULL DEFAULT 'hash'
+    match_kind   TEXT    NOT NULL DEFAULT 'hash',
+    dump_match   INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -106,6 +114,11 @@ def _conn():
     columns = {row[1] for row in conn.execute("PRAGMA table_info(ra_roms)")}
     if "match_kind" not in columns:
         conn.execute("ALTER TABLE ra_roms ADD COLUMN match_kind TEXT NOT NULL DEFAULT 'hash'")
+        conn.commit()
+    if "dump_match" not in columns:
+        # Filled in by the next pass: cached title rows are re-matched every
+        # pass anyway, and that is where the flag is decided.
+        conn.execute("ALTER TABLE ra_roms ADD COLUMN dump_match INTEGER NOT NULL DEFAULT 0")
         conn.commit()
     _forget_archive_hashes(conn)
     _mark_title_discs_read(conn)
@@ -180,7 +193,7 @@ def lookup(paths: Iterable[str]) -> dict[str, dict]:
         chunk = wanted[i : i + 500]
         placeholders = ",".join("?" * len(chunk))
         rows = conn.execute(
-            f"SELECT path, md5, game_id, achievements, title, match_kind "
+            f"SELECT path, md5, game_id, achievements, title, match_kind, dump_match "
             f"FROM ra_roms WHERE game_id != 0 AND path IN ({placeholders})",
             chunk,
         ).fetchall()
@@ -193,6 +206,8 @@ def lookup(paths: Iterable[str]) -> dict[str, dict]:
             }
             if row["md5"] and row["match_kind"] != MATCH_TITLE:
                 data["ra_hash"] = row["md5"]
+            if row["dump_match"]:
+                data["ra_dump"] = True
             out[row["path"]] = data
     return out
 
@@ -241,12 +256,22 @@ def stats() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
-def _cached_paths(conn) -> dict[str, tuple[int, float, str, str, int]]:
-    """``path -> (size, mtime, match_kind, md5, game_id)`` for everything indexed."""
-    rows = conn.execute("SELECT path, size, mtime, match_kind, md5, game_id FROM ra_roms").fetchall()
+def _cached_paths(conn) -> dict[str, tuple[int, float, str, str, int, int]]:
+    """``path -> (size, mtime, match_kind, md5, game_id, dump_match)`` for everything indexed."""
+    rows = conn.execute(
+        "SELECT path, size, mtime, match_kind, md5, game_id, dump_match FROM ra_roms").fetchall()
     return {r["path"]: (r["size"], r["mtime"], r["match_kind"] or MATCH_HASH, r["md5"] or "",
-                        r["game_id"] or 0)
+                        r["game_id"] or 0, r["dump_match"] or 0)
             for r in rows}
+
+
+def _dump_key(name: str) -> str:
+    """Exact-compare form of a dump name: case and a file extension aside."""
+    base = str(name or "").strip()
+    stem, dot, ext = base.rpartition(".")
+    if dot and stem and len(ext) <= 4 and ext.isalnum() and not ext.isdigit():
+        base = stem
+    return base.strip().lower()
 
 
 def resolve_path(path: str, rom_dir: Optional[Path]) -> Path:
@@ -369,6 +394,7 @@ class _Libraries:
         self._cache: dict[int, Optional[RaLibrary]] = {}
         self._titles: dict[int, object] = {}
         self._names: dict[int, object] = {}
+        self._dumps: dict[int, dict[int, set]] = {}
 
     def get(self, console_id: int) -> Optional[RaLibrary]:
         if console_id not in self._cache:
@@ -412,6 +438,9 @@ class _Libraries:
                     names = fetch_hash_names(library, cache_dir=self.cache_dir,
                                              api_key=self.api_key, username=self.username)
                     index = build_name_index(library, names) if names else None
+                    self._dumps[console_id] = {
+                        int(game_id): {_dump_key(n) for n in dump_names}
+                        for game_id, dump_names in names.items()}
                 except Exception as exc:  # noqa: BLE001 - a title match still works
                     logger.warning("[ra_index] no dump names for console %d: %s", console_id, exc)
             self._names[console_id] = index
@@ -434,6 +463,21 @@ class _Libraries:
                     title = library.titles.get(game_id, "") if library else ""
                     return game_id, achievements, title
         return 0, 0, ""
+
+    def is_registered_dump(self, game_id: int, system: str, *names: str) -> bool:
+        """Whether any of ``names`` is a dump name RA registered for the game.
+
+        Only for systems matched by name: everywhere else the hash already
+        says this, exactly.
+        """
+        if not game_id or not ra_title_match_only(system):
+            return False
+        keys = {_dump_key(n) for n in names if n}
+        for console_id in ra_console_ids(system):
+            self.names(console_id)
+            if keys & self._dumps.get(console_id, {}).get(int(game_id), set()):
+                return True
+        return False
 
     def find(self, md5: str, system: str) -> tuple[int, int, str]:
         """``(game_id, achievements, title)``; game_id 0 when RA does not know it."""
@@ -541,11 +585,11 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
         if not result.ok:
             # Cache the failure too: an unreadable or malformed ROM should
             # not be retried on every single scan.
-            batch.append((entry.path, size, mtime, "", 0, 0, "", now, MATCH_HASH))
+            batch.append((entry.path, size, mtime, "", 0, 0, "", now, MATCH_HASH, 0))
             continue
         game_id, achievements, title = libraries.find(result.md5, entry.system)
         batch.append((entry.path, size, mtime, result.md5, game_id, achievements,
-                      title, now, MATCH_HASH))
+                      title, now, MATCH_HASH, 0))
         hashed += 1
         known += bool(game_id)
         if len(batch) >= progress_every:
@@ -578,7 +622,7 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
         if game_id and kind == MATCH_HASH:
             disc_hashed += 1
         batch.append((entry.path, size, mtime, md5 or "", game_id, achievements,
-                      title, now, kind))
+                      title, now, kind, 0))
         if len(batch) >= progress_every:
             _flush(conn, batch)
             batch = []
@@ -593,8 +637,9 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
             break
         name = getattr(entry, "name", "") or Path(entry.path).name
         game_id, achievements, title = libraries.find_by_title(name, entry.system)
+        dump = libraries.is_registered_dump(game_id, entry.system, name, Path(entry.path).name)
         batch.append((entry.path, 0, 0.0, "", game_id, achievements, title, now,
-                      MATCH_TITLE))
+                      MATCH_TITLE, int(dump)))
         titled += bool(game_id)
         if len(batch) >= progress_every:
             _flush(conn, batch)
@@ -609,14 +654,16 @@ def _refresh(entries, cache_dir, api_key, username, should_stop, progress_every,
     for entry in retitle:
         name = getattr(entry, "name", "") or Path(entry.path).name
         game_id, achievements, title = libraries.find_by_title(name, entry.system)
-        if game_id != cached[entry.path][4]:
-            updates.append((game_id, achievements, title, now, entry.path))
+        dump = int(libraries.is_registered_dump(game_id, entry.system, name,
+                                                Path(entry.path).name))
+        if game_id != cached[entry.path][4] or dump != cached[entry.path][5]:
+            updates.append((game_id, achievements, title, now, dump, entry.path))
     if updates:
         _generation += 1
         with _lock:
             conn.executemany(
-                "UPDATE ra_roms SET game_id = ?, achievements = ?, title = ?, checked_at = ? "
-                "WHERE path = ?", updates)
+                "UPDATE ra_roms SET game_id = ?, achievements = ?, title = ?, checked_at = ?, "
+                "dump_match = ? WHERE path = ?", updates)
             conn.commit()
         rematched = len(updates)
         logger.info("[ra_index] %d title match(es) updated", rematched)
@@ -640,8 +687,8 @@ def _flush(conn, batch: list[tuple]) -> None:
         conn.executemany(
             "INSERT OR REPLACE INTO ra_roms "
             "(path, size, mtime, md5, game_id, achievements, title, checked_at, "
-            " match_kind) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " match_kind, dump_match) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             batch,
         )
         conn.commit()
