@@ -489,6 +489,49 @@ def _resolve_saroo_native_payload(
         return bytes(native_bytes), container_mtime
     return None
 
+
+def _saroo_ss_save_path(saroo_root: Path) -> Path:
+    """Locate SS_SAVE.BIN for a profile path (the SAROO folder or the card root)."""
+    if saroo_root.name.upper() != "SAROO" and (saroo_root / "SAROO").is_dir():
+        return saroo_root / "SAROO" / "SS_SAVE.BIN"
+    return saroo_root / "SS_SAVE.BIN"
+
+
+def inject_saroo_download(title_id: str, bkr_path: Path, saroo_root: str) -> Path:
+    """Write a downloaded native Saturn image into the Saroo's SS_SAVE.BIN.
+
+    The slot is found the way the firmware finds it (by Game ID in the index),
+    and created when the Saroo has never saved this game — a server save for a
+    game not yet played on the Saroo must still reach it.  Raises rather than
+    leaving the save stranded in the staging ``.bkr``.
+    """
+    from saroo_format import inject_saroo_save, saroo_game_id_for_product
+
+    if not saroo_root:
+        raise ValueError("SAROO profile has no SD card path")
+    root = Path(saroo_root)
+    if not root.is_dir():
+        raise FileNotFoundError(f"SAROO SD card not found at {root}")
+    if not bkr_path or not Path(bkr_path).is_file():
+        raise FileNotFoundError(f"Downloaded Saturn save missing: {bkr_path}")
+
+    meta = _SAROO_META.get(title_id) or {}
+    game_id = str(meta.get("game_id") or "")
+    if not game_id:
+        product_code = title_id[4:] if title_id.upper().startswith("SAT_") else ""
+        if not re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*", product_code or ""):
+            raise ValueError(
+                f"{title_id} is not keyed by a disc serial, so its SAROO slot "
+                "cannot be identified. Boot the game on the SAROO once, rescan, "
+                "and sync again."
+            )
+        game_id = saroo_game_id_for_product(product_code)
+
+    ss_save = _saroo_ss_save_path(root)
+    current = ss_save.read_bytes() if ss_save.exists() else None
+    ss_save.write_bytes(inject_saroo_save(current, game_id, Path(bkr_path).read_bytes()))
+    return ss_save
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------

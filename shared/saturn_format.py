@@ -52,9 +52,11 @@ This module provides:
     build_ss_save_bin(slots)        -> bytes
     mednafen_to_saroo_slot(raw)     -> bytes   (32KB raw -> 64KB Saroo slot)
     saroo_slot_to_mednafen(slot_data, game_id) -> bytes  (64KB slot -> 32KB raw)
+    inject_saroo_save(ss_save, game_id, raw) -> bytes (write/create a game's slot)
 
 References:
     https://github.com/tpunix/SAROO/blob/master/tools/savetool/sr_bup.c
+    https://github.com/tpunix/SAROO/blob/master/Firm_MCU/Saturn/saturn_utils.c
     https://github.com/euan-forrester/save-file-converter/tree/main/frontend/src/save-formats/SegaSaturn
 """
 
@@ -924,6 +926,88 @@ def mednafen_to_saroo_slot(raw: bytes, game_id: str) -> bytes:
     ]
     slot = GameSlot(game_id=game_id, saves=entries)
     return _build_game_slot(slot)
+
+
+# The firmware matches a disc to its slot on the first 8 bytes of the index
+# entry only (``load_savefile`` in Firm_MCU/Saturn/saturn_utils.c), and scans
+# at most this many index entries.
+SAROO_ID_MATCH_LENGTH = 8
+SAROO_MAX_SLOTS = SLOT_SIZE // GAME_ID_LENGTH  # 4096
+
+
+def saroo_game_id_for_product(product_code: str) -> str:
+    """Return the 16-byte disc-header Game ID the Saroo files a product under.
+
+    The disc header holds the product number in a 10-byte space-padded field
+    followed by the version, and only the first 8 bytes take part in the
+    firmware's lookup, so the version can be left blank.  Serials that the DAT
+    carries as bare digits (``81014``) are ``MK-81014`` on the disc.
+    """
+    code = product_code.strip().upper()
+    if code.isdigit():
+        code = f"MK-{code}"
+    return code.ljust(10)[:10].ljust(GAME_ID_LENGTH)
+
+
+def find_saroo_slot(data: bytes, game_id: str) -> Optional[int]:
+    """Return the slot number the firmware would load for ``game_id``, if any.
+
+    Walks the reserved-slot index exactly like the firmware: first entry whose
+    leading 8 bytes match wins, and an all-zero entry ends the list.  This
+    also finds slots the firmware created for a disc that never saved — those
+    are all zeros, so :func:`parse_ss_save_bin_slots` skips them.
+    """
+    if len(data) < SLOT_SIZE or data[: len(RESERVED_SLOT_MAGIC)] != RESERVED_SLOT_MAGIC:
+        return None
+    key = game_id.encode("ascii", errors="replace")[:SAROO_ID_MATCH_LENGTH]
+    key = key.ljust(SAROO_ID_MATCH_LENGTH, b" ")
+    for slot_num in range(1, SAROO_MAX_SLOTS):
+        off = slot_num * GAME_ID_LENGTH
+        entry = data[off : off + GAME_ID_LENGTH]
+        if entry[:4] == b"\x00\x00\x00\x00":
+            return None
+        if entry[:SAROO_ID_MATCH_LENGTH] == key:
+            return slot_num
+    return None
+
+
+def inject_saroo_save(data: Optional[bytes], game_id: str, raw: bytes) -> bytes:
+    """Write a native Saturn image into ``SS_SAVE.BIN`` for ``game_id``.
+
+    ``data`` is the current file (``None`` or empty creates a fresh one, as the
+    firmware would).  The game's existing slot is overwritten in place; a game
+    the card has never seen gets the next free index entry and a new slot, so
+    the firmware finds the save on first boot instead of creating an empty one.
+    """
+    buf = bytearray(data or b"")
+    if not buf:
+        buf = bytearray(SLOT_SIZE)
+        buf[: len(RESERVED_SLOT_MAGIC)] = RESERVED_SLOT_MAGIC
+    elif len(buf) < SLOT_SIZE or buf[: len(RESERVED_SLOT_MAGIC)] != RESERVED_SLOT_MAGIC:
+        raise ValueError("SS_SAVE.BIN has no Saroo header")
+
+    slot_num = find_saroo_slot(bytes(buf), game_id)
+    if slot_num is None:
+        for slot_num in range(1, SAROO_MAX_SLOTS):
+            off = slot_num * GAME_ID_LENGTH
+            if buf[off : off + 4] == b"\x00\x00\x00\x00":
+                break
+        else:
+            raise ValueError("SS_SAVE.BIN has no free slot")
+        off = slot_num * GAME_ID_LENGTH
+        buf[off : off + GAME_ID_LENGTH] = _write_cstr(game_id, GAME_ID_LENGTH)
+        slot_game_id = game_id
+    else:
+        # Keep the id the firmware wrote (it carries the disc's version).
+        off = slot_num * GAME_ID_LENGTH
+        slot_game_id = _read_cstr(bytes(buf), off, GAME_ID_LENGTH)
+
+    slot = mednafen_to_saroo_slot(raw, slot_game_id)
+    start = slot_num * SLOT_SIZE
+    if len(buf) < start + SLOT_SIZE:
+        buf.extend(b"\x00" * (start + SLOT_SIZE - len(buf)))
+    buf[start : start + SLOT_SIZE] = slot
+    return bytes(buf)
 
 
 # ---------------------------------------------------------------------------

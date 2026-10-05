@@ -197,3 +197,63 @@ def test_merge_saturn_save_set_preserves_unrelated_yabasanshiro_archives():
         "GRANDIA_001": b"grandia",
         "DRACULAX_01": b"new-drac",
     }
+
+
+def _snatcher_image() -> bytes:
+    return _build_native_saturn(
+        [
+            _NativeSave("SNATCHER_01", 0, "ACT2", 24568488, bytes(range(256)) * 4),
+            _NativeSave("SNATCHER_02", 0, "ACT1", 24568400, b"\x5a" * 300),
+        ]
+    )
+
+
+def test_inject_saroo_save_creates_slot_for_unseen_game():
+    from saroo_format import (
+        RESERVED_SLOT_MAGIC,
+        find_saroo_slot,
+        inject_saroo_save,
+        parse_ss_save_bin_slots,
+        saroo_game_id_for_product,
+        saroo_slot_to_mednafen,
+    )
+
+    other = inject_saroo_save(None, "T-1247G   V1.000", _snatcher_image())
+    game_id = saroo_game_id_for_product("T-9508G")
+    out = inject_saroo_save(other, game_id, _snatcher_image())
+
+    assert out[:16] == RESERVED_SLOT_MAGIC
+    # The firmware keys on the disc header's first 8 bytes: "T-9508G ".
+    assert find_saroo_slot(out, "T-9508G   V1.002") == 2
+    slots = dict(parse_ss_save_bin_slots(out))
+    assert [s.name for s in slots[2].saves] == ["SNATCHER_01", "SNATCHER_02"]
+    assert slots[1].game_id.startswith("T-1247G")
+    slot = out[2 * 0x10000 : 3 * 0x10000]
+    assert list_saturn_archive_names(saroo_slot_to_mednafen(slot)) == [
+        "SNATCHER_01",
+        "SNATCHER_02",
+    ]
+
+
+def test_inject_saroo_save_fills_empty_slot_the_firmware_created():
+    from saroo_format import RESERVED_SLOT_MAGIC, inject_saroo_save, parse_ss_save_bin_slots
+
+    # Booting a game the card has never seen indexes it with an all-zero slot.
+    data = bytearray(0x20000)
+    data[:16] = RESERVED_SLOT_MAGIC
+    data[0x10:0x20] = b"T-9508G   V1.002"
+    out = inject_saroo_save(bytes(data), "T-9508G         ", _snatcher_image())
+
+    assert len(out) == 0x20000
+    assert out[0x20:0x30] == b"\x00" * 16  # no duplicate index entry
+    ((slot_num, slot),) = parse_ss_save_bin_slots(out)
+    assert slot_num == 1
+    assert slot.game_id == "T-9508G   V1.002"
+    assert len(slot.saves) == 2
+
+
+def test_saroo_game_id_for_product_restores_mk_prefix():
+    from saroo_format import saroo_game_id_for_product
+
+    assert saroo_game_id_for_product("81014") == "MK-81014        "
+    assert saroo_game_id_for_product("t-9508g") == "T-9508G         "

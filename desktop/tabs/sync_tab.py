@@ -1203,7 +1203,15 @@ class SyncTab(QWidget):
                     synced += 1
                 elif st.status == "server_only":
                     dest_path = self._resolve_download_path(st)
-                    if dest_path and self._local_changed_since_scan(st, dest_path):
+                    # A SAROO profile without a mednafen folder parks the .bkr
+                    # beside SS_SAVE.BIN purely as a staging copy — an earlier
+                    # download's leftover is not a save to protect.
+                    saroo_staging = is_saroo and not profile.get("save_folder")
+                    if (
+                        dest_path
+                        and not saroo_staging
+                        and self._local_changed_since_scan(st, dest_path)
+                    ):
                         # Scan attributed nothing to this title, yet the
                         # destination is occupied — never blind-write it.
                         stale += 1
@@ -1411,46 +1419,14 @@ class SyncTab(QWidget):
         """Inject the downloaded mednafen .bkr bytes back into SS_SAVE.BIN.
 
         After `_download_to_paths` writes the server's mednafen-format bytes to
-        `bkr_path`, this method converts them to a Saroo slot and patches the
-        correct slot inside SS_SAVE.BIN on the SD card.
-
-        If SS_SAVE.BIN does not exist (e.g. the user only has a mednafen folder
-        configured), this step is silently skipped.
+        `bkr_path`, this writes them into the game's slot in SS_SAVE.BIN on the
+        SD card, creating the slot when the Saroo has never saved this game.
+        Raises when the save cannot be placed, so the caller never reports a
+        download the Saroo won't see.
         """
-        from saroo_format import mednafen_to_saroo_slot
+        from sync_engine import inject_saroo_download
 
-        saroo_root_str = profile.get("path", "")
-        if not saroo_root_str:
-            return
-        ss_save = Path(saroo_root_str) / "SS_SAVE.BIN"
-        if not ss_save.exists():
-            return
-
-        from sync_engine import _SAROO_META
-
-        meta = _SAROO_META.get(title_id)
-        if not meta:
-            # Slot position unknown — can't inject safely; leave .bkr only
-            return
-
-        game_id: str = meta["game_id"]
-        slot_offset: int = meta["slot_index"]  # byte offset of the slot in SS_SAVE.BIN
-
-        if not bkr_path or not bkr_path.exists():
-            return
-        mednafen_bytes = bkr_path.read_bytes()
-
-        # Convert mednafen 32KB → Saroo 64KB slot
-        saroo_slot = mednafen_to_saroo_slot(mednafen_bytes, game_id)
-
-        # Patch SS_SAVE.BIN in-place at the known slot offset
-        ss_data = bytearray(ss_save.read_bytes())
-        end = slot_offset + len(saroo_slot)
-        if end > len(ss_data):
-            # File too short — extend it
-            ss_data.extend(b"\x00" * (end - len(ss_data)))
-        ss_data[slot_offset:end] = saroo_slot
-        ss_save.write_bytes(bytes(ss_data))
+        inject_saroo_download(title_id, bkr_path, profile.get("path", ""))
 
     def _find_rom_file(self, rom_folder: Path, game_name: str) -> Path | None:
         """Search rom_folder recursively for a ROM whose normalized stem matches game_name.
