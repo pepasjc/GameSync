@@ -21,6 +21,9 @@ SATURN_ARCHIVE_STATE_PATH = (
 # pause a multi-GB download, close the app, and resume later.  Mirrors
 # Android's Room "downloads" table.
 DOWNLOADS_DB_PATH = Path.home() / ".config" / "savesync" / "steamdeck_downloads.db"
+# The server ROM catalog, per system with the fingerprint it was fetched
+# under (see catalog_store.py).
+CATALOG_CACHE_PATH = Path.home() / ".config" / "savesync" / "steamdeck_catalog.json"
 
 SATURN_SYNC_FORMATS = ("mednafen", "yabause", "yabasanshiro")
 

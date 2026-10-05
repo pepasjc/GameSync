@@ -1,32 +1,31 @@
 """
-Main window for the Steam Deck SaveSync client.
+Main window for the Steam Deck GameSync client.
 
-Layout (1280 × 800 full-screen):
+Layout (1280 × 800 full-screen), the shared GameSync design:
   ┌───────────────────────────────────────────────────────┐
-  │  Top bar: title · server status · scan spinner        │
+  │ GameSync   [L1] Saves Catalog Installed … [R1]   ● srv │  header
   ├───────────────────────────────────────────────────────┤
-  │  Filter bar: [< System >]  [< Status >]  search box  │
-  ├───────────────────────────────────────────────────────┤
-  │                                                       │
-  │            Game list (LazyColumn equivalent)          │
-  │                                                       │
-  ├───────────────────────────────────────────────────────┤
-  │  Controls: [A] Info  [B] Exit  [X] Sync  …           │
+  │ [SELECT] (All) (GBA) (PS1) …                 123 saves │  sub-tab chips
+  ├──────────────────────────────────────┬────────────────┤
+  │  list of the active tab              │  details of    │
+  │                                      │  the selected  │
+  │                                      │  row           │
+  ├──────────────────────────────────────┴────────────────┤
+  │ ● status banner                                       │
+  │ (A) Sync (X) Sync all (Y) Details …      L1/R1 START  │  footer hints
   └───────────────────────────────────────────────────────┘
 
-Gamepad mapping (polled via pygame in a QTimer):
-  D-pad / L-stick ↑↓  →  navigate list
-  D-pad ←→            →  cycle system filter
-  A                   →  open save info dialog (upload/download from there)
-  B                   →  close app (with confirmation)
-  X                   →  sync selected (upload OR download depending on status)
-  Y                   →  refresh
-  L1                  →  prev system filter
-  R1                  →  next system filter
-  L2                  →  prev status filter
-  R2                  →  next status filter
-  Start               →  settings
-  Select              →  toggle search
+Controls (pygame-polled gamepad; the same scheme on every GameSync client):
+  D-pad / L-stick ↑↓  →  move one row (held repeats)
+  D-pad ←→            →  page (held accelerates, then jumps by letter)
+  L1 / R1             →  previous / next tab (wraps)
+  SELECT              →  next sub-tab (system filter)
+  A                   →  confirm / the row's main action
+  B                   →  cancel / back (clear search, pause a download)
+  X                   →  the tab's secondary action
+  Y                   →  details (Saves) / search (Catalog, Installed)
+  START               →  exit, after a confirmation
+  L2 / R2             →  Saves status filter
 """
 
 import time
@@ -40,15 +39,13 @@ from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QPushButton,
-    QProgressBar,
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QKeyEvent
 
-from scanner.models import GameEntry, SyncStatus, STATUS_LABEL
+from scanner.models import GameEntry, SyncStatus, STATUS_COLOR, STATUS_LABEL
 from scanner import scan_all, rpcs3, dolphin, citra, cemu, server_only
 from scanner.rom_match import (
     DISC_SLUG_SYSTEMS as _DISC_SLUG_SYSTEMS,
@@ -69,14 +66,19 @@ from config import (
     load_config,
     save_config,
     save_dir_override as _save_dir_override,
+    CATALOG_CACHE_PATH,
     DOWNLOADS_DB_PATH,
 )
-from download_manager import DownloadManager
+from catalog_store import CatalogResult, load_catalog
+from download_manager import ACTIVE_STATUSES, DownloadManager
+from shared.systems import DEFAULT_SYSTEM_COLOR, SYSTEM_COLOR
 from . import theme
 from .catalog_view import CatalogView
 from .game_list import GameListView
 from .installed_view import InstalledView
+from .chrome import ChipBar, DetailPanel, HeaderBar, StatusBanner
 from .controls_bar import ControlsBar
+from .settings_view import SettingsRow, SettingsView
 from .settings_dialog import SettingsDialog
 from .detail_dialog import DetailDialog
 from .confirm_dialog import ConfirmDialog, ResultDialog
@@ -131,21 +133,56 @@ class ScanWorker(QObject):
 
 
 class CatalogWorker(QObject):
-    """Fetches the server's full ROM catalog off the main thread."""
+    """Loads the server's ROM catalog through the on-disk cache, off the
+    main thread (see catalog_store: only systems whose fingerprint moved
+    are fetched)."""
 
-    finished = pyqtSignal(list, str)  # roms, error_detail
+    progress = pyqtSignal(str)
+    finished = pyqtSignal(object)  # CatalogResult
 
-    def __init__(self, client: SyncClient):
+    def __init__(self, client: SyncClient, force: bool = False):
         super().__init__()
         self._client = client
+        self._force = force
 
     def run(self) -> None:
         try:
-            roms = self._client.list_roms() or []
-        except Exception as exc:  # list_roms already swallows most errors
-            self.finished.emit([], str(exc) or exc.__class__.__name__)
-            return
-        self.finished.emit(roms, "")
+            result = load_catalog(
+                self._client, CATALOG_CACHE_PATH, force=self._force,
+                progress=self.progress.emit,
+            )
+        except Exception as exc:  # never leave the tab stuck on "Loading"
+            result = CatalogResult(error=str(exc) or exc.__class__.__name__)
+        self.finished.emit(result)
+
+
+class SyncAllWorker(QObject):
+    """Runs Sync all's uploads and downloads one at a time."""
+
+    progress = pyqtSignal(int, int, str)  # done, total, name
+    finished = pyqtSignal(int, list)  # ok count, failure lines
+
+    def __init__(self, client: SyncClient, uploads: list, downloads: list):
+        super().__init__()
+        self._client = client
+        self._jobs = [(e, True) for e in uploads] + [(e, False) for e in downloads]
+
+    def run(self) -> None:
+        ok, failed = 0, []
+        total = len(self._jobs)
+        for index, (entry, upload) in enumerate(self._jobs, 1):
+            self.progress.emit(index, total, entry.display_name)
+            try:
+                done = (self._client.upload_save(entry, force=True) if upload
+                        else self._client.download_save(entry, force=True))
+            except Exception as exc:
+                done = False
+                print(f"[SyncAll] {entry.title_id}: {exc}")
+            if done:
+                ok += 1
+            else:
+                failed.append(f"{'Upload' if upload else 'Download'}: {entry.display_name}")
+        self.finished.emit(ok, failed)
 
 
 class InstalledWorker(QObject):
@@ -354,7 +391,8 @@ class ServerWorker(QObject):
         # slug entries to whatever title_id the server uses for the same
         # ROM, and (b) flag each entry with the ROMs the server can hand
         # back, so the UI can hide Download-ROM when nothing's available.
-        catalog = self._client.list_roms() or []
+        # Through the on-disk cache: unchanged systems cost nothing.
+        catalog = load_catalog(self._client, CATALOG_CACHE_PATH).rows
         rom_index = _RomIndex.build(catalog)
 
         # ── Enrich local slug title_ids by looking the ROM up in the
@@ -561,16 +599,154 @@ def _matches_status_filter(entry: GameEntry, filt: str) -> bool:
     return entry.status == target
 
 
+def _app_version() -> str:
+    """The root VERSION file, the single source of truth for every client."""
+    try:
+        return (Path(__file__).resolve().parents[2] / "VERSION").read_text().strip()
+    except OSError:
+        return ""
+
+
+def _sync_all_plan(entries: list[GameEntry]) -> tuple[list, list, list]:
+    """Split saves into ``(uploads, downloads, conflicts)`` for Sync all.
+
+    A server-only save is downloaded only when its game's ROM is on this
+    machine (the scanner found the ROM and predicted where the emulator
+    keeps the save); rows built purely from the server's list are left for
+    the user to fetch from the details, so Sync all never fills save folders
+    for games that aren't installed.
+    """
+    uploads, downloads, conflicts = [], [], []
+    for entry in entries:
+        status = entry.status
+        if status in (SyncStatus.LOCAL_NEWER, SyncStatus.LOCAL_ONLY):
+            if entry.save_path is not None and entry.save_path.exists():
+                uploads.append(entry)
+        elif status == SyncStatus.SERVER_NEWER:
+            if entry.save_path is not None and entry.server_hash:
+                downloads.append(entry)
+        elif status == SyncStatus.SERVER_ONLY:
+            if entry.save_path is not None and entry.server_hash and entry.rom_path:
+                downloads.append(entry)
+        elif status == SyncStatus.CONFLICT:
+            conflicts.append(entry)
+    return uploads, downloads, conflicts
+
+
+def _fmt_bytes(num: Optional[int]) -> str:
+    if not num:
+        return "—"
+    if num < 1024:
+        return f"{num} B"
+    if num < 1024 * 1024:
+        return f"{num / 1024:.1f} KB"
+    if num < 1024 ** 3:
+        return f"{num / (1024 * 1024):.1f} MB"
+    return f"{num / 1024 ** 3:.2f} GB"
+
+
+def _fmt_time(stamp: Optional[float]) -> str:
+    if not stamp:
+        return "—"
+    try:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(float(stamp)))
+    except (TypeError, ValueError, OverflowError, OSError):
+        return "—"
+
+
+_SAVE_HINTS = {
+    SyncStatus.SYNCED: "Up to date with the server.",
+    SyncStatus.LOCAL_NEWER: "This copy changed since the last sync: A uploads it.",
+    SyncStatus.LOCAL_ONLY: "The server has no copy yet: A uploads it.",
+    SyncStatus.SERVER_NEWER: "The server's copy is newer: A downloads it.",
+    SyncStatus.SERVER_ONLY: "Only the server has this save: A downloads it.",
+    SyncStatus.CONFLICT: "Both copies changed since the last sync: A opens the "
+                         "comparison so you can pick one.",
+    SyncStatus.NO_SAVE: "No save on this machine or the server yet.",
+}
+
+
+def _save_detail(entry: GameEntry) -> tuple:
+    status_color = STATUS_COLOR.get(entry.status, theme.MUTED)
+    pills = [
+        (STATUS_LABEL.get(entry.status, "?"), status_color),
+        (entry.system, SYSTEM_COLOR.get(entry.system, DEFAULT_SYSTEM_COLOR)),
+    ]
+    rows = [
+        ("Title ID", entry.title_id),
+        ("Emulator", entry.emulator),
+        ("Local save", entry.save_path.name if entry.save_path else "none"),
+        ("Local size", _fmt_bytes(entry.save_size)),
+        ("Local time", _fmt_time(entry.save_mtime)),
+        ("Server size", _fmt_bytes(entry.server_size)),
+        ("Server time", _fmt_time(entry.server_timestamp)),
+    ]
+    if entry.save_hash:
+        rows.append(("Local hash", entry.save_hash[:12]))
+    if entry.server_hash:
+        rows.append(("Server hash", entry.server_hash[:12]))
+    return (f"{entry.system} save", entry.display_name, pills, rows,
+            _SAVE_HINTS.get(entry.status, "Y shows the details."))
+
+
+def _catalog_detail(rom: dict) -> tuple:
+    system = str(rom.get("system") or "?").upper()
+    pills = [(system, SYSTEM_COLOR.get(system, DEFAULT_SYSTEM_COLOR))]
+    try:
+        ra = int(rom.get("ra_achievements") or 0)
+    except (TypeError, ValueError):
+        ra = 0
+    if ra > 0:
+        title_only = str(rom.get("ra_match") or "hash").lower() == "title"
+        pills.append(("RA?" if title_only else f"RA {ra}",
+                      theme.RA_BADGE_WEAK if title_only else theme.RA_BADGE))
+    rows = [
+        ("File", str(rom.get("filename") or "—")),
+        ("Size", _fmt_bytes(int(rom.get("size") or 0))),
+        ("Title ID", str(rom.get("title_id") or "—")),
+    ]
+    discs = int(rom.get("disc_total") or 0)
+    if discs > 1:
+        rows.append(("Disc", f"{rom.get('disc_index') or '?'} of {discs}"))
+    if rom.get("bundle_kind"):
+        rows.append(("Pack", _BUNDLE_KIND_LABELS.get(str(rom["bundle_kind"]),
+                                                     str(rom["bundle_kind"]))))
+    elif rom.get("is_bundle"):
+        rows.append(("Files", str(len(rom.get("files") or []))))
+    return ("Catalog", str(rom.get("name") or rom.get("filename") or "?"), pills,
+            rows, "A queues the download; it runs in the background on the "
+                  "Downloads tab.")
+
+
+def _installed_detail(rom: "InstalledRom") -> tuple:
+    pills = [(rom.system, SYSTEM_COLOR.get(rom.system, DEFAULT_SYSTEM_COLOR))]
+    rows = [
+        ("File", rom.filename),
+        ("Folder", str(rom.path.parent)),
+        ("Size", _fmt_bytes(rom.size)),
+        ("Files", str(rom.total_files)),
+    ]
+    return ("Installed", rom.display_name, pills, rows,
+            "A deletes it from this machine (asks first).")
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Main Window
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 class MainWindow(QMainWindow):
+    # Top-level tabs, in L1/R1 order (wrapping), as on every GameSync client.
+    TAB_SAVES, TAB_CATALOG, TAB_INSTALLED, TAB_DOWNLOADS, TAB_SETTINGS = range(5)
+    TAB_LABELS = ("Saves", "Catalog", "Installed", "Downloads", "Settings")
+    TAB_COUNT = len(TAB_LABELS)
+
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("SaveSync")
+        self.setWindowTitle("GameSync")
         self.setStyleSheet(theme.STYLESHEET)
+        # Keys must reach keyPressEvent once the search box gives focus back.
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         self._config = load_config()
         self._client = SyncClient(
@@ -588,12 +764,14 @@ class MainWindow(QMainWindow):
         self._search_text = ""
         self._systems: list[str] = [ALL_SYSTEMS]
         # Tab filter state lives on each per-tab view.  We mirror the
-        # system list here so the top bar can cycle through the
-        # systems the active tab actually has entries for.
+        # system list here so SELECT can cycle through the systems the
+        # active tab actually has entries for.
         self._catalog_systems: list[str] = [CatalogView.ALL_SYSTEMS]
         self._installed_systems: list[str] = [InstalledView.ALL_SYSTEMS]
-        # 0 = saves, 1 = catalog, 2 = installed, 3 = downloads
-        self._active_tab = 0
+        self._active_tab = self.TAB_SAVES
+        self._server_online = False
+        # Set while Sync all runs, so A / X can't start a second transfer.
+        self._sync_all_thread: Optional[QThread] = None
 
         # Background download queue.  The Downloads tab + every
         # ROM-download trigger site (catalog A button, save-detail
@@ -604,8 +782,6 @@ class MainWindow(QMainWindow):
         # save-status flips) and the Installed tab (so the new file
         # appears).  Mirrors what the old modal flow did on success.
         self._download_manager.completed.connect(self._on_download_completed)
-        # Keep the filter-bar count label in sync while the user is
-        # parked on the Downloads tab.
         self._download_manager.list_changed.connect(self._on_downloads_list_changed)
 
         # Build UI
@@ -616,9 +792,14 @@ class MainWindow(QMainWindow):
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)
 
-        root.addWidget(self._build_topbar())
-        root.addWidget(self._build_tabbar())
-        root.addWidget(self._build_filterbar())
+        self._header = HeaderBar(self.TAB_LABELS, version=_app_version())
+        self._header.tab_clicked.connect(self._set_active_tab)
+        root.addWidget(self._header)
+
+        self._chips = ChipBar()
+        self._chips.chip_clicked.connect(self._on_chip_clicked)
+        root.addWidget(self._chips)
+
         self._search_bar = self._build_searchbar()
         root.addWidget(self._search_bar)
         self._search_bar.hide()
@@ -636,16 +817,41 @@ class MainWindow(QMainWindow):
 
         self._downloads_view = DownloadsView(self._download_manager)
 
+        self._settings_view = SettingsView()
+        self._settings_view.activated_key.connect(self._on_setting_activated)
+
         self._stack = QStackedWidget()
-        self._stack.addWidget(self._list_view)       # idx 0 — saves
-        self._stack.addWidget(self._catalog_view)    # idx 1 — catalog
-        self._stack.addWidget(self._installed_view)  # idx 2 — installed
-        self._stack.addWidget(self._downloads_view)  # idx 3 — downloads
-        root.addWidget(self._stack, 1)
+        self._stack.addWidget(self._list_view)       # TAB_SAVES
+        self._stack.addWidget(self._catalog_view)    # TAB_CATALOG
+        self._stack.addWidget(self._installed_view)  # TAB_INSTALLED
+        self._stack.addWidget(self._downloads_view)  # TAB_DOWNLOADS
+        self._stack.addWidget(self._settings_view)   # TAB_SETTINGS
+
+        # List on the left, details of the highlighted row on the right.
+        body = QWidget()
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(12, 10, 16, 6)
+        body_layout.setSpacing(14)
+        body_layout.addWidget(self._stack, 1)
+        self._detail = DetailPanel()
+        body_layout.addWidget(self._detail)
+        root.addWidget(body, 1)
+
+        self._banner = StatusBanner()
+        root.addWidget(self._banner)
 
         self._controls = ControlsBar()
         root.addWidget(self._controls)
 
+        for view in (
+            self._list_view,
+            self._catalog_view.list_widget(),
+            self._installed_view.list_widget(),
+            self._settings_view,
+        ):
+            view.selectionModel().currentChanged.connect(self._refresh_detail)
+
+        self._refresh_settings_rows()
         self._refresh_tab_ui()
 
         # Gamepad polling
@@ -672,138 +878,12 @@ class MainWindow(QMainWindow):
     # UI builders
     # ──────────────────────────────────────────────────────────────
 
-    def _build_topbar(self) -> QWidget:
-        bar = QWidget()
-        bar.setObjectName("topBar")
-        bar.setFixedHeight(theme.TOPBAR_H)
-        layout = QHBoxLayout(bar)
-        layout.setContentsMargins(16, 0, 16, 0)
-        layout.setSpacing(12)
-
-        icon = QLabel("💾")
-        icon.setFont(_font(18))
-        layout.addWidget(icon)
-
-        title = QLabel("SaveSync")
-        title.setFont(_font(16, bold=True))
-        layout.addWidget(title)
-
-        layout.addStretch()
-
-        self._status_dot = QLabel("●")
-        self._status_dot.setStyleSheet(f"color: {theme.STATUS_NO_SAVE};")
-        layout.addWidget(self._status_dot)
-
-        self._status_label = QLabel("Checking…")
-        self._status_label.setFont(_font(11))
-        self._status_label.setStyleSheet(f"color: {theme.TEXT_SECONDARY};")
-        layout.addWidget(self._status_label)
-
-        layout.addSpacing(16)
-
-        self._scan_bar = QProgressBar()
-        self._scan_bar.setFixedWidth(160)
-        self._scan_bar.setFixedHeight(6)
-        self._scan_bar.setRange(0, 0)  # indeterminate
-        self._scan_bar.setTextVisible(False)
-        self._scan_bar.hide()
-        self._scan_bar.setStyleSheet(
-            f"QProgressBar {{ background:{theme.TEXT_DIM}; border-radius:3px; }}"
-            f"QProgressBar::chunk {{ background:{theme.ACCENT}; border-radius:3px; }}"
-        )
-        layout.addWidget(self._scan_bar)
-
-        self._scan_label = QLabel("")
-        self._scan_label.setFont(_font(10))
-        self._scan_label.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
-        layout.addWidget(self._scan_label)
-
-        return bar
-
-    def _build_tabbar(self) -> QWidget:
-        bar = QWidget()
-        bar.setObjectName("tabBar")
-        bar.setFixedHeight(40)
-        bar.setStyleSheet(
-            f"QWidget#tabBar {{ background: {theme.BG_TOPBAR}; "
-            f"border-top: 1px solid {theme.TEXT_DIM}; }}"
-        )
-        layout = QHBoxLayout(bar)
-        layout.setContentsMargins(12, 4, 12, 4)
-        layout.setSpacing(8)
-
-        self._tab_buttons: list[QPushButton] = []
-        for idx, label in enumerate(("My Games", "ROM Catalog", "Installed", "Downloads")):
-            btn = QPushButton(label)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setCheckable(True)
-            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            btn.clicked.connect(lambda _=False, i=idx: self._set_active_tab(i))
-            self._tab_buttons.append(btn)
-            layout.addWidget(btn)
-
-        layout.addStretch()
-
-        hint = QLabel("L1/R1  ·  Tab")
-        hint.setStyleSheet(f"color:{theme.TEXT_DIM}; font-size:10pt;")
-        layout.addWidget(hint)
-
-        return bar
-
-    def _tab_button_style(self, active: bool) -> str:
-        if active:
-            return (
-                f"QPushButton {{ background: {theme.ACCENT}; "
-                f"color: {theme.BG_WINDOW}; border: none; "
-                f"border-radius: 6px; padding: 4px 18px; font-weight: bold; }}"
-            )
-        return (
-            f"QPushButton {{ background: transparent; "
-            f"color: {theme.TEXT_SECONDARY}; border: 1px solid {theme.TEXT_DIM}; "
-            f"border-radius: 6px; padding: 4px 18px; }}"
-            f"QPushButton:hover {{ color: {theme.TEXT_PRIMARY}; "
-            f"border-color: {theme.ACCENT}; }}"
-        )
-
-    def _build_filterbar(self) -> QWidget:
-        bar = QWidget()
-        bar.setObjectName("filterBar")
-        bar.setFixedHeight(theme.FILTERBAR_H)
-        layout = QHBoxLayout(bar)
-        layout.setContentsMargins(16, 0, 16, 0)
-        layout.setSpacing(24)
-
-        sys_lbl = QLabel("System:")
-        sys_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
-        layout.addWidget(sys_lbl)
-
-        self._system_label = QLabel(ALL_SYSTEMS)
-        self._system_label.setFont(_font(12, bold=True))
-        layout.addWidget(self._system_label)
-
-        layout.addSpacing(32)
-
-        stat_lbl = QLabel("Status:")
-        stat_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
-        layout.addWidget(stat_lbl)
-
-        self._status_filter_label = QLabel(ALL_STATUSES)
-        self._status_filter_label.setFont(_font(12, bold=True))
-        layout.addWidget(self._status_filter_label)
-
-        layout.addStretch()
-
-        self._count_label = QLabel("")
-        self._count_label.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
-        layout.addWidget(self._count_label)
-
-        return bar
-
     def _build_searchbar(self) -> QWidget:
         container = QWidget()
-        container.setFixedHeight(44)
+        container.setFixedHeight(48)
+        container.setStyleSheet(f"background:{theme.BG2};")
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(14, 4, 14, 4)
+        layout.setContentsMargins(18, 6, 18, 6)
 
         self._search_edit = QLineEdit()
         self._search_edit.setObjectName("searchBox")
@@ -817,6 +897,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(close_btn)
 
         return container
+
+    def _notify(self, text: str, kind: str = "info", hold_ms: int = 5000) -> None:
+        self._banner.show_message(text, kind, hold_ms)
 
     # ──────────────────────────────────────────────────────────────
     # Scanning
@@ -841,7 +924,7 @@ class MainWindow(QMainWindow):
         self._scan_thread.start()
 
     def _on_scan_progress(self, msg: str):
-        self._scan_label.setText(msg)
+        self._notify(msg, hold_ms=0)
 
     def _on_scan_finished(self, entries: list[GameEntry]):
         self._all_entries = entries
@@ -868,10 +951,20 @@ class MainWindow(QMainWindow):
         self._update_system_list()
         self._apply_filters()
         self._set_scanning(False)
+        pending = sum(1 for e in entries if e.status in NEEDS_ACTION_STATUSES)
+        if pending:
+            self._notify(
+                f"{len(entries)} saves  ·  {pending} need syncing (X syncs all)",
+                "warn",
+            )
+        else:
+            self._notify(f"{len(entries)} saves  ·  everything up to date", "ok")
 
     def _update_system_list(self):
         systems = sorted({e.system for e in self._all_entries if e.system != "?"})
         self._systems = [ALL_SYSTEMS] + systems
+        if self._system_filter not in self._systems:
+            self._system_filter = ALL_SYSTEMS
 
     def _apply_filters(self):
         filtered = self._all_entries
@@ -900,8 +993,9 @@ class MainWindow(QMainWindow):
         filtered.sort(key=sort_key)
         self._filtered_entries = filtered
         self._list_view.set_entries(filtered)
-        if self._active_tab == 0:
-            self._count_label.setText(f"{len(filtered)} games")
+        if self._active_tab == self.TAB_SAVES:
+            self._refresh_chips()
+            self._refresh_detail()
 
     # ──────────────────────────────────────────────────────────────
     # Server status
@@ -909,50 +1003,54 @@ class MainWindow(QMainWindow):
 
     def _check_server_status(self):
         connected = self._client.check_connection()
+        self._server_online = connected
         if connected:
-            self._status_dot.setStyleSheet(f"color:{theme.STATUS_SYNCED};")
-            host = self._config["host"]
-            self._status_label.setText(f"Connected · {host}")
+            self._header.set_server(True, f"{self._config['host']}")
         else:
-            self._status_dot.setStyleSheet(f"color:{theme.STATUS_CONFLICT};")
-            self._status_label.setText("Disconnected")
+            self._header.set_server(False, "Server offline")
 
     def _set_scanning(self, active: bool, msg: str = ""):
-        if active:
-            self._scan_bar.show()
-            self._scan_label.setText(msg)
-        else:
-            self._scan_bar.hide()
-            self._scan_label.setText("")
+        self._header.set_busy(active)
+        if active and msg:
+            self._notify(msg, hold_ms=0)
+        elif not active:
+            self._notify("")
 
     # ──────────────────────────────────────────────────────────────
-    # Filter cycling
+    # Sub-tabs (SELECT) and the Saves status filter (L2 / R2)
     # ──────────────────────────────────────────────────────────────
 
     def _cycle_system(self, delta: int):
-        if self._active_tab == 1:
+        if self._active_tab == self.TAB_CATALOG:
             self._catalog_view.cycle_system(delta, self._catalog_systems)
-            self._system_label.setText(self._catalog_view.system_filter())
-            return
-        if self._active_tab == 2:
+        elif self._active_tab == self.TAB_INSTALLED:
             self._installed_view.cycle_system(delta, self._installed_systems)
-            self._system_label.setText(self._installed_view.system_filter())
-            return
-        if not self._systems:
-            return
-        try:
-            idx = self._systems.index(self._system_filter)
-        except ValueError:
-            idx = 0
-        idx = (idx + delta) % len(self._systems)
-        self._system_filter = self._systems[idx]
-        self._system_label.setText(self._system_filter)
-        self._apply_filters()
+        elif self._active_tab == self.TAB_SAVES and self._systems:
+            try:
+                idx = self._systems.index(self._system_filter)
+            except ValueError:
+                idx = 0
+            idx = (idx + delta) % len(self._systems)
+            self._system_filter = self._systems[idx]
+            self._apply_filters()
+        self._refresh_chips()
+        self._refresh_detail()
+
+    def _on_chip_clicked(self, chip: str) -> None:
+        if self._active_tab == self.TAB_CATALOG:
+            self._catalog_view.set_system_filter(chip)
+        elif self._active_tab == self.TAB_INSTALLED:
+            self._installed_view.set_system_filter(chip)
+        elif self._active_tab == self.TAB_SAVES:
+            self._system_filter = chip
+            self._apply_filters()
+        self._refresh_chips()
+        self._refresh_detail()
 
     def _cycle_status(self, delta: int):
-        # Status filter only applies to the My Games tab — catalog /
+        # Status filter only applies to the Saves tab — catalog /
         # installed rows don't carry a sync status.
-        if self._active_tab != 0:
+        if self._active_tab != self.TAB_SAVES:
             return
         try:
             idx = STATUS_FILTER_CYCLE.index(self._status_filter)
@@ -960,8 +1058,37 @@ class MainWindow(QMainWindow):
             idx = 0
         idx = (idx + delta) % len(STATUS_FILTER_CYCLE)
         self._status_filter = STATUS_FILTER_CYCLE[idx]
-        self._status_filter_label.setText(self._status_filter)
         self._apply_filters()
+
+    def _refresh_chips(self) -> None:
+        """Sub-tab chips + the count for the active tab."""
+        tab = self._active_tab
+        if tab == self.TAB_SAVES:
+            self._chips.set_state(
+                self._systems,
+                self._system_filter,
+                left=f"Status: {self._status_filter}  (L2/R2)",
+                right=f"{len(self._filtered_entries)} saves",
+            )
+        elif tab == self.TAB_CATALOG:
+            view = self._catalog_view
+            right = view.status_text() if view.is_loaded else "Loading…"
+            self._chips.set_state(self._catalog_systems, view.system_filter(), right=right)
+        elif tab == self.TAB_INSTALLED:
+            view = self._installed_view
+            right = (f"{view.visible_count()} ROMs" if view.is_loaded else "Scanning…")
+            self._chips.set_state(self._installed_systems, view.system_filter(), right=right)
+        elif tab == self.TAB_DOWNLOADS:
+            count = len(self._download_manager.list_all())
+            self._chips.set_state(
+                [], "", left="Queue", hint="",
+                right=f"{count} download{'' if count == 1 else 's'}",
+            )
+        else:
+            self._chips.set_state(
+                [], "", left="Server, folders and maintenance", hint="",
+                right=f"GameSync {_app_version()}",
+            )
 
     # ──────────────────────────────────────────────────────────────
     # Search
@@ -971,27 +1098,33 @@ class MainWindow(QMainWindow):
         if self._search_visible:
             self._hide_search()
         else:
-            self._search_visible = True
-            self._search_bar.show()
-            self._search_edit.setFocus()
+            self._show_search()
+
+    def _show_search(self):
+        if self._active_tab not in (self.TAB_SAVES, self.TAB_CATALOG, self.TAB_INSTALLED):
+            return
+        self._search_visible = True
+        self._search_bar.show()
+        self._search_edit.setFocus()
 
     def _hide_search(self):
         self._search_visible = False
         self._search_bar.hide()
         self._search_text = ""
         self._search_edit.clear()
-        if self._active_tab == 1:
+        if self._active_tab == self.TAB_CATALOG:
             self._catalog_view.set_search_text("")
-        elif self._active_tab == 2:
+        elif self._active_tab == self.TAB_INSTALLED:
             self._installed_view.set_search_text("")
         else:
             self._apply_filters()
+        self.setFocus()
 
     def _on_search_changed(self, text: str):
         self._search_text = text
-        if self._active_tab == 1:
+        if self._active_tab == self.TAB_CATALOG:
             self._catalog_view.set_search_text(text)
-        elif self._active_tab == 2:
+        elif self._active_tab == self.TAB_INSTALLED:
             self._installed_view.set_search_text(text)
         else:
             self._apply_filters()
@@ -999,8 +1132,6 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────────────────────
     # Tab switching
     # ──────────────────────────────────────────────────────────────
-
-    TAB_COUNT = 4
 
     def _set_active_tab(self, idx: int) -> None:
         idx = max(0, min(self.TAB_COUNT - 1, idx))
@@ -1014,101 +1145,203 @@ class MainWindow(QMainWindow):
         self._active_tab = idx
         self._stack.setCurrentIndex(idx)
         self._refresh_tab_ui()
-        if idx == 1 and not self._catalog_view.is_loaded and not self._catalog_view.is_loading:
+        if idx == self.TAB_CATALOG and not self._catalog_view.is_loaded \
+                and not self._catalog_view.is_loading:
             self._fetch_catalog()
-        if idx == 2 and not self._installed_view.is_loaded and not self._installed_view.is_loading:
+        if idx == self.TAB_INSTALLED and not self._installed_view.is_loaded \
+                and not self._installed_view.is_loading:
             self._fetch_installed()
+        if idx == self.TAB_SETTINGS:
+            self._refresh_settings_rows()
 
     def _cycle_tab(self, delta: int) -> None:
         self._set_active_tab((self._active_tab + delta) % self.TAB_COUNT)
 
-    def _refresh_tab_ui(self) -> None:
-        for i, btn in enumerate(self._tab_buttons):
-            btn.setChecked(i == self._active_tab)
-            btn.setStyleSheet(self._tab_button_style(i == self._active_tab))
+    _CONTROL_MODES = {
+        TAB_SAVES: ControlsBar.MODE_SAVES,
+        TAB_CATALOG: ControlsBar.MODE_CATALOG,
+        TAB_INSTALLED: ControlsBar.MODE_INSTALLED,
+        TAB_DOWNLOADS: ControlsBar.MODE_DOWNLOADS,
+        TAB_SETTINGS: ControlsBar.MODE_SETTINGS,
+    }
 
-        if self._active_tab == 1:
-            self._controls.set_mode(ControlsBar.MODE_CATALOG)
-            # Catalog has no "status filter", but keep the label row wired
-            # so the UI doesn't jump around when switching tabs.
-            self._status_filter_label.setText("—")
-            current = self._catalog_view.system_filter()
-            self._system_label.setText(current)
-            self._count_label.setText(
-                f"{self._catalog_view.visible_count()} ROMs"
-                if self._catalog_view.is_loaded
-                else "Loading…"
-            )
-            self._search_edit.setPlaceholderText(
-                "Search ROMs (name, system, filename)…"
-            )
-        elif self._active_tab == 2:
-            self._controls.set_mode(ControlsBar.MODE_INSTALLED)
-            self._status_filter_label.setText("—")
-            self._system_label.setText(self._installed_view.system_filter())
-            self._count_label.setText(
-                f"{self._installed_view.visible_count()} ROMs"
-                if self._installed_view.is_loaded
-                else "Scanning…"
-            )
-            self._search_edit.setPlaceholderText(
-                "Search installed ROMs (name, system, filename)…"
-            )
-        elif self._active_tab == 3:
-            # Downloads tab has no system / status filter — the rows
-            # carry their own state.  Park the labels at em-dashes so
-            # the filterbar doesn't show a stale value from another tab.
-            self._controls.set_mode(ControlsBar.MODE_DOWNLOADS)
-            self._system_label.setText("—")
-            self._status_filter_label.setText("—")
-            count = len(self._download_manager.list_all())
-            self._count_label.setText(
-                f"{count} download{'' if count == 1 else 's'}"
-            )
-            self._search_edit.setPlaceholderText("Search not available on this tab")
-        else:
-            self._controls.set_mode(ControlsBar.MODE_SAVES)
-            self._system_label.setText(self._system_filter)
-            self._status_filter_label.setText(self._status_filter)
-            self._count_label.setText(f"{len(self._filtered_entries)} games")
-            self._search_edit.setPlaceholderText("Search by name or title ID…")
+    _SEARCH_PLACEHOLDERS = {
+        TAB_SAVES: "Search by name or title ID…",
+        TAB_CATALOG: "Search ROMs (name, system, filename)…",
+        TAB_INSTALLED: "Search installed ROMs (name, system, filename)…",
+    }
+
+    def _refresh_tab_ui(self) -> None:
+        tab = self._active_tab
+        self._header.set_active_tab(tab)
+        self._controls.set_mode(self._CONTROL_MODES[tab])
+        self._search_edit.setPlaceholderText(self._SEARCH_PLACEHOLDERS.get(tab, ""))
+        # Downloads rows carry their own progress; there is nothing to
+        # describe beside them.
+        self._detail.setVisible(tab != self.TAB_DOWNLOADS)
+        self._refresh_chips()
+        self._refresh_detail()
+
+    # ──────────────────────────────────────────────────────────────
+    # Detail panel
+    # ──────────────────────────────────────────────────────────────
+
+    def _refresh_detail(self, *_args) -> None:
+        tab = self._active_tab
+        if tab == self.TAB_SAVES:
+            entry = self._list_view.selected_entry()
+            if entry is None:
+                self._detail.clear("No saves to show")
+            else:
+                self._detail.show_info(*_save_detail(entry))
+        elif tab == self.TAB_CATALOG:
+            rom = self._catalog_view.selected_rom()
+            if rom is None:
+                self._detail.clear("No ROM selected")
+            else:
+                self._detail.show_info(*_catalog_detail(rom))
+        elif tab == self.TAB_INSTALLED:
+            rom = self._installed_view.selected_rom()
+            if rom is None:
+                self._detail.clear("No installed ROM selected")
+            else:
+                self._detail.show_info(*_installed_detail(rom))
+        elif tab == self.TAB_SETTINGS:
+            row = self._settings_view.selected_row()
+            if row is not None:
+                self._detail.show_info("Settings", row.title, (),
+                                       (("Current", row.value),) if row.value else (),
+                                       row.description)
+
+    # ──────────────────────────────────────────────────────────────
+    # Settings tab
+    # ──────────────────────────────────────────────────────────────
+
+    def _refresh_settings_rows(self) -> None:
+        cfg = self._config
+        server = f"{cfg.get('host')}:{cfg.get('port')}"
+        self._settings_view.set_rows([
+            SettingsRow(
+                "edit", "Server and folders", server,
+                "Server address, API key, the emulation folder, the ROM "
+                "folder and per-system overrides.  Saved when you close it; "
+                "the saves are rescanned with the new settings.",
+            ),
+            SettingsRow(
+                "rescan_saves", "Rescan saves", "",
+                "Look through every emulator's save folder again and "
+                "compare each save with the server.",
+            ),
+            SettingsRow(
+                "refresh_catalog", "Refresh catalog", "",
+                "Ask the server to rescan its ROM folder, throw the cached "
+                "catalog away and download it again.  Use it after adding "
+                "games to the server; otherwise only systems whose catalog "
+                "changed are fetched.",
+            ),
+            SettingsRow(
+                "rescan_installed", "Rescan installed games",
+                cfg.get("rom_scan_dir") or cfg.get("emulation_path") or "",
+                "Walk the local ROM folders again for the Installed tab.",
+            ),
+            SettingsRow(
+                "exit", "Exit GameSync", "", "Close the app (START does the "
+                "same from any tab).", danger=True,
+            ),
+        ])
+
+    def _on_setting_activated(self, key: str) -> None:
+        if key == "edit":
+            self._open_settings()
+        elif key == "rescan_saves":
+            self._start_scan()
+        elif key == "refresh_catalog":
+            self._fetch_catalog(force=True)
+        elif key == "rescan_installed":
+            self._fetch_installed()
+            self._notify("Rescanning installed games…")
+        elif key == "exit":
+            self._confirm_close()
 
     # ──────────────────────────────────────────────────────────────
     # Catalog wiring
     # ──────────────────────────────────────────────────────────────
 
-    def _fetch_catalog(self) -> None:
+    def _fetch_catalog(self, force: bool = False) -> None:
+        """Load the catalog through the on-disk cache (see catalog_store).
+
+        ``force`` is Settings > Refresh catalog: server rescan, cache wipe,
+        refetch of every system.
+        """
+        if getattr(self, "_catalog_thread", None) is not None:
+            if force:
+                self._notify("The catalog is still loading - try again in a moment",
+                             "warn")
+            return
         self._catalog_view.mark_loading(True)
-        if self._active_tab == 1:
-            self._count_label.setText("Loading…")
+        if self._active_tab == self.TAB_CATALOG:
+            self._refresh_chips()
+        self._header.set_busy(True)
+        self._notify("Refreshing the catalog…" if force else "Loading catalog…",
+                     hold_ms=0)
         self._catalog_thread = QThread()
-        self._catalog_worker = CatalogWorker(self._client)
+        self._catalog_worker = CatalogWorker(self._client, force=force)
         self._catalog_worker.moveToThread(self._catalog_thread)
         self._catalog_thread.started.connect(self._catalog_worker.run)
+        self._catalog_worker.progress.connect(lambda text: self._notify(text, hold_ms=0))
         self._catalog_worker.finished.connect(self._on_catalog_loaded)
         self._catalog_worker.finished.connect(self._catalog_thread.quit)
         self._catalog_thread.finished.connect(self._catalog_worker.deleteLater)
         self._catalog_thread.finished.connect(self._catalog_thread.deleteLater)
+        self._catalog_thread.finished.connect(self._on_catalog_thread_done)
         self._catalog_thread.start()
 
-    def _on_catalog_loaded(self, roms: list, error_detail: str) -> None:
+    def _on_catalog_thread_done(self) -> None:
+        self._catalog_thread = None
+
+    def _on_catalog_loaded(self, result) -> None:
         self._catalog_view.mark_loading(False)
-        if error_detail and not roms:
+        self._header.set_busy(False)
+        if result.error and not result.rows:
+            self._notify(result.summary(), "error", hold_ms=8000)
             ResultDialog(
                 False,
-                f"Failed to load ROM catalog.\n\n{error_detail}",
+                f"Failed to load ROM catalog.\n\n{result.error}",
                 parent=self,
             ).exec()
-        self._catalog_view.set_catalog(roms)
-        if self._active_tab == 1:
+        else:
+            kind = "warn" if (result.offline or result.notes) else "ok"
+            text = result.summary()
+            if result.notes:
+                text += "  ·  " + "  ·  ".join(result.notes)
+            self._notify(text, kind)
+        self._catalog_view.set_catalog(result.rows)
+        if self._active_tab == self.TAB_CATALOG:
             self._refresh_tab_ui()
 
     def _on_catalog_systems(self, systems: list) -> None:
         self._catalog_systems = [CatalogView.ALL_SYSTEMS] + list(systems)
+        if self._active_tab == self.TAB_CATALOG:
+            self._refresh_chips()
 
-    def _on_catalog_status_changed(self, text: str) -> None:
-        if self._active_tab == 1:
-            self._count_label.setText(text or "0 ROMs")
+    def _on_catalog_status_changed(self, _text: str) -> None:
+        if self._active_tab == self.TAB_CATALOG:
+            self._refresh_chips()
+            self._refresh_detail()
+
+    def _toggle_ra_only(self) -> None:
+        if not self._catalog_view.is_loaded:
+            return
+        enabled = not self._catalog_view.ra_only()
+        self._catalog_view.set_ra_only(enabled)
+        if enabled:
+            self._notify(
+                f"RetroAchievements only: {self._catalog_view.visible_count()} "
+                "games (X shows all)")
+        else:
+            self._notify("Showing every game")
+        self._refresh_chips()
+        self._refresh_detail()
 
     def _on_catalog_download(self, rom: dict) -> None:
         self._download_catalog_rom(rom)
@@ -1213,22 +1446,18 @@ class MainWindow(QMainWindow):
             is_bundle=is_bundle,
             bundle_kind=bundle_kind,
         )
-        # Surface a quick acknowledgement and jump to the Downloads
-        # tab so the user can see the new row immediately.
-        ResultDialog(
-            True,
-            f"'{display}' added to the Downloads tab.",
-            parent=self,
-        ).exec()
-        self._set_active_tab(3)
+        # Acknowledge in the banner and stay on the catalog, so the user
+        # can keep browsing and queueing (the Downloads tab label shows
+        # the queue's progress).
+        self._notify(f"Queued '{display}' - see the Downloads tab", "ok")
 
     def _on_downloads_list_changed(self) -> None:
-        """Refresh the filterbar count when the queue changes (only if visible)."""
-        if self._active_tab == 3:
-            count = len(self._download_manager.list_all())
-            self._count_label.setText(
-                f"{count} download{'' if count == 1 else 's'}"
-            )
+        """Keep the Downloads tab label and the chip-bar count current."""
+        entities = self._download_manager.list_all()
+        active = sum(1 for e in entities if e.status in ACTIVE_STATUSES)
+        self._header.set_tab_badge(self.TAB_DOWNLOADS, f"({active})" if active else "")
+        if self._active_tab == self.TAB_DOWNLOADS:
+            self._refresh_chips()
 
     def _on_download_completed(self, _eid: str) -> None:
         """Refresh the Saves + Installed tabs whenever a download lands.
@@ -1250,8 +1479,8 @@ class MainWindow(QMainWindow):
         emulation_path = self._config.get("emulation_path") or ""
         rom_scan_dir = self._config.get("rom_scan_dir", "") or ""
         self._installed_view.mark_loading(True)
-        if self._active_tab == 2:
-            self._count_label.setText("Scanning…")
+        if self._active_tab == self.TAB_INSTALLED:
+            self._refresh_chips()
         self._installed_thread = QThread()
         self._installed_worker = InstalledWorker(emulation_path, rom_scan_dir)
         self._installed_worker.moveToThread(self._installed_thread)
@@ -1264,15 +1493,18 @@ class MainWindow(QMainWindow):
 
     def _on_installed_loaded(self, roms: list) -> None:
         self._installed_view.set_roms(roms)
-        if self._active_tab == 2:
+        if self._active_tab == self.TAB_INSTALLED:
             self._refresh_tab_ui()
 
     def _on_installed_systems(self, systems: list) -> None:
         self._installed_systems = [InstalledView.ALL_SYSTEMS] + list(systems)
+        if self._active_tab == self.TAB_INSTALLED:
+            self._refresh_chips()
 
-    def _on_installed_status_changed(self, text: str) -> None:
-        if self._active_tab == 2:
-            self._count_label.setText(text or "0 ROMs")
+    def _on_installed_status_changed(self, _text: str) -> None:
+        if self._active_tab == self.TAB_INSTALLED:
+            self._refresh_chips()
+            self._refresh_detail()
 
     def _on_installed_delete(self, rom) -> None:
         self._delete_installed_rom(rom)
@@ -1455,7 +1687,11 @@ class MainWindow(QMainWindow):
             self._apply_filters()
 
     def _action_sync(self):
-        """Smart sync: upload if LOCAL_NEWER/LOCAL_ONLY, download if SERVER_NEWER/SERVER_ONLY."""
+        """A on Saves — smart sync: upload if the local copy changed,
+        download if the server's did; a conflict (or nothing to do) opens
+        the details so both copies can be compared."""
+        if self._sync_all_thread is not None:
+            return
         entry = self._list_view.selected_entry()
         if not entry:
             return
@@ -1463,11 +1699,7 @@ class MainWindow(QMainWindow):
             self._action_upload()
         elif entry.status in (SyncStatus.SERVER_NEWER, SyncStatus.SERVER_ONLY):
             self._action_download()
-        elif entry.status == SyncStatus.CONFLICT:
-            # For conflicts, show detail dialog which has both upload/download options
-            self._action_detail()
         else:
-            # Open detail dialog for synced / unknown / no-save
             self._action_detail()
 
     def _action_detail(self):
@@ -1491,40 +1723,135 @@ class MainWindow(QMainWindow):
         else:
             self._apply_filters()
 
-    def _action_refresh(self):
-        self._start_scan()
+    def _action_sync_all(self):
+        """X on Saves — upload / download every save whose plan is clear.
 
-    def _action_y(self):
-        """Y button — tab-specific.
-
-        Saves tab rescans the local emulator folders (server + local
-        state can drift between launches).  Catalog and Installed tabs
-        pop up the search field since their data is already loaded.
-        Downloads tab maps Y to "Clear finished" — the only meaningful
-        global action when the row controls cover everything else.
+        Conflicts are left alone (they need the comparison in the details),
+        and a server-only save is only fetched for a game whose ROM is on
+        this machine, so Sync all never litters save folders for games that
+        aren't installed.
         """
-        if self._active_tab in (1, 2):
-            if not self._search_visible:
-                self._toggle_search()
-            self._search_edit.setFocus()
-        elif self._active_tab == 3:
-            self._download_manager.clear_finished()
-        else:
-            self._action_refresh()
+        if self._sync_all_thread is not None:
+            return
+        uploads, downloads, conflicts = _sync_all_plan(self._all_entries)
+        if not uploads and not downloads:
+            msg = "Nothing to sync"
+            if conflicts:
+                msg += f" ({len(conflicts)} conflict{'s' if len(conflicts) != 1 else ''}"
+                msg += " - open them with Y)"
+            self._notify(msg, "warn" if conflicts else "ok")
+            return
+
+        lines = [f"Upload {len(uploads)} save(s), download {len(downloads)} save(s)?"]
+        if conflicts:
+            lines.append(f"\n{len(conflicts)} conflict(s) are skipped - "
+                         "resolve them from the details (Y).")
+        dlg = ConfirmDialog(
+            title="Sync all",
+            message="\n".join(lines),
+            confirm_label="Sync",
+            confirm_color=theme.ACCENT,
+            parent=self,
+        )
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+
+        self._header.set_busy(True)
+        self._sync_all_thread = QThread()
+        self._sync_all_worker = SyncAllWorker(self._client, uploads, downloads)
+        self._sync_all_worker.moveToThread(self._sync_all_thread)
+        self._sync_all_thread.started.connect(self._sync_all_worker.run)
+        self._sync_all_worker.progress.connect(
+            lambda done, total, name: self._notify(
+                f"Syncing {done}/{total}: {name}", hold_ms=0))
+        self._sync_all_worker.finished.connect(self._on_sync_all_finished)
+        self._sync_all_worker.finished.connect(self._sync_all_thread.quit)
+        self._sync_all_thread.finished.connect(self._sync_all_worker.deleteLater)
+        self._sync_all_thread.finished.connect(self._sync_all_thread.deleteLater)
+        # Drop the reference only once the thread has really stopped:
+        # a QThread destroyed while running aborts the process.
+        self._sync_all_thread.finished.connect(self._on_sync_all_thread_done)
+        self._sync_all_thread.start()
+
+    def _on_sync_all_thread_done(self) -> None:
+        self._sync_all_thread = None
+
+    def _on_sync_all_finished(self, ok: int, failed: list) -> None:
+        self._header.set_busy(False)
+        if failed:
+            ResultDialog(
+                ok > 0,
+                f"Synced {ok} save(s); {len(failed)} failed:\n\n"
+                + "\n".join(failed[:12])
+                + ("\n…" if len(failed) > 12 else ""),
+                parent=self,
+            ).exec()
+        # Statuses changed on both sides; recompute them from scratch.
+        self._start_scan()
+        self._notify(f"Synced {ok} save(s)" + (f", {len(failed)} failed" if failed else ""),
+                     "warn" if failed else "ok")
 
     def _action_primary(self):
-        """Route A/Enter to the right action for the active tab."""
-        if self._active_tab == 1:
+        """A — the highlighted row's main action on the active tab."""
+        tab = self._active_tab
+        if tab == self.TAB_SAVES:
+            self._action_sync()
+        elif tab == self.TAB_CATALOG:
             self._download_catalog_rom(self._catalog_view.selected_rom())
-        elif self._active_tab == 2:
+        elif tab == self.TAB_INSTALLED:
             self._delete_installed_rom(self._installed_view.selected_rom())
-        elif self._active_tab == 3:
-            # Downloads tab has no list-cursor concept — the user
-            # interacts with rows directly via mouse/touch.  Swallow
-            # the press so it doesn't fall through to the saves tab.
-            return
+        elif tab == self.TAB_DOWNLOADS:
+            done = self._downloads_view.activate_selected()
+            if done:
+                self._notify(f"Download {done}")
         else:
+            self._settings_view.activate()
+
+    def _action_secondary(self):
+        """X — the tab's secondary action."""
+        tab = self._active_tab
+        if tab == self.TAB_SAVES:
+            self._action_sync_all()
+        elif tab == self.TAB_CATALOG:
+            self._toggle_ra_only()
+        elif tab == self.TAB_INSTALLED:
+            self._fetch_installed()
+            self._notify("Rescanning installed games…")
+        elif tab == self.TAB_DOWNLOADS:
+            self._download_manager.clear_finished()
+            self._notify("Cleared finished downloads")
+
+    def _action_y(self):
+        """Y — details on Saves, search on Catalog / Installed, remove on
+        Downloads."""
+        tab = self._active_tab
+        if tab == self.TAB_SAVES:
             self._action_detail()
+        elif tab in (self.TAB_CATALOG, self.TAB_INSTALLED):
+            self._show_search()
+        elif tab == self.TAB_DOWNLOADS:
+            ent = self._downloads_view.selected_entity()
+            if ent is None:
+                return
+            dlg = ConfirmDialog(
+                title="Remove download",
+                message=f"Remove '{ent.display_name or ent.rom_id}' from the "
+                        "queue?\nAn unfinished download is cancelled and its "
+                        "partial file deleted.",
+                confirm_label="Remove",
+                confirm_color=theme.ERR,
+                parent=self,
+            )
+            if dlg.exec() == dlg.DialogCode.Accepted:
+                self._downloads_view.remove_selected()
+
+    def _action_back(self):
+        """B — cancel / back.  Never starts anything and never exits."""
+        if self._search_visible or self._search_text:
+            self._hide_search()
+        elif self._active_tab == self.TAB_DOWNLOADS:
+            if self._downloads_view.pause_running():
+                self._notify("Download paused (A resumes it)")
 
     def _open_settings(self):
         dlg = SettingsDialog(self._config, self)
@@ -1537,14 +1864,18 @@ class MainWindow(QMainWindow):
                 self._config["api_key"],
                 saturn_sync_format=self._config.get("saturn_sync_format", "mednafen"),
             )
+            self._refresh_settings_rows()
             self._start_scan()
+            # Another server means another catalog.
+            if self._catalog_view.is_loaded:
+                self._fetch_catalog()
 
     def _confirm_close(self):
         dlg = ConfirmDialog(
-            title="Exit SaveSync",
-            message="Close the SaveSync app?",
+            title="Exit GameSync",
+            message="Close GameSync?",
             confirm_label="Exit",
-            confirm_color=theme.STATUS_CONFLICT,
+            confirm_color=theme.ERR,
             parent=self,
         )
         if dlg.exec() == dlg.DialogCode.Accepted:
@@ -1555,8 +1886,15 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────────────────────
 
     def keyPressEvent(self, event: QKeyEvent):
-        if self._search_visible and event.key() == Qt.Key.Key_Escape:
-            self._hide_search()
+        if self._search_visible and event.key() in (Qt.Key.Key_Escape, Qt.Key.Key_Return,
+                                                    Qt.Key.Key_Enter, Qt.Key.Key_Down):
+            if event.key() == Qt.Key.Key_Escape:
+                self._hide_search()
+            else:
+                # Keep the query, hand the d-pad back to the list.
+                self._search_visible = False
+                self._search_bar.setVisible(bool(self._search_text))
+                self.setFocus()
             return
         if self._search_visible:
             super().keyPressEvent(event)
@@ -1569,43 +1907,32 @@ class MainWindow(QMainWindow):
             self._active_view_move(-1)
         elif key in (Qt.Key.Key_Down, Qt.Key.Key_S):
             self._active_view_move(1)
-        elif key in (Qt.Key.Key_PageUp,):
+        elif key in (Qt.Key.Key_PageUp, Qt.Key.Key_Left):
             self._active_view_page(-1)
-        elif key in (Qt.Key.Key_PageDown,):
+        elif key in (Qt.Key.Key_PageDown, Qt.Key.Key_Right):
             self._active_view_page(1)
-        elif key == Qt.Key.Key_Left:
-            self._cycle_system(-1)
-        elif key == Qt.Key.Key_Right:
-            self._cycle_system(1)
-        elif key in (Qt.Key.Key_Return, Qt.Key.Key_A, Qt.Key.Key_Space):
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_A, Qt.Key.Key_Space):
             self._action_primary()
-        elif key == Qt.Key.Key_B:
-            self._confirm_close()
+        elif key in (Qt.Key.Key_B, Qt.Key.Key_Escape, Qt.Key.Key_Backspace):
+            self._action_back()
         elif key == Qt.Key.Key_X:
-            if self._active_tab == 0:
-                self._action_sync()
+            self._action_secondary()
         elif key == Qt.Key.Key_Y:
             self._action_y()
-        elif key == Qt.Key.Key_Tab:
+        elif key in (Qt.Key.Key_Tab, Qt.Key.Key_E, Qt.Key.Key_F6):
             self._cycle_tab(1)
-        elif key == Qt.Key.Key_Backtab:
+        elif key in (Qt.Key.Key_Backtab, Qt.Key.Key_Q, Qt.Key.Key_F5):
             self._cycle_tab(-1)
-        elif key == Qt.Key.Key_F1 or key == Qt.Key.Key_BracketLeft:
-            self._cycle_system(-1)
-        elif key == Qt.Key.Key_F2 or key == Qt.Key.Key_BracketRight:
+        elif key in (Qt.Key.Key_BracketRight, Qt.Key.Key_F2):
             self._cycle_system(1)
+        elif key in (Qt.Key.Key_BracketLeft, Qt.Key.Key_F1):
+            self._cycle_system(-1)
         elif key == Qt.Key.Key_F3:
             self._cycle_status(-1)
         elif key == Qt.Key.Key_F4:
             self._cycle_status(1)
-        elif key == Qt.Key.Key_F5:
-            self._cycle_tab(-1)
-        elif key == Qt.Key.Key_F6:
-            self._cycle_tab(1)
-        elif key == Qt.Key.Key_Escape:
-            self._toggle_search()
-        elif key == Qt.Key.Key_F10 or key == Qt.Key.Key_Menu:
-            self._open_settings()
+        elif key in (Qt.Key.Key_F10, Qt.Key.Key_Menu):
+            self._confirm_close()
         else:
             super().keyPressEvent(event)
 
@@ -1620,37 +1947,36 @@ class MainWindow(QMainWindow):
             self._active_view_move(1)
 
     def _active_view_move(self, delta: int) -> None:
-        # Downloads tab has no item-cursor concept — its rows scroll
-        # via the embedded QScrollArea, not via a selection model.
-        if self._active_tab == 3:
-            return
-        view = self._current_list_view()
-        view.move_selection(delta)
+        self._current_list_view().move_selection(delta)
+        self._refresh_detail()
 
     def _active_view_page(self, direction: int) -> None:
-        if self._active_tab == 3:
-            return
         view = self._current_list_view()
         if direction > 0:
             view.page_down()
         else:
             view.page_up()
+        self._refresh_detail()
 
     def _active_view_alphabet_jump(self, direction: int) -> None:
         # Last stage of the d-pad hold ramp-up: jump to the next
         # display-name initial so a held LEFT/RIGHT sweeps A → B → C …
-        if self._active_tab == 3:
-            return
         view = self._current_list_view()
         jump = getattr(view, "alphabet_jump", None)
         if callable(jump):
             jump(direction)
+            self._refresh_detail()
 
     def _current_list_view(self):
-        if self._active_tab == 1:
+        tab = self._active_tab
+        if tab == self.TAB_CATALOG:
             return self._catalog_view
-        if self._active_tab == 2:
+        if tab == self.TAB_INSTALLED:
             return self._installed_view
+        if tab == self.TAB_DOWNLOADS:
+            return self._downloads_view
+        if tab == self.TAB_SETTINGS:
+            return self._settings_view
         return self._list_view
 
     # ──────────────────────────────────────────────────────────────
@@ -1817,45 +2143,36 @@ class MainWindow(QMainWindow):
             self._prime_main_button_state()
             return
 
+        # The shared GameSync scheme: A confirms, B only cancels, X is the
+        # tab's secondary action, Y details / search, L1 / R1 switch tabs,
+        # SELECT the sub-tab (system), START exits after asking.  L2 / R2
+        # step the Saves status filter.
         if btn_pressed(0):
-            self._action_primary()  # A — info on saves tab / download on catalog
+            self._action_primary()  # A
         if btn_pressed(1):
-            self._confirm_close()  # B — close app
+            self._action_back()  # B
         if btn_pressed(2):
-            # X — Sync is save-only.  On the catalog tab X is a no-op so
-            # the user doesn't accidentally kick a sync when they meant
-            # to download.
-            if self._active_tab == 0:
-                self._action_sync()
+            self._action_secondary()  # X
         if btn_pressed(3):
-            self._action_y()  # Y — saves rescan / catalog search
+            self._action_y()  # Y
         if btn_pressed(4):
-            if dialog_target is None:
-                self._cycle_system(-1)  # L1 — previous system
+            self._cycle_tab(-1)  # L1
         if btn_pressed(5):
-            if dialog_target is None:
-                self._cycle_system(1)  # R1 — next system
+            self._cycle_tab(1)  # R1
         if btn_pressed(6):
-            if dialog_target is None:
-                self._toggle_search()  # Select/View
+            self._cycle_system(1)  # SELECT / View
         if btn_pressed(7):
-            if dialog_target is None:
-                self._open_settings()  # Start/Menu
+            self._confirm_close()  # START / Menu
+        if btn_pressed(8):
+            pass  # Steam button — ignore
 
-        # ── D-pad (HAT) ───────────────────────────────────────────
         # ── Left stick Y axis ─────────────────────────────────────
         try:
             axis_y = self._joystick.get_axis(1)  # +1 = down
         except Exception:
             axis_y = 0.0
 
-        # ── L2 / R2 for tab cycle ─────────────────────────────────
-        if btn_pressed(8):
-            pass  # Steam button — ignore
-        # L2/R2 pressed detection via axis crossing threshold.  Triggers
-        # cycle the top-level tab (Saves → Catalog → Installed → Downloads).
-        # L1/R1 (shoulders) cycle the system filter instead; d-pad left/right
-        # drives accelerating page-scroll.
+        # L2/R2 pressed detection via axis crossing threshold.
         l2_prev = self._btn_state.get("l2", False)
         r2_prev = self._btn_state.get("r2", False)
         l2_cur = l2 > 0.5
@@ -1863,9 +2180,9 @@ class MainWindow(QMainWindow):
         self._btn_state["l2"] = l2_cur
         self._btn_state["r2"] = r2_cur
         if dialog_target is None and l2_cur and not l2_prev:
-            self._cycle_tab(-1)
+            self._cycle_status(-1)
         if dialog_target is None and r2_cur and not r2_prev:
-            self._cycle_tab(1)
+            self._cycle_status(1)
 
         # ── Navigation with repeat ────────────────────────────────
         DEADZONE = 0.4

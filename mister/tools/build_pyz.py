@@ -33,6 +33,8 @@ SHARED_MODULES = [
     "mister_scan.py",
     "mister_install.py",
     "msu.py",
+    # The on-disk catalogue (shared with the Steam Deck client).
+    "catalog_cache.py",
     "title_match.py",
     # Version matching for "replace with the RA version" on Installed.
     "ra_titles.py",

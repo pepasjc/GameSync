@@ -419,6 +419,9 @@ class SyncClient:
         if self.saturn_sync_format not in ("mednafen", "yabause", "yabasanshiro"):
             self.saturn_sync_format = "mednafen"
         self._timeout = 10
+        # A whole-catalog page or a server-side ROM rescan can take far
+        # longer than a metadata call on a big library.
+        self._catalog_timeout = 120
         # ROM downloads need a much longer read timeout than the generic
         # API calls: CHD/RVZ extraction runs server-side (chdman /
         # DolphinTool) *before* the first byte hits the wire, so the
@@ -467,7 +470,9 @@ class SyncClient:
     # ROM catalog (server-hosted ROMs available for download)
     # ------------------------------------------------------------------
 
-    def list_roms(self, system: Optional[str] = None) -> list[dict]:
+    def list_roms(
+        self, system: Optional[str] = None, strict: bool = False
+    ) -> list[dict]:
         """
         Return the server's ROM catalog.  Each entry is a dict with at least
         ``rom_id``, ``title_id``, ``system``, ``name``, ``filename``, ``size``
@@ -476,6 +481,10 @@ class SyncClient:
         Passing ``system`` narrows the server-side filter so we aren't paging
         through unrelated catalogs when the caller only cares about one
         console.
+
+        ``strict`` raises on any failure instead of returning ``[]``: the
+        catalog cache must never store "the request failed" as "this system
+        has no ROMs".
         """
         params: dict[str, str] = {}
         if system:
@@ -485,13 +494,56 @@ class SyncClient:
                 f"{self.base_url}/roms",
                 params=params,
                 headers=self.headers,
-                timeout=self._timeout,
+                timeout=self._catalog_timeout,
             )
             if r.status_code == 200:
                 return list(r.json().get("roms", []))
+            if strict:
+                raise RuntimeError(f"HTTP {r.status_code} listing ROMs")
         except Exception as exc:
+            if strict:
+                raise
             print(f"[ROMs] list failed: {exc}")
         return []
+
+    def rom_fingerprints(self) -> Optional[dict]:
+        """``{system: {"fingerprint", "count"}}`` from ``GET /roms/fingerprints``.
+
+        Returns None on a server that predates the endpoint (the catalog is
+        then fetched whole and not cached).  Raises when the server can't be
+        reached, so the caller can fall back to the cached copy.
+        """
+        r = requests.get(
+            f"{self.base_url}/roms/fingerprints",
+            headers=self.headers,
+            timeout=self._timeout,
+        )
+        if r.status_code in (404, 405):
+            return None
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code} reading catalog fingerprints")
+        systems = r.json().get("systems")
+        return systems if isinstance(systems, dict) else None
+
+    def rescan_roms(self) -> Optional[int]:
+        """Ask the server to walk its ROM folder again (``GET /roms/scan``).
+
+        The server keeps its catalog in memory and only moves on a scan, so
+        a ROM just copied onto its disk is invisible until then.  Returns
+        the row count, or None when the server refused (a non-admin user
+        behind a proxy) or predates the route.
+        """
+        r = requests.get(
+            f"{self.base_url}/roms/scan",
+            headers=self.headers,
+            timeout=self._catalog_timeout,
+        )
+        if r.status_code in (403, 404, 405):
+            return None
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code} rescanning ROMs")
+        body = r.json()
+        return int(body.get("count") or 0) if isinstance(body, dict) else None
 
     def plan_rom_download(
         self,

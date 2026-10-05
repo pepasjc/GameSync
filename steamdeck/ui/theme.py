@@ -1,77 +1,107 @@
-"""Visual theme constants for the Steam Deck SaveSync UI."""
+"""Visual theme for the Steam Deck GameSync UI.
 
-# ── Background layers ─────────────────────────────────────────────
-BG_WINDOW    = "#0d1117"
-BG_TOPBAR    = "#161b22"
-BG_FILTERBAR = "#161b22"
-BG_CARD      = "#1c2128"
-BG_CARD_SEL  = "#2d333b"
-BG_DIALOG    = "#1c2128"
+The palette is the one every GameSync client draws with (3ds/source/gui.h,
+xbox/source/ui.h, ...): deep slate background, lighter panels, teal accent,
+green / amber / blue / red status colours and the coloured A/B/X/Y glyphs.
+"""
 
-# ── Accent / interactive ──────────────────────────────────────────
-ACCENT       = "#58a6ff"   # Steam-style blue
-ACCENT_HOVER = "#79b8ff"
+# ── Shared GameSync palette ───────────────────────────────────────
+BG        = "#0f1720"   # window
+BG2       = "#1b2633"   # header / footer chrome
+PANEL     = "#243244"   # cards, rows
+PANEL_HI  = "#2c3d52"   # selected row, hovered button
+LINE      = "#33465c"   # dividers, outlines
+TEXT      = "#e6edf3"
+DIM       = "#8da2b5"
+MUTED     = "#5e7286"
+ACCENT    = "#2ec4b6"   # teal: active tab, selection bar
+ACCENT2   = "#3ddbd9"
+OK        = "#3fb950"
+WARN      = "#f0b429"
+INFO      = "#58a6ff"
+ERR       = "#f85149"
+RA        = "#e5b143"
+INK       = "#0f1720"   # dark text on accent fills
 
-# ── Text ─────────────────────────────────────────────────────────
-TEXT_PRIMARY   = "#e6edf3"
-TEXT_SECONDARY = "#8b949e"
-TEXT_DIM       = "#484f58"
+# ── Aliases used throughout the widgets ───────────────────────────
+BG_WINDOW    = BG
+BG_TOPBAR    = BG2
+BG_FILTERBAR = BG2
+BG_CARD      = PANEL
+BG_CARD_SEL  = PANEL_HI
+BG_DIALOG    = BG2
 
-# ── Status badge colors ──────────────────────────────────────────
-STATUS_SYNCED       = "#3fb950"
-STATUS_UPLOAD       = "#d29922"
-STATUS_DOWNLOAD     = "#58a6ff"
-STATUS_CONFLICT     = "#f85149"
-STATUS_LOCAL_ONLY   = "#d29922"
-STATUS_SERVER_ONLY  = "#58a6ff"
-STATUS_NO_SAVE      = "#484f58"
-STATUS_UNKNOWN      = "#6e7681"
+ACCENT_HOVER = ACCENT2
 
-# ── Button hint pills ────────────────────────────────────────────
-BTN_A = "#3fb950"   # green  — confirm / upload
-BTN_B = "#f85149"   # red    — back / download
-BTN_X = "#58a6ff"   # blue   — sync
-BTN_Y = "#d29922"   # yellow — refresh / search
-BTN_L = "#8b949e"   # gray   — shoulder buttons
-BTN_S = "#484f58"   # dark   — start/select
+TEXT_PRIMARY   = TEXT
+TEXT_SECONDARY = DIM
+TEXT_DIM       = MUTED
+
+# ── Status colours ────────────────────────────────────────────────
+STATUS_SYNCED       = OK
+STATUS_UPLOAD       = INFO
+STATUS_DOWNLOAD     = INFO
+STATUS_CONFLICT     = ERR
+STATUS_LOCAL_ONLY   = INFO
+STATUS_SERVER_ONLY  = WARN
+STATUS_NO_SAVE      = MUTED
+STATUS_UNKNOWN      = MUTED
+
+# ── Button glyphs (shared with the console clients) ───────────────
+BTN_A = "#5fbf3f"   # green  — confirm / main action
+BTN_B = "#e5483f"   # red    — cancel / back
+BTN_X = "#3d8fe0"   # blue   — secondary action
+BTN_Y = "#f2c230"   # yellow — details / search
+BTN_L = "#5e7286"   # slate  — shoulders, triggers, d-pad
+BTN_S = "#5e7286"   # slate  — START / SELECT
 
 # ── Dimensions ───────────────────────────────────────────────────
-TOPBAR_H      = 56
-FILTERBAR_H   = 38
+HEADER_H      = 60
+TOPBAR_H      = HEADER_H
+SUBBAR_H      = 44
+FILTERBAR_H   = SUBBAR_H
 CONTROLS_H    = 48
-CARD_H        = 72
+BANNER_H      = 34
+DETAIL_W      = 400
+CARD_H        = 68
 CARD_RADIUS   = 8
-BADGE_RADIUS  = 4
+BADGE_RADIUS  = 10   # pills
 
 # RetroAchievements badge. Gold, so it reads as a reward rather than as
 # another sync status.
-RA_BADGE      = "#d8a72b"
+RA_BADGE      = RA
 # Title-only match: a set exists for a game of this name, but this dump
 # was never verified against it.
 RA_BADGE_WEAK = "#8a712e"
 RA_BADGE_TEXT = "#161206"
-FONT_TITLE    = 15   # pt
-FONT_SUBTITLE = 11   # pt
-FONT_BADGE    = 10   # pt
+FONT_TITLE    = 14   # pt
+FONT_SUBTITLE = 10   # pt
+FONT_BADGE    = 9    # pt
 FONT_CONTROLS = 11   # pt
 
 STYLESHEET = f"""
 QMainWindow, QWidget#centralWidget {{
-    background: {BG_WINDOW};
+    background: {BG};
 }}
 QWidget#topBar, QWidget#filterBar, QWidget#controlsBar {{
-    background: {BG_TOPBAR};
+    background: {BG2};
     border: none;
 }}
+QWidget#topBar {{
+    border-bottom: 1px solid {LINE};
+}}
+QWidget#controlsBar {{
+    border-top: 1px solid {LINE};
+}}
 QLabel {{
-    color: {TEXT_PRIMARY};
+    color: {TEXT};
     background: transparent;
 }}
 QLabel#subText {{
-    color: {TEXT_SECONDARY};
+    color: {DIM};
 }}
 QListView {{
-    background: {BG_WINDOW};
+    background: {BG};
     border: none;
     outline: 0;
 }}
@@ -80,12 +110,12 @@ QListView::item {{
     border: none;
 }}
 QScrollBar:vertical {{
-    background: {BG_WINDOW};
+    background: {BG};
     width: 6px;
     border-radius: 3px;
 }}
 QScrollBar::handle:vertical {{
-    background: {TEXT_DIM};
+    background: {LINE};
     border-radius: 3px;
     min-height: 30px;
 }}
@@ -93,10 +123,10 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0;
 }}
 QLineEdit#searchBox {{
-    background: {BG_CARD};
-    color: {TEXT_PRIMARY};
-    border: 1px solid {TEXT_DIM};
-    border-radius: 4px;
+    background: {PANEL};
+    color: {TEXT};
+    border: 1px solid {LINE};
+    border-radius: 6px;
     padding: 4px 10px;
     font-size: 13pt;
 }}
@@ -104,22 +134,22 @@ QLineEdit#searchBox:focus {{
     border-color: {ACCENT};
 }}
 QPushButton {{
-    background: {BG_CARD};
-    color: {TEXT_PRIMARY};
-    border: 1px solid {TEXT_DIM};
-    border-radius: 4px;
+    background: {PANEL};
+    color: {TEXT};
+    border: 1px solid {LINE};
+    border-radius: 6px;
     padding: 6px 14px;
     font-size: 11pt;
 }}
 QPushButton:hover {{
-    background: {BG_CARD_SEL};
+    background: {PANEL_HI};
     border-color: {ACCENT};
 }}
 QPushButton:pressed {{
     background: {ACCENT};
-    color: {BG_WINDOW};
+    color: {INK};
 }}
 QDialog {{
-    background: {BG_DIALOG};
+    background: {BG2};
 }}
 """

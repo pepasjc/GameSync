@@ -145,11 +145,8 @@ class _DownloadRow(QFrame):
 
         self.setObjectName("downloadRow")
         self.setFrameShape(QFrame.Shape.NoFrame)
-        self.setStyleSheet(
-            f"QFrame#downloadRow {{ background: {theme.BG_CARD}; "
-            f"border: 1px solid {theme.TEXT_DIM}; "
-            f"border-radius: 8px; padding: 10px 12px; }}"
-        )
+        self._selected = None
+        self.set_selected(False)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         outer = QVBoxLayout(self)
@@ -195,8 +192,8 @@ class _DownloadRow(QFrame):
         self._bar.setFixedHeight(8)
         self._bar.setStyleSheet(
             f"QProgressBar {{ border: none; "
-            f"border-radius: 4px; background: {theme.BG_TOPBAR}; }}"
-            f"QProgressBar::chunk {{ background: {theme.STATUS_DOWNLOAD}; "
+            f"border-radius: 4px; background: {theme.BG}; }}"
+            f"QProgressBar::chunk {{ background: {theme.ACCENT}; "
             f"border-radius: 4px; }}"
         )
         outer.addWidget(self._bar)
@@ -215,6 +212,28 @@ class _DownloadRow(QFrame):
 
     def entity_id(self) -> str:
         return self._id
+
+    def status(self) -> str:
+        return self._status
+
+    def set_selected(self, selected: bool) -> None:
+        """The gamepad cursor: lighter card with the teal edge."""
+        if selected == self._selected:
+            return
+        self._selected = selected
+        if selected:
+            self.setStyleSheet(
+                f"QFrame#downloadRow {{ background: {theme.PANEL_HI}; "
+                f"border: 1px solid {theme.LINE}; "
+                f"border-left: 4px solid {theme.ACCENT}; "
+                f"border-radius: 8px; padding: 10px 12px; }}"
+            )
+        else:
+            self.setStyleSheet(
+                f"QFrame#downloadRow {{ background: {theme.PANEL}; "
+                f"border: 1px solid {theme.LINE}; "
+                f"border-radius: 8px; padding: 10px 12px; }}"
+            )
 
     def refresh(self, ent: DownloadEntity) -> None:
         """Re-render everything from a fresh entity snapshot."""
@@ -382,10 +401,10 @@ class _DownloadRow(QFrame):
         btn.setMinimumHeight(32)
         if primary:
             btn.setStyleSheet(
-                f"QPushButton {{ background: {theme.STATUS_DOWNLOAD}; "
-                f"color: {theme.BG_WINDOW}; border: none; "
+                f"QPushButton {{ background: {theme.ACCENT}; "
+                f"color: {theme.INK}; border: none; "
                 f"border-radius: 6px; padding: 4px 12px; font-weight: bold; }}"
-                f"QPushButton:hover {{ background: {theme.ACCENT}; }}"
+                f"QPushButton:hover {{ background: {theme.ACCENT2}; }}"
             )
         else:
             btn.setStyleSheet(
@@ -416,6 +435,9 @@ class DownloadsView(QWidget):
         # id → row widget — used by the hot ``progress`` path to skip
         # a full list rebuild when only the bar should move.
         self._rows: dict[str, _DownloadRow] = {}
+        # Gamepad cursor: the selected row's entity id, kept across rebuilds.
+        self._selected_id: Optional[str] = None
+        self._order: list[str] = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(16, 12, 16, 12)
@@ -459,8 +481,8 @@ class DownloadsView(QWidget):
 
         # Empty-state placeholder shown when there are zero rows.
         self._empty_lbl = QLabel(
-            "No downloads yet.  Pick a ROM from the Catalog tab and press "
-            "Download — it will queue here so you can keep browsing."
+            "No downloads yet.  Pick a ROM on the Catalog tab and press A "
+            "— it queues here so you can keep browsing."
         )
         self._empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_lbl.setWordWrap(True)
@@ -516,6 +538,11 @@ class DownloadsView(QWidget):
             self._list_layout.addWidget(row)
         self._list_layout.addStretch(1)
 
+        self._order = [ent.id for ent in entities]
+        if self._selected_id not in self._rows:
+            self._selected_id = self._order[0] if self._order else None
+        self._paint_selection()
+
         self._update_summary(entities)
         self._empty_lbl.setVisible(not entities)
         self._scroll.setVisible(bool(entities))
@@ -527,6 +554,72 @@ class DownloadsView(QWidget):
 
     def _on_clear_finished(self) -> None:
         self._manager.clear_finished()
+
+    # ── Gamepad cursor ─────────────────────────────────────────────
+
+    def _paint_selection(self) -> None:
+        for eid, row in self._rows.items():
+            row.set_selected(eid == self._selected_id)
+        row = self._rows.get(self._selected_id or "")
+        if row is not None:
+            self._scroll.ensureWidgetVisible(row, 0, 8)
+
+    def selected_id(self) -> Optional[str]:
+        return self._selected_id
+
+    def selected_entity(self) -> Optional[DownloadEntity]:
+        return self._manager.get(self._selected_id) if self._selected_id else None
+
+    def move_selection(self, delta: int) -> None:
+        if not self._order:
+            return
+        try:
+            index = self._order.index(self._selected_id)
+        except ValueError:
+            index = 0
+        index = max(0, min(len(self._order) - 1, index + delta))
+        self._selected_id = self._order[index]
+        self._paint_selection()
+
+    def _page_rows(self) -> int:
+        row = self._rows.get(self._selected_id or "")
+        height = row.height() + 8 if row is not None else 100
+        return max(1, self._scroll.viewport().height() // max(height, 1))
+
+    def page_up(self) -> None:
+        self.move_selection(-self._page_rows())
+
+    def page_down(self) -> None:
+        self.move_selection(self._page_rows())
+
+    def activate_selected(self) -> str:
+        """A: the selected row's main action.  Returns what was done."""
+        ent = self.selected_entity()
+        if ent is None:
+            return ""
+        if ent.status in (STATUS_DOWNLOADING, STATUS_QUEUED):
+            self._manager.pause(ent.id)
+            return "paused"
+        if ent.status in (STATUS_PAUSED, STATUS_FAILED, STATUS_CANCELLED):
+            self._manager.resume(ent.id)
+            return "resumed"
+        return ""
+
+    def remove_selected(self) -> None:
+        """Y: cancel an unfinished download or drop a finished row."""
+        ent = self.selected_entity()
+        if ent is not None:
+            # remove() cancels an active transfer and deletes its .part.
+            self._manager.remove(ent.id)
+
+    def pause_running(self) -> bool:
+        """B: pause whatever is downloading right now."""
+        paused = False
+        for ent in self._manager.list_all():
+            if ent.status == STATUS_DOWNLOADING:
+                self._manager.pause(ent.id)
+                paused = True
+        return paused
 
     def _update_summary(self, entities: list[DownloadEntity]) -> None:
         active = sum(

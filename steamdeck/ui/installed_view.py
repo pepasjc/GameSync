@@ -303,6 +303,7 @@ class InstalledView(QWidget):
 
         self._empty_label = QLabel("Scanning installed ROMs…")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_label.setWordWrap(True)
         self._empty_label.setStyleSheet(
             f"color:{theme.TEXT_SECONDARY}; font-size:13pt; padding:32px;"
         )
@@ -384,6 +385,9 @@ class InstalledView(QWidget):
 
     def alphabet_jump(self, direction: int) -> None:
         self._list.alphabet_jump(direction)
+
+    def list_widget(self) -> "InstalledListView":
+        return self._list
 
     def visible_count(self) -> int:
         return self._list.row_count()

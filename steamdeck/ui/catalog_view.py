@@ -146,10 +146,10 @@ class CatalogDelegate(QStyledItemDelegate):
                 self.SYSTEM_BADGE_H,
             )
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(theme.STATUS_DOWNLOAD)))
+            painter.setBrush(QBrush(QColor(theme.LINE)))
             painter.drawRoundedRect(size_rect, theme.BADGE_RADIUS, theme.BADGE_RADIUS)
             painter.setFont(self._badge_font)
-            painter.setPen(QColor("#ffffff"))
+            painter.setPen(QColor(theme.TEXT))
             painter.drawText(size_rect, Qt.AlignmentFlag.AlignCenter, size_text)
 
         # RetroAchievements: only a published set earns the badge, so a hash
@@ -344,6 +344,7 @@ class CatalogView(QWidget):
         self._all_roms: list[dict] = []
         self._search_text = ""
         self._system_filter = self.ALL_SYSTEMS
+        self._ra_only = False
         self._loaded = False
         self._loading = False
 
@@ -353,6 +354,7 @@ class CatalogView(QWidget):
 
         self._empty_label = QLabel("Loading catalog…")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_label.setWordWrap(True)
         self._empty_label.setStyleSheet(
             f"color:{theme.TEXT_SECONDARY}; font-size:13pt; padding:32px;"
         )
@@ -386,7 +388,21 @@ class CatalogView(QWidget):
         self._all_roms = list(roms)
         self._loaded = True
         self._loading = False
-        self.systems_changed.emit(unique_systems(self._all_roms))
+        self.systems_changed.emit(unique_systems(self._source_roms()))
+        self._apply_filters()
+
+    def ra_only(self) -> bool:
+        return self._ra_only
+
+    def set_ra_only(self, enabled: bool) -> None:
+        """Only games with a published RetroAchievements set (X)."""
+        if enabled == self._ra_only:
+            return
+        self._ra_only = enabled
+        systems = unique_systems(self._source_roms())
+        if self._system_filter != self.ALL_SYSTEMS and self._system_filter not in systems:
+            self._system_filter = self.ALL_SYSTEMS
+        self.systems_changed.emit(systems)
         self._apply_filters()
 
     def set_system_filter(self, system: str) -> None:
@@ -438,14 +454,25 @@ class CatalogView(QWidget):
     def visible_count(self) -> int:
         return self._list.row_count()
 
+    def list_widget(self) -> "RomListView":
+        return self._list
+
+    def status_text(self) -> str:
+        return self._status_text(self._list.row_count())
+
     # ── Internal ─────────────────────────────────────────────────
 
     def _apply_filters(self) -> None:
         system = None if self._system_filter == self.ALL_SYSTEMS else self._system_filter
-        filtered = filter_catalog(self._all_roms, self._search_text, system)
+        filtered = filter_catalog(self._source_roms(), self._search_text, system)
         self._list.set_roms(filtered)
         self._refresh_empty_state(count=len(filtered))
         self.status_changed.emit(self._status_text(len(filtered)))
+
+    def _source_roms(self) -> list[dict]:
+        if not self._ra_only:
+            return self._all_roms
+        return [rom for rom in self._all_roms if _has_ra(rom)]
 
     def _refresh_empty_state(self, count: Optional[int] = None) -> None:
         if self._loading and not self._all_roms:
@@ -461,7 +488,12 @@ class CatalogView(QWidget):
             if not self._all_roms:
                 self._empty_label.setText(
                     "The server's ROM catalog is empty.\n"
-                    "Add ROMs via the server and press Y to refresh."
+                    "Add ROMs on the server, then Settings > Refresh catalog."
+                )
+            elif self._ra_only and not self._search_text:
+                self._empty_label.setText(
+                    "No games with RetroAchievements here.\n"
+                    "Press X to show every game."
                 )
             else:
                 self._empty_label.setText("No ROMs match this search.")
@@ -475,12 +507,21 @@ class CatalogView(QWidget):
         if not self._loaded:
             return ""
         total = len(self._all_roms)
+        suffix = "  ·  RA only" if self._ra_only else ""
         if count == total:
-            return f"{total} ROMs"
-        return f"{count} / {total} ROMs"
+            return f"{total} ROMs{suffix}"
+        return f"{count} / {total} ROMs{suffix}"
 
 
 # ── Helpers ──────────────────────────────────────────────────────
+
+
+def _has_ra(rom: dict) -> bool:
+    """A published set (title-only matches included, as on every client)."""
+    try:
+        return int(rom.get("ra_achievements") or 0) > 0
+    except (TypeError, ValueError):
+        return False
 
 
 def _rom_key(rom: Optional[dict]) -> Optional[tuple]:

@@ -36,16 +36,17 @@ STATUS_LABEL = {
     SyncStatus.NO_SAVE: "No Save",
 }
 
-# Hex colors for status badges
+# Hex colors for status badges: the shared GameSync palette (every console
+# client tints a status the same way; see ui/theme.py).
 STATUS_COLOR = {
-    SyncStatus.UNKNOWN: "#7e7e7e",
-    SyncStatus.SYNCED: "#4caf50",
-    SyncStatus.LOCAL_NEWER: "#ff9800",
-    SyncStatus.SERVER_NEWER: "#1a9fff",
-    SyncStatus.LOCAL_ONLY: "#ff9800",
-    SyncStatus.SERVER_ONLY: "#1a9fff",
-    SyncStatus.CONFLICT: "#e84118",
-    SyncStatus.NO_SAVE: "#555555",
+    SyncStatus.UNKNOWN: "#5e7286",
+    SyncStatus.SYNCED: "#3fb950",
+    SyncStatus.LOCAL_NEWER: "#58a6ff",
+    SyncStatus.SERVER_NEWER: "#58a6ff",
+    SyncStatus.LOCAL_ONLY: "#58a6ff",
+    SyncStatus.SERVER_ONLY: "#f0b429",
+    SyncStatus.CONFLICT: "#f85149",
+    SyncStatus.NO_SAVE: "#5e7286",
 }
 
 # SYSTEM_COLOR and DEFAULT_SYSTEM_COLOR imported from shared.systems above.

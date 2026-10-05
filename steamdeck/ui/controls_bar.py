@@ -1,4 +1,10 @@
-"""Bottom controls bar showing button legend."""
+"""Footer of controller hints, in the shared GameSync design.
+
+Face buttons are round glyphs in the colours every GameSync client uses
+(A green, B red, X blue, Y yellow); shoulders, SELECT, START and the d-pad
+are slate pills.  The tab's own hints sit on the left, the global ones
+(tabs, exit) on the right.
+"""
 
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PyQt6.QtCore import Qt
@@ -6,9 +12,11 @@ from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QFontMetrics
 
 from . import theme
 
+_FACE = {"A", "B", "X", "Y"}
+
 
 class ButtonHint(QLabel):
-    """A small pill showing a gamepad button + action label."""
+    """A gamepad glyph + action label."""
 
     def __init__(self, button_char: str, button_color: str, label: str, parent=None):
         super().__init__(parent)
@@ -19,39 +27,36 @@ class ButtonHint(QLabel):
         font = QFont()
         font.setPointSize(theme.FONT_CONTROLS)
         self.setFont(font)
+        self._glyph_font = QFont(font)
+        self._glyph_font.setBold(True)
+        self._glyph_font.setPointSize(theme.FONT_CONTROLS - 1)
 
-        fm = QFontMetrics(font)
-        pill_w = fm.horizontalAdvance(button_char) + 10
-        text_w = fm.horizontalAdvance(f" {label}") + 4
-        self.setFixedSize(pill_w + text_w + 6, 28)
+        self.setFixedSize(self._glyph_w() + 6 + QFontMetrics(font).horizontalAdvance(label) + 4, 28)
+
+    def _glyph_w(self) -> int:
+        if self._button in _FACE:
+            return 24
+        return QFontMetrics(self._glyph_font).horizontalAdvance(self._button) + 14
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        font = self.font()
-        fm = QFontMetrics(font)
-        pill_w = fm.horizontalAdvance(self._button) + 10
         h = self.height()
+        gw = self._glyph_w()
+        gh = 24 if self._button in _FACE else 22
+        gy = (h - gh) // 2
 
-        # Button pill
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(self._color))
-        painter.drawRoundedRect(0, (h - 22) // 2, pill_w, 22, 11, 11)
-
-        painter.setFont(font)
+        painter.drawRoundedRect(0, gy, gw, gh, gh / 2, gh / 2)
+        painter.setFont(self._glyph_font)
         painter.setPen(QColor("#ffffff"))
-        painter.drawText(
-            0, (h - 22) // 2, pill_w, 22, Qt.AlignmentFlag.AlignCenter, self._button
-        )
+        painter.drawText(0, gy, gw, gh, Qt.AlignmentFlag.AlignCenter, self._button)
 
-        # Label
-        painter.setPen(QColor(theme.TEXT_SECONDARY))
+        painter.setFont(self.font())
+        painter.setPen(QColor(theme.DIM))
         painter.drawText(
-            pill_w + 4,
-            0,
-            self.width() - pill_w - 4,
-            h,
+            gw + 6, 0, self.width() - gw - 6, h,
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
             self._label,
         )
@@ -59,79 +64,78 @@ class ButtonHint(QLabel):
 
 
 class ControlsBar(QWidget):
-    """Bottom bar with button hints. Updates based on context."""
+    """Bottom bar with button hints. Updates with the active tab."""
 
     MODE_SAVES = "saves"
     MODE_CATALOG = "catalog"
     MODE_INSTALLED = "installed"
     MODE_DOWNLOADS = "downloads"
+    MODE_SETTINGS = "settings"
 
-    _HINTS_SAVES: list[tuple[str, str, str]] = [
-        ("A", "BTN_A", "Info"),
-        ("B", "BTN_B", "Exit"),
-        ("X", "BTN_X", "Sync"),
-        ("Y", "BTN_Y", "Refresh"),
-        ("L1/R1", "BTN_L", "System"),
-        ("L2/R2", "BTN_L", "Tab"),
-        ("←/→", "BTN_L", "Page"),
-        ("☰", "BTN_S", "Settings"),
-    ]
+    _HINTS: dict[str, list[tuple[str, str, str]]] = {
+        MODE_SAVES: [
+            ("A", "BTN_A", "Sync"),
+            ("X", "BTN_X", "Sync all"),
+            ("Y", "BTN_Y", "Details"),
+            ("B", "BTN_B", "Clear search"),
+            ("SELECT", "BTN_S", "System"),
+            ("L2/R2", "BTN_L", "Status"),
+            ("◀ ▶", "BTN_L", "Page"),
+        ],
+        MODE_CATALOG: [
+            ("A", "BTN_A", "Install"),
+            ("X", "BTN_X", "RA only"),
+            ("Y", "BTN_Y", "Search"),
+            ("B", "BTN_B", "Clear search"),
+            ("SELECT", "BTN_S", "System"),
+            ("◀ ▶", "BTN_L", "Page"),
+        ],
+        MODE_INSTALLED: [
+            ("A", "BTN_A", "Delete"),
+            ("X", "BTN_X", "Rescan"),
+            ("Y", "BTN_Y", "Search"),
+            ("B", "BTN_B", "Clear search"),
+            ("SELECT", "BTN_S", "System"),
+            ("◀ ▶", "BTN_L", "Page"),
+        ],
+        MODE_DOWNLOADS: [
+            ("A", "BTN_A", "Pause / resume"),
+            ("X", "BTN_X", "Clear finished"),
+            ("Y", "BTN_Y", "Remove"),
+            ("B", "BTN_B", "Pause running"),
+        ],
+        MODE_SETTINGS: [
+            ("A", "BTN_A", "Select"),
+        ],
+    }
 
-    _HINTS_CATALOG: list[tuple[str, str, str]] = [
-        ("A", "BTN_A", "Download"),
-        ("B", "BTN_B", "Exit"),
-        ("Y", "BTN_Y", "Search"),
-        ("L1/R1", "BTN_L", "System"),
-        ("L2/R2", "BTN_L", "Tab"),
-        ("←/→", "BTN_L", "Page"),
-        ("☰", "BTN_S", "Settings"),
-    ]
-
-    _HINTS_INSTALLED: list[tuple[str, str, str]] = [
-        ("A", "BTN_B", "Delete"),
-        ("B", "BTN_B", "Exit"),
-        ("Y", "BTN_Y", "Search"),
-        ("L1/R1", "BTN_L", "System"),
-        ("L2/R2", "BTN_L", "Tab"),
-        ("←/→", "BTN_L", "Page"),
-        ("☰", "BTN_S", "Settings"),
-    ]
-
-    # Downloads tab — most actions live on the row buttons themselves
-    # (pause/resume/cancel/remove), so the bottom bar just covers the
-    # globals.  Y is wired by main_window to clear finished entries.
-    _HINTS_DOWNLOADS: list[tuple[str, str, str]] = [
-        ("B", "BTN_B", "Exit"),
-        ("Y", "BTN_Y", "Clear finished"),
-        ("L2/R2", "BTN_L", "Tab"),
-        ("☰", "BTN_S", "Settings"),
+    _GLOBAL: list[tuple[str, str, str]] = [
+        ("L1/R1", "BTN_L", "Tab"),
+        ("START", "BTN_S", "Exit"),
     ]
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(theme.CONTROLS_H)
         self.setObjectName("controlsBar")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(12, 0, 12, 0)
-        self._layout.setSpacing(16)
+        self._layout.setContentsMargins(18, 0, 18, 0)
+        self._layout.setSpacing(18)
         self._hint_widgets: list[ButtonHint] = []
-        self._stretch_added = False
+        self._mode = ""
 
         self.set_mode(self.MODE_SAVES)
 
+    def mode(self) -> str:
+        return self._mode
+
     def set_mode(self, mode: str) -> None:
-        """Swap the visible hints for *mode* (saves / catalog / installed)."""
-        if mode == self.MODE_CATALOG:
-            hints = self._HINTS_CATALOG
-        elif mode == self.MODE_INSTALLED:
-            hints = self._HINTS_INSTALLED
-        elif mode == self.MODE_DOWNLOADS:
-            hints = self._HINTS_DOWNLOADS
-        else:
-            hints = self._HINTS_SAVES
-        # Tear down the previous pills and stretch so the new set lays out
-        # left-aligned with a trailing stretch (matches the original look).
+        """Swap the visible hints for *mode*."""
+        if mode not in self._HINTS:
+            mode = self.MODE_SAVES
+        self._mode = mode
         while self._layout.count():
             item = self._layout.takeAt(0)
             widget = item.widget()
@@ -139,9 +143,12 @@ class ControlsBar(QWidget):
                 widget.deleteLater()
         self._hint_widgets = []
 
-        for button, color_attr, label in hints:
-            color = getattr(theme, color_attr, theme.TEXT_DIM)
-            pill = ButtonHint(button, color, label)
-            self._hint_widgets.append(pill)
-            self._layout.addWidget(pill)
+        def add(hints):
+            for button, color_attr, label in hints:
+                pill = ButtonHint(button, getattr(theme, color_attr, theme.MUTED), label)
+                self._hint_widgets.append(pill)
+                self._layout.addWidget(pill)
+
+        add(self._HINTS[mode])
         self._layout.addStretch()
+        add(self._GLOBAL)
