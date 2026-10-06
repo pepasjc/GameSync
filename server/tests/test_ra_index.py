@@ -543,3 +543,41 @@ def test_dump_column_is_added_to_an_old_table(db, tmp_path):
     conn.execute("INSERT INTO ra_roms (path, game_id) VALUES ('a.sfc', 5)")
     conn.commit()
     assert ra_index.lookup(["a.sfc"])["a.sfc"]["ra_game_id"] == 5
+
+
+def test_unknown_cartridge_is_linked_to_its_ra_game_without_a_badge(db, tmp_path, monkeypatch):
+    """A hash RA does not know still names the game, so a client can offer
+    the version RA does support - but nothing badges."""
+    rom = tmp_path / "Front Mission Series - Gun Hazard (Japan) [T-En by Aeon Genesis v1.01].sfc"
+    rom.write_bytes(OTHER_BYTES)
+    entry = _Entry(rom)
+    entry.name = rom.stem
+    lib = RaLibrary(3, {ROM_MD5: 1408}, {1408: "Front Mission: Gun Hazard"},
+                    achievements={1408: 112})
+    monkeypatch.setattr(ra_index, "fetch_library", lambda cid, **kw: lib)
+    monkeypatch.setattr(ra_index, "fetch_hash_names",
+                        lambda library, **kw: {1408: ["Front Mission Series - Gun Hazard (Japan)"]})
+    ra_index.refresh([entry], tmp_path / "cache")
+    found = ra_index.lookup([str(rom)])[str(rom)]
+    assert found["ra_game_id"] == 1408
+    assert found["ra_achievements"] == 0
+    assert found["ra_match"] == ra_index.MATCH_TITLE
+    assert "ra_hash" not in found
+
+
+def test_cached_cartridge_misses_are_linked_on_a_later_pass(db, tmp_path, monkeypatch):
+    rom = tmp_path / "Front Mission (Japan) [T-En by Frank Hughes v1.0b] [Splash screen removed].sfc"
+    rom.write_bytes(OTHER_BYTES)
+    entry = _Entry(rom)
+    entry.name = rom.stem
+    empty = RaLibrary(3, {}, {}, achievements={})
+    monkeypatch.setattr(ra_index, "fetch_library", lambda cid, **kw: empty)
+    monkeypatch.setattr(ra_index, "fetch_hash_names", lambda library, **kw: {})
+    ra_index.refresh([entry], tmp_path / "cache")
+    assert ra_index.lookup([str(rom)]) == {}
+
+    lib = RaLibrary(3, {ROM_MD5: 2895}, {2895: "Front Mission"}, achievements={2895: 50})
+    monkeypatch.setattr(ra_index, "fetch_library", lambda cid, **kw: lib)
+    result = ra_index.refresh([entry], tmp_path / "cache")
+    assert result["hashed"] == 0                 # no file read for the link
+    assert ra_index.lookup([str(rom)])[str(rom)]["ra_game_id"] == 2895
