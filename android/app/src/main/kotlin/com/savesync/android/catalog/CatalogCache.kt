@@ -158,7 +158,8 @@ class CatalogCache(
 
     companion object {
         /** Bumped when the meaning of a stored row changes. */
-        const val VERSION = 1
+        /** 2: rows carry `ra_dump` (Installed's "Replace with RA version"). */
+        const val VERSION = 2
         const val FILE_NAME = "catalog_cache.json"
     }
 }

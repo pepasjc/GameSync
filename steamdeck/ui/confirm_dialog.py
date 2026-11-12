@@ -13,8 +13,12 @@ class ConfirmDialog(QDialog, GamepadModalMixin):
     Modal confirmation dialog styled for gamepad use.
 
     Shows a title, message, and two buttons: Confirm (A) and Cancel (B).
-    Returns QDialog.DialogCode.Accepted or Rejected.
+    Returns QDialog.DialogCode.Accepted or Rejected.  With ``alt_label`` a
+    third button (X) is shown and ends the dialog with :attr:`ALT`.
     """
+
+    #: exec() result for the X (alternative) button.
+    ALT = 2
 
     def __init__(
         self,
@@ -24,6 +28,8 @@ class ConfirmDialog(QDialog, GamepadModalMixin):
         cancel_label: str = "Cancel",
         confirm_color: str = theme.ACCENT,
         parent=None,
+        alt_label: str = "",
+        alt_color: str = theme.TEXT_SECONDARY,
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -63,6 +69,14 @@ class ConfirmDialog(QDialog, GamepadModalMixin):
 
         btn_row.addSpacing(12)
 
+        self._alt_btn = None
+        if alt_label:
+            self._alt_btn = QPushButton(f"{alt_label}  [X]")
+            self._alt_btn.setStyleSheet(f"QPushButton {{ color: {alt_color}; }}")
+            self._alt_btn.clicked.connect(lambda: self.done(self.ALT))
+            btn_row.addWidget(self._alt_btn)
+            btn_row.addSpacing(12)
+
         self._confirm_btn = QPushButton(f"{confirm_label}  [A]")
         self._confirm_btn.setStyleSheet(
             f"QPushButton {{ background: {confirm_color}; color: #fff; "
@@ -87,6 +101,9 @@ class ConfirmDialog(QDialog, GamepadModalMixin):
             return True
         if key in (Qt.Key.Key_Escape, Qt.Key.Key_B, Qt.Key.Key_Backspace):
             self.reject()
+            return True
+        if key == Qt.Key.Key_X and self._alt_btn is not None:
+            self.done(self.ALT)
             return True
         return False
 

@@ -26,7 +26,11 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.savesync.android.ui.theme.GsColors
@@ -43,7 +47,7 @@ val LocalServerOnline = compositionLocalOf<Boolean?> { null }
 
 /**
  * The header bar every GameSync client draws: the app name, the top-level
- * tabs between L1 / R1 glyphs (active tab = teal pill with ink text), the
+ * tabs between L1 / R1 glyphs (active tab = cyan pill with ink text), the
  * screen's touch actions and the server status dot.  Below it an optional
  * sub-tab chip row (system filter etc. — what SELECT steps through).
  *
@@ -118,12 +122,7 @@ fun GsTopBar(
                 content = subTabs,
             )
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(GsColors.Line)
-        )
+        GsBrandRule()
     }
 }
 
@@ -177,20 +176,32 @@ fun GsSubScreenBar(
             actions()
             ServerDot(online)
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(GsColors.Line)
-        )
+        GsBrandRule()
     }
+}
+
+/**
+ * The rule under the top bar: the logo's cyan -> blue -> violet gradient,
+ * the one flourish every GameSync client shares.
+ */
+@Composable
+fun GsBrandRule(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(2.dp)
+            .background(Brush.horizontalGradient(GsColors.BrandGradient))
+    )
 }
 
 @Composable
 private fun AppName() {
+    // Two-tone wordmark, as in the logo: "Game" in white, "Sync" in the accent.
     Text(
-        text = "GameSync",
-        color = GsColors.Accent,
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(color = GsColors.Text)) { append("Game") }
+            withStyle(SpanStyle(color = GsColors.Accent)) { append("Sync") }
+        },
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
         maxLines = 1,
@@ -216,7 +227,7 @@ private fun ServerDot(online: Boolean?) {
 /**
  * The tab strip: L1 glyph, one pill per top-level tab, R1 glyph (the
  * glyphs only while controller hints are shown — see [LocalShowButtonHints]).  The
- * active tab is a teal pill with ink text; the rest are dim text.  Pills
+ * active tab is a cyan pill with ink text; the rest are dim text.  Pills
  * are tappable, so touch users switch tabs the same way they always did.
  */
 @Composable

@@ -758,12 +758,12 @@ int ui_button(int x, int cy, const char *b)
     if (!strcmp(b, "WHITE") || !strcmp(b, "BLACK")) {
         float cx = x + BTN_R;
         int white = (b[0] == 'W');
-        ui_circle(cx, cy, BTN_R, white ? 0x8DA2B5 : 0x5E7286);
+        ui_circle(cx, cy, BTN_R, white ? 0x9BA9CD : 0x6B789F);
         ui_circle(cx, cy, BTN_R - 1.5f, white ? 0xF4F7FA : 0x070A0E);
         return (int)(BTN_R * 2);
     }
     if (is_dpad(b)) {
-        uint32_t base = 0x4A5D70, hi = UI_HEX_TEXT;
+        uint32_t base = 0x525F88, hi = UI_HEX_TEXT;
         int ud = !strcmp(b, "UD"), lr = !strcmp(b, "LR"), all = !ud && !lr;
         ui_rrect(x + 6, cy - 9, 6, 18, 1, (ud || all) ? hi : base);
         ui_rrect(x, cy - 3, 18, 6, 1, (lr || all) ? hi : base);
@@ -784,7 +784,7 @@ int ui_button(int x, int cy, const char *b)
     // Triggers get a tab shape, START / BACK a pill.
     int w = ui_button_w(b);
     int trigger = (b[0] == 'L' || b[0] == 'R') && b[1] == '\0';
-    ui_rrect(x, cy - 9, w, 18, trigger ? 4 : 9, 0xAAB8C5);
+    ui_rrect(x, cy - 9, w, 18, trigger ? 4 : 9, 0xB4BFDD);
     ui_text_mid(x + w / 2, cy - 9, 18, UI_FONT_TINY, UI_HEX_INK, UI_CENTER, 0, b);
     return w;
 }
@@ -815,7 +815,7 @@ void ui_scrollbar(int x, int y, int h, int first, int visible, int total)
 
 void ui_panel(int x, int y, int w, int h)
 {
-    ui_rrect(x - 1, y - 1, w + 2, h + 2, 9, 0x0A1118);
+    ui_rrect(x - 1, y - 1, w + 2, h + 2, 9, 0x070A16);
     ui_rrect(x, y, w, h, 8, UI_HEX_PANEL);
 }
 
@@ -843,12 +843,31 @@ void ui_dim(void)
 // Chrome
 // ---------------------------------------------------------------------------
 
+// The brand's sync gradient (cyan -> blue -> violet, as in the logo's arrows),
+// drawn as flat steps so it needs nothing beyond a rect fill.
+static unsigned int brand_lerp(unsigned int a, unsigned int b, int t, int n) {
+    int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+    int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+    return (unsigned int)(((ar + (br - ar) * t / n) << 16) | ((ag + (bg - ag) * t / n) << 8) |
+                          (ab + (bb - ab) * t / n));
+}
+
+static void brand_bar(int x, int y, int w, int h) {
+    enum { STEPS = 32, HALF = STEPS / 2 };
+    for (int i = 0; i < STEPS; i++) {
+        unsigned int c = i < HALF ? brand_lerp(UI_HEX_BRAND_A, UI_HEX_BRAND_B, i, HALF)
+                                  : brand_lerp(UI_HEX_BRAND_B, UI_HEX_BRAND_C, i - HALF, HALF - 1);
+        int x0 = x + w * i / STEPS, x1 = x + w * (i + 1) / STEPS;
+        ui_rect(x0, y, x1 - x0, h, c);
+    }
+}
+
 void ui_header(const char *section, const char *right_text, uint32_t dot_hex)
 {
-    ui_vgrad(0, 0, UI_W, UI_HEADER_H, 0x16202B, UI_HEX_BG2);
-    ui_rect(0, UI_HEADER_H - 1, UI_W, 1, UI_HEX_LINE);
+    ui_vgrad(0, 0, UI_W, UI_HEADER_H, 0x1A2340, UI_HEX_BG2);
+    brand_bar(0, UI_HEADER_H - 2, UI_W, 2);
 
-    // Logo mark: teal rounded square with a notch.
+    // Logo mark: cyan rounded square with a notch.
     int lx = UI_MARGIN_X;
     int cy = UI_MARGIN_Y + (UI_HEADER_H - UI_MARGIN_Y) / 2;
     ui_rrect(lx, cy - 10, 20, 20, 5, UI_HEX_ACCENT);

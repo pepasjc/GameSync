@@ -59,6 +59,7 @@ import com.savesync.android.ui.screens.RomCatalogScreen
 import com.savesync.android.ui.screens.SaveDetailScreen
 import com.savesync.android.ui.screens.SavesScreen
 import com.savesync.android.ui.screens.SettingsScreen
+import com.savesync.android.input.TriggerLatch
 import com.savesync.android.ui.components.GsConfirmDialog
 import com.savesync.android.ui.components.LocalServerOnline
 import com.savesync.android.ui.components.LocalShowButtonHints
@@ -82,10 +83,11 @@ class MainActivity : ComponentActivity() {
     // The unified GameSync controls (same on every console client):
     //   L1 / R1   → previous / next top-level tab (wraps); MainApp drives
     //               the navController from tabCycleEvents.
-    //   SELECT    → next sub-tab (the system filter chip on Saves / Catalog /
-    //               Installed); each screen subscribes to systemCycleEvents.
-    //   L2 / R2   → step the sync-status filter on Saves (statusCycleEvents);
-    //               digital buttons or analog triggers.  No longer tabs.
+    //   L2 / R2   → previous / next system (the system filter chip on Saves /
+    //               Catalog / Installed), digital buttons or analog triggers;
+    //               each screen subscribes to systemCycleEvents.  Same as the
+    //               Steam Deck client's system stepping.
+    //   SELECT    → step the sync-status filter on Saves (statusCycleEvents).
     //   START     → exit, after a confirmation dialog (exitRequests).
     //   B         → cancel / back only: a B nothing on screen claimed is
     //               swallowed on a top-level tab so it never exits the app.
@@ -109,8 +111,8 @@ class MainActivity : ComponentActivity() {
 
     // Edge-detected state for analog triggers so we fire once per press,
     // not once per polled sample.
-    private var lastLeftTrigger = false
-    private var lastRightTrigger = false
+    private val leftTrigger = TriggerLatch()
+    private val rightTrigger = TriggerLatch()
 
     // Analog stick + HAT → DPAD key synthesis.  Steam Deck uses deadzone 0.4
     // + 150 ms repeat; we mirror that so sticks feel identical across both
@@ -169,12 +171,24 @@ class MainActivity : ComponentActivity() {
      * keys, which is how its A/B/START work.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // L2 / R2 go through the same latch as the analog axis, so a pad
+        // that reports both steps once per pull.
+        val trigger = when (event.keyCode) {
+            KeyEvent.KEYCODE_BUTTON_L2 -> leftTrigger to -1
+            KeyEvent.KEYCODE_BUTTON_R2 -> rightTrigger to 1
+            else -> null
+        }
+        if (trigger != null) {
+            val down = event.action == KeyEvent.ACTION_DOWN
+            if (trigger.first.onDigital(down, event.eventTime)) {
+                _systemCycleEvents.tryEmit(trigger.second)
+            }
+            return true   // consume DOWN and UP alike
+        }
         val globalDelta: Pair<MutableSharedFlow<Int>, Int>? = when (event.keyCode) {
             KeyEvent.KEYCODE_BUTTON_L1 -> _tabCycleEvents to -1
             KeyEvent.KEYCODE_BUTTON_R1 -> _tabCycleEvents to 1
-            KeyEvent.KEYCODE_BUTTON_L2 -> _statusCycleEvents to -1
-            KeyEvent.KEYCODE_BUTTON_R2 -> _statusCycleEvents to 1
-            KeyEvent.KEYCODE_BUTTON_SELECT -> _systemCycleEvents to 1
+            KeyEvent.KEYCODE_BUTTON_SELECT -> _statusCycleEvents to 1
             else -> null
         }
         if (globalDelta != null) {
@@ -240,11 +254,11 @@ class MainActivity : ComponentActivity() {
             return super.dispatchGenericMotionEvent(event)
         }
 
-        // ── L2/R2 analog trigger fallback → status filter step ───────────
+        // ── L2/R2 analog trigger → system step ───────────────────────────
         // Some controllers (PS4/PS5 over Bluetooth, certain Xbox pads) only
-        // emit analog AXIS_LTRIGGER/RTRIGGER values, never the digital
-        // KEYCODE_BUTTON_L2/R2. Mirror the digital path here so the filter
-        // steps either way.
+        // emit analog AXIS_LTRIGGER/RTRIGGER values, others send these
+        // *and* KEYCODE_BUTTON_L2/R2.  Both feed the same TriggerLatch, so
+        // a pull steps once whichever arrives.
         val lt = maxOf(
             event.getAxisValue(MotionEvent.AXIS_LTRIGGER),
             event.getAxisValue(MotionEvent.AXIS_BRAKE),
@@ -253,12 +267,9 @@ class MainActivity : ComponentActivity() {
             event.getAxisValue(MotionEvent.AXIS_RTRIGGER),
             event.getAxisValue(MotionEvent.AXIS_GAS),
         )
-        val ltDown = lt > TRIGGER_THRESHOLD
-        val rtDown = rt > TRIGGER_THRESHOLD
-        if (ltDown && !lastLeftTrigger) _statusCycleEvents.tryEmit(-1)
-        if (rtDown && !lastRightTrigger) _statusCycleEvents.tryEmit(1)
-        lastLeftTrigger = ltDown
-        lastRightTrigger = rtDown
+        // Hysteresis + digital/analog dedupe live in TriggerLatch.
+        if (leftTrigger.onAnalog(lt, event.eventTime)) _systemCycleEvents.tryEmit(-1)
+        if (rightTrigger.onAnalog(rt, event.eventTime)) _systemCycleEvents.tryEmit(1)
 
         // ── Stick + HAT → DPAD key synthesis ─────────────────────────────
         // HAT values are exactly -1/0/+1; the 0.5 threshold is a non-zero
@@ -355,7 +366,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val STICK_DEADZONE = 0.4f
         private const val STICK_REPEAT_MS = 150L
-        private const val TRIGGER_THRESHOLD = 0.5f
     }
 }
 

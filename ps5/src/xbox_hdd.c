@@ -14,6 +14,9 @@
  * GPL-2.0-or-later documentation; no code copied) and the FATX layout as
  * documented by the Xbox-Linux project and xboxdevwiki.net
  * (https://xboxdevwiki.net/FATX).
+ *
+ * The Android client has a Kotlin port for X1 BOX's disk image
+ * (android/.../emulators/XboxHddImage.kt): keep the two in step.
  */
 #include "xbox_hdd.h"
 

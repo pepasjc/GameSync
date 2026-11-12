@@ -18,8 +18,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // upgraders lose their sync state once on first launch — acceptable
     // since sync state can be rebuilt from servers on the next sync.
     // v4 adds `downloads.bundleKind` (MSU packs) with a real migration so
-    // that bump costs nobody their sync state.
-    version = 4,
+    // that bump costs nobody their sync state.  v5 adds
+    // `downloads.replacesPaths` ("Replace with RA version"), same way.
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,6 +39,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE downloads ADD COLUMN replacesPaths TEXT")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -45,7 +52,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "save_sync_db"
                 )
-                    .addMigrations(MIGRATION_3_4)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

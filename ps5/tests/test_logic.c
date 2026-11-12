@@ -3,13 +3,16 @@
  * the three-way sync decision, plus PS5SX2's per-game cards on a temp folder.
  * Run through ps5/tests/run_host_tests.sh.
  */
+#include "catalog.h"
 #include "http.h"
+#include "installed.h"
 #include "json.h"
 #include "naming.h"
 #include "ps2mc.h"
 #include "retroarch.h"
 #include "saturn.h"
 #include "saves.h"
+#include "melonds.h"
 #include "sync.h"
 #include "util.h"
 #include "xcci.h"
@@ -403,6 +406,356 @@ static void saturn_entry(const Config *c, char *path, size_t size, char *warning
     saves_free(&list);
 }
 
+/* The Installed tab shows a multi-disc game once, named without
+ * "(Disc N)", and deleting it removes its folder. */
+static void test_installed_discs(void)
+{
+    char root[] = "/tmp/gs_inst_XXXXXX";
+    if (!mkdtemp(root))
+    {
+        CHECK(!"mkdtemp");
+        return;
+    }
+    Config c;
+    config_defaults(&c);
+    snprintf(c.retroarch_dir, sizeof(c.retroarch_dir), "%s/ra", root);
+    snprintf(c.swanstation_dir, sizeof(c.swanstation_dir), "%s/ss", root);
+    snprintf(c.ps5sx2_dir, sizeof(c.ps5sx2_dir), "%s/sx", root);
+    snprintf(c.porpoise_dir, sizeof(c.porpoise_dir), "%s/pp", root);
+    snprintf(c.cemu_dir, sizeof(c.cemu_dir), "%s/cemu", root);
+    snprintf(c.xemu_dir, sizeof(c.xemu_dir), "%s/xemu", root);
+    snprintf(c.eden_dir, sizeof(c.eden_dir), "%s/eden", root);
+    const char *files[] = {
+        "ss/games/Final Fantasy VII (USA)/Final Fantasy VII (USA) (Disc 1).chd",
+        "ss/games/Final Fantasy VII (USA)/Final Fantasy VII (USA) (Disc 2).chd",
+        "ss/games/Final Fantasy VII (USA)/Final Fantasy VII (USA).m3u",
+        "ra/content/Saturn/Grandia (Japan)/Grandia (Japan).m3u",
+        "ra/content/Saturn/Grandia (Japan)/.discs/Grandia (Japan) (Disc 1).chd",
+        "ra/content/Saturn/Grandia (Japan)/.discs/Grandia (Japan) (Disc 2).chd",
+        "sx/games/Xenosaga III (USA)/Xenosaga III (USA) (Disc 1).chd",
+        "sx/games/Xenosaga III (USA)/Xenosaga III (USA) (Disc 2).chd",
+        "sx/games/Okami (USA).chd",
+    };
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); ++i)
+    {
+        char path[PATH_LEN];
+        snprintf(path, sizeof(path), "%s/%s", root, files[i]);
+        util_mkdirs_parent(path);
+        util_write_file_atomic(path, "1234", 4);
+    }
+    InstalledList list = {0};
+    installed_scan(&c, &list);
+    installed_group_discs(&list);
+    int ff7 = -1, grandia = -1, xeno = -1, okami = -1;
+    for (int i = 0; i < list.count; ++i)
+    {
+        const char *n = list.items[i].name;
+        if (strcmp(n, "Final Fantasy VII (USA)") == 0)
+            ff7 = ff7 < 0 ? i : 1000;
+        else if (strcmp(n, "Grandia (Japan)") == 0)
+            grandia = grandia < 0 ? i : 1000;
+        else if (strcmp(n, "Xenosaga III (USA)") == 0)
+            xeno = xeno < 0 ? i : 1000;
+        else if (strcmp(n, "Okami (USA)") == 0)
+            okami = i;
+        else
+            CHECK(!"an unexpected entry");
+    }
+    CHECK(ff7 >= 0 && ff7 < 1000 && list.items[ff7].discs == 2 && list.items[ff7].folder &&
+          list.items[ff7].size == 12);
+    CHECK(grandia >= 0 && grandia < 1000 && list.items[grandia].folder &&
+          list.items[grandia].size == 12);
+    CHECK(xeno >= 0 && xeno < 1000 && list.items[xeno].discs == 2 && list.items[xeno].size == 8);
+    CHECK(okami >= 0 && !list.items[okami].folder);
+    char error[160] = "", gone[PATH_LEN];
+    if (grandia >= 0 && grandia < 1000)
+    {
+        CHECK(installed_delete(&list.items[grandia], error, sizeof(error)));
+        snprintf(gone, sizeof(gone), "%s/ra/content/Saturn/Grandia (Japan)", root);
+        CHECK(!util_dir_exists(gone));
+    }
+    installed_free(&list);
+    char cmd[PATH_LEN + 16];
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", root);
+    CHECK(system(cmd) == 0);
+}
+
+/* A SwanStation card named after one disc of a multi-disc game moves to the
+ * playlist's name, which its title mode reads. */
+static void test_swanstation_group_card(void)
+{
+    char root[] = "/tmp/gs_sscard_XXXXXX";
+    if (!mkdtemp(root))
+    {
+        CHECK(!"mkdtemp");
+        return;
+    }
+    Config c;
+    config_defaults(&c);
+    snprintf(c.swanstation_dir, sizeof(c.swanstation_dir), "%s", root);
+    char disc[PATH_LEN], game[PATH_LEN];
+    snprintf(disc, sizeof(disc), "%s/saves/Aconcagua (Japan) (Disc 2) [T-En by Hilltop v1.0]_1.mcd", root);
+    snprintf(game, sizeof(game), "%s/saves/Aconcagua (Japan) [T-En by Hilltop v1.0]_1.mcd", root);
+    util_mkdirs_parent(disc);
+    util_write_file_atomic(disc, "card", 4);
+    CHECK(saves_swanstation_rename_card(&c, "Aconcagua (Japan) (Disc 2) [T-En by Hilltop v1.0]",
+                                        "Aconcagua (Japan) [T-En by Hilltop v1.0]"));
+    CHECK(!util_file_exists(disc) && util_file_exists(game));
+    /* a copy beside it is set aside; a different card stays */
+    util_write_file_atomic(disc, "card", 4);
+    CHECK(saves_swanstation_rename_card(&c, "Aconcagua (Japan) (Disc 2) [T-En by Hilltop v1.0]",
+                                        "Aconcagua (Japan) [T-En by Hilltop v1.0]"));
+    CHECK(!util_file_exists(disc));
+    util_write_file_atomic(disc, "other", 5);
+    CHECK(!saves_swanstation_rename_card(&c, "Aconcagua (Japan) (Disc 2) [T-En by Hilltop v1.0]",
+                                         "Aconcagua (Japan) [T-En by Hilltop v1.0]"));
+    CHECK(util_file_exists(disc));
+    char cmd[PATH_LEN + 16];
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", root);
+    CHECK(system(cmd) == 0);
+}
+
+static RomRow disc_row(const char *system, const char *name, const char *ext, const char *tid)
+{
+    RomRow r;
+    memset(&r, 0, sizeof(r));
+    snprintf(r.system, sizeof(r.system), "%s", system);
+    snprintf(r.name, sizeof(r.name), "%s", name);
+    snprintf(r.filename, sizeof(r.filename), "%s%s", name, ext);
+    snprintf(r.rom_id, sizeof(r.rom_id), "%s/%s%s", system, name, ext);
+    snprintf(r.title_id, sizeof(r.title_id), "%s", tid);
+    r.size = 100;
+    return r;
+}
+
+/* Multi-disc games: grouped like shared/mister_install.group_discs (only
+ * names that differ by "(Disc N)"), installed into one folder, loaded by an
+ * .m3u in SwanStation and RetroArch, the RetroArch save named after it. */
+static void test_multidisc(void)
+{
+    char out[200];
+    CHECK(disc_tag_strip("Final Fantasy VII (USA) (Disc 2)", out, sizeof(out)) == 3 &&
+          strcmp(out, "Final Fantasy VII (USA)") == 0);
+    CHECK(disc_tag_strip("Final Fantasy VII (USA) (Disc 1)", out, sizeof(out)) == 2);
+    CHECK(disc_tag_strip("Grandia (Japan) [Disk 1 of 2]", out, sizeof(out)) == 2 &&
+          strcmp(out, "Grandia (Japan)") == 0);
+    /* Roman numerals, letters and Disc 0 */
+    CHECK(disc_tag_strip("D (USA) (Disc II)", out, sizeof(out)) == 3 && strcmp(out, "D (USA)") == 0);
+    CHECK(disc_tag_strip("D's Diner (Japan) (Disc C)", out, sizeof(out)) == 4 &&
+          strcmp(out, "D's Diner (Japan)") == 0);
+    CHECK(disc_tag_strip("Enemy Zero (USA) (Disc 0)", out, sizeof(out)) == 1);
+    /* the (...) after the disc tag name the disc; [...] tags are the version */
+    CHECK(disc_tag_strip("Command & Conquer (USA) (Disc 2) (NOD Disc)", out, sizeof(out)) == 3 &&
+          strcmp(out, "Command & Conquer (USA)") == 0);
+    CHECK(disc_tag_strip("Kowloon's Gate (Japan) (Disc 3) (Suzaku) [T-En by Hilltop v1.0]", out,
+                         sizeof(out)) == 4 &&
+          strcmp(out, "Kowloon's Gate (Japan) [T-En by Hilltop v1.0]") == 0);
+    CHECK(disc_tag_strip("Disc Station Bessatsu (Japan) (Disc Station) [x (y)]", out, sizeof(out)) == 0 &&
+          strcmp(out, "Disc Station Bessatsu (Japan) (Disc Station) [x (y)]") == 0);
+    CHECK(disc_tag_strip("Discworld (USA)", out, sizeof(out)) == 0 &&
+          strcmp(out, "Discworld (USA)") == 0);
+
+    char root[] = "/tmp/gs_discs_XXXXXX";
+    if (!mkdtemp(root))
+    {
+        CHECK(!"mkdtemp");
+        return;
+    }
+    Config c;
+    config_defaults(&c);
+    snprintf(c.retroarch_dir, sizeof(c.retroarch_dir), "%s/ra", root);
+    snprintf(c.swanstation_dir, sizeof(c.swanstation_dir), "%s/ss", root);
+    snprintf(c.ps5sx2_dir, sizeof(c.ps5sx2_dir), "%s/sx", root);
+    Catalog cat;
+    memset(&cat, 0, sizeof(cat));
+    RomRow rows[] = {
+        disc_row("PS1", "Final Fantasy VII (USA) (Disc 2)", ".chd", "SCUS94164"),
+        disc_row("PS1", "Final Fantasy VII (USA) (Disc 1)", ".chd", "SCUS94163"),
+        disc_row("PS1", "Final Fantasy VII (USA) (Disc 3)", ".chd", "SCUS94165"),
+        /* a translation of a single-disc game: never grouped with anything */
+        disc_row("PS1", "Tail Concerto (Japan) [T-En by X]", ".chd", "SLPS01234"),
+        disc_row("PS1", "Tail Concerto (Japan)", ".chd", "SLPS01234"),
+        /* a variant's discs are a game of their own */
+        disc_row("SAT", "Grandia (Japan) (Disc 1)", ".chd", "SAT_T-4507G"),
+        disc_row("SAT", "Grandia (Japan) (Disc 2)", ".chd", "SAT_T-4507G"),
+        disc_row("SAT", "Grandia (Japan) (Disc 1) [T-En by TrekkiesUnite]", ".chd", "SAT_T-4507G"),
+        disc_row("SAT", "Grandia (Japan) (Disc 2) [T-En by TrekkiesUnite]", ".chd", "SAT_T-4507G"),
+        /* not a multi-disc system */
+        disc_row("SNES", "Game (Disc 1)", ".sfc", ""),
+        disc_row("SNES", "Game (Disc 2)", ".sfc", ""),
+    };
+    cat.roms = rows;
+    cat.rom_count = (int)(sizeof(rows) / sizeof(rows[0]));
+    catalog_group_discs(&cat);
+    CHECK(strcmp(rows[0].group, "Final Fantasy VII (USA)") == 0 && rows[0].group_size == 3 &&
+          rows[0].group_head == 1 && rows[2].group_head == 1 && rows[0].disc_no == 3 &&
+          rows[1].group_bytes == 300);
+    CHECK(!rows[3].group[0] && !rows[4].group[0]);
+    CHECK(strcmp(rows[5].group, "Grandia (Japan)") == 0 && rows[5].group_size == 2);
+    CHECK(strcmp(rows[7].group, "Grandia (Japan) [T-En by TrekkiesUnite]") == 0 &&
+          rows[7].group_size == 2 && rows[7].group_head == 7);
+    CHECK(!rows[9].group[0] && !rows[10].group[0]);
+    /* the server's display name is disc 1's database name on every row of a
+     * translation: the file names are what tell the discs and versions apart */
+    {
+        const char *files[] = {
+            "Grandia (Japan) (Disc 2) (4M) [T-En by TrekkiesUnite118 v0.9.3 RC].chd",
+            "Grandia (Japan) (Disc 1) (4M) [T-En by TrekkiesUnite118 v0.9.3 RC].chd",
+            "Grandia (Japan) (Disc 1) [T-En by TrekkiesUnite118 v1.1.1].chd",
+            "Grandia (Japan) (Disc 2) [T-En by TrekkiesUnite118 v1.1.1].chd",
+        };
+        RomRow g[4];
+        for (int i = 0; i < 4; ++i)
+        {
+            g[i] = disc_row("SAT", "Grandia (Japan) (Disc 1) (4M)", "", "SAT_T-4507G");
+            snprintf(g[i].filename, sizeof(g[i].filename), "%s", files[i]);
+            snprintf(g[i].rom_id, sizeof(g[i].rom_id), "SAT/%s", files[i]);
+        }
+        Catalog gc;
+        memset(&gc, 0, sizeof(gc));
+        gc.roms = g;
+        gc.rom_count = 4;
+        catalog_group_discs(&gc);
+        CHECK(strcmp(g[0].group, "Grandia (Japan) [T-En by TrekkiesUnite118 v0.9.3 RC]") == 0 &&
+              g[0].group_size == 2 && g[0].group_head == 1 && g[1].group_head == 1);
+        CHECK(strcmp(g[2].group, "Grandia (Japan) [T-En by TrekkiesUnite118 v1.1.1]") == 0 &&
+              g[2].group_size == 2 && g[3].group_head == 2);
+    }
+
+    int order[8];
+    CHECK(catalog_group_rows(&cat, &rows[0], order, 8) == 3 && order[0] == 1 && order[1] == 0 &&
+          order[2] == 2);
+
+    /* SwanStation: one folder, an .m3u once every disc is in */
+    c.ps1_in_retroarch = false;
+    InstallPlan plan;
+    catalog_plan(&c, &rows[1], &plan);
+    char want[PATH_LEN];
+    snprintf(want, sizeof(want), "%s/ss/games/Final Fantasy VII (USA)/Final Fantasy VII (USA) (Disc 1).chd",
+             root);
+    CHECK(plan.supported && strcmp(plan.dest, want) == 0 && plan.grouped);
+    CHECK(!catalog_group_installed(&c, &cat, &rows[0]));
+    for (int i = 0; i < 2; ++i)
+    {
+        catalog_plan(&c, &rows[i], &plan);
+        util_mkdirs_parent(plan.dest);
+        util_write_file_atomic(plan.dest, "x", 1);
+    }
+    CHECK(!catalog_group_finish(&c, &cat, &rows[0])); /* disc 3 missing */
+    catalog_plan(&c, &rows[2], &plan);
+    util_write_file_atomic(plan.dest, "x", 1);
+    CHECK(catalog_group_installed(&c, &cat, &rows[2]) && catalog_group_finish(&c, &cat, &rows[2]));
+    char *m3u = (char *)util_read_file(plan.m3u, NULL);
+    CHECK(m3u && strcmp(m3u, "Final Fantasy VII (USA) (Disc 1).chd\n"
+                             "Final Fantasy VII (USA) (Disc 2).chd\n"
+                             "Final Fantasy VII (USA) (Disc 3).chd\n") == 0);
+    free(m3u);
+
+    /* RetroArch: the discs out of its list in .discs/, the save <game>.srm,
+     * the game identified by its first disc */
+    catalog_plan(&c, &rows[5], &plan);
+    snprintf(want, sizeof(want), "%s/ra/content/Saturn/Grandia (Japan)/.discs/Grandia (Japan) (Disc 1).chd",
+             root);
+    CHECK(plan.supported && strcmp(plan.dest, want) == 0 &&
+          strcmp(plan.m3u_line, ".discs/Grandia (Japan) (Disc 1).chd") == 0);
+    for (int i = 5; i < 7; ++i)
+    {
+        catalog_plan(&c, &rows[i], &plan);
+        util_mkdirs_parent(plan.dest);
+        util_write_file_atomic(plan.dest, "x", 1);
+    }
+    CHECK(catalog_group_finish(&c, &cat, &rows[5]));
+    SaveList list = {0};
+    KvStore ids = {0};
+    retroarch_scan(&c, &ids, &list);
+    int sat = 0;
+    for (int i = 0; i < list.count; ++i)
+        if (util_ieq(list.items[i].system, "SAT"))
+        {
+            sat++;
+            snprintf(want, sizeof(want), "%s/ra/savefiles/Beetle Saturn/Grandia (Japan).srm", root);
+            CHECK(strcmp(list.items[i].path, want) == 0 &&
+                  strcmp(list.items[i].rom_file, "Grandia (Japan) (Disc 1).chd") == 0);
+        }
+    CHECK(sat == 1); /* the .m3u, not each disc */
+    saves_free(&list);
+
+    /* PS5SX2: the discs share the game's card */
+    char card1[PATH_LEN], card2[PATH_LEN];
+    saves_ps5sx2_game_card(&c, "Xenosaga Episode III (USA) (Disc 1)", false, card1, sizeof(card1));
+    saves_ps5sx2_game_card(&c, "Xenosaga Episode III (USA) (Disc 2)", false, card2, sizeof(card2));
+    CHECK(strcmp(card1, card2) == 0 && strstr(card1, "/Xenosaga Episode III (USA).ps2"));
+
+    char cmd[PATH_LEN + 16];
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", root);
+    CHECK(system(cmd) == 0);
+}
+
+/* PS5CEMU-HAR's melonDS: games from ps5cemu.json's nds.gamesFolder, the save
+ * keyed by the header's gamecode, installs (a zip's .nds) into that folder. */
+static void test_melonds(void)
+{
+    char root[] = "/tmp/gs_melonds_XXXXXX";
+    if (!mkdtemp(root))
+    {
+        CHECK(!"mkdtemp");
+        return;
+    }
+    Config c;
+    config_defaults(&c);
+    snprintf(c.cemu_dir, sizeof(c.cemu_dir), "%s", root);
+    snprintf(c.retroarch_dir, sizeof(c.retroarch_dir), "%s/none", root);
+    char path[PATH_LEN], games[PATH_LEN];
+    melonds_games_dir(&c, games, sizeof(games));
+    snprintf(path, sizeof(path), "%s/melonds/games", root);
+    CHECK(strcmp(games, path) == 0);
+    snprintf(path, sizeof(path), "%s/ps5cemu.json", root);
+    char json[PATH_LEN + 64];
+    snprintf(json, sizeof(json), "{\"nds\": {\"gamesFolder\": \"%s/ds\"}}", root);
+    util_write_file_atomic(path, json, strlen(json));
+    melonds_games_dir(&c, games, sizeof(games));
+    snprintf(path, sizeof(path), "%s/ds", root);
+    CHECK(strcmp(games, path) == 0);
+
+    uint8_t header[512] = {0};
+    memcpy(header, "MARIO KART  AMCE", 16);
+    snprintf(path, sizeof(path), "%s/Mario Kart DS (USA) (v1.1).nds", games);
+    util_mkdirs_parent(path);
+    util_write_file_atomic(path, header, sizeof(header));
+    char id[20];
+    CHECK(melonds_title_id(path, id, sizeof(id)) && strcmp(id, "00048000414D4345") == 0);
+    char sav[PATH_LEN];
+    melonds_save_path(&c, path, sav, sizeof(sav));
+    snprintf(path, sizeof(path), "%s/melonds/saves/Mario Kart DS (USA) (v1.1).sav", root);
+    CHECK(strcmp(sav, path) == 0);
+    util_mkdirs_parent(sav);
+    util_write_file_atomic(sav, "save", 4);
+
+    SaveList list = {0};
+    KvStore ids = {0}, installed = {0};
+    saves_scan(&c, &ids, &installed, &list);
+    SaveEntry *e = saves_find(&list, "00048000414D4345");
+    CHECK(e && e->emu == EMU_CEMU && e->kind == SAVE_SRM && e->local && strcmp(e->path, sav) == 0);
+    saves_free(&list);
+
+    RomRow rom;
+    memset(&rom, 0, sizeof(rom));
+    snprintf(rom.system, sizeof(rom.system), "NDS");
+    snprintf(rom.filename, sizeof(rom.filename), "Pokemon Platinum (USA).zip");
+    InstallPlan plan;
+    catalog_plan(&c, &rom, &plan);
+    snprintf(path, sizeof(path), "%s/Pokemon Platinum (USA)", games);
+    CHECK(plan.supported && plan.emu == EMU_CEMU && plan.zip_member && strcmp(plan.dest, path) == 0);
+    snprintf(rom.filename, sizeof(rom.filename), "Pokemon Platinum (USA).nds");
+    catalog_plan(&c, &rom, &plan);
+    snprintf(path, sizeof(path), "%s/Pokemon Platinum (USA).nds", games);
+    CHECK(plan.supported && !plan.zip_member && strcmp(plan.dest, path) == 0);
+
+    char cmd[PATH_LEN + 16];
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", root);
+    CHECK(system(cmd) == 0);
+}
+
 /* Flycast: Per-Game VMUs turned on in its options, the VMU synced as
  * <game>.A1.bin; a game whose own options turn them off isn't synced. */
 static void test_flycast_vmus(void)
@@ -567,11 +920,68 @@ static void test_xcci(void)
     CHECK(system(cmd) == 0);
 }
 
+/* PPSSPP's memory stick is RetroArch's PPSSPP save folder; slots only on the
+ * old system/PPSSPP stick are copied over; PSone Classics are left out. */
+static void test_ppsspp(void)
+{
+    char root[] = "/tmp/gs_ppsspp_XXXXXX";
+    if (!mkdtemp(root))
+    {
+        CHECK(!"mkdtemp");
+        return;
+    }
+    Config c;
+    config_defaults(&c);
+    snprintf(c.retroarch_dir, sizeof(c.retroarch_dir), "%s", root);
+    char path[PATH_LEN], savedata[PATH_LEN];
+    retroarch_psp_savedata(&c, savedata, sizeof(savedata));
+    snprintf(path, sizeof(path), "%s/savefiles/PPSSPP/PSP/SAVEDATA", root);
+    CHECK(strcmp(savedata, path) == 0);
+    snprintf(path, sizeof(path), "%s/ULUS10551DATA00/DATA.BIN", savedata);
+    util_mkdirs_parent(path);
+    util_write_file_atomic(path, "save", 4);
+    snprintf(path, sizeof(path), "%s/SLUS00975/DATA.BIN", savedata);
+    util_mkdirs_parent(path);
+    util_write_file_atomic(path, "ps1", 3);
+    snprintf(path, sizeof(path), "%s/system/PPSSPP/PSP/SAVEDATA/ULJM05681MAIN00/PARAM.SFO", root);
+    util_mkdirs_parent(path);
+    util_write_file_atomic(path, "sfo", 3);
+
+    SaveList list = {0};
+    KvStore ids = {0}, installed = {0};
+    saves_scan(&c, &ids, &installed, &list);
+    int psp = 0;
+    for (int i = 0; i < list.count; ++i)
+        if (strcmp(list.items[i].system, "PSP") == 0)
+        {
+            psp++;
+            CHECK(list.items[i].kind == SAVE_FOLDER && list.items[i].local);
+            CHECK(strcmp(list.items[i].title_id, "ULUS10551DATA00") == 0 ||
+                  strcmp(list.items[i].title_id, "ULJM05681MAIN00") == 0);
+        }
+    CHECK(psp == 2);
+    snprintf(path, sizeof(path), "%s/ULJM05681MAIN00/PARAM.SFO", savedata);
+    CHECK(util_file_exists(path));
+    saves_free(&list);
+    CHECK(saves_is_psp_slot("ULUS105630680502102040001000"));
+    CHECK(!saves_is_psp_slot("SLUS00975") && !saves_is_psp_slot("ulus10551") &&
+          !saves_is_psp_slot("ULUS1055"));
+
+    char cmd[PATH_LEN + 16];
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", root);
+    CHECK(system(cmd) == 0);
+}
+
 int main(int argc, char **argv)
 {
+    test_ppsspp();
     test_xcci();
     test_beetle_saturn_save_method();
     test_flycast_vmus();
+    test_melonds();
+    test_multidisc();
+    test_installed_discs();
+    test_swanstation_group_card();
     test_saturn();
     if (argc == 3)
         test_game_index(argv[1], argv[2]);

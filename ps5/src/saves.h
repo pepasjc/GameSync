@@ -92,6 +92,9 @@ void saves_porpoise_card_dir(const Config *config, const char *code, char *out, 
 /* PS5CEMU's save folder for a Wii U (00050000...) or 3DS (00040000...) title
  * id: Cemu's mlc user/ folder or Azahar's data/00000001; false otherwise. */
 bool saves_cemu_dir(const Config *config, const char *title_id, char *out, size_t size);
+/* A PSP save slot folder name (ULUS10551DATA00): a product code, then
+ * letters and digits; not a PS1 disc prefix (a PSone Classic). */
+bool saves_is_psp_slot(const char *name);
 /* Porpoise's Wii save folder for a WII_<CODE> id; false for a bad id. */
 bool saves_porpoise_wii_dir(const Config *config, const char *title_id, char *out, size_t size);
 
@@ -120,6 +123,11 @@ SsCardMode saves_swanstation_mode_for(const SsInfo *info, const char *serial);
 const char *saves_swanstation_mode_name(SsCardMode mode);
 /* Where SwanStation will look for this game's card. game_stem is the game
  * file's name without extension (what the title mode names it after), or NULL. */
+/* A card named after one disc of a multi-disc game, <from_stem>_1.mcd, moved
+ * to the name SwanStation's title mode reads for the game's playlist,
+ * <to_stem>_1.mcd (a copy of it set aside as .bak; two different cards are
+ * left alone). True when something moved. */
+bool saves_swanstation_rename_card(const Config *config, const char *from_stem, const char *to_stem);
 void saves_swanstation_card_path(const Config *config, const char *serial, const char *game_stem,
                                  char *out, size_t size);
 

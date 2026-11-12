@@ -16,7 +16,7 @@ class EmudeckPathsTest {
 
     @Test
     fun `maps configured emudeck folder to emulator storage roots`() {
-        val root = File("/sdcard/Emulation")
+        val root = File("/sdcard/Emulation").absoluteFile
 
         assertEquals(File(root, "roms"), EmudeckPaths.romsDir(root.absolutePath))
         assertEquals(File(root, "storage/Azahar"), EmudeckPaths.azaharRoot(root.absolutePath))

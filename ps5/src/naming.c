@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 
 const char *emulator_name(Emulator emu)
 {
@@ -209,8 +210,8 @@ Emulator install_emulator_for_system(const char *system, bool ps1_in_retroarch)
         return EMU_PORPOISE;
     if (util_ieq(system, "NSW"))
         return EMU_EDEN;
-    if (util_ieq(system, "WIIU") || util_ieq(system, "3DS"))
-        return EMU_CEMU;
+    if (util_ieq(system, "WIIU") || util_ieq(system, "3DS") || util_ieq(system, "NDS"))
+        return EMU_CEMU; /* PS5CEMU-HAR: Cemu, Azahar and (4.x) melonDS */
     if (util_ieq(system, "XBOX"))
         return EMU_XEMU;
     if (util_ieq(system, "PS1"))
@@ -346,6 +347,143 @@ static bool is_cd_system(const char *system)
         if (util_ieq(system, cd[i]))
             return true;
     return false;
+}
+
+/* Systems whose games can span discs that install side by side: the CD
+ * systems, plus PS2 and GameCube discs. */
+bool is_multidisc_system(const char *system)
+{
+    return is_cd_system(system) || util_ieq(system, "PS2") || util_ieq(system, "GC");
+}
+
+/* A disc's number as written: digits (0 counts), a Roman numeral up to X, or
+ * one letter (A = 1); its length in *len, -1 when it isn't one. */
+static int disc_number(const char *p, size_t *len)
+{
+    if (isdigit((unsigned char)*p))
+    {
+        int n = 0;
+        const char *q = p;
+        while (isdigit((unsigned char)*q))
+            n = n * 10 + (*q++ - '0');
+        *len = (size_t)(q - p);
+        return n;
+    }
+    static const char *const roman[] = {"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
+    size_t run = 0;
+    while (p[run] && strchr("IVXivx", p[run]))
+        ++run;
+    if (run && (p[run] == ')' || p[run] == ']' || p[run] == ' '))
+        for (int i = 9; i >= 0; --i)
+            if (strlen(roman[i]) == run && strncasecmp(p, roman[i], run) == 0)
+            {
+                *len = run;
+                return i + 1;
+            }
+    if (isalpha((unsigned char)p[0]) && (p[1] == ')' || p[1] == ']' || p[1] == ' '))
+    {
+        *len = 1;
+        return toupper((unsigned char)p[0]) - 'A' + 1;
+    }
+    return -1;
+}
+
+/* One "(Disc N)" / "[Disk N of M]" tag at s (case-insensitive), N as
+ * disc_number reads it; the tag's length, or 0. */
+static size_t disc_tag_at(const char *s, int *number)
+{
+    const char *p = s;
+    if (*p != '(' && *p != '[')
+        return 0;
+    char close = *p == '(' ? ')' : ']';
+    ++p;
+    while (*p == ' ')
+        ++p;
+    if (tolower((unsigned char)p[0]) != 'd' || tolower((unsigned char)p[1]) != 'i' ||
+        tolower((unsigned char)p[2]) != 's' ||
+        (tolower((unsigned char)p[3]) != 'c' && tolower((unsigned char)p[3]) != 'k'))
+        return 0;
+    p += 4;
+    if (*p != ' ')
+        return 0;
+    while (*p == ' ')
+        ++p;
+    size_t len;
+    int n = disc_number(p, &len);
+    if (n < 0)
+        return 0;
+    p += len;
+    while (*p == ' ')
+        ++p;
+    if (tolower((unsigned char)p[0]) == 'o' && tolower((unsigned char)p[1]) == 'f' && p[2] == ' ')
+    {
+        p += 2;
+        while (*p == ' ')
+            ++p;
+        if (disc_number(p, &len) < 0)
+            return 0;
+        p += len;
+        while (*p == ' ')
+            ++p;
+    }
+    if (*p != close)
+        return 0;
+    *number = n;
+    return (size_t)(p + 1 - s);
+}
+
+int disc_tag_strip(const char *name, char *out, size_t size)
+{
+    int disc = -1;
+    size_t n = 0;
+    bool after = false; /* past the disc tag: (...) there name the disc, not the game */
+    for (const char *p = name; *p;)
+    {
+        int number;
+        size_t tag = disc < 0 ? disc_tag_at(p, &number) : 0;
+        if (tag)
+        {
+            disc = number;
+            after = true;
+            while (n && out[n - 1] == ' ')
+                --n;
+            p += tag;
+            continue;
+        }
+        if (*p == '[')
+        {
+            /* a [...] tag stays whole, parentheses inside it too */
+            const char *close = strchr(p, ']');
+            const char *end = close ? close + 1 : p + strlen(p);
+            for (; p < end; ++p)
+                if (n + 1 < size)
+                    out[n++] = *p;
+            continue;
+        }
+        if (after && *p == '(')
+        {
+            const char *close = strchr(p, ')');
+            if (close)
+            {
+                while (n && out[n - 1] == ' ')
+                    --n;
+                p = close + 1;
+                continue;
+            }
+        }
+        if (n + 1 < size && !(*p == ' ' && n && out[n - 1] == ' '))
+            out[n++] = *p; /* runs of spaces fold to one */
+        ++p;
+    }
+    while (n && out[n - 1] == ' ')
+        --n;
+    size_t start = 0;
+    while (start < n && out[start] == ' ')
+        ++start;
+    memmove(out, out + start, n - start);
+    out[n - start] = 0;
+    /* "(Disc 0)" counts: 0 means no tag */
+    return disc < 0 ? 0 : disc + 1;
 }
 
 bool is_launchable_rom(const char *filename, const char *system)

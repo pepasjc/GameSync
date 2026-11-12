@@ -16,23 +16,28 @@ import androidx.core.view.WindowCompat
  * Keep the hex values in step with those headers.
  */
 object GsColors {
-    val Bg = Color(0xFF0F1720)
-    val Bg2 = Color(0xFF1B2633)
-    val Panel = Color(0xFF243244)
-    val PanelHi = Color(0xFF2C3D52)
-    val Line = Color(0xFF33465C)
-    val Text = Color(0xFFE6EDF3)
-    val Dim = Color(0xFF8DA2B5)
-    val Muted = Color(0xFF5E7286)
-    val Accent = Color(0xFF2EC4B6)
-    val Accent2 = Color(0xFF3DDBD9)
-    val Ok = Color(0xFF3FB950)
-    val Warn = Color(0xFFF0B429)
-    val Info = Color(0xFF58A6FF)
-    val Err = Color(0xFFF85149)
+    val Bg = Color(0xFF0B1020)
+    val Bg2 = Color(0xFF141B33)
+    val Panel = Color(0xFF1D2746)
+    val PanelHi = Color(0xFF2A3760)
+    val Line = Color(0xFF36446E)
+    val Text = Color(0xFFEEF2FA)
+    val Dim = Color(0xFF9BA9CD)
+    val Muted = Color(0xFF6B789F)
+    val Accent = Color(0xFF22C3F6)
+    val Accent2 = Color(0xFF7BDDFF)
+    val Ok = Color(0xFF3DD68C)
+    val Warn = Color(0xFFFFB938)
+    val Info = Color(0xFF6C93FF)
+    val Err = Color(0xFFFF5D6C)
     val Ra = Color(0xFFE5B143)
+    /** The logo's gradient, left to right (see GsBrandRule). */
+    val BrandA = Color(0xFF00D6FF)
+    val BrandB = Color(0xFF3A78FF)
+    val BrandC = Color(0xFFA45CFF)
+    val BrandGradient = listOf(BrandA, BrandB, BrandC)
     /** Dark text on accent / status fills. */
-    val Ink = Color(0xFF0F1720)
+    val Ink = Color(0xFF0B1020)
 
     // Controller face-button glyph colours.
     val BtnA = Color(0xFF5FBF3F)

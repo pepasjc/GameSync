@@ -7,8 +7,8 @@
  * (measure / fit / wrap), pills, PlayStation button glyphs and progress
  * bars.
  *
- * The design language is shared with the 3DS and DS clients: deep slate
- * background, lighter cards, teal accent, green / amber / blue / red status
+ * The design language is shared with the 3DS and DS clients: deep navy
+ * background, lighter cards, cyan accent, green / amber / blue / red status
  * colours.
  *
  * Everything is laid out on a 640x448 canvas.  On PAL consoles the GS
@@ -25,23 +25,26 @@
 #define GUI_H 448
 
 /* Palette (0xRRGGBB) */
-#define HEX_BG        0x0F1720
-#define HEX_BG2       0x1B2633
-#define HEX_PANEL     0x243244
-#define HEX_PANEL_HI  0x2C3D52
-#define HEX_LINE      0x33465C
-#define HEX_TEXT      0xE6EDF3
-#define HEX_DIM       0x8DA2B5
-#define HEX_MUTED     0x5E7286
-#define HEX_ACCENT    0x2EC4B6
-#define HEX_ACCENT2   0x3DDBD9
-#define HEX_OK        0x3FB950
-#define HEX_WARN      0xF0B429
-#define HEX_INFO      0x58A6FF
-#define HEX_ERR       0xF85149
+#define HEX_BG        0x0B1020
+#define HEX_BG2       0x141B33
+#define HEX_PANEL     0x1D2746
+#define HEX_PANEL_HI  0x2A3760
+#define HEX_LINE      0x36446E
+#define HEX_TEXT      0xEEF2FA
+#define HEX_DIM       0x9BA9CD
+#define HEX_MUTED     0x6B789F
+#define HEX_ACCENT    0x22C3F6
+#define HEX_ACCENT2   0x7BDDFF
+#define HEX_BRAND_A 0x00D6FF   /* logo gradient: cyan */
+#define HEX_BRAND_B 0x3A78FF   /* blue */
+#define HEX_BRAND_C 0xA45CFF   /* violet */
+#define HEX_OK        0x3DD68C
+#define HEX_WARN      0xFFB938
+#define HEX_INFO      0x6C93FF
+#define HEX_ERR       0xFF5D6C
 #define HEX_PS1       0xC678DD
 #define HEX_PS2       0x4F7DF0
-#define HEX_INK       0x0F1720   /* dark text on accent fills */
+#define HEX_INK       0x0B1020   /* dark text on accent fills */
 
 /* PlayStation face-button colours */
 #define HEX_BTN_CROSS    0x7CB2E8

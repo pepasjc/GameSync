@@ -600,7 +600,7 @@ static void saves_row(void *ctx, int index, float x, float y, float w, float h, 
         gui_rrect(x + 9, cy - 5.5f, 11, 11, 3, gui_rgb(selected ? HEX_INK : HEX_ACCENT));
         gui_icon_check(x + 14.5f, cy, 8, gui_rgb(selected ? HEX_ACCENT : HEX_INK));
     } else {
-        gui_rrect(x + 9, cy - 5.5f, 11, 11, 3, gui_rgb(selected ? 0x1E8F86 : HEX_LINE));
+        gui_rrect(x + 9, cy - 5.5f, 11, 11, 3, gui_rgb(selected ? 0x0C7FA6 : HEX_LINE));
         gui_rrect(x + 10.5f, cy - 4, 8, 8, 2, gui_rgb(selected ? HEX_ACCENT : HEX_BG));
     }
 

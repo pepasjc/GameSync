@@ -85,6 +85,9 @@ class InstalledDelegate(QStyledItemDelegate):
         self._badge_font.setPointSize(theme.FONT_BADGE)
         self._badge_font.setBold(True)
 
+        #: Paths of installed ROMs with an RA-supported version available.
+        self.ra_variant_paths: set[str] = set()
+
     def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex) -> QSize:
         return QSize(option.rect.width(), theme.CARD_H)
 
@@ -169,8 +172,20 @@ class InstalledDelegate(QStyledItemDelegate):
             text_x, card_rect.top() + name_h, text_w, name_h - self.V_PAD + 2
         )
         painter.setFont(self._sub_font)
-        painter.setPen(QColor(theme.TEXT_SECONDARY))
         fm_sub = QFontMetrics(self._sub_font)
+        if str(rom.path) in self.ra_variant_paths:
+            # Right-aligned so the file name keeps the left of the line.
+            hint = "RA version available"
+            hint_w = fm_sub.horizontalAdvance(hint)
+            painter.setPen(QColor(theme.RA))
+            painter.drawText(
+                sub_rect,
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                hint,
+            )
+            sub_rect = sub_rect.adjusted(0, 0, -(hint_w + 16), 0)
+            text_w = max(0, text_w - hint_w - 16)
+        painter.setPen(QColor(theme.TEXT_SECONDARY))
         painter.drawText(
             sub_rect,
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
@@ -385,6 +400,11 @@ class InstalledView(QWidget):
 
     def alphabet_jump(self, direction: int) -> None:
         self._list.alphabet_jump(direction)
+
+    def set_ra_variant_paths(self, paths) -> None:
+        """Mark the rows that have an RA-supported version to offer."""
+        self._list._delegate.ra_variant_paths = set(paths)
+        self._list.viewport().update()
 
     def list_widget(self) -> "InstalledListView":
         return self._list

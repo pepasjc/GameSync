@@ -38,6 +38,13 @@ SHARED_MODULES = [
     "title_match.py",
     # Version matching for "replace with the RA version" on Installed.
     "ra_titles.py",
+    # RA hash of an installed cartridge, for the same offer.
+    "ra_hash.py",
+    # ...and of an installed CD game, read out of its CHD.
+    "ra_disc.py",
+    "chd.py",
+    "chd_flac.py",
+    "ra_variants.py",
     "saturn_format.py",
     "rom_id/__init__.py",
     "rom_id/normalizer.py",

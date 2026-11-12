@@ -170,7 +170,9 @@ class ResolveRomTargetDirTest {
         org.junit.Assert.assertTrue("PS1" in existing)
         org.junit.Assert.assertTrue("MD" in existing)
         // No duplicate PS1 folder got created.
-        org.junit.Assert.assertFalse(File(scanRoot(), "psx").exists())
+        // Compare listed names: on a case-insensitive filesystem ``psx``
+        // "exists" because ``PSX`` does.
+        org.junit.Assert.assertFalse("psx" in scanRoot().list()!!)
         org.junit.Assert.assertFalse(File(scanRoot(), "PlayStation").exists())
     }
 

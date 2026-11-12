@@ -1,7 +1,8 @@
-from PyQt6.QtWidgets import QDialog, QMainWindow, QTabWidget
+from PyQt6.QtWidgets import QDialog, QMainWindow, QTabWidget, QVBoxLayout, QWidget
 
 from config import load_config, save_config
 from dialogs.config_dialog import ConfigDialog
+from theme import BrandHeader
 from tabs.server_saves_tab import ServerSavesTab
 from tabs.profiles_tab import ProfilesTab
 from tabs.sync_tab import SyncTab
@@ -14,14 +15,21 @@ from tabs.retroachievements_tab import RetroAchievementsTab
 class SaveManagerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Save Manager")
+        self.setWindowTitle("GameSync")
         self.setMinimumSize(1000, 650)
         self._init_ui()
         self._restore_state()
 
     def _init_ui(self):
         self.tabs = QTabWidget()
-        self.setCentralWidget(self.tabs)
+        self.tabs.setDocumentMode(True)
+        central = QWidget()
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(BrandHeader())
+        layout.addWidget(self.tabs)
+        self.setCentralWidget(central)
 
         self.server_tab = ServerSavesTab()
         self.profiles_tab = ProfilesTab()

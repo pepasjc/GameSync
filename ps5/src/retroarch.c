@@ -162,6 +162,7 @@ static const DefaultCore CORES[] = {
     {"SAT", "mednafen_saturn_libretro", "Beetle Saturn"},
     {"DC", "flycast_libretro", "Flycast"},
     {"PS1", "mednafen_psx_hw_libretro", "Beetle PSX HW"},
+    {"PSP", "ppsspp_libretro", "PPSSPP"},
 };
 
 static const DefaultCore *default_core(const char *system)
@@ -664,6 +665,38 @@ static void save_path(const RaSettings *s, const RaGame *game, char *out, size_t
         util_copy(out, size, found);
 }
 
+/* The first disc an .m3u lists (lines relative to its folder, '#' comments). */
+static bool m3u_first_disc(const char *m3u, char *out, size_t size)
+{
+    char *text = (char *)util_read_file(m3u, NULL);
+    if (!text)
+        return false;
+    bool found = false;
+    char *save = NULL;
+    for (char *line = strtok_r(text, "\r\n", &save); line && !found;
+         line = strtok_r(NULL, "\r\n", &save))
+    {
+        while (*line == ' ' || *line == '\t')
+            ++line;
+        if (!line[0] || line[0] == '#')
+            continue;
+        if (line[0] == '/')
+            util_copy(out, size, line);
+        else
+        {
+            char dir[PATH_LEN];
+            util_copy(dir, sizeof(dir), m3u);
+            char *slash = strrchr(dir, '/');
+            if (slash)
+                *slash = 0;
+            util_path_join(out, size, dir, line);
+        }
+        found = true;
+    }
+    free(text);
+    return found;
+}
+
 void retroarch_scan(const Config *config, const KvStore *ids, SaveList *list)
 {
     RaSettings s;
@@ -712,6 +745,11 @@ void retroarch_scan(const Config *config, const KvStore *ids, SaveList *list)
         util_copy(e->rom_file, sizeof(e->rom_file), file);
         util_copy(e->name, sizeof(e->name), file);
         util_strip_ext(e->name);
+        /* a multi-disc game's .m3u (its save is named after it): identified
+         * by its first disc, as the catalog and the server know the discs */
+        char disc_path[PATH_LEN] = "";
+        if (util_has_suffix_i(file, ".m3u") && m3u_first_disc(g->path, disc_path, sizeof(disc_path)))
+            util_copy(e->rom_file, sizeof(e->rom_file), util_basename(disc_path));
         save_path(&s, g, e->path, sizeof(e->path));
         if (!e->path[0])
         {
@@ -729,14 +767,15 @@ void retroarch_scan(const Config *config, const KvStore *ids, SaveList *list)
         if (util_ieq(g->system, "SAT"))
             saturn_fix_format(e->path);
         char key[300];
-        snprintf(key, sizeof(key), "%s|%s", g->system, file);
+        snprintf(key, sizeof(key), "%s|%s", g->system, e->rom_file);
         const char *id = kv_get(ids, key);
         char sat[64];
         if (id)
             util_copy(e->title_id, sizeof(e->title_id), id);
         /* a Saturn disc says which game it is (a translation keeps the
          * original's IP.BIN), whatever the file is called */
-        else if (util_ieq(g->system, "SAT") && saturn_title_id(g->path, sat, sizeof(sat)))
+        else if (util_ieq(g->system, "SAT") &&
+                 saturn_title_id(disc_path[0] ? disc_path : g->path, sat, sizeof(sat)))
             util_copy(e->title_id, sizeof(e->title_id), sat);
         e->installed = true; /* the ROM is here: Sync all may fetch its save */
         saves_hash_local(e);
@@ -754,4 +793,47 @@ void retroarch_save_path(const Config *config, const char *system, const char *r
     util_copy(g.path, sizeof(g.path), rom_path);
     util_copy(g.system, sizeof(g.system), system);
     save_path(&s, &g, out, size);
+}
+
+/* PPSSPP (ppsspp_libretro) puts its memory stick in the save folder RetroArch
+ * hands the core (libretro.cpp: memStickDirectory = the save directory):
+ * <base>/<core name> when saves are sorted by core, else <base>. A game's
+ * saves are PSP/SAVEDATA/<slot>/ on it. */
+void retroarch_psp_savedata(const Config *config, char *out, size_t size)
+{
+    RaSettings s;
+    load_settings(config, &s);
+    char folder[PATH_LEN];
+    util_copy(folder, sizeof(folder), s.base);
+    if (s.by_core)
+    {
+        char name[96];
+        core_name(&s, NULL, "PSP", name, sizeof(name));
+        if (name[0])
+            util_path_join(folder, sizeof(folder), s.base, name);
+    }
+    snprintf(out, size, "%s/PSP/SAVEDATA", folder);
+}
+
+/* A game file named name (+ any extension) in content/<system folder>/ or
+ * one folder below it. */
+bool retroarch_has_game(const Config *config, const char *system, const char *name)
+{
+    const char *folder = retroarch_folder_for_system(system);
+    if (!folder || !name || !name[0])
+        return false;
+    char dir[PATH_LEN];
+    snprintf(dir, sizeof(dir), "%s/content/%s", config->retroarch_dir, folder);
+    RaGames games = {0};
+    walk_content(&games, dir, system, 2);
+    bool found = false;
+    for (int i = 0; i < games.count && !found; ++i)
+    {
+        char stem[256];
+        util_copy(stem, sizeof(stem), util_basename(games.items[i].path));
+        util_strip_ext(stem);
+        found = util_ieq(stem, name);
+    }
+    free(games.items);
+    return found;
 }

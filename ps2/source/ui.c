@@ -360,7 +360,7 @@ static Row list_row(int i, bool selected) {
     r.y = y;
     r.w = LIST_W - 36;
     r.fg = selected ? HEX_INK : HEX_TEXT;
-    r.sub = selected ? 0x14423E : HEX_DIM;
+    r.sub = selected ? 0x0A4560 : HEX_DIM;
     r.selected = selected;
     return r;
 }
@@ -473,7 +473,7 @@ static uint32_t log_line_hex(const char *s) {
 
 static void draw_boot(void) {
     gui_begin();
-    gui_vgrad(0, -32, GUI_W, GUI_H + 64, HEX_BG, 0x0B1118);
+    gui_vgrad(0, -32, GUI_W, GUI_H + 64, HEX_BG, 0x070B18);
     draw_logo(GUI_W / 2, 52);
     gui_text(GUI_W / 2, 104, FONT_SMALL, HEX_DIM, GUI_CENTER,
              "Save sync and game installer for PlayStation 2  -  v" APP_VERSION);
@@ -540,7 +540,7 @@ int ui_list_visible(void) {
 
 void ui_begin(void) {
     gui_begin();
-    gui_vgrad(0, GUI_HEADER_H, GUI_W, GUI_FOOTER_Y - GUI_HEADER_H, HEX_BG, 0x121C27);
+    gui_vgrad(0, GUI_HEADER_H, GUI_W, GUI_FOOTER_Y - GUI_HEADER_H, HEX_BG, 0x10172E);
 }
 
 void ui_flush(void) {
@@ -1115,7 +1115,7 @@ void ui_draw_menu(const char *title, const char *const *items, int count, int se
 void ui_draw_message(const char *title, const char *message) {
     static const GuiHint hints[] = { {"O", "Exit"} };
     gui_begin();
-    gui_vgrad(0, -32, GUI_W, GUI_H + 64, HEX_BG, 0x0B1118);
+    gui_vgrad(0, -32, GUI_W, GUI_H + 64, HEX_BG, 0x070B18);
     draw_logo(GUI_W / 2, 40);
     draw_dialog(title, message, HEX_ERR, hints, 1);
     gui_end(true);

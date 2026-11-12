@@ -168,6 +168,7 @@ are in [README.md](README.md).
 | Vegur typeface (**Sora Sagano**) | Public domain | `xbox/assets/font.ttf`, `psp/source/font_data.c` |
 | Vegur typeface (**Sora Sagano**) | Public domain | `xbox/assets/font.ttf`, `ps2/source/font_data.c` (baked glyph atlas) |
 | Vegur typeface (**Sora Sagano**) | Public domain | `ps5/src/font_data.c` (baked glyph atlas); the GameSync wordmark in every client's artwork (`tools/brand_art.py`) |
+| font8x8 (**Daniel Hepper**, after **Marcel Sondaar** and the IBM PC VGA glyphs) | Public domain | `mister/gamesync/bitfont.py` |
 | Apktool (**Connor Tumbleson**) | Apache-2.0 — [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt) | `tools/apktool.jar` |
 | zlib (**Gailly**, **Adler**) | zlib | several clients |
 | PolarSSL / mbed TLS | Apache-2.0 | `ps3/` via PSL1GHT |

@@ -182,4 +182,41 @@ class RetroArchEmulatorSaturnPathTest {
         assertFalse(yabasanshiro.shouldTrackRetroArchSaveFile(File("Grandia.bin"), "SAT"))
         assertFalse(yabasanshiro.shouldTrackRetroArchSaveFile(File("Grandia.bkr"), "SAT"))
     }
+
+    @Test
+    fun `flycast core per-game vmu is tracked as dreamcast only`() {
+        val emulator = RetroArchEmulator()
+        assertTrue(emulator.shouldTrackRetroArchSaveFile(File("Crazy Taxi (USA).A1.bin"), "DC"))
+        assertFalse(emulator.shouldTrackRetroArchSaveFile(File("Crazy Taxi (USA).A1.bin"), "PS1"))
+        assertFalse(emulator.shouldTrackRetroArchSaveFile(File("vmu_save_A1.bin"), "DC"))
+    }
+
+    @Test
+    fun `dreamcast save path is the flycast vmu, per-core folder when sorted`() {
+        val savesDir = File("build/test-retroarch-saves-dc").apply { deleteRecursively(); mkdirs() }
+        val emulator = RetroArchEmulator()
+        assertEquals(
+            File(savesDir, "Crazy Taxi (USA).A1.bin"),
+            emulator.expectedRetroArchDreamcastSaveFile(savesDir, "Crazy Taxi (USA)"),
+        )
+        File(savesDir, "Flycast").mkdirs()
+        assertEquals(
+            File(File(savesDir, "Flycast"), "Crazy Taxi (USA).A1.bin"),
+            emulator.expectedRetroArchDreamcastSaveFile(savesDir, "Crazy Taxi (USA)"),
+        )
+        savesDir.deleteRecursively()
+    }
+
+    @Test
+    fun `dreamcast download reuses the product-number card the core made`() {
+        val savesDir = File("build/test-retroarch-saves-dc-id").apply { deleteRecursively(); mkdirs() }
+        val card = File(savesDir, "T1401D__50.A1.bin").apply { writeBytes(ByteArray(16)) }
+        assertEquals(
+            card,
+            RetroArchEmulator().expectedRetroArchDreamcastSaveFile(
+                savesDir, "Soulcalibur (Europe) (En,Fr,De,Es)", "DC_T1401D50"
+            ),
+        )
+        savesDir.deleteRecursively()
+    }
 }

@@ -1,27 +1,32 @@
 """Visual theme for the Steam Deck GameSync UI.
 
 The palette is the one every GameSync client draws with (3ds/source/gui.h,
-xbox/source/ui.h, ...): deep slate background, lighter panels, teal accent,
+xbox/source/ui.h, ...): deep navy background, lighter panels, cyan accent,
 green / amber / blue / red status colours and the coloured A/B/X/Y glyphs.
 """
 
 # ── Shared GameSync palette ───────────────────────────────────────
-BG        = "#0f1720"   # window
-BG2       = "#1b2633"   # header / footer chrome
-PANEL     = "#243244"   # cards, rows
-PANEL_HI  = "#2c3d52"   # selected row, hovered button
-LINE      = "#33465c"   # dividers, outlines
-TEXT      = "#e6edf3"
-DIM       = "#8da2b5"
-MUTED     = "#5e7286"
-ACCENT    = "#2ec4b6"   # teal: active tab, selection bar
-ACCENT2   = "#3ddbd9"
-OK        = "#3fb950"
-WARN      = "#f0b429"
-INFO      = "#58a6ff"
-ERR       = "#f85149"
+BG        = "#0b1020"   # window
+BG2       = "#141b33"   # header / footer chrome
+PANEL     = "#1D2746"   # cards, rows
+PANEL_HI  = "#2a3760"   # selected row, hovered button
+LINE      = "#36446e"   # dividers, outlines
+TEXT      = "#eef2fa"
+DIM       = "#9ba9cd"
+MUTED     = "#6b789f"
+ACCENT    = "#22c3f6"   # cyan: active tab, selection bar
+ACCENT2   = "#7bddff"
+OK        = "#3dd68c"
+WARN      = "#ffb938"
+INFO      = "#6c93ff"
+ERR       = "#ff5d6c"
 RA        = "#e5b143"
-INK       = "#0f1720"   # dark text on accent fills
+INK       = "#0b1020"   # dark text on accent fills
+
+# The logo's gradient, left to right: the rule under the top bar.
+BRAND_A   = "#00d6ff"
+BRAND_B   = "#3a78ff"
+BRAND_C   = "#a45cff"
 
 # ── Aliases used throughout the widgets ───────────────────────────
 BG_WINDOW    = BG
@@ -52,8 +57,8 @@ BTN_A = "#5fbf3f"   # green  — confirm / main action
 BTN_B = "#e5483f"   # red    — cancel / back
 BTN_X = "#3d8fe0"   # blue   — secondary action
 BTN_Y = "#f2c230"   # yellow — details / search
-BTN_L = "#5e7286"   # slate  — shoulders, triggers, d-pad
-BTN_S = "#5e7286"   # slate  — START / SELECT
+BTN_L = "#6b789f"   # slate  — shoulders, triggers, d-pad
+BTN_S = "#6b789f"   # slate  — START / SELECT
 
 # ── Dimensions ───────────────────────────────────────────────────
 HEADER_H      = 60
@@ -88,7 +93,8 @@ QWidget#topBar, QWidget#filterBar, QWidget#controlsBar {{
     border: none;
 }}
 QWidget#topBar {{
-    border-bottom: 1px solid {LINE};
+    border-bottom: 2px solid qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 {BRAND_A}, stop:0.5 {BRAND_B}, stop:1 {BRAND_C});
 }}
 QWidget#controlsBar {{
     border-top: 1px solid {LINE};

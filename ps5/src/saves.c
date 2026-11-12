@@ -9,11 +9,15 @@
  *  - PS5SX2 (PPSA99203): PCSX2 cards in <dir>/memcards/ (or <dir>): a card per game
  *    (<game file>.ps2, set in the game's settings/<game file>.ini), or every
  *    game on one shared 8 MB card (Mcd001.ps2 unless the user picked another).
+ *  - PSP (RetroArch's PPSSPP core): PSP/SAVEDATA/<slot>/ on its memory stick
+ *    (retroarch_psp_savedata), each slot folder a save keyed by its name
+ *    (ULUS10551DATA00) as the PSP client files it, synced as a 3DSS bundle.
  */
 #include "saves.h"
 
 #include "bundle.h"
 #include "xbox_hdd.h"
+#include "melonds.h"
 #include "retroarch.h"
 #include "json.h"
 #include "ps2mc.h"
@@ -236,6 +240,39 @@ const char *saves_swanstation_mode_name(SsCardMode mode)
     case SS_CARD_NONE: return "No Memory Card";
     default: return "Libretro";
     }
+}
+
+bool saves_swanstation_rename_card(const Config *config, const char *from_stem, const char *to_stem)
+{
+    SsInfo info;
+    saves_swanstation_info(config, &info);
+    char from[PATH_LEN], to[PATH_LEN], name[220];
+    snprintf(name, sizeof(name), "%.200s_1.mcd", from_stem);
+    util_path_join(from, sizeof(from), info.saves_dir, name);
+    snprintf(name, sizeof(name), "%.200s_1.mcd", to_stem);
+    util_path_join(to, sizeof(to), info.saves_dir, name);
+    if (strcmp(from, to) == 0 || !util_file_exists(from))
+        return false;
+    if (!util_file_exists(to))
+    {
+        if (rename(from, to) != 0)
+            return false;
+        chmod(to, 0666);
+        app_log("SwanStation: %s is now %s (the game's playlist names its card)", from, to);
+        return true;
+    }
+    char a[65], b[65];
+    if (util_sha256_file(from, a) && util_sha256_file(to, b) && strcmp(a, b) == 0)
+    {
+        char bak[PATH_LEN + 8];
+        snprintf(bak, sizeof(bak), "%s.bak", from);
+        remove(bak);
+        if (rename(from, bak) == 0)
+            app_log("SwanStation: %s set aside as .bak (a copy of %s)", from, to);
+        return true;
+    }
+    app_log("SwanStation: %s and %s hold different saves; left both", from, to);
+    return false;
 }
 
 void saves_swanstation_card_path(const Config *config, const char *serial, const char *game_stem,
@@ -767,9 +804,11 @@ bool saves_ps5sx2_game_card(const Config *config, const char *stem, bool assign,
     /* a card of the player's own choosing stays; a shared one is replaced */
     if (!card[0] || is_shared_card(config, card))
     {
-        /* the core reads the line into a 256-byte buffer; '#' would read as a comment */
-        char name[160];
-        util_safe_filename(name, sizeof(name) - 4, stem);
+        /* the core reads the line into a 256-byte buffer; '#' would read as a comment.
+         * Named without "(Disc N)": every disc of a game shares the card */
+        char name[160], game[200];
+        disc_tag_strip(stem, game, sizeof(game));
+        util_safe_filename(name, sizeof(name) - 4, game);
         for (char *p = name; *p; ++p)
             if (*p == '#')
                 *p = '_';
@@ -1255,6 +1294,148 @@ static void scan_xemu(const Config *config, SaveList *list)
     xhdd_close(hdd);
 }
 
+/* PS5CEMU-HAR's melonDS: every DS game in its games folder (and one level
+ * of sub-folders, which its library also scans), its save
+ * melonds/saves/<game file>.sav as a raw /raw save keyed by the gamecode.
+ * A game with no save on either side is dropped after the server compare. */
+static void scan_melonds_dir(const Config *config, SaveList *list, const char *dir, int depth)
+{
+    DIR *d = opendir(dir);
+    if (!d)
+        return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL)
+    {
+        if (de->d_name[0] == '.')
+            continue;
+        char path[PATH_LEN];
+        util_path_join(path, sizeof(path), dir, de->d_name);
+        if (!melonds_is_game(de->d_name))
+        {
+            if (depth < 1 && util_dir_exists(path))
+                scan_melonds_dir(config, list, path, depth + 1);
+            continue;
+        }
+        char id[20];
+        if (!melonds_title_id(path, id, sizeof(id)) || saves_find(list, id))
+            continue;
+        SaveEntry *e = saves_add(list);
+        if (!e)
+            break;
+        e->emu = EMU_CEMU;
+        e->kind = SAVE_SRM;
+        util_copy(e->system, sizeof(e->system), "NDS");
+        util_copy(e->title_id, sizeof(e->title_id), id);
+        util_copy(e->rom_file, sizeof(e->rom_file), de->d_name);
+        util_copy(e->name, sizeof(e->name), de->d_name);
+        util_strip_ext(e->name);
+        melonds_save_path(config, de->d_name, e->path, sizeof(e->path));
+        e->installed = true; /* the game is here: Sync all may fetch its save */
+        saves_hash_local(e);
+    }
+    closedir(d);
+}
+
+static void scan_melonds(const Config *config, SaveList *list)
+{
+    char games[PATH_LEN];
+    melonds_games_dir(config, games, sizeof(games));
+    scan_melonds_dir(config, list, games, 0);
+}
+
+/* ------------------------------------------------------------ PPSSPP */
+
+/* PS1 disc prefixes: PSone Classics on a memory stick, which the PSP client
+ * leaves to the PS1 side too. */
+static const char *const PSX_PREFIXES[] = {
+    "SLUS", "SCUS", "PAPX", "SLES", "SCES", "SCED", "SLPS",
+    "SLPM", "SCPS", "SCPM", "SLAJ", "SLEJ", "SCAJ",
+};
+
+bool saves_is_psp_slot(const char *name)
+{
+    size_t len = strlen(name);
+    if (len < 9 || len > 31)
+        return false;
+    for (size_t i = 0; i < len; ++i)
+    {
+        unsigned char c = (unsigned char)name[i];
+        if (i < 4 ? !isupper(c) : i < 9 ? !isdigit(c) : !isupper(c) && !isdigit(c))
+            return false;
+    }
+    for (size_t i = 0; i < sizeof(PSX_PREFIXES) / sizeof(PSX_PREFIXES[0]); ++i)
+        if (strncmp(name, PSX_PREFIXES[i], 4) == 0)
+            return false;
+    return true;
+}
+
+/* Older PS5_RetroArch builds gave PPSSPP system/PPSSPP as its memory stick:
+ * a slot only there is copied to the one the core reads now (the old copy
+ * stays). */
+static void ppsspp_adopt_legacy(const Config *config, const char *savedata)
+{
+    char legacy[PATH_LEN];
+    snprintf(legacy, sizeof(legacy), "%s/system/PPSSPP/PSP/SAVEDATA", config->retroarch_dir);
+    if (strcmp(legacy, savedata) == 0)
+        return;
+    DIR *d = opendir(legacy);
+    if (!d)
+        return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL)
+    {
+        if (!saves_is_psp_slot(de->d_name))
+            continue;
+        char from[PATH_LEN], to[PATH_LEN];
+        util_path_join(from, sizeof(from), legacy, de->d_name);
+        util_path_join(to, sizeof(to), savedata, de->d_name);
+        if (util_dir_exists(to))
+            continue;
+        SaveTree tree;
+        if (!tree_read(from, NULL, &tree))
+            continue;
+        if (tree.count && util_mkdirs(to) && tree_write_replace(to, &tree))
+        {
+            chmod(to, 0777);
+            app_log("PPSSPP: %s copied from the old memory stick (%s)", de->d_name, legacy);
+        }
+        tree_free(&tree);
+    }
+    closedir(d);
+}
+
+static void scan_ppsspp(const Config *config, SaveList *list)
+{
+    if (!config->retroarch_dir[0] || !util_dir_exists(config->retroarch_dir))
+        return;
+    char savedata[PATH_LEN];
+    retroarch_psp_savedata(config, savedata, sizeof(savedata));
+    ppsspp_adopt_legacy(config, savedata);
+    DIR *d = opendir(savedata);
+    if (!d)
+        return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL)
+    {
+        if (!saves_is_psp_slot(de->d_name))
+            continue;
+        SaveEntry *e = saves_add(list);
+        if (!e)
+            break;
+        e->emu = EMU_RETROARCH;
+        e->kind = SAVE_FOLDER;
+        util_copy(e->system, sizeof(e->system), "PSP");
+        util_copy(e->title_id, sizeof(e->title_id), de->d_name);
+        util_copy(e->name, sizeof(e->name), de->d_name);
+        util_path_join(e->path, sizeof(e->path), savedata, de->d_name);
+        e->installed = true; /* the game ran here */
+        saves_hash_local(e);
+        if (!e->local)
+            list->count--;
+    }
+    closedir(d);
+}
+
 void saves_scan(const Config *config, const KvStore *ids, const KvStore *installed,
                 SaveList *list)
 {
@@ -1267,6 +1448,8 @@ void saves_scan(const Config *config, const KvStore *ids, const KvStore *install
     scan_eden(config, list);
     scan_cemu(config, list);
     scan_xemu(config, list);
+    scan_melonds(config, list);
+    scan_ppsspp(config, list);
     retroarch_scan(config, ids, list);
     for (int i = 0; i < list->count; ++i)
     {

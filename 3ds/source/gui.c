@@ -60,7 +60,7 @@ void gui_screen(int screen) {
     C2D_TargetClear(t, gui_rgb(HEX_BG));
     C2D_SceneBegin(t);
     // Soft vertical gradient behind everything
-    gui_vgrad(0, 0, screen_w, GUI_H, gui_rgb(0x131D29), gui_rgb(HEX_BG));
+    gui_vgrad(0, 0, screen_w, GUI_H, gui_rgb(0x111833), gui_rgb(HEX_BG));
 }
 
 void gui_end(void) {
@@ -314,7 +314,7 @@ static u32 button_hex(const char *b) {
     if (!strcmp(b, "B")) return 0xE3B341;
     if (!strcmp(b, "X")) return 0x539BF5;
     if (!strcmp(b, "Y")) return 0x57AB5A;
-    return 0xAAB8C5;
+    return 0xB4BFDD;
 }
 
 float gui_button_w(const char *b) {
@@ -337,7 +337,7 @@ float gui_button(float x, float cy, const char *b) {
         return 13;
     }
     if (!strcmp(b, "DPAD") || !strcmp(b, "UD") || !strcmp(b, "LR")) {
-        u32 base = gui_rgb(0x6F8295), hi = gui_rgb(HEX_TEXT);
+        u32 base = gui_rgb(0x7C89B0), hi = gui_rgb(HEX_TEXT);
         bool ud = !strcmp(b, "UD"), lr = !strcmp(b, "LR"), all = !ud && !lr;
         // Cross: vertical arm, horizontal arm, then highlighted halves
         gui_rect(x + 4.5f, cy - 6.5f, 4, 13, (ud || all) ? hi : base);
@@ -396,13 +396,13 @@ void gui_scrollbar(float x, float y, float h, int first, int visible, int total,
 }
 
 void gui_panel(float x, float y, float w, float h) {
-    gui_rrect(x - 1, y - 1, w + 2, h + 2, 8, gui_rgb(0x0A1118));
+    gui_rrect(x - 1, y - 1, w + 2, h + 2, 8, gui_rgb(0x070A16));
     gui_rrect(x, y, w, h, 7, gui_rgb(HEX_PANEL));
 }
 
 void gui_card(float x, float y, float w, float h, const char *title, u32 tone) {
     // Drop shadow
-    gui_rrect(x + 2, y + 3, w, h, 8, gui_rgb(0x070B10));
+    gui_rrect(x + 2, y + 3, w, h, 8, gui_rgb(0x04060E));
     gui_rrect(x - 1, y - 1, w + 2, h + 2, 8, gui_mix(HEX_LINE, tone, 0.4f));
     gui_rrect(x, y, w, h, 7, gui_rgb(HEX_PANEL));
     if (title) {
@@ -419,9 +419,28 @@ void gui_dim(void) {
     gui_rect(0, 0, screen_w, GUI_H, gui_rgba(0x05090D, 0xB4));
 }
 
+// The brand's sync gradient (cyan -> blue -> violet, as in the logo's arrows),
+// drawn as flat steps so it needs nothing beyond a rect fill.
+static unsigned int brand_lerp(unsigned int a, unsigned int b, int t, int n) {
+    int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+    int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+    return (unsigned int)(((ar + (br - ar) * t / n) << 16) | ((ag + (bg - ag) * t / n) << 8) |
+                          (ab + (bb - ab) * t / n));
+}
+
+static void brand_bar(float x, float y, float w, float h) {
+    enum { STEPS = 32, HALF = STEPS / 2 };
+    for (int i = 0; i < STEPS; i++) {
+        unsigned int c = i < HALF ? brand_lerp(HEX_BRAND_A, HEX_BRAND_B, i, HALF)
+                                  : brand_lerp(HEX_BRAND_B, HEX_BRAND_C, i - HALF, HALF - 1);
+        float x0 = x + w * i / STEPS, x1 = x + w * (i + 1) / STEPS;
+        gui_rect(x0, y, x1 - x0, h, gui_rgb(c));
+    }
+}
+
 void gui_header_bar(void) {
     gui_rect(0, 0, screen_w, GUI_HEADER_H, gui_rgb(HEX_BG2));
-    gui_rect(0, GUI_HEADER_H - 1, screen_w, 1, gui_rgb(HEX_LINE));
+    brand_bar(0, GUI_HEADER_H - 2, screen_w, 2);
 }
 
 float gui_status_icons(float x_right, float cy) {
@@ -442,7 +461,7 @@ float gui_status_icons(float x_right, float cy) {
 
 void gui_header(const char *section) {
     gui_header_bar();
-    // Logo mark: teal rounded square with a sync-ish notch
+    // Logo mark: cyan rounded square with a sync-ish notch
     gui_rrect(8, 6, 14, 14, 4, gui_rgb(HEX_ACCENT));
     gui_rrect(12, 10, 6, 6, 2, gui_rgb(HEX_BG2));
     float x = 28;

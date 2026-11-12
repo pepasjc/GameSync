@@ -6,11 +6,15 @@ import com.savesync.android.emulators.impl.CemuEmulator
 import com.savesync.android.emulators.impl.DolphinEmulator
 import com.savesync.android.emulators.impl.DraSticEmulator
 import com.savesync.android.emulators.impl.DuckStationEmulator
+import com.savesync.android.emulators.impl.FlycastEmulator
+import com.savesync.android.emulators.impl.HakuXEmulator
 import com.savesync.android.emulators.impl.MelonDsEmulator
 import com.savesync.android.emulators.impl.MgbaEmulator
 import com.savesync.android.emulators.impl.PpssppEmulator
 import com.savesync.android.emulators.impl.RetroArchEmulator
+import com.savesync.android.emulators.impl.X1BoxEmulator
 import com.savesync.android.sync.SaturnSyncFormat
+import com.savesync.android.SaveSyncApp
 import com.savesync.android.sync.SegaCdSyncFormat
 import java.io.File
 
@@ -61,6 +65,12 @@ object EmulatorCatalog {
             defaultPathHint = "Android/data/come.nanodata.armsx2/files/memcards/"
         ),
         EmulatorDescriptor(
+            key = FlycastEmulator.EMULATOR_KEY,
+            displayName = "Flycast",
+            systemHint = "Dreamcast (turn on Per Game VMU A1)",
+            defaultPathHint = "<Flycast home>/data/"
+        ),
+        EmulatorDescriptor(
             key = DolphinEmulator.EMULATOR_KEY,
             displayName = "Dolphin",
             systemHint = "GameCube",
@@ -77,6 +87,18 @@ object EmulatorCatalog {
             displayName = "Cemu",
             systemHint = "Nintendo Wii U",
             defaultPathHint = "<cemu>/mlc01/ (usr/save/00050000/…)"
+        ),
+        EmulatorDescriptor(
+            key = HakuXEmulator.EMULATOR_KEY,
+            displayName = "hakuX",
+            systemHint = "Xbox (patched APK)",
+            defaultPathHint = "Android/data/com.rfandango.haku_x/files/native/hdd/"
+        ),
+        EmulatorDescriptor(
+            key = X1BoxEmulator.EMULATOR_KEY,
+            displayName = "X1 BOX",
+            systemHint = "Xbox (disk image)",
+            defaultPathHint = "Android/data/com.izzy2lost.x1box/files/x1box/hdd.img"
         ),
         EmulatorDescriptor(
             key = MelonDsEmulator.EMULATOR_KEY,
@@ -117,7 +139,9 @@ object EmulatorRegistry {
         segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
         ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2,
         beetleSaturnPerCoreFolder: Boolean = true,
-        cdGamesPerContentFolder: Boolean = false
+        cdGamesPerContentFolder: Boolean = false,
+        dcEmulator: DcEmulatorChoice = DcEmulatorChoice.RETROARCH,
+        xboxEmulator: XboxEmulatorChoice = XboxEmulatorChoice.AUTO
     ): List<EmulatorBase> {
         // Helper: per-emulator save-dir override, blank-treated-as-null so an
         // empty string in the map (e.g. legacy data) doesn't accidentally
@@ -158,6 +182,15 @@ object EmulatorRegistry {
             MgbaEmulator(
                 saveDirOverride = ovr(MgbaEmulator.EMULATOR_KEY)
             ),
+            // After RetroArch: with Flycast chosen as the Dreamcast emulator,
+            // its VMU path wins for server-only saves (discoverAllRomEntries).
+            FlycastEmulator(
+                romScanDir = romScanDir,
+                romDirOverrides = romDirOverrides,
+                emudeckStorageDir = EmudeckPaths.storageDir(emudeckDir),
+                saveDirOverride = ovr(FlycastEmulator.EMULATOR_KEY),
+                providesDownloadTargets = dcEmulator == DcEmulatorChoice.FLYCAST
+            ),
             DolphinEmulator(
                 dolphinMemCardDir = ovr(DolphinEmulator.EMULATOR_KEY) ?: "",
                 dolphinRootDir = EmudeckPaths.dolphinRoot(emudeckDir)
@@ -173,8 +206,18 @@ object EmulatorRegistry {
                 saveDirOverride = ovr(CemuEmulator.EMULATOR_KEY),
                 romScanDir = romDirOverrides["WIIU"]?.takeIf { it.isNotBlank() } ?: romScanDir,
                 emudeckDir = emudeckDir
-            )
+            ),
+            xboxEmulatorFor(xboxEmulator, saveDirOverrides)
         )
+    }
+
+    /** The Xbox emulator to scan: the chosen one, or the installed one (see [XboxEmulatorChoice.resolve]). */
+    private fun xboxEmulatorFor(choice: XboxEmulatorChoice, saveDirOverrides: Map<String, String>): EmulatorBase {
+        fun ovr(key: String): String? = saveDirOverrides[key]?.takeIf { it.isNotBlank() }
+        return when (choice.resolve(SaveSyncApp.instance)) {
+            XboxEmulatorChoice.X1BOX -> X1BoxEmulator(saveDirOverride = ovr(X1BoxEmulator.EMULATOR_KEY))
+            else -> HakuXEmulator(saveDirOverride = ovr(HakuXEmulator.EMULATOR_KEY))
+        }
     }
 
     /**
@@ -193,7 +236,8 @@ object EmulatorRegistry {
         segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
         ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2,
         beetleSaturnPerCoreFolder: Boolean = true,
-        cdGamesPerContentFolder: Boolean = false
+        cdGamesPerContentFolder: Boolean = false,
+        xboxEmulator: XboxEmulatorChoice = XboxEmulatorChoice.AUTO
     ): List<SaveEntry> {
         return buildAll(
             romScanDir = romScanDir,
@@ -204,7 +248,8 @@ object EmulatorRegistry {
             segaCdSyncFormat = segaCdSyncFormat,
             ps2Emulator = ps2Emulator,
             beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
-            cdGamesPerContentFolder = cdGamesPerContentFolder
+            cdGamesPerContentFolder = cdGamesPerContentFolder,
+            xboxEmulator = xboxEmulator
         ).flatMap { emulator ->
             try {
                 emulator.discoverSaves()
@@ -232,7 +277,9 @@ object EmulatorRegistry {
         segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
         ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2,
         beetleSaturnPerCoreFolder: Boolean = true,
-        cdGamesPerContentFolder: Boolean = false
+        cdGamesPerContentFolder: Boolean = false,
+        dcEmulator: DcEmulatorChoice = DcEmulatorChoice.RETROARCH,
+        xboxEmulator: XboxEmulatorChoice = XboxEmulatorChoice.AUTO
     ): Map<String, SaveEntry> {
         val result = mutableMapOf<String, SaveEntry>()
         buildAll(
@@ -244,7 +291,9 @@ object EmulatorRegistry {
             segaCdSyncFormat = segaCdSyncFormat,
             ps2Emulator = ps2Emulator,
             beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
-            cdGamesPerContentFolder = cdGamesPerContentFolder
+            cdGamesPerContentFolder = cdGamesPerContentFolder,
+            dcEmulator = dcEmulator,
+            xboxEmulator = xboxEmulator
         ).forEach { emulator ->
             try { result.putAll(emulator.discoverRomEntries()) } catch (_: Exception) {}
         }

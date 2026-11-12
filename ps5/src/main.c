@@ -43,6 +43,8 @@ int main(void)
     }
 #endif
     ui_run(listable, status);
+    app_log("exit");
     plat_shutdown();
+    plat_exit();
     return 0;
 }

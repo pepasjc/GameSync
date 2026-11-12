@@ -1,5 +1,6 @@
 package com.savesync.android.ui.screens
 
+import android.os.Environment
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,6 +49,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,7 +62,11 @@ import com.savesync.android.api.ApiClient
 import com.savesync.android.emulators.EmudeckPaths
 import com.savesync.android.sync.SaturnSyncFormat
 import com.savesync.android.sync.SegaCdSyncFormat
+import com.savesync.android.emulators.DcEmulatorChoice
 import com.savesync.android.emulators.Ps2EmulatorChoice
+import com.savesync.android.emulators.XboxEmulatorChoice
+import com.savesync.android.emulators.impl.HakuXEmulator
+import com.savesync.android.emulators.impl.X1BoxEmulator
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.SyncState
 import com.savesync.android.ui.components.FolderPickerDialog
@@ -99,6 +105,8 @@ fun SettingsScreen(
     var saturnSyncFormat by remember { mutableStateOf(SaturnSyncFormat.MEDNAFEN) }
     var segaCdSyncFormat by remember { mutableStateOf(SegaCdSyncFormat.GENESIS_PLUS_GX) }
     var ps2Emulator by remember { mutableStateOf(Ps2EmulatorChoice.AETHERSX2) }
+    var dcEmulator by remember { mutableStateOf(DcEmulatorChoice.RETROARCH) }
+    var xboxEmulator by remember { mutableStateOf(XboxEmulatorChoice.AUTO) }
     var showFolderPicker by remember { mutableStateOf(false) }
     var showEmudeckFolderPicker by remember { mutableStateOf(false) }
     var settingsLoaded by remember { mutableStateOf(false) }
@@ -120,6 +128,8 @@ fun SettingsScreen(
             saturnSyncFormat = settings.saturnSyncFormat
             segaCdSyncFormat = settings.segaCdSyncFormat
             ps2Emulator = settings.ps2Emulator
+            dcEmulator = settings.dcEmulator
+            xboxEmulator = settings.xboxEmulator
             settingsLoaded = true
             // Auto-detect system folders once settings are loaded
             if (settings.romScanDir.isNotBlank() || settings.emudeckDir.isNotBlank()) {
@@ -279,7 +289,9 @@ fun SettingsScreen(
                             beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
                             cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
                             segaCdSyncFormat = segaCdSyncFormat,
-                            ps2Emulator = ps2Emulator
+                            ps2Emulator = ps2Emulator,
+                            dcEmulator = dcEmulator,
+                            xboxEmulator = xboxEmulator
                         )
                         savedConfirmation = true
                     },
@@ -532,6 +544,100 @@ fun SettingsScreen(
                             onClick = {
                                 ps2Emulator = choice
                                 ps2EmulatorExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            var dcEmulatorExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = dcEmulatorExpanded,
+                onExpandedChange = { dcEmulatorExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = dcEmulator.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Dreamcast Emulator") },
+                    supportingText = {
+                        Text("Where Dreamcast saves from the server download to. Saves from both are always read.")
+                    },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(dcEmulatorExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = dcEmulatorExpanded,
+                    onDismissRequest = { dcEmulatorExpanded = false }
+                ) {
+                    DcEmulatorChoice.values().forEach { choice ->
+                        DropdownMenuItem(
+                            text = { Text(choice.label) },
+                            onClick = {
+                                dcEmulator = choice
+                                dcEmulatorExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Xbox: the emulator whose saves are scanned (only one, so a
+            // device with both doesn't list each save twice).  The supporting
+            // text says which one Automatic found and what still stops
+            // GameSync reaching its saves (an unpatched APK, no disk yet).
+            val context = LocalContext.current
+            val xboxResolved = remember(xboxEmulator) { xboxEmulator.resolve(context) }
+            val xboxProblem = remember(xboxResolved, settings.saveDirOverrides) {
+                val external = Environment.getExternalStorageDirectory()
+                if (xboxResolved == XboxEmulatorChoice.X1BOX) {
+                    X1BoxEmulator.problem(external, settings.saveDirOverrides[X1BoxEmulator.EMULATOR_KEY])
+                } else {
+                    HakuXEmulator.problem(external, settings.saveDirOverrides[HakuXEmulator.EMULATOR_KEY])
+                }
+            }
+            val xboxInstalled = remember(xboxResolved) {
+                XboxEmulatorChoice.isInstalled(context, xboxResolved.packageName!!)
+            }
+            var xboxEmulatorExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = xboxEmulatorExpanded,
+                onExpandedChange = { xboxEmulatorExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = xboxEmulator.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Xbox Emulator") },
+                    supportingText = {
+                        val using = when {
+                            !xboxInstalled -> "Neither hakuX nor X1 BOX is installed."
+                            xboxResolved != xboxEmulator -> "Using ${xboxResolved.label} (installed)."
+                            else -> "Syncing ${xboxResolved.label} saves."
+                        }
+                        Text(if (xboxInstalled && xboxProblem != null) "$using $xboxProblem" else using)
+                    },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(xboxEmulatorExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = xboxEmulatorExpanded,
+                    onDismissRequest = { xboxEmulatorExpanded = false }
+                ) {
+                    XboxEmulatorChoice.values().forEach { choice ->
+                        DropdownMenuItem(
+                            text = { Text(choice.label) },
+                            onClick = {
+                                xboxEmulator = choice
+                                xboxEmulatorExpanded = false
                             }
                         )
                     }
@@ -878,7 +984,9 @@ fun SettingsScreen(
                     beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
                     cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
                     segaCdSyncFormat = segaCdSyncFormat,
-                    ps2Emulator = ps2Emulator
+                    ps2Emulator = ps2Emulator,
+                    dcEmulator = dcEmulator,
+                    xboxEmulator = xboxEmulator
                 )
             }
         )
@@ -902,7 +1010,9 @@ fun SettingsScreen(
                     beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
                     cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
                     segaCdSyncFormat = segaCdSyncFormat,
-                    ps2Emulator = ps2Emulator
+                    ps2Emulator = ps2Emulator,
+                    dcEmulator = dcEmulator,
+                    xboxEmulator = xboxEmulator
                 )
             }
         )

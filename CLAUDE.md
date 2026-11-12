@@ -436,7 +436,8 @@ checks that against the Python), Porpoise (Dolphin) GameCube `.gci` files as
 `WII_<CODE>` 3DSS bundles, ProsperoEden Switch saves as `NSW_<TITLEID>` bundles,
 PS5CEMU-HAR Wii U (`mlc01/usr/save/00050000/<lo>/user`) and 3DS (Azahar
 `.../title/00040000/<lo>/data/00000001`) folders as the Wii U / 3DS clients'
-16-hex ids. XPSemu (Xbox) saves are read from and written into its
+16-hex ids, and PS5CEMU 4.x's melonDS DS saves `melonds/saves/<game file>.sav`
+as raw `/raw` saves keyed `00048000<hex gamecode>` (`src/melonds.c`). RetroArch's PPSSPP core keeps PSP saves on its memory stick, the core's save folder (`savefiles/PPSSPP/PSP/SAVEDATA/<slot>/`, `retroarch_psp_savedata`): each slot is a 3DSS bundle keyed by its folder name, as the PSP client files it. XPSemu (Xbox) saves are read from and written into its
 qcow2 HDD image (refcounted appends, COPIED clusters in place, image backed
 up to `.bak` first; XPSemu must be closed): FATX `E:\UDATA\<8-hex id>` (`src/xbox_hdd.c`), bundled with
 `\` paths like the Xbox client. The server hashes a bundle's files in upload
@@ -468,6 +469,12 @@ order the bundle is written in (`ps5/tests/test_bundle.c` cross-checks with
   server URLs and the `--as-needed` patch in `ps5/build.sh`.
 - Files written for an emulator must be world-writable (`0666`/`0777`): each
   emulator is another sandboxed title.
+- Multi-disc games: the catalog folds rows differing only by `(Disc N)`
+  (`catalog_group_discs`, the C twin of `shared/mister_install.group_discs` -
+  keep them in step) into one entry that installs every disc into
+  `<games>/<name without disc tag>/`; SwanStation and RetroArch get an `.m3u`
+  (RetroArch's discs in `.discs/`, a dot folder its library skips), PS5SX2 discs
+  share one card, Porpoise can't change discs.
 - The PS5 throttles an **app's** writes to ~2 MB/s after a ~1.3 GB burst
   (a payload's not at all), so catalog downloads go through the helper
   payload `ps5/helper` (SDK v0.44 - v0.40 payloads don't start on current
@@ -481,6 +488,23 @@ order the bundle is written in (`ps5/tests/test_bundle.c` cross-checks with
 **Android / Steam Deck** — emulator save locations live in per-emulator scanners
 (`android/.../emulators/impl/`, `steamdeck/scanner/`), kept deliberately parallel
 so a fix in one ports to the other.
+
+**Android Xbox** — `XboxEmulatorChoice` (Settings → Xbox Emulator: Automatic,
+hakuX, X1 BOX) picks the one scanned; Automatic, or a choice whose app is
+missing, takes the installed one (hakuX first; the manifest's `<queries>` makes
+both visible). Saves are `E:\UDATA\<8-hex id>` folders, bundled and hashed with
+`\` paths in `\`-path order (`XboxSaves.treeFiles`) like the Xbox and PS5
+clients; `XboxServerHashStore` pairs the server's hash with the local one after
+a download (the Xbox client uploads in FATX order — the PS5's `<id>.server`
+trick). Neither emulator is readable as shipped, so `tools/patch_xbox_emu.py`
+re-signs its APK with a helper (`tools/xbox_emu_patch/XboxEmuFix.java`, an extra
+`classesN.dex`): hakuX keeps its disk as host folders in *private*
+`files/native/hdd` (`Partition1` = E:), and the patch symlinks `files/native`
+into `Android/data/com.rfandango.haku_x/files/` (its kernel follows symlinks:
+`stat`, not `lstat`) and takes over files GameSync wrote; X1 BOX keeps xemu's
+`files/x1box/hdd.img` owner-only, and the patch chmods it 660 — GameSync reads
+it with `XboxHddImage` (Kotlin port of `ps5/src/xbox_hdd.c`, keep in step) into
+a staging folder and writes downloads back.
 
 ## Licensing and attribution — REQUIRED on every change
 

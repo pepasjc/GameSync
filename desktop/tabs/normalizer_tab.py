@@ -611,7 +611,7 @@ class RomNormalizerTab(QWidget):
         dat_row = QHBoxLayout()
         dat_row.addWidget(QLabel("DAT:"))
         self.dat_label = QLabel("No DAT loaded — select a system or browse manually")
-        self.dat_label.setStyleSheet("color: gray;")
+        self.dat_label.setStyleSheet("color: #6b789f;")
         dat_row.addWidget(self.dat_label, 4)
         browse_dat_btn = QPushButton("Browse DAT...")
         browse_dat_btn.clicked.connect(self._browse_dat)
@@ -828,7 +828,7 @@ class RomNormalizerTab(QWidget):
             self.dat_label.setText(
                 f"No DAT found for {system} in dats/ folder — browse manually"
             )
-            self.dat_label.setStyleSheet("color: orange;")
+            self.dat_label.setStyleSheet("color: #ffb938;")
             self._no_intro = {}
 
     def _load_dat(self, path: Path):
@@ -846,7 +846,7 @@ class RomNormalizerTab(QWidget):
             label += f", {serial_count:,} serials"
         label += ")"
         self.dat_label.setText(label)
-        self.dat_label.setStyleSheet("color: green;" if count > 0 else "color: red;")
+        self.dat_label.setStyleSheet("color: #3dd68c;" if count > 0 else "color: #ff5d6c;")
 
     def _scan(self):
         folder = Path(self.folder_edit.text().strip())

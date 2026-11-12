@@ -24,7 +24,12 @@ data class SaveEntry(
      * low word is *not* the product code, so Cemu reports "WIIU_ARDE" (read
      * from meta.xml) and the upload passes it as ``game_code``.
      */
-    val gameCode: String? = null
+    val gameCode: String? = null,
+    /**
+     * X1 BOX: the Xbox disk image this save was read out of.  [saveDir] is
+     * then a staging copy, and a download is written back into the image.
+     */
+    val xboxHddImage: File? = null
 ) {
     /**
      * True when this entry is a PSP/PSX save slot directory (DATA.BIN + PARAM.SFO + etc.),
@@ -36,12 +41,15 @@ data class SaveEntry(
 
     /**
      * True for save archives that are recursive directory trees bundled with
-     * relative paths: 3DS (Azahar) and Wii U (Cemu).  Both hash as the
-     * concatenation of file contents in relative-path order, which is what the
-     * server computes for the bundle.
+     * relative paths: 3DS (Azahar), Wii U (Cemu) and Xbox (hakuX, X1 BOX).
+     * They hash as the concatenation of file contents in relative-path order,
+     * which is what the server computes for the bundle.
      */
     val isTreeSaveDir: Boolean
-        get() = (systemName == "3DS" || systemName == "WIIU") && isMultiFile && saveDir != null
+        get() = (systemName == "3DS" || systemName == "WIIU" || isXbox) && isMultiFile && saveDir != null
+
+    /** An Xbox E:\UDATA title folder: bundled and hashed with '\' paths ([XboxSaves.treeFiles]). */
+    val isXbox: Boolean get() = systemName == "XBOX"
 
     fun computeHash(): String {
         return when {
@@ -51,6 +59,7 @@ data class SaveEntry(
             isPspSlot -> HashUtils.sha256DirFiles(saveDir!!)
             // 3DS/Wii U save archives are recursive directory trees bundled with relative
             // paths, but the server compares only concatenated file contents in bundle order.
+            isTreeSaveDir && isXbox -> HashUtils.sha256Files(XboxSaves.treeFiles(saveDir!!).map { it.second })
             isTreeSaveDir -> HashUtils.sha256DirTreeFiles(saveDir!!)
             saveFile != null && extraFiles.isNotEmpty() -> {
                 val files = (listOf(saveFile) + extraFiles).filter { it.exists() }.sortedBy { it.name }

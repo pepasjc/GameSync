@@ -71,9 +71,17 @@ ROM_TARGET=sd
 | `ROM_TARGET` | `sd` or `usb` — where downloaded ROMs are installed |
 | `OVERSCAN_X` / `OVERSCAN_Y` | percent of each edge kept clear, for CRTs |
 | `BUTTONS` | `action=code` pairs overriding the button map |
+| `UI_STYLE` | `auto` (default), `dense` or `classic` — see below |
 
 `OVERSCAN_*` and `BUTTONS` are written by the client — Settings → **Adjust
 screen** and **Remap buttons** — and are not meant to be typed by hand.
+
+`UI_STYLE` picks the look. `dense` is a text-mode grid of 8x8 glyphs in
+10-line rows, the style of DreamSTer's launcher: about 18 rows at 240p, where
+`classic` (FreeType, larger rows) fits 8. The glyphs scale by whole pixels, so
+640x480 doubles the lines, 720p is 2x2 and 1080p 3x3. `auto` is dense on a
+240p display and classic on a monitor. Settings → **UI style** cycles through
+the three and applies at once.
 
 Edit it on the device, or set it from the installer with `--server-url` and
 `--api-key`. Values may be quoted; blank lines and `#` comments are ignored.

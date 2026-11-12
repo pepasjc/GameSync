@@ -70,9 +70,24 @@ void theme_background(Surface *s) {
     gfx_vgradient(s, 0, 0, s->w, s->h, C_BG_TOP, C_BG_BOTTOM);
 }
 
+// The brand's sync gradient (cyan -> blue -> violet, as in the logo's arrows):
+// one pixel row, a colour per column
+static void brand_line(Surface *s, int y) {
+    static const uint8_t stop[3][3] = {{0x00, 0xD6, 0xFF}, {0x3A, 0x78, 0xFF}, {0xA4, 0x5C, 0xFF}};
+    int half = s->w / 2;
+    for (int x = 0; x < s->w; x++) {
+        const uint8_t *a = stop[x < half ? 0 : 1], *b = stop[x < half ? 1 : 2];
+        int t = x < half ? x : x - half, n = x < half ? half : s->w - half - 1;
+        if (n < 1) n = 1;
+        gfx_fill(s, x, y, 1, 1, RGB(a[0] + (b[0] - a[0]) * t / n, a[1] + (b[1] - a[1]) * t / n,
+                                    a[2] + (b[2] - a[2]) * t / n));
+    }
+}
+
 static void bar_background(Surface *s, int y, int h, bool line_below) {
-    gfx_vgradient(s, 0, y, s->w, h, 0x0C131B, 0x101923);
-    gfx_hline(s, 0, line_below ? y + h - 1 : y, s->w, C_CARD_LINE);
+    gfx_vgradient(s, 0, y, s->w, h, 0x080C1A, 0x0D1326);
+    if (line_below) brand_line(s, y + h - 1);
+    else gfx_hline(s, 0, y, s->w, C_CARD_LINE);
 }
 
 void theme_header(Surface *s, const char *title) {
@@ -169,12 +184,12 @@ static Color button_color(const char *b) {
     if (!strcmp(b, "B")) return C_ERR;
     if (!strcmp(b, "X")) return C_INFO;
     if (!strcmp(b, "Y")) return C_WARN;
-    return HEX(0x55677B);
+    return HEX(0x5F6C94);
 }
 
 // Little D-pad with the used arms lit
 static int draw_dpad(Surface *s, int x, int y, bool vertical, bool horizontal) {
-    Color off = HEX(0x55677B), on = C_TEXT;
+    Color off = HEX(0x5F6C94), on = C_TEXT;
     gfx_fill(s, x + 3, y, 3, 9, off);
     gfx_fill(s, x, y + 3, 9, 3, off);
     if (vertical) {

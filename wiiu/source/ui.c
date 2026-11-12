@@ -4,7 +4,7 @@
  * this file owns the framebuffers, the ProcUI foreground dance, and every
  * shared widget — header, tabs, footer hints, list rows, detail panel,
  * dialogs, progress and boot cards.  The look follows the 3DS / DS restyle:
- * deep slate background, lighter rounded cards, teal accent, green / amber /
+ * deep navy background, lighter rounded cards, cyan accent, green / amber /
  * blue / red status colours.
  *
  * Framebuffers live in MEM1, which ProcUI reclaims whenever the app drops to
@@ -350,7 +350,7 @@ void ui_icon(int cx, int cy, int r, UiIcon icon, uint32_t color) {
 /* ---- chrome ---- */
 
 void ui_draw_background(void) {
-    gfx_vgrad(0, 0, GFX_W, GFX_H, HEX_BG, 0x141F2B);
+    gfx_vgrad(0, 0, GFX_W, GFX_H, HEX_BG, 0x10172E);
 }
 
 /* Dot + label chip ending at x_right; returns its left edge. */
@@ -362,10 +362,29 @@ static int status_chip(int x_right, int cy, uint32_t dot, const char *label) {
     return x - 24;
 }
 
-static void header_bar(const SyncState *st, const char *section) {
-    gfx_vgrad(0, 0, GFX_W, UI_HEADER_H, HEX_BG2, 0x18222E);
+/* The brand's sync gradient (cyan -> blue -> violet, as in the logo's arrows),
+ * drawn as flat steps so it needs nothing beyond a rect fill. */
+static unsigned int brand_lerp(unsigned int a, unsigned int b, int t, int n) {
+    int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+    int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+    return (unsigned int)(((ar + (br - ar) * t / n) << 16) | ((ag + (bg - ag) * t / n) << 8) |
+                          (ab + (bb - ab) * t / n));
+}
 
-    /* Logo: teal rounded square with a dark core, like the other clients. */
+static void brand_bar(int x, int y, int w, int h) {
+    enum { STEPS = 32, HALF = STEPS / 2 };
+    for (int i = 0; i < STEPS; i++) {
+        unsigned int c = i < HALF ? brand_lerp(HEX_BRAND_A, HEX_BRAND_B, i, HALF)
+                                  : brand_lerp(HEX_BRAND_B, HEX_BRAND_C, i - HALF, HALF - 1);
+        int x0 = x + w * i / STEPS, x1 = x + w * (i + 1) / STEPS;
+        gfx_rect(x0, y, x1 - x0, h, c);
+    }
+}
+
+static void header_bar(const SyncState *st, const char *section) {
+    gfx_vgrad(0, 0, GFX_W, UI_HEADER_H, HEX_BG2, 0x182039);
+
+    /* Logo: cyan rounded square with a dark core, like the other clients. */
     gfx_rrect(24, 16, 32, 32, 9, HEX_ACCENT);
     gfx_rrect(33, 25, 14, 14, 4, HEX_BG2);
 
@@ -391,7 +410,7 @@ static void header_bar(const SyncState *st, const char *section) {
 
 void ui_draw_header_plain(const SyncState *st, const char *section) {
     header_bar(st, section);
-    gfx_rect(0, UI_HEADER_H, GFX_W, 1, HEX_LINE);
+    brand_bar(0, UI_HEADER_H - 1, GFX_W, 3);
 }
 
 void ui_draw_header(const SyncState *st, AppView view) {
@@ -399,8 +418,8 @@ void ui_draw_header(const SyncState *st, AppView view) {
 
     /* View tabs: L ... R around the eight views. */
     int y = UI_HEADER_H;
-    gfx_rect(0, y, GFX_W, UI_TABS_H, 0x152029);
-    gfx_rect(0, y + UI_TABS_H - 1, GFX_W, 1, HEX_LINE);
+    gfx_rect(0, y, GFX_W, UI_TABS_H, 0x10172E);
+    brand_bar(0, y + UI_TABS_H - 3, GFX_W, 3);
     int cy = y + UI_TABS_H / 2;
 
     int pad = 18, gap = 6;

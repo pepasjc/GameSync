@@ -36,6 +36,9 @@ enum
 bool plat_unlock_data(char *status, size_t size);
 bool plat_init(char *error, size_t size);
 void plat_shutdown(void);
+/* Ends the process. On the PS5 the shell must close the title: returning
+ * from main (exit()) raises SIGSYS there and shows as a crash. */
+void plat_exit(void);
 /* Buttons held right now; quit set when the app should close. */
 uint32_t plat_poll(bool *quit);
 /* Shows gfx's canvas and waits for the next vblank. */

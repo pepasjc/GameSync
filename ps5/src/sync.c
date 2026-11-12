@@ -18,6 +18,7 @@
 #include "ps2mc.h"
 #include "retroarch.h"
 #include "xbox_hdd.h"
+#include "melonds.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,6 +84,28 @@ static bool resolve_ids(SyncContext *ctx)
 {
     /* the catalog already knows the id of a file it installed: a Saturn CHD
      * (no IP.BIN to read) or a translation keeps its game's serial there */
+    /* a SwanStation card named after its game (title mode): the catalog row
+     * of that file - or of that multi-disc game's playlist - has the serial */
+    for (int i = 0; ctx->catalog && i < ctx->saves.count; ++i)
+    {
+        SaveEntry *e = &ctx->saves.items[i];
+        if (e->title_id[0] || e->emu != EMU_SWANSTATION || !e->rom_file[0])
+            continue;
+        for (int k = 0; k < ctx->catalog->rom_count; ++k)
+        {
+            const RomRow *r = &ctx->catalog->roms[k];
+            if (!util_ieq(r->system, "PS1") || !r->title_id[0])
+                continue;
+            char stem[200];
+            util_safe_filename(stem, sizeof(stem), r->filename);
+            util_strip_ext(stem);
+            if (strcmp(stem, e->rom_file) == 0 || (r->group[0] && strcmp(r->group, e->rom_file) == 0))
+            {
+                util_copy(e->title_id, sizeof(e->title_id), r->title_id);
+                break;
+            }
+        }
+    }
     for (int i = 0; ctx->catalog && i < ctx->saves.count; ++i)
     {
         SaveEntry *e = &ctx->saves.items[i];
@@ -299,6 +322,11 @@ static bool fetch_server_hash(SyncContext *ctx, SaveEntry *e)
     {
     case SAVE_XBOX:
         return xbox_server_hash(ctx, e);
+    case SAVE_FOLDER:
+        /* the PSP client uploads a slot's files in directory order */
+        if (util_ieq(e->system, "PSP"))
+            return xbox_server_hash(ctx, e);
+        return true;
     case SAVE_PS1_CARD:
         snprintf(path, sizeof(path), "/api/v1/saves/%s/ps1-card/meta?slot=0", e->title_id);
         status = http_get(&ctx->server, path, &out, &res);
@@ -386,7 +414,9 @@ static void add_server_only_retroarch(SyncContext *ctx, const JsonValue *t, cons
         if (!plan.supported)
             continue;
         util_copy(e->rom_file, sizeof(e->rom_file), r->filename);
-        retroarch_save_path(&ctx->config, system, plan.dest, e->path, sizeof(e->path));
+        /* a multi-disc game loads (and names its save) by its .m3u */
+        retroarch_save_path(&ctx->config, system, plan.m3u[0] ? plan.m3u : plan.dest, e->path,
+                            sizeof(e->path));
         if (!e->path[0])
             util_copy(e->message, sizeof(e->message),
                       "Beetle Saturn's Shared Internal Memory is on: not synced per game");
@@ -395,6 +425,24 @@ static void add_server_only_retroarch(SyncContext *ctx, const JsonValue *t, cons
     if (!e->path[0] && !e->message[0])
         util_copy(e->message, sizeof(e->message),
                   "no catalog ROM with this id: install the game to name its save");
+}
+
+/* A PSP game here with this name (the server names a slot after its game,
+ * which has no serial in the catalog): a file in RetroArch's content/psp, or
+ * a catalog row of that name installed from here. */
+static bool psp_game_here(SyncContext *ctx, const char *name)
+{
+    if (!name[0])
+        return false;
+    const Catalog *c = ctx->catalog;
+    for (int i = 0; c && i < c->rom_count; ++i)
+    {
+        const RomRow *r = &c->roms[i];
+        if (util_ieq(r->system, "PSP") && util_ieq(r->name, name) &&
+            kv_get(&ctx->installed, r->title_id))
+            return true;
+    }
+    return retroarch_has_game(&ctx->config, "PSP", name);
 }
 
 static void add_server_only(SyncContext *ctx, const JsonValue *t, const char *tid)
@@ -416,6 +464,29 @@ static void add_server_only(SyncContext *ctx, const JsonValue *t, const char *ti
             return; /* no ProsperoEden profile yet */
         snprintf(path, sizeof(path), "%s/%s", user, tid + 4);
     }
+    if (util_ieq(console, "PSP") && saves_is_psp_slot(tid))
+    {
+        /* a PSP save slot: PPSSPP's memory stick in RetroArch */
+        if (!ctx->config.retroarch_dir[0] || !util_dir_exists(ctx->config.retroarch_dir))
+            return;
+        SaveEntry *e = saves_add(&ctx->saves);
+        if (!e)
+            return;
+        char savedata[PATH_LEN];
+        retroarch_psp_savedata(&ctx->config, savedata, sizeof(savedata));
+        e->emu = EMU_RETROARCH;
+        e->kind = SAVE_FOLDER;
+        util_copy(e->system, sizeof(e->system), "PSP");
+        util_copy(e->title_id, sizeof(e->title_id), tid);
+        util_path_join(e->path, sizeof(e->path), savedata, tid);
+        e->server = true;
+        e->status = ST_SERVER_ONLY;
+        util_copy(e->server_hash, sizeof(e->server_hash), json_get_str(t, "save_hash", ""));
+        e->server_size = (uint64_t)json_get_num(t, "save_size", 0);
+        e->installed = kv_get(&ctx->installed, tid) != NULL ||
+                       psp_game_here(ctx, json_get_str(t, "game_name", ""));
+        return;
+    }
     if (util_ieq(console, "XBOX") && xhdd_is_game_title_id(tid))
     {
         /* an Xbox save: E:\UDATA on XPSemu's disk, when XPSemu is here */
@@ -436,6 +507,43 @@ static void add_server_only(SyncContext *ctx, const JsonValue *t, const char *ti
         util_copy(e->server_hash, sizeof(e->server_hash), json_get_str(t, "save_hash", ""));
         e->server_size = (uint64_t)json_get_num(t, "save_size", 0);
         e->installed = kv_get(&ctx->installed, tid) != NULL;
+        return;
+    }
+    if (strncmp(tid, "00048000", 8) == 0 && strlen(tid) == 16)
+    {
+        /* a DS save (NDS gamecode id): PS5CEMU-HAR's melonDS names it after
+         * the game file, so the catalog row with this id says which */
+        SaveEntry *e = saves_add(&ctx->saves);
+        if (!e)
+            return;
+        e->emu = EMU_CEMU;
+        e->kind = SAVE_SRM;
+        util_copy(e->system, sizeof(e->system), "NDS");
+        util_copy(e->title_id, sizeof(e->title_id), tid);
+        e->server = true;
+        e->status = ST_SERVER_ONLY;
+        util_copy(e->server_hash, sizeof(e->server_hash), json_get_str(t, "save_hash", ""));
+        e->server_size = (uint64_t)json_get_num(t, "save_size", 0);
+        e->installed = kv_get(&ctx->installed, tid) != NULL;
+        const Catalog *c = ctx->catalog;
+        for (int i = 0; c && i < c->rom_count && !e->path[0]; ++i)
+        {
+            if (strcmp(c->roms[i].title_id, tid) != 0)
+                continue;
+            InstallPlan plan;
+            catalog_plan(&ctx->config, &c->roms[i], &plan);
+            if (plan.supported)
+            {
+                /* a zip's game comes out as <zip name>.nds */
+                char game[PATH_LEN + 8];
+                snprintf(game, sizeof(game), "%s%s", plan.dest, plan.zip_member ? ".nds" : "");
+                melonds_save_path(&ctx->config, game, e->path, sizeof(e->path));
+                util_copy(e->rom_file, sizeof(e->rom_file), c->roms[i].filename);
+            }
+        }
+        if (!e->path[0])
+            util_copy(e->message, sizeof(e->message),
+                      "no catalog ROM with this id: install the game to name its save");
         return;
     }
     char cemu_path[PATH_LEN];
@@ -492,16 +600,32 @@ static void add_server_only(SyncContext *ctx, const JsonValue *t, const char *ti
         util_copy(e->system, sizeof(e->system), "PS1");
         /* the card name depends on SwanStation's card type; the title mode
          * names it after the game, whose file name the catalog knows */
+        /* the version installed here (an original and its translation
+         * share the serial), else the first the catalog has */
         char stem[200] = "";
+        const RomRow *pick = NULL;
         for (int i = 0; ctx->catalog && i < ctx->catalog->rom_count; ++i)
         {
             const RomRow *r = &ctx->catalog->roms[i];
-            if (util_ieq(r->system, "PS1") && strcmp(r->title_id, tid) == 0)
+            if (!util_ieq(r->system, "PS1") || strcmp(r->title_id, tid) != 0)
+                continue;
+            if (!pick)
+                pick = r;
+            InstallPlan plan;
+            catalog_plan(&ctx->config, r, &plan);
+            if (r->group[0] ? catalog_group_installed(&ctx->config, ctx->catalog, r)
+                            : plan.supported && catalog_installed(&plan))
             {
-                util_safe_filename(stem, sizeof(stem), r->filename);
-                util_strip_ext(stem);
+                pick = r;
                 break;
             }
+        }
+        if (pick && pick->group[0])
+            util_copy(stem, sizeof(stem), pick->group); /* loaded by its <group>.m3u */
+        else if (pick)
+        {
+            util_safe_filename(stem, sizeof(stem), pick->filename);
+            util_strip_ext(stem);
         }
         saves_swanstation_card_path(&ctx->config, tid, stem, e->path, sizeof(e->path));
     }
@@ -583,7 +707,7 @@ static bool compare_with_server(SyncContext *ctx)
         e->server_size = (uint64_t)json_get_num(t, "save_size", 0);
         const char *name = json_get_str(t, "game_name", json_get_str(t, "name", ""));
         /* RetroArch rows keep the ROM's own name; cards only know a serial */
-        if (e->emu != EMU_RETROARCH && name[0] && strcmp(name, tid) != 0)
+        if ((e->emu != EMU_RETROARCH || e->kind == SAVE_FOLDER) && name[0] && strcmp(name, tid) != 0)
             util_copy(e->name, sizeof(e->name), name);
     }
     /* names for server-only rows (added after local_count) */
@@ -626,7 +750,11 @@ static bool compare_with_server(SyncContext *ctx)
 static int compare_entries(const void *a, const void *b)
 {
     const SaveEntry *x = a, *y = b;
-    /* what needs attention first, then by name */
+    /* what this console has (a save, or the game) before what only the
+     * server has; then what needs attention first, then by name */
+    bool hx = x->local || x->installed, hy = y->local || y->installed;
+    if (hx != hy)
+        return hx ? -1 : 1;
     static const int rank[] = {
         [ST_CONFLICT] = 0, [ST_ERROR] = 1,       [ST_UPLOAD] = 2, [ST_DOWNLOAD] = 2,
         [ST_LOCAL_ONLY] = 3, [ST_SERVER_ONLY] = 4, [ST_SYNCED] = 5, [ST_UNKNOWN] = 6,
@@ -675,6 +803,15 @@ bool sync_refresh(SyncContext *ctx)
                 util_copy(e->name, sizeof(e->name), ctx->catalog->roms[k].name);
                 break;
             }
+    }
+    /* a save belongs to the whole game: the server names it after disc 1's
+     * database entry ("Final Fantasy VII (USA) (Disc 1)"); shown without it */
+    for (int i = 0; i < ctx->saves.count; ++i)
+    {
+        SaveEntry *e = &ctx->saves.items[i];
+        char name[sizeof(e->name)];
+        if (disc_tag_strip(e->name, name, sizeof(name)))
+            util_copy(e->name, sizeof(e->name), name);
     }
     qsort(ctx->saves.items, (size_t)ctx->saves.count, sizeof(SaveEntry), compare_entries);
     return ok;

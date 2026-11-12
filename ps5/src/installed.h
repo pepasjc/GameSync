@@ -20,6 +20,8 @@ typedef struct
     char path[PATH_LEN];
     bool own_folder;     /* SwanStation: the game's folder holds only it */
     uint64_t size;
+    int discs;           /* installed_group_discs: discs found, 0 for a plain file */
+    bool folder;         /* path is the multi-disc game's folder (delete takes it all) */
 } InstalledGame;
 
 typedef struct
@@ -32,6 +34,9 @@ typedef struct
 /* RetroArch content/<system>/..., SwanStation games/<game>/..., PS5SX2 games/. */
 void installed_scan(const Config *config, InstalledList *list);
 void installed_free(InstalledList *list);
+/* For showing: a multi-disc game's discs (and its .m3u) as one entry named
+ * without "(Disc N)". Not for the per-disc card repairs, which need each file. */
+void installed_group_discs(InstalledList *list);
 /* Deletes the game file (SwanStation: its whole game folder). */
 bool installed_delete(const InstalledGame *game, char *error, size_t size);
 

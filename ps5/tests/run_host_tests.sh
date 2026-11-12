@@ -56,7 +56,7 @@ if "$OUT/test_unzip" "$OUT/evil.zip" "$OUT/evil" 2>/dev/null; then echo "travers
 
 $CC $CFLAGS -o "$OUT/test_logic" "$HERE/test_logic.c" "$SRC/json.c" "$SRC/naming.c" \
     "$SRC/http.c" "$SRC/sync.c" "$SRC/saves.c" "$SRC/retroarch.c" "$SRC/bundle.c" \
-    "$SRC/config.c" "$SRC/ps2mc.c" "$SRC/saturn.c" "$SRC/xbox_hdd.c" "$SRC/xcci.c" "$SRC/fetch.c" "$SRC/helper_client.c" "$SRC/catalog.c" "$SRC/unzip.c" "$SRC/util.c" "$SRC/sha256.c" -lz
+    "$SRC/config.c" "$SRC/ps2mc.c" "$SRC/saturn.c" "$SRC/xbox_hdd.c" "$SRC/melonds.c" "$SRC/installed.c" "$SRC/xcci.c" "$SRC/fetch.c" "$SRC/helper_client.c" "$SRC/catalog.c" "$SRC/unzip.c" "$SRC/util.c" "$SRC/sha256.c" -lz
 # the GameIndex.yaml download, against a stand-in for the server's route
 head -c 300000 /dev/urandom > "$OUT/GameIndex.yaml"
 "$PY" "$HERE/game_index_fixture.py" "$OUT/port" "$OUT/GameIndex.yaml" &

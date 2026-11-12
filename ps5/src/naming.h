@@ -52,4 +52,13 @@ bool is_ps_serial(const char *s);
  * saves...). */
 bool is_launchable_rom(const char *filename, const char *system);
 
+/* Systems whose multi-disc games install as one folder of discs. */
+bool is_multidisc_system(const char *system);
+/* name without its "(Disc N)" / "[Disk N of M]" tag - N in digits, a Roman
+ * numeral or a letter - and the (...) tags after it, which name the disc
+ * ("(Disc 1) (GDI)"); [...] tags (translations, hacks) stay. Returns the
+ * disc's place for sorting - N + 1 ("(Disc 0)" counts), a numeral's or a
+ * letter's (A = 1) value + 1 - or 0 when there was no disc tag. */
+int disc_tag_strip(const char *name, char *out, size_t size);
+
 #endif

@@ -78,8 +78,8 @@ class ControlsBar(QWidget):
             ("X", "BTN_X", "Sync all"),
             ("Y", "BTN_Y", "Details"),
             ("B", "BTN_B", "Clear search"),
-            ("SELECT", "BTN_S", "System"),
-            ("L2/R2", "BTN_L", "Status"),
+            ("L2/R2", "BTN_L", "System"),
+            ("SELECT", "BTN_S", "Status"),
             ("◀ ▶", "BTN_L", "Page"),
         ],
         MODE_CATALOG: [
@@ -87,7 +87,7 @@ class ControlsBar(QWidget):
             ("X", "BTN_X", "RA only"),
             ("Y", "BTN_Y", "Search"),
             ("B", "BTN_B", "Clear search"),
-            ("SELECT", "BTN_S", "System"),
+            ("L2/R2", "BTN_L", "System"),
             ("◀ ▶", "BTN_L", "Page"),
         ],
         MODE_INSTALLED: [
@@ -95,7 +95,7 @@ class ControlsBar(QWidget):
             ("X", "BTN_X", "Rescan"),
             ("Y", "BTN_Y", "Search"),
             ("B", "BTN_B", "Clear search"),
-            ("SELECT", "BTN_S", "System"),
+            ("L2/R2", "BTN_L", "System"),
             ("◀ ▶", "BTN_L", "Page"),
         ],
         MODE_DOWNLOADS: [

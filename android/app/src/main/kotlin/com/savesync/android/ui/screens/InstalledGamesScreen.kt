@@ -61,6 +61,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.savesync.android.MainActivity
 import com.savesync.android.findComponentActivity
 import com.savesync.android.installed.InstalledRom
+import com.savesync.android.ui.components.GsPill
+import com.savesync.android.api.RomEntry
 import com.savesync.android.installed.InstalledRomsScanner
 import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.SaveDetailState
@@ -113,6 +115,9 @@ fun InstalledGamesScreen(
     var confirmTarget by remember { mutableStateOf<InstalledRom?>(null) }
     // Second step of Delete: "really delete?" (can't be undone).
     var deleteTarget by remember { mutableStateOf<InstalledRom?>(null) }
+    // "Replace with RA version": the installed game and the version to get.
+    var replaceTarget by remember { mutableStateOf<Pair<InstalledRom, RomEntry>?>(null) }
+    val raVariants by viewModel.raVariants.collectAsState()
     var searchVisible by remember { mutableStateOf(false) }
 
     // ── Gamepad navigation state ────────────────────────────────────────
@@ -125,6 +130,8 @@ fun InstalledGamesScreen(
 
     LaunchedEffect(Unit) {
         if (!loaded && !loading) viewModel.scanInstalledRoms()
+        // The catalogue says which installed games have an RA version.
+        viewModel.fetchRomCatalog()
     }
 
     // Claim focus for the rom list on entry so the search field doesn't
@@ -200,7 +207,7 @@ fun InstalledGamesScreen(
         systemFilter = all[next]
     }
 
-    // SELECT cycles the system filter (the sub-tab chip) — the Activity
+    // L2/R2 step the system filter (the sub-tab chip) — the Activity
     // emits on systemCycleEvents and we apply it here so the chip stays in
     // sync.
     val activity = LocalContext.current.findComponentActivity() as? MainActivity
@@ -250,7 +257,7 @@ fun InstalledGamesScreen(
                     GsHint(GsButton.Y, "Search"),
                 ) + (if (searchVisible || query.isNotEmpty()) listOf(GsHint(GsButton.B, "Clear search")) else emptyList()) +
                     listOf(
-                        GsHint(GsButton.SELECT, "System"),
+                        GsHint(GsButton.L2R2, "System"),
                         GsHint(GsButton.L1, "Tabs"),
                         GsHint(GsButton.START, "Exit"),
                     )
@@ -342,7 +349,7 @@ fun InstalledGamesScreen(
                                 else -> false
                             }
                         }
-                        // L1/R1 (tabs), SELECT (system), START (exit) are
+                        // L1/R1 (tabs), L2/R2 (system), START (exit) are
                         // intercepted at the Activity level — never reach here.
                         else -> false
                     }
@@ -398,6 +405,7 @@ fun InstalledGamesScreen(
                             ) { index, rom ->
                                 InstalledRomCard(
                                     rom = rom,
+                                    raVersionAvailable = raVariants.containsKey(rom.path.absolutePath),
                                     isSelected = index == selectedIndex,
                                     onClick = {
                                         selectedIndex = index
@@ -417,12 +425,25 @@ fun InstalledGamesScreen(
     confirmTarget?.let { rom ->
         val wholeFolder = InstalledRomsScanner.wouldRemoveWholeFolder(rom)
         // Per-rom action sheet: A syncs this game's save, X deletes the ROM
-        // (after a second confirmation), B cancels.
+        // (after a second confirmation), Y swaps it for the version
+        // RetroAchievements supports when there is one, B cancels.
+        val raVersion = raVariants[rom.path.absolutePath]?.firstOrNull()
         GsDialog(
             title = rom.displayName,
             onDismiss = { confirmTarget = null },
-            choices = listOf(
+            choices = listOfNotNull(
                 GsDialogChoice(GsButton.B, "Cancel", { confirmTarget = null }),
+                raVersion?.let { entry ->
+                    GsDialogChoice(
+                        GsButton.Y,
+                        "RA version…",
+                        {
+                            confirmTarget = null
+                            replaceTarget = rom to entry
+                        },
+                        textColor = GsColors.Ra,
+                    )
+                },
                 GsDialogChoice(
                     GsButton.X,
                     "Delete…",
@@ -466,6 +487,14 @@ fun InstalledGamesScreen(
             }
             Spacer(Modifier.height(6.dp))
             Text("Size: ${formatBytes(rom.size)}", color = GsColors.Dim)
+            if (raVersion != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "RetroAchievements doesn't recognise this version. Y: get ${raVersion.name}.",
+                    color = GsColors.Ra,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             Spacer(Modifier.height(12.dp))
             Text(
                 "Sync Saves uploads / downloads this game's save against the server. " +
@@ -474,6 +503,24 @@ fun InstalledGamesScreen(
                 color = GsColors.Muted,
             )
         }
+    }
+
+    replaceTarget?.let { (rom, entry) ->
+        val others = raVariants[rom.path.absolutePath].orEmpty().drop(1).take(2)
+        GsConfirmDialog(
+            title = "Replace with RA version?",
+            message = "Downloads ${entry.name}" +
+                (if (entry.size > 0) " (${formatBytes(entry.size)})" else "") +
+                ", then deletes ${rom.displayName} once the download has finished. " +
+                "Its save file is kept." +
+                (if (others.isNotEmpty()) "\n\nAlso supported: " + others.joinToString { it.name } else ""),
+            confirmLabel = "Replace",
+            onConfirm = {
+                viewModel.replaceWithRaVariant(rom, entry)
+                replaceTarget = null
+            },
+            onDismiss = { replaceTarget = null },
+        )
     }
 
     deleteTarget?.let { rom ->
@@ -501,6 +548,7 @@ fun InstalledGamesScreen(
 @Composable
 private fun InstalledRomCard(
     rom: InstalledRom,
+    raVersionAvailable: Boolean = false,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -523,6 +571,9 @@ private fun InstalledRomCard(
                 color = GsColors.Dim,
                 maxLines = 1,
             )
+        }
+        if (raVersionAvailable) {
+            GsPill(text = "RA version available", color = GsColors.Ra)
         }
     }
 }

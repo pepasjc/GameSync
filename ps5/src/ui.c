@@ -11,8 +11,9 @@
  *   banner   last message
  *   footer   button hints                                       L1/R1 Tab  Options Exit
  *
- *   Up/Down rows, Left/Right pages (both repeat while held), L1/R1 tabs,
- *   L2/R2 systems, Cross the row's main action, Circle only cancels,
+ *   Up/Down rows, Left/Right pages (both repeat while held, faster the
+ *   longer; Left/Right then jump by initial letter), L1/R1 tabs, L2/R2
+ *   systems (one choice for every tab, kept in ui.txt), Cross the row's main action, Circle only cancels,
  *   Square the tab's secondary action, Triangle details or search,
  *   Create the Saves status filter, Options exits after asking.
  *
@@ -41,30 +42,33 @@
 /* ------------------------------------------------------------ look */
 
 /* the shared palette (steamdeck/ui/theme.py, 3ds/source/gui.h) */
-#define COL_BG 0x0F1720
-#define COL_BG2 0x1B2633
-#define COL_PANEL 0x243244
-#define COL_PANEL_HI 0x2C3D52
-#define COL_LINE 0x33465C
-#define COL_TEXT 0xE6EDF3
-#define COL_DIM 0x8DA2B5
-#define COL_MUTED 0x5E7286
-#define COL_ACCENT 0x2EC4B6
-#define COL_ACCENT2 0x3DDBD9
-#define COL_OK 0x3FB950
-#define COL_WARN 0xF0B429
-#define COL_INFO 0x58A6FF
-#define COL_ERR 0xF85149
+#define COL_BG 0x0B1020
+#define COL_BG2 0x141B33
+#define COL_PANEL 0x1D2746
+#define COL_PANEL_HI 0x2A3760
+#define COL_LINE 0x36446E
+#define COL_TEXT 0xEEF2FA
+#define COL_DIM 0x9BA9CD
+#define COL_MUTED 0x6B789F
+#define COL_ACCENT 0x22C3F6
+#define COL_ACCENT2 0x7BDDFF
+#define COL_BRAND_A 0x00D6FF /* logo gradient: cyan */
+#define COL_BRAND_B 0x3A78FF /* blue */
+#define COL_BRAND_C 0xA45CFF /* violet */
+#define COL_OK 0x3DD68C
+#define COL_WARN 0xFFB938
+#define COL_INFO 0x6C93FF
+#define COL_ERR 0xFF5D6C
 #define COL_RA 0xE5B143
 #define COL_RA_WEAK 0x8A712E
 #define COL_RA_TEXT 0x161206
-#define COL_INK 0x0F1720
+#define COL_INK 0x0B1020
 /* PlayStation face buttons (the PS2/PSP clients' glyph colours) */
 #define COL_CROSS 0x7CB2E8
 #define COL_CIRCLE 0xFF6B6B
 #define COL_SQUARE 0xE58FCB
 #define COL_TRIANGLE 0x3FD6A8
-#define COL_GLYPH_BASE 0x2E3F53
+#define COL_GLYPH_BASE 0x2D3A63
 
 #define MARGIN 64
 #define HEADER_H 104
@@ -154,18 +158,65 @@ static void chips_reset(Chips *c)
     c->sel = 0;
 }
 
+/* case-insensitive strcmp */
+static int chip_cmp(const char *a, const char *b)
+{
+    for (;; ++a, ++b)
+    {
+        int ca = tolower((unsigned char)*a), cb = tolower((unsigned char)*b);
+        if (ca != cb || !ca)
+            return ca - cb;
+    }
+}
+
 static void chips_add(Chips *c, const char *system)
 {
     for (int i = 1; i < c->count; ++i)
         if (util_ieq(c->systems[i], system))
             return;
-    if (c->count < 64)
-        snprintf(c->systems[c->count++], sizeof(c->systems[0]), "%s", system);
+    if (c->count >= 64)
+        return;
+    /* alphabetical after "All" (callers pick the selection by name) */
+    int at = 1;
+    while (at < c->count && chip_cmp(c->systems[at], system) < 0)
+        ++at;
+    memmove(c->systems[at + 1], c->systems[at], (size_t)(c->count - at) * sizeof(c->systems[0]));
+    snprintf(c->systems[at], sizeof(c->systems[0]), "%s", system);
+    c->count++;
 }
 
 static const char *chips_current(const Chips *c)
 {
     return c->sel > 0 && c->sel < c->count ? c->systems[c->sel] : NULL;
+}
+
+/* The system last picked with L2/R2 on any tab ("" = All), shared by every
+ * tab and kept in <data>/ui.txt between runs. A tab without that system
+ * keeps its own choice. */
+static char pref_system[12];
+static KvStore ui_state;
+
+static void chips_pick(Chips *c, const char *own)
+{
+    c->sel = 0;
+    if (!pref_system[0])
+        return; /* All: every tab has it */
+    const char *want[2] = {pref_system, own};
+    for (int w = 0; w < 2; ++w)
+        for (int i = 1; want[w] && want[w][0] && i < c->count; ++i)
+            if (util_ieq(c->systems[i], want[w]))
+            {
+                c->sel = i;
+                return;
+            }
+}
+
+static void pref_system_set(const Chips *c)
+{
+    const char *sys = chips_current(c);
+    snprintf(pref_system, sizeof(pref_system), "%s", sys ? sys : "");
+    kv_set(&ui_state, "system", pref_system);
+    kv_save(&ui_state);
 }
 
 /* Saves */
@@ -224,6 +275,11 @@ static uint32_t banner_color = COL_DIM;
 /* input */
 static uint32_t held_prev;
 static uint64_t repeat_at;
+static uint64_t held_since; /* when the d-pad direction held now went down */
+/* Left/Right held this long jump from initial to initial instead of paging
+ * (the quick scroll of the Steam Deck and MiSTer clients) */
+#define LETTER_AFTER_MS 1500
+static bool nav_letters;
 
 static void set_banner(uint32_t color, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 static void set_banner(uint32_t color, const char *fmt, ...)
@@ -243,17 +299,58 @@ static uint32_t read_input(void)
     const uint32_t repeatable = BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT;
     uint64_t now = plat_ticks_ms();
     if (pressed & repeatable)
+    {
         repeat_at = now + 400;
+        held_since = now;
+    }
     else if ((held & repeatable) && now >= repeat_at)
     {
         pressed |= held & repeatable;
-        repeat_at = now + ((held & (BTN_LEFT | BTN_RIGHT)) ? 100 : 150);
+        uint64_t held_for = now - held_since;
+        if (held & (BTN_LEFT | BTN_RIGHT))
+            repeat_at = now + (held_for >= LETTER_AFTER_MS ? 250 : held_for >= 800 ? 60 : 100);
+        else
+            repeat_at = now + (held_for >= 1200 ? 40 : 150);
     }
+    nav_letters = (held & (BTN_LEFT | BTN_RIGHT)) && now - held_since >= LETTER_AFTER_MS;
     held_prev = held;
     return pressed;
 }
 
-static void view_nav(View *v, uint32_t pressed)
+/* Uppercase first letter of a name, 0 if it has none. */
+static char first_letter(const char *name)
+{
+    for (; name && *name; ++name)
+        if (isalpha((unsigned char)*name))
+            return (char)toupper((unsigned char)*name);
+    return 0;
+}
+
+/* The first row whose name starts with another letter, toward dir; going
+ * back it lands on the first row of that letter. Stops at the ends. */
+static int letter_jump(const View *v, int dir, const char *(*name_of)(int))
+{
+    char current = first_letter(name_of(v->idx[v->sel]));
+    int i = v->sel + dir;
+    while (i >= 0 && i < v->count)
+    {
+        char l = first_letter(name_of(v->idx[i]));
+        if (l && l != current)
+            break;
+        i += dir;
+    }
+    if (i < 0 || i >= v->count)
+        return dir > 0 ? v->count - 1 : 0;
+    if (dir < 0)
+    {
+        char l = first_letter(name_of(v->idx[i]));
+        while (i > 0 && first_letter(name_of(v->idx[i - 1])) == l)
+            --i;
+    }
+    return i;
+}
+
+static void view_nav(View *v, uint32_t pressed, const char *(*name_of)(int))
 {
     if (!v->count)
         return;
@@ -261,9 +358,11 @@ static void view_nav(View *v, uint32_t pressed)
         v->sel = v->sel > 0 ? v->sel - 1 : v->count - 1;
     if (pressed & BTN_DOWN)
         v->sel = v->sel < v->count - 1 ? v->sel + 1 : 0;
-    if (pressed & BTN_LEFT)
+    if ((pressed & (BTN_LEFT | BTN_RIGHT)) && nav_letters && name_of)
+        v->sel = letter_jump(v, (pressed & BTN_LEFT) ? -1 : 1, name_of);
+    else if (pressed & BTN_LEFT)
         v->sel = v->sel - VISIBLE < 0 ? 0 : v->sel - VISIBLE;
-    if (pressed & BTN_RIGHT)
+    else if (pressed & BTN_RIGHT)
         v->sel = v->sel + VISIBLE >= v->count ? v->count - 1 : v->sel + VISIBLE;
     view_clamp(v);
 }
@@ -278,6 +377,7 @@ static bool chips_nav(Chips *c, uint32_t pressed)
         c->sel = (c->sel + 1) % c->count;
     else
         return false;
+    pref_system_set(c);
     return true;
 }
 
@@ -382,9 +482,29 @@ static int draw_pill(int right_x, int y, const char *text, uint32_t color)
     return w;
 }
 
+/* The brand's sync gradient (cyan -> blue -> violet, as in the logo's arrows),
+ * drawn as flat steps so it needs nothing beyond a rect fill. */
+static unsigned int brand_lerp(unsigned int a, unsigned int b, int t, int n) {
+    int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+    int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+    return (unsigned int)(((ar + (br - ar) * t / n) << 16) | ((ag + (bg - ag) * t / n) << 8) |
+                          (ab + (bb - ab) * t / n));
+}
+
+static void brand_bar(int x, int y, int w, int h) {
+    enum { STEPS = 32, HALF = STEPS / 2 };
+    for (int i = 0; i < STEPS; i++) {
+        unsigned int c = i < HALF ? brand_lerp(COL_BRAND_A, COL_BRAND_B, i, HALF)
+                                  : brand_lerp(COL_BRAND_B, COL_BRAND_C, i - HALF, HALF - 1);
+        int x0 = x + w * i / STEPS, x1 = x + w * (i + 1) / STEPS;
+        gfx_rect(x0, y, x1 - x0, h, c);
+    }
+}
+
 static void draw_header(void)
 {
     gfx_rect(0, 0, GFX_W, HEADER_H, COL_BG2);
+    brand_bar(0, HEADER_H - 3, GFX_W, 3);
     gfx_text(MARGIN, 28, FONT_TITLE, COL_TEXT, ALIGN_LEFT, "GameSync");
     gfx_text(MARGIN + gfx_text_width(FONT_TITLE, "GameSync") + 14, 40, FONT_SMALL, COL_MUTED,
              ALIGN_LEFT, "PS5 v" APP_VERSION);
@@ -566,9 +686,7 @@ static void rebuild_saves(void)
     chips_reset(&save_chips);
     for (int i = 0; i < sync_ctx.saves.count; ++i)
         chips_add(&save_chips, sync_ctx.saves.items[i].system);
-    for (int i = 1; i < save_chips.count && kept[0]; ++i)
-        if (util_ieq(save_chips.systems[i], kept))
-            save_chips.sel = i;
+    chips_pick(&save_chips, kept);
     const char *sys = chips_current(&save_chips);
     save_view.count = 0;
     for (int i = 0; i < sync_ctx.saves.count; ++i)
@@ -581,6 +699,11 @@ static void rebuild_saves(void)
         view_push(&save_view, i);
     }
     view_clamp(&save_view);
+}
+
+static const char *save_name(int i)
+{
+    return sync_ctx.saves.items[i].name;
 }
 
 static SaveEntry *selected_save(void)
@@ -693,6 +816,20 @@ static void draw_saves(void)
 
 /* ------------------------------------------------------------ catalog */
 
+/* The catalog filter a row goes under: its system, or for an MSU pack
+ * (enhanced-audio hack, a folder of ROM + audio) "SNES MSU" / "MD MSU", as
+ * the MiSTer client's "SNES: MSU packs" stops. */
+static const char *catalog_category(const RomRow *r)
+{
+    if (!r->is_bundle || !r->bundle_kind[0])
+        return r->system;
+    if (util_ieq(r->bundle_kind, "msu1"))
+        return "SNES MSU";
+    if (util_ieq(r->bundle_kind, "msu-md") || util_ieq(r->bundle_kind, "mdplus"))
+        return "MD MSU";
+    return r->system;
+}
+
 static void rebuild_catalog(void)
 {
     const char *keep = chips_current(&cat_chips);
@@ -713,29 +850,54 @@ static void rebuild_catalog(void)
         }
         chips_add(&cat_chips, catalog.systems[i].system);
     }
-    for (int i = 1; i < cat_chips.count && kept[0]; ++i)
-        if (util_ieq(cat_chips.systems[i], kept))
-            cat_chips.sel = i;
+    /* the MSU stops, for systems that have packs */
+    for (int k = 0; k < catalog.rom_count; ++k)
+        if (catalog_category(&catalog.roms[k]) != catalog.roms[k].system &&
+            (!cat_ra_only || catalog.roms[k].ra_achievements > 0))
+            chips_add(&cat_chips, catalog_category(&catalog.roms[k]));
+    chips_pick(&cat_chips, kept);
     const char *sys = chips_current(&cat_chips);
     cat_view.count = 0;
     for (int i = 0; i < catalog.rom_count; ++i)
     {
         const RomRow *r = &catalog.roms[i];
-        if (sys && !util_ieq(r->system, sys))
+        if (sys && !util_ieq(catalog_category(r), sys))
             continue;
         if (cat_ra_only && r->ra_achievements <= 0)
             continue;
         if (cat_query[0] && !catalog_matches(r, cat_query))
             continue;
+        if (r->group[0] && r->group_head != i)
+            continue; /* a multi-disc game is one row, its first disc's */
         view_push(&cat_view, i);
     }
     view_clamp(&cat_view);
+}
+
+static const char *cat_name(int i)
+{
+    const RomRow *r = &catalog.roms[i];
+    return r->group[0] ? r->group : r->name;
+}
+
+/* A row's size, all its discs' for a multi-disc game. */
+static uint64_t group_size(const RomRow *rom)
+{
+    return rom->group[0] ? rom->group_bytes : rom->size;
 }
 
 static uint8_t rom_state(int i)
 {
     if (!cat_state)
         return 1;
+    if (!cat_state[i] && catalog.roms[i].group[0])
+    {
+        InstallPlan plan;
+        catalog_plan(&sync_ctx.config, &catalog.roms[i], &plan);
+        cat_state[i] = catalog_group_installed(&sync_ctx.config, &catalog, &catalog.roms[i]) ? 2
+                       : plan.supported                                                      ? 1
+                                                                                             : 3;
+    }
     if (!cat_state[i])
     {
         InstallPlan plan;
@@ -787,35 +949,40 @@ static void draw_catalog(void)
         draw_system_badge(MARGIN + 18, y + 18, rom->system);
         uint8_t st = rom_state(ri);
         char size[32];
-        util_format_size(size, sizeof(size), rom->size);
+        util_format_size(size, sizeof(size), group_size(rom));
         int right_w = st == 2 ? draw_pill(MARGIN + LIST_W - 18, y + 16, "Installed", COL_OK)
                               : gfx_text(MARGIN + LIST_W - 18, y + 20, FONT_SMALL, COL_DIM,
                                          ALIGN_RIGHT, size);
         int name_x = MARGIN + 138;
         int ra_w = draw_ra_badge(MARGIN + LIST_W - 36 - right_w - 70, y + 18, catalog_ra_level(rom));
         (void)ra_w;
+        char discs[48] = "";
+        if (rom->group[0])
+            snprintf(discs, sizeof(discs), "%d discs", rom->group_size);
         gfx_text_fit(name_x, y + 6, FONT_BODY, st == 3 ? COL_MUTED : COL_TEXT, ALIGN_LEFT,
-                     LIST_W - 160 - right_w - 120, rom->name);
+                     LIST_W - 160 - right_w - 120, rom->group[0] ? rom->group : rom->name);
         gfx_text_fit(name_x, y + 42, FONT_SMALL, COL_DIM, ALIGN_LEFT, LIST_W - 160 - right_w - 120,
-                     rom->filename);
+                     rom->group[0] ? discs : rom->filename);
     }
     draw_scrollbar(&cat_view);
 
     const RomRow *rom = &catalog.roms[cat_view.idx[cat_view.sel]];
     InstallPlan plan;
     catalog_plan(&sync_ctx.config, rom, &plan);
-    detail_begin(rom->name);
+    detail_begin(rom->group[0] ? rom->group : rom->name);
     int px = DETAIL_X + 28;
     draw_system_badge(px, detail_y - 6, rom->system);
     draw_ra_badge(px + 114, detail_y - 5, catalog_ra_level(rom));
     detail_y += 50;
     char size[32], ra[96] = "", disc[32] = "";
-    util_format_size(size, sizeof(size), rom->size);
+    util_format_size(size, sizeof(size), group_size(rom));
     if (rom->ra_achievements > 0)
         snprintf(ra, sizeof(ra), "%d achievements%s", rom->ra_achievements,
                  catalog_ra_level(rom) == RA_TITLE ? " (matched by name: this dump may not load them)"
                                                    : "");
-    if (rom->disc_total > 1)
+    if (rom->group[0])
+        snprintf(disc, sizeof(disc), "%d discs, installed together", rom->group_size);
+    else if (rom->disc_total > 1)
         snprintf(disc, sizeof(disc), "%d of %d", rom->disc_index, rom->disc_total);
     detail_row("File", rom->filename, COL_TEXT);
     detail_row("Size", size, COL_TEXT);
@@ -825,13 +992,27 @@ static void draw_catalog(void)
         detail_row("Also as", "CUE/BIN set: Circle (the server converts it)", COL_ACCENT2);
     detail_row("RetroAchievements", ra, COL_RA);
     detail_row("Emulator", emulator_name(plan.emu), COL_TEXT);
-    detail_row(plan.supported ? "Goes to" : "Can't install", plan.supported ? plan.dest : plan.reason,
+    char where[PATH_LEN];
+    util_copy(where, sizeof(where), plan.m3u[0] ? plan.m3u : plan.dest);
+    if (rom->group[0] && !plan.m3u[0])
+    {
+        char *slash = strrchr(where, '/'); /* the game's folder */
+        if (slash)
+            slash[1] = 0;
+    }
+    detail_row(plan.supported ? "Goes to" : "Can't install", plan.supported ? where : plan.reason,
                plan.supported ? COL_DIM : COL_WARN);
-    detail_hint("Cross queues it on the Downloads tab.");
+    detail_hint(rom->group[0] ? "Cross queues every disc on the Downloads tab."
+                              : "Cross queues it on the Downloads tab.");
     draw_footer(hints, 5);
 }
 
 /* ------------------------------------------------------------ installed */
+
+static const char *inst_name(int i)
+{
+    return inst.items[i].name;
+}
 
 static void rebuild_installed(void)
 {
@@ -842,9 +1023,7 @@ static void rebuild_installed(void)
     chips_reset(&inst_chips);
     for (int i = 0; i < inst.count; ++i)
         chips_add(&inst_chips, inst.items[i].system);
-    for (int i = 1; i < inst_chips.count && kept[0]; ++i)
-        if (util_ieq(inst_chips.systems[i], kept))
-            inst_chips.sel = i;
+    chips_pick(&inst_chips, kept);
     const char *sys = chips_current(&inst_chips);
     inst_view.count = 0;
     for (int i = 0; i < inst.count; ++i)
@@ -902,8 +1081,13 @@ static void draw_installed(void)
             draw_ra_badge(MARGIN + LIST_W - 36 - right_w - 70, y + 18, catalog_ra_level(row));
         gfx_text_fit(MARGIN + 138, y + 6, FONT_BODY, COL_TEXT, ALIGN_LEFT, LIST_W - 280 - right_w,
                      g->name);
+        char sub[96];
+        if (g->discs > 1)
+            snprintf(sub, sizeof(sub), "%s  -  %d discs", emulator_name(g->emu), g->discs);
+        else
+            snprintf(sub, sizeof(sub), "%s", emulator_name(g->emu));
         gfx_text_fit(MARGIN + 138, y + 42, FONT_SMALL, COL_DIM, ALIGN_LEFT, LIST_W - 280 - right_w,
-                     emulator_name(g->emu));
+                     sub);
     }
     draw_scrollbar(&inst_view);
 
@@ -1361,7 +1545,20 @@ static void repair_swanstation(void)
         }
         if (!row)
             continue;
-        SsFixResult r = saves_swanstation_fix(&sync_ctx.config, g->path, row->title_id, NULL);
+        /* a disc of a multi-disc game: SwanStation loads its playlist, whose
+         * name is what its title mode names the card after */
+        char game_path[PATH_LEN];
+        util_copy(game_path, sizeof(game_path), g->path);
+        if (row->group[0])
+        {
+            char *slash = strrchr(game_path, '/');
+            if (slash)
+                snprintf(slash + 1, sizeof(game_path) - (size_t)(slash + 1 - game_path), "%s.m3u",
+                         row->group);
+            if (saves_swanstation_rename_card(&sync_ctx.config, g->name, row->group))
+                fixed++;
+        }
+        SsFixResult r = saves_swanstation_fix(&sync_ctx.config, game_path, row->title_id, NULL);
         if (r == SS_FIX_NEED_SERVER)
         {
             char path[160], hash[65] = "";
@@ -1374,7 +1571,7 @@ static void repair_swanstation(void)
                 json_free(root);
             }
             http_buffer_free(&out);
-            r = saves_swanstation_fix(&sync_ctx.config, g->path, row->title_id, hash);
+            r = saves_swanstation_fix(&sync_ctx.config, game_path, row->title_id, hash);
         }
         if (r == SS_FIX_CHANGED)
             fixed++;
@@ -1528,8 +1725,12 @@ static void plan_for_save(const RomRow *r, InstallPlan *plan)
     catalog_plan(&sync_ctx.config, r, plan);
 }
 
+static int queue_group(const RomRow *head, bool cue, bool again);
+
 static bool game_on_console(const RomRow *r)
 {
+    if (r->group[0])
+        return catalog_group_installed(&sync_ctx.config, &catalog, r);
     InstallPlan plan;
     catalog_plan(&sync_ctx.config, r, &plan);
     if (plan.supported && catalog_installed(&plan))
@@ -1553,6 +1754,25 @@ static int pending_count;
 static void install_for_save(const SaveEntry *e, int ri, bool sync)
 {
     const RomRow *rom = &catalog.roms[ri];
+    if (rom->group[0])
+    {
+        /* every disc; the save follows the last one (one worker: in order) */
+        int rows[32];
+        int n = catalog_group_rows(&catalog, rom, rows, 32);
+        int queued = queue_group(rom, false, false);
+        if (queued < 0)
+            return;
+        if (sync && n && pending_count < (int)(sizeof(pending) / sizeof(pending[0])))
+        {
+            util_copy(pending[pending_count].rom_id, sizeof(pending[0].rom_id),
+                      catalog.roms[rows[n - 1]].rom_id);
+            util_copy(pending[pending_count].save_id, sizeof(pending[0].save_id), e->title_id);
+            pending_count++;
+        }
+        set_banner(COL_OK, "Queued %d disc(s) of %s%s  -  see Downloads", queued, rom->group,
+                   sync ? "; its save follows once they're installed" : "");
+        return;
+    }
     InstallPlan plan;
     plan_for_save(rom, &plan);
     if (!plan.supported)
@@ -1776,7 +1996,8 @@ static void sync_everything(void)
         if (e->status == ST_UPLOAD || e->status == ST_LOCAL_ONLY)
             up++;
         else if (e->status == ST_DOWNLOAD ||
-                 (e->status == ST_SERVER_ONLY && (e->emu == EMU_RETROARCH || e->installed)))
+                 (e->status == ST_SERVER_ONLY &&
+                  ((e->emu == EMU_RETROARCH && e->kind == SAVE_SRM) || e->installed)))
             down++;
         else if (e->status == ST_CONFLICT)
             conflicts++;
@@ -1827,6 +2048,35 @@ static void load_catalog(void)
         set_banner(COL_WARN, "Server unreachable: showing the cached catalog");
 }
 
+/* Every disc of a multi-disc game, in order (one worker: disc 1 lands first);
+ * the queued count, -1 when one can't be installed. */
+static int queue_group(const RomRow *head, bool cue, bool again)
+{
+    int rows[32];
+    int n = catalog_group_rows(&catalog, head, rows, 32);
+    int queued = 0;
+    downloads_set_server(&sync_ctx.server);
+    for (int i = 0; i < n; ++i)
+    {
+        const RomRow *disc = &catalog.roms[rows[i]];
+        InstallPlan plan;
+        if (cue && disc->has_cue)
+            catalog_plan_cue(&sync_ctx.config, disc, &plan);
+        else
+            catalog_plan(&sync_ctx.config, disc, &plan);
+        if (!plan.supported)
+        {
+            set_banner(COL_WARN, "%s: %s", disc->filename, plan.reason);
+            return -1;
+        }
+        if (!again && catalog_installed(&plan))
+            continue;
+        if (downloads_add(disc, &plan))
+            queued++;
+    }
+    return queued;
+}
+
 /* Cross: the file as the server has it; Circle (cue): its CUE/BIN set */
 static void queue_selected(bool cue)
 {
@@ -1834,6 +2084,26 @@ static void queue_selected(bool cue)
         return;
     int ri = cat_view.idx[cat_view.sel];
     const RomRow *rom = &catalog.roms[ri];
+    if (rom->group[0])
+    {
+        bool again = false;
+        if (catalog_group_installed(&sync_ctx.config, &catalog, rom))
+        {
+            char body[400];
+            snprintf(body, sizeof(body), "%s\nis already installed (%d discs). Download it again?",
+                     rom->group, rom->group_size);
+            if (!ui_confirm("Already installed", body, "Download again"))
+                return;
+            again = true;
+        }
+        int queued = queue_group(rom, cue, again);
+        if (queued > 0)
+            set_banner(COL_OK, "Queued %d disc(s) of %s%s  -  see Downloads", queued, rom->group,
+                       cue ? " (CUE/BIN)" : "");
+        else if (queued == 0)
+            set_banner(COL_DIM, "Every disc of %s is installed or queued", rom->group);
+        return;
+    }
     InstallPlan plan;
     if (cue)
         catalog_plan_cue(&sync_ctx.config, rom, &plan);
@@ -1865,6 +2135,7 @@ static void scan_installed(void)
     snprintf(busy.message, sizeof(busy.message), "Looking in the emulator folders");
     busy_draw(&busy, true);
     installed_scan(&sync_ctx.config, &inst);
+    installed_group_discs(&inst);
     inst_loaded = true;
     rebuild_installed();
 }
@@ -1886,6 +2157,7 @@ static void delete_installed(void)
     if (cat_state && catalog.rom_count)
         memset(cat_state, 0, (size_t)catalog.rom_count);
     installed_scan(&sync_ctx.config, &inst);
+    installed_group_discs(&inst);
     rebuild_installed();
 }
 
@@ -1994,8 +2266,30 @@ static void settings_activate(void)
 
 /* ------------------------------------------------------------ loop */
 
+/* A tab's chip after the shared system filter changed on another tab:
+ * rebuilt, back at the top when the chip moved. */
+static void apply_pref(Chips *c, View *v, void (*rebuild)(void))
+{
+    const char *before = chips_current(c);
+    char was[12];
+    snprintf(was, sizeof(was), "%s", before ? before : "");
+    rebuild();
+    const char *now = chips_current(c);
+    if (!util_ieq(was, now ? now : ""))
+    {
+        v->sel = v->top = 0;
+        view_clamp(v);
+    }
+}
+
 static void enter_tab(void)
 {
+    if (tab == TAB_SAVES && saves_loaded)
+        apply_pref(&save_chips, &save_view, rebuild_saves);
+    else if (tab == TAB_CATALOG && catalog_loaded)
+        apply_pref(&cat_chips, &cat_view, rebuild_catalog);
+    else if (tab == TAB_INSTALLED && inst_loaded)
+        apply_pref(&inst_chips, &inst_view, rebuild_installed);
     if (tab == TAB_SAVES && !saves_loaded && config_ready(&sync_ctx.config))
         refresh_saves();
     else if ((tab == TAB_CATALOG || tab == TAB_INSTALLED) && !catalog_loaded &&
@@ -2023,7 +2317,7 @@ static void handle_input(uint32_t pressed)
     switch (tab)
     {
     case TAB_SAVES:
-        view_nav(&save_view, pressed);
+        view_nav(&save_view, pressed, save_name);
         if (chips_nav(&save_chips, pressed))
         {
             save_view.sel = save_view.top = 0;
@@ -2049,7 +2343,7 @@ static void handle_input(uint32_t pressed)
                 load_catalog();
             break;
         }
-        view_nav(&cat_view, pressed);
+        view_nav(&cat_view, pressed, cat_name);
         if (chips_nav(&cat_chips, pressed))
         {
             cat_view.sel = cat_view.top = 0;
@@ -2085,7 +2379,7 @@ static void handle_input(uint32_t pressed)
         }
         break;
     case TAB_INSTALLED:
-        view_nav(&inst_view, pressed);
+        view_nav(&inst_view, pressed, inst_name);
         if (chips_nav(&inst_chips, pressed))
         {
             inst_view.sel = inst_view.top = 0;
@@ -2173,9 +2467,24 @@ static void collect_completed(void)
             saves_ps5sx2_setup_game(&sync_ctx.config, stem, done.rom.title_id);
         }
         if (done.plan.emu == EMU_SWANSTATION)
-            saves_swanstation_fix(&sync_ctx.config, done.plan.cue ? done.plan.check : done.plan.dest,
+            saves_swanstation_fix(&sync_ctx.config,
+                                  done.plan.m3u[0] ? done.plan.m3u
+                                  : done.plan.cue  ? done.plan.check
+                                                   : done.plan.dest,
                                   done.rom.title_id, NULL);
-        set_banner(COL_OK, "Installed %s", done.rom.name);
+        if (done.rom.group[0] && catalog_loaded)
+        {
+            /* the last disc in: the playlist the emulator loads the game by */
+            if (catalog_group_installed(&sync_ctx.config, &catalog, &done.rom))
+            {
+                catalog_group_finish(&sync_ctx.config, &catalog, &done.rom);
+                set_banner(COL_OK, "Installed %s (%d discs)", done.rom.group, done.rom.group_size);
+            }
+            else
+                set_banner(COL_OK, "Installed %s (more discs to come)", done.rom.filename);
+        }
+        else
+            set_banner(COL_OK, "Installed %s", done.rom.name);
         app_log("installed %s -> %s", done.rom.rom_id, done.plan.dest);
         mark_ready(&done);
     }
@@ -2206,6 +2515,9 @@ void ui_run(bool data_listable, const char *status)
     chips_reset(&save_chips);
     chips_reset(&cat_chips);
     chips_reset(&inst_chips);
+    kv_load(&ui_state, data_path("ui.txt"));
+    const char *saved = kv_get(&ui_state, "system");
+    snprintf(pref_system, sizeof(pref_system), "%s", saved ? saved : "");
     app_log("GameSync PS5 " APP_VERSION " started, /data: %s", status);
     if (!config_ready(&sync_ctx.config))
     {
@@ -2240,6 +2552,7 @@ void ui_run(bool data_listable, const char *status)
         plat_present();
     }
     sync_shutdown(&sync_ctx);
+    kv_free(&ui_state);
     catalog_free(&catalog);
     installed_free(&inst);
     free(cat_state);

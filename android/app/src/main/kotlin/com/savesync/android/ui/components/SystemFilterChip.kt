@@ -67,7 +67,7 @@ fun SystemFilterChip(
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             if (LocalShowButtonHints.current) {
-                ButtonGlyph(GsButton.SELECT)
+                ButtonGlyph(GsButton.L2R2)
                 Spacer(Modifier.width(4.dp))
             }
             Text(

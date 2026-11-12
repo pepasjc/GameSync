@@ -38,6 +38,13 @@ typedef struct
     bool has_dcci;    /* a 3DS game the server can serve as a decrypted CCI (?extract=decrypted_cci) */
     uint8_t disc_index;
     uint8_t disc_total;
+    /* a multi-disc game (catalog_load groups them): the folder every disc
+     * installs into - the name without its disc tag - "" for a single disc */
+    char group[160];
+    int group_head;   /* the row of its first disc (its own index if single) */
+    uint8_t group_size;
+    uint8_t disc_no;  /* N of "(Disc N)" */
+    uint64_t group_bytes; /* every disc's size together */
 } RomRow;
 
 typedef struct
@@ -88,6 +95,10 @@ typedef struct
     bool folder;           /* a bundle fetched file by file into dest, a folder */
     bool zip_member;       /* a zipped game: just the game file out of the zip, to dest + its
                               extension (the server's /roms/<id>/file/<member>) */
+    char m3u[PATH_LEN];    /* a disc of a multi-disc game: the playlist the emulator loads
+                              once every disc is there (catalog_group_finish), or "" */
+    char m3u_line[260];    /* this disc's line in it (relative to the playlist) */
+    bool grouped;          /* a disc of a multi-disc game: its folder holds the others too */
 } InstallPlan;
 
 void catalog_plan(const Config *config, const RomRow *rom, InstallPlan *plan);
@@ -95,6 +106,18 @@ void catalog_plan(const Config *config, const RomRow *rom, InstallPlan *plan);
  * the set is unzipped into <system folder>/<game>/. */
 void catalog_plan_cue(const Config *config, const RomRow *rom, InstallPlan *plan);
 bool catalog_installed(const InstallPlan *plan);
+
+/* Folds each multi-disc game's rows into a group (catalog_load does it):
+ * names differing only by "(Disc N)", on a multi-disc system. */
+void catalog_group_discs(Catalog *catalog);
+/* The rows of row's multi-disc game in disc order (just row when single);
+ * the count. */
+int catalog_group_rows(const Catalog *catalog, const RomRow *row, int *out, int max);
+/* Every disc of row's game installed (as a file or CUE/BIN set). */
+bool catalog_group_installed(const Config *config, const Catalog *catalog, const RomRow *row);
+/* A disc of a multi-disc game arrived: once every disc is there, writes the
+ * playlist its emulator loads (SwanStation, RetroArch). True when written. */
+bool catalog_group_finish(const Config *config, const Catalog *catalog, const RomRow *row);
 
 /* Downloads to dest (resuming a .part left by an earlier try). progress may
  * return non-zero to cancel. Thread-safe. */

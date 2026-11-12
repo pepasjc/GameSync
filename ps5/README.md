@@ -7,10 +7,11 @@ emulators. PS5 game saves are not handled yet.
 | Emulator | Title | What syncs | Server endpoint |
 |---|---|---|---|
 | [PS5_RetroArch](https://github.com/mihawk-99/PS5_RetroArch) | `PPSA99169` | the `.srm` of every ROM in `content/<system>/` or a playlist (USB games too), in `savefiles/<core>/`; Saturn: Beetle Saturn's 32 KB backup RAM (the Mednafen image the server keeps for `SAT_` ids) as its *Save Method* core option says - `<game>.srm` for Libretro (default), `<game>.bkr` for Mednafen, read from `config/Beetle Saturn/<game>.opt`, `<content folder>.opt` or `Beetle Saturn.opt` the way RetroArch does; a card left in the other format is moved over, and with *Shared Internal Memory* on nothing is synced; Dreamcast: Flycast's per-game VMU `<game>.A1.bin` (128 KB raw, like a MemCard Pro DC's) - GameSync sets *Per-Game VMUs* to `VMU A1` in `config/Flycast/Flycast.opt` (Flycast otherwise keeps every game on one `system/dc/vmu_save_A1.bin`); a game whose own `.opt` turns it off isn't synced | `/saves/{id}/raw` |
+| PS5_RetroArch's PPSSPP core (PSP) | `PPSA99169` | every slot folder in `PSP/SAVEDATA/` on PPSSPP's memory stick - the core's save folder, `savefiles/PPSSPP/` - as its folder name (`ULUS10551DATA00`), the PSP client's id. A slot only on the memory stick older builds used (`system/PPSSPP/`) is copied over first. PSone Classics are left out | `/saves/{id}` bundle |
 | [SwanStationPS5](https://github.com/darkxex/SwanStationPS5) | `PPSA98510` | per-game PS1 cards `saves/<SERIAL>_1.mcd` (or `<game>_1.mcd`, see below) | `/saves/{serial}/ps1-card` |
 | [PS5SX2](https://github.com/Swordpdf/PS5SX2) | `PPSA99203` | a card per game, `memcards/<game file>.ps2` (or every game on a shared `Mcd001.ps2`) | `/saves/{serial}/ps2-files` |
 | [Porpoise](https://github.com/elripalda/Porpoise-Dolphin-Emulator-for-PS5) (Dolphin) | `PPSA99764` | GameCube `.gci` saves in `saves/User/GC/<region>/Card A/` as `GC_<CODE>`; Wii saves `saves/User/Wii/title/00010000/<hex>/data/` as `WII_<CODE>` | `/saves/{id}/gc-card?format=gci`; `/saves/{id}` bundle |
-| [PS5CEMU-HAR](https://github.com/premohq/PS5CEMU-HAR) (Cemu + Azahar) | `PPSA99360` | Wii U `mlc01/usr/save/00050000/<lo>/user/` as `00050000<LO>`; 3DS `azahar/sdmc/Nintendo 3DS/0…/0…/title/00040000/<lo>/data/00000001/` as `00040000<LO>` — the Wii U and 3DS clients' slots | `/saves/{id}` bundle |
+| [PS5CEMU-HAR](https://github.com/premohq/PS5CEMU-HAR) (Cemu + Azahar + melonDS) | `PPSA99360` | Wii U `mlc01/usr/save/00050000/<lo>/user/` as `00050000<LO>`; 3DS `azahar/sdmc/Nintendo 3DS/0…/0…/title/00040000/<lo>/data/00000001/` as `00040000<LO>` — the Wii U and 3DS clients' slots; DS (4.x) `melonds/saves/<game file>.sav` for each game in its DS games folder, as `00048000` + the hex of the ROM header's gamecode (the DS client's id) | `/saves/{id}` bundle; DS `/saves/{id}/raw` |
 | [XPSemu](https://github.com/ZiZc3/XPSemu) (Xbox) | `PPSA97358` | `E:\UDATA\<title id>` read out of its emulated hard disk (`xemu.toml`'s `hdd_path`, default `/data/xemu/xbox_hdd.qcow2`) as the Xbox client's 3DSS bundle. A download writes the folder back into the image (`src/xbox_hdd.c`), after copying it to `xbox_hdd.qcow2.bak` once per run - **quit XPSemu first** | — |
 | [ProsperoEden](https://github.com/blackbearreloaded/ProsperoEden) (Switch) | `PPSA99008` | the active profile's saves `user/nand/user/save/0000000000000000/<USER>/<TITLEID>/` as `NSW_<TITLEID>` | `/saves/{id}` bundle |
 
@@ -78,6 +79,9 @@ not only those with a local copy. A RetroArch save is named after its ROM, so
 for one without a ROM here GameSync takes the file name from the catalog row
 with the same id (the file it would install); with no such row it can't be
 downloaded yet. *Sync all* only fetches saves for games that are installed.
+A PSP save slot has no ROM name, so it counts as installed when a game file
+in `content/psp/` (or an installed catalog row) has the name the server gave
+the save ("Ys Seven (USA)").
 
 For a save whose game the catalog has but the PS5 doesn't (matched by title
 id, else by system and name - a PS2 CHD's catalog id can be a name while its
@@ -174,9 +178,9 @@ beside the list, a status banner and button hints along the bottom.
 | Button | Everywhere |
 |---|---|
 | L1 / R1 | previous / next tab: Saves, Catalog, Installed, Downloads, Settings (wraps) |
-| L2 / R2 | previous / next system chip (All, PS1, PS2, SNES, ...) |
-| D-pad / left stick Up/Down | move a row (hold repeats) |
-| D-pad Left/Right | page (hold repeats) |
+| L2 / R2 | previous / next system chip (All, PS1, PS2, SNES, ...); one choice for every tab (a tab without that system keeps its own), remembered between runs in `ui.txt` |
+| D-pad / left stick Up/Down | move a row (hold repeats, faster after a second) |
+| D-pad Left/Right | page (hold repeats, faster after a moment; after 1.5 s it jumps from initial letter to initial letter) |
 | Cross | the row's main action |
 | Circle | cancel only: closes dialogs, clears a search, pauses a download |
 | Square | the tab's secondary action |
@@ -193,7 +197,8 @@ beside the list, a status banner and button hints along the bottom.
 | Settings | change | | |
 
 Save statuses match the other clients: Synced, Upload, Download, Local Only,
-Server Only, Conflict. Create steps the filter through All, Needs Action,
+Server Only, Conflict. The Saves list shows what this console has - a save, or
+the game - first, then saves only on the server. Create steps the filter through All, Needs Action,
 Upload, Download, Conflict, Synced, Local Only and Server Only.
 
 Sync decisions use GameSync's three-way rule (this console's hash, the server's,
@@ -270,6 +275,7 @@ is synced — the server keeps one folder per serial.
 | PS2 | `/data/PCSX2/games/<file>` | `.iso`, `.chd`, `.cso`, `.zso` |
 | GC / Wii | `<porpoise_dir>/games/<file>` (Porpoise) | `.rvz`, `.iso`, `.wbfs`, `.gcm`, `.ciso`, `.gcz`, `.wia`, `.wad`; from a zipped game only the game file comes down (`/roms/{id}/file/<member>`, resumable when the zip stores it) |
 | Wii U | `<cemu_dir>/games/<file>` (PS5CEMU) | `.wua`, `.wud`, `.wux`, `.rpx`, `.wuhb`; a WUP/NUS or loadiine folder goes to `games/<game>/` file by file from `/roms/{id}/manifest` + `/file/{name}` (each resumes; `.gamesync-complete` marks a whole set). PS5CEMU runs such an NUS set as it is (Cemu has the key for `title.tik`), but only lists it after a scan: *Settings > Look for games now* on its Wii U side |
+| NDS | PS5CEMU's DS games folder (`ps5cemu.json` `nds.gamesFolder`, default `<cemu_dir>/melonds/games`) | `.nds`, `.srl`, `.dsi`; a `.zip`'s game file comes out of it as `<zip name>.nds` (melonDS doesn't open zips) |
 | 3DS | `<cemu_dir>/azahar/games/<file>` (PS5CEMU) | `.3ds`, `.cci`, `.cxi`, `.3dsx`…; a zipped or encrypted dump comes as the decrypted `.cci` the server makes (`?extract=decrypted_cci`, its `SYNC_ROM_3DS_DECRYPTED_CCI_COMMAND`); a zip with no `.3ds`/`.cci` inside (a `.cia` or homebrew) can't be converted |
 | Xbox | `<xemu_dir>/games/<file>` (XPSemu) | `.iso`/`.xiso` (XISO); a game folder (`.cci` + `default.xbe`) comes as the XISO the server makes (`?extract=iso`, its `SYNC_ROM_XBOX_ISO_COMMAND`); the server caches it, so the download resumes. (`src/xcci.c` decodes a CCI here byte-identically to XGDTool, but the app's write throttling made that crawl; it waits for the helper.) |
 | GameCube, Wii | `<porpoise_dir>/games/<file>` (Porpoise) | `.iso`, `.rvz`, `.gcm`, `.ciso`, `.gcz`, `.wbfs`, `.wia` |
@@ -278,6 +284,25 @@ is synced — the server keeps one folder per serial.
 
 Downloads resume (`.part` + HTTP Range). Multi-file games (zipped `.cue`/`.bin`
 sets, MSU packs) aren't installed by this version.
+
+### Multi-disc games
+
+The catalog lists a multi-disc game once ("3 discs"), grouped the way
+`shared/mister_install.group_discs` does it for the MiSTer: rows of a CD system
+(and PS2, GameCube) whose names differ only by a `(Disc N)` / `[Disk N of M]`
+tag. Every other tag is part of the name, so a `[T-En]` translation, a revision
+or a single-disc game's patched copy stays its own entry and only that version
+installs. Cross queues every disc, in order, into one folder named without the
+disc tag:
+
+| Emulator | Layout | Loads it by |
+|---|---|---|
+| SwanStation | `games/<game>/<discs>` + `<game>.m3u` | the `.m3u`; the card is disc 1's serial (`serial.txt`, written with disc 1) |
+| RetroArch | `content/<system>/<game>/.discs/<discs>` + `<game>.m3u` | the `.m3u` (the dot folder keeps the discs off its list); the save is `<game>.srm`, the id disc 1's |
+| PS5SX2 | `games/<game>/<discs>` | any disc; it swaps between `(Disc N)` siblings, and every disc's `settings/<file>.ini` points at one card, `<game>.ps2` |
+| Porpoise | `games/<game>/<discs>` | each disc on its own (it can't change discs); GameCube saves are per game id anyway |
+
+The `.m3u` is written once the last disc is in (`catalog_group_finish`).
 
 ### Large downloads: the helper payload
 

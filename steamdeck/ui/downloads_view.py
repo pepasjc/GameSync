@@ -217,7 +217,7 @@ class _DownloadRow(QFrame):
         return self._status
 
     def set_selected(self, selected: bool) -> None:
-        """The gamepad cursor: lighter card with the teal edge."""
+        """The gamepad cursor: lighter card with the cyan edge."""
         if selected == self._selected:
             return
         self._selected = selected

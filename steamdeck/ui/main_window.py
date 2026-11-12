@@ -5,7 +5,7 @@ Layout (1280 × 800 full-screen), the shared GameSync design:
   ┌───────────────────────────────────────────────────────┐
   │ GameSync   [L1] Saves Catalog Installed … [R1]   ● srv │  header
   ├───────────────────────────────────────────────────────┤
-  │ [SELECT] (All) (GBA) (PS1) …                 123 saves │  sub-tab chips
+  │ [L2/R2] (All) (GBA) (PS1) …                  123 saves │  sub-tab chips
   ├──────────────────────────────────────┬────────────────┤
   │  list of the active tab              │  details of    │
   │                                      │  the selected  │
@@ -19,15 +19,16 @@ Controls (pygame-polled gamepad; the same scheme on every GameSync client):
   D-pad / L-stick ↑↓  →  move one row (held repeats)
   D-pad ←→            →  page (held accelerates, then jumps by letter)
   L1 / R1             →  previous / next tab (wraps)
-  SELECT              →  next sub-tab (system filter)
+  L2 / R2             →  previous / next system (sub-tab chips)
   A                   →  confirm / the row's main action
   B                   →  cancel / back (clear search, pause a download)
   X                   →  the tab's secondary action
   Y                   →  details (Saves) / search (Catalog, Installed)
   START               →  exit, after a confirmation
-  L2 / R2             →  Saves status filter
+  SELECT              →  Saves status filter
 """
 
+import logging
 import time
 from pathlib import Path
 from typing import Optional
@@ -71,6 +72,9 @@ from config import (
 )
 from catalog_store import CatalogResult, load_catalog
 from download_manager import ACTIVE_STATUSES, DownloadManager
+from ra_variant import find_variants, replaced_paths
+
+log = logging.getLogger(__name__)
 from shared.systems import DEFAULT_SYSTEM_COLOR, SYSTEM_COLOR
 from . import theme
 from .catalog_view import CatalogView
@@ -764,10 +768,14 @@ class MainWindow(QMainWindow):
         self._search_text = ""
         self._systems: list[str] = [ALL_SYSTEMS]
         # Tab filter state lives on each per-tab view.  We mirror the
-        # system list here so SELECT can cycle through the systems the
+        # system list here so L2/R2 can cycle through the systems the
         # active tab actually has entries for.
         self._catalog_systems: list[str] = [CatalogView.ALL_SYSTEMS]
         self._installed_systems: list[str] = [InstalledView.ALL_SYSTEMS]
+        # Catalogue rows (for "Replace with RA version" on Installed) and the
+        # offers they give: {installed ROM path: [catalogue row, ...]}.
+        self._catalog_rows: list[dict] = []
+        self._ra_variants: dict[str, list[dict]] = {}
         self._active_tab = self.TAB_SAVES
         self._server_online = False
         # Set while Sync all runs, so A / X can't start a second transfer.
@@ -1017,7 +1025,7 @@ class MainWindow(QMainWindow):
             self._notify("")
 
     # ──────────────────────────────────────────────────────────────
-    # Sub-tabs (SELECT) and the Saves status filter (L2 / R2)
+    # Sub-tabs (L2 / R2) and the Saves status filter (SELECT)
     # ──────────────────────────────────────────────────────────────
 
     def _cycle_system(self, delta: int):
@@ -1067,7 +1075,7 @@ class MainWindow(QMainWindow):
             self._chips.set_state(
                 self._systems,
                 self._system_filter,
-                left=f"Status: {self._status_filter}  (L2/R2)",
+                left=f"Status: {self._status_filter}  (SELECT)",
                 right=f"{len(self._filtered_entries)} saves",
             )
         elif tab == self.TAB_CATALOG:
@@ -1151,6 +1159,11 @@ class MainWindow(QMainWindow):
         if idx == self.TAB_INSTALLED and not self._installed_view.is_loaded \
                 and not self._installed_view.is_loading:
             self._fetch_installed()
+        # Installed offers the RA-supported version of a game, which needs
+        # the catalogue too.
+        if idx == self.TAB_INSTALLED and not self._catalog_view.is_loaded \
+                and not self._catalog_view.is_loading:
+            self._fetch_catalog()
         if idx == self.TAB_SETTINGS:
             self._refresh_settings_rows()
 
@@ -1316,6 +1329,8 @@ class MainWindow(QMainWindow):
                 text += "  ·  " + "  ·  ".join(result.notes)
             self._notify(text, kind)
         self._catalog_view.set_catalog(result.rows)
+        self._catalog_rows = list(result.rows)
+        self._refresh_ra_variants()
         if self._active_tab == self.TAB_CATALOG:
             self._refresh_tab_ui()
 
@@ -1346,7 +1361,16 @@ class MainWindow(QMainWindow):
     def _on_catalog_download(self, rom: dict) -> None:
         self._download_catalog_rom(rom)
 
-    def _download_catalog_rom(self, rom: Optional[dict]) -> None:
+    def _download_catalog_rom(
+        self,
+        rom: Optional[dict],
+        replaces: Optional[list] = None,
+        confirm: bool = True,
+    ) -> None:
+        """Queue a catalogue ROM.  ``replaces`` lists the paths of an
+        installed copy to delete once this download completes ("Replace with
+        RA version"); ``confirm=False`` skips the download dialog when the
+        caller already asked."""
         if not rom:
             return
         rom_id = str(rom.get("rom_id") or "")
@@ -1422,15 +1446,16 @@ class MainWindow(QMainWindow):
         if target_path.exists():
             msg += "\n\nA file with this name already exists and will be overwritten."
 
-        dlg = ConfirmDialog(
-            title="Download ROM",
-            message=msg,
-            confirm_label="Download",
-            confirm_color=theme.STATUS_DOWNLOAD,
-            parent=self,
-        )
-        if dlg.exec() != dlg.DialogCode.Accepted:
-            return
+        if confirm:
+            dlg = ConfirmDialog(
+                title="Download ROM",
+                message=msg,
+                confirm_label="Download",
+                confirm_color=theme.STATUS_DOWNLOAD,
+                parent=self,
+            )
+            if dlg.exec() != dlg.DialogCode.Accepted:
+                return
 
         # Enqueue rather than block — the Downloads tab takes it from
         # here, and the user can keep browsing the catalog while the
@@ -1445,6 +1470,7 @@ class MainWindow(QMainWindow):
             expected_size=size,
             is_bundle=is_bundle,
             bundle_kind=bundle_kind,
+            replaces_paths=replaces,
         )
         # Acknowledge in the banner and stay on the catalog, so the user
         # can keep browsing and queueing (the Downloads tab label shows
@@ -1459,13 +1485,16 @@ class MainWindow(QMainWindow):
         if self._active_tab == self.TAB_DOWNLOADS:
             self._refresh_chips()
 
-    def _on_download_completed(self, _eid: str) -> None:
+    def _on_download_completed(self, eid: str) -> None:
         """Refresh the Saves + Installed tabs whenever a download lands.
 
         The same post-download bookkeeping the modal flow used to do
         inline; centralising it here keeps the manager-driven enqueue
         path identical for catalog-tab and detail-dialog triggers.
         """
+        ent = self._download_manager.get(eid)
+        if ent is not None and ent.replaces_paths:
+            self._notify(f"Replaced with {ent.display_name}", "ok")
         self._start_scan()
         self._installed_view.mark_loading(True)
         self._installed_view.set_roms([])
@@ -1493,6 +1522,8 @@ class MainWindow(QMainWindow):
 
     def _on_installed_loaded(self, roms: list) -> None:
         self._installed_view.set_roms(roms)
+        self._installed_roms = list(roms)
+        self._refresh_ra_variants()
         if self._active_tab == self.TAB_INSTALLED:
             self._refresh_tab_ui()
 
@@ -1507,7 +1538,60 @@ class MainWindow(QMainWindow):
             self._refresh_detail()
 
     def _on_installed_delete(self, rom) -> None:
-        self._delete_installed_rom(rom)
+        self._installed_primary(rom)
+
+    def _refresh_ra_variants(self) -> None:
+        roms = getattr(self, "_installed_roms", None) or []
+        if not self._catalog_rows or not roms:
+            self._ra_variants = {}
+        else:
+            try:
+                self._ra_variants = find_variants(self._catalog_rows, roms)
+            except Exception as exc:  # never let the hint break the tab
+                log.warning("RA variant lookup failed: %s", exc)
+                self._ra_variants = {}
+        self._installed_view.set_ra_variant_paths(self._ra_variants.keys())
+
+    def _installed_primary(self, rom: "Optional[InstalledRom]") -> None:
+        """A on Installed: delete - or, when RetroAchievements supports
+        another version of the game and not this one, offer that swap."""
+        if rom is None:
+            return
+        variants = self._ra_variants.get(str(rom.path)) or []
+        if not variants:
+            self._delete_installed_rom(rom)
+            return
+        best = variants[0]
+        size = int(best.get("size") or 0)
+        size_txt = f" ({_fmt_catalog_size(size)})" if size else ""
+        others = ""
+        if len(variants) > 1:
+            others = "\nAlso supported: " + ", ".join(
+                str(v.get("name")) for v in variants[1:3])
+        dlg = ConfirmDialog(
+            title="RetroAchievements",
+            message=(
+                f"RetroAchievements does not recognise this version of "
+                f"{rom.display_name}.\n\n"
+                f"Replace it with {best.get('name')}{size_txt}?  The new "
+                f"version downloads first; this one is deleted only once it "
+                f"has finished.  Its save file is kept.{others}"
+            ),
+            confirm_label="Replace with RA version",
+            confirm_color=theme.RA,
+            alt_label="Delete",
+            alt_color=theme.ERR,
+            parent=self,
+        )
+        result = dlg.exec()
+        if result == dlg.DialogCode.Accepted:
+            self._download_catalog_rom(
+                best,
+                replaces=replaced_paths(rom, _whole_folder_delete_target(rom)),
+                confirm=False,
+            )
+        elif result == ConfirmDialog.ALT:
+            self._delete_installed_rom(rom)
 
     def _delete_installed_rom(self, rom: "Optional[InstalledRom]") -> None:
         if rom is None:
@@ -1799,7 +1883,7 @@ class MainWindow(QMainWindow):
         elif tab == self.TAB_CATALOG:
             self._download_catalog_rom(self._catalog_view.selected_rom())
         elif tab == self.TAB_INSTALLED:
-            self._delete_installed_rom(self._installed_view.selected_rom())
+            self._installed_primary(self._installed_view.selected_rom())
         elif tab == self.TAB_DOWNLOADS:
             done = self._downloads_view.activate_selected()
             if done:
@@ -2145,8 +2229,8 @@ class MainWindow(QMainWindow):
 
         # The shared GameSync scheme: A confirms, B only cancels, X is the
         # tab's secondary action, Y details / search, L1 / R1 switch tabs,
-        # SELECT the sub-tab (system), START exits after asking.  L2 / R2
-        # step the Saves status filter.
+        # L2 / R2 step the sub-tab (system), START exits after asking.
+        # SELECT steps the Saves status filter.
         if btn_pressed(0):
             self._action_primary()  # A
         if btn_pressed(1):
@@ -2160,7 +2244,7 @@ class MainWindow(QMainWindow):
         if btn_pressed(5):
             self._cycle_tab(1)  # R1
         if btn_pressed(6):
-            self._cycle_system(1)  # SELECT / View
+            self._cycle_status(1)  # SELECT / View
         if btn_pressed(7):
             self._confirm_close()  # START / Menu
         if btn_pressed(8):
@@ -2180,9 +2264,9 @@ class MainWindow(QMainWindow):
         self._btn_state["l2"] = l2_cur
         self._btn_state["r2"] = r2_cur
         if dialog_target is None and l2_cur and not l2_prev:
-            self._cycle_status(-1)
+            self._cycle_system(-1)
         if dialog_target is None and r2_cur and not r2_prev:
-            self._cycle_status(1)
+            self._cycle_system(1)
 
         # ── Navigation with repeat ────────────────────────────────
         DEADZONE = 0.4

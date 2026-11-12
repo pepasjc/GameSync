@@ -1,6 +1,8 @@
 package com.savesync.android.emulators.impl
 
+import com.savesync.android.emulators.DreamcastSerialDatabase
 import com.savesync.android.emulators.EmulatorBase
+import com.savesync.android.emulators.FlycastVmu
 import com.savesync.android.emulators.SaveEntry
 import com.savesync.android.sync.SaturnSyncFormat
 import com.savesync.android.sync.SegaCdSyncFormat
@@ -134,11 +136,20 @@ class RetroArchEmulator(
                     SaturnSyncFormat.YABAUSE -> File(savesDir, "$stem.srm")
                     SaturnSyncFormat.YABASANSHIRO -> File(savesDir, "backup.bin")
                 }
+            } else if (sys == "DC") {
+                File(dreamcastSaveDir(savesDir), FlycastVmu.libretroFileName(stem))
             } else {
                 File(savesDir, "$stem.srm")
             }
             return applyPerContentFolder(base, stem, sys, cdGamesPerContentFolder)
         }
+
+        /**
+         * Where the Flycast core's per-game VMUs go: `saves/Flycast/` when
+         * RetroArch sorts saves by core (the folder exists), else `saves/`.
+         */
+        internal fun dreamcastSaveDir(savesDir: File): File =
+            File(savesDir, "Flycast").takeIf { it.isDirectory } ?: savesDir
 
         /**
          * System codes that store games on CD/disc images (cue/bin/iso/chd).
@@ -242,6 +253,37 @@ class RetroArchEmulator(
     }
 
     /**
+     * The Flycast core's per-game VMU for [romName]: the product-number card
+     * for [titleId] if the core already made one (it loads that first), else
+     * whichever legacy ROM-named card exists in the per-core
+     * (`saves/Flycast/`) or flat layout, with or without a per-content
+     * folder; else where a legacy card goes — the core loads it and saves to
+     * the product-number card from then on.
+     */
+    internal fun expectedRetroArchDreamcastSaveFile(
+        savesDir: File,
+        romName: String,
+        titleId: String? = null,
+    ): File {
+        if (titleId != null) {
+            listOf(File(savesDir, "Flycast"), savesDir)
+                .flatMap { it.listFiles().orEmpty().toList() }
+                .firstOrNull { f ->
+                    f.isFile && FlycastVmu.libretroGameStem(f.name)
+                        ?.let { FlycastVmu.titleIdFromGameId(it) } == titleId
+                }
+                ?.let { return it }
+        }
+        val name = FlycastVmu.libretroFileName(romName)
+        val candidates = listOf(File(File(savesDir, "Flycast"), name), File(savesDir, name))
+            .flatMap { listOf(applyPerContentFolder(it, romName, "DC", true), it) }
+        return candidates.firstOrNull { it.exists() }
+            ?: applyPerContentFolder(
+                File(dreamcastSaveDir(savesDir), name), romName, "DC", cdGamesPerContentFolder
+            )
+    }
+
+    /**
      * Predicted Sega CD save file, preferring whichever core's file is already
      * on disk so a user who switches the setting (or the core) keeps syncing
      * the save they actually have.  Checks the flat layout and the
@@ -306,7 +348,15 @@ class RetroArchEmulator(
     }
 
     internal fun shouldTrackRetroArchSaveFile(file: File, system: String): Boolean {
+        // The Flycast core's per-game VMU is `<rom>.A1.bin`; `.bin` is too
+        // generic for saveExtensions, so match it by name.
+        if (FlycastVmu.libretroGameStem(file.name) != null) return system == "DC"
         val ext = file.extension.lowercase()
+        // YabaSanshiro's shared container is a .bin, which saveExtensions
+        // can't list (disc images use it too), so match it by name first.
+        if (system == "SAT" && saturnSyncFormat == SaturnSyncFormat.YABASANSHIRO) {
+            return file.name.equals("backup.bin", ignoreCase = true)
+        }
         if (ext !in saveExtensions) return false
         if (system == "SEGACD") return ext == segaCdSyncFormat.extension
         // .brm is Genesis Plus GX's Sega CD backup RAM and nothing else — if
@@ -318,7 +368,7 @@ class RetroArchEmulator(
         return when (saturnSyncFormat) {
             SaturnSyncFormat.MEDNAFEN -> ext == "bkr"
             SaturnSyncFormat.YABAUSE -> ext == "srm"
-            SaturnSyncFormat.YABASANSHIRO -> file.name.equals("backup.bin", ignoreCase = true)
+            SaturnSyncFormat.YABASANSHIRO -> false  // handled above
         }
     }
 
@@ -398,6 +448,7 @@ class RetroArchEmulator(
         "SATURN" to "SAT", "SAT" to "SAT", "BEETLE SATURN" to "SAT",
         "KRONOS" to "SAT", "YABAUSE" to "SAT", "YABASANSHIRO" to "SAT",
         "YABASANSHIRO 2" to "SAT", "DC" to "DC",
+        "FLYCAST" to "DC", "REICAST" to "DC", "DREAMCAST" to "DC",
         "ATARI" to "A2600", "LYNX" to "LYNX", "NGP" to "NGP",
         "WS" to "WSWAN", "WSWAN" to "WSWAN", "WSWANC" to "WSWANC",
         "WONDERSWAN" to "WSWAN", "WONDERSWANCOLOR" to "WSWANC",
@@ -580,6 +631,13 @@ class RetroArchEmulator(
         // Same idea for Dreamcast, which is keyed by the disc serial in IP.BIN.
         val dcRomPathMap: Map<String, File> =
             buildDreamcastRomPathMap(bases)
+        val dcRomNameByTitle: Map<String, String> by lazy {
+            dcRomPathMap.values.associate { rom ->
+                val stem = rom.nameWithoutExtension
+                (readDreamcastProductCode(rom) ?: lookupDreamcastSerial(stem)
+                    ?: toTitleId(stem, "DC")) to stem
+            }
+        }
 
         // Prefer the save dir declared in retroarch.cfg; fall back to the standard path.
         val savesDir: File = resolveSavesDir(bases) ?: return emptyList()
@@ -592,9 +650,12 @@ class RetroArchEmulator(
         // resolution is ambiguous and forcedSystem is null).
         fun trackSave(file: File, forcedSystem: String? = null): SaveEntry? {
             if (!file.isFile) return null
-            val romName = file.nameWithoutExtension
+            // `<rom>.A1.bin` is a Flycast VMU: the ROM name is what precedes
+            // `.A1.bin`, and the system can only be Dreamcast.
+            val vmuStem = FlycastVmu.libretroGameStem(file.name)
+            val romName = vmuStem ?: file.nameWithoutExtension
             val lc = romName.lowercase()
-            val resolved = forcedSystem ?: (
+            val resolved = if (vmuStem != null) "DC" else forcedSystem ?: (
                 romSystemMap[lc]
                     ?: romSystemMap[romName]
                     ?: romScanSystemMap[lc]
@@ -613,14 +674,22 @@ class RetroArchEmulator(
                 "SAT" -> satRomPathMap[lc]?.let { readSaturnProductCode(it) }
                     ?: lookupSaturnSerial(romName)
                     ?: toTitleId(romName, system)
-                "DC"  -> dcRomPathMap[lc]?.let { readDreamcastProductCode(it) }
+                // A Flycast VMU named by product number carries its serial.
+                "DC"  -> vmuStem?.let { FlycastVmu.titleIdFromGameId(it) }
+                    ?: dcRomPathMap[lc]?.let { readDreamcastProductCode(it) }
                     ?: lookupDreamcastSerial(romName)
                     ?: toTitleId(romName, system)
                 else  -> toTitleId(romName, system)
             }
+            // Name a product-number VMU after its ROM when it is installed.
+            val displayName = if (vmuStem != null && FlycastVmu.titleIdFromGameId(vmuStem) != null) {
+                dcRomNameByTitle[titleId]
+                    ?: DreamcastSerialDatabase.nameForSerial(vmuStem)
+                    ?: romName
+            } else romName
             return SaveEntry(
                 titleId = titleId,
-                displayName = romName,
+                displayName = displayName,
                 systemName = system,
                 saveFile = file,
                 saveDir = null
@@ -656,7 +725,14 @@ class RetroArchEmulator(
             }
         }
 
-        return result
+        // A game can have a legacy ROM-named card and the product-number card
+        // Flycast moved on to; keep the one it loads.
+        val (dcVmus, others) = result.partition {
+            it.systemName == "DC" && it.saveFile?.let { f -> FlycastVmu.libretroGameStem(f.name) } != null
+        }
+        return others + FlycastVmu.loadedPerTitle(
+            dcVmus, { it.titleId }, { FlycastVmu.libretroGameStem(it.saveFile!!.name)!! }
+        )
     }
 
     /**
@@ -1113,6 +1189,8 @@ class RetroArchEmulator(
                 expectedRetroArchSaturnSaveFile(savesDir, romName)
             } else if (system == "SEGACD") {
                 expectedRetroArchSegaCdSaveFile(savesDir, romName)
+            } else if (system == "DC") {
+                expectedRetroArchDreamcastSaveFile(savesDir, romName, titleId)
             } else {
                 val flat = File(savesDir, "$romName.${defaultSaveExtension(system)}")
                 val perContent = applyPerContentFolder(flat, romName, system, true)

@@ -8,8 +8,12 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface DownloadDao {
 
-    /** Most-recent download first — drives the Downloads screen list order. */
-    @Query("SELECT * FROM downloads ORDER BY updatedAt DESC")
+    /**
+     * Oldest first, i.e. queue order.  Never order by ``updatedAt``: every
+     * progress write bumps it, so parallel downloads swapped places on
+     * each tick.  The Downloads screen groups and orders rows itself.
+     */
+    @Query("SELECT * FROM downloads ORDER BY createdAt ASC")
     fun observeAll(): Flow<List<DownloadEntity>>
 
     @Query("SELECT * FROM downloads WHERE id = :id LIMIT 1")

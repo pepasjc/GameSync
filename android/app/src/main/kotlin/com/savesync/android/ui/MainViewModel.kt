@@ -19,7 +19,12 @@ import com.savesync.android.api.RomEntry
 import com.savesync.android.catalog.CatalogCache
 import com.savesync.android.catalog.CatalogLoadResult
 import com.savesync.android.catalog.CatalogSource
+import com.savesync.android.catalog.RaVariantIndex
+import com.savesync.android.catalog.RaVariants
 import com.savesync.android.catalog.RomCatalogFilter
+import com.savesync.android.api.preferredDownloadExtractFormat
+import com.savesync.android.api.preferredDownloadFilename
+import com.savesync.android.api.msuPackKind
 import com.savesync.android.catalog.loadCatalog
 import com.savesync.android.installed.DeleteResult
 import com.savesync.android.installed.InstalledRom
@@ -38,6 +43,8 @@ import com.savesync.android.emulators.impl.MelonDsEmulator
 import com.savesync.android.emulators.impl.PpssppEmulator
 import com.savesync.android.emulators.impl.RetroArchEmulator
 import com.savesync.android.emulators.impl.DuckStationEmulator
+import com.savesync.android.emulators.impl.FlycastEmulator
+import com.savesync.android.emulators.FlycastVmu
 import com.savesync.android.storage.DownloadEntity
 import com.savesync.android.storage.Settings
 import com.savesync.android.storage.SettingsStore
@@ -48,10 +55,13 @@ import com.savesync.android.sync.SaturnArchiveStateStore
 import com.savesync.android.sync.SaturnSyncFormat
 import com.savesync.android.sync.SegaCdSyncFormat
 import com.savesync.android.sync.SaturnSaveFormatConverter
+import com.savesync.android.sync.SyncAction
 import com.savesync.android.sync.SyncEngine
+import com.savesync.android.sync.XboxServerHashStore
 import com.savesync.android.sync.SyncResult
 import com.savesync.android.workers.SyncWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
@@ -64,6 +74,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -73,7 +84,12 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
 import java.util.concurrent.TimeUnit
 import com.savesync.android.emulators.impl.AetherSX2Emulator
+import com.savesync.android.emulators.DcEmulatorChoice
 import com.savesync.android.emulators.Ps2EmulatorChoice
+import com.savesync.android.emulators.XboxEmulatorChoice
+import com.savesync.android.emulators.XboxSaves
+import com.savesync.android.emulators.impl.HakuXEmulator
+import com.savesync.android.emulators.impl.X1BoxEmulator
 
 sealed class SyncState {
     object Idle : SyncState()
@@ -108,6 +124,14 @@ sealed class SaveDetailState {
     data class Working(val action: String) : SaveDetailState()
     data class Success(val message: String, val navigateBack: Boolean = false) : SaveDetailState()
     data class Error(val message: String) : SaveDetailState()
+}
+
+/** The A-button smart sync's "here's what will happen" step on the Saves tab. */
+sealed class SyncPreviewState {
+    object Hidden : SyncPreviewState()
+    data class Checking(val entry: SaveEntry) : SyncPreviewState()
+    data class Ready(val entry: SaveEntry, val action: SyncAction) : SyncPreviewState()
+    data class Failed(val entry: SaveEntry, val message: String) : SyncPreviewState()
 }
 
 sealed class NormalizePickerState {
@@ -165,7 +189,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val downloadManager = SaveSyncApp.instance.downloadManager
 
     // ── Downloads tab plumbing ─────────────────────────────────────────
-    /** Live list of every persisted download row, ordered most-recent-first. */
+    /** Live list of every persisted download row, in queue (creation) order. */
     val downloads: StateFlow<List<DownloadEntity>> =
         downloadManager.observeAll()
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -267,7 +291,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Full mode (called from background coroutine in combine transform)
-        val localHash = try { entry.computeHash() } catch (_: Exception) { "" }
+        val localHash = try {
+            // An Xbox save downloaded from an Xbox-client upload is recorded
+            // under the server's hash (XboxServerHashStore).
+            entry.computeHash().let {
+                if (entry.isXbox && it.isNotEmpty()) XboxServerHashStore.serverHash(entry.titleId, it) else it
+            }
+        } catch (_: Exception) { "" }
         val localChanged = localHash.isNotEmpty() && localHash != lastSyncedHash
 
         // Without eagerly fetching server meta for every entry, we can only
@@ -346,6 +376,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _saveDetailState = MutableStateFlow<SaveDetailState>(SaveDetailState.Idle)
     val saveDetailState: StateFlow<SaveDetailState> = _saveDetailState
 
+    private val _syncPreview = MutableStateFlow<SyncPreviewState>(SyncPreviewState.Hidden)
+    val syncPreview: StateFlow<SyncPreviewState> = _syncPreview
+    private var syncPreviewJob: Job? = null
+
     private val _normalizePicker = MutableStateFlow<NormalizePickerState>(NormalizePickerState.Hidden)
     val normalizePicker: StateFlow<NormalizePickerState> = _normalizePicker
 
@@ -421,6 +455,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ── Installed Games tab ─────────────────────────────────────────
     private val _installedRoms = MutableStateFlow<List<InstalledRom>>(emptyList())
     val installedRoms: StateFlow<List<InstalledRom>> = _installedRoms
+
+    /**
+     * Installed games RetroAchievements can't verify that have a verified
+     * catalogue version: installed path → catalogue rows, best first
+     * ([RaVariantIndex], port of shared/ra_variants.py).
+     */
+    val raVariants: StateFlow<Map<String, List<RomEntry>>> =
+        combine(_romCatalog, _installedRoms) { catalog, roms ->
+            if (catalog.isEmpty() || roms.isEmpty()) return@combine emptyMap()
+            val index = RaVariantIndex(catalog)
+            val installedNames = roms.map { it.system.uppercase() to RaVariants.nameKey(it.displayName) }.toSet()
+            roms.mapNotNull { rom ->
+                index.variants(rom.system, rom.displayName, installedNames)
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { rom.path.absolutePath to it }
+            }.toMap()
+        }
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /**
+     * "Replace with RA version": queue [entry] where catalogue downloads go,
+     * recording [rom]'s files (or its own game folder) to delete once the
+     * download completes — never before, so a failed download keeps the
+     * old copy.  The save file is left alone.
+     */
+    fun replaceWithRaVariant(rom: InstalledRom, entry: RomEntry) {
+        val replaced = if (InstalledRomsScanner.wouldRemoveWholeFolder(rom)) {
+            listOfNotNull(rom.path.parentFile?.absolutePath)
+        } else {
+            listOf(rom.path.absolutePath) + rom.companionFiles.map { it.absolutePath }
+        }
+        val extract = entry.preferredDownloadExtractFormat()
+        downloadRom(
+            romId = entry.rom_id ?: entry.title_id,
+            system = entry.system,
+            filename = entry.preferredDownloadFilename(extract),
+            extractFormat = extract,
+            bundleKind = entry.msuPackKind,
+            replacesPaths = replaced,
+        )
+    }
 
     private val _installedRomsLoading = MutableStateFlow(false)
     val installedRomsLoading: StateFlow<Boolean> = _installedRomsLoading
@@ -538,7 +614,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     segaCdSyncFormat = currentSettings.segaCdSyncFormat,
                     ps2Emulator = currentSettings.ps2Emulator,
                     beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
-                    cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
+                    cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder,
+                    xboxEmulator = currentSettings.xboxEmulator
                 )
                     .filterNot { entry -> isEmptyPs1Card(entry) }
                     .map { entry -> overridePs1TitleFromCard(entry) }
@@ -553,7 +630,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     segaCdSyncFormat = currentSettings.segaCdSyncFormat,
                     ps2Emulator = currentSettings.ps2Emulator,
                     beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
-                    cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
+                    cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder,
+                    dcEmulator = currentSettings.dcEmulator,
+                    xboxEmulator = currentSettings.xboxEmulator
                 )
 
                 val serverOnlySaves: List<SaveEntry>
@@ -914,7 +993,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 )
                             }
 
-                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly + wiiuServerOnly)
+                        val xboxServerOnly = stillUnanchoredTitles
+                            .mapNotNull { titleInfo ->
+                                buildXboxServerOnlyEntry(titleInfo, currentSettings, canonicalNames)
+                            }
+
+                        val specialFallbackIds = (ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly + wiiuServerOnly + xboxServerOnly)
                             .mapTo(mutableSetOf()) { it.titleId }
 
                         // If a save has no local ROM/save anchor yet, still surface it when the
@@ -930,7 +1014,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 )
                             }
 
-                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly + wiiuServerOnly + romCatalogServerOnly
+                        matchedServerOnly + ps1ServerOnly + ps2ServerOnly + pspServerOnly + gcServerOnly + threedssServerOnly + wiiuServerOnly + xboxServerOnly + romCatalogServerOnly
                     } catch (e: Exception) {
                         emptyList()
                     }
@@ -1312,6 +1396,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /**
+     * An Xbox save only the server has: its id is the E:\UDATA folder name,
+     * so it can land in the chosen emulator without a ROM — hakuX's UDATA
+     * folder, or X1 BOX's staging folder (written into the disk image on
+     * download).  Nothing when that emulator can't be reached.
+     */
+    private fun buildXboxServerOnlyEntry(
+        titleInfo: com.savesync.android.api.TitleInfo,
+        currentSettings: Settings,
+        canonicalNames: Map<String, String> = emptyMap()
+    ): SaveEntry? {
+        val system = normalizeSystemCode(
+            titleInfo.platform
+                ?: titleInfo.system
+                ?: titleInfo.consoleType
+                ?: ""
+        )
+        val titleId = titleInfo.title_id.uppercase()
+        if (system != "XBOX" || !XboxSaves.isGameTitleId(titleId)) return null
+
+        val external = Environment.getExternalStorageDirectory()
+        val overrides = currentSettings.saveDirOverrides
+        var image: File? = null
+        val saveDir = when (currentSettings.xboxEmulator.resolve(getApplication<Application>())) {
+            XboxEmulatorChoice.X1BOX -> {
+                val override = overrides[X1BoxEmulator.EMULATOR_KEY]
+                if (X1BoxEmulator.problem(external, override) != null) return null
+                image = X1BoxEmulator.imageFile(external, override)
+                X1BoxEmulator.stagingDir(titleId)
+            }
+            else -> {
+                val override = overrides[HakuXEmulator.EMULATOR_KEY]
+                if (HakuXEmulator.problem(external, override) != null) return null
+                val udata = HakuXEmulator.udataDir(external, override) ?: return null
+                HakuXEmulator.titleDir(udata, titleId)
+            }
+        }
+
+        val displayName = canonicalNames[titleInfo.title_id]
+            ?: titleInfo.game_name
+            ?: titleInfo.name
+            ?: titleId
+        return SaveEntry(
+            titleId = titleId,
+            displayName = displayName,
+            systemName = "XBOX",
+            saveFile = null,
+            saveDir = saveDir,
+            isMultiFile = true,
+            isServerOnly = true,
+            xboxHddImage = image
+        )
+    }
+
     private fun build3dsServerOnlyEntry(
         titleInfo: com.savesync.android.api.TitleInfo,
         saveDirOverrides: Map<String, String>,
@@ -1607,6 +1745,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ?: File(base, candidates.first())
                 Triple(null, File(root, titleId), true)
             }
+            // The Dreamcast emulator chosen in Settings: standalone Flycast's
+            // data folder, or the RetroArch Flycast core's saves folder.
+            "DC" -> if (settings.value.dcEmulator == DcEmulatorChoice.FLYCAST) {
+                val dataDir = FlycastEmulator.defaultDataDir(
+                    externalStorage = base,
+                    emudeckStorageDir = EmudeckPaths.storageDir(emudeckDir),
+                    saveDirOverride = saveDirOverrides[FlycastEmulator.EMULATOR_KEY],
+                )
+                Triple(
+                    File(dataDir, FlycastVmu.standaloneFileName(sanitizeFilesystemStem(displayName))),
+                    null,
+                    false,
+                )
+            } else Triple(
+                RetroArchEmulator.defaultSaveFile(
+                    externalStorage = base,
+                    system = system,
+                    label = displayName,
+                    cdGamesPerContentFolder = settings.value.cdGamesPerContentFolder,
+                ),
+                null,
+                false,
+            )
             in retroarchSystems -> {
                 // RetroArch.defaultSaveFile() doesn't yet support an explicit
                 // root override — it auto-detects via cfg / external storage.
@@ -2105,7 +2266,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         segaCdSyncFormat = currentSettings.segaCdSyncFormat,
                         ps2Emulator = currentSettings.ps2Emulator,
                         beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
-                        cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
+                        cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder,
+                        xboxEmulator = currentSettings.xboxEmulator
                     ).also { found ->
                         _allSaves.value = found
                     }
@@ -2161,7 +2323,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         beetleSaturnPerCoreFolder: Boolean = true,
         cdGamesPerContentFolder: Boolean = false,
         segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
-        ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2
+        ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2,
+        dcEmulator: DcEmulatorChoice? = null,
+        xboxEmulator: XboxEmulatorChoice? = null
     ) {
         viewModelScope.launch {
             settingsStore.updateSettings(
@@ -2175,7 +2339,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 beetleSaturnPerCoreFolder = beetleSaturnPerCoreFolder,
                 cdGamesPerContentFolder = cdGamesPerContentFolder,
                 segaCdSyncFormat = segaCdSyncFormat,
-                ps2Emulator = ps2Emulator
+                ps2Emulator = ps2Emulator,
+                dcEmulator = dcEmulator,
+                xboxEmulator = xboxEmulator
             )
             ApiClient.invalidate()
             scheduleOrCancelAutoSync(autoSync, intervalMinutes)
@@ -2323,7 +2489,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 segaCdSyncFormat = currentSettings.segaCdSyncFormat,
                 ps2Emulator = currentSettings.ps2Emulator,
                 beetleSaturnPerCoreFolder = currentSettings.beetleSaturnPerCoreFolder,
-                cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder
+                cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder,
+                    dcEmulator = currentSettings.dcEmulator,
+                    xboxEmulator = currentSettings.xboxEmulator
             )
             // Group by system and count
             _romScanResults.value = if (allRoms.isEmpty()) {
@@ -2668,6 +2836,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Ask the server what a smart sync of [entry] would do, without doing it,
+     * so the Saves tab can show the outcome and ask before syncing.
+     */
+    fun previewSync(entry: SaveEntry) {
+        syncPreviewJob?.cancel()
+        _syncPreview.value = SyncPreviewState.Checking(entry)
+        syncPreviewJob = viewModelScope.launch {
+            val result = try {
+                val currentSettings = settingsStore.settingsFlow.first()
+                if (currentSettings.serverUrl.isBlank()) {
+                    SyncPreviewState.Failed(entry, "Server URL not configured")
+                } else {
+                    val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
+                    val engine = SyncEngine(
+                        api, db, settingsStore.ensureConsoleId(), currentSettings.saturnSyncFormat
+                    )
+                    SyncPreviewState.Ready(entry, withContext(Dispatchers.IO) { engine.preview(entry) })
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                SyncPreviewState.Failed(entry, e.message ?: "Could not reach the server")
+            }
+            if (_syncPreview.value is SyncPreviewState.Checking) _syncPreview.value = result
+        }
+    }
+
+    fun dismissSyncPreview() {
+        syncPreviewJob?.cancel()
+        _syncPreview.value = SyncPreviewState.Hidden
+    }
+
     fun syncSave(entry: SaveEntry) {
         viewModelScope.launch {
             val currentSettings = settingsStore.settingsFlow.first()
@@ -2854,6 +3055,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         filename: String? = null,
         extractFormat: String? = null,
         bundleKind: String? = null,
+        replacesPaths: List<String>? = null,
     ) {
         // Run on viewModelScope only long enough to read settings; the
         // actual enqueue hops onto appScope inside enqueueAsync so it
@@ -2893,6 +3095,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // mid-download doesn't move an in-flight transfer.
                     cdGamesPerContentFolder = currentSettings.cdGamesPerContentFolder,
                     bundleKind = bundleKind,
+                    replacesPaths = replacesPaths,
                 )
                 _romDownloadState.value = RomDownloadState.Downloading(displayName)
             } catch (e: Exception) {
@@ -2934,6 +3137,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearFinishedDownloads() {
         downloadManager.clearFinishedAsync()
+    }
+
+    fun pauseAllDownloads() {
+        downloadManager.pauseAllAsync()
+    }
+
+    fun resumeAllDownloads() {
+        viewModelScope.launch {
+            val currentSettings = settingsStore.settingsFlow.first()
+            if (currentSettings.serverUrl.isBlank()) return@launch
+            val api = ApiClient.create(currentSettings.serverUrl, currentSettings.apiKey)
+            downloadManager.resumeAllAsync(api)
+        }
     }
 
     /**

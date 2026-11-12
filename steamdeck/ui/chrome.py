@@ -60,7 +60,7 @@ def draw_pill(
 
 
 class _TabStrip(QWidget):
-    """``[L1]  Saves  Catalog  …  [R1]``, the active tab a teal pill."""
+    """``[L1]  Saves  Catalog  …  [R1]``, the active tab a cyan pill."""
 
     tab_clicked = pyqtSignal(int)
 
@@ -159,8 +159,8 @@ class HeaderBar(QWidget):
         layout.setSpacing(14)
 
         logo = QLabel(
-            f"<span style='color:{theme.ACCENT}'>Game</span>"
-            f"<span style='color:{theme.TEXT}'>Sync</span>"
+            f"<span style='color:{theme.TEXT}'>Game</span>"
+            f"<span style='color:{theme.ACCENT}'>Sync</span>"
         )
         logo.setFont(_font(17, bold=True))
         layout.addWidget(logo)
@@ -210,7 +210,7 @@ class HeaderBar(QWidget):
 
 
 class ChipBar(QWidget):
-    """Sub-tab chips (system filter) with the SELECT glyph, plus a free
+    """Sub-tab chips (system filter) with the L2/R2 glyph, plus a free
     text slot on the left (e.g. the Saves status filter) and a count on the
     right.  Chips that don't fit are scrolled so the active one shows."""
 
@@ -225,7 +225,7 @@ class ChipBar(QWidget):
         self.setFixedHeight(theme.SUBBAR_H)
         self._chips: list[str] = []
         self._active = ""
-        self._hint = "SELECT"
+        self._hint = "L2/R2"
         self._left = ""
         self._right = ""
         self._font = _font(10, bold=True)
@@ -238,7 +238,7 @@ class ChipBar(QWidget):
         active: str,
         left: str = "",
         right: str = "",
-        hint: str = "SELECT",
+        hint: str = "L2/R2",
     ) -> None:
         self._chips = list(chips)
         self._active = active

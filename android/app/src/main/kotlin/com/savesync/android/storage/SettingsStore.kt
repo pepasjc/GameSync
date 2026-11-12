@@ -12,7 +12,9 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import com.savesync.android.emulators.DcEmulatorChoice
 import com.savesync.android.emulators.Ps2EmulatorChoice
+import com.savesync.android.emulators.XboxEmulatorChoice
 import com.savesync.android.sync.SaturnSyncFormat
 import com.savesync.android.sync.SegaCdSyncFormat
 import org.json.JSONObject
@@ -60,6 +62,10 @@ data class Settings(
     val segaCdSyncFormat: SegaCdSyncFormat = SegaCdSyncFormat.GENESIS_PLUS_GX,
     /** Which PS2 emulator's memcards folder to sync (AetherSX2/NetherSX2 or ARMSX2). */
     val ps2Emulator: Ps2EmulatorChoice = Ps2EmulatorChoice.AETHERSX2,
+    /** Where server-only Dreamcast saves download to (scanning reads both). */
+    val dcEmulator: DcEmulatorChoice = DcEmulatorChoice.RETROARCH,
+    /** Which Xbox emulator's saves to sync; AUTO picks the one installed. */
+    val xboxEmulator: XboxEmulatorChoice = XboxEmulatorChoice.AUTO,
     /**
      * Mirrors RetroArch's "Sort Saves into Folders by Core Name" toggle for the
      * Beetle Saturn (Mednafen) core specifically. When true (default), new
@@ -104,6 +110,8 @@ class SettingsStore(private val context: Context) {
         val SATURN_SYNC_FORMAT = stringPreferencesKey("saturn_sync_format")
         val SEGA_CD_SYNC_FORMAT = stringPreferencesKey("sega_cd_sync_format")
         val PS2_EMULATOR = stringPreferencesKey("ps2_emulator")
+        val DC_EMULATOR = stringPreferencesKey("dc_emulator")
+        val XBOX_EMULATOR = stringPreferencesKey("xbox_emulator")
         val BEETLE_SATURN_PER_CORE_FOLDER = booleanPreferencesKey("beetle_saturn_per_core_folder")
         val CD_GAMES_PER_CONTENT_FOLDER = booleanPreferencesKey("cd_games_per_content_folder")
         /** Tracks whether we've already attempted to restore from external backup */
@@ -157,6 +165,8 @@ class SettingsStore(private val context: Context) {
             saturnSyncFormat = SaturnSyncFormat.fromWireValue(prefs[Keys.SATURN_SYNC_FORMAT]),
             segaCdSyncFormat = SegaCdSyncFormat.fromWireValue(prefs[Keys.SEGA_CD_SYNC_FORMAT]),
             ps2Emulator = Ps2EmulatorChoice.fromWireValue(prefs[Keys.PS2_EMULATOR]),
+            dcEmulator = DcEmulatorChoice.fromWireValue(prefs[Keys.DC_EMULATOR]),
+            xboxEmulator = XboxEmulatorChoice.fromWireValue(prefs[Keys.XBOX_EMULATOR]),
             beetleSaturnPerCoreFolder = prefs[Keys.BEETLE_SATURN_PER_CORE_FOLDER] ?: true,
             cdGamesPerContentFolder = prefs[Keys.CD_GAMES_PER_CONTENT_FOLDER] ?: false
         )
@@ -194,6 +204,8 @@ class SettingsStore(private val context: Context) {
             p[Keys.SATURN_SYNC_FORMAT] = backup.saturnSyncFormat.wireValue
             p[Keys.SEGA_CD_SYNC_FORMAT] = backup.segaCdSyncFormat.wireValue
             p[Keys.PS2_EMULATOR] = backup.ps2Emulator.wireValue
+            p[Keys.DC_EMULATOR] = backup.dcEmulator.wireValue
+            p[Keys.XBOX_EMULATOR] = backup.xboxEmulator.wireValue
             p[Keys.BEETLE_SATURN_PER_CORE_FOLDER] = backup.beetleSaturnPerCoreFolder
             p[Keys.CD_GAMES_PER_CONTENT_FOLDER] = backup.cdGamesPerContentFolder
         }
@@ -210,6 +222,8 @@ class SettingsStore(private val context: Context) {
         saturnSyncFormat: SaturnSyncFormat? = null,
         segaCdSyncFormat: SegaCdSyncFormat? = null,
         ps2Emulator: Ps2EmulatorChoice? = null,
+        dcEmulator: DcEmulatorChoice? = null,
+        xboxEmulator: XboxEmulatorChoice? = null,
         beetleSaturnPerCoreFolder: Boolean? = null,
         cdGamesPerContentFolder: Boolean? = null
     ) {
@@ -224,6 +238,8 @@ class SettingsStore(private val context: Context) {
             saturnSyncFormat?.let { prefs[Keys.SATURN_SYNC_FORMAT] = it.wireValue }
             segaCdSyncFormat?.let { prefs[Keys.SEGA_CD_SYNC_FORMAT] = it.wireValue }
             ps2Emulator?.let { prefs[Keys.PS2_EMULATOR] = it.wireValue }
+            dcEmulator?.let { prefs[Keys.DC_EMULATOR] = it.wireValue }
+            xboxEmulator?.let { prefs[Keys.XBOX_EMULATOR] = it.wireValue }
             beetleSaturnPerCoreFolder?.let { prefs[Keys.BEETLE_SATURN_PER_CORE_FOLDER] = it }
             cdGamesPerContentFolder?.let { prefs[Keys.CD_GAMES_PER_CONTENT_FOLDER] = it }
         }
@@ -338,6 +354,8 @@ class SettingsStore(private val context: Context) {
                 put("saturn_sync_format", current.saturnSyncFormat.wireValue)
                 put("sega_cd_sync_format", current.segaCdSyncFormat.wireValue)
                 put("ps2_emulator", current.ps2Emulator.wireValue)
+                put("dc_emulator", current.dcEmulator.wireValue)
+                put("xbox_emulator", current.xboxEmulator.wireValue)
                 put("beetle_saturn_per_core_folder", current.beetleSaturnPerCoreFolder)
                 put("cd_games_per_content_folder", current.cdGamesPerContentFolder)
             }
@@ -380,6 +398,8 @@ class SettingsStore(private val context: Context) {
                     json.optString("sega_cd_sync_format", SegaCdSyncFormat.GENESIS_PLUS_GX.wireValue)
                 ),
                 ps2Emulator = Ps2EmulatorChoice.fromWireValue(json.optString("ps2_emulator", "")),
+                dcEmulator = DcEmulatorChoice.fromWireValue(json.optString("dc_emulator", "")),
+                xboxEmulator = XboxEmulatorChoice.fromWireValue(json.optString("xbox_emulator", "")),
                 beetleSaturnPerCoreFolder = json.optBoolean("beetle_saturn_per_core_folder", true),
                 cdGamesPerContentFolder = json.optBoolean("cd_games_per_content_folder", false)
             )

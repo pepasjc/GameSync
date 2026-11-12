@@ -9,6 +9,7 @@ import com.savesync.android.api.SaturnArchiveLookupResult
 import com.savesync.android.api.SyncRequest
 import com.savesync.android.api.SyncTitle
 import com.savesync.android.emulators.SaveEntry
+import com.savesync.android.emulators.impl.X1BoxEmulator
 import com.savesync.android.installed.InstalledRomsScanner
 import com.savesync.android.storage.AppDatabase
 import com.savesync.android.storage.SyncStateEntity
@@ -40,6 +41,9 @@ data class SyncResult(
     val conflicts: List<String>,
     val errors: List<String>
 )
+
+/** What [SyncEngine.sync] would do with one save, worked out without touching it. */
+enum class SyncAction { UPLOAD, DOWNLOAD, UP_TO_DATE, CONFLICT, NOTHING }
 
 class SyncEngine(
     private val api: SaveSyncApi,
@@ -256,6 +260,64 @@ class SyncEngine(
         )
     }
 
+    /**
+     * Dry run of [sync] for a single save: the same decision (raw-card meta
+     * compare, or the server's three-way plan) with no upload, download or
+     * state write, so the UI can say what a sync will do before it does it.
+     */
+    suspend fun preview(save: SaveEntry): SyncAction {
+        val entry = normalizeCanonicalSlugEntries(listOf(save.reconcileWithDisk())).single()
+        if (isPs1RawEntry(entry) || isPs2RawEntry(entry) || isGcRawEntry(entry)) {
+            return previewRawCardEntry(entry)
+        }
+        val lastSyncState = dao.getById(entry.titleId)
+        if (!hasLocalSyncSource(entry, lastSyncState)) {
+            return if (entry.isServerOnly && hasLocalSaveTarget(entry)) SyncAction.DOWNLOAD
+            else SyncAction.NOTHING
+        }
+        val title = SyncTitle(
+            title_id = entry.titleId,
+            save_hash = canonicalHash(entry, lastSyncState),
+            timestamp = localTimestamp(entry) / 1000L,
+            size = canonicalSize(entry, lastSyncState),
+            last_synced_hash = lastSyncState?.lastSyncedHash,
+            console_id = consoleId
+        )
+        val plan = api.sync(SyncRequest(titles = listOf(title), console_id = consoleId))
+        return when (entry.titleId) {
+            in plan.upload -> SyncAction.UPLOAD
+            in plan.download, in plan.server_only -> SyncAction.DOWNLOAD
+            in plan.conflict -> SyncAction.CONFLICT
+            in plan.up_to_date -> SyncAction.UP_TO_DATE
+            else -> SyncAction.NOTHING
+        }
+    }
+
+    private suspend fun previewRawCardEntry(entry: SaveEntry): SyncAction {
+        val localExists = entry.exists()
+        val localHash = if (localExists) canonicalHash(entry) else ""
+        val lastSyncHash = dao.getById(entry.titleId)?.lastSyncedHash
+        val serverMeta = try {
+            when (entry.systemName) {
+                "PS1" -> api.getPs1CardMeta(entry.titleId, slot = 0)
+                "PS2" -> api.getPs2CardMeta(entry.titleId, format = "ps2")
+                "GC"  -> api.getGcCardMeta(entry.titleId)
+                else -> null
+            }
+        } catch (e: retrofit2.HttpException) {
+            if (e.code() == 404) null else throw e
+        }
+        if (serverMeta == null) return if (localExists) SyncAction.UPLOAD else SyncAction.NOTHING
+        val serverHash = serverMeta.save_hash ?: ""
+        return when {
+            localExists && localHash == serverHash -> SyncAction.UP_TO_DATE
+            !localExists -> SyncAction.DOWNLOAD
+            lastSyncHash != null && lastSyncHash == serverHash -> SyncAction.UPLOAD
+            lastSyncHash != null && lastSyncHash == localHash -> SyncAction.DOWNLOAD
+            else -> SyncAction.CONFLICT
+        }
+    }
+
     private suspend fun normalizeCanonicalSlugEntries(saves: List<SaveEntry>): List<SaveEntry> {
         val canonicalSlugSaves = saves.filter {
             it.titleId.contains('_') && (it.systemName == "PS1" || it.systemName == "3DS")
@@ -344,8 +406,13 @@ class SyncEngine(
         syncState: SyncStateEntity? = null
     ): String {
         return saturnCanonicalSnapshot(entry, syncState)?.let { HashUtils.sha256Bytes(it.bytes) }
-            ?: entry.computeHash()
+            ?: serverAlignedHash(entry, entry.computeHash())
     }
+
+    /** An Xbox save's hash as the server knows it (see [XboxServerHashStore]); others as is. */
+    private fun serverAlignedHash(entry: SaveEntry, localHash: String): String =
+        if (entry.isXbox && localHash.isNotEmpty()) XboxServerHashStore.serverHash(entry.titleId, localHash)
+        else localHash
 
     private fun canonicalSize(
         entry: SaveEntry,
@@ -426,11 +493,15 @@ class SyncEngine(
     private suspend fun uploadTreeBundle(entry: SaveEntry): Boolean {
         val saveDir = entry.saveDir ?: return false
         return try {
-            val bundleBytes = BundleUtils.createTreeBundle(entry.titleId, saveDir)
+            val bundleBytes = BundleUtils.createTreeBundle(entry.titleId, saveDir, xboxPaths = entry.isXbox)
             val requestBody = bundleBytes.toRequestBody("application/octet-stream".toMediaType())
             val response = api.uploadSaveBundle(
                 titleId = entry.titleId,
-                source = if (entry.systemName == "WIIU") "wiiu_emu" else "3ds_emu",
+                source = when (entry.systemName) {
+                    "WIIU" -> "wiiu_emu"
+                    "XBOX" -> "xbox_emu"
+                    else -> "3ds_emu"
+                },
                 force = true,
                 consoleId = consoleId,
                 // The server names a Wii U save from its 4-char product code
@@ -438,11 +509,14 @@ class SyncEngine(
                 // metadata keeps the raw hex id as the game name.  The
                 // meta.xml name rides along for titles the Wii U DAT misses.
                 gameCode = entry.gameCode ?: "",
+                // An Xbox save's TitleMeta.xbx name, for ids the Xbox DAT misses.
                 gameName = entry.displayName.takeIf {
-                    entry.systemName == "WIIU" && it != entry.titleId
+                    (entry.systemName == "WIIU" || entry.isXbox) && it != entry.titleId
                 } ?: "",
                 body = requestBody
             )
+            // Uploaded in the order this device hashes, so the hashes agree again.
+            if (response.status == "ok" && entry.isXbox) XboxServerHashStore.remove(entry.titleId)
             response.status == "ok"
         } catch (e: Exception) {
             Log.e(TAG, "uploadTreeBundle failed for ${entry.titleId}", e)
@@ -789,7 +863,9 @@ class SyncEngine(
             }
             saveDir.mkdirs()
             for ((name, data) in files) {
-                val target = safeChildFile(saveDir, name)
+                // Xbox bundles carry '\' paths (the Xbox client's FATX form).
+                val path = if (entry.isXbox) name.replace('\\', '/') else name
+                val target = safeChildFile(saveDir, path)
                 if (target == null) {
                     Log.w(TAG, "Rejected unsafe bundle entry name '$name' for $titleId")
                     continue
@@ -797,11 +873,41 @@ class SyncEngine(
                 target.parentFile?.mkdirs()
                 target.writeBytes(data)
             }
+            if (entry.isXbox) finishXboxDownload(entry, titleId, saveDir, files)
             true
         } catch (e: Exception) {
             Log.e(TAG, "downloadTreeBundle failed for $titleId", e)
             false
         }
+    }
+
+    /**
+     * An Xbox save just written to [saveDir]: X1 BOX's goes on into its disk
+     * image; hakuX's folder is left open to hakuX, which runs as another user
+     * (the patched hakuX takes the files over on its next start).  The server's
+     * hash — over the bundle's own file order — is paired with the local one.
+     */
+    private fun finishXboxDownload(
+        entry: SaveEntry,
+        titleId: String,
+        saveDir: File,
+        files: List<Pair<String, ByteArray>>
+    ) {
+        val image = entry.xboxHddImage
+        if (image != null) {
+            X1BoxEmulator.writeBack(image, titleId, saveDir)
+        } else {
+            saveDir.walkTopDown().forEach { f ->
+                f.setReadable(true, false)
+                f.setWritable(true, false)
+                if (f.isDirectory) f.setExecutable(true, false)
+            }
+        }
+        val serverHash = HashUtils.sha256Bytes(
+            files.fold(java.io.ByteArrayOutputStream()) { out, (_, data) -> out.apply { write(data) } }
+                .toByteArray()
+        )
+        XboxServerHashStore.put(titleId, serverHash, entry.copy(isServerOnly = false).computeHash())
     }
 
     suspend fun recordSyncedState(entry: SaveEntry) {
@@ -815,7 +921,8 @@ class SyncEngine(
     private suspend fun updateSyncState(entry: SaveEntry) {
         try {
             val saturnSnapshot = saturnCanonicalSnapshot(entry)
-            val hash = saturnSnapshot?.let { HashUtils.sha256Bytes(it.bytes) } ?: entry.computeHash()
+            val hash = saturnSnapshot?.let { HashUtils.sha256Bytes(it.bytes) }
+                ?: serverAlignedHash(entry, entry.computeHash())
             saturnSnapshot?.archiveNames?.let { SaturnArchiveStateStore.put(entry.titleId, it) }
             val now = System.currentTimeMillis()
             dao.upsert(
@@ -845,7 +952,7 @@ class SyncEngine(
                 entry.isPspSlot && entry.saveDir?.exists() == true ->
                     HashUtils.sha256DirFiles(entry.saveDir)
                 isTreeBundleEntry(entry) && entry.saveDir?.exists() == true ->
-                    HashUtils.sha256DirTreeFiles(entry.saveDir)
+                    serverAlignedHash(entry, entry.copy(isServerOnly = false).computeHash())
                 saturnSnapshot != null ->
                     HashUtils.sha256Bytes(saturnSnapshot.bytes)
                 entry.saveFile?.exists() == true && entry.systemName == "PS2" ->

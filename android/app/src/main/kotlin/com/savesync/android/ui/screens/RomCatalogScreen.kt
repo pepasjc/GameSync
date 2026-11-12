@@ -301,7 +301,7 @@ fun RomCatalogScreen(
     }
 
     // Helper that cycles the system filter (null = all systems), driven by
-    // SELECT (activity-level systemCycleEvents flow).
+    // L2/R2 (activity-level systemCycleEvents flow).
     fun cycleSystem(delta: Int) {
         if (systems.isEmpty()) return
         val all = listOf<String?>(null) + systems
@@ -310,7 +310,7 @@ fun RomCatalogScreen(
         systemFilter = all[next]
     }
 
-    // SELECT cycles the system filter (the sub-tab chip) — the Activity
+    // L2/R2 step the system filter (the sub-tab chip) — the Activity
     // emits on systemCycleEvents and we apply it here so the chip stays in
     // sync.
     val activity = LocalContext.current.findComponentActivity() as? MainActivity
@@ -371,7 +371,7 @@ fun RomCatalogScreen(
                     GsHint(GsButton.Y, "Search"),
                 ) + (if (searchVisible || query.isNotEmpty()) listOf(GsHint(GsButton.B, "Clear search")) else emptyList()) +
                     listOf(
-                        GsHint(GsButton.SELECT, "System"),
+                        GsHint(GsButton.L2R2, "System"),
                         GsHint(GsButton.L1, "Tabs"),
                         GsHint(GsButton.START, "Exit"),
                     )
@@ -466,7 +466,7 @@ fun RomCatalogScreen(
                                 else -> false
                             }
                         }
-                        // L1/R1 (tabs), SELECT (system), START (exit) are
+                        // L1/R1 (tabs), L2/R2 (system), START (exit) are
                         // intercepted at the Activity level — never reach
                         // here.  Refresh lives in Settings now.
                         else -> false

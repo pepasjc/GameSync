@@ -26,6 +26,7 @@
 
 #include "fetch.h"
 #include "json.h"
+#include "melonds.h"
 #include "unzip.h"
 #include "util.h"
 
@@ -40,7 +41,7 @@
 #include <unistd.h>
 
 #define CACHE_MAGIC "GSC1"
-#define CACHE_VERSION 4u
+#define CACHE_VERSION 5u
 
 void catalog_free(Catalog *catalog)
 {
@@ -384,6 +385,7 @@ bool catalog_load(const HttpServer *server, Catalog *c, CatalogProgressFn progre
         qsort(c->systems, (size_t)c->system_count, sizeof(SystemRow), compare_systems);
     if (c->rom_count > 1)
         qsort(c->roms, (size_t)c->rom_count, sizeof(RomRow), compare_rows);
+    catalog_group_discs(c);
     if (!c->system_count)
     {
         snprintf(error, size, "the server has no ROMs for systems the PS5 emulators play");
@@ -486,6 +488,7 @@ static bool ext_in(const char *filename, const char *const *exts, size_t n)
 void catalog_plan(const Config *config, const RomRow *rom, InstallPlan *plan)
 {
     memset(plan, 0, sizeof(*plan));
+    plan->grouped = rom->group[0] != 0;
     plan->emu = install_emulator_for_system(rom->system, config->ps1_in_retroarch);
     char file[200];
     util_safe_filename(file, sizeof(file), rom->filename);
@@ -536,8 +539,18 @@ void catalog_plan(const Config *config, const RomRow *rom, InstallPlan *plan)
         char game[200];
         util_copy(game, sizeof(game), file);
         util_strip_ext(game);
-        snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s/%s", config->swanstation_dir, game,
-                 file);
+        if (rom->group[0])
+        {
+            /* every disc in one folder, loaded through <game>.m3u */
+            snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s/%s", config->swanstation_dir,
+                     rom->group, file);
+            snprintf(plan->m3u, sizeof(plan->m3u), "%s/games/%s/%s.m3u", config->swanstation_dir,
+                     rom->group, rom->group);
+            util_copy(plan->m3u_line, sizeof(plan->m3u_line), file);
+        }
+        else
+            snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s/%s", config->swanstation_dir,
+                     game, file);
     }
     else if (plan->emu == EMU_PORPOISE)
     {
@@ -548,7 +561,11 @@ void catalog_plan(const Config *config, const RomRow *rom, InstallPlan *plan)
             char game[200];
             util_copy(game, sizeof(game), file);
             util_strip_ext(game);
-            snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s", config->porpoise_dir, game);
+            if (rom->group[0])
+                snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s/%s", config->porpoise_dir,
+                         rom->group, game);
+            else
+                snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s", config->porpoise_dir, game);
             util_copy(plan->check, sizeof(plan->check), plan->dest);
             plan->zip_member = true;
             plan->supported = true;
@@ -559,7 +576,34 @@ void catalog_plan(const Config *config, const RomRow *rom, InstallPlan *plan)
             snprintf(plan->reason, sizeof(plan->reason), "Porpoise needs .iso/.rvz/.gcm/.wbfs...");
             return;
         }
-        snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s", config->porpoise_dir, file);
+        if (rom->group[0]) /* Porpoise can't change discs: each boots on its own */
+            snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s/%s", config->porpoise_dir,
+                     rom->group, file);
+        else
+            snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s", config->porpoise_dir, file);
+    }
+    else if (plan->emu == EMU_CEMU && util_ieq(rom->system, "NDS"))
+    {
+        /* PS5CEMU-HAR's melonDS: .nds/.srl/.dsi in its games folder; a zip's
+         * game file is served out of it (melonDS doesn't open zips) */
+        char games[PATH_LEN];
+        melonds_games_dir(config, games, sizeof(games));
+        if (util_has_suffix_i(file, ".zip"))
+        {
+            char game[200];
+            util_copy(game, sizeof(game), file);
+            util_strip_ext(game);
+            snprintf(plan->dest, sizeof(plan->dest), "%s/%s", games, game);
+            plan->zip_member = true;
+            plan->supported = true;
+            return;
+        }
+        if (!melonds_is_game(file))
+        {
+            snprintf(plan->reason, sizeof(plan->reason), "PS5CEMU's melonDS needs .nds/.srl/.dsi");
+            return;
+        }
+        snprintf(plan->dest, sizeof(plan->dest), "%s/%s", games, file);
     }
     else if (plan->emu == EMU_CEMU)
     {
@@ -619,7 +663,22 @@ void catalog_plan(const Config *config, const RomRow *rom, InstallPlan *plan)
             snprintf(plan->reason, sizeof(plan->reason), "PS5SX2 needs .iso/.chd/.cso/.zso");
             return;
         }
-        snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s", config->ps5sx2_dir, file);
+        if (rom->group[0]) /* PS5SX2 swaps between the (Disc N) files of one folder */
+            snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s/%s", config->ps5sx2_dir,
+                     rom->group, file);
+        else
+            snprintf(plan->dest, sizeof(plan->dest), "%s/games/%s", config->ps5sx2_dir, file);
+    }
+    else if (rom->group[0])
+    {
+        /* the discs in a dot folder its library doesn't list, the game as
+         * <game>.m3u - which also names its save (<game>.srm) */
+        const char *folder = retroarch_folder_for_system(rom->system);
+        snprintf(plan->dest, sizeof(plan->dest), "%s/content/%s/%s/.discs/%s", config->retroarch_dir,
+                 folder, rom->group, file);
+        snprintf(plan->m3u, sizeof(plan->m3u), "%s/content/%s/%s/%s.m3u", config->retroarch_dir,
+                 folder, rom->group, rom->group);
+        snprintf(plan->m3u_line, sizeof(plan->m3u_line), ".discs/%s", file);
     }
     else
     {
@@ -633,6 +692,7 @@ void catalog_plan(const Config *config, const RomRow *rom, InstallPlan *plan)
 void catalog_plan_cue(const Config *config, const RomRow *rom, InstallPlan *plan)
 {
     memset(plan, 0, sizeof(*plan));
+    plan->grouped = rom->group[0] != 0;
     plan->cue = true;
     plan->emu = install_emulator_for_system(rom->system, config->ps1_in_retroarch);
     if (!rom->has_cue)
@@ -643,11 +703,28 @@ void catalog_plan_cue(const Config *config, const RomRow *rom, InstallPlan *plan
     char game[200];
     util_safe_filename(game, sizeof(game), rom->filename);
     util_strip_ext(game);
+    /* a disc of a multi-disc game: its set goes into the game's folder */
+    const char *folder = rom->group[0] ? rom->group : game;
     if (plan->emu == EMU_SWANSTATION)
+    {
         snprintf(plan->unzip_dir, sizeof(plan->unzip_dir), "%s/games/%s", config->swanstation_dir,
-                 game);
+                 folder);
+        if (rom->group[0])
+        {
+            snprintf(plan->m3u, sizeof(plan->m3u), "%s/%s.m3u", plan->unzip_dir, rom->group);
+            snprintf(plan->m3u_line, sizeof(plan->m3u_line), "%s.cue", game);
+        }
+    }
     else if (plan->emu == EMU_PS5SX2)
-        snprintf(plan->unzip_dir, sizeof(plan->unzip_dir), "%s/games/%s", config->ps5sx2_dir, game);
+        snprintf(plan->unzip_dir, sizeof(plan->unzip_dir), "%s/games/%s", config->ps5sx2_dir, folder);
+    else if (plan->emu == EMU_RETROARCH && rom->group[0])
+    {
+        snprintf(plan->unzip_dir, sizeof(plan->unzip_dir), "%s/content/%s/%s/.discs",
+                 config->retroarch_dir, retroarch_folder_for_system(rom->system), rom->group);
+        snprintf(plan->m3u, sizeof(plan->m3u), "%s/content/%s/%s/%s.m3u", config->retroarch_dir,
+                 retroarch_folder_for_system(rom->system), rom->group, rom->group);
+        snprintf(plan->m3u_line, sizeof(plan->m3u_line), ".discs/%s.cue", game);
+    }
     else if (plan->emu == EMU_RETROARCH)
         snprintf(plan->unzip_dir, sizeof(plan->unzip_dir), "%s/content/%s/%s",
                  config->retroarch_dir, retroarch_folder_for_system(rom->system), game);
@@ -678,7 +755,19 @@ static bool folder_has_cue(const char *dir)
 /* What Porpoise loads, in the order a zip's members are preferred. */
 static const char *const DOLPHIN_EXTS[] = {".rvz", ".iso", ".wbfs", ".gcm", ".ciso",
                                            ".gcz", ".wia", ".wad"};
-#define DOLPHIN_EXT_COUNT (sizeof(DOLPHIN_EXTS) / sizeof(DOLPHIN_EXTS[0]))
+static const char *const DS_EXTS[] = {".nds", ".dsi", ".srl"};
+
+/* The game files a zip_member plan takes out of a zip, best first. */
+static const char *const *member_exts(const InstallPlan *plan, size_t *count)
+{
+    if (plan->emu == EMU_CEMU)
+    {
+        *count = sizeof(DS_EXTS) / sizeof(DS_EXTS[0]);
+        return DS_EXTS;
+    }
+    *count = sizeof(DOLPHIN_EXTS) / sizeof(DOLPHIN_EXTS[0]);
+    return DOLPHIN_EXTS;
+}
 
 bool catalog_installed(const InstallPlan *plan)
 {
@@ -686,16 +775,21 @@ bool catalog_installed(const InstallPlan *plan)
         return false;
     if (plan->zip_member)
     {
-        for (size_t i = 0; i < DOLPHIN_EXT_COUNT; ++i)
+        size_t n;
+        const char *const *exts = member_exts(plan, &n);
+        for (size_t i = 0; i < n; ++i)
         {
             char path[PATH_LEN + 8];
-            snprintf(path, sizeof(path), "%s%s", plan->dest, DOLPHIN_EXTS[i]);
+            snprintf(path, sizeof(path), "%s%s", plan->dest, exts[i]);
             if (util_file_exists(path))
                 return true;
         }
         return false;
     }
-    return plan->cue ? folder_has_cue(plan->unzip_dir) : util_file_exists(plan->check);
+    /* one game's folder holds every disc's set: only this disc's .cue says it's here */
+    if (plan->cue && !plan->grouped)
+        return folder_has_cue(plan->unzip_dir);
+    return util_file_exists(plan->check);
 }
 
 
@@ -848,12 +942,14 @@ static bool download_zip_member(const HttpServer *server, const RomRow *rom,
     JsonValue *members = json_get(root, "members");
     const char *pick = NULL;
     uint64_t want = 0;
-    size_t best = DOLPHIN_EXT_COUNT;
+    size_t ext_count;
+    const char *const *exts = member_exts(plan, &ext_count);
+    size_t best = ext_count;
     for (JsonValue *m = members ? members->child : NULL; m; m = m->next)
     {
         const char *name = json_get_str(m, "name", "");
         for (size_t i = 0; i < best; ++i)
-            if (util_has_suffix_i(name, DOLPHIN_EXTS[i]))
+            if (util_has_suffix_i(name, exts[i]))
             {
                 pick = name;
                 want = (uint64_t)json_get_num(m, "size", 0);
@@ -868,7 +964,7 @@ static bool download_zip_member(const HttpServer *server, const RomRow *rom,
         return false;
     }
     char dest[PATH_LEN + 8];
-    snprintf(dest, sizeof(dest), "%s%s", plan->dest, DOLPHIN_EXTS[best]);
+    snprintf(dest, sizeof(dest), "%s%s", plan->dest, exts[best]);
     BundleProgress bp = {progress, user, 0, want};
     bool ok = util_mkdirs_parent(dest) &&
               fetch_member(server, id, pick, want, dest, &bp, error, size);
@@ -991,5 +1087,190 @@ bool catalog_download(const HttpServer *server, const RomRow *rom, const Install
             return false;
         }
     }
+    return true;
+}
+
+/* ------------------------------------------------------------ multi-disc games */
+
+typedef struct
+{
+    int row;
+    int disc;
+    char key[180]; /* system, then the folder name */
+} DiscKey;
+
+static int compare_disc_keys(const void *a, const void *b)
+{
+    const DiscKey *x = a, *y = b;
+    int c = strcmp(x->key, y->key);
+    if (c)
+        return c;
+    return x->disc != y->disc ? x->disc - y->disc : x->row - y->row;
+}
+
+/* Folds the discs of one game into a group, as shared/mister_install.py
+ * group_discs does: rows of a multi-disc system whose names differ only by
+ * a "(Disc N)" tag share the folder named after the rest. Every other tag
+ * stays in the key, so a translation or a revision is a game of its own,
+ * and a row without a disc tag is never grouped. */
+void catalog_group_discs(Catalog *c)
+{
+    for (int i = 0; i < c->rom_count; ++i)
+    {
+        RomRow *r = &c->roms[i];
+        r->group[0] = 0;
+        r->group_head = i;
+        r->group_size = 1;
+        r->disc_no = 0;
+        r->group_bytes = r->size;
+    }
+    int n = 0;
+    for (int i = 0; i < c->rom_count; ++i)
+        if (is_multidisc_system(c->roms[i].system))
+            n++;
+    DiscKey *keys = n ? malloc((size_t)n * sizeof(DiscKey)) : NULL;
+    if (!keys)
+        return;
+    int k = 0;
+    for (int i = 0; i < c->rom_count; ++i)
+    {
+        RomRow *r = &c->roms[i];
+        if (!is_multidisc_system(r->system))
+            continue;
+        /* the file name, not the display name: the server names every disc of
+         * a translation after disc 1's database entry, without its [T-En ...]
+         * tag ("Grandia (Japan) (Disc 1) (4M)" for the v1.1.1 patch's Disc 2) */
+        char stem[200], base[200], safe[160];
+        util_copy(stem, sizeof(stem), r->filename);
+        util_strip_ext(stem);
+        int disc = disc_tag_strip(stem, base, sizeof(base));
+        if (!disc)
+            continue;
+        util_safe_filename(safe, sizeof(safe), base);
+        r->disc_no = (uint8_t)(disc > 255 ? 255 : disc);
+        keys[k].row = i;
+        keys[k].disc = disc;
+        snprintf(keys[k].key, sizeof(keys[k].key), "%s\x1f%s", r->system, safe);
+        k++;
+    }
+    if (k > 1)
+        qsort(keys, (size_t)k, sizeof(DiscKey), compare_disc_keys);
+    for (int a = 0; a < k;)
+    {
+        int b = a + 1;
+        while (b < k && strcmp(keys[b].key, keys[a].key) == 0)
+            b++;
+        int distinct = 0;
+        for (int j = a; j < b; ++j)
+            if (j == a || keys[j].disc != keys[j - 1].disc)
+                distinct++;
+        if (distinct > 1)
+        {
+            const char *folder = strchr(keys[a].key, '\x1f') + 1;
+            int head = keys[a].row;
+            int last_disc = -1;
+            for (int j = a; j < b; ++j)
+            {
+                /* two dumps of one disc: the first stays in the game */
+                if (keys[j].disc == last_disc)
+                    continue;
+                last_disc = keys[j].disc;
+                RomRow *r = &c->roms[keys[j].row];
+                util_copy(r->group, sizeof(r->group), folder);
+                r->group_head = head;
+            }
+            int size = 0;
+            uint64_t bytes = 0;
+            for (int j = a; j < b; ++j)
+                if (c->roms[keys[j].row].group[0])
+                {
+                    size++;
+                    bytes += c->roms[keys[j].row].size;
+                }
+            for (int j = a; j < b; ++j)
+                if (c->roms[keys[j].row].group[0])
+                {
+                    c->roms[keys[j].row].group_size = (uint8_t)(size > 255 ? 255 : size);
+                    c->roms[keys[j].row].group_bytes = bytes;
+                }
+        }
+        a = b;
+    }
+    free(keys);
+}
+
+int catalog_group_rows(const Catalog *catalog, const RomRow *row, int *out, int max)
+{
+    int n = 0;
+    /* matched by system and folder, so a copy of the row (a download's) works too */
+    for (int i = 0; i < catalog->rom_count && n < max; ++i)
+    {
+        const RomRow *r = &catalog->roms[i];
+        if (row->group[0] ? util_ieq(r->system, row->system) && strcmp(r->group, row->group) == 0
+                          : strcmp(r->rom_id, row->rom_id) == 0)
+            out[n++] = i;
+    }
+    /* disc order */
+    for (int i = 1; i < n; ++i)
+        for (int j = i; j > 0 && catalog->roms[out[j]].disc_no < catalog->roms[out[j - 1]].disc_no;
+             --j)
+        {
+            int t = out[j];
+            out[j] = out[j - 1];
+            out[j - 1] = t;
+        }
+    return n;
+}
+
+/* The way a disc is installed (its file, or its CUE/BIN set); false if neither. */
+static bool installed_plan(const Config *config, const RomRow *rom, InstallPlan *plan)
+{
+    catalog_plan(config, rom, plan);
+    if (plan->supported && catalog_installed(plan))
+        return true;
+    if (!rom->has_cue)
+        return false;
+    catalog_plan_cue(config, rom, plan);
+    return plan->supported && catalog_installed(plan);
+}
+
+bool catalog_group_installed(const Config *config, const Catalog *catalog, const RomRow *row)
+{
+    int rows[32];
+    int n = catalog_group_rows(catalog, row, rows, 32);
+    for (int i = 0; i < n; ++i)
+    {
+        InstallPlan plan;
+        if (!installed_plan(config, &catalog->roms[rows[i]], &plan))
+            return false;
+    }
+    return n > 0;
+}
+
+bool catalog_group_finish(const Config *config, const Catalog *catalog, const RomRow *row)
+{
+    if (!row->group[0])
+        return false;
+    int rows[32];
+    int n = catalog_group_rows(catalog, row, rows, 32);
+    char text[32 * 270];
+    size_t len = 0;
+    char m3u[PATH_LEN] = "";
+    for (int i = 0; i < n; ++i)
+    {
+        InstallPlan plan;
+        if (!installed_plan(config, &catalog->roms[rows[i]], &plan))
+            return false; /* not every disc yet */
+        if (!plan.m3u[0])
+            return false; /* this emulator finds the discs itself */
+        util_copy(m3u, sizeof(m3u), plan.m3u);
+        len += (size_t)snprintf(text + len, sizeof(text) - len, "%s\n", plan.m3u_line);
+        if (len >= sizeof(text))
+            return false;
+    }
+    if (!m3u[0] || !util_write_file_atomic(m3u, text, len))
+        return false;
+    chmod(m3u, 0666);
+    app_log("multi-disc: %s lists %d disc(s)", m3u, n);
     return true;
 }

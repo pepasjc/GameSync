@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -66,6 +68,14 @@ private val RETRY_BACKOFF_MS = longArrayOf(
 )
 private const val MAX_AUTO_RETRIES = 7  // first attempt + 6 retries
 private const val CANCEL_JOIN_TIMEOUT_MS = 5_000L
+
+/**
+ * How many downloads stream at once; the rest wait as QUEUED, first come
+ * first served.  Every download used to start immediately, so ten queued
+ * games split the link ten ways (none finishing soon) and could start ten
+ * server-side CHD conversions at once.
+ */
+const val MAX_PARALLEL_DOWNLOADS = 2
 
 /**
  * Application-scoped service that owns ROM downloads.
@@ -116,6 +126,8 @@ class DownloadManager(
 ) {
 
     private val jobs = mutableMapOf<String, Job>()
+    /** FIFO: a waiting download takes the next free slot in arrival order. */
+    private val downloadSlots = Semaphore(MAX_PARALLEL_DOWNLOADS)
     private val jobsLock = Mutex()
     private var foregroundActive = false
 
@@ -167,6 +179,7 @@ class DownloadManager(
         extractFormat: String? = null,
         cdGamesPerContentFolder: Boolean = false,
         bundleKind: String? = null,
+        replacesPaths: List<String>? = null,
     ): Deferred<String> = appScope.async {
         enqueue(
             api = api,
@@ -179,6 +192,7 @@ class DownloadManager(
             extractFormat = extractFormat,
             cdGamesPerContentFolder = cdGamesPerContentFolder,
             bundleKind = bundleKind,
+            replacesPaths = replacesPaths,
         )
     }
 
@@ -193,6 +207,10 @@ class DownloadManager(
     fun removeAsync(id: String): Job = appScope.launch { remove(id) }
 
     fun clearFinishedAsync(): Job = appScope.launch { clearFinished() }
+
+    fun pauseAllAsync(): Job = appScope.launch { pauseAll() }
+
+    fun resumeAllAsync(api: SaveSyncApi): Job = appScope.launch { resumeAll(api) }
 
     // ──────────────────────────────────────────────────────────────────
     // Suspending API (kept for tests + advanced callers)
@@ -215,6 +233,7 @@ class DownloadManager(
         extractFormat: String? = null,
         cdGamesPerContentFolder: Boolean = false,
         bundleKind: String? = null,
+        replacesPaths: List<String>? = null,
     ): String {
         val (finalFile, partFile) = resolveTargetFiles(
             romScanDir = romScanDir,
@@ -235,18 +254,16 @@ class DownloadManager(
             partFilePath = partFile.absolutePath,
             finalFilePath = finalFile.absolutePath,
             totalBytes = -1,
-            // Important — we mark as DOWNLOADING straight away rather
-            // than waiting for the worker to flip the state.  The worker
-            // can take a moment to be picked up off the IO dispatcher,
-            // and a row that spends that time stuck in QUEUED looks
-            // broken in the UI.
+            // QUEUED until the worker gets a download slot; with a slot
+            // free that is immediate.
             downloadedBytes = if (partFile.exists()) partFile.length() else 0L,
-            status = DownloadEntity.Status.DOWNLOADING,
+            status = DownloadEntity.Status.QUEUED,
             errorMessage = null,
             extractFormat = extractFormat,
             createdAt = now,
             updatedAt = now,
             bundleKind = bundleKind,
+            replacesPaths = replacesPaths?.takeIf { it.isNotEmpty() }?.joinToString("\n"),
         )
         dao.upsert(entity)
         // Pre-seed a progress event so the UI shows the row immediately
@@ -291,7 +308,7 @@ class DownloadManager(
         val onDisk = File(current.partFilePath).takeIf { it.exists() }?.length() ?: 0L
         val refreshed = current.copy(
             downloadedBytes = onDisk,
-            status = DownloadEntity.Status.DOWNLOADING,
+            status = DownloadEntity.Status.QUEUED,
             errorMessage = null,
             updatedAt = nowMillis(),
         )
@@ -333,6 +350,21 @@ class DownloadManager(
         }
         dao.deleteById(id)
         refreshForegroundService()
+    }
+
+    /** Pause everything running or waiting for a slot. */
+    suspend fun pauseAll() {
+        dao.getActive()
+            .filter { it.status != DownloadEntity.Status.PAUSED }
+            .forEach { pause(it.id) }
+    }
+
+    /** Resume every paused download; they queue for the free slots in list order. */
+    suspend fun resumeAll(api: SaveSyncApi) {
+        dao.getActive()
+            .filter { it.status == DownloadEntity.Status.PAUSED }
+            .sortedBy { it.createdAt }
+            .forEach { resume(api, it.id) }
     }
 
     /** Bulk-clear finished rows (completed / failed / cancelled). */
@@ -396,6 +428,30 @@ class DownloadManager(
      * cleanly because Kotlin's ``delay`` is cooperatively cancellable.
      */
     private suspend fun runDownload(api: SaveSyncApi, id: String) {
+        // Wait (as QUEUED) for a slot.  A pause or cancel while waiting
+        // cancels this coroutine, so it never takes the slot.
+        downloadSlots.withPermit {
+            if (!markStarted(id)) return
+            runDownloadAttempts(api, id)
+        }
+    }
+
+    /** QUEUED → DOWNLOADING once a slot is ours; false if it was paused / cancelled meanwhile. */
+    private suspend fun markStarted(id: String): Boolean {
+        val current = dao.getById(id) ?: return false
+        return when (current.status) {
+            DownloadEntity.Status.QUEUED -> {
+                dao.upsert(
+                    current.copy(status = DownloadEntity.Status.DOWNLOADING, updatedAt = nowMillis())
+                )
+                true
+            }
+            DownloadEntity.Status.DOWNLOADING -> true
+            else -> false
+        }
+    }
+
+    private suspend fun runDownloadAttempts(api: SaveSyncApi, id: String) {
         var attempt = 0
         var lastError: IOException? = null
         while (attempt < MAX_AUTO_RETRIES) {
@@ -743,6 +799,7 @@ class DownloadManager(
 
     private suspend fun markCompleted(id: String) {
         val current = dao.getById(id) ?: return
+        current.replacesPaths?.let { deleteReplaced(it, File(current.finalFilePath)) }
         dao.upsert(
             current.copy(
                 status = DownloadEntity.Status.COMPLETED,
@@ -753,6 +810,27 @@ class DownloadManager(
                 updatedAt = nowMillis(),
             )
         )
+    }
+
+    /**
+     * Delete the copy a completed download replaces.  Never the new
+     * download itself, nor a folder holding it, in case both share a path.
+     */
+    private fun deleteReplaced(paths: String, finalFile: File) {
+        val finalPath = finalFile.canonicalFile
+        for (raw in paths.lines().map { it.trim() }.filter { it.isNotEmpty() }) {
+            val old = File(raw)
+            val oldPath = runCatching { old.canonicalFile }.getOrNull() ?: continue
+            var cur: File? = finalPath
+            var holdsNew = false
+            while (cur != null) {
+                if (cur == oldPath) { holdsNew = true; break }
+                cur = cur.parentFile
+            }
+            if (holdsNew) continue
+            val ok = if (old.isDirectory) old.deleteRecursively() else !old.exists() || old.delete()
+            if (!ok) Log.w(TAG, "Could not delete replaced copy $raw")
+        }
     }
 
     private suspend fun markFailed(id: String, message: String) {

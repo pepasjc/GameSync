@@ -32,9 +32,13 @@ DEFAULTS = {
     "OVERSCAN_X": "",
     "OVERSCAN_Y": "",
     "BUTTONS": "",
+    "UI_STYLE": "auto",
 }
 
 ROM_TARGETS = ("sd", "usb")
+
+#: auto = the dense 8x8 layout on a 240p display, FreeType on a monitor.
+UI_STYLES = ("auto", "dense", "classic")
 
 #: Percent of each edge to keep clear. A CRT, and an arcade tube especially,
 #: does not show the whole picture; the cabinet this was calibrated against
@@ -92,10 +96,11 @@ class Config:
     """The three settings the client needs, plus where they came from."""
 
     __slots__ = ("server_url", "api_key", "rom_target", "path",
-                 "overscan_x", "overscan_y", "buttons")
+                 "overscan_x", "overscan_y", "buttons", "ui_style")
 
     def __init__(self, server_url="", api_key="", rom_target="sd", path="",
-                 overscan_x=None, overscan_y=None, buttons=None):
+                 overscan_x=None, overscan_y=None, buttons=None,
+                 ui_style="auto"):
         self.server_url = server_url
         self.api_key = api_key
         self.rom_target = rom_target if rom_target in ROM_TARGETS else "sd"
@@ -103,6 +108,8 @@ class Config:
         self.overscan_x = _percent(overscan_x)
         self.overscan_y = _percent(overscan_y)
         self.buttons = dict(buttons or {})
+        ui_style = (ui_style or "auto").strip().lower()
+        self.ui_style = ui_style if ui_style in UI_STYLES else "auto"
 
     @property
     def is_configured(self) -> bool:
@@ -142,9 +149,13 @@ class Config:
             "# action=evdev_code pairs, written by Settings -> Remap buttons.\n"
             "# Empty means use the built-in gamepad defaults.\n"
             "BUTTONS=%s\n"
+            "\n"
+            "# auto, dense or classic. dense is the 8x8 text-mode layout that\n"
+            "# fits twice the rows; auto uses it on a 240p display only.\n"
+            "UI_STYLE=%s\n"
         ) % (self.server_url, self.api_key, self.rom_target,
              _format_percent(self.overscan_x), _format_percent(self.overscan_y),
-             format_buttons(self.buttons))
+             format_buttons(self.buttons), self.ui_style)
 
 
 def _format_percent(value) -> str:
@@ -192,6 +203,7 @@ def load_config() -> Config:
         overscan_x=values.get("OVERSCAN_X", ""),
         overscan_y=values.get("OVERSCAN_Y", ""),
         buttons=parse_buttons(values.get("BUTTONS", "")),
+        ui_style=values.get("UI_STYLE", "auto"),
     )
 
 

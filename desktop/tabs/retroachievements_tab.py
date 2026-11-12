@@ -24,17 +24,18 @@ from PyQt6.QtWidgets import (
 )
 
 import retroachievements as ra
+import theme
 from config import SYSTEM_CHOICES, get_retroachievements_credentials
 from shared.ra_hash import ra_hash_supported
 from table_sorting import SortableItem, make_sortable, sorting_suspended
 
 _STATUS_COLORS = {
-    ra.STATUS_SUPPORTED: QColor(198, 239, 206),
-    ra.STATUS_REGISTERED: QColor(221, 235, 247),
-    ra.STATUS_NOT_FOUND: QColor(255, 199, 206),
-    ra.STATUS_UNSUPPORTED: QColor(255, 235, 156),
-    ra.STATUS_NO_SYSTEM: QColor(255, 235, 156),
-    ra.STATUS_ERROR: QColor(255, 199, 206),
+    ra.STATUS_SUPPORTED: theme.tint(theme.OK),
+    ra.STATUS_REGISTERED: theme.tint(theme.INFO),
+    ra.STATUS_NOT_FOUND: theme.tint(theme.ERR),
+    ra.STATUS_UNSUPPORTED: theme.tint(theme.WARN),
+    ra.STATUS_NO_SYSTEM: theme.tint(theme.WARN),
+    ra.STATUS_ERROR: theme.tint(theme.ERR),
 }
 
 _COLUMNS = ("File", "System", "Kind", "RetroAchievements", "Game", "Achievements", "RA ID", "Hash", "Detail")

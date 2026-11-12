@@ -188,7 +188,7 @@ static void draw_toast(void) {
 static void view_begin(AppView view) {
     gui_begin();
     gui_vgrad(0, GUI_HEADER_H, GUI_W, GUI_FOOTER_Y - GUI_HEADER_H,
-              gui_rgb(HEX_BG), gui_rgb(0x131D28));
+              gui_rgb(HEX_BG), gui_rgb(0x10172E));
     gui_header(VIEW_TITLES, APP_VIEW_COUNT, (int)view);
 }
 
@@ -286,10 +286,10 @@ static bool row_selected(AppView view, int i, int selected) {
 /* ================================================================== */
 
 static void splash_background(void) {
-    gui_vgrad(0, 0, GUI_W, GUI_H, gui_rgb(0x15212E), gui_rgb(HEX_BG));
+    gui_vgrad(0, 0, GUI_W, GUI_H, gui_rgb(0x141C36), gui_rgb(HEX_BG));
     float cx = GUI_W / 2.0f;
     gui_rrect(cx - 20, 48, 40, 40, 11, gui_rgb(HEX_ACCENT));
-    gui_rrect(cx - 9, 59, 18, 18, 5, gui_rgb(0x15212E));
+    gui_rrect(cx - 9, 59, 18, 18, 5, gui_rgb(0x141C36));
     gui_text(cx, 98, F_HUGE, gui_rgb(HEX_TEXT), GUI_CENTER, "GameSync");
     gui_text(cx, 134, F_SMALL, gui_rgb(HEX_DIM), GUI_CENTER, "PSP client  \xC2\xB7  v" APP_VERSION);
 }

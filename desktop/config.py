@@ -32,16 +32,17 @@ DEVICE_TYPES = [
 ]
 
 STATUS_COLORS = {
-    "up_to_date": QColor(0, 200, 0),
-    "local_newer": QColor(0, 160, 255),
-    "server_newer": QColor(255, 200, 0),
-    "not_on_server": QColor(180, 180, 180),
-    "server_only": QColor(180, 100, 255),
-    "conflict": QColor(220, 60, 60),
-    "mapping_conflict": QColor(255, 120, 40),
-    "local_duplicate_conflict": QColor(255, 140, 80),
-    "error": QColor(200, 0, 200),
-    "unknown": QColor(180, 180, 180),
+    # The shared GameSync status colours (see theme.py).
+    "up_to_date": QColor("#3dd68c"),
+    "local_newer": QColor("#6c93ff"),
+    "server_newer": QColor("#ffb938"),
+    "not_on_server": QColor("#9ba9cd"),
+    "server_only": QColor("#a45cff"),
+    "conflict": QColor("#ff5d6c"),
+    "mapping_conflict": QColor("#ff8a4c"),
+    "local_duplicate_conflict": QColor("#ff9f6b"),
+    "error": QColor("#ff5d6c"),
+    "unknown": QColor("#6b789f"),
 }
 
 STATUS_LABELS = {

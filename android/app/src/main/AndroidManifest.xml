@@ -23,6 +23,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- The Xbox emulators, for the Xbox Emulator setting's automatic pick
+         (XboxEmulatorChoice): Android 11+ hides other packages otherwise. -->
+    <queries>
+        <package android:name="com.rfandango.haku_x" />
+        <package android:name="com.izzy2lost.x1box" />
+    </queries>
+
     <application
         android:name=".SaveSyncApp"
         android:allowBackup="true"

@@ -25,6 +25,7 @@
 #include <time.h>
 
 int sceSystemServiceHideSplashScreen(void);
+int sceSystemServiceLoadExec(const char *path, const char **arguments);
 int sceKernelSendNotificationRequest(int device, void *request, size_t size, int blocking);
 
 #define MAX_PADS 4
@@ -125,7 +126,7 @@ static void watch_for_crashes(void)
     sa.sa_sigaction = on_crash;
     sa.sa_flags = SA_SIGINFO;
     sigemptyset(&sa.sa_mask);
-    const int sigs[] = {SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGABRT};
+    const int sigs[] = {SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGABRT, SIGSYS};
     for (size_t i = 0; i < sizeof(sigs) / sizeof(sigs[0]); ++i)
         sigaction(sigs[i], &sa, NULL);
 }
@@ -156,6 +157,19 @@ void plat_shutdown(void)
         if (pads[i])
             SDL_GameControllerClose(pads[i]);
     SDL_Quit();
+}
+
+/* As SwanStationPS5 and ProsperoStore do: LoadExec "exit" has the shell
+ * close the title; asked again until it does. */
+void plat_exit(void)
+{
+    fflush(NULL);
+    for (;;)
+    {
+        int rc = sceSystemServiceLoadExec("exit", NULL);
+        app_log("exit: LoadExec refused (0x%x)", (unsigned)rc);
+        sleep(1);
+    }
 }
 
 static void refresh_pads(void)

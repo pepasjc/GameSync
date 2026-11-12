@@ -622,7 +622,7 @@ int gui_button(int x, int cy, const char *b) {
     if (!b) return 0;
     if (is_face(b)) {
         int cx = x + BTN_FACE / 2;
-        gui_circle(cx, cy, BTN_FACE / 2, 0x0B1118);
+        gui_circle(cx, cy, BTN_FACE / 2, 0x070B18);
         if (!strcmp(b, "CROSS")) {
             uint32_t c = 0x7CB2E8;
             gui_line(cx - 5, cy - 5, cx + 5, cy + 5, 2, c);
@@ -630,21 +630,21 @@ int gui_button(int x, int cy, const char *b) {
         } else if (!strcmp(b, "CIRCLE")) {
             uint32_t c = 0xFF6B6B;
             gui_circle(cx, cy, 6, c);
-            gui_circle(cx, cy, 4, 0x0B1118);
+            gui_circle(cx, cy, 4, 0x070B18);
         } else if (!strcmp(b, "SQUARE")) {
             uint32_t c = 0xE88BCB;
             gui_rect(cx - 5, cy - 5, 11, 11, c);
-            gui_rect(cx - 3, cy - 3, 7, 7, 0x0B1118);
+            gui_rect(cx - 3, cy - 3, 7, 7, 0x070B18);
         } else {
             gui_tri(cx, cy - 7, cx - 7, cy + 5, cx + 7, cy + 5, 0x3DDBA8);
-            gui_tri(cx, cy - 3, cx - 4, cy + 3, cx + 4, cy + 3, 0x0B1118);
+            gui_tri(cx, cy - 3, cx - 4, cy + 3, cx + 4, cy + 3, 0x070B18);
         }
         return BTN_FACE;
     }
     if (is_dpad(b)) {
         int cx = x + BTN_FACE / 2;
         bool ud = !strcmp(b, "UD"), lr = !strcmp(b, "LR"), all = !strcmp(b, "DPAD");
-        gui_circle(cx, cy, BTN_FACE / 2, 0x0B1118);
+        gui_circle(cx, cy, BTN_FACE / 2, 0x070B18);
         gui_rect(cx - 3, cy - 8, 6, 16, (ud || all) ? HEX_TEXT : HEX_LINE);
         gui_rect(cx - 8, cy - 3, 16, 6, (lr || all) ? HEX_TEXT : HEX_LINE);
         if (ud && !all) gui_rect(cx - 3, cy - 3, 6, 6, HEX_TEXT);
@@ -698,11 +698,30 @@ void gui_banner(int x, int y, int w, int h, uint32_t tone, const char *text) {
     if (text) gui_text_mid(x + 20, y, h, GUI_F_BODY, HEX_TEXT, GUI_LEFT, w - 32, text);
 }
 
+/* The brand's sync gradient (cyan -> blue -> violet, as in the logo's arrows),
+ * drawn as flat steps so it needs nothing beyond a rect fill. */
+static unsigned int brand_lerp(unsigned int a, unsigned int b, int t, int n) {
+    int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+    int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+    return (unsigned int)(((ar + (br - ar) * t / n) << 16) | ((ag + (bg - ag) * t / n) << 8) |
+                          (ab + (bb - ab) * t / n));
+}
+
+static void brand_bar(int x, int y, int w, int h) {
+    enum { STEPS = 32, HALF = STEPS / 2 };
+    for (int i = 0; i < STEPS; i++) {
+        unsigned int c = i < HALF ? brand_lerp(HEX_BRAND_A, HEX_BRAND_B, i, HALF)
+                                  : brand_lerp(HEX_BRAND_B, HEX_BRAND_C, i - HALF, HALF - 1);
+        int x0 = x + w * i / STEPS, x1 = x + w * (i + 1) / STEPS;
+        gui_rect(x0, y, x1 - x0, h, c);
+    }
+}
+
 int gui_header(const char *section) {
     int y = GUI_HEADER_Y;
     int h = GUI_HEADER_H;
     gui_rect(0, 0, GUI_W, y + h, HEX_BG2);
-    gui_rect(0, y + h, GUI_W, 1, HEX_LINE);
+    brand_bar(0, y + h - 1, GUI_W, 2);
 
     int lx = GUI_MARGIN_X;
     int ly = y + (h - 26) / 2;

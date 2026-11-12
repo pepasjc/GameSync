@@ -84,7 +84,7 @@ The same scheme on every screen (shared by all GameSync clients):
 | D-pad / left stick Up / Down | Move one row (hold repeats) |
 | D-pad Left / Right | Page up / page down (hold to speed up, then jump by first letter) |
 | L1 / R1 | Previous / next tab (wraps around) |
-| SELECT (View) | Next sub-tab: the system filter |
+| L2 / R2 | Previous / next system (the sub-tab chips) |
 | A | Confirm / the highlighted row's main action |
 | B | Cancel / back: closes dialogs and the search (never starts anything, never exits) |
 | X | The tab's secondary action |
@@ -95,11 +95,11 @@ The same scheme on every screen (shared by all GameSync clients):
 |---|---|---|---|---|
 | Saves | Smart sync the save (upload or download; a conflict opens the comparison) | Sync all | Details: compare, upload, download, get the ROM | Clear the search |
 | Catalog | Queue the download | RetroAchievements games only / all | Search | Clear the search |
-| Installed | Delete the ROM (asks first) | Rescan the ROM folders | Search | Clear the search |
+| Installed | Delete the ROM (asks first); on a game marked **RA version available**, offers *Replace with RA version* (A) or *Delete* (X) | Rescan the ROM folders | Search | Clear the search |
 | Downloads | Pause / resume / retry the row | Clear finished | Remove the row (asks first) | Pause the running download |
 | Settings | Open the highlighted entry | | | |
 
-On **Saves**, L2 / R2 step the status filter (needs action, upload, download,
+On **Saves**, SELECT (View) steps the status filter (needs action, upload, download,
 conflict, synced, …). **Sync all** uploads every save that changed here and
 downloads every save that changed on the server; conflicts are skipped (open
 them with Y), and a save that exists only on the server is fetched only when

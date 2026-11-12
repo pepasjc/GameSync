@@ -82,16 +82,17 @@ object BundleUtils {
     /**
      * Creates a v4 bundle from every file under [saveDir], recursively sorted by relative path.
      * Used for 3DS save trees where the save archive contains nested directories.
+     * Xbox saves ([xboxPaths]) travel with '\' paths in '\'-path order, as the
+     * Xbox client bundles them ([com.savesync.android.emulators.XboxSaves.treeFiles]).
      */
-    fun createTreeBundle(titleId: String, saveDir: File): ByteArray {
-        val files = saveDir.walkTopDown()
+    fun createTreeBundle(titleId: String, saveDir: File, xboxPaths: Boolean = false): ByteArray {
+        val sep = if (xboxPaths) '\\' else '/'
+        val names = saveDir.walkTopDown()
             .filter { it.isFile }
-            .sortedBy { it.relativeTo(saveDir).path.replace('\\', '/') }
-            .toList()
+            .associateWith { it.relativeTo(saveDir).path.replace('\\', '/').replace('/', sep) }
+        val files = names.keys.sortedBy { names.getValue(it) }
 
-        val payload = buildPayload(files) { file ->
-            file.relativeTo(saveDir).path.replace('\\', '/')
-        }
+        val payload = buildPayload(files) { file -> names.getValue(file) }
 
         val compressed = ByteArrayOutputStream().also { baos ->
             DeflaterOutputStream(baos, java.util.zip.Deflater(6)).use { it.write(payload) }

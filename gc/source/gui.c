@@ -597,7 +597,7 @@ float gui_button(float x, float cy, const char *b) {
         return BTN_D;
     }
     if (!strcmp(b, "DPAD") || !strcmp(b, "UD") || !strcmp(b, "LR")) {
-        u32 base = gui_rgb(0x4A5B6D), hi = gui_rgb(HEX_TEXT);
+        u32 base = gui_rgb(0x525F88), hi = gui_rgb(HEX_TEXT);
         bool ud = !strcmp(b, "UD"), lr = !strcmp(b, "LR"), all = !ud && !lr;
         float s = BTN_D, t = 6;
         /* Base cross, then the arms that matter highlighted on top */
@@ -649,7 +649,7 @@ void gui_scrollbar(float x, float y, float h, int first, int visible, int total)
 }
 
 void gui_panel(float x, float y, float w, float h) {
-    gui_rrect(x - 1, y - 1, w + 2, h + 2, 9, gui_rgb(0x0A1118));
+    gui_rrect(x - 1, y - 1, w + 2, h + 2, 9, gui_rgb(0x070A16));
     gui_rrect(x, y, w, h, 8, gui_rgb(HEX_PANEL));
 }
 
@@ -674,14 +674,33 @@ void gui_dim(void) {
 /* Chrome                                                                    */
 /* ------------------------------------------------------------------------ */
 
+/* The brand's sync gradient (cyan -> blue -> violet, as in the logo's arrows),
+ * drawn as flat steps so it needs nothing beyond a rect fill. */
+static unsigned int brand_lerp(unsigned int a, unsigned int b, int t, int n) {
+    int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+    int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+    return (unsigned int)(((ar + (br - ar) * t / n) << 16) | ((ag + (bg - ag) * t / n) << 8) |
+                          (ab + (bb - ab) * t / n));
+}
+
+static void brand_bar(float x, float y, float w, float h) {
+    enum { STEPS = 32, HALF = STEPS / 2 };
+    for (int i = 0; i < STEPS; i++) {
+        unsigned int c = i < HALF ? brand_lerp(HEX_BRAND_A, HEX_BRAND_B, i, HALF)
+                                  : brand_lerp(HEX_BRAND_B, HEX_BRAND_C, i - HALF, HALF - 1);
+        float x0 = x + w * i / STEPS, x1 = x + w * (i + 1) / STEPS;
+        gui_rect(x0, y, x1 - x0, h, gui_rgb(c));
+    }
+}
+
 void gui_header(const char *section, const SyncState *st) {
-    gui_vgrad(0, 0, GUI_W, GUI_HEADER_H, gui_rgb(0x162130), gui_rgb(HEX_BG2));
-    gui_rect(0, GUI_HEADER_H - 2, GUI_W, 2, gui_rgb(HEX_LINE));
+    gui_vgrad(0, 0, GUI_W, GUI_HEADER_H, gui_rgb(0x1A2340), gui_rgb(HEX_BG2));
+    brand_bar(0, GUI_HEADER_H - 2, GUI_W, 2);
 
     float band_y = GUI_SAFE_Y, band_h = GUI_HEADER_H - GUI_SAFE_Y - 2;
     float cy = band_y + band_h / 2;
 
-    /* Logo mark: teal rounded square with a notch */
+    /* Logo mark: cyan rounded square with a notch */
     gui_rrect(GUI_SAFE_X, cy - 10, 20, 20, 6, gui_rgb(HEX_ACCENT));
     gui_rrect(GUI_SAFE_X + 6, cy - 4, 8, 8, 3, gui_rgb(HEX_BG2));
     float x = GUI_SAFE_X + 28;
@@ -744,7 +763,7 @@ void gui_tabs(const char *const *labels, int count, int active) {
 
 void gui_footer(const GuiHint *hints, int count) {
     float y = GUI_FOOTER_Y;
-    gui_vgrad(0, y, GUI_W, GUI_H - y, gui_rgb(HEX_BG2), gui_rgb(0x141D28));
+    gui_vgrad(0, y, GUI_W, GUI_H - y, gui_rgb(HEX_BG2), gui_rgb(0x10162B));
     gui_rect(0, y, GUI_W, 2, gui_rgb(HEX_LINE));
     if (count <= 0) return;
     float widths[12], total = 0;

@@ -218,8 +218,11 @@ object InstalledRomsScanner {
             .filter { it.isNotEmpty() }
         val systems = (SYSTEM_ROM_DIRS.keys + overrideSystems).toSortedSet()
 
-        for (system in systems) {
-            val target = resolveRomTargetDir(scanRoot, system, romDirOverrides)
+        // Resolve every target before creating anything: systems share
+        // aliases (MAME falls back to ``arcade/``), so a folder made for one
+        // system must not be picked up as another's existing folder.
+        val targets = systems.map { it to resolveRomTargetDir(scanRoot, it, romDirOverrides) }
+        for ((system, target) in targets) {
             if (target.isDirectory) {
                 existing += system to target
                 continue

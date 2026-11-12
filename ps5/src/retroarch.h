@@ -15,5 +15,9 @@ void retroarch_scan(const Config *config, const KvStore *ids, SaveList *list);
  * the path the catalog would install it to), with the default core. */
 void retroarch_save_path(const Config *config, const char *system, const char *rom_path, char *out,
                          size_t size);
+/* PPSSPP's PSP/SAVEDATA folder: the memory stick is the core's save folder. */
+void retroarch_psp_savedata(const Config *config, char *out, size_t size);
+/* A game file <name>.<any> under content/<system's folder>/ (two levels). */
+bool retroarch_has_game(const Config *config, const char *system, const char *name);
 
 #endif

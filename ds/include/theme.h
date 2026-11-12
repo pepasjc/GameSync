@@ -1,33 +1,33 @@
 #ifndef THEME_H
 #define THEME_H
 
-// GameSync DS look: dark slate background, teal accent, status colours, and
+// GameSync DS look: deep navy background, cyan accent, status colours, and
 // the widgets every screen is built from (header, footer hints, cards, list
 // rows, pills, progress bars). Pure drawing on a Surface, no libnds.
 
 #include "gfx.h"
 
 // Palette (shared with the 3DS client's restyle)
-#define C_BG_TOP     0x0F1720
-#define C_BG_BOTTOM  0x1B2633
-#define C_BG         HEX(0x131C27)
-#define C_HEADER     HEX(0x0B121A)
-#define C_CARD       HEX(0x243244)
-#define C_CARD_HI    HEX(0x2C3D52)
-#define C_CARD_LINE  HEX(0x34465C)
-#define C_INSET      HEX(0x18222E)
-#define C_TEXT       HEX(0xE6EDF3)
-#define C_TEXT_DIM   HEX(0x8DA2B5)
-#define C_TEXT_FAINT HEX(0x5C6F82)
-#define C_ON_ACCENT  HEX(0x0B1A1F)
-#define C_ACCENT     HEX(0x2EC4B6)
-#define C_ACCENT_HI  HEX(0x3DDBD9)
-#define C_OK         HEX(0x3FB950)
-#define C_WARN       HEX(0xF0B429)
-#define C_INFO       HEX(0x58A6FF)
-#define C_ERR        HEX(0xF85149)
+#define C_BG_TOP     0x0B1020
+#define C_BG_BOTTOM  0x141B33
+#define C_BG         HEX(0x0E1428)
+#define C_HEADER     HEX(0x080C1A)
+#define C_CARD       HEX(0x1D2746)
+#define C_CARD_HI    HEX(0x2A3760)
+#define C_CARD_LINE  HEX(0x36446E)
+#define C_INSET      HEX(0x182039)
+#define C_TEXT       HEX(0xEEF2FA)
+#define C_TEXT_DIM   HEX(0x9BA9CD)
+#define C_TEXT_FAINT HEX(0x6B789F)
+#define C_ON_ACCENT  HEX(0x061423)
+#define C_ACCENT     HEX(0x22C3F6)
+#define C_ACCENT_HI  HEX(0x7BDDFF)
+#define C_OK         HEX(0x3DD68C)
+#define C_WARN       HEX(0xFFB938)
+#define C_INFO       HEX(0x6C93FF)
+#define C_ERR        HEX(0xFF5D6C)
 #define C_GOLD       HEX(0xE3B341)
-#define C_PURPLE     HEX(0xA371F7)
+#define C_PURPLE     HEX(0xA45CFF)
 #define C_SHADOW     HEX(0x000000)
 
 // Layout

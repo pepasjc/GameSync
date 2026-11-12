@@ -164,7 +164,7 @@ float ui_detail_pill(float *x, float y, u32 bg, u32 fg, const char *label) {
 /* ---- Full-screen states / dialogs ---- */
 
 void ui_draw_boot(const char *message) {
-    gui_vgrad(0, 0, GUI_W, GUI_H, gui_rgb(HEX_BG), gui_rgb(0x0B1118));
+    gui_vgrad(0, 0, GUI_W, GUI_H, gui_rgb(HEX_BG), gui_rgb(0x070B18));
     float cx = GUI_W / 2.0f, cy = 190;
     gui_rrect(cx - 34, cy - 34, 68, 68, 18, gui_rgb(HEX_ACCENT));
     gui_rrect(cx - 13, cy - 13, 26, 26, 8, gui_rgb(HEX_BG));

@@ -4,6 +4,7 @@ import sys
 import traceback
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
+import theme
 from window import SaveManagerWindow
 
 
@@ -17,7 +18,7 @@ def _global_excepthook(exc_type, exc_value, exc_tb):
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Save Manager desktop client")
+    parser = argparse.ArgumentParser(description="GameSync desktop client")
     parser.add_argument(
         "--debug-scan",
         action="store_true",
@@ -45,6 +46,7 @@ def main(argv: list[str] | None = None):
 
     qt_argv = [sys.argv[0]]
     app = QApplication(qt_argv)
+    theme.apply(app)
     # window/taskbar icon (tools/brand_art.py)
     app.setWindowIcon(QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "gamesync.png")))
     sys.excepthook = _global_excepthook

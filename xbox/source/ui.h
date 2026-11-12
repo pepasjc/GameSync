@@ -2,7 +2,7 @@
 // client.
 //
 // The look follows the design language every GameSync client shares: deep
-// slate background, lighter rounded panels, teal accent, green / amber /
+// navy background, lighter rounded panels, cyan accent, green / amber /
 // blue / red status colours, pills for tags, a header bar with the logo and
 // a footer hint bar with controller glyphs.
 //
@@ -38,22 +38,25 @@ typedef enum {
 // Palette (0xRRGGBB)
 // ---------------------------------------------------------------------------
 
-#define UI_HEX_BG        0x0F1720
-#define UI_HEX_BG2       0x1B2633
-#define UI_HEX_PANEL     0x243244
-#define UI_HEX_PANEL_HI  0x2C3D52
-#define UI_HEX_LINE      0x33465C
-#define UI_HEX_TEXT      0xE6EDF3
-#define UI_HEX_DIM       0x8DA2B5
-#define UI_HEX_MUTED     0x5E7286
-#define UI_HEX_ACCENT    0x2EC4B6
-#define UI_HEX_ACCENT2   0x3DDBD9
-#define UI_HEX_OK        0x3FB950
-#define UI_HEX_WARN      0xF0B429
-#define UI_HEX_INFO      0x58A6FF
-#define UI_HEX_ERR       0xF85149
+#define UI_HEX_BG        0x0B1020
+#define UI_HEX_BG2       0x141B33
+#define UI_HEX_PANEL     0x1D2746
+#define UI_HEX_PANEL_HI  0x2A3760
+#define UI_HEX_LINE      0x36446E
+#define UI_HEX_TEXT      0xEEF2FA
+#define UI_HEX_DIM       0x9BA9CD
+#define UI_HEX_MUTED     0x6B789F
+#define UI_HEX_ACCENT    0x22C3F6
+#define UI_HEX_ACCENT2   0x7BDDFF
+#define UI_HEX_BRAND_A 0x00D6FF   // logo gradient: cyan
+#define UI_HEX_BRAND_B 0x3A78FF   // blue
+#define UI_HEX_BRAND_C 0xA45CFF   // violet
+#define UI_HEX_OK        0x3DD68C
+#define UI_HEX_WARN      0xFFB938
+#define UI_HEX_INFO      0x6C93FF
+#define UI_HEX_ERR       0xFF5D6C
 #define UI_HEX_XBOX      0x6CC24A   // platform pill
-#define UI_HEX_INK       0x0F1720   // dark text on light fills
+#define UI_HEX_INK       0x0B1020   // dark text on light fills
 
 // Original Xbox face-button colours.
 #define UI_HEX_BTN_A     0x5FBF3F

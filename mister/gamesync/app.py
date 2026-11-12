@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import posixpath
 import pkgutil
 import time
@@ -25,6 +24,7 @@ from . import input as gsinput
 from . import sync as gssync
 from shared import mister_install as gsinstall
 from . import theme
+from .bitfont import BitmapFont
 from .fb import Framebuffer
 from .text import Font, TextRenderer
 
@@ -42,6 +42,12 @@ from shared.mister import (  # noqa: E402
 from shared.mister_scan import (  # noqa: E402
     installed_game_save_paths,
     list_installed_games,
+)
+from shared.ra_variants import (  # noqa: E402
+    VariantIndex,
+    game_ra_verified,
+    region_rank,
+    same_region,
 )
 from shared.systems import SAVE_EXTENSIONS  # noqa: E402
 
@@ -135,6 +141,61 @@ MARQUEE_STEP = 2
 MARQUEE_INTERVAL = 0.04
 MARQUEE_START_HOLD = 1.2
 MARQUEE_END_HOLD = 1.5
+#: Largest installed file hashed to tell whether RA supports it: every
+#: cartridge fits; a disc image would take minutes on the MiSTer.
+RA_HASH_MAX_SIZE = 64 * 1024 * 1024
+#: ``path -> [size, mtime, md5]`` kept between runs: hashing the cartridges
+#: a fresh start has to judge costs ~5 s on the MiSTer.
+RA_HASH_CACHE_PATH = os.path.join(MISTER_CONFIG_DIR, "ra_hash_cache.json")
+
+
+#: Pending "replace with RA version" swaps, kept so a restart mid-download
+#: still deletes the old copy when the new one lands.
+REPLACEMENTS_PATH = os.path.join(MISTER_CONFIG_DIR, "replacements.json")
+
+
+def _load_replacements(path: str = REPLACEMENTS_PATH) -> list:
+    try:
+        with open(path, "r") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return []
+    return [job for job in data if isinstance(job, dict)
+            and job.get("targets") and job.get("old_path")]         if isinstance(data, list) else []
+
+
+def _save_replacements(jobs: list, path: str = REPLACEMENTS_PATH) -> None:
+    try:
+        if not jobs:
+            if os.path.exists(path):
+                os.remove(path)
+            return
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".part", "w") as handle:
+            json.dump(jobs, handle)
+        os.replace(path + ".part", path)
+    except OSError:
+        pass
+
+
+def _load_ra_hash_cache(path: str = RA_HASH_CACHE_PATH) -> dict:
+    try:
+        with open(path, "r") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_ra_hash_cache(cache: dict, path: str = RA_HASH_CACHE_PATH) -> None:
+    temp = path + ".part"
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(temp, "w") as handle:
+            json.dump(cache, handle)
+        os.replace(temp, path)
+    except OSError:
+        pass        # an unwritable cache is a slower start, never a failure
 RA_BADGE_LABEL = "RA"
 #: A disc match is by name only, so it is flagged as a question rather
 #: than a promise - see shared/ra_titles.py.
@@ -206,28 +267,9 @@ class App:
                 self.fb.phys_height <= theme.LOWRES_MAX_HEIGHT)
             self.fb.set_overscan(*self.overscan)
 
-            # A 15 kHz mode reports a framebuffer whose pixels are not square
-            # (640x240 for a 4:3 picture), so glyph width and horizontal
-            # padding both have to be corrected by the pixel aspect.
-            aspect = self.fb.pixel_aspect
-            self.metrics = theme.Metrics(self.fb.width, self.fb.height, aspect)
-            self.lowres = self.metrics.lowres
-            if self.lowres:
-                theme.apply_crt_palette()
             self.renderer = TextRenderer()
-
-            font_bytes = pkgutil.get_data("gamesync", "assets/font.ttf")
-            if not font_bytes:
-                raise RuntimeError("bundled font missing")
-
-            def make_font(size, bold=False):
-                return Font(font_bytes, size, bold=bold, pixel_aspect=aspect,
-                            mono=self.lowres)
-
-            self.font_title = make_font(self.metrics.font_title, bold=True)
-            self.font_row = make_font(self.metrics.font_row)
-            self.font_small = make_font(self.metrics.font_small)
-            self.font_chip = make_font(self.metrics.font_chip, bold=True)
+            self.metrics = None
+            self._relayout()
 
             self.input = gsinput.InputReader(buttons=self.config.buttons)
             self.client = (
@@ -321,7 +363,10 @@ class App:
             #: _index_catalog(). Keyed by id(): DiscGroup has __slots__.
             self._group_facts = {}
             self._group_by_name = {}
-            self._ra_verified = {}
+            self._ra_variants = None
+            #: RA-version swaps waiting for their download to land - see
+            #: do_replace_with_variant / finish_replacements.
+            self._replacements = _load_replacements()
             self._catalog_rows = []
             self._catalog_keys = []
             self._installed_scanned = False
@@ -407,6 +452,10 @@ class App:
                     "%g%% / %g%% margin%s"
                     % (self.overscan[0], self.overscan[1],
                        "" if self.config.overscan_is_set else " (auto)"), ""),
+                Row("", "UI style",
+                    self.config.ui_style if self.config.ui_style != "auto"
+                    else "auto (%s)" % ("dense" if self.metrics.dense
+                                        else "classic"), ""),
                 Row("", "Remap buttons",
                     "%d bound" % len(self.config.buttons)
                     if self.config.buttons else "defaults", ""),
@@ -426,6 +475,7 @@ class App:
             for tab, rows in self.all_rows.items()
         }
         self._resync_system_filter()
+        self.save_ra_hash_cache()
         self._data_version += 1
         self._rows_key = None
 
@@ -550,27 +600,89 @@ class App:
             else:
                 self.toast_until = None
 
-    def draw_header(self) -> None:
-        metrics = self.metrics
-        self.fb.fill_rect(0, 0, metrics.width, metrics.header_h, theme.HEADER)
-        self.fb.fill_rect(0, metrics.header_h - 2, metrics.width, 2,
-                          theme.DIVIDER)
-
-        baseline = (metrics.header_h - self.font_title.line_height) // 2
-        used = self.text(self.font_title, metrics.pad, baseline, "GameSync",
-                         theme.TEXT_STRONG, theme.HEADER)
-        self.text(self.font_small, metrics.pad + used + 10,
-                  baseline + self.font_title.line_height
-                  - self.font_small.line_height - 2,
-                  "MiSTer", theme.ACCENT, theme.HEADER)
-
+    def _scope_label(self) -> str:
         scope = self.current_system
         if self.tab == 1 and self.ra_only:
             scope += "  RA only"
-        label = "%s  -  %d items" % (scope, len(self.rows()))
         if self.tab == 1 and self.search:
-            label = '%s  "%s"  -  %d items' % (scope, self.search,
-                                                len(self.rows()))
+            return '%s  "%s"  -  %d items' % (scope, self.search,
+                                               len(self.rows()))
+        return "%s  -  %d items" % (scope, len(self.rows()))
+
+    def _draw_dense_title_line(self) -> None:
+        """Dense header, first line: the title, then the tabs beside it.
+
+        The tab bar folds into the title line rather than taking a band of
+        its own - that band is two list rows on a 240-line screen.
+        """
+        metrics = self.metrics
+        line = metrics.line
+        self.fb.fill_rect(0, 0, metrics.width, 10 * line, theme.HEADER)
+        y = line
+        x = metrics.pad
+        x += self.text(self.font_title, x, y, "GameSync", theme.TITLE,
+                       theme.HEADER) + metrics.cell_w * 2
+        half = metrics.cell_w // 2
+        for index, name in enumerate(TABS):
+            if name == "Downloads":
+                name = self._downloads_tab_label()
+            width = self.font_row.measure(name)
+            if x + width > metrics.width:
+                break
+            if index == self.tab:
+                self.fb.fill_rect(x - half, 0, width + half * 2, 10 * line,
+                                  theme.ROW_SELECTED)
+                self.text(self.font_row, x, y, name, theme.TEXT_STRONG,
+                          theme.ROW_SELECTED)
+            else:
+                self.text(self.font_row, x, y, name, theme.TEXT_DIM,
+                          theme.HEADER)
+            x += width + metrics.cell_w * 2
+
+    def _draw_dense_header(self) -> None:
+        metrics = self.metrics
+        line = metrics.line
+        self.fb.fill_rect(0, 0, metrics.width, metrics.header_h, theme.HEADER)
+        self._draw_dense_title_line()
+        y = 11 * line
+        stamp = "%s  %.0f ms" % (self.last_action or "-", self.last_frame_ms)
+        stamp_w = self.font_small.measure(stamp)
+        label_w = self.text(self.font_small, metrics.pad, y,
+                            self._scope_label(), theme.TEXT, theme.HEADER,
+                            max_width=metrics.width - metrics.pad * 2)
+        # Live input feedback, as on the classic footer: proof the pad is
+        # read. Only where it does not crowd the scope line.
+        if label_w + stamp_w + metrics.cell_w * 4 <= metrics.width - metrics.pad * 2:
+            self.text(self.font_small, metrics.width - metrics.pad - stamp_w,
+                      y, stamp, theme.TEXT_DIM, theme.HEADER)
+        self.fb.fill_rect(0, 21 * line, metrics.width, line, theme.DIVIDER)
+
+    def draw_header(self) -> None:
+        metrics = self.metrics
+        if metrics.dense:
+            self._draw_dense_header()
+            return
+        self.fb.fill_rect(0, 0, metrics.width, metrics.header_h, theme.HEADER)
+        # The rule under the header: the logo's gradient, in flat steps.
+        steps = theme.brand_steps()
+        for index, colour in enumerate(steps):
+            left = metrics.width * index // len(steps)
+            right = metrics.width * (index + 1) // len(steps)
+            self.fb.fill_rect(left, metrics.header_h - 2, right - left, 2,
+                              colour)
+
+        # Two-tone wordmark, as in the logo.
+        baseline = (metrics.header_h - self.font_title.line_height) // 2
+        used = self.text(self.font_title, metrics.pad, baseline, "Game",
+                         theme.TEXT_STRONG, theme.HEADER)
+        used += self.text(self.font_title, metrics.pad + used, baseline,
+                          "Sync", theme.ACCENT, theme.HEADER)
+        self.text(self.font_small, metrics.pad + used + 10,
+                  baseline + self.font_title.line_height
+                  - self.font_small.line_height - 2,
+                  "MiSTer", theme.TEXT_DIM, theme.HEADER)
+
+        label = self._scope_label()
         width = self.font_small.measure(label)
         self.text(self.font_small, metrics.width - metrics.pad - width,
                   (metrics.header_h - self.font_small.line_height) // 2,
@@ -578,6 +690,9 @@ class App:
 
     def draw_tabs(self) -> None:
         metrics = self.metrics
+        if metrics.dense:
+            self._draw_dense_title_line()
+            return
         top = metrics.header_h
         self.fb.fill_rect(0, top, metrics.width, metrics.tab_h, theme.TAB_BAR)
 
@@ -672,7 +787,7 @@ class App:
                       else (theme.ROW if index % 2 == 0 else theme.ROW_ALT))
 
         self.fb.fill_rect(0, y, metrics.width, metrics.row_h, background)
-        if selected:
+        if selected and not metrics.dense:
             self.fb.fill_rect(0, y, 4, metrics.row_h, theme.ACCENT)
 
         x = metrics.pad
@@ -680,7 +795,12 @@ class App:
             chip_y = y + (metrics.row_h - metrics.chip_h) // 2
             self.fb.fill_rect(x, chip_y, metrics.chip_w, metrics.chip_h,
                               theme.system_color(row.system))
-            label = self.font_chip.ellipsize(row.system, metrics.chip_w - 6)
+            if metrics.dense:
+                # Clipped, not ellipsized: "ATARIX" says more than "ATA...".
+                label = row.system[:metrics.chip_w // metrics.cell_w - 1]
+            else:
+                label = self.font_chip.ellipsize(row.system,
+                                                 metrics.chip_w - 6)
             label_w = self.font_chip.measure(label)
             self.text(self.font_chip,
                       x + (metrics.chip_w - label_w) // 2,
@@ -846,9 +966,13 @@ class App:
         metrics = self.metrics
         top = metrics.height - metrics.footer_h
         self.fb.fill_rect(0, top, metrics.width, metrics.footer_h, theme.FOOTER)
-        self.fb.fill_rect(0, top, metrics.width, 1, theme.DIVIDER)
-
-        y = top + (metrics.footer_h - self.font_small.line_height) // 2
+        if metrics.dense:
+            self.fb.fill_rect(0, top, metrics.width, metrics.line,
+                              theme.DIVIDER)
+            y = top + 3 * metrics.line
+        else:
+            self.fb.fill_rect(0, top, metrics.width, 1, theme.DIVIDER)
+            y = top + (metrics.footer_h - self.font_small.line_height) // 2
         # Hints name actions, not buttons: the label comes from whatever is
         # actually bound, so a cabinet with six buttons and no L2 is told the
         # truth rather than being told to press something it does not have.
@@ -898,18 +1022,45 @@ class App:
             hints = hints[:3]
             if not any(key == tabs for key, _label in hints):
                 hints.append((tabs, "Tab"))
+
+        position = ""
+        if metrics.dense:
+            # The list position, where the stamp sits on the classic footer:
+            # with twice the rows a page, "how far down am I" is the question.
+            total = len(self.rows())
+            if total:
+                position = "%d/%d" % (min(self.selected + 1, total), total)
+            gap = metrics.cell_w * 2
+            room = (metrics.width - metrics.pad * 2
+                    - self.font_small.measure(position) - gap)
+
+            def span(items):
+                return sum(self.font_small.measure("%s %s" % item) + gap
+                           for item in items) - gap
+
+            # Drop from the least guessable end, but keep Tab: nothing else
+            # reveals that the other screens exist.
+            while len(hints) > 1 and span(hints) > room:
+                drop = -2 if hints[-1][0] == tabs else -1
+                del hints[drop]
         x = metrics.pad
         for key, label in hints:
             width = self.text(self.font_small, x, y, key, theme.ACCENT,
                               theme.FOOTER)
-            x += width + 6
+            x += width + (metrics.cell_w if metrics.dense else 6)
             width = self.text(self.font_small, x, y, label, theme.TEXT_DIM,
                               theme.FOOTER)
-            x += width + int(metrics.pad * 0.9)
+            x += width + (metrics.cell_w * 2 if metrics.dense
+                          else int(metrics.pad * 0.9))
 
+        if position:
+            width = self.font_small.measure(position)
+            self.text(self.font_small, metrics.width - metrics.pad - width, y,
+                      position, theme.TEXT, theme.FOOTER)
         # Live input feedback: proves on-screen that the pad is being read.
-        # Dropped at 240p, where the width it costs is worth more than it is.
-        if not metrics.compact:
+        # Dropped at 240p, where the width it costs is worth more than it is;
+        # the dense layout carries it in the header instead.
+        elif not metrics.compact and not metrics.dense:
             stamp = "%s   %.1f ms" % (self.last_action or "-",
                                       self.last_frame_ms)
             width = self.font_small.measure(stamp)
@@ -1185,6 +1336,7 @@ class App:
             if self.toast_until is not None and time.time() > self.toast_until:
                 self.draw_all()
             self.service_downloads()
+            self.service_ra_hashes()
             self.tick_marquee()
             if self.running and self.input.layout != self.shown_layout:
                 # Someone picked up a different pad: every hint on screen
@@ -1219,6 +1371,8 @@ class App:
             if item.status == gsdownloads.DONE:
                 self._note_installed(item)
             self._landed.append(item)
+        if self._landed:
+            self.finish_replacements()
 
         if self._landed and (not self.worker.running
                              or now - self._landed_painted >= 1.5):
@@ -1341,6 +1495,11 @@ class App:
         height = self.font_row.line_height + int(metrics.pad * 0.7)
         top = metrics.list_top
         background = colour or theme.HEADER
+        if metrics.dense:
+            # The dense header is the page colour, so a default toast would
+            # be invisible text floating over the list.
+            height = metrics.row_h + 2 * metrics.line
+            background = colour or theme.DIVIDER
         self.fb.fill_rect(0, top, metrics.width, height, background)
         self.text(self.font_row, metrics.pad,
                   top + (height - self.font_row.line_height) // 2,
@@ -1402,6 +1561,8 @@ class App:
 
         self.load_data()
         self.draw_all()
+        # A swap whose download landed just before the last exit.
+        self.finish_replacements()
         if self.client is not None and self.server_status == "connected":
             # Cheap now that it is cached by difference, and it is what lets
             # the Saves tab say which games are not installed.
@@ -1649,7 +1810,6 @@ class App:
         facts = {}
         by_name = {}
         ra_games = {}
-        verified = {}
         rows = []
         keys = []
         for group in self.catalog_groups:
@@ -1658,10 +1818,6 @@ class App:
             name_key = installed_key[1]
             if has_ra:
                 ra_games[(group.system, name_key)] = has_ra
-                variant_key = (_ra_variant_key(group.system, group.name)
-                               if _ra_variant_candidate(group) else None)
-                if variant_key is not None:
-                    verified.setdefault(variant_key, []).append(group)
             by_name.setdefault((group.system, name_key), group)
             facts[id(group)] = fact
             rows.append(Row(group.system, group.name, detail,
@@ -1671,46 +1827,110 @@ class App:
         self._catalog_keys = keys
         self._group_facts = facts
         self._group_by_name = by_name
-        self._ra_verified = verified
+        self._ra_variants = VariantIndex(self.catalog_groups, _normalize,
+                                         _group_pack_kind)
         self._indexed_groups = self.catalog_groups
         self.ra_games = ra_games
 
-    def ra_variants(self, item) -> list:
+    def ra_variants(self, item, wait: bool = False) -> list:
         """Catalogue versions of an installed game RA verifiably supports,
         when the installed one is not among them. Best first.
+        See :class:`shared.ra_variants.VariantIndex`."""
+        index = getattr(self, "_ra_variants", None)
+        if index is None:
+            return []
+        return index.variants(item.system, item.name, is_pack=item.is_pack,
+                              installed=self.game_installed,
+                              content_hash=lambda: self.installed_ra_hash(item, wait))
 
-        "Verifiably" is an exact hash or a file name RA registered for the
-        set (``ra_dump``) - not a title match, which is just as true of the
-        USA Soulcalibur RA will not load as of the Europe one it will. The
-        installed game must itself be in the catalogue and known *not* to be
-        verified: a game the catalogue cannot see is never second-guessed.
-        Nothing is offered once a verified version is already on the card.
+    def installed_ra_hash(self, item, wait: bool = False):
+        """RA's hash of an installed game, or None.
+
+        What a file *is*, when its name cannot say: a patch with an extra
+        "[Splash screen removed]" is in no catalogue, and a translation
+        installed under the DAT's plain title looks like the original.
+        A cartridge is hashed whole; a CD game by its first CHD, of which
+        RA only reads the boot header or executable.
+
+        Only asked for when there is a version to offer, and remembered on
+        disk by size and mtime. Reading a disc still takes seconds on the
+        MiSTer, so unless ``wait`` is set an unknown file is hashed on a
+        background thread and None returned meanwhile; the Installed rows
+        are rebuilt when it is done (service_ra_hashes).
         """
-        if (item.is_pack or not self._ra_verified
-                or not _is_plain_release(item.name)):
-            return []
-        name_key = _normalize(item.name)
-        group = self._group_by_name.get((item.system, name_key))
-        if group is None or _group_ra_verified(group):
-            return []
-        own_ids = _group_ra_ids(group)
-        found = []
-        for candidate in self._ra_verified.get(
-                _ra_variant_key(item.system, item.name), ()):
-            if _normalize(candidate.name) == name_key:
-                # Another catalogue entry under the installed one's own
-                # name, and RA does know that one: which of the two is on
-                # the card cannot be told apart, so it is not questioned.
-                return []
-            if own_ids and not own_ids & _group_ra_ids(candidate):
-                # RA filed them as different games ("1Xtreme" is not
-                # "ESPN Extreme Games", whatever a title alias says).
-                continue
-            found.append(candidate)
-        if any(self.game_installed(candidate) for candidate in found):
-            return []
-        found.sort(key=lambda g: (_region_rank(g.name), g.name.lower()))
-        return found
+        job = _ra_hash_job(item)
+        if job is None:
+            return None
+        path, compute = job
+        try:
+            stat = os.stat(path)
+        except OSError:
+            return None
+        if not item.is_folder and stat.st_size > RA_HASH_MAX_SIZE:
+            return None
+        stamp = [stat.st_size, int(stat.st_mtime)]
+        with _RA_HASH_LOCK:
+            cache = self.__dict__.get("_ra_hash_cache")
+            if cache is None:
+                cache = self._ra_hash_cache = _load_ra_hash_cache()
+            known = cache.get(path)
+        if known is not None and known[:2] == stamp:
+            return known[2]
+        if not wait:
+            self._ra_hash_background(path, stamp, compute)
+            return None
+        md5 = _safe_hash(compute)
+        with _RA_HASH_LOCK:
+            cache[path] = stamp + [md5]
+            self._ra_hash_dirty = True
+        return md5
+
+    def _ra_hash_background(self, path, stamp, compute) -> None:
+        import threading
+
+        pending = self.__dict__.setdefault("_ra_hash_pending", {})
+        if path in pending:
+            return
+        pending[path] = (stamp, compute)
+        if getattr(self, "_ra_hash_thread", None) is not None                 and self._ra_hash_thread.is_alive():
+            return
+
+        def work():
+            while True:
+                with _RA_HASH_LOCK:
+                    if not pending:
+                        self._ra_hash_thread = None
+                        return
+                    key = next(iter(pending))
+                    job_stamp, job = pending[key]
+                md5 = _safe_hash(job)
+                with _RA_HASH_LOCK:
+                    self._ra_hash_cache[key] = job_stamp + [md5]
+                    self._ra_hash_dirty = True
+                    self._ra_hash_landed = True
+                    pending.pop(key, None)
+
+        self._ra_hash_thread = threading.Thread(target=work, daemon=True)
+        self._ra_hash_thread.start()
+
+    def service_ra_hashes(self) -> None:
+        """Rebuild the Installed rows once background hashes have landed."""
+        if not getattr(self, "_ra_hash_landed", False):
+            return
+        if getattr(self, "_ra_hash_pending", None) and                 time.time() - getattr(self, "_ra_hash_painted", 0) < 2.0:
+            return          # batch a run of discs into one repaint
+        self._ra_hash_landed = False
+        self._ra_hash_painted = time.time()
+        self.load_data(rescan=False)
+        if self.tab == 2:
+            self.draw_all()
+
+    def save_ra_hash_cache(self) -> None:
+        if getattr(self, "_ra_hash_dirty", False):
+            with _RA_HASH_LOCK:
+                snapshot = dict(self._ra_hash_cache)
+                self._ra_hash_dirty = False
+            _save_ra_hash_cache(snapshot)
 
     def queue_group(self, group):
         """Queue every disc of a game and start downloading.
@@ -1878,6 +2098,21 @@ class App:
         if row.name == "Remap buttons":
             self.remap_buttons()
             return
+        if row.name == "UI style":
+            order = list(gsconfig.UI_STYLES)
+            current = self.config.ui_style
+            index = order.index(current) if current in order else 0
+            self.config.ui_style = order[(index + 1) % len(order)]
+            try:
+                gsconfig.save_config(self.config)
+            except OSError as exc:
+                self.notice("Could not save config: %s" % exc, theme.DANGER,
+                            hold=2.0)
+            self._relayout()
+            self._clamp_cursor()
+            self.load_data(rescan=False)
+            self.draw_all()
+            return
         if row.name == "Refresh catalog":
             if not self.require_client():
                 return
@@ -1923,22 +2158,43 @@ class App:
         arithmetic. On a monitor they scale with height and do have to be
         rebuilt, and that is the slow path worth avoiding per keypress.
         """
+        # A 15 kHz mode reports a framebuffer whose pixels are not square
+        # (640x240 for a 4:3 picture), so glyph width and horizontal
+        # padding both have to be corrected by the pixel aspect.
         aspect = self.fb.pixel_aspect
         old = self.metrics
-        self.metrics = theme.Metrics(self.fb.width, self.fb.height, aspect)
+        dense = theme.wants_dense(self.config.ui_style, self.fb.phys_height)
+        self.metrics = theme.Metrics(
+            self.fb.width, self.fb.height, aspect, dense=dense,
+            scale=theme.dense_scale(self.fb.phys_width, self.fb.phys_height))
+        self.lowres = self.metrics.lowres
+        theme.use_palette("dense" if dense
+                          else ("crt" if self.lowres else "desktop"))
         sizes = ("font_title", "font_row", "font_small", "font_chip")
-        if any(getattr(old, name) != getattr(self.metrics, name)
-               for name in sizes):
-            font_bytes = pkgutil.get_data("gamesync", "assets/font.ttf")
+        if old is None or any(getattr(old, name) != getattr(self.metrics, name)
+                              for name in sizes):
+            if dense:
+                sx, sy = self.metrics.scale
+                self.font_title = BitmapFont(sx, sy, bold=True)
+                self.font_row = self.font_small = self.font_chip = \
+                    BitmapFont(sx, sy)
+            else:
+                font_bytes = pkgutil.get_data("gamesync", "assets/font.ttf")
+                if not font_bytes:
+                    raise RuntimeError("bundled font missing")
 
-            def make_font(size, bold=False):
-                return Font(font_bytes, size, bold=bold, pixel_aspect=aspect,
-                            mono=self.lowres)
+                def make_font(size, bold=False):
+                    return Font(font_bytes, size, bold=bold,
+                                pixel_aspect=aspect, mono=self.lowres)
 
-            self.font_title = make_font(self.metrics.font_title, bold=True)
-            self.font_row = make_font(self.metrics.font_row)
-            self.font_small = make_font(self.metrics.font_small)
-            self.font_chip = make_font(self.metrics.font_chip, bold=True)
+                self.font_title = make_font(self.metrics.font_title, bold=True)
+                self.font_row = make_font(self.metrics.font_row)
+                self.font_small = make_font(self.metrics.font_small)
+                self.font_chip = make_font(self.metrics.font_chip, bold=True)
+            # The text cache is keyed by id(font); a replaced font's id can
+            # be reused by its successor and serve the old glyphs.
+            self.renderer.clear()
+            self._ra_badge_w = None
         self._rows_key = None
 
     def adjust_screen(self) -> None:
@@ -2154,7 +2410,10 @@ class App:
         # can delete other games' progress. Say so before offering the choice.
         own_lost, others_lost = self.engine.ps1_saves_at_risk(entry)
 
-        width = int(metrics.width * 0.78)
+        # A fixed-pitch font has no narrow letters to fall back on, so the
+        # dense layout gives the box the whole width it can.
+        width = (metrics.width - metrics.pad * 2 if metrics.dense
+                 else int(metrics.width * 0.78))
         # Sized to its content rather than a guessed number of rows.
         height = (metrics.pad
                   + self.font_row.line_height + 4
@@ -2220,9 +2479,11 @@ class App:
                       theme.TEXT_DIM, theme.HEADER, max_width=width - pad * 2)
 
         y += self.font_small.line_height + 10
+        gap = "  " if metrics.dense else "    "
         self.text(self.font_small, left + pad, y,
-                  "%s = keep mine (upload)    %s = take the server's (download)"
-                  "    %s = decide later"
+                  ("%s = keep mine (upload)" + gap
+                   + "%s = take the server's (download)" + gap
+                   + "%s = decide later")
                   % (self.input.label(gsinput.SYNC),
                      self.input.label(gsinput.PRIMARY),
                      self.input.label(gsinput.BACK)),
@@ -2625,7 +2886,11 @@ class App:
         item = self.selected_install()
         if item is None:
             return
-        variants = self.ra_variants(item)
+        # A press is a question that deserves the real answer: when the
+        # background hash has not reached this game yet, read it now.
+        if item.is_folder:
+            self.toast("Checking %s..." % item.name)
+        variants = self.ra_variants(item, wait=True)
         if not variants:
             self.do_move_installed()
             return
@@ -2644,20 +2909,34 @@ class App:
             self.do_replace_with_variant(item, variants[choice])
 
     def do_replace_with_variant(self, item, group) -> None:
-        """Install ``group`` where ``item`` is, then delete ``item``.
+        """Queue ``group`` where ``item`` is; ``item`` goes once it has landed.
 
         In that order, so a failed download never leaves the player with
-        neither version. The save is left alone: it is filed under the old
-        version's name (and, for disc systems, its serial), and whether it
-        loads in another region is the game's business, not ours.
+        neither version. Returns at once: the download runs in the
+        background like any catalogue install, and finish_replacements()
+        does the rest. The swap is kept on disk, so a restart mid-download
+        still finishes it. The core names a save after the game, so the save
+        is renamed to follow it - but only within one region: a save from
+        another region's release can load as corrupt, so that one stays
+        under the old name.
         """
         if not self.require_client():
             return
+        if any(job["old_path"] == item.path for job in self._replacements):
+            self.toast("Already replacing %s" % item.name, hold=1.2)
+            return
         what = "folder" if item.is_folder else "file"
+        saves = installed_game_save_paths(self.engine.provider, item.system,
+                                          item.name)
+        move_save = bool(saves) and same_region(item.name, group.name)
         detail = ["Installs %s on %s (%s)" % (group.name, item.where,
                                                _human_size(group.size)),
-                  "then deletes the %s %s" % (what, item.path),
-                  "Its save file is kept."]
+                  "then deletes the %s %s" % (what, item.path)]
+        if move_save:
+            detail.append("Its save moves to the new version (same region).")
+        elif saves:
+            detail.append("Its save stays under the old name "
+                          "(another region may not read it).")
         if not self.confirm("Replace %s?" % item.name, detail,
                             title="Replace with RA version"):
             self.draw_all()
@@ -2666,32 +2945,83 @@ class App:
         # Beside the copy it replaces, whatever the ROM target says.
         previous_target = self.queue.rom_target
         self.queue.rom_target = "usb" if item.where == "USB" else "sd"
-        items = []
         try:
             items = self.queue_group(group)
-            if items:
-                self.wait_for_downloads(items)
         finally:
             self.queue.rom_target = previous_target
-        if not items or not self.game_installed(group):
-            # queue_group / wait_for_downloads already said why.
+        if not items:
+            return          # queue_group already said why
+        # The rest happens when the download lands (service_downloads), so
+        # the list stays live meanwhile - exactly like a catalogue install.
+        self._replacements.append({
+            "targets": [queued.target for queued in items],
+            "old_path": item.path,
+            "old_name": item.name,
+            "new_name": group.name,
+            "new_stem": _installed_stem(items[0], item.system),
+            "saves": saves if move_save else [],
+        })
+        _save_replacements(self._replacements)
+
+    def finish_replacements(self) -> None:
+        """Delete the replaced copy (and move its save) once its RA version
+        is fully installed; forget the swap if the download failed, which
+        leaves the old copy exactly as it was."""
+        pending = getattr(self, "_replacements", None)
+        if not pending:
             return
-        if not os.path.exists(item.path):
-            self.notice("Installed %s" % group.name, hold=1.4)
+        by_target = {queued.target: queued for queued in self.queue.items}
+        still, messages, changed = [], [], False
+        for job in pending:
+            states = []
+            for target in job["targets"]:
+                queued = by_target.get(target)
+                if queued is not None:
+                    states.append(queued.status)
+                elif os.path.exists(target):
+                    states.append(gsdownloads.DONE)     # landed before a restart
+                else:
+                    states.append(gsdownloads.FAILED)
+            if gsdownloads.FAILED in states or gsdownloads.CANCELLED in states:
+                messages.append(("%s not installed - kept %s"
+                                 % (job["new_name"], job["old_name"]), True))
+                changed = True
+                continue
+            if any(state != gsdownloads.DONE for state in states):
+                still.append(job)
+                continue
+            changed = True
+            messages.append(self._complete_replacement(job))
+        if not changed:
             return
-        try:
-            if item.is_folder:
-                _remove_tree(item.path)
-            else:
-                os.remove(item.path)
-        except OSError as exc:
-            self.notice("Installed %s, but deleting %s failed: %s"
-                        % (group.name, item.name, exc), theme.DANGER)
-        else:
-            self.notice("Replaced %s with %s" % (item.name, group.name),
-                        hold=1.6)
-        self.load_data()
+        self._replacements = still
+        _save_replacements(still)
+        self.load_data(rescan=False)
         self.draw_all()
+        for text, bad in messages:
+            self.toast(text, theme.DANGER if bad else None, hold=2.0)
+
+    def _complete_replacement(self, job):
+        old = job["old_path"]
+        if old in job["targets"] or not os.path.exists(old):
+            return ("Installed %s" % job["new_name"], False)
+        try:
+            if os.path.isdir(old):
+                _remove_tree(old)
+            else:
+                os.remove(old)
+        except OSError as exc:
+            return ("Installed %s, but deleting %s failed: %s"
+                    % (job["new_name"], job["old_name"], exc), True)
+        self.installed_entries = [entry for entry in self.installed_entries
+                                  if entry.path != old]
+        message = "Replaced %s with %s" % (job["old_name"], job["new_name"])
+        if job["saves"]:
+            problem = _move_saves(job["saves"], job["old_name"], job["new_stem"])
+            if problem:
+                return (message + " - save not moved: %s" % problem, True)
+            message += ", save moved"
+        return (message, False)
 
     def do_move_installed(self) -> None:
         """Move a game between the SD card and USB."""
@@ -2920,6 +3250,73 @@ def _server_time(server: dict) -> str:
     return ""
 
 
+import threading as _threading  # noqa: E402
+
+_RA_HASH_LOCK = _threading.Lock()
+
+
+def _ra_hash_job(item):
+    """``(path, compute)`` for hashing an installed game, or None."""
+    from shared.ra_disc import disc_hash_supported, hash_disc_file
+    from shared.ra_hash import ra_hash_file, ra_hash_supported
+
+    if item.is_folder:
+        if not disc_hash_supported(item.system):
+            return None
+        path = _first_disc(item.path)
+        if path is None:
+            return None
+        return path, lambda: hash_disc_file(path, item.system)
+    if not ra_hash_supported(item.system):
+        return None
+    return item.path, lambda: ra_hash_file(item.path, item.system).md5
+
+
+def _safe_hash(compute):
+    try:
+        return compute()
+    except Exception:
+        return None
+
+
+def _first_disc(folder: str):
+    """The CHD a CD game boots from: disc 1 when the discs are numbered."""
+    try:
+        names = sorted(n for n in os.listdir(folder) if n.lower().endswith(".chd"))
+    except OSError:
+        return None
+    return os.path.join(folder, names[0]) if names else None
+
+
+def _installed_stem(item, system: str) -> str:
+    """The name a core files a just-installed game's save under: its folder
+    for a CD system (and a pack), else the ROM file's stem - the same rule
+    ``App._note_installed`` uses."""
+    if gsinstall.is_cd_system(system) or getattr(item, "bundle_kind", ""):
+        return os.path.basename(item.directory.rstrip("/"))
+    return os.path.splitext(os.path.basename(item.target))[0]
+
+
+def _move_saves(paths, old_stem: str, new_stem: str) -> str:
+    """Rename each ``<old_stem>.<ext>`` save to ``<new_stem>.<ext>`` in
+    place. Returns "" on success, else why not; never overwrites a save the
+    new version already has."""
+    if not new_stem or new_stem == old_stem:
+        return ""
+    for path in paths:
+        directory, base = os.path.split(path)
+        if not base.startswith(old_stem):
+            continue
+        target = os.path.join(directory, new_stem + base[len(old_stem):])
+        if os.path.exists(target):
+            return "%s already exists" % os.path.basename(target)
+        try:
+            os.rename(path, target)
+        except OSError as exc:
+            return str(exc)
+    return ""
+
+
 def _remove_tree(path: str) -> None:
     """Delete a directory and everything under it."""
     for base, dirs, files in os.walk(path, topdown=False):
@@ -3040,76 +3437,11 @@ def _group_ra_kind(group) -> str:
 
 
 def _group_ra_verified(group) -> bool:
-    """RA will recognise this very dump, not merely a game of its name.
-
-    An exact hash says so; for systems matched by name, so does the file
-    name being one RA registered for the set (``ra_dump``).
-    """
-    for row in getattr(group, "rows", None) or ():
-        try:
-            if int(row.get("ra_achievements") or 0) <= 0:
-                continue
-        except (TypeError, ValueError):
-            continue
-        if (str(row.get("ra_match") or "hash").lower() == "hash"
-                or row.get("ra_dump")):
-            return True
-    return False
+    """RA will recognise this very dump (see :mod:`shared.ra_variants`)."""
+    return game_ra_verified(getattr(group, "rows", None))
 
 
-#: Tags that make a release something other than the game itself: a bonus
-#: disc shares the game's name once tags are gone, and is not a version of
-#: it.
-_NOT_A_RELEASE_RE = re.compile(
-    r"\((?:[^)]*\b(?:bonus|demo|beta|proto|prototype|sample|kiosk|"
-    r"trial|preview|msu-?1?|msu-md|md\+)\b[^)]*)\)", re.IGNORECASE)
-
-
-def _is_plain_release(name: str) -> bool:
-    """A retail release, not a hack, translation, bonus disc or demo - a
-    ``[T-En ...]`` set traded for the badge would lose the player the
-    language they chose."""
-    return "[" not in name and not _NOT_A_RELEASE_RE.search(name)
-
-
-def _ra_variant_candidate(group) -> bool:
-    """A catalogue game worth offering in place of an unverified copy."""
-    return (_group_ra_verified(group) and not _group_pack_kind(group)
-            and _is_plain_release(group.name))
-
-
-def _ra_variant_key(system, name):
-    """What makes two catalogue games versions of one another: the name
-    with every tag, article and space gone, so "Soul Calibur (USA)" and
-    "Soulcalibur (Europe) (En,Fr,De,Es)" agree."""
-    from shared.ra_titles import normalize as ra_normalize
-
-    base = ra_normalize(name)
-    return (system, base) if base else None
-
-
-def _group_ra_ids(group) -> set:
-    ids = set()
-    for row in getattr(group, "rows", None) or ():
-        try:
-            game_id = int(row.get("ra_game_id") or 0)
-        except (TypeError, ValueError):
-            continue
-        if game_id > 0:
-            ids.add(game_id)
-    return ids
-
-
-#: Which version to offer first when RA supports several.
-_REGION_ORDER = ("world", "usa", "europe")
-
-
-def _region_rank(name: str) -> int:
-    lowered = name.lower()
-    for rank, region in enumerate(_REGION_ORDER):
-        if "(" + region in lowered or ", " + region in lowered:
-            return rank
-    return len(_REGION_ORDER)
+_region_rank = region_rank
 
 
 #: Seconds to wait for the server's health check at startup. It is the one

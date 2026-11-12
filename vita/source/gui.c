@@ -105,7 +105,7 @@ void gui_begin(bool vsync) {
     vita2d_start_drawing();
     vita2d_clear_screen();
     g_ticks++;
-    gui_vgrad(0, 0, GUI_W, GUI_H, gui_rgb(0x131D29), gui_rgb(HEX_BG));
+    gui_vgrad(0, 0, GUI_W, GUI_H, gui_rgb(0x111833), gui_rgb(HEX_BG));
 }
 
 void gui_end(void) {
@@ -457,7 +457,7 @@ float gui_button(float x, float cy, const char *b) {
     unsigned int ink = gui_rgb(HEX_INK);
     if (is(b, "CROSS") || is(b, "CIRCLE") || is(b, "SQUARE") || is(b, "TRIANGLE")) {
         float cx = x + BTN_R;
-        unsigned int face = gui_rgb(0x0A1118), rim = gui_rgb(0x3A4B5E);
+        unsigned int face = gui_rgb(0x070A16), rim = gui_rgb(0x414E7A);
         gui_circle(cx, cy, BTN_R, rim);
         gui_circle(cx, cy, BTN_R - 1.5f, face);
         if (is(b, "CROSS")) {
@@ -480,7 +480,7 @@ float gui_button(float x, float cy, const char *b) {
     }
     if (is(b, "L") || is(b, "R")) {
         /* Shoulder button: a tab with the outer top corner rounded */
-        unsigned int c = gui_rgb(0xAAB8C5);
+        unsigned int c = gui_rgb(0xB4BFDD);
         gui_rrect(x, cy - 10, 30, 20, 7, c);
         if (is(b, "L")) gui_rect(x + 15, cy - 10, 15, 8, c);
         else gui_rect(x, cy - 10, 15, 8, c);
@@ -488,7 +488,7 @@ float gui_button(float x, float cy, const char *b) {
         return 30;
     }
     if (is(b, "DPAD") || is(b, "UD") || is(b, "LR")) {
-        unsigned int base = gui_rgb(0x6F8295), hi = gui_rgb(HEX_TEXT);
+        unsigned int base = gui_rgb(0x7C89B0), hi = gui_rgb(HEX_TEXT);
         bool ud = is(b, "UD"), lr = is(b, "LR"), all = !ud && !lr;
         gui_rrect(x + 7.5f, cy - 11, 7, 22, 2, (ud || all) ? hi : base);
         gui_rrect(x, cy - 3.5f, 22, 7, 2, (lr || all) ? hi : base);
@@ -504,7 +504,7 @@ float gui_button(float x, float cy, const char *b) {
     }
     /* START / SELECT: small capsule */
     float w = gui_text_w(GUI_S_TINY, b) + 16;
-    gui_rrect(x, cy - 9, w, 18, 9, gui_rgb(0xAAB8C5));
+    gui_rrect(x, cy - 9, w, 18, 9, gui_rgb(0xB4BFDD));
     gui_text_mid(x + w / 2, cy - 9, 18, GUI_S_TINY, ink, GUI_CENTER, 0, b);
     return w;
 }
@@ -554,7 +554,7 @@ void gui_scrollbar(float x, float y, float h, int visible, int total, float smoo
 }
 
 void gui_panel(float x, float y, float w, float h) {
-    gui_rrect(x - 1, y - 1, w + 2, h + 2, 11, gui_rgb(0x0A1118));
+    gui_rrect(x - 1, y - 1, w + 2, h + 2, 11, gui_rgb(0x070A16));
     gui_rrect(x, y, w, h, 10, gui_rgb(HEX_PANEL));
 }
 
@@ -582,11 +582,30 @@ void gui_banner(float x, float y, float w, float h, uint32_t tone, const char *t
     gui_text_mid(x + 16, y, h, GUI_S_SMALL, gui_rgb(HEX_TEXT), GUI_LEFT, w - 26, text);
 }
 
+/* The brand's sync gradient (cyan -> blue -> violet, as in the logo's arrows),
+ * drawn as flat steps so it needs nothing beyond a rect fill. */
+static unsigned int brand_lerp(unsigned int a, unsigned int b, int t, int n) {
+    int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+    int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+    return (unsigned int)(((ar + (br - ar) * t / n) << 16) | ((ag + (bg - ag) * t / n) << 8) |
+                          (ab + (bb - ab) * t / n));
+}
+
+static void brand_bar(float x, float y, float w, float h) {
+    enum { STEPS = 32, HALF = STEPS / 2 };
+    for (int i = 0; i < STEPS; i++) {
+        unsigned int c = i < HALF ? brand_lerp(HEX_BRAND_A, HEX_BRAND_B, i, HALF)
+                                  : brand_lerp(HEX_BRAND_B, HEX_BRAND_C, i - HALF, HALF - 1);
+        float x0 = x + w * i / STEPS, x1 = x + w * (i + 1) / STEPS;
+        gui_rect(x0, y, x1 - x0, h, gui_rgb(c));
+    }
+}
+
 void gui_header(const char *section, int online) {
     gui_rect(0, 0, GUI_W, GUI_HEADER_H, gui_rgb(HEX_BG2));
-    gui_rect(0, GUI_HEADER_H - 1, GUI_W, 1, gui_rgb(HEX_LINE));
+    brand_bar(0, GUI_HEADER_H - 2, GUI_W, 2);
 
-    /* Logo mark: teal rounded square with a notch */
+    /* Logo mark: cyan rounded square with a notch */
     gui_rrect(18, 12, 24, 24, 7, gui_rgb(HEX_ACCENT));
     gui_rrect(25, 19, 10, 10, 3, gui_rgb(HEX_BG2));
     float x = 52;

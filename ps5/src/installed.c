@@ -4,6 +4,9 @@
  */
 #include "installed.h"
 
+#include "bundle.h"
+#include "melonds.h"
+
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -201,7 +204,7 @@ void installed_scan(const Config *config, InstalledList *list)
     util_path_join(dir, sizeof(dir), config->swanstation_dir, "games");
     walk(list, EMU_SWANSTATION, "PS1", dir, 1, true);
     util_path_join(dir, sizeof(dir), config->ps5sx2_dir, "games");
-    walk(list, EMU_PS5SX2, "PS2", dir, 3, false);
+    walk(list, EMU_PS5SX2, "PS2", dir, 2, false); /* and one level of sub-folders, as PS5SX2 */
     util_path_join(dir, sizeof(dir), config->porpoise_dir, "games");
     walk_dolphin(list, dir, 1);
     util_path_join(dir, sizeof(dir), config->eden_dir, "roms");
@@ -214,14 +217,111 @@ void installed_scan(const Config *config, InstalledList *list)
     scan_flat(list, EMU_CEMU, "WIIU", dir, wiiu, 5);
     util_path_join(dir, sizeof(dir), config->cemu_dir, "azahar/games");
     scan_flat(list, EMU_CEMU, "3DS", dir, ds, 9);
+    static const char *const nds[] = {".nds", ".srl", ".dsi"};
+    melonds_games_dir(config, dir, sizeof(dir));
+    scan_flat(list, EMU_CEMU, "NDS", dir, nds, 3);
     util_path_join(dir, sizeof(dir), config->xemu_dir, "games");
     scan_flat(list, EMU_XEMU, "XBOX", dir, xbox, 2);
     if (list->count > 1)
         qsort(list->items, (size_t)list->count, sizeof(InstalledGame), compare);
 }
 
+/* Bytes under dir (one level of sub-folders: RetroArch's .discs/). */
+static uint64_t folder_bytes(const char *dir, int depth)
+{
+    DIR *d = opendir(dir);
+    if (!d)
+        return 0;
+    uint64_t total = 0;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL)
+    {
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+            continue;
+        char path[PATH_LEN];
+        util_path_join(path, sizeof(path), dir, de->d_name);
+        if (is_dir_entry(de, path))
+        {
+            if (depth < 1)
+                total += folder_bytes(path, depth + 1);
+            continue;
+        }
+        int64_t size = util_file_size(path);
+        if (size > 0)
+            total += (uint64_t)size;
+    }
+    closedir(d);
+    return total;
+}
+
+void installed_group_discs(InstalledList *l)
+{
+    int w = 0;
+    for (int i = 0; i < l->count; ++i)
+    {
+        InstalledGame g = l->items[i];
+        if (!is_multidisc_system(g.system))
+        {
+            l->items[w++] = g;
+            continue;
+        }
+        char dir[PATH_LEN], base[160];
+        util_copy(dir, sizeof(dir), g.path);
+        char *slash = strrchr(dir, '/');
+        if (slash)
+            *slash = 0;
+        bool m3u = util_has_suffix_i(g.filename, ".m3u");
+        if (!disc_tag_strip(g.name, base, sizeof(base)) && !m3u)
+        {
+            l->items[w++] = g;
+            continue;
+        }
+        /* the game's folder: <...>/<base>/ holds its discs (and .m3u) */
+        bool own = strcmp(util_basename(dir), base) == 0;
+        int into = -1;
+        for (int k = 0; k < w && into < 0; ++k)
+        {
+            InstalledGame *o = &l->items[k];
+            if ((o->discs || o->folder) && o->emu == g.emu && strcmp(o->name, base) == 0 &&
+                strncmp(o->path, dir, strlen(dir)) == 0)
+                into = k;
+        }
+        if (into >= 0)
+        {
+            InstalledGame *o = &l->items[into];
+            if (!m3u)
+            {
+                o->discs++;
+                if (!o->folder) /* a folder's size counts every disc already */
+                    o->size += g.size;
+            }
+            continue;
+        }
+        util_copy(g.name, sizeof(g.name), base);
+        g.discs = m3u ? 0 : 1;
+        if (own)
+        {
+            /* the whole folder is the game: deleting it deletes every disc
+             * (RetroArch's are out of sight in .discs/) */
+            g.folder = true;
+            util_copy(g.path, sizeof(g.path), dir);
+            g.size = folder_bytes(dir, 0);
+        }
+        l->items[w++] = g;
+    }
+    l->count = w;
+}
+
 bool installed_delete(const InstalledGame *game, char *error, size_t size)
 {
+    if (game->folder && strchr(game->path + 1, '/'))
+    {
+        /* a multi-disc game: its folder, every disc in it */
+        if (remove_tree(game->path))
+            return true;
+        snprintf(error, size, "can't delete %s", game->name);
+        return false;
+    }
     char folder[PATH_LEN];
     util_copy(folder, sizeof(folder), game->path);
     char *slash = strrchr(folder, '/');

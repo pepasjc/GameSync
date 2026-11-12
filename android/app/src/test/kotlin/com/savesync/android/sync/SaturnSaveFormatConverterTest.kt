@@ -136,24 +136,32 @@ class SaturnSaveFormatConverterTest {
         writeIntBE(buffer, 0x9A, 23797305)
         writeIntBE(buffer, 0x9E, rawData.size)
 
-        val blockList = listOf(3, 4)
-        writeU16BE(buffer, 0xA2, blockList[0])
-        writeU16BE(buffer, 0xA4, blockList[1])
-        writeU16BE(buffer, 0xA6, 0)
+        // Lay the save out the way the Saturn BIOS does: the block list, its
+        // 0x0000 terminator and the raw data form one stream that starts in
+        // the archive block and spills into the listed data blocks.
+        val archiveCapacity = 0x40 - 0x22
+        val dataCapacity = 0x40 - 0x04
+        var dataBlocks = 0
+        while (true) {
+            val spill = maxOf(rawData.size + (dataBlocks + 1) * 2 - archiveCapacity, 0)
+            val needed = (spill + dataCapacity - 1) / dataCapacity
+            if (needed == dataBlocks) break
+            dataBlocks = needed
+        }
+        val blockList = (3 until 3 + dataBlocks).toList()
 
-        var rawOffset = 0
-        val inlineSize = minOf(rawData.size, 0x40 - 0x28)
-        rawData.copyInto(buffer, 0xA8, 0, inlineSize)
-        rawOffset += inlineSize
+        val stream = ByteArray((blockList.size + 1) * 2 + rawData.size)
+        blockList.forEachIndexed { idx, block -> writeU16BE(stream, idx * 2, block) }
+        rawData.copyInto(stream, (blockList.size + 1) * 2)
 
+        var streamOffset = minOf(stream.size, archiveCapacity)
+        stream.copyInto(buffer, 0xA2, 0, streamOffset)
         for (blockNum in blockList) {
             val blockOffset = blockNum * 0x40
             writeIntBE(buffer, blockOffset, 0)
-            val chunkSize = minOf(rawData.size - rawOffset, 0x3C)
-            if (chunkSize > 0) {
-                rawData.copyInto(buffer, blockOffset + 4, rawOffset, rawOffset + chunkSize)
-                rawOffset += chunkSize
-            }
+            val chunkSize = minOf(stream.size - streamOffset, dataCapacity)
+            stream.copyInto(buffer, blockOffset + 4, streamOffset, streamOffset + chunkSize)
+            streamOffset += chunkSize
         }
 
         return buffer

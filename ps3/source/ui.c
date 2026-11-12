@@ -655,7 +655,7 @@ void ui_draw_text_editor(const char *label, const char *value, int cursor_pos) {
     int ty = by + (bh - gui_line_h(GUI_F_TITLE)) / 2;
     gui_rrect(caret_x - 1, by + 9, cur_w + 2, bh - 18, 4, HEX_ACCENT);
     gui_text_fit(bx + 20, ty, GUI_F_TITLE, HEX_TEXT, GUI_LEFT, inner, value + start);
-    /* Re-draw the character under the caret in ink so it reads on teal. */
+    /* Re-draw the character under the caret in ink so it reads on cyan. */
     if (cur[0] != ' ') gui_text(caret_x, ty, GUI_F_TITLE, HEX_INK, GUI_LEFT, cur);
 
     gui_textf(bx, by + bh + 14, GUI_F_SMALL, HEX_DIM, GUI_LEFT,

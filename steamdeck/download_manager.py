@@ -53,17 +53,22 @@ permission.
 
 from __future__ import annotations
 
+import json
+import logging
 import os
+import shutil
 import sqlite3
 import threading
 import time
 import uuid
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
 
 import requests
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
+
+log = logging.getLogger(__name__)
 
 
 # ── Public constants ─────────────────────────────────────────────────────────
@@ -142,6 +147,10 @@ class DownloadEntity:
     # the operator's own, usually wrapping a folder, so extraction goes
     # through ``msu.plan_extraction`` instead of being taken verbatim.
     bundle_kind: str = ""
+    # Paths of the copy this download replaces ("Replace with RA version"):
+    # deleted only once the download completes, so a failed or cancelled
+    # download never leaves the player with neither version.
+    replaces_paths: list = field(default_factory=list)
 
     @property
     def is_terminal(self) -> bool:
@@ -173,6 +182,7 @@ CREATE TABLE IF NOT EXISTS downloads (
     extract_format   TEXT NOT NULL DEFAULT '',
     is_bundle        INTEGER NOT NULL DEFAULT 0,
     bundle_kind      TEXT NOT NULL DEFAULT '',
+    replaces_paths   TEXT NOT NULL DEFAULT '',
     created_at       REAL NOT NULL DEFAULT 0,
     updated_at       REAL NOT NULL DEFAULT 0
 );
@@ -186,6 +196,7 @@ CREATE INDEX IF NOT EXISTS idx_downloads_updated ON downloads(updated_at DESC);
 _REQUIRED_COLUMNS = {
     "is_bundle": "INTEGER NOT NULL DEFAULT 0",
     "bundle_kind": "TEXT NOT NULL DEFAULT ''",
+    "replaces_paths": "TEXT NOT NULL DEFAULT ''",
 }
 
 
@@ -195,6 +206,12 @@ def _row_to_entity(row: sqlite3.Row) -> DownloadEntity:
     keys = row.keys() if hasattr(row, "keys") else []
     is_bundle = bool(row["is_bundle"]) if "is_bundle" in keys else False
     bundle_kind = str(row["bundle_kind"] or "") if "bundle_kind" in keys else ""
+    replaces: list = []
+    if "replaces_paths" in keys and row["replaces_paths"]:
+        try:
+            replaces = [str(p) for p in json.loads(row["replaces_paths"])]
+        except (ValueError, TypeError):
+            replaces = []
     return DownloadEntity(
         id=row["id"],
         rom_id=row["rom_id"],
@@ -212,7 +229,34 @@ def _row_to_entity(row: sqlite3.Row) -> DownloadEntity:
         updated_at=float(row["updated_at"]),
         is_bundle=is_bundle,
         bundle_kind=bundle_kind,
+        replaces_paths=replaces,
     )
+
+
+def _delete_replaced(ent: DownloadEntity) -> list[str]:
+    """Delete the copy a completed download replaces; returns the errors.
+
+    Never touches the new download itself (nor a folder holding it), in
+    case the old and new versions share a path.
+    """
+    final = Path(ent.final_file_path).resolve()
+    errors: list[str] = []
+    for raw in ent.replaces_paths:
+        old = Path(raw)
+        try:
+            resolved = old.resolve()
+        except OSError:
+            continue
+        if resolved == final or resolved in final.parents:
+            continue
+        try:
+            if old.is_dir():
+                shutil.rmtree(old)
+            elif old.exists():
+                old.unlink()
+        except OSError as exc:
+            errors.append(f"{old}: {exc}")
+    return errors
 
 
 # ── Worker thread ────────────────────────────────────────────────────────────
@@ -661,6 +705,7 @@ class DownloadManager(QObject):
         expected_size: int = 0,
         is_bundle: bool = False,
         bundle_kind: str = "",
+        replaces_paths: Optional[list] = None,
     ) -> str:
         """Create a new row in QUEUED state and kick the worker.
 
@@ -692,8 +737,9 @@ class DownloadManager(QObject):
                 "(id, rom_id, system, display_name, filename, "
                 "part_file_path, final_file_path, total_bytes, "
                 "downloaded_bytes, status, error_message, "
-                "extract_format, is_bundle, bundle_kind, created_at, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "extract_format, is_bundle, bundle_kind, replaces_paths, "
+                "created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     eid,
                     rom_id,
@@ -709,6 +755,7 @@ class DownloadManager(QObject):
                     extract_format or "",
                     1 if is_bundle else 0,
                     bundle_kind or "",
+                    json.dumps([str(p) for p in replaces_paths]) if replaces_paths else "",
                     now,
                     now,
                 ),
@@ -860,6 +907,13 @@ class DownloadManager(QObject):
     ) -> None:
         # Drop worker bookkeeping first so _kick_next sees a free slot.
         self._workers.pop(eid, None)
+        if final_status == STATUS_COMPLETED:
+            ent = self.get(eid)
+            if ent is not None and ent.replaces_paths:
+                errors = _delete_replaced(ent)
+                if errors:
+                    log.warning("Replacing with %s left files behind: %s",
+                                ent.display_name, "; ".join(errors))
         self._update_status(eid, final_status, error_message)
         self.list_changed.emit()
         self.status_changed.emit(eid, final_status)

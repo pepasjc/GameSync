@@ -71,6 +71,11 @@ void plat_shutdown(void)
     free(script);
 }
 
+void plat_exit(void)
+{
+    exit(0);
+}
+
 static uint32_t button_named(const char *name)
 {
     static const struct

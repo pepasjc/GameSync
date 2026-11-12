@@ -61,8 +61,10 @@ class AzaharEmulator(
             if (overrideDir.exists() && overrideDir.isDirectory) return overrideDir
             if (allowNonExistent) return overrideDir
         }
+        // Explicit candidates never touch external storage, so baseDir is
+        // only resolved when the default candidate list is built.
         return findTitleRoot(
-            storageBaseDir = storageBaseDir ?: baseDir,
+            storageBaseDir = storageBaseDir ?: if (candidateTitleRoots == null) baseDir else File(""),
             allowNonExistent = allowNonExistent,
             candidateTitleRoots = candidateTitleRoots
         )

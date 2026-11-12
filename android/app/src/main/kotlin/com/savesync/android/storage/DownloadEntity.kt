@@ -40,6 +40,12 @@ data class DownloadEntity(
      * the pack's wrapping folder hoisted away — see [com.savesync.android.sync.MsuPack].
      */
     val bundleKind: String? = null,
+    /**
+     * Paths of the installed copy this download replaces ("Replace with RA
+     * version"), one per line.  Deleted only once the download completes,
+     * so a failed or cancelled download never leaves neither version.
+     */
+    val replacesPaths: String? = null,
 ) {
     /** Stable string constants stored in [status]. */
     object Status {

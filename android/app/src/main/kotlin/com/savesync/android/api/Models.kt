@@ -183,6 +183,15 @@ data class RomEntry(
      */
     @SerializedName("ra_match")
     val raMatch: String? = null,
+    /** RA's hash of this dump, sent for exact (`hash`) matches only. */
+    @SerializedName("ra_hash")
+    val raHash: String? = null,
+    /**
+     * A title match whose file name is one RA registered for the set: RA
+     * will load this dump.  Only meaningful with `ra_match == "title"`.
+     */
+    @SerializedName("ra_dump")
+    val raDump: Boolean? = null,
     /** Wii U only: `game` / `update` / `dlc` / `demo`. */
     @SerializedName("content_type")
     val contentType: String? = null,

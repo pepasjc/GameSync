@@ -24,8 +24,8 @@ from shared.catalog_cache import CatalogCache  # noqa: E402
 
 #: Bump when the meaning of a stored row changes, so an older cache is
 #: refetched rather than misread.  Rows are stored whole, as the server sent
-#: them.
-VERSION = 1
+#: them.  2: the server added ``ra_dump`` (Installed's "RA version").
+VERSION = 2
 
 # The Catalog tab and the save scan can both load at start-up, each on its
 # own worker thread.  One at a time: the second finds every fingerprint

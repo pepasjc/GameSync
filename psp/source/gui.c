@@ -529,7 +529,7 @@ float gui_pill_outline(float x, float y, float h, const FontFace *f, uint32_t he
 #define HEX_BTN_CIRCLE   0xF27C7C
 #define HEX_BTN_SQUARE   0xE79BD3
 #define HEX_BTN_TRIANGLE 0x4DD3A8
-#define HEX_BTN_BASE     0x2E3F53
+#define HEX_BTN_BASE     0x2D3A63
 
 float gui_button_w(const char *b) {
     if (!strcmp(b, "CROSS") || !strcmp(b, "CIRCLE") ||
@@ -576,7 +576,7 @@ float gui_button(float x, float cy, const char *b) {
         return 14;
     }
     if (!strcmp(b, "DPAD") || !strcmp(b, "UD") || !strcmp(b, "LR")) {
-        uint32_t base = gui_rgb(0x6F8295), hi = gui_rgb(HEX_TEXT);
+        uint32_t base = gui_rgb(0x7C89B0), hi = gui_rgb(HEX_TEXT);
         bool ud = !strcmp(b, "UD"), lr = !strcmp(b, "LR"), all = !ud && !lr;
         gui_rect(x + 4.5f, cy - 6.5f, 4, 13, (ud || all) ? hi : base);
         gui_rect(x, cy - 2, 13, 4, (lr || all) ? hi : base);
@@ -592,7 +592,7 @@ float gui_button(float x, float cy, const char *b) {
     }
     if (!strcmp(b, "L") || !strcmp(b, "R")) {
         /* Shoulder button: tab rounded on the outer side */
-        gui_rrect(x, cy - 6.5f, 18, 13, 4, gui_rgb(0xAAB8C5));
+        gui_rrect(x, cy - 6.5f, 18, 13, 4, gui_rgb(0xB4BFDD));
         gui_text_mid(x + 9, cy - 6.5f, 13, F_SMALL, gui_rgb(HEX_INK), GUI_CENTER, 0, b);
         return 18;
     }
@@ -603,7 +603,7 @@ float gui_button(float x, float cy, const char *b) {
     }
     /* START / SELECT: flat capsule like the PSP's own buttons */
     float w = gui_text_w(F_SMALL, b) + 10;
-    gui_rrect(x, cy - 6.5f, w, 13, 6.5f, gui_rgb(0xAAB8C5));
+    gui_rrect(x, cy - 6.5f, w, 13, 6.5f, gui_rgb(0xB4BFDD));
     gui_text_mid(x + w / 2, cy - 6.5f, 13, F_SMALL, gui_rgb(HEX_INK), GUI_CENTER, 0, b);
     return w;
 }
@@ -647,7 +647,7 @@ void gui_scrollbar(float x, float y, float h, int visible, int total, float smoo
 }
 
 void gui_panel(float x, float y, float w, float h) {
-    gui_rrect(x - 1, y - 1, w + 2, h + 2, 7, gui_rgb(0x0A1118));
+    gui_rrect(x - 1, y - 1, w + 2, h + 2, 7, gui_rgb(0x070A16));
     gui_rrect(x, y, w, h, 6, gui_rgb(HEX_PANEL));
 }
 
@@ -695,11 +695,30 @@ static void status_icons(float x_right, float cy) {
     }
 }
 
-void gui_header(const char *const *tabs, int count, int active) {
-    gui_vgrad(0, 0, GUI_W, GUI_HEADER_H, gui_rgb(0x223041), gui_rgb(HEX_BG2));
-    gui_rect(0, GUI_HEADER_H - 1, GUI_W, 1, gui_rgb(HEX_LINE));
+/* The brand's sync gradient (cyan -> blue -> violet, as in the logo's arrows),
+ * drawn as flat steps so it needs nothing beyond a rect fill. */
+static unsigned int brand_lerp(unsigned int a, unsigned int b, int t, int n) {
+    int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+    int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+    return (unsigned int)(((ar + (br - ar) * t / n) << 16) | ((ag + (bg - ag) * t / n) << 8) |
+                          (ab + (bb - ab) * t / n));
+}
 
-    /* Logo mark: teal rounded square with a notch */
+static void brand_bar(float x, float y, float w, float h) {
+    enum { STEPS = 32, HALF = STEPS / 2 };
+    for (int i = 0; i < STEPS; i++) {
+        unsigned int c = i < HALF ? brand_lerp(HEX_BRAND_A, HEX_BRAND_B, i, HALF)
+                                  : brand_lerp(HEX_BRAND_B, HEX_BRAND_C, i - HALF, HALF - 1);
+        float x0 = x + w * i / STEPS, x1 = x + w * (i + 1) / STEPS;
+        gui_rect(x0, y, x1 - x0, h, gui_rgb(c));
+    }
+}
+
+void gui_header(const char *const *tabs, int count, int active) {
+    gui_vgrad(0, 0, GUI_W, GUI_HEADER_H, gui_rgb(0x222C50), gui_rgb(HEX_BG2));
+    brand_bar(0, GUI_HEADER_H - 2, GUI_W, 2);
+
+    /* Logo mark: cyan rounded square with a notch */
     gui_rrect(8, 5, 14, 14, 4, gui_rgb(HEX_ACCENT));
     gui_rrect(12, 9, 6, 6, 2, gui_rgb(HEX_BG2));
     float x = 28;

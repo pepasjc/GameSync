@@ -48,7 +48,8 @@ class SyncWorker(
                 segaCdSyncFormat = settings.segaCdSyncFormat,
                 ps2Emulator = settings.ps2Emulator,
                 beetleSaturnPerCoreFolder = settings.beetleSaturnPerCoreFolder,
-                cdGamesPerContentFolder = settings.cdGamesPerContentFolder
+                cdGamesPerContentFolder = settings.cdGamesPerContentFolder,
+                xboxEmulator = settings.xboxEmulator
             )
             if (saves.isEmpty()) {
                 postNotification("Sync complete", "No save files found.")

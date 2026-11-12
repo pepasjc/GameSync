@@ -531,7 +531,7 @@ class DownloadQueue:
         if not created or self.provider is None:
             return
         for source in bios_seed_sources(self.provider, item.system,
-                                        self.rom_target):
+                                        _storage_of(item)):
             # The BIOS belongs beside the games folder for the core, which for
             # a CD system is the parent of the per-game folder.
             destination_dir = self._core_dir(item)
@@ -550,7 +550,7 @@ class DownloadQueue:
         """The ``games/<Core>`` folder, above any per-game subfolder."""
         from shared.mister_install import games_root
 
-        root = games_root(self.rom_target).rstrip("/")
+        root = games_root(_storage_of(item)).rstrip("/")
         directory = item.directory.rstrip("/")
         if not directory.startswith(root + "/"):
             return directory
@@ -625,3 +625,9 @@ class DownloadWorker:
 
     def _progress(self, item):
         self.current = item
+
+
+def _storage_of(item) -> str:
+    """``usb`` or ``sd``: where this item is going, which is not always the
+    configured ROM target (a replacement lands beside the copy it replaces)."""
+    return "usb" if str(item.directory or "").startswith("/media/usb") else "sd"

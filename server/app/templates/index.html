@@ -9,21 +9,25 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:           #0d1117;
-      --bg-card:      #161b22;
-      --bg-card-h:    #1c2128;
-      --bg-input:     #0d1117;
-      --bg-hdr:       rgba(13,17,23,.97);
-      --border:       #30363d;
-      --border-muted: #21262d;
-      --text:         #e6edf3;
-      --text-2:       #8b949e;
-      --text-muted:   #6e7681;
-      --accent:       #2f81f7;
-      --accent-h:     #58a6ff;
-      --green:        #3fb950;
-      --red:          #f85149;
-      --yellow:       #d29922;
+      /* The palette every GameSync client draws with (3ds/source/gui.h,
+         desktop/theme.py, ...): navy, cyan accent, the logo's gradient. */
+      --bg:           #0b1020;
+      --bg-card:      #141b33;
+      --bg-card-h:    #1d2746;
+      --bg-input:     #0b1020;
+      --bg-hdr:       rgba(11,16,32,.97);
+      --border:       #36446e;
+      --border-muted: #232d52;
+      --text:         #eef2fa;
+      --text-2:       #9ba9cd;
+      --text-muted:   #6b789f;
+      --accent:       #22c3f6;
+      --accent-h:     #7bddff;
+      --ink:          #0b1020;
+      --green:        #3dd68c;
+      --red:          #ff5d6c;
+      --yellow:       #ffb938;
+      --brand:        linear-gradient(90deg, #00d6ff, #3a78ff 50%, #a45cff);
       --radius:       8px;
       --shadow:       0 8px 28px rgba(0,0,0,.55);
     }
@@ -47,14 +51,19 @@
       display: flex; align-items: center; gap: 8px;
       text-decoration: none; color: var(--text); flex-shrink: 0;
     }
-    .logo-icon { font-size: 22px; }
+    .logo-icon { width: 28px; height: 28px; display: block; }
+    /* The gradient rule under the header: the one flourish every client shares. */
+    header::after {
+      content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+      background: var(--brand);
+    }
     .search-wrap { flex: 1; min-width: 160px; max-width: 440px; position: relative; }
     .search-wrap input {
       width: 100%; background: var(--bg-input); border: 1px solid var(--border);
       border-radius: 20px; color: var(--text); padding: 7px 16px 7px 36px;
       font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s;
     }
-    .search-wrap input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47,129,247,.15); }
+    .search-wrap input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,195,246,.15); }
     .search-wrap input::placeholder { color: var(--text-muted); }
     .search-icon {
       position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
@@ -72,7 +81,7 @@
       background: var(--border); color: var(--text-muted);
       border-radius: 10px; padding: 0 6px; font-size: 11px; font-weight: 600;
     }
-    .tab-btn.active .tab-count { background: var(--accent); color: #fff; }
+    .tab-btn.active .tab-count { background: var(--accent); color: var(--ink); }
     .icon-btn {
       background: none; border: none; cursor: pointer; color: var(--text-2);
       padding: 7px; border-radius: var(--radius); font-size: 18px; line-height: 1;
@@ -83,7 +92,7 @@
     .queue-badge {
       position: absolute; top: 1px; right: 0;
       min-width: 16px; height: 16px; padding: 0 4px;
-      border-radius: 999px; background: var(--accent); color: #fff;
+      border-radius: 999px; background: var(--accent); color: var(--ink);
       font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
     }
     .queue-badge.hidden { display: none; }
@@ -153,13 +162,13 @@
       position: absolute; top: 6px; right: 6px; z-index: 2;
       width: 24px; height: 24px; padding: 0;
       border: 1px solid var(--border-muted); border-radius: 6px;
-      background: rgba(13, 17, 23, .78); color: var(--text-muted);
+      background: rgba(11, 16, 32, .78); color: var(--text-muted);
       font-size: 12px; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       opacity: 0; transition: opacity .15s, color .15s, border-color .15s, background .15s;
     }
     .rom-card:hover .rom-share, .rom-share:focus-visible { opacity: 1; }
-    .rom-share:hover { color: var(--accent); border-color: var(--accent); background: rgba(13, 17, 23, .95); }
+    .rom-share:hover { color: var(--accent); border-color: var(--accent); background: rgba(11, 16, 32, .95); }
     .rom-share.busy  { opacity: 1; color: var(--yellow); border-color: var(--yellow); }
     @media (hover: none) { .rom-share { opacity: .85; } }
     .rom-stripe { height: 3px; }
@@ -195,23 +204,23 @@
       font-size: 11px; font-weight: 600; cursor: pointer;
       transition: background .15s, opacity .15s;
       white-space: nowrap; display: flex; align-items: center; gap: 3px;
-      background: var(--accent); color: #fff;
+      background: var(--accent); color: var(--ink);
     }
     .dl-btn:hover    { background: var(--accent-h); }
     .dl-btn:disabled { opacity: .45; cursor: not-allowed; }
     .dl-btn.busy     { background: var(--yellow) !important; color: #000 !important; border-color: var(--yellow) !important; }
 
     .dl-btn.extract {
-      background: transparent; color: var(--green); border: 1px solid #2d6a4a;
+      background: transparent; color: var(--green); border: 1px solid rgba(61,214,140,.4);
     }
     .dl-btn.extract:hover:not(:disabled) { background: rgba(63,185,80,.1); border-color: var(--green); }
 
     /* Copy-link button: subtle outline so it doesn't compete with the primary download */
     .dl-btn.copy {
-      background: transparent; color: var(--accent); border: 1px solid #30363d;
+      background: transparent; color: var(--accent); border: 1px solid var(--border);
       padding: 5px 8px;
     }
-    .dl-btn.copy:hover:not(:disabled) { background: rgba(88,166,255,.1); border-color: var(--accent); }
+    .dl-btn.copy:hover:not(:disabled) { background: rgba(34,195,246,.1); border-color: var(--accent); }
     .rom-btns-3ds .dl-btn.copy { padding: 4px 6px; }
 
     /* ── SAVES TABLE ── */
@@ -314,7 +323,7 @@
       border: 1px solid transparent;
     }
     .queue-state.running { background: rgba(210,153,34,.16); color: var(--yellow); border-color: rgba(210,153,34,.4); }
-    .queue-state.queued { background: rgba(47,129,247,.12); color: var(--accent-h); border-color: rgba(47,129,247,.35); }
+    .queue-state.queued { background: rgba(34,195,246,.12); color: var(--accent-h); border-color: rgba(34,195,246,.35); }
     .queue-state.done { background: rgba(63,185,80,.12); color: var(--green); border-color: rgba(63,185,80,.35); }
     .queue-state.error { background: rgba(248,81,73,.12); color: var(--red); border-color: rgba(248,81,73,.35); }
     .queue-state.cancelled { background: rgba(139,148,158,.14); color: var(--text-2); border-color: rgba(139,148,158,.3); }
@@ -322,7 +331,7 @@
     .queue-progress .prog-track { margin-bottom: 0; }
 
     .conv-fmt-badge {
-      background: #1a3a2a; color: var(--green); border: 1px solid #2d6a4a;
+      background: rgba(61,214,140,.12); color: var(--green); border: 1px solid rgba(61,214,140,.4);
       border-radius: 4px; padding: 1px 7px; font-size: 10px; font-weight: 700;
       text-transform: uppercase;
     }
@@ -415,7 +424,7 @@
       transition: background .12s, color .12s;
     }
     .vt-btn:hover  { color: var(--text); }
-    .vt-btn.active { background: var(--accent); color: #fff; }
+    .vt-btn.active { background: var(--accent); color: var(--ink); }
 
     /* ── ALPHABET JUMP STRIP ── */
     .alpha-bar {
@@ -595,7 +604,7 @@
 <!-- ══ HEADER ══ -->
 <header>
   <a class="logo" href="#">
-    <span class="logo-icon">🎮</span>
+    <img class="logo-icon" src="/favicon.png" alt="">
     <span>__SITE_TITLE__</span>
   </a>
   <div class="search-wrap">

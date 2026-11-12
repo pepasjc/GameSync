@@ -83,9 +83,13 @@ import com.savesync.android.ui.MainViewModel
 import com.savesync.android.ui.SaveSyncStatus
 import com.savesync.android.ui.SyncState
 import com.savesync.android.ui.SaveDetailState
+import com.savesync.android.ui.SyncPreviewState
+import com.savesync.android.sync.SyncAction
 import com.savesync.android.ui.components.ButtonGlyph
 import com.savesync.android.ui.components.GsButton
 import com.savesync.android.ui.components.GsConfirmDialog
+import com.savesync.android.ui.components.GsDialog
+import com.savesync.android.ui.components.GsDialogChoice
 import com.savesync.android.ui.components.GsFooterHints
 import com.savesync.android.ui.components.GsHint
 import com.savesync.android.ui.components.GsListRow
@@ -122,6 +126,7 @@ fun SavesScreen(
     val availableStatusFilters by viewModel.availableStatusFilters.collectAsState()
     // Shared with SaveDetailScreen: the outcome of an A-button smart sync.
     val saveDetailState by viewModel.saveDetailState.collectAsState()
+    val syncPreview by viewModel.syncPreview.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     // Title id of the save A just smart-synced, so a conflict it reports
     // can open that save's detail screen (where Force Upload / Download live).
@@ -167,7 +172,7 @@ fun SavesScreen(
         runCatching { listFocusRequester.requestFocus() }
     }
 
-    // SELECT steps the system filter (the sub-tab chip) — the Activity emits
+    // L2/R2 step the system filter (the sub-tab chip) — the Activity emits
     // on systemCycleEvents and we apply it here so the chip stays in sync.
     val activity = context.findComponentActivity() as? MainActivity
     LaunchedEffect(activity, availableFilters, selectedFilter) {
@@ -234,9 +239,10 @@ fun SavesScreen(
     val isSyncingOne = saveDetailState is SaveDetailState.Working
 
     /**
-     * A: smart sync the highlighted save — upload or download per its
-     * status.  Saturn saves need the archive picker on the detail screen,
-     * so they open it instead; a conflict found by the sync does too.
+     * A: smart sync the highlighted save.  Asks the server what the sync
+     * would do and shows it in a confirmation dialog first; confirming runs
+     * the sync.  Saturn saves need the archive picker on the detail screen,
+     * so they open it instead; a conflict does too.
      */
     fun smartSyncSelected() {
         val entry = saves.getOrNull(selectedIndex) ?: return
@@ -245,8 +251,7 @@ fun SavesScreen(
             onNavigateToDetail(entry.titleId)
             return
         }
-        pendingSyncTitle = entry.titleId
-        viewModel.syncSave(entry)
+        viewModel.previewSync(entry)
     }
 
     val syncCountLabel = when {
@@ -328,8 +333,8 @@ fun SavesScreen(
                     GsHint(GsButton.A, "Sync"),
                     GsHint(GsButton.X, "Sync all"),
                     GsHint(GsButton.Y, "Details"),
-                    GsHint(GsButton.SELECT, "System"),
-                    GsHint(GsButton.L2R2, "Status"),
+                    GsHint(GsButton.L2R2, "System"),
+                    GsHint(GsButton.SELECT, "Status"),
                     GsHint(GsButton.L1, "Tabs"),
                     GsHint(GsButton.START, "Exit"),
                 )
@@ -341,7 +346,7 @@ fun SavesScreen(
         // D-pad up/down steps the list, left/right page-scrolls with hold
         // acceleration (then letter jumps).  A smart-syncs the row, X syncs
         // everything, Y opens details, B only closes search.  L1/R1 (tabs),
-        // L2/R2 (status filter), SELECT (system) and START (exit) are
+        // L2/R2 (system), SELECT (status filter) and START (exit) are
         // handled at the Activity level and never reach here.
         SwipeRefresh(
             state = rememberSwipeRefreshState(isRefreshing = isSyncing),
@@ -479,6 +484,24 @@ fun SavesScreen(
         }
     }
 
+    // ── Smart sync (A) preview + confirmation ────────────────────────────
+    SmartSyncDialog(
+        state = syncPreview,
+        onConfirm = { entry ->
+            viewModel.dismissSyncPreview()
+            pendingSyncTitle = entry.titleId
+            viewModel.syncSave(entry)
+        },
+        onOpenDetails = { entry ->
+            viewModel.dismissSyncPreview()
+            onNavigateToDetail(entry.titleId)
+        },
+        onDismiss = {
+            viewModel.dismissSyncPreview()
+            runCatching { listFocusRequester.requestFocus() }
+        },
+    )
+
     // ── Sync confirmation dialog ─────────────────────────────────────────
     if (showSyncConfirmDialog) {
         GsConfirmDialog(
@@ -491,6 +514,102 @@ fun SavesScreen(
             },
             onDismiss = { showSyncConfirmDialog = false },
         )
+    }
+}
+
+/**
+ * What A's smart sync is about to do to one save, and whether to go ahead.
+ * Only an upload or download asks to confirm; "already in sync" and
+ * "nothing to do" just report, and a conflict points at the detail screen
+ * where Force Upload / Force Download live.
+ */
+@Composable
+private fun SmartSyncDialog(
+    state: SyncPreviewState,
+    onConfirm: (SaveEntry) -> Unit,
+    onOpenDetails: (SaveEntry) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val cancel = GsDialogChoice(GsButton.B, "Cancel", onDismiss)
+    fun ok(label: String = "OK") = GsDialogChoice(
+        GsButton.A, label, onDismiss, color = GsColors.Accent, textColor = GsColors.Ink,
+    )
+    when (state) {
+        SyncPreviewState.Hidden -> Unit
+        is SyncPreviewState.Checking -> GsDialog(
+            title = state.entry.displayName,
+            message = "Checking the server…",
+            onDismiss = onDismiss,
+            choices = listOf(cancel),
+        )
+        is SyncPreviewState.Failed -> GsDialog(
+            title = state.entry.displayName,
+            message = "Couldn't check this save: ${state.message}",
+            onDismiss = onDismiss,
+            choices = listOf(ok()),
+        )
+        is SyncPreviewState.Ready -> {
+            val entry = state.entry
+            val name = entry.displayName
+            when (state.action) {
+                SyncAction.UPLOAD -> GsDialog(
+                    title = "Upload save?",
+                    message = "The save on this device is newer than the server's.\n\n" +
+                        "Upload $name? The server's current copy is kept in its history.",
+                    onDismiss = onDismiss,
+                    choices = listOf(
+                        cancel,
+                        GsDialogChoice(
+                            GsButton.A, "Upload", { onConfirm(entry) },
+                            color = GsColors.Accent, textColor = GsColors.Ink,
+                        ),
+                    ),
+                )
+                SyncAction.DOWNLOAD -> GsDialog(
+                    title = "Download save?",
+                    message = if (entry.isServerOnly) {
+                        "$name is only on the server.\n\nDownload it to this device?"
+                    } else {
+                        "The server has a newer save than this device.\n\n" +
+                            "Download $name? The save on this device will be replaced."
+                    },
+                    onDismiss = onDismiss,
+                    choices = listOf(
+                        cancel,
+                        GsDialogChoice(
+                            GsButton.A, "Download", { onConfirm(entry) },
+                            color = GsColors.Accent, textColor = GsColors.Ink,
+                        ),
+                    ),
+                )
+                SyncAction.CONFLICT -> GsDialog(
+                    title = "Sync conflict",
+                    message = "$name changed both here and on the server since the last " +
+                        "sync. Open its details to choose which copy to keep.",
+                    onDismiss = onDismiss,
+                    choices = listOf(
+                        cancel,
+                        GsDialogChoice(
+                            GsButton.A, "Details", { onOpenDetails(entry) },
+                            color = GsColors.Accent, textColor = GsColors.Ink,
+                        ),
+                    ),
+                )
+                SyncAction.UP_TO_DATE -> GsDialog(
+                    title = "Already in sync",
+                    message = "$name matches the server. Nothing to do.",
+                    onDismiss = onDismiss,
+                    choices = listOf(ok()),
+                )
+                SyncAction.NOTHING -> GsDialog(
+                    title = name,
+                    message = "Nothing to sync: there's no local save and no known place " +
+                        "to put the server's copy. Download the game first, then rescan.",
+                    onDismiss = onDismiss,
+                    choices = listOf(ok()),
+                )
+            }
+        }
     }
 }
 
@@ -697,7 +816,7 @@ private fun StatusFilterChip(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (LocalShowButtonHints.current) ButtonGlyph(GsButton.L2R2)
+            if (LocalShowButtonHints.current) ButtonGlyph(GsButton.SELECT)
             Icon(
                 Icons.Default.FilterList,
                 contentDescription = "Status filter",
@@ -848,6 +967,7 @@ fun systemChipColor(systemName: String): Color {
         "SEGACD"          -> Color(0xFF263238)
         "SAT"             -> Color(0xFF4E342E)
         "DC"              -> Color(0xFFF57C00)
+        "XBOX"            -> Color(0xFF2E7D32)
         "ARCADE", "FBA",
         "MAME"            -> Color(0xFFC62828)
         "NEOCD", "NGP"    -> Color(0xFFAD1457)

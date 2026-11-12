@@ -202,7 +202,7 @@ fun GsFooterHints(hints: List<GsHint>, modifier: Modifier = Modifier) {
 }
 
 /**
- * Teal ring while the element (or something inside it) has focus, so
+ * Cyan ring while the element (or something inside it) has focus, so
  * D-pad navigation through ordinary Material controls (Settings) is
  * visible on the dark palette.
  */
@@ -217,7 +217,7 @@ fun Modifier.gsFocusRing(shape: Shape = RoundedCornerShape(20.dp)): Modifier = c
 
 /**
  * A list row on a panel.  The selected row (gamepad cursor) is lifted to
- * PANEL_HI with a teal selection bar down its left edge.
+ * PANEL_HI with a cyan selection bar down its left edge.
  */
 @Composable
 fun GsListRow(
