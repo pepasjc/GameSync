@@ -206,7 +206,7 @@ NES_ALIAS_PROGRESS.md
 /setup-ap-nm.sh
 /update-wlan0-service.sh
 /wifi-ap-setup.service
-/install-*.sh
+/install-*-rpi.sh
 desktop/output.txt
 gc/*.raw
 gc/_Arcade/
