@@ -27,15 +27,17 @@
       --green:        #3dd68c;
       --red:          #ff5d6c;
       --yellow:       #ffb938;
+      --purple:       #c4a5ff;
       --brand:        linear-gradient(90deg, #00d6ff, #3a78ff 50%, #a45cff);
       --radius:       8px;
       --shadow:       0 8px 28px rgba(0,0,0,.55);
+      --side-w:       236px;
     }
 
     body {
       background: var(--bg); color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      font-size: 14px; line-height: 1.5; min-height: 100vh;
+      font-size: 13px; line-height: 1.45; min-height: 100vh;
     }
 
     /* ── HEADER ── */
@@ -44,35 +46,37 @@
       background: var(--bg-hdr); border-bottom: 1px solid var(--border);
       backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
       display: flex; align-items: center; flex-wrap: wrap;
-      gap: 10px; padding: 10px 24px;
+      gap: 10px; padding: 7px 16px;
     }
     .logo {
-      font-weight: 700; font-size: 16px; white-space: nowrap;
+      font-weight: 700; font-size: 15px; white-space: nowrap;
       display: flex; align-items: center; gap: 8px;
       text-decoration: none; color: var(--text); flex-shrink: 0;
+      /* Lines the search box up with the content column on desktop. */
+      min-width: calc(var(--side-w) + 4px);
     }
-    .logo-icon { width: 28px; height: 28px; display: block; }
+    .logo-icon { width: 26px; height: 26px; display: block; }
     /* The gradient rule under the header: the one flourish every client shares. */
     header::after {
       content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
       background: var(--brand);
     }
-    .search-wrap { flex: 1; min-width: 160px; max-width: 440px; position: relative; }
+    .search-wrap { flex: 1; min-width: 160px; max-width: 560px; position: relative; }
     .search-wrap input {
       width: 100%; background: var(--bg-input); border: 1px solid var(--border);
-      border-radius: 20px; color: var(--text); padding: 7px 16px 7px 36px;
-      font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s;
+      border-radius: 20px; color: var(--text); padding: 6px 16px 6px 34px;
+      font-size: 13px; outline: none; transition: border-color .15s, box-shadow .15s;
     }
     .search-wrap input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,195,246,.15); }
     .search-wrap input::placeholder { color: var(--text-muted); }
     .search-icon {
       position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-      color: var(--text-muted); font-size: 14px; pointer-events: none;
+      color: var(--text-muted); font-size: 13px; pointer-events: none;
     }
-    .tab-group { display: flex; gap: 2px; }
+    .tab-group { display: flex; gap: 2px; margin-left: auto; }
     .tab-btn {
       background: none; border: none; cursor: pointer; color: var(--text-2);
-      padding: 7px 14px; border-radius: var(--radius); font-size: 14px; font-weight: 500;
+      padding: 6px 12px; border-radius: var(--radius); font-size: 13px; font-weight: 500;
       transition: background .15s, color .15s; display: flex; align-items: center; gap: 6px; white-space: nowrap;
     }
     .tab-btn:hover  { background: var(--bg-card); color: var(--text); }
@@ -84,7 +88,7 @@
     .tab-btn.active .tab-count { background: var(--accent); color: var(--ink); }
     .icon-btn {
       background: none; border: none; cursor: pointer; color: var(--text-2);
-      padding: 7px; border-radius: var(--radius); font-size: 18px; line-height: 1;
+      padding: 6px; border-radius: var(--radius); font-size: 17px; line-height: 1;
       transition: color .15s; flex-shrink: 0;
     }
     .icon-btn:hover { color: var(--text); }
@@ -98,150 +102,165 @@
     .queue-badge.hidden { display: none; }
     .queue-btn.active { color: var(--text); background: var(--bg-card); }
 
-    /* ── LAYOUT ── */
+    /* ── LAYOUT — the whole window, no centred column ── */
     #app {
-      display: flex; max-width: 1440px; margin: 0 auto;
-      padding: 28px 24px; gap: 28px; align-items: flex-start;
+      display: flex; padding: 12px 16px 40px; gap: 14px; align-items: flex-start;
     }
 
     /* ── SIDEBAR ── */
-    #sidebar { width: 168px; flex-shrink: 0; position: sticky; top: 76px; }
+    #sidebar {
+      width: var(--side-w); flex-shrink: 0;
+      position: sticky; top: calc(var(--hdr-h, 50px) + 12px);
+      max-height: calc(100vh - var(--hdr-h, 50px) - 24px);
+      overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+      background: var(--bg-card); border: 1px solid var(--border-muted);
+      border-radius: var(--radius); padding: 8px 5px;
+    }
     .sidebar-label {
-      font-size: 11px; font-weight: 600; color: var(--text-muted);
-      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; padding-left: 10px;
+      font-size: 10px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; padding-left: 9px;
     }
     .sys-link {
-      display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 6px;
-      color: var(--text-2); font-size: 13px; cursor: pointer;
+      display: flex; align-items: center; gap: 7px; padding: 2px 8px; border-radius: 5px;
+      color: var(--text-2); font-size: 12px; cursor: pointer; line-height: 20px;
       transition: background .1s, color .1s; white-space: nowrap; overflow: hidden;
     }
-    .sys-link:hover { background: var(--bg-card); color: var(--text); }
-    .sys-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .sys-link-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-    .sys-link-cnt  { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+    .sys-link:hover  { background: var(--bg-card-h); color: var(--text); }
+    .sys-link.active { background: var(--bg-card-h); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
+    .sys-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .sys-link-code { font-size: 11px; font-weight: 700; color: var(--text); width: 56px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; }
+    .sys-link-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: 11px; }
+    .sys-link.active .sys-link-name, .sys-link:hover .sys-link-name { color: var(--text-2); }
+    .sys-link-cnt  { color: var(--text-muted); font-size: 11px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
     /* ── CONTENT ── */
     #content { flex: 1; min-width: 0; }
 
-    /* ── STATS BAR ── */
-    .stats-bar {
-      display: flex; background: var(--bg-card); border: 1px solid var(--border-muted);
-      border-radius: var(--radius); margin-bottom: 28px; overflow: hidden;
+    /* ── SUMMARY STRIP ── */
+    .sum {
+      display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 22px;
+      margin-bottom: 10px; font-size: 12px; color: var(--text-muted);
     }
-    .stat { padding: 14px 28px; text-align: center; flex: 1; border-right: 1px solid var(--border-muted); }
-    .stat:last-child { border-right: none; }
-    .stat-val { font-size: 22px; font-weight: 700; color: var(--accent); }
-    .stat-lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-
-    /* ── SYSTEM SECTION ── */
-    .sys-section { margin-bottom: 44px; scroll-margin-top: 72px; }
-    .sys-header {
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-muted);
-    }
-    .sys-header h2 { font-size: 16px; font-weight: 600; }
-    .sys-count {
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1px 9px; font-size: 11px; color: var(--text-2);
-    }
-
-    /* ── ROM CARD GRID ── */
-    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-    .rom-card {
-      background: var(--bg-card); border: 1px solid var(--border-muted);
-      border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column;
-      transition: border-color .15s, transform .12s, box-shadow .15s;
-      position: relative;
-    }
-    .rom-card:hover { border-color: var(--border); transform: translateY(-2px); box-shadow: var(--shadow); }
-
-    /* Top-right share icon — appears over the stripe, fades in on hover.
-       Click bubbles to delegated 'copy' handler. Always visible on touch
-       devices via @media query below. */
-    .rom-share {
-      position: absolute; top: 6px; right: 6px; z-index: 2;
-      width: 24px; height: 24px; padding: 0;
-      border: 1px solid var(--border-muted); border-radius: 6px;
-      background: rgba(11, 16, 32, .78); color: var(--text-muted);
-      font-size: 12px; line-height: 1; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      opacity: 0; transition: opacity .15s, color .15s, border-color .15s, background .15s;
-    }
-    .rom-card:hover .rom-share, .rom-share:focus-visible { opacity: 1; }
-    .rom-share:hover { color: var(--accent); border-color: var(--accent); background: rgba(11, 16, 32, .95); }
-    .rom-share.busy  { opacity: 1; color: var(--yellow); border-color: var(--yellow); }
-    @media (hover: none) { .rom-share { opacity: .85; } }
-    .rom-stripe { height: 3px; }
-    .rom-body { padding: 12px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
-    .rom-title {
-      font-size: 13px; font-weight: 500; line-height: 1.4; flex: 1;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-    }
-    .rom-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
-    .rom-size { font-size: 11px; color: var(--text-muted); }
-    .save-dot {
-      display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--green); margin-left: auto;
-    }
-    .save-dot::before { content:''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
-    .rom-foot {
-      padding: 8px 10px; border-top: 1px solid var(--border-muted);
-      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-    }
-    .rom-btns { display: flex; gap: 5px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
-    /* 3DS cards can have up to 4 buttons — give them their own compact treatment */
-    .rom-btns-3ds { gap: 4px; }
-    .rom-btns-3ds .dl-btn { padding: 4px 7px; font-size: 10px; letter-spacing: .02em; }
+    .sum b { font-size: 18px; font-weight: 700; color: var(--accent); margin-right: 5px; }
 
     /* ── BADGE ── */
     .badge {
-      display: inline-block; color: #fff; font-size: 10px; font-weight: 700;
-      padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0;
+      display: inline-block; color: #fff; font-size: 10px; font-weight: 700; line-height: 16px;
+      padding: 0 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0;
     }
+
+    /* ── VARIANT TAGS — what tells two files of one game apart ── */
+    .tags { display: inline-flex; flex-wrap: wrap; gap: 3px; min-width: 0; max-width: 100%; }
+    .tag {
+      display: inline-block; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 10px; line-height: 16px; padding: 0 5px; border-radius: 4px;
+      border: 1px solid var(--border-muted); color: var(--text-2);
+    }
+    .tag.flag { color: var(--text-muted); }
+    .tag.rev  { color: var(--yellow); border-color: rgba(255,185,56,.35); }
+    .tag.disc { color: var(--yellow); border-color: rgba(255,185,56,.5); background: rgba(255,185,56,.08); font-weight: 600; }
+    .tag.tr   { color: var(--accent); border-color: rgba(34,195,246,.45); background: rgba(34,195,246,.08); }
+    .tag.hack { color: var(--purple); border-color: rgba(164,92,255,.5); background: rgba(164,92,255,.1); }
+    .tag.kind { color: var(--green); border-color: rgba(61,214,140,.4); background: rgba(61,214,140,.08); font-weight: 600; }
+    .aka {
+      font-size: 11px; color: var(--text-muted); font-style: italic;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+    }
+
+    .ra { font-size: 11px; color: var(--yellow); text-decoration: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .ra:hover { text-decoration: underline; }
+    .ra.weak { color: var(--text-muted); }
+    .save-dot { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--green); white-space: nowrap; }
+    .save-dot::before { content:''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
 
     /* ── BUTTONS ── */
     .dl-btn {
-      border: none; border-radius: 6px; padding: 5px 10px;
-      font-size: 11px; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--accent); border-radius: 5px; padding: 2px 7px;
+      font-size: 10px; font-weight: 700; letter-spacing: .02em; line-height: 16px; cursor: pointer;
       transition: background .15s, opacity .15s;
-      white-space: nowrap; display: flex; align-items: center; gap: 3px;
+      white-space: nowrap; display: inline-flex; align-items: center; gap: 3px;
       background: var(--accent); color: var(--ink);
     }
-    .dl-btn:hover    { background: var(--accent-h); }
+    .dl-btn:hover    { background: var(--accent-h); border-color: var(--accent-h); }
     .dl-btn:disabled { opacity: .45; cursor: not-allowed; }
     .dl-btn.busy     { background: var(--yellow) !important; color: #000 !important; border-color: var(--yellow) !important; }
-
     .dl-btn.extract {
-      background: transparent; color: var(--green); border: 1px solid rgba(61,214,140,.4);
+      background: transparent; color: var(--green); border-color: rgba(61,214,140,.4);
     }
     .dl-btn.extract:hover:not(:disabled) { background: rgba(63,185,80,.1); border-color: var(--green); }
-
-    /* Copy-link button: subtle outline so it doesn't compete with the primary download */
+    /* Copy-link button: subtle outline so it doesn't compete with the downloads */
     .dl-btn.copy {
-      background: transparent; color: var(--accent); border: 1px solid var(--border);
-      padding: 5px 8px;
+      background: transparent; color: var(--text-2); border-color: var(--border-muted); padding: 2px 5px;
     }
-    .dl-btn.copy:hover:not(:disabled) { background: rgba(34,195,246,.1); border-color: var(--accent); }
-    .rom-btns-3ds .dl-btn.copy { padding: 4px 6px; }
+    .dl-btn.copy:hover:not(:disabled) { background: rgba(34,195,246,.1); border-color: var(--accent); color: var(--accent); }
+    .rom-btns { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+
+    /* ── ROM LIST — dense rows, the default ── */
+    .rom-list {
+      background: var(--bg-card); border: 1px solid var(--border-muted);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .rom-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 4px 10px 4px 0; min-height: 30px;
+      border-bottom: 1px solid var(--border-muted);
+    }
+    .rom-row:last-child { border-bottom: none; }
+    .rom-row:hover { background: var(--bg-card-h); }
+    .row-stripe { width: 3px; align-self: stretch; flex-shrink: 0; }
+    .row-main { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px 7px; }
+    .rt { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+    .row-ra   { width: 56px; flex-shrink: 0; text-align: right; }
+    .row-save { width: 42px; flex-shrink: 0; }
+    .row-size { width: 62px; flex-shrink: 0; text-align: right; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .rom-row .rom-btns { flex-shrink: 0; flex-wrap: nowrap; }
+
+    /* ── ROM CARD GRID ── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+    .rom-card {
+      background: var(--bg-card); border: 1px solid var(--border-muted);
+      border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column;
+      transition: border-color .15s;
+    }
+    .rom-card:hover { border-color: var(--border); }
+    .rom-stripe { height: 3px; }
+    .rom-body { padding: 8px 10px 6px; flex: 1; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+    .rom-title {
+      font-size: 13px; font-weight: 500; line-height: 1.35;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .rom-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 2px; width: 100%; }
+    .rom-size { font-size: 11px; color: var(--text-muted); }
+    .rom-foot { padding: 6px 8px; border-top: 1px solid var(--border-muted); }
+    .rom-foot .rom-btns { justify-content: flex-start; }
+    .rom-foot .dl-btn.copy { margin-left: auto; }
 
     /* ── SAVES TABLE ── */
-    .tbl-wrap { overflow-x: auto; border-radius: var(--radius); }
     table.tbl {
-      width: 100%; border-collapse: collapse; background: var(--bg-card);
-      border: 1px solid var(--border-muted); border-radius: var(--radius); overflow: hidden;
+      width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card);
+      border: 1px solid var(--border-muted); border-radius: var(--radius);
     }
-    .tbl thead { background: rgba(0,0,0,.25); }
     .tbl th {
-      text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 600;
+      position: sticky; top: var(--hdr-h, 50px); z-index: 5;
+      background: #0f1630; text-align: left; padding: 6px 10px; font-size: 10px; font-weight: 600;
       color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em;
-      border-bottom: 1px solid var(--border); white-space: nowrap;
+      border-bottom: 1px solid var(--border); white-space: nowrap; user-select: none;
     }
-    .tbl td { padding: 10px 16px; border-bottom: 1px solid var(--border-muted); vertical-align: middle; }
+    .tbl th:first-child { border-top-left-radius: var(--radius); }
+    .tbl th:last-child  { border-top-right-radius: var(--radius); }
+    .tbl th[data-action] { cursor: pointer; }
+    .tbl th[data-action]:hover, .tbl th.sorted { color: var(--text); }
+    .tbl td { padding: 4px 10px; border-bottom: 1px solid var(--border-muted); vertical-align: middle; }
     .tbl tr:last-child td { border-bottom: none; }
-    .tbl tr:hover td { background: var(--bg-card-h); }
+    .tbl tbody tr:hover td { background: var(--bg-card-h); }
+    .tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
     .save-game { font-weight: 500; font-size: 13px; }
-    .save-id   { font-size: 11px; color: var(--text-muted); font-family: ui-monospace, monospace; margin-top: 2px; }
+    .save-id, .save-hash { font-size: 11px; color: var(--text-muted); font-family: ui-monospace, Consolas, monospace; }
+    .save-id { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .save-date { font-size: 12px; color: var(--text-2); white-space: nowrap; }
     .save-size { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+    .save-act  { white-space: nowrap; text-align: right; }
+    .save-act .dl-btn { vertical-align: middle; }
 
     /* ── MODALS ── */
     .modal-overlay {
@@ -267,8 +286,8 @@
 
     /* ── DOWNLOAD QUEUE PANEL ── */
     .queue-panel {
-      position: fixed; top: calc(var(--hdr-h, 56px) + 10px); right: 24px;
-      width: 380px; max-width: calc(100vw - 24px); max-height: calc(100vh - var(--hdr-h, 56px) - 28px);
+      position: fixed; top: calc(var(--hdr-h, 50px) + 10px); right: 16px;
+      width: 380px; max-width: calc(100vw - 24px); max-height: calc(100vh - var(--hdr-h, 50px) - 28px);
       overflow: auto; z-index: 180;
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: 14px; box-shadow: var(--shadow); padding: 16px;
@@ -357,62 +376,55 @@
     /* ── SKELETON ── */
     .skeleton { animation: pulse 1.6s ease-in-out infinite; }
     @keyframes pulse { 0%,100% { opacity: .6; } 50% { opacity: .2; } }
-    .skel-head { height: 20px; width: 220px; background: var(--border-muted); border-radius: 4px; margin-bottom: 16px; }
-    .skel-card { background: var(--bg-card); border: 1px solid var(--border-muted); border-radius: var(--radius); height: 140px; }
+    .skel-row { height: 30px; border-bottom: 1px solid var(--border-muted); background: var(--bg-card); }
 
     /* ── SYSTEM OVERVIEW GRID (landing screen) ── */
-    .sys-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 12px;
-    }
+    .sys-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; }
     .sys-tile {
-      position: relative; display: flex; flex-direction: column;
-      background: var(--bg-card); border: 1px solid var(--border-muted);
-      border-radius: var(--radius); padding: 16px 16px 14px;
+      position: relative; background: var(--bg-card); border: 1px solid var(--border-muted);
+      border-radius: var(--radius); padding: 8px 12px 9px 15px;
       cursor: pointer; overflow: hidden;
-      transition: border-color .15s, transform .12s, box-shadow .15s;
+      transition: border-color .15s, background .15s;
       -webkit-tap-highlight-color: transparent;
     }
-    .sys-tile:hover  { border-color: var(--border); transform: translateY(-2px); box-shadow: var(--shadow); }
-    .sys-tile:active { transform: translateY(0); }
+    .sys-tile:hover  { border-color: var(--border); background: var(--bg-card-h); }
     .sys-tile-stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+    .sys-tile-top   { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
     .sys-tile-code  { font-size: 13px; font-weight: 700; letter-spacing: .04em; }
-    .sys-tile-name  { font-size: 12px; color: var(--text-2); margin-top: 2px;
-                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .sys-tile-foot  { display: flex; align-items: baseline; gap: 6px; margin-top: 14px; }
-    .sys-tile-cnt   { font-size: 22px; font-weight: 700; color: var(--accent); line-height: 1; }
-    .sys-tile-lbl   { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+    .sys-tile-cnt   { font-size: 15px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .sys-tile-name  { font-size: 11px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* ── BACK BAR / CONTEXT HEADER ── */
-    .ctx-bar {
-      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-      margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border-muted);
+    /* ── STICKY VIEW HEADER (context bar + alphabet jump) ── */
+    /* Stays pinned under the page header (and the chip bar on mobile) while
+       the list scrolls underneath. */
+    .view-head {
+      position: sticky; top: calc(var(--hdr-h, 50px) + var(--chips-h, 0px)); z-index: 80;
+      background: var(--bg); margin: -12px 0 8px; padding-top: 10px;
     }
+    .ctx-bar { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
+    .ctx-bar h2 { font-size: 15px; font-weight: 600; white-space: nowrap; }
+    .ctx-count { font-size: 12px; color: var(--text-2); white-space: nowrap; }
     .back-btn {
       background: var(--bg-card); border: 1px solid var(--border-muted); color: var(--text-2);
-      border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+      border-radius: 6px; padding: 3px 9px; cursor: pointer; font-size: 12px;
       display: inline-flex; align-items: center; gap: 5px;
       transition: background .12s, color .12s, border-color .12s;
     }
     .back-btn:hover { background: var(--bg-card-h); color: var(--text); border-color: var(--border); }
-    .ctx-title { display: flex; align-items: center; gap: 10px; }
-    .ctx-title h2 { font-size: 17px; font-weight: 600; }
-    .ctx-count {
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1px 9px; font-size: 11px; color: var(--text-2);
-    }
 
-    /* ── STICKY VIEW HEADER (ctx-bar + alphabet jump) ── */
-    /* Wraps the back-bar and A-Z strip so both stay pinned just below the
-       page header while the ROM grid/list scrolls underneath. */
-    .view-head {
-      position: sticky; top: var(--hdr-h, 56px); z-index: 80;
-      background: var(--bg); margin-bottom: 16px; padding-top: 4px;
+    /* ── FILTER PILLS ── */
+    .flts { display: flex; gap: 5px; flex-wrap: wrap; }
+    .flt {
+      background: var(--bg-card); border: 1px solid var(--border-muted); color: var(--text-2);
+      border-radius: 999px; padding: 2px 10px; font-size: 11px; cursor: pointer; white-space: nowrap;
+      transition: background .12s, color .12s, border-color .12s;
     }
-    .view-head .ctx-bar { margin-bottom: 0; padding-bottom: 10px; border-bottom: none; }
+    .flt span { color: var(--text-muted); margin-left: 3px; font-variant-numeric: tabular-nums; }
+    .flt:hover  { color: var(--text); border-color: var(--border); }
+    .flt.active { background: rgba(34,195,246,.14); border-color: var(--accent); color: var(--accent); }
+    .flt.active span { color: var(--accent); }
 
-    /* ── VIEW TOGGLE (grid / list) ── */
+    /* ── VIEW TOGGLE (list / grid) ── */
     .view-toggle {
       margin-left: auto; display: flex; gap: 2px;
       background: var(--bg-card); border: 1px solid var(--border-muted);
@@ -420,19 +432,16 @@
     }
     .vt-btn {
       background: none; border: none; cursor: pointer; color: var(--text-2);
-      padding: 4px 9px; border-radius: 5px; font-size: 14px; line-height: 1;
+      padding: 2px 8px; border-radius: 5px; font-size: 13px; line-height: 1.3;
       transition: background .12s, color .12s;
     }
     .vt-btn:hover  { color: var(--text); }
     .vt-btn.active { background: var(--accent); color: var(--ink); }
 
     /* ── ALPHABET JUMP STRIP ── */
-    .alpha-bar {
-      display: flex; flex-wrap: wrap; gap: 2px;
-      padding: 8px 0; border-bottom: 1px solid var(--border-muted);
-    }
+    .alpha-bar { display: flex; flex-wrap: wrap; gap: 1px; padding: 6px 0; border-bottom: 1px solid var(--border-muted); }
     .alpha-btn {
-      min-width: 22px; height: 22px; padding: 0 4px;
+      min-width: 22px; height: 20px; padding: 0 4px;
       background: none; border: 1px solid transparent; border-radius: 5px;
       color: var(--text-2); font-size: 11px; font-weight: 600; cursor: pointer;
       transition: background .1s, color .1s, border-color .1s;
@@ -440,38 +449,19 @@
     .alpha-btn:hover { background: var(--bg-card); color: var(--text); border-color: var(--border); }
     .alpha-btn:disabled, .alpha-btn.off { color: var(--border); cursor: default; background: none; border-color: transparent; }
 
-    /* Quick-jump target offset: clear the sticky page header + view header. */
-    .card-grid > *, .rom-list > * { scroll-margin-top: calc(var(--hdr-h, 56px) + 96px); }
-
-    /* ── ROM LIST (compact rows — alternative to card grid) ── */
-    .rom-list { display: flex; flex-direction: column; gap: 4px; }
-    .rom-row {
-      display: flex; align-items: center; gap: 12px; position: relative;
-      background: var(--bg-card); border: 1px solid var(--border-muted);
-      border-radius: 6px; padding: 7px 12px;
-      transition: border-color .12s, background .12s;
+    /* Quick-jump target offset: clear everything that is pinned above. */
+    .card-grid > *, .rom-list > * {
+      scroll-margin-top: calc(var(--hdr-h, 50px) + var(--chips-h, 0px) + var(--vh-h, 70px) + 4px);
     }
-    .rom-row:hover { border-color: var(--border); background: var(--bg-card-h); }
-    .row-stripe { width: 3px; align-self: stretch; border-radius: 2px; flex-shrink: 0; }
-    .row-name {
-      flex: 1; min-width: 0; font-size: 13px; font-weight: 500;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .rom-row .save-dot { margin-left: 0; flex-shrink: 0; }
-    .row-size { font-size: 11px; color: var(--text-muted); width: 74px; text-align: right; flex-shrink: 0; }
-    .rom-row .badge { font-size: 9px; flex-shrink: 0; }
-    .rom-row .rom-btns { margin-left: 0; flex-shrink: 0; flex-wrap: nowrap; }
 
     /* ── LOAD MORE SENTINEL ── */
-    .load-more {
-      padding: 22px; text-align: center; color: var(--text-muted); font-size: 12px;
-    }
+    .load-more { padding: 18px; text-align: center; color: var(--text-muted); font-size: 12px; }
     .load-more.hidden { display: none; }
 
     /* ── EMPTY ── */
-    .empty { text-align: center; padding: 72px 20px; color: var(--text-muted); }
-    .empty-icon  { font-size: 48px; margin-bottom: 14px; line-height: 1; }
-    .empty-title { font-size: 16px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+    .empty { text-align: center; padding: 64px 20px; color: var(--text-muted); }
+    .empty-icon  { font-size: 44px; margin-bottom: 12px; line-height: 1; }
+    .empty-title { font-size: 15px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
     .empty-sub   { font-size: 13px; max-width: 380px; margin: 0 auto; line-height: 1.6; }
 
     /* ── TOAST ── */
@@ -482,7 +472,8 @@
       border-radius: 9px; padding: 10px 22px; font-size: 13px;
       box-shadow: var(--shadow); z-index: 400;
       transition: opacity .25s, transform .25s;
-      opacity: 0; pointer-events: none; white-space: nowrap;
+      opacity: 0; pointer-events: none; max-width: 92vw;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     #toast.err  { border-color: var(--red);   color: var(--red);   }
@@ -492,92 +483,86 @@
     #sys-chips { display: none; }
     .sys-chip {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 6px 13px; border-radius: 20px;
+      padding: 4px 11px; border-radius: 20px;
       border: 1px solid var(--border-muted);
       background: var(--bg-card); color: var(--text-2);
-      font-size: 13px; font-weight: 600; white-space: nowrap;
+      font-size: 12px; font-weight: 600; white-space: nowrap;
       cursor: pointer; flex-shrink: 0;
       transition: background .12s, color .12s, border-color .12s;
       -webkit-tap-highlight-color: transparent;
     }
     .sys-chip:hover  { background: var(--bg-card-h); color: var(--text); border-color: var(--border); }
-    .sys-chip:active { transform: scale(.96); }
-    .sys-chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .sys-chip.active { border-color: var(--accent); color: var(--text); }
+    .sys-chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .sys-chip-cnt { font-size: 11px; color: var(--text-muted); margin-left: 1px; }
+
+    /* ── RESPONSIVE — narrow desktop: drop the secondary save columns ── */
+    @media (max-width: 1280px) {
+      .tbl .c-hash, .tbl .c-src { display: none; }
+    }
 
     /* ── RESPONSIVE — tablet ── */
     @media (max-width: 900px) {
       #sidebar { display: none; }
+      .logo { min-width: 0; }
       #sys-chips {
-        display: flex; gap: 7px;
+        display: flex; gap: 6px;
         overflow-x: auto; overflow-y: visible;
         /* Sticky just below the header — JS sets --hdr-h */
-        position: sticky;
-        top: var(--hdr-h, 56px);
-        z-index: 90;
+        position: sticky; top: var(--hdr-h, 50px); z-index: 90;
         background: var(--bg);
-        padding: 10px 0 10px;
-        margin: -8px 0 16px;
+        padding: 8px 0; margin: -12px 0 12px;
         /* fade edges to hint at scrollability */
         -webkit-mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
         mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
         scrollbar-width: none; -ms-overflow-style: none;
       }
       #sys-chips::-webkit-scrollbar { display: none; }
-      #app { padding: 20px 16px; gap: 0; }
-      .card-grid { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+      #app { padding: 12px 12px 32px; gap: 0; }
+      .tbl .c-id, .tbl .c-files { display: none; }
+      .tbl th { position: static; }
+      .tbl-wrap { overflow-x: auto; }
 
-      /* View header sits BELOW the sticky system chips on mobile. */
-      .view-head { top: calc(var(--hdr-h, 56px) + var(--chips-h, 52px)); }
-      .card-grid > *, .rom-list > * {
-        scroll-margin-top: calc(var(--hdr-h, 56px) + var(--chips-h, 52px) + 96px);
-      }
+      /* Rows fold: name and tags on top, the facts and buttons beneath. */
+      .rom-row { flex-wrap: wrap; gap: 4px 10px; padding: 6px 8px 6px 0; }
+      .row-main { flex-basis: calc(100% - 13px); }
+      .row-stripe { margin-right: -3px; }
+      .row-ra, .row-save, .row-size { width: auto; text-align: left; }
+      .row-ra:empty, .row-save:empty { display: none; }
+      .row-ra { margin-left: 10px; }
+      .rom-row .rom-btns { margin-left: auto; flex-wrap: wrap; }
+      .dl-btn { padding: 4px 8px; }
+      .dl-btn.copy { padding: 4px 7px; }
     }
 
     /* ── RESPONSIVE — phone ── */
     @media (max-width: 600px) {
       header { padding: 8px 12px; gap: 8px; }
 
-      /* Row 1: logo (left) + settings (right) */
+      /* Row 1: logo (left) + queue/settings (right) */
       .logo     { order: 1; flex: 1; }
       .icon-btn { order: 2; }
 
       /* Row 2: search (left) + tabs (right) */
       .search-wrap { order: 3; flex: 1; min-width: 0; max-width: none; }
-      .tab-group   { order: 4; flex-shrink: 0; }
+      .tab-group   { order: 4; flex-shrink: 0; margin-left: 0; }
 
-      .tab-btn { padding: 6px 10px; font-size: 13px; }
+      .tab-btn { padding: 6px 10px; }
       .tab-count { display: none; } /* counts shown in chips instead */
 
-      #app { padding: 12px 10px; }
-      .stats-bar { margin-bottom: 16px; }
-      .stat { padding: 10px 16px; }
-      .stat-val { font-size: 18px; }
-
-      /* 2-column card grid on phone */
-      .card-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-      .rom-title { font-size: 12px; -webkit-line-clamp: 3; }
-      .rom-body  { padding: 10px; }
-      .rom-foot  { padding: 7px 10px; }
-      .dl-btn    { padding: 5px 8px; font-size: 11px; min-height: 34px; }
-      .rom-btns-3ds .dl-btn { padding: 4px 6px; font-size: 10px; min-height: 28px; }
-
-      /* Saves table — hide less important columns */
-      .tbl th:nth-child(3), .tbl td:nth-child(3) { display: none; } /* Size */
-      .tbl th:nth-child(4), .tbl td:nth-child(4) { display: none; } /* Files */
-      .save-date { font-size: 11px; }
+      #app { padding: 12px 10px 32px; }
+      .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+      .sys-grid  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .tag { max-width: 180px; }
+      .tbl .c-size { display: none; }
+      .tbl th, .tbl td { padding: 6px 8px; }
 
       /* Modals full-width */
       .modal { width: 94vw; padding: 20px; }
       .queue-panel {
         right: 10px; left: 10px; width: auto;
-        max-width: none; top: calc(var(--hdr-h, 56px) + 8px);
+        max-width: none; top: calc(var(--hdr-h, 50px) + 8px);
       }
-    }
-
-    @media (max-width: 380px) {
-      .card-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
-      .rom-title { font-size: 11px; }
     }
   </style>
 </head>
@@ -685,8 +670,9 @@ if (!API_KEY) {
 //   systemCache     -> {SYS: [rom, ...]} — per-system fetch cache so re-entry is instant
 //   currentSystem   -> which system is being viewed (when view === 'system')
 //   savedTitleIds   -> Set<title_id> — used to flag ROMs that have saves on server
-//   searchResults   -> last search response payload
-//   rendered        -> pointer used by the lazy-renderer in the current section
+//   searchResults   -> last search: {q, total, roms}
+//   Every ROM object gets `_d` (prepRom): the title, variant tags and sort
+//   key it is displayed with.
 //   searchAbort     -> AbortController for the in-flight search request
 const S = {
   view:          'overview',
@@ -699,8 +685,13 @@ const S = {
   searchAbort:   null,
   tab:           'roms',
   q:             '',
-  // Grid (cards) vs list (compact rows). Persisted across sessions.
-  layout:        localStorage.getItem('gamesync_layout') || 'grid',
+  // List (dense rows) vs grid (cards). Persisted across sessions.
+  layout:        localStorage.getItem('gamesync_layout') === 'grid' ? 'grid' : 'list',
+  // Client-side narrowing of the system / search view being shown.
+  filters:       { save: false, ra: false, patched: false },
+  // Saves tab: platform shown (null = all) and the column sorted by.
+  savePlat:      null,
+  saveSort:      { key: 'date', dir: -1 },
   // Lazy render state — reused by both the system view and search view
   lazy: { items: [], rendered: 0, observer: null, containerId: null, renderFn: null },
 };
@@ -724,7 +715,9 @@ const SYS_CLR = {
   NDS:'#9d174d', '3DS':'#0e7490', DSI:'#0891b2',
   PSP:'#1e3a8a', VITA:'#881337',
   PS1:'#374151', PSX:'#374151', PS2:'#1e3a8a', PS3:'#0c4a6e',
-  SAT:'#7f1d1d', SCD:'#134e4a', MEGACD:'#134e4a', DC:'#f97316',
+  SAT:'#7f1d1d', SCD:'#134e4a', MEGACD:'#134e4a', SEGACD:'#134e4a', DC:'#f97316',
+  SG1000:'#065f46', XBOX:'#107c10', N64DD:'#78350f', VB:'#991b1b',
+  WSWAN:'#0f766e', WSWANC:'#0d9488', X68K:'#475569', PCSG:'#78350f', NEOCD:'#7f1d1d',
   MD:'#134e4a', SMS:'#064e3b', GG:'#14532d', '32X':'#6d28d9',
   PCE:'#78350f', TG16:'#78350f', PCECD:'#92400e', TG16CD:'#92400e',
   '3DO':'#4c1d95', PCFX:'#1e3a5f', NGCD:'#7f1d1d',
@@ -748,7 +741,9 @@ const SYS_LBL = {
   NDS:'Nintendo DS', '3DS':'Nintendo 3DS', DSI:'Nintendo DSi',
   PSP:'PlayStation Portable', VITA:'PS Vita',
   PS1:'PlayStation', PSX:'PlayStation', PS2:'PlayStation 2', PS3:'PlayStation 3',
-  SAT:'Sega Saturn', SCD:'Sega CD', MEGACD:'Sega Mega-CD', DC:'Dreamcast',
+  SAT:'Sega Saturn', SCD:'Sega CD', MEGACD:'Sega Mega-CD', SEGACD:'Sega CD', DC:'Dreamcast',
+  SG1000:'Sega SG-1000', XBOX:'Xbox', N64DD:'Nintendo 64DD', VB:'Virtual Boy',
+  WSWAN:'WonderSwan', WSWANC:'WonderSwan Color', X68K:'Sharp X68000', PCSG:'PC Engine SuperGrafx', NEOCD:'Neo Geo CD',
   MD:'Mega Drive / Genesis', SMS:'Sega Master System', GG:'Game Gear', '32X':'Sega 32X',
   PCE:'PC Engine', TG16:'TurboGrafx-16', PCECD:'PC Engine CD-ROM²', TG16CD:'TurboGrafx-CD',
   '3DO':'3DO', PCFX:'PC-FX', NGCD:'Neo Geo CD',
@@ -1347,10 +1342,9 @@ function clearFinishedJobs() {
 // ═══════════════════════════════════════════════════════
 //  LOAD — landing screen
 //  Fetch the lightweight system overview + the saves list (saves total is
-//  typically a few hundred, not thousands, so we can load it all). ROM *cards*
-//  are not fetched until the user picks a system, searches, or opens the
-//  Saves tab. This is the whole point of the rewrite: the 40k payload never
-//  leaves the server during a cold load on mobile.
+//  typically a few hundred, not thousands, so we can load it all). ROM rows
+//  are not fetched until the user picks a system or searches: the 40k payload
+//  never leaves the server during a cold load on mobile.
 // ═══════════════════════════════════════════════════════
 async function loadLanding() {
   showSkeletonTiles();
@@ -1365,49 +1359,58 @@ async function loadLanding() {
 
     // Header tab counts
     const romTotal = Object.values(S.stats).reduce((n, v) => n + v, 0);
-    qs('#cnt-roms').textContent  = romTotal;
-    qs('#cnt-saves').textContent = S.saves.length;
+    qs('#cnt-roms').textContent  = num(romTotal);
+    qs('#cnt-saves').textContent = num(S.saves.length);
 
-    renderSystemNav();          // sidebar + mobile chips (used across all views)
     renderOverview();
     renderSaves();
   } catch(e) {
-    qs('#roms-pane').innerHTML = emptyState('⚠️', 'Failed to load data', e.message);
+    qs('#roms-pane').innerHTML = emptyState('⚠️', 'Failed to load data', esc(e.message));
   }
 }
 
 // ═══════════════════════════════════════════════════════
 //  NAV — sidebar + mobile chips
-//  Built once from the stats payload; click jumps into the system view.
+//  One link per system (ROMs tab) or platform (Saves tab); the entry being
+//  viewed is highlighted.  `key` '' is the Saves tab's "All".
 // ═══════════════════════════════════════════════════════
-function renderSystemNav() {
-  const systems = Object.keys(S.stats).sort();
-  const navHtml = systems.map(s =>
-    `<div class="sys-link" data-action="nav-system" data-sys="${esc(s)}">
-       <span class="sys-dot" style="background:${clr(s)}"></span>
-       <span class="sys-link-name">${esc(s)}</span>
-       <span class="sys-link-cnt">${S.stats[s]}</span>
-     </div>`
-  ).join('');
-  qs('#sys-nav').innerHTML = navHtml;
+function navLink(action, key, count, active) {
+  const name = key ? (lbl(key) === key ? '' : lbl(key)) : 'every platform';
+  return `<div class="sys-link${active ? ' active' : ''}" data-action="${action}" data-sys="${esc(key)}" title="${esc(key ? lbl(key) : 'All platforms')}">
+    <span class="sys-dot" style="background:${key ? clr(key) : 'var(--accent)'}"></span>
+    <span class="sys-link-code">${esc(key || 'All')}</span>
+    <span class="sys-link-name">${esc(name)}</span>
+    <span class="sys-link-cnt">${num(count)}</span>
+  </div>`;
+}
+function navChip(action, key, count, active) {
+  return `<div class="sys-chip${active ? ' active' : ''}" data-action="${action}" data-sys="${esc(key)}">
+    <span class="sys-chip-dot" style="background:${key ? clr(key) : 'var(--accent)'}"></span>
+    ${esc(key || 'All')}
+    <span class="sys-chip-cnt">${num(count)}</span>
+  </div>`;
+}
 
+function renderSystemNav() {
+  if (S.tab !== 'roms') return;
+  const systems = Object.keys(S.stats).sort();
+  qs('#sbl').textContent = 'Systems';
+  qs('#sys-nav').innerHTML = systems.map(s =>
+    navLink('nav-system', s, S.stats[s], s === S.currentSystem)).join('');
   qs('#sys-chips').innerHTML = systems.map(s =>
-    `<div class="sys-chip" data-action="nav-system" data-sys="${esc(s)}">
-       <span class="sys-chip-dot" style="background:${clr(s)}"></span>
-       ${esc(s)}
-       <span class="sys-chip-cnt">${S.stats[s]}</span>
-     </div>`
-  ).join('');
+    navChip('nav-system', s, S.stats[s], s === S.currentSystem)).join('');
 }
 
 // ═══════════════════════════════════════════════════════
 //  VIEW — overview (landing screen)
-//  A grid of system tiles. Tiny DOM (~30 tiles), instant on mobile.
+//  A grid of system tiles. Tiny DOM (~50 tiles), instant on mobile.
 // ═══════════════════════════════════════════════════════
 function renderOverview() {
   disposeLazy();
   S.view = 'overview';
   S.currentSystem = null;
+  S.filters = { save: false, ra: false, patched: false };
+  renderSystemNav();
 
   const systems = Object.keys(S.stats).sort();
   if (!systems.length) {
@@ -1417,27 +1420,131 @@ function renderOverview() {
   }
 
   const total = systems.reduce((n, s) => n + S.stats[s], 0);
-  let h = statsBar(total, 'ROMs', systems.length, 'Systems');
+  let h = sumStrip([[num(total), 'ROMs'], [systems.length, 'systems'], [num(S.saves.length), 'saves']]);
   h += '<div class="sys-grid">';
   for (const sys of systems) {
-    h += `<div class="sys-tile" data-action="nav-system" data-sys="${esc(sys)}">
+    h += `<div class="sys-tile" data-action="nav-system" data-sys="${esc(sys)}" title="${esc(lbl(sys))}">
       <div class="sys-tile-stripe" style="background:${clr(sys)}"></div>
-      <div class="sys-tile-code">${esc(sys)}</div>
-      <div class="sys-tile-name" title="${esc(lbl(sys))}">${esc(lbl(sys))}</div>
-      <div class="sys-tile-foot">
-        <span class="sys-tile-cnt">${S.stats[sys]}</span>
-        <span class="sys-tile-lbl">ROMs</span>
+      <div class="sys-tile-top">
+        <span class="sys-tile-code">${esc(sys)}</span>
+        <span class="sys-tile-cnt">${num(S.stats[sys])}</span>
       </div>
+      <div class="sys-tile-name">${esc(lbl(sys))}</div>
     </div>`;
   }
   h += '</div>';
   qs('#roms-pane').innerHTML = h;
+  syncHdrHeight();
+}
+
+// ═══════════════════════════════════════════════════════
+//  ROM DISPLAY NAME — the variant has to survive
+//  The catalog's `name` is the DAT's canonical name for the game: right for
+//  an arcade set (`005.zip` -> "005"), wrong the moment two files are the
+//  same game.  A translation, a hack, disc 2 and a later revision all carry
+//  the canonical name of the disc they were matched to, so listing by `name`
+//  shows "Bulk Slash (Japan)" twice and disc 2 as "(Disc 1)".  What tells
+//  them apart is in the FILE name, so a No-Intro/Redump-style file name
+//  (anything with a `(...)` or `[...]` group) is what gets shown, split into
+//  a title and its tags; the canonical name is kept as an "aka" when the
+//  title itself differs (a translated title, say).  A bare file name with no
+//  groups (MAME short names) falls back to the canonical name.
+// ═══════════════════════════════════════════════════════
+const ARCHIVE_EXT = /\.(zip|7z|rar)$/i;
+const INNER_EXT   = /\.(3ds|cci|cia|nds|iso|xiso|wud|wux|rvz|wbfs)$/i;
+const KIND_LBL    = { msu1: 'MSU-1', 'msu-md': 'MSU-MD', mdplus: 'MD+' };
+
+function fileStem(filename) {
+  let s = filename || '';
+  if (ARCHIVE_EXT.test(s)) return s.replace(ARCHIVE_EXT, '').replace(INNER_EXT, '');
+  return s.replace(/\.[A-Za-z0-9]{1,5}$/, '');
+}
+
+function tagClass(text, bracket) {
+  if (bracket) {
+    if (/^(T[-+]|Translat)/i.test(text)) return 'tr';
+    if (text.length <= 2) return 'flag';          // [!] [n] [i] …
+    return 'hack';
+  }
+  if (/^Dis[ck] ?\d/i.test(text)) return 'disc';
+  if (/^(Rev\b|v\d|Beta|Proto|Demo|Sample|Unl\b|Pirate|Aftermarket|Homebrew|Alt\b)/i.test(text)) return 'rev';
+  return '';
+}
+
+// "Bulk Slash (Japan) [T-En by X] [Undub]" -> title "Bulk Slash",
+// tags [(Japan), [T-En by X], [Undub]].
+function splitName(s) {
+  const tags = [];
+  const title = (s || '').replace(/\(([^()]*)\)|\[([^\[\]]*)\]/g, (m, paren, bracket) => {
+    const bk = bracket !== undefined;
+    const text = (bk ? bracket : paren).trim();
+    if (text) tags.push({ text, cls: tagClass(text, bk) });
+    return ' ';
+  }).replace(/\s+/g, ' ').trim();
+  return title ? { title, tags } : { title: s || '', tags: [] };
+}
+
+const looseKey = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+// Work out once, at fetch time, how a ROM is shown and sorted.
+function prepRom(rom) {
+  const stem = fileStem(rom.filename);
+  const fromFile = /[(\[]/.test(stem);
+  const full = fromFile ? stem : (rom.name || stem || rom.rom_id || rom.title_id || '');
+  const { title, tags } = splitName(full);
+
+  let aka = '';
+  if (fromFile && rom.name) {
+    const canon = splitName(rom.name).title;
+    if (canon && looseKey(canon) !== looseKey(title)) aka = canon;
+  }
+  if (rom.bundle_kind && KIND_LBL[rom.bundle_kind]) {
+    // A pack usually says "(MSU1)" in its name already: colour that tag
+    // rather than adding a second one.
+    const kind = KIND_LBL[rom.bundle_kind];
+    const own = tags.find(t => looseKey(t.text) === looseKey(kind));
+    if (own) own.cls = 'kind';
+    else tags.push({ text: kind, cls: 'kind' });
+  }
+  if (rom.content_type && !/^(game|base)$/i.test(rom.content_type)) {
+    tags.push({ text: String(rom.content_type).toUpperCase(), cls: 'kind' });
+  }
+  rom._d = {
+    full, title, tags, aka,
+    patched: tags.some(t => t.cls === 'tr' || t.cls === 'hack'),
+  };
+  return rom;
+}
+
+const hasSave = rom => S.savedTitleIds.has(rom.title_id);
+const hasRa   = rom => !!(rom.ra_game_id && rom.ra_achievements);
+
+function tagsHtml(rom) {
+  const d = rom._d;
+  if (!d.tags.length) return '';
+  return `<span class="tags">${d.tags.map(t =>
+    `<span class="tag ${t.cls}" title="${esc(t.text)}">${esc(t.text)}</span>`).join('')}</span>`;
+}
+function akaHtml(rom) {
+  const a = rom._d.aka;
+  return a ? `<span class="aka" title="Catalog name: ${esc(rom.name)}">aka ${esc(a)}</span>` : '';
+}
+// RetroAchievements badge. A title match means the set exists for the game
+// but this exact file's hash is not one RA lists — common for patched ROMs.
+function raHtml(rom) {
+  if (!hasRa(rom)) return '';
+  const weak = rom.ra_match !== 'hash';
+  const tip = `RetroAchievements: ${rom.ra_title || rom._d.title} — ${rom.ra_achievements} achievements`
+            + (weak ? ' (matched by title; this file’s hash is not listed)' : '');
+  return `<a class="ra${weak ? ' weak' : ''}" target="_blank" rel="noopener"
+    href="https://retroachievements.org/game/${encodeURIComponent(rom.ra_game_id)}"
+    title="${esc(tip)}">🏆 ${esc(rom.ra_achievements)}</a>`;
 }
 
 // ═══════════════════════════════════════════════════════
 //  VIEW — single system (lazy-rendered)
 //  Fetches all ROMs for ONE system (typically hundreds to a few thousand),
-//  then streams cards into the DOM in LAZY_BATCH chunks via IntersectionObserver.
+//  then streams rows into the DOM in LAZY_BATCH chunks via IntersectionObserver.
 // ═══════════════════════════════════════════════════════
 async function openSystem(sys) {
   sys = (sys || '').toUpperCase();
@@ -1446,61 +1553,44 @@ async function openSystem(sys) {
   disposeLazy();
   S.view = 'system';
   S.currentSystem = sys;
+  renderSystemNav();
 
-  // Jump to top so context-bar is visible on mobile after drill-down.
+  // Jump to top so the context bar is visible after drill-down.
   window.scrollTo({ top: 0 });
 
-  let roms = S.systemCache[sys];
-  if (!roms) {
+  if (!S.systemCache[sys]) {
     qs('#roms-pane').innerHTML = skeletonSystem(sys);
     try {
       const d = await api(`/api/v1/roms?system=${encodeURIComponent(sys)}`);
-      roms = d.roms || [];
-      // Annotate save ownership once at fetch time.
-      for (const r of roms) r.hasSave = S.savedTitleIds.has(r.title_id);
+      const roms = (d.roms || []).map(prepRom);
+      sortByName(roms);
       S.systemCache[sys] = roms;
     } catch(e) {
-      qs('#roms-pane').innerHTML = emptyState('⚠️', 'Failed to load ' + sys, e.message);
+      if (S.view === 'system' && S.currentSystem === sys) {
+        qs('#roms-pane').innerHTML = emptyState('⚠️', 'Failed to load ' + esc(sys), esc(e.message));
+      }
       return;
     }
-  } else {
-    // Refresh save flags (saves may have changed since cache fill).
-    for (const r of roms) r.hasSave = S.savedTitleIds.has(r.title_id);
+    // The user may have moved on while the fetch was in flight.
+    if (S.view !== 'system' || S.currentSystem !== sys) return;
   }
-
-  if (!roms.length) {
-    qs('#roms-pane').innerHTML =
-      contextBar(sys, 0) +
-      emptyState('📭', 'No ROMs in ' + sys, 'The catalog has no entries for this system.');
-    return;
-  }
-
-  // Sort by name so the alphabet quick-jump and grouping are meaningful.
-  sortByName(roms);
-
-  // Shell: sticky view header + grid/list + load-more sentinel.
-  qs('#roms-pane').innerHTML =
-    contextBar(sys, roms.length, roms) +
-    `<div class="${gridClass()}" id="lazy-grid"></div>
-     <div class="load-more" id="lazy-sentinel">Loading more…</div>`;
-
-  startLazy(roms, 'lazy-grid', 'lazy-sentinel', rowOrCard());
-  syncHdrHeight();
+  renderRomView();
 }
 
 // ═══════════════════════════════════════════════════════
 //  VIEW — search (server-side, cross-system)
-//  Grouped by system; capped at SEARCH_CAP for sanity. User can open a
-//  specific system from the results to see everything.
+//  Capped at SEARCH_CAP for sanity. The server matches the catalog name and
+//  the file name, so a search for a translator or "disc 2" finds the file.
 // ═══════════════════════════════════════════════════════
 async function runSearch(q) {
   disposeLazy();
   S.view = 'search';
   S.currentSystem = null;
+  renderSystemNav();
 
   // Cancel in-flight search if the user kept typing.
   if (S.searchAbort) S.searchAbort.abort();
-  S.searchAbort = new AbortController();
+  const abort = S.searchAbort = new AbortController();
 
   qs('#roms-pane').innerHTML = emptyState('🔍', `Searching "${esc(q)}"…`, '');
 
@@ -1508,41 +1598,70 @@ async function runSearch(q) {
   try {
     const r = await fetch(
       `/api/v1/roms?search=${encodeURIComponent(q)}&limit=${SEARCH_CAP}`,
-      { headers: { 'X-API-Key': API_KEY }, signal: S.searchAbort.signal }
+      { headers: { 'X-API-Key': API_KEY }, signal: abort.signal }
     );
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = await r.json();
   } catch(e) {
     if (e.name === 'AbortError') return;  // superseded by a newer search
-    qs('#roms-pane').innerHTML = emptyState('⚠️', 'Search failed', e.message);
+    qs('#roms-pane').innerHTML = emptyState('⚠️', 'Search failed', esc(e.message));
     return;
   } finally {
-    S.searchAbort = null;
+    if (S.searchAbort === abort) S.searchAbort = null;
   }
+  if (S.view !== 'search') return;
 
-  const roms = (data.roms || []).map(r => ({ ...r, hasSave: S.savedTitleIds.has(r.title_id) }));
+  const roms = (data.roms || []).map(prepRom);
   sortByName(roms);
-  S.searchResults = { q, total: data.total, shown: roms.length, roms };
+  S.searchResults = { q, total: data.total, roms };
+  renderRomView();
+}
+
+// ═══════════════════════════════════════════════════════
+//  ROM VIEW — draws the current system or search from what is already
+//  fetched.  Filters and the list/grid toggle land here, so neither costs
+//  a request.
+// ═══════════════════════════════════════════════════════
+function applyFilters(roms) {
+  const f = S.filters;
+  if (!f.save && !f.ra && !f.patched) return roms;
+  return roms.filter(r =>
+    (!f.save || hasSave(r)) && (!f.ra || hasRa(r)) && (!f.patched || r._d.patched));
+}
+
+function renderRomView() {
+  disposeLazy();
+  let all, head, none;
+  if (S.view === 'system' && S.currentSystem) {
+    all  = S.systemCache[S.currentSystem] || [];
+    none = ['No ROMs in ' + esc(S.currentSystem), 'The catalog has no entries for this system.'];
+  } else if (S.view === 'search' && S.searchResults) {
+    all  = S.searchResults.roms;
+    none = [`No ROMs match "${esc(S.searchResults.q)}"`, 'Try a different search term.'];
+  } else {
+    return;
+  }
+  const roms = applyFilters(all);
+  head = S.view === 'system' ? contextBar(S.currentSystem, all, roms)
+                             : searchBar(S.searchResults, all, roms);
 
   if (!roms.length) {
-    qs('#roms-pane').innerHTML =
-      searchBar(q, 0, data.total) +
-      emptyState('📭', `No ROMs match "${esc(q)}"`, 'Try a different search term.');
+    const msg = all.length ? ['Nothing matches these filters', 'Turn a filter off to see more.'] : none;
+    qs('#roms-pane').innerHTML = head + emptyState('📭', msg[0], msg[1]);
+    syncHdrHeight();
     return;
   }
 
-  qs('#roms-pane').innerHTML =
-    searchBar(q, roms.length, data.total, roms) +
+  qs('#roms-pane').innerHTML = head +
     `<div class="${gridClass()}" id="lazy-grid"></div>
      <div class="load-more" id="lazy-sentinel">Loading more…</div>`;
-
   startLazy(roms, 'lazy-grid', 'lazy-sentinel', rowOrCard());
   syncHdrHeight();
 }
 
 // ═══════════════════════════════════════════════════════
 //  LAZY RENDERER
-//  Appends cards in LAZY_BATCH chunks. An IntersectionObserver watches the
+//  Appends rows in LAZY_BATCH chunks. An IntersectionObserver watches the
 //  sentinel at the bottom of the list — when it enters the viewport, we
 //  render the next chunk. This keeps initial render cost constant no matter
 //  how many ROMs the system contains.
@@ -1559,7 +1678,7 @@ function startLazy(items, containerId, sentinelId, renderFn) {
   if (!sentinel) return;
   S.lazy.observer = new IntersectionObserver(entries => {
     if (entries.some(e => e.isIntersecting)) renderNextBatch();
-  }, { rootMargin: '400px 0px' });  // start rendering before sentinel is actually visible
+  }, { rootMargin: '600px 0px' });  // start rendering before sentinel is actually visible
   S.lazy.observer.observe(sentinel);
 }
 
@@ -1598,7 +1717,7 @@ function disposeLazy() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  ROM CARD — HTML builder (same markup as before, now per-item)
+//  ROM ACTIONS — download / convert buttons
 // ═══════════════════════════════════════════════════════
 // Every extract format the server can advertise, with the button label and
 // tooltip the WebUI shows for it.  Driving the buttons off this table instead
@@ -1634,8 +1753,8 @@ function rawDownloadLabel(rom) {
   return rom.is_bundle ? 'ZIP' : 'ROM';
 }
 
-// Build the download/extract button group + share metadata for a ROM.
-// Shared by the card (grid) and row (list) renderers so both stay in sync.
+// Build the button group for a ROM: conversions, the file as it sits on
+// disk, and a share link.  Shared by the row and card renderers.
 function romActions(rom) {
   const sys  = rom.system || 'UNKNOWN';
   const c    = clr(sys);
@@ -1651,7 +1770,9 @@ function romActions(rom) {
   const extractFormats = Array.isArray(rom.extract_formats) ? rom.extract_formats : [];
   const rawUrl = `/api/v1/roms/${encodeURIComponent(dlId)}`;
   const rawLabel = rawDownloadLabel(rom);
-  const name = esc(rom.name);
+  // What the queue calls the job: the file's own name, so two variants of
+  // one game stay distinguishable there too.
+  const name = esc(rom._d.full);
 
   // Unknown formats are dropped rather than rendered blank — this page can be
   // older than the server it talks to.
@@ -1659,122 +1780,158 @@ function romActions(rom) {
     .map(f => ({ fmt: f, meta: EXTRACT_BTN[f] }))
     .filter(o => o.meta);
 
-  let btnHtml;
-  if (!opts.length) {
-    btnHtml = `<button class="dl-btn" data-action="dl"
-      data-url="${rawUrl}" data-fn="${fn}">↓</button>`;
-  } else {
-    const buttons = opts.map(o => {
-      // RVZ sources advertise 'iso', but ?extract=rvz is the form the queue
-      // UI has a DolphinTool-specific error hint for.  Both reach the same
-      // handler server-side.
-      const reqFmt = (o.fmt === 'iso' && fmt === 'rvz') ? 'rvz' : o.fmt;
-      return `<button class="dl-btn extract" data-action="extract"
-        data-tid="${tid}" data-name="${name}" data-fmt="${esc(reqFmt)}"
-        title="${esc(o.meta.tip)}">${o.meta.label}</button>`;
-    });
-    // Skip the raw button when a conversion button already wears the same
-    // label — an Xbox .cci offering ?extract=cci would otherwise show two
-    // "CCI" buttons that do different things.
-    if (!opts.some(o => o.meta.label === rawLabel)) {
-      buttons.push(`<button class="dl-btn" data-action="dl"
-        data-url="${rawUrl}" data-fn="${fn}"
-        title="Download original ${rawLabel}">${rawLabel}</button>`);
-    }
-    const cls = buttons.length > 2 ? 'rom-btns rom-btns-3ds' : 'rom-btns';
-    btnHtml = `<div class="${cls}">${buttons.join('')}</div>`;
+  const buttons = opts.map(o => {
+    // RVZ sources advertise 'iso', but ?extract=rvz is the form the queue
+    // UI has a DolphinTool-specific error hint for.  Both reach the same
+    // handler server-side.
+    const reqFmt = (o.fmt === 'iso' && fmt === 'rvz') ? 'rvz' : o.fmt;
+    return `<button class="dl-btn extract" data-action="extract"
+      data-tid="${tid}" data-name="${name}" data-fmt="${esc(reqFmt)}"
+      title="${esc(o.meta.tip)}">${o.meta.label}</button>`;
+  });
+  // Skip the raw button when a conversion button already wears the same
+  // label — an Xbox .cci offering ?extract=cci would otherwise show two
+  // "CCI" buttons that do different things.
+  if (!opts.some(o => o.meta.label === rawLabel)) {
+    buttons.push(`<button class="dl-btn" data-action="dl"
+      data-url="${rawUrl}" data-fn="${fn}"
+      title="Download ${fn}">↓ ${rawLabel}</button>`);
   }
+  // The share link only ever points at the raw download: ?extract= routes
+  // aren't stable shareable URLs (job-cached, streamed, slow).
+  buttons.push(`<button class="dl-btn copy" data-action="copy" data-url="${rawUrl}"
+    title="Copy share link to the original ${rawLabel}" aria-label="Copy share link">🔗</button>`);
 
-  return { btnHtml, rawUrl, rawLabel, c, sys };
+  return { btnHtml: `<div class="rom-btns">${buttons.join('')}</div>`, c, sys };
+}
+
+// Size, with the member count for a folder-shaped entry in the tooltip.
+function sizeTip(rom) {
+  const n = rom.is_bundle && rom.file_count ? ` in ${rom.file_count} files` : '';
+  return esc(`${rom.filename || ''} — ${fmtB(rom.size) || 'unknown size'}${n}`);
+}
+
+// ═══════════════════════════════════════════════════════
+//  ROM ROW — dense list layout (the default)
+// ═══════════════════════════════════════════════════════
+function romRowHtml(rom) {
+  const { btnHtml, c, sys } = romActions(rom);
+  const sysBadge = S.view === 'search'
+    ? `<span class="badge" style="background:${c}">${esc(sys)}</span>` : '';
+  return `<div class="rom-row">
+    <div class="row-stripe" style="background:${c}"></div>
+    <div class="row-main">
+      ${sysBadge}
+      <span class="rt" title="${esc(rom.filename)}">${esc(rom._d.title)}</span>
+      ${tagsHtml(rom)}
+      ${akaHtml(rom)}
+    </div>
+    <span class="row-ra">${raHtml(rom)}</span>
+    <span class="row-save">${hasSave(rom) ? `<span class="save-dot" title="A save for this game is on the server">save</span>` : ''}</span>
+    <span class="row-size" title="${sizeTip(rom)}">${fmtB(rom.size)}</span>
+    ${btnHtml}
+  </div>`;
 }
 
 // ═══════════════════════════════════════════════════════
 //  ROM CARD — grid layout
 // ═══════════════════════════════════════════════════════
 function romCardHtml(rom) {
-  const { btnHtml, rawUrl, rawLabel, c, sys } = romActions(rom);
-
-  // Floating share icon — anchored top-right of the card via .rom-share.
-  // Only points at the raw/direct download (rawUrl): ?extract= conversion
-  // routes aren't stable shareable URLs (job-cached, streamed, slow).
-  const shareIcon = `<button class="rom-share" data-action="copy"
-        data-url="${rawUrl}" title="Copy share link to original ${rawLabel}"
-        aria-label="Copy share link">🔗</button>`;
-
+  const { btnHtml, c, sys } = romActions(rom);
+  const sysBadge = S.view === 'search'
+    ? `<span class="badge" style="background:${c}">${esc(sys)}</span>` : '';
   return `<div class="rom-card">
-    ${shareIcon}
     <div class="rom-stripe" style="background:${c}"></div>
     <div class="rom-body">
-      <div class="rom-title" title="${esc(rom.name)}">${esc(rom.name)}</div>
+      <div class="rom-title" title="${esc(rom.filename)}">${esc(rom._d.title)}</div>
+      ${tagsHtml(rom)}
+      ${akaHtml(rom)}
       <div class="rom-meta">
-        <span class="rom-size">${fmtB(rom.size)}</span>
-        ${rom.hasSave ? `<span class="save-dot">save</span>` : ''}
+        ${sysBadge}
+        <span class="rom-size" title="${sizeTip(rom)}">${fmtB(rom.size)}</span>
+        ${raHtml(rom)}
+        ${hasSave(rom) ? `<span class="save-dot">save</span>` : ''}
       </div>
     </div>
-    <div class="rom-foot">
-      <span class="badge" style="background:${c}; font-size:9px">${esc(sys)}</span>
-      ${btnHtml}
-    </div>
+    <div class="rom-foot">${btnHtml}</div>
   </div>`;
 }
 
 // ═══════════════════════════════════════════════════════
-//  ROM ROW — compact list layout (denser, better for desktop)
+//  CONTEXT BAR — back button, what is shown, filters, layout toggle
 // ═══════════════════════════════════════════════════════
-function romRowHtml(rom) {
-  const { btnHtml, rawUrl, c, sys } = romActions(rom);
-  return `<div class="rom-row">
-    <div class="row-stripe" style="background:${c}"></div>
-    <span class="badge" style="background:${c}">${esc(sys)}</span>
-    <div class="row-name" title="${esc(rom.name)}">${esc(rom.name)}</div>
-    ${rom.hasSave ? `<span class="save-dot">save</span>` : ''}
-    <span class="row-size">${fmtB(rom.size)}</span>
-    <button class="dl-btn copy" data-action="copy" data-url="${rawUrl}" title="Copy share link">🔗</button>
-    ${btnHtml}
-  </div>`;
+function shownOf(all, shown) {
+  return shown.length === all.length ? num(all.length) : `${num(shown.length)} of ${num(all.length)}`;
 }
 
-// ═══════════════════════════════════════════════════════
-//  CONTEXT-BAR HELPERS (back button + header for drill-down views)
-// ═══════════════════════════════════════════════════════
-function contextBar(sys, count, items) {
-  const c = clr(sys);
+function contextBar(sys, all, shown) {
+  const size = all.reduce((n, r) => n + (r.size || 0), 0);
   return `<div class="view-head">
     <div class="ctx-bar">
       <button class="back-btn" data-action="nav-overview" title="Back to systems">← Systems</button>
-      <div class="ctx-title">
-        <span class="badge" style="background:${c}">${esc(sys)}</span>
-        <h2>${esc(lbl(sys))}</h2>
-        <span class="ctx-count">${count}</span>
-      </div>
+      <span class="badge" style="background:${clr(sys)}">${esc(sys)}</span>
+      <h2>${esc(lbl(sys))}</h2>
+      <span class="ctx-count">${shownOf(all, shown)} ROMs${size ? ' · ' + fmtB(size) : ''}</span>
+      ${filterHtml(all)}
       ${viewToggleHtml()}
     </div>
-    ${alphaBarHtml(items)}
+    ${alphaBarHtml(shown)}
   </div>`;
 }
 
-function searchBar(q, shown, total, items) {
-  const capped = total > shown ? ` (showing first ${shown} — narrow your search for more)` : '';
+function searchBar(res, all, shown) {
+  const capped = res.total > all.length
+    ? ` · first ${num(all.length)} of ${num(res.total)} — narrow the search for the rest` : '';
   return `<div class="view-head">
     <div class="ctx-bar">
       <button class="back-btn" data-action="nav-overview" title="Clear search">← Systems</button>
-      <div class="ctx-title">
-        <h2>Search: "${esc(q)}"</h2>
-        <span class="ctx-count">${total} match${total === 1 ? '' : 'es'}${capped}</span>
-      </div>
+      <h2>Search: "${esc(res.q)}"</h2>
+      <span class="ctx-count">${shownOf(all, shown)} match${all.length === 1 ? '' : 'es'}${capped}</span>
+      ${filterHtml(all)}
       ${viewToggleHtml()}
     </div>
-    ${alphaBarHtml(items)}
+    ${alphaBarHtml(shown)}
   </div>`;
 }
 
-// ── VIEW HEADER WIDGETS ──────────────────────────────────
-// Grid/list toggle. Reflects S.layout; persisted in setLayout().
+function skeletonBar(sys) {
+  return `<div class="view-head">
+    <div class="ctx-bar">
+      <button class="back-btn" data-action="nav-overview" title="Back to systems">← Systems</button>
+      <span class="badge" style="background:${clr(sys)}">${esc(sys)}</span>
+      <h2>${esc(lbl(sys))}</h2>
+      <span class="ctx-count">loading…</span>
+    </div>
+    ${alphaBarHtml([])}
+  </div>`;
+}
+
+// Filter pills, each with how many of this view's ROMs it would keep. A
+// pill with nothing behind it is left out (unless it is switched on).
+function filterHtml(all) {
+  const n = { save: 0, ra: 0, patched: 0 };
+  for (const r of all) {
+    if (hasSave(r))   n.save++;
+    if (hasRa(r))     n.ra++;
+    if (r._d.patched) n.patched++;
+  }
+  const pill = (key, label, tip) => (n[key] || S.filters[key])
+    ? `<button class="flt${S.filters[key] ? ' active' : ''}" data-action="filter" data-key="${key}"
+         title="${tip}">${label}<span>${num(n[key])}</span></button>`
+    : '';
+  return `<div class="flts">
+    ${pill('save', 'Has save', 'Only games with a save on the server')}
+    ${pill('ra', '🏆 Achievements', 'Only games with a RetroAchievements set')}
+    ${pill('patched', 'Translations &amp; hacks', 'Only fan translations and ROM hacks')}
+  </div>`;
+}
+
+// List/grid toggle. Reflects S.layout; persisted in setLayout().
 function viewToggleHtml() {
-  const g = S.layout === 'grid', l = S.layout === 'list';
+  const g = S.layout === 'grid', l = !g;
   return `<div class="view-toggle">
-    <button class="vt-btn${g ? ' active' : ''}" data-action="layout" data-layout="grid" title="Grid view" aria-label="Grid view">▦</button>
     <button class="vt-btn${l ? ' active' : ''}" data-action="layout" data-layout="list" title="List view" aria-label="List view">☰</button>
+    <button class="vt-btn${g ? ' active' : ''}" data-action="layout" data-layout="grid" title="Grid view" aria-label="Grid view">▦</button>
   </div>`;
 }
 
@@ -1786,7 +1943,7 @@ function firstLetter(name) {
 
 // A-Z (+#) quick-jump strip. Letters with no matching ROM are disabled.
 function alphaBarHtml(items) {
-  const present = new Set((items || []).map(it => firstLetter(it.name)));
+  const present = new Set((items || []).map(it => firstLetter(it._d.full)));
   const letters = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
   const btns = letters.map(L => {
     const on = present.has(L);
@@ -1797,30 +1954,31 @@ function alphaBarHtml(items) {
   return `<div class="alpha-bar">${btns}</div>`;
 }
 
-const gridClass = () => S.layout === 'list' ? 'rom-list' : 'card-grid';
-const rowOrCard = () => S.layout === 'list' ? romRowHtml : romCardHtml;
+const gridClass = () => S.layout === 'grid' ? 'card-grid' : 'rom-list';
+const rowOrCard = () => S.layout === 'grid' ? romCardHtml : romRowHtml;
 
+// By the name that is shown, so the list reads in order and the alphabet
+// strip lands where it says.
 function sortByName(arr) {
-  arr.sort((a, b) =>
-    (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+  const cmp = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare;
+  arr.sort((a, b) => cmp(a._d.full, b._d.full));
 }
 
-// Switch grid/list. Persists and re-renders the current ROM view.
+// Switch list/grid. Persists and re-renders the current ROM view.
 function setLayout(layout) {
   if (layout !== 'grid' && layout !== 'list') return;
   if (layout === S.layout) return;
   S.layout = layout;
-  localStorage.setItem('gamesync_layout', layout);
-  if (S.view === 'system' && S.currentSystem) openSystem(S.currentSystem);
-  else if (S.view === 'search' && S.q)         runSearch(S.q);
+  try { localStorage.setItem('gamesync_layout', layout); } catch (_) { /* private mode */ }
+  renderRomView();
 }
 
-// Scroll to the first ROM whose name starts with `letter`. Because cards are
+// Scroll to the first ROM whose name starts with `letter`. Because rows are
 // lazy-rendered, render forward until the target index exists, then scroll to
 // it (DOM child index === item index, nothing else lives in the container).
 function jumpToLetter(letter) {
   const items = S.lazy.items;
-  const idx = items.findIndex(it => firstLetter(it.name) === letter);
+  const idx = items.findIndex(it => firstLetter(it._d.full) === letter);
   if (idx < 0) return;
   let guard = 0;
   while (S.lazy.rendered <= idx && guard++ < 1000) renderNextBatch();
@@ -1830,62 +1988,113 @@ function jumpToLetter(letter) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  RENDER — Saves (unchanged layout; the saves list is small)
+//  RENDER — Saves
+//  One flat, sortable table (newest sync first by default); the sidebar
+//  narrows it to a platform.  The whole list is on the client already.
 // ═══════════════════════════════════════════════════════
+const saveName = sv => sv.game_name || sv.name || sv.title_id || '';
+const savePlat = sv => sv.console_type || sv.platform || 'UNKNOWN';
+const saveTime = sv => Date.parse(sv.last_sync || sv.server_timestamp || '') || 0;
+
+const SAVE_SORT = {
+  name:  { get: sv => saveName(sv).toLowerCase(), dir:  1 },
+  plat:  { get: savePlat,                         dir:  1 },
+  date:  { get: saveTime,                         dir: -1 },
+  size:  { get: sv => sv.save_size || 0,          dir: -1 },
+  files: { get: sv => sv.file_count || 0,         dir: -1 },
+};
+
+function setSaveSort(key) {
+  if (!SAVE_SORT[key]) return;
+  if (S.saveSort.key === key) S.saveSort.dir = -S.saveSort.dir;
+  else S.saveSort = { key, dir: SAVE_SORT[key].dir };
+  renderSaves();
+}
+
 function renderSaves() {
   const q = S.q;
-  const groups = {};
-  for (const sv of S.saves) {
-    const nm = sv.game_name || sv.name || sv.title_id;
-    if (q && !nm.toLowerCase().includes(q) && !sv.title_id?.toLowerCase().includes(q)) continue;
-    const p = sv.console_type || sv.platform || 'UNKNOWN';
-    (groups[p] = groups[p] || []).push(sv);
-  }
-  const plats = Object.keys(groups).sort();
+  const matched = S.saves.filter(sv =>
+    !q || saveName(sv).toLowerCase().includes(q) || (sv.title_id || '').toLowerCase().includes(q));
 
-  if (!plats.length) {
+  const counts = {};
+  for (const sv of matched) counts[savePlat(sv)] = (counts[savePlat(sv)] || 0) + 1;
+  const plats = Object.keys(counts).sort();
+  if (S.savePlat && !counts[S.savePlat]) S.savePlat = null;
+
+  if (S.tab === 'saves') {
+    qs('#sbl').textContent = 'Platforms';
+    qs('#sys-nav').innerHTML =
+      navLink('save-plat', '', matched.length, !S.savePlat) +
+      plats.map(p => navLink('save-plat', p, counts[p], p === S.savePlat)).join('');
+    qs('#sys-chips').innerHTML =
+      navChip('save-plat', '', matched.length, !S.savePlat) +
+      plats.map(p => navChip('save-plat', p, counts[p], p === S.savePlat)).join('');
+  }
+
+  const rows = S.savePlat ? matched.filter(sv => savePlat(sv) === S.savePlat) : matched.slice();
+  if (!rows.length) {
     qs('#saves-pane').innerHTML = emptyState('💾',
       q ? `No saves match "${esc(q)}"` : 'No saves on server yet',
       q ? 'Try a different search term.' : 'Upload a save from your device to see it here.');
     return;
   }
 
-  const total = plats.reduce((n, p) => n + groups[p].length, 0);
-  let h = statsBar(total, 'Saves', plats.length, 'Platforms');
+  const { key, dir } = S.saveSort;
+  const get = SAVE_SORT[key].get;
+  rows.sort((a, b) => {
+    const x = get(a), y = get(b);
+    if (x < y) return -dir;
+    if (x > y) return dir;
+    return saveName(a).localeCompare(saveName(b));
+  });
 
-  for (const plat of plats) {
-    const c = clr(plat);
-    h += `<div class="sys-section" id="sp-${plat}">
-      <div class="sys-header">
-        <span class="badge" style="background:${c}">${esc(plat)}</span>
-        <h2>${esc(lbl(plat))}</h2>
-        <span class="sys-count">${groups[plat].length}</span>
-      </div>
-      <div class="tbl-wrap"><table class="tbl">
-        <thead><tr>
-          <th>Game</th><th>Last Sync</th><th>Size</th><th>Files</th><th></th>
-        </tr></thead><tbody>`;
+  const bytes = rows.reduce((n, sv) => n + (sv.save_size || 0), 0);
+  const th = (k, label, cls = '') =>
+    `<th class="${cls}${key === k ? ' sorted' : ''}" data-action="save-sort" data-key="${k}"
+       title="Sort by ${label.toLowerCase()}">${label}${key === k ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
 
-    for (const sv of groups[plat]) {
-      const nm  = sv.game_name || sv.name || sv.title_id;
-      const fn  = esc(sv.title_id + '.bin');
-      const url = `/api/v1/saves/${encodeURIComponent(sv.title_id)}`;
-      h += `<tr>
-        <td>
-          <div class="save-game">${esc(nm)}</div>
-          <div class="save-id">${esc(sv.title_id)}</div>
-        </td>
-        <td><div class="save-date">${fmtD(sv.last_sync || sv.server_timestamp)}</div></td>
-        <td><div class="save-size">${fmtB(sv.save_size)}</div></td>
-        <td><div class="save-size">${sv.file_count ?? '—'}</div></td>
-        <td style="white-space:nowrap">
-          <button class="dl-btn" data-action="dl" data-url="${esc(url)}" data-fn="${fn}">↓</button>
-          <button class="dl-btn copy" data-action="copy" data-url="${esc(url)}" title="Copy share link">🔗</button>
-        </td>
-      </tr>`;
-    }
-    h += `</tbody></table></div></div>`;
+  let h = sumStrip([
+    [num(rows.length), S.savePlat ? esc(lbl(S.savePlat)) + ' saves' : 'saves'],
+    ...(S.savePlat ? [] : [[plats.length, 'platforms']]),
+    [fmtB(bytes) || '0 B', 'stored'],
+  ]);
+  h += `<div class="tbl-wrap"><table class="tbl">
+    <thead><tr>
+      ${th('name', 'Game')}
+      <th class="c-id">Save ID</th>
+      ${th('plat', 'Platform')}
+      ${th('date', 'Last sync')}
+      <th class="c-src">From</th>
+      ${th('size', 'Size', 'num c-size')}
+      ${th('files', 'Files', 'num c-files')}
+      <th class="c-hash">Hash</th>
+      <th></th>
+    </tr></thead><tbody>`;
+
+  for (const sv of rows) {
+    const nm   = saveName(sv);
+    const plat = savePlat(sv);
+    const fn   = esc(sv.title_id + '.bin');
+    const url  = esc(`/api/v1/saves/${encodeURIComponent(sv.title_id)}`);
+    // A save the server could not name shows its id once, not twice.
+    const named = nm && nm !== sv.title_id;
+    const hash  = sv.save_hash || '';
+    h += `<tr>
+      <td>${named ? `<span class="save-game">${esc(nm)}</span>` : `<span class="save-id">${esc(sv.title_id)}</span>`}</td>
+      <td class="c-id"><div class="save-id" title="${esc(sv.title_id)}">${named ? esc(sv.title_id) : ''}</div></td>
+      <td><span class="badge" style="background:${clr(plat)}">${esc(plat)}</span></td>
+      <td><span class="save-date">${fmtD(sv.last_sync || sv.server_timestamp)}</span></td>
+      <td class="c-src"><span class="save-size">${esc(sv.last_sync_source || '—')}</span></td>
+      <td class="num c-size"><span class="save-size">${fmtB(sv.save_size) || '—'}</span></td>
+      <td class="num c-files"><span class="save-size">${sv.file_count ?? '—'}</span></td>
+      <td class="c-hash"><span class="save-hash" title="${esc(hash)}">${esc(hash.slice(0, 10))}</span></td>
+      <td class="save-act">
+        <button class="dl-btn" data-action="dl" data-url="${url}" data-fn="${fn}" title="Download this save">↓</button>
+        <button class="dl-btn copy" data-action="copy" data-url="${url}" title="Copy share link">🔗</button>
+      </td>
+    </tr>`;
   }
+  h += `</tbody></table></div>`;
   qs('#saves-pane').innerHTML = h;
 }
 
@@ -1898,41 +2107,20 @@ function switchTab(tab) {
   qs('#saves-pane').style.display = tab === 'saves' ? '' : 'none';
   qs('#tab-roms').className  = 'tab-btn' + (tab === 'roms'  ? ' active' : '');
   qs('#tab-saves').className = 'tab-btn' + (tab === 'saves' ? ' active' : '');
-  qs('#sbl').textContent = tab === 'roms' ? 'Systems' : 'Platforms';
+  qs('#search').placeholder = tab === 'saves' ? 'Search saves…' : 'Search games…';
+  window.scrollTo({ top: 0 });
 
   if (tab === 'saves') {
-    // Rebuild nav from the actual saves we have (platforms, not ROM systems).
-    const groups = {};
-    for (const sv of S.saves) {
-      const nm = sv.game_name || sv.name || sv.title_id;
-      if (S.q && !nm.toLowerCase().includes(S.q) && !sv.title_id?.toLowerCase().includes(S.q)) continue;
-      const p = sv.console_type || sv.platform || 'UNKNOWN';
-      (groups[p] = groups[p] || []).push(sv);
-    }
-    const plats = Object.keys(groups).sort();
-    qs('#sys-nav').innerHTML = plats.map(p =>
-      `<div class="sys-link" onclick="jump('sp-${p}')">
-         <span class="sys-dot" style="background:${clr(p)}"></span>
-         <span class="sys-link-name">${esc(p)}</span>
-         <span class="sys-link-cnt">${groups[p].length}</span>
-       </div>`
-    ).join('');
-    qs('#sys-chips').innerHTML = plats.map(p =>
-      `<div class="sys-chip" onclick="jump('sp-${p}')">
-         <span class="sys-chip-dot" style="background:${clr(p)}"></span>
-         ${esc(p)}
-         <span class="sys-chip-cnt">${groups[p].length}</span>
-       </div>`
-    ).join('');
-    renderSaves();
+    renderSaves();              // also rebuilds the nav from the platforms
   } else {
-    // Back on the ROMs tab — restore the system nav from stats.
     renderSystemNav();
-    // Re-render current ROM view (overview / system / search).
-    if (S.view === 'system' && S.currentSystem) openSystem(S.currentSystem);
-    else if (S.view === 'search' && S.q)         runSearch(S.q);
-    else                                          renderOverview();
+    // Whatever is in the search box applies to the tab being shown.
+    const q = qs('#search').value.trim();
+    if (q)                                              runSearch(q);
+    else if (S.view === 'system' && S.currentSystem)    renderRomView();
+    else                                                renderOverview();
   }
+  syncHdrHeight();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1949,6 +2137,8 @@ async function scanRoms(btn) {
     closeCfg();
     // Invalidate per-system caches — a rescan may have added/removed ROMs.
     S.systemCache = {};
+    S.searchResults = null;
+    qs('#search').value = ''; S.q = '';
     loadLanding();
   } catch(e) { toast('Scan failed: ' + e.message, 'err'); }
   finally { btn.disabled = false; btn.textContent = '🔄 Rescan ROM directory'; }
@@ -1957,16 +2147,12 @@ async function scanRoms(btn) {
 // ═══════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════
-const qs   = sel => document.querySelector(sel);
-const show = id  => document.getElementById(id).classList.remove('hidden');
-const hide = id  => document.getElementById(id).classList.add('hidden');
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const qs  = sel => document.querySelector(sel);
+const num = n => Number(n || 0).toLocaleString();
 
-function statsBar(v1, l1, v2, l2) {
-  return `<div class="stats-bar">
-    <div class="stat"><div class="stat-val">${v1}</div><div class="stat-lbl">${l1}</div></div>
-    <div class="stat"><div class="stat-val">${v2}</div><div class="stat-lbl">${l2}</div></div>
-  </div>`;
+// [[value, label], …] -> the one-line summary above a view.
+function sumStrip(pairs) {
+  return `<div class="sum">${pairs.map(([v, l]) => `<span><b>${v}</b>${l}</span>`).join('')}</div>`;
 }
 function emptyState(icon, title, sub) {
   return `<div class="empty">
@@ -1977,21 +2163,21 @@ function emptyState(icon, title, sub) {
 }
 function fmtB(b) {
   if (!b) return '';
-  if (b < 1024)    return b + ' B';
-  if (b < 1048576) return (b/1024).toFixed(0) + ' KB';
-  return (b/1048576).toFixed(1) + ' MB';
+  if (b < 1024)       return b + ' B';
+  if (b < 1048576)    return (b / 1024).toFixed(0) + ' KB';
+  if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+  if (b < 1099511627776) return (b / 1073741824).toFixed(2) + ' GB';
+  return (b / 1099511627776).toFixed(2) + ' TB';
 }
 function fmtD(iso) {
   if (!iso) return '—';
-  try { return new Date(iso).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'}); }
-  catch { return iso; }
+  const d = new Date(iso);
+  if (isNaN(d)) return esc(iso);
+  return d.toLocaleString(undefined,
+    { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function jump(id) {
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 let _tt;
@@ -2000,37 +2186,34 @@ function toast(msg, type='') {
   el.textContent = msg; el.className = 'show' + (type ? ' '+type : '');
   clearTimeout(_tt); _tt = setTimeout(() => { el.className = ''; }, 3400);
 }
-function showSkeleton() {
-  const c = Array.from({length:16}, () => `<div class="skel-card skeleton"></div>`).join('');
-  qs('#roms-pane').innerHTML =
-    `<div class="skel-head skeleton" style="margin-bottom:24px"></div>
-     <div class="card-grid">${c}</div>`;
-}
 // Tile-shaped skeleton for the landing (system picker) screen.
 function showSkeletonTiles() {
-  const t = Array.from({length:12}, () =>
-    `<div class="sys-tile skeleton" style="height:92px"></div>`
+  const t = Array.from({length:24}, () =>
+    `<div class="sys-tile skeleton" style="height:52px"></div>`
   ).join('');
   qs('#roms-pane').innerHTML = `<div class="sys-grid">${t}</div>`;
 }
-// Slim skeleton inside a system view while the per-system fetch is in flight.
+// Row-shaped skeleton inside a system view while its fetch is in flight.
 function skeletonSystem(sys) {
-  const c = Array.from({length:12}, () => `<div class="skel-card skeleton"></div>`).join('');
-  return contextBar(sys, '…') + `<div class="card-grid">${c}</div>`;
+  const rows = Array.from({length:18}, () => `<div class="skel-row skeleton"></div>`).join('');
+  return skeletonBar(sys) + `<div class="rom-list">${rows}</div>`;
 }
 
 // ── EVENT DELEGATION ─────────────────────────────────────
 document.addEventListener('click', e => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
-  const { action, url, fn, tid, name, fmt, sys } = btn.dataset;
+  const { action, url, fn, tid, name, fmt, sys, key } = btn.dataset;
   if (action === 'dl')           dlFile(url, fn, btn);
   if (action === 'copy')         copyLink(url, btn);
   if (action === 'extract')      enqueueExtract(tid, name, fmt);
   if (action === 'nav-system')   { qs('#search').value = ''; S.q = ''; openSystem(sys); }
-  if (action === 'nav-overview') { qs('#search').value = ''; S.q = ''; renderOverview(); }
+  if (action === 'nav-overview') { qs('#search').value = ''; S.q = ''; renderOverview(); window.scrollTo({ top: 0 }); }
   if (action === 'layout')       setLayout(btn.dataset.layout);
   if (action === 'alpha')        jumpToLetter(btn.dataset.letter);
+  if (action === 'filter')       { S.filters[key] = !S.filters[key]; renderRomView(); }
+  if (action === 'save-plat')    { S.savePlat = sys || null; renderSaves(); window.scrollTo({ top: 0 }); }
+  if (action === 'save-sort')    setSaveSort(key);
 });
 
 // ── QUEUE ACTIONS / OUTSIDE CLOSE ────────────────────────
@@ -2052,20 +2235,24 @@ document.addEventListener('click', e => {
   }
 });
 
-// ── HEADER HEIGHT → CSS VAR (keeps chips sticky below header) ──
+// ── PINNED HEIGHTS → CSS VARS ────────────────────────────
+// The header wraps on a phone, the chip bar only exists on mobile and the
+// view header grows when its pills wrap, so everything that sticks below
+// them is positioned from measurements rather than guesses.
 function syncHdrHeight() {
+  const root = document.documentElement.style;
   const h = document.querySelector('header').getBoundingClientRect().height;
-  document.documentElement.style.setProperty('--hdr-h', h + 'px');
-  // Mobile-only: the system chip bar sits below the header and the view
-  // header must stack below both. Measure it so the sticky offset is exact.
+  root.setProperty('--hdr-h', h + 'px');
   const chips = document.getElementById('sys-chips');
   const ch = (chips && getComputedStyle(chips).display !== 'none')
     ? chips.getBoundingClientRect().height : 0;
-  document.documentElement.style.setProperty('--chips-h', ch + 'px');
+  root.setProperty('--chips-h', ch + 'px');
+  const vh = document.querySelector('.view-head');
+  root.setProperty('--vh-h', (vh ? vh.getBoundingClientRect().height : 0) + 'px');
 }
 
 // ── SEARCH ───────────────────────────────────────────────
-// ROMs tab: hit the server with ?search= (paginated, capped at SEARCH_CAP).
+// ROMs tab: hit the server with ?search= (capped at SEARCH_CAP).
 // Saves tab: stays client-side (the full saves list is small).
 // 240ms debounce is a good sweet spot on mobile — responsive without firing
 // a request per keystroke. AbortController inside runSearch() cancels any
@@ -2081,9 +2268,7 @@ function handleSearchInput(raw) {
   // ROMs tab.
   if (!q) {
     if (S.searchAbort) { S.searchAbort.abort(); S.searchAbort = null; }
-    // If the user was drilled into a system, stay there on clear; else overview.
-    if (S.currentSystem) openSystem(S.currentSystem);
-    else                 renderOverview();
+    renderOverview();
     return;
   }
   runSearch(q);
