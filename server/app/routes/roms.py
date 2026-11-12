@@ -2779,7 +2779,7 @@ def _psio_cache_key(sources: list[Path]) -> str:
         for p in files:
             st = p.stat()
             parts.append(f"{p.absolute()}|{st.st_mtime_ns}|{st.st_size}")
-    payload = '\n'.join(parts) + '|psio'
+    payload = '\n'.join(parts) + '|psio-cu2r2'   # cu2r2: Cue2cu2-format sheets (zips cached before had a broken .cu2)
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()[:16]
 
 
@@ -2859,6 +2859,10 @@ def _parse_cue_for_psio(cue_path: Path) -> tuple[list[dict], list[Path]]:
                 'indexes': [],
             }
             tracks.append(current_track)
+        elif command == 'PREGAP':
+            if current_track is None or len(tokens) < 2:
+                raise ValueError(f"PREGAP appears before TRACK in {cue_path.name}")
+            current_track['pregap'] = _cue_time_to_frames(tokens[1])
         elif command == 'INDEX':
             if current_track is None or len(tokens) < 3:
                 raise ValueError(f"INDEX appears before TRACK in {cue_path.name}")
@@ -2884,65 +2888,61 @@ def _parse_cue_for_psio(cue_path: Path) -> tuple[list[dict], list[Path]]:
     return tracks, resolved
 
 
-def _cue_track_control_adr(mode: str) -> str:
-    return '01' if mode.upper() == 'AUDIO' else '41'
-
-
-def _cu2_adjusted_frame(track_no: int, frame: int, revision: int = 2) -> int:
-    # Cue2cu2's default revision is v2, where PSIO expects track 1 times
-    # shifted back by the standard 2-second lead-in.
-    if track_no == 1 and revision == 2:
-        return max(0, frame - 150)
-    return max(0, frame)
+def _cu2_time_alt(frames: int) -> str:
+    """Timecode in the notation PSIO's Systems Console writes for track positions:
+    a position on a whole second is written as MM:SS-1:75 instead of MM:SS:00."""
+    frames = max(0, int(frames))
+    if frames == 0 or frames % 75:
+        return _frames_to_cu2_time(frames)
+    seconds = frames // 75 - 1
+    return f"{seconds // 60:02d}:{seconds % 60:02d}:75"
 
 
 def _cue_to_cu2_text(cue_path: Path) -> tuple[str, list[Path]]:
+    """CU2 sheet for PSIO, byte for byte what Cue2cu2 writes by default (format
+    revision 2, compatibility mode = what PSIO's Systems Console produces):
+
+        ntracks N
+        size      <image length>
+        data1     00:02:00
+        pregapNN  <INDEX 00 + 2 s>         one pair per track 2..N
+        trackNN   <INDEX 01 + 2 s>
+        (blank line)
+        trk end   <image length + 2 s>     no line break after it
+
+    CRLF line endings; pregap/track/end positions use the MM:SS-1:75 notation.
+    A track whose pregap is a PREGAP command (not stored in the image) gets a
+    zero-length pregap, as Cue2cu2 does.
+    """
     tracks, refs = _parse_cue_for_psio(cue_path)
-    sector_size = _CUE_SECTOR_SIZE_BY_MODE.get(str(tracks[0]['mode']).upper(), 2352)
-    total_frames = refs[0].stat().st_size // sector_size
-
-    events: list[dict] = []
-    for track in tracks:
-        for index in track['indexes']:
-            events.append(
-                {
-                    'track': track,
-                    'index': index['number'],
-                    'frame': index['frame'],
-                }
-            )
-    if not events:
-        raise ValueError(f"No INDEX entries found in {cue_path.name}")
-    events.sort(key=lambda e: (e['frame'], e['track']['number'], e['index']))
-
-    pregaps = {
-        track['number']: next(
-            (idx['frame'] for idx in track['indexes'] if idx['number'] == 0),
-            0,
+    size_bytes = refs[0].stat().st_size
+    if size_bytes % 2352:
+        raise ValueError(
+            f"{refs[0].name} is not a MODE2/2352 image ({size_bytes} bytes); PSIO needs raw 2352-byte sectors"
         )
-        for track in tracks
-    }
+    total = size_bytes // 2352
 
-    lines: list[str] = []
-    for i, event in enumerate(events):
-        track = event['track']
+    lines = [
+        f"ntracks {len(tracks)}",
+        f"size      {_frames_to_cu2_time(total)}",
+        "data1     00:02:00",
+    ]
+    for track in sorted(tracks, key=lambda t: int(t['number']))[1:]:
         track_no = int(track['number'])
-        index_no = int(event['index'])
-        frame = int(event['frame'])
-        next_frame = (
-            int(events[i + 1]['frame']) if i + 1 < len(events) else total_frames
-        )
-        length = max(0, next_frame - frame)
-        offset = _cu2_adjusted_frame(track_no, frame)
-        pregap = _cu2_adjusted_frame(track_no, pregaps.get(track_no, 0))
-        lines.append(
-            f"{track_no:02d}_{index_no:02d} "
-            f"{_cue_track_control_adr(str(track['mode']))} "
-            f"{_frames_to_cu2_time(offset)} "
-            f"{_frames_to_cu2_time(pregap)} "
-            f"{_frames_to_cu2_time(length)}"
-        )
-    return '\n'.join(lines) + '\n', refs
+        idx = {int(i['number']): int(i['frame']) for i in track['indexes']}
+        if 1 not in idx:
+            raise ValueError(f"Track {track_no} has no INDEX 01 in {cue_path.name}")
+        start = idx[1] + 150
+        if 0 in idx:
+            pregap = idx[0] + 150
+        elif 'pregap' in track:
+            pregap = start
+        else:
+            raise ValueError(f"Track {track_no} has no pregap (INDEX 00) in {cue_path.name}")
+        lines.append(f"pregap{track_no:02d}  {_cu2_time_alt(pregap)}")
+        lines.append(f"track{track_no:02d}   {_cu2_time_alt(start)}")
+    text = "\r\n".join(lines) + "\r\n\r\ntrk end   " + _cu2_time_alt(total + 150)
+    return text, refs
 
 
 def _psio_find_cue(source_dir: Path) -> Path:

@@ -1573,9 +1573,11 @@ class TestRomCatalog:
             with zf_mod.ZipFile(io.BytesIO(resp.content)) as zf:
                 assert sorted(zf.namelist()) == ["Ridge Racer.bin", "Ridge Racer.cu2"]
                 assert zf.read("Ridge Racer.bin") == b"\0" * 2352 * 300
-                assert "01_01 41 00:00:00 00:00:00 00:02:00" in zf.read(
-                    "Ridge Racer.cu2"
-                ).decode("utf-8")
+                # 300 sectors: Cue2cu2 / PSIO Systems Console format, CRLF, no final newline
+                assert zf.read("Ridge Racer.cu2") == (
+                    b"ntracks 1\r\nsize      00:04:00\r\ndata1     00:02:00\r\n"
+                    b"\r\ntrk end   00:05:75"
+                )
         finally:
             settings.rom_dir = original
             rom_scanner._catalog = None
@@ -1791,11 +1793,46 @@ class TestRomCatalog:
         text, refs = _cue_to_cu2_text(cue)
 
         assert refs == [tmp_path / "game.bin"]
-        assert text.splitlines() == [
-            "01_01 41 00:00:00 00:00:00 00:02:00",
-            "02_00 01 00:04:00 00:04:00 00:02:00",
-            "02_01 01 00:06:00 00:04:00 00:02:00",
-        ]
+        # Cue2cu2 format revision 2 (compatibility mode): positions + 2 s, whole
+        # seconds in the MM:SS-1:75 notation, CRLF, no newline after "trk end".
+        assert text == (
+            "ntracks 2\r\n"
+            "size      00:08:00\r\n"
+            "data1     00:02:00\r\n"
+            "pregap02  00:05:75\r\n"
+            "track02   00:07:75\r\n"
+            "\r\n"
+            "trk end   00:09:75"
+        )
+
+    def test_cue_to_cu2_writer_pregap_command(self, tmp_path):
+        """A PREGAP command (pregap not stored in the image) gives a zero-length
+        pregap, as Cue2cu2 does."""
+        from app.routes.roms import _cue_to_cu2_text
+
+        (tmp_path / "game.bin").write_bytes(b"\0" * 2352 * 9000)
+        cue = tmp_path / "game.cue"
+        cue.write_text(
+            "\n".join(
+                [
+                    'FILE "game.bin" BINARY',
+                    "  TRACK 01 MODE2/2352",
+                    "    INDEX 01 00:00:00",
+                    "  TRACK 02 AUDIO",
+                    "    PREGAP 00:02:00",
+                    "    INDEX 01 01:00:00",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        text, _ = _cue_to_cu2_text(cue)
+
+        assert text == (
+            "ntracks 2\r\nsize      02:00:00\r\ndata1     00:02:00\r\n"
+            "pregap02  01:01:75\r\ntrack02   01:01:75\r\n\r\ntrk end   02:01:75"
+        )
 
     def test_ps1_eboot_unconfigured_returns_503(
         self, rom_dir, client, auth_headers
